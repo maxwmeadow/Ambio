@@ -176,11 +176,7 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
     }
 
     case 'get_inbox': {
-      // Polling and blocking are the same request with a different patience.
-      if (typeof args.waitSeconds === 'number' && args.waitSeconds > 0) {
-        return { tool: 'await_canvas', args: { timeoutSeconds: args.waitSeconds } }
-      }
-      return { tool: 'get_canvas_updates', args: {} }
+      return { tool: 'get_canvas_updates', args: compact({ messageHandle: args.messageHandle, contextOffset: args.contextOffset }) }
     }
 
     case 'get_build_plan': {

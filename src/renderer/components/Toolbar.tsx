@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { CreateInfraDialog } from './CreateInfraDialog'
 import { SendToAgentDialog } from './SendToAgentDialog'
-import { useSheetStore } from '../store/sheetStore'
+import { useSheetStore, refreshInbox } from '../store/sheetStore'
 import { ChromeButton } from './ui/ChromeButton'
 import { InvestigationsMenu } from './InvestigationsMenu'
 
@@ -26,13 +26,21 @@ export function Toolbar({
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const [infraOpen, setInfraOpen] = useState(false)
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
-  const queuedMsgs = useSheetStore(s => s.messages.filter(m => m.status === 'queued').length)
+  const queuedMsgs = useSheetStore(s => s.inboxAvailableCount)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
   const activeSheetName = useSheetStore(s =>
     s.activeSheetId ? s.sheets.find(sheet => sheet.id === s.activeSheetId)?.name : undefined
   )
   const surfaceName = activeSheetId ? (activeSheetName ?? 'Overlay Sheet') : 'The Floor'
   const surfaceKind = activeSheetId ? 'Overlay Sheet' : 'Live Code Graph'
+
+  useEffect(() => {
+    setAgentMsgOpen(false)
+    if (!workspaceId) return
+    void refreshInbox(workspaceId)
+    const timer = setInterval(() => { void refreshInbox(workspaceId) }, 5000)
+    return () => clearInterval(timer)
+  }, [workspaceId])
 
   useEffect(() => {
     const openDispatch = () => setAgentMsgOpen(true)
@@ -150,7 +158,7 @@ export function Toolbar({
       </div>
 
       </header>
-      <SendToAgentDialog isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} />
+      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} />
       <CreateInfraDialog isOpen={infraOpen} onClose={() => setInfraOpen(false)} />
     </>
   )

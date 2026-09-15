@@ -1,120 +1,109 @@
-// SendToAgentDialog - the canvas is the prompt box (UML_UX_PLAN.md U-C).
-// Composes a note (+ current selection as durable refs) and enqueues it on
-// archd's canvas outbox; any MCP-connected agent picks it up via the
-// piggyback trailer, get_canvas_updates, await_canvas, or /axiom:review-canvas.
-import React, { useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
-import { useSheetStore } from '../store/sheetStore'
-import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
+import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
+import { canvasReference, referenceTarget, messageReferences, inboxStatus } from './inboxModel'
+import '../styles/inbox.css'
 
-interface SendToAgentDialogProps {
-  isOpen: boolean
-  onClose: () => void
-}
-
-export function SendToAgentDialog({ isOpen, onClose }: SendToAgentDialogProps) {
-  const [note, setNote] = useState('')
-  const [sending, setSending] = useState(false)
+export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
+  const sheet = useSheetStore(useShallow(s => ({ activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
+  const draftKey = `axiom:inbox-draft:${graph.workspaceId}`
+  const pendingKey = `${draftKey}:pending`
+  const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
   const [error, setError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const sendLock = useRef(false)
+  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null }>(undefined)
+  const restored = useRef(false)
+  if (!restored.current) {
+    restored.current = true
+    try {
+      const saved = JSON.parse(localStorage.getItem(pendingKey) ?? 'null')
+      if (saved && typeof saved.id === 'string' && typeof saved.note === 'string' && Array.isArray(saved.selection)) retry.current = saved
+    } catch { /* no pending send */ }
+  }
+  const { fitView, getNode } = useReactFlow()
 
-  const { workspaceId, selectedNodeId, files, systems, infraNodes } = useGraphStore(useShallow(s => ({
-    workspaceId: s.currentProject?.id ?? '',
-    selectedNodeId: s.selectedNodeId,
-    files: s.files, systems: s.systems, infraNodes: s.infraNodes,
-  })))
-  const { activeSheetId, planned, sendToAgent, messages } = useSheetStore(useShallow(s => ({
-    activeSheetId: s.activeSheetId, planned: s.planned,
-    sendToAgent: s.sendToAgent, messages: s.messages,
-  })))
-  const approvedPlans = planned.filter(item => item.approvalStatus === 'approved' && item.status !== 'flattened')
-  const pendingProposals = planned.filter(item => item.approvalStatus === 'pending')
+  useEffect(() => { try { localStorage.setItem(draftKey, note) } catch { /* drafting still works */ } }, [draftKey, note])
+  useEffect(() => {
+    if (!isOpen) return
+    void refreshInbox(graph.workspaceId)
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [isOpen, graph.workspaceId, onClose])
 
   if (!isOpen) return null
-
-  // Durable ref for the current selection (ASM URI form).
-  const selection: string[] = []
-  if (selectedNodeId) {
-    const f = files.find(x => x.id === selectedNodeId)
-    const sys = systems.find(x => x.id === selectedNodeId)
-    const inf = infraNodes.find(x => x.id === selectedNodeId)
-    if (f) selection.push(`file://${f.relPath}`)
-    else if (sys) selection.push(`sys://${sys.name}`)
-    else if (inf) selection.push(`infra://${inf.service || inf.category}/${inf.name}`)
+  const planned = Object.values(sheet.layers).flatMap(layer => layer.planned)
+  const selection = sheet.selected.flatMap(id => {
+    const file = graph.files.find(item => item.id === id)
+    if (file) return [canvasReference('file', file.id, file.relPath)]
+    const system = graph.systems.find(item => item.id === id)
+    if (system) return [canvasReference('system', system.id, system.name)]
+    const infra = graph.infra.find(item => item.id === id)
+    if (infra) return [canvasReference('infra', infra.id, infra.name)]
+    const plan = planned.find(item => `planned:${item.id}` === id)
+    return plan ? [canvasReference('planned', plan.id, plan.name)] : []
+  })
+  const focus = (ref: string) => {
+    const target = referenceTarget(ref)
+    if (!getNode(target.id)) { setError('This item is no longer visible. Open its original sheet or expand its system.'); return }
+    useGraphStore.getState().setSelectedNode(target.id)
+    useGraphStore.getState().setInspectedNode(target.id)
+    void fitView({ nodes: [{ id: target.id }], duration: 300, maxZoom: 1.2, padding: 0.5 })
   }
-
-  const recent = messages.slice(-3).reverse()
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!note.trim()) {
-      setError('Write a note first')
-      return
-    }
-    setSending(true)
-    setError(null)
+  const chips = (refs: string[]) => <div className="axiom-inbox__targets">{refs.map(ref => <button type="button" key={ref} onClick={() => focus(ref)} title="Show on canvas">{referenceTarget(ref).label}</button>)}</div>
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (sendLock.current || !(retry.current?.note ?? note).trim()) return
+    sendLock.current = true; setSending(true); setError(null)
+    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: sheet.activeSheetId }
+    try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
-      await sendToAgent(workspaceId, note.trim(), selection, activeSheetId)
-      setNote('')
-      onClose()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Send failed - is archd running?')
-    } finally {
-      setSending(false)
+      const pending = retry.current
+      await sheet.send(graph.workspaceId, pending.note, pending.selection, pending.sheetId, pending.id)
+      setNote(''); retry.current = undefined
+      try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
+    } catch (err) {
+      const status = (err as { status?: number }).status
+      if (status && status >= 400 && status < 500) {
+        retry.current = undefined
+        try { localStorage.removeItem(pendingKey) } catch { /* retry remains editable */ }
+      }
+      setError(err instanceof Error ? err.message : 'Could not send. Your draft is saved; retry when connected.')
     }
+    finally { sendLock.current = false; setSending(false) }
   }
-
-  return (
-    <DialogFrame title="Message the Agent" width={460}>
-        <DialogNote>
-          Delivered to any connected agent (Claude Code, Codex, Copilot, …) through the Axiom MCP channel.
-          {selection.length > 0 && <> Attached: <code>{selection.join(', ')}</code></>}
-          {activeSheetId && (
-            <>
-              {' '}The active sheet's immutable context and build spec are attached:
-              {' '}{approvedPlans.length} approved planned element{approvedPlans.length === 1 ? '' : 's'}.
-              {pendingProposals.length > 0 && (
-                <> {pendingProposals.length} agent proposal{pendingProposals.length === 1 ? ' is' : 's are'} awaiting your approval and will not be dispatched.</>
-              )}
-            </>
-          )}
-        </DialogNote>
-
-        <DialogForm onSubmit={handleSend} gap={14}>
-          {error && (
-            <DialogError>{error}</DialogError>
-          )}
-
-          <DialogField label="Message">
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder={'e.g. "I moved validators into Payments - should these two files merge? Also, why does checkout talk to Redis directly?"'}
-              rows={5}
-              className="axiom-dialog-input axiom-dialog-input--textarea"
-              autoFocus
-            />
-          </DialogField>
-
-          <DialogActions>
-            <DialogButton type="button" variant="secondary" onClick={onClose} disabled={sending}>Cancel</DialogButton>
-            <DialogButton type="submit" variant="agent" disabled={sending || !note.trim()}>
-              {sending ? 'Sending…' : activeSheetId ? 'Dispatch Increment' : 'Send to Agent'}
-            </DialogButton>
-          </DialogActions>
-        </DialogForm>
-
-        {recent.length > 0 && (
-          <section className="axiom-dialog-history" aria-label="Recent messages">
-            <h3 className="axiom-dialog-history__title">Recent messages</h3>
-            {recent.map(m => (
-              <div className="axiom-dialog-history__row" key={m.id}>
-                <span className="axiom-dialog-history__status" data-status={m.status}>{m.status}</span>
-                <span className="axiom-dialog-history__message">{m.note}</span>
-              </div>
-            ))}
-          </section>
-        )}
-    </DialogFrame>
-  )
+  return <aside className="axiom-inbox nodrag nowheel" aria-label="Agent inbox">
+    <header className="axiom-inbox__header"><div><h2>Agent inbox</h2><span>{graph.name}</span></div><button type="button" onClick={onClose} aria-label="Close agent inbox">×</button></header>
+    <div className="axiom-inbox__instructions">
+      <p>Messages wait here until an agent checks Axiom.</p>
+      <button type="button" onClick={() => { void navigator.clipboard.writeText('Check the Axiom inbox for this project. Read the instruction and attached context, then reply through Axiom.').then(() => setCopied(true), () => setError('Copy this into your agent: Check the Axiom inbox for this project.')) }}>{copied ? 'Copied instruction' : 'Copy “Check the Axiom inbox”'}</button>
+    </div>
+    {(error || sheet.error) && <div role="alert" className="axiom-inbox__error">{error || sheet.error}<button type="button" onClick={() => { setError(null); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
+    <div className="axiom-inbox__history" aria-label="Messages">
+      {sheet.messages.length === 0 && <p className="axiom-inbox__empty">Select items on the canvas and tell your agent what you want to do. You can also send a message about the whole project.</p>}
+      {sheet.messages.slice().reverse().map(message => <article key={message.id} className="axiom-inbox__message">
+        <div className="axiom-inbox__meta"><span>{inboxStatus(message)}</span><time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>
+        <p>{message.note}</p>
+        {chips(messageReferences(message.selection))}
+        {message.reply && <div className="axiom-inbox__reply"><strong>{message.reply.agent}</strong><p>{message.reply.body}</p></div>}
+        {message.status === 'answered' && !message.reply && <small>This older message was answered, but its original reply is no longer available.</small>}
+        {(message.status === 'queued' || message.status === 'delivered') && <button className="axiom-inbox__cancel" type="button" onClick={() => { void cancelInboxMessage(graph.workspaceId, message.id).catch(err => setError(String(err))) }}>Cancel request</button>}
+        {message.status === 'cancelled' && <small>Cancelled in Axiom. Tell your agent to stop if it has already started.</small>}
+      </article>)}
+      {sheet.next && <button type="button" onClick={() => { void refreshInbox(graph.workspaceId, sheet.next) }}>Load earlier messages</button>}
+    </div>
+    <form className="axiom-inbox__compose" onSubmit={submit}>
+      {chips(retry.current?.selection ?? selection)}
+      {retry.current && !sending && <small>A send is awaiting confirmation. Retry to check it safely; its original instruction and selection are preserved.</small>}
+      {sheet.activeSheetId && <small>The active sheet’s context and approved build plan will be attached.</small>}
+      <label htmlFor="axiom-inbox-note">Instruction for your agent</label>
+      <textarea id="axiom-inbox-note" value={retry.current?.note ?? note} disabled={sending || !!retry.current} onChange={event => setNote(event.target.value)} maxLength={16000} rows={4} placeholder="What would you like to understand or change?" />
+      <button type="submit" disabled={sending || !(retry.current?.note ?? note).trim() || (retry.current?.selection ?? selection).length > 100}>{sending ? 'Saving…' : 'Send to inbox'}</button>
+    </form>
+  </aside>
 }

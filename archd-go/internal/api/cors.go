@@ -21,14 +21,25 @@ import (
 // packaged build loads from file:// and sends no Origin at all, which is left
 // untouched.
 func AllowLoopbackOrigins(next http.Handler) http.Handler {
+	return allowOrigins(next, false)
+}
+
+// Packaged Electron pages may send the opaque Origin "null". Preflight can
+// allow it because every actual request still requires the local capability.
+// Only use this wrapper around RequireLocalToken.
+func AllowAuthenticatedOrigins(next http.Handler) http.Handler {
+	return allowOrigins(next, true)
+}
+
+func allowOrigins(next http.Handler, allowOpaque bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); isLoopbackOrigin(origin) {
+		if origin := r.Header.Get("Origin"); isLoopbackOrigin(origin) || (allowOpaque && (origin == "null" || origin == "file://")) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			// The response differs per origin, so a cache must never hand one
 			// origin's response to another.
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		}
 

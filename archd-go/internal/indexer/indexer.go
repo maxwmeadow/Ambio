@@ -118,7 +118,7 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 				}
 				n := int(indexed.Add(1))
 				if n%50 == 0 || n == total {
-					h.BroadcastIndexingProgress(n, total)
+					h.BroadcastIndexingProgress(n, total, root.WorkspaceID)
 				}
 			}
 		}()
@@ -360,7 +360,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	if changed, err := db.ReconcilePlanned(sqlDB, root.WorkspaceID); err == nil {
 		for _, p := range changed {
 			log.Printf("[planned] %q → %s (%s)", p.Name, p.Status, p.DeclaredPath)
-			h.BroadcastPatch(map[string]any{"type": "planned:upserted", "payload": p})
+			h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID, "type": "planned:upserted", "payload": p})
 		}
 	}
 
@@ -390,7 +390,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 		journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
 	}
 
-	h.BroadcastPatch(map[string]any{
+	h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID,
 		"type": "file:updated",
 		"payload": FileUpdatePatch{
 			File: file, Change: change, Animate: contentChanged || prev == nil, TraceID: traceID,
@@ -407,7 +407,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 			relationship.Src, relationship.Dst,
 			relationship.CallerSymbol, relationship.CalleeSymbol, relationship.Animate,
 		)
-		h.BroadcastPatch(map[string]any{
+		h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID,
 			"type": "relationship:changed", "payload": relationship,
 		})
 	}
@@ -481,11 +481,11 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 			relationship.Src, relationship.Dst,
 			relationship.CallerSymbol, relationship.CalleeSymbol, relationship.Animate,
 		)
-		h.BroadcastPatch(map[string]any{
+		h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID,
 			"type": "relationship:changed", "payload": relationship,
 		})
 	}
-	h.BroadcastPatch(map[string]any{
+	h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID,
 		"type": "file:deleted",
 		"payload": FileDeletePatch{
 			ID: file.ID, RelPath: file.RelPath, TraceID: traceID,

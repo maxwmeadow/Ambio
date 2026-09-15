@@ -39,7 +39,7 @@ func (s *Server) handleFloorLayoutBatch(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		result := &db.FloorLayoutBatchResult{Layouts: layouts}
-		s.broadcastPatch("floor:layouts", result)
+		s.broadcastPatch("floor:layouts", result, body.WorkspaceID)
 		jsonOK(w, result)
 		return
 	}
@@ -48,6 +48,6 @@ func (s *Server) handleFloorLayoutBatch(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.broadcastPatch("floor:layouts", result)
+	s.broadcastPatch("floor:layouts", result, body.WorkspaceID)
 	jsonOK(w, result)
 }

@@ -64,7 +64,11 @@ func main() {
 	addr := fmt.Sprintf("127.0.0.1:%d", *apiPort)
 	// Loopback-origin CORS: the dev renderer is served from localhost:5173,
 	// a different origin from this port. See api.AllowLoopbackOrigins.
-	handler := api.AllowLoopbackOrigins(mux)
+	token, err := api.LocalAPIToken(*dataDir)
+	if err != nil {
+		log.Fatalf("archd: local authentication: %v", err)
+	}
+	handler := api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux))
 	httpServer := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		log.Printf("archd: HTTP API listening on %s", addr)

@@ -27,6 +27,11 @@ const API_PORT = 7853
 const WS_PORT = 7854
 const RUNTIME_PORT = 7855
 const API_BASE = `http://127.0.0.1:${API_PORT}`
+const API_TOKEN = 'axiom-isolated-test-token-for-mcp-harness'
+export function harnessFetch(input, init = {}) {
+  return globalThis.fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${API_TOKEN}` } })
+}
+const fetch = harnessFetch
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -133,7 +138,7 @@ export async function startHarness() {
     '-api-port', String(API_PORT),
     '-ws-port', String(WS_PORT),
     '-runtime-port', String(RUNTIME_PORT),
-  ], { stdio: ['pipe', 'pipe', 'pipe'] })
+  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AXIOM_API_TOKEN: API_TOKEN } })
 
   let archdLog = ''
   archd.stdout.setEncoding('utf8')
@@ -187,6 +192,7 @@ export async function startHarness() {
       env: {
         ...process.env,
         AXIOM_API_URL: API_BASE,
+        AXIOM_API_TOKEN: API_TOKEN,
         AXIOM_ACTIVE_PROJECT: activeProjectPath,
       },
     })
@@ -203,6 +209,8 @@ export async function startHarness() {
       snapshot,
       workspaceId,
       projectDir,
+      activeProjectPath,
+      apiBase: API_BASE,
       archdLog: () => archdLog,
       stop: () => { client.close(); cleanup() },
     }

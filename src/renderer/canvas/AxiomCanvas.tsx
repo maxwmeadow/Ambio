@@ -1621,6 +1621,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     const previous = selectedIdsRef.current
     const changed = previous.size !== ids.size || [...ids].some(id => !previous.has(id))
     selectedIdsRef.current = ids
+    if (changed) useSheetStore.setState({ selectedCanvasIds: [...ids] })
     if (changed) setSelectionRevision(revision => revision + 1)
     const currentFileIds = new Set(files.map(file => file.id))
     const next = [...ids].filter(id => currentFileIds.has(id))
@@ -4677,15 +4678,21 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         </Panel>
       </ReactFlow>
 
-      {!reviewMode && selectedFileIds.length > 1 && (
+      {!reviewMode && selectedIdsRef.current.size > 1 && (
         <div className="axiom-selection-actions">
           <span className="axiom-selection-actions__summary">
-            <strong>{selectedFileIds.length}</strong>
-            <span>files selected</span>
+            <strong>{selectedIdsRef.current.size}</strong>
+            <span>items selected</span>
           </span>
           <button
             type="button"
+            onClick={() => window.dispatchEvent(new Event('axiom:open-agent-dispatch'))}
+            className="axiom-selection-action"
+          >Message agent</button>
+          <button
+            type="button"
             onClick={() => setGroupDialogOpen(true)}
+            disabled={selectedFileIds.length < 2}
             className="axiom-selection-action axiom-selection-action--primary"
           >
             Group into System

@@ -20,7 +20,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"axiom.local/archd/internal/db"
 )
@@ -31,14 +33,16 @@ func (s *Server) broadcastSheetLayoutState(sqlDB *sql.DB, sheetID string) ([]db.
 	layouts, _ := db.GetSheetLayouts(sqlDB, sheetID)
 	sheet, _ := db.GetSheet(sqlDB, sheetID)
 	revision := 0
+	workspaceID := ""
 	if sheet != nil {
 		revision = sheet.Revision
+		workspaceID = sheet.WorkspaceID
 	}
 	s.broadcastPatch("sheet:elements", map[string]any{
-		"sheetId": sheetID, "added": elements, "replace": true,
+		"workspaceId": workspaceID, "sheetId": sheetID, "added": elements, "replace": true,
 	})
 	s.broadcastPatch("sheet:layouts", map[string]any{
-		"sheetId": sheetID, "layouts": layouts, "revision": revision, "replace": true,
+		"workspaceId": workspaceID, "sheetId": sheetID, "layouts": layouts, "revision": revision, "replace": true,
 	})
 	for _, node := range planned {
 		s.broadcastPatch("planned:upserted", node)
@@ -59,6 +63,10 @@ func (s *Server) registerSheetRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/canvas/send", s.handleCanvasSend)
 	mux.HandleFunc("/api/canvas/outbox", s.handleCanvasOutbox)
 	mux.HandleFunc("/api/canvas/reply", s.handleCanvasReply)
+	mux.HandleFunc("/api/canvas/history", s.handleInboxHistory)
+	mux.HandleFunc("/api/canvas/claim", s.handleInboxClaim)
+	mux.HandleFunc("/api/canvas/context", s.handleInboxContext)
+	mux.HandleFunc("/api/canvas/cancel", s.handleInboxCancel)
 }
 
 // ─── Sheets ───────────────────────────────────────────────────────────────────
@@ -312,7 +320,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("sheet:layouts", map[string]any{
-			"sheetId": id, "layouts": result.Layouts, "revision": result.Revision,
+			"workspaceId": body.WorkspaceID, "sheetId": id, "layouts": result.Layouts, "revision": result.Revision,
 		})
 		if sheet, _ := db.GetSheet(sqlDB, id); sheet != nil {
 			s.broadcastPatch("sheet:upserted", sheet)
@@ -457,7 +465,7 @@ func (s *Server) handleSheetElements(w http.ResponseWriter, r *http.Request, she
 			jsonError(w, "layout: "+err.Error(), 500)
 			return
 		}
-		s.broadcastPatch("sheet:elements", map[string]any{"sheetId": sheetID, "added": added})
+		s.broadcastPatch("sheet:elements", map[string]any{"workspaceId": body.WorkspaceID, "sheetId": sheetID, "added": added})
 		jsonOK(w, added)
 
 	case r.Method == http.MethodDelete && len(rest) == 1:
@@ -540,7 +548,7 @@ func (s *Server) handleSheetElements(w http.ResponseWriter, r *http.Request, she
 		if elements, err := db.GetSheetElements(sqlDB, sheetID); err == nil {
 			for _, element := range elements {
 				if element.ID == rest[0] {
-					s.broadcastPatch("sheet:elements", map[string]any{"sheetId": sheetID, "added": []db.SheetElement{element}})
+					s.broadcastPatch("sheet:elements", map[string]any{"workspaceId": body.WorkspaceID, "sheetId": sheetID, "added": []db.SheetElement{element}})
 					break
 				}
 			}
@@ -836,8 +844,18 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	var m db.CanvasMessage
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil || m.Note == "" {
+	var input struct {
+		ID          string  `json:"id"`
+		WorkspaceID string  `json:"workspaceId"`
+		SheetID     *string `json:"sheetId"`
+		Note        string  `json:"note"`
+		Selection   string  `json:"selection"`
+	}
+	if !decodeInbox(w, r, &input) {
+		return
+	}
+	m := db.CanvasMessage{ID: input.ID, WorkspaceID: input.WorkspaceID, SheetID: input.SheetID, Note: strings.TrimSpace(input.Note), Selection: input.Selection}
+	if !validInboxText(m.Note, 16000) || len(m.ID) > 128 {
 		jsonError(w, "bad request: note required", 400)
 		return
 	}
@@ -845,6 +863,66 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		jsonError(w, err.Error(), 404)
 		return
+	}
+	if m.Selection == "" {
+		m.Selection = "[]"
+	}
+	// A client-generated ID makes a lost HTTP response safe to retry.
+	if m.ID != "" {
+		previous, e := db.GetCanvasMessage(sqlDB, m.ID)
+		if e != nil {
+			inboxError(w, e)
+			return
+		}
+		if previous != nil {
+			sameSheet := (previous.SheetID == nil && m.SheetID == nil) || (previous.SheetID != nil && m.SheetID != nil && *previous.SheetID == *m.SheetID)
+			if previous.WorkspaceID != m.WorkspaceID || previous.Note != m.Note || previous.Selection != m.Selection || !sameSheet {
+				inboxError(w, db.ErrInboxConflict)
+				return
+			}
+			jsonOK(w, previous)
+			return
+		}
+	}
+	var refs []string
+	if json.Unmarshal([]byte(m.Selection), &refs) != nil || refs == nil || len(refs) > 100 {
+		jsonError(w, "selection must contain at most 100 references", 400)
+		return
+	}
+	for _, ref := range refs {
+		u, e := url.Parse(ref)
+		if e != nil || len(ref) > 2048 || u.Scheme != "axiom" {
+			jsonError(w, "selection requires canonical axiom references", 400)
+			return
+		}
+		table := ""
+		switch u.Host {
+		case "file":
+			table = "files"
+		case "system":
+			table = "systems"
+		case "infra":
+			table = "infra_nodes"
+		case "planned":
+			table = "planned_nodes"
+		}
+		if table == "" {
+			jsonError(w, "unsupported selection target", 400)
+			return
+		}
+		var count int
+		query := "SELECT count(*) FROM " + table + " WHERE id=? AND workspace_id=?"
+		if table == "files" {
+			query = "SELECT count(*) FROM files f JOIN roots r ON r.id=f.root_id WHERE f.id=? AND r.workspace_id=?"
+		}
+		if e = sqlDB.QueryRow(query, strings.TrimPrefix(u.Path, "/"), m.WorkspaceID).Scan(&count); e != nil {
+			jsonError(w, e.Error(), 500)
+			return
+		}
+		if count != 1 {
+			jsonError(w, "selection target is no longer in this workspace", 409)
+			return
+		}
 	}
 	if m.SheetID != nil {
 		sheet, sheetErr := db.GetSheet(sqlDB, *m.SheetID)
@@ -864,12 +942,25 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		m.BuildSpec = spec
+		current, err := db.GetSheet(sqlDB, *m.SheetID)
+		if err != nil {
+			inboxError(w, err)
+			return
+		}
+		if current == nil || current.Revision != sheet.Revision {
+			jsonError(w, "sheet changed while preparing context; retry send", 409)
+			return
+		}
 	}
-	if err := db.EnqueueCanvasMessage(sqlDB, &m); err != nil {
-		jsonError(w, err.Error(), 500)
+	if len(m.SheetContext)+len(m.BuildSpec) > 2<<20 {
+		jsonError(w, "sheet context exceeds 2 MB; dispatch a smaller sheet", 413)
 		return
 	}
-	s.broadcastPatch("canvas:message", m)
+	if err := db.EnqueueCanvasMessage(sqlDB, &m); err != nil {
+		inboxError(w, err)
+		return
+	}
+	s.publishInbox(db.InboxItem{CanvasMessage: m})
 	jsonOK(w, m)
 }
 
@@ -895,25 +986,23 @@ func (s *Server) handleCanvasOutbox(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, map[string]int{"queued": n})
 		return
 	}
-	deliveredTo := r.URL.Query().Get("agent")
-	if deliveredTo == "" {
-		deliveredTo = "agent"
-	}
-	msgs, err := db.DrainCanvasMessages(sqlDB, workspaceID, deliveredTo)
+	// Legacy reads are non-destructive. New clients explicitly POST /claim.
+	messages, err := db.InboxHistory(sqlDB, workspaceID, "", 100, time.Now().UnixMilli())
 	if err != nil {
-		jsonError(w, err.Error(), 500)
+		inboxError(w, err)
 		return
 	}
-	if len(msgs) > 0 {
-		for _, m := range msgs {
-			s.broadcastPatch("canvas:message", m) // delivery state → note chips
+	pending := []db.CanvasMessage{}
+	for _, m := range messages {
+		if m.Status == "queued" {
+			pending = append(pending, m.CanvasMessage)
 		}
 	}
-	jsonOK(w, msgs)
+	jsonOK(w, pending)
 }
 
 func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != "POST" {
 		http.NotFound(w, r)
 		return
 	}
@@ -921,42 +1010,27 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID string `json:"workspaceId"`
 		MsgID       string `json:"msgId"`
 		Body        string `json:"body"`
+		LeaseToken  string `json:"leaseToken"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.MsgID == "" || body.Body == "" {
-		jsonError(w, "bad request: msgId and body required", 400)
+	if !decodeInbox(w, r, &body) {
 		return
 	}
-	sqlDB, err := s.dbFor(body.WorkspaceID)
+	body.Body = strings.TrimSpace(body.Body)
+	if !validInboxText(body.Body, 64000) || body.MsgID == "" || body.LeaseToken == "" {
+		jsonError(w, "msgId, leaseToken and reply (maximum 64 KB) required", 400)
+		return
+	}
+	d, err := s.dbFor(body.WorkspaceID)
 	if err != nil {
 		jsonError(w, err.Error(), 404)
 		return
 	}
-	msg, err := db.GetCanvasMessage(sqlDB, body.MsgID)
-	if err != nil || msg == nil {
-		jsonError(w, "message not found", 404)
+	item, err := db.ReplyInbox(d, body.WorkspaceID, body.MsgID, body.LeaseToken, body.Body, time.Now().UnixMilli())
+	if err != nil {
+		inboxError(w, err)
 		return
 	}
-	// The reply is an agent-authored annotation threaded onto the message,
-	// pinned to the sheet the message came from (spatially anchored answer).
-	a := db.Annotation{
-		WorkspaceID: body.WorkspaceID,
-		SheetID:     msg.SheetID,
-		Body:        body.Body,
-		Kind:        "reply",
-		Author:      "agent",
-	}
-	if err := db.CreateAnnotation(sqlDB, &a); err != nil {
-		jsonError(w, err.Error(), 500)
-		return
-	}
-	if err := db.AnswerCanvasMessage(sqlDB, body.MsgID, a.ID); err != nil {
-		jsonError(w, err.Error(), 500)
-		return
-	}
-	s.broadcastPatch("annotation:upserted", a)
-	updated, _ := db.GetCanvasMessage(sqlDB, body.MsgID)
-	if updated != nil {
-		s.broadcastPatch("canvas:message", *updated)
-	}
-	jsonOK(w, map[string]any{"annotation": a, "message": updated})
+	s.publishInbox(*item)
+	item.LeaseToken = ""
+	jsonOK(w, map[string]any{"message": item})
 }

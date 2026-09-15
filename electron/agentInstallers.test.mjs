@@ -229,6 +229,9 @@ test('every harness installs its workflow and MCP in current supported locations
         assert.equal(host.commandPath?.(project), expected.skill)
         assert.equal(fs.existsSync(expected.skill), true, `${host.id} skill missing`)
         assert.match(fs.readFileSync(expected.skill, 'utf8'), /^---\nname: axiom-map\ndescription:/)
+        const inboxSkill = path.join(expected.skill, '..', '..', 'axiom-inbox', 'SKILL.md')
+        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /^---\nname: axiom-inbox\ndescription:/)
+        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /reply_to_canvas\(messageHandle, body\)/)
       }
       assert.equal(fs.existsSync(expected.config), true, `${host.id} current MCP config missing`)
 

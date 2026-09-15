@@ -54,14 +54,17 @@ in the surface for exactly that reason.
 | `edit_systems` | create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect |
 | `edit_sheet` | list, get, create, add, annotate |
-| `get_inbox` | `get_canvas_updates`, `await_canvas` (via `waitSeconds`) |
+| `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
-| `reply_to_canvas` | - |
+| `reply_to_canvas` | Transactional final reply via `messageHandle`, with safe identical retries |
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
 
 ## Debug profile - 2 tools, off by default
+
+The inbox lifecycle, workspace binding, local authentication, and migration
+contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 
 Set `AXIOM_MCP_PROFILE=debug` to advertise:
 

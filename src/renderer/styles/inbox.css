@@ -1,0 +1,24 @@
+.axiom-inbox { position: absolute; z-index: 180; top: 108px; right: 16px; bottom: 36px; width: min(410px, calc(100vw - 32px)); display: flex; flex-direction: column; background: #faf9f5; color: #26372d; border: 1px solid #bcc5ba; border-radius: 12px; box-shadow: 0 12px 36px #1b352025; font-size: 13px; overflow: hidden; }
+.axiom-inbox button { cursor: pointer; padding: 7px 10px; border: 1px solid #c7cec3; background: #f1f3ec; border-radius: 6px; color: inherit; text-align: left; }
+.axiom-inbox button:disabled { opacity: .5; cursor: default; }
+.axiom-inbox button:focus-visible, .axiom-inbox textarea:focus-visible { outline: 2px solid #64875a; outline-offset: 2px; }
+.axiom-inbox__header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #dce0d6; }
+.axiom-inbox__header h2 { font-size: 17px; margin: 0 0 4px; }
+.axiom-inbox__header span { color: #687260; }
+.axiom-inbox__instructions { padding: 10px 16px; background: #ecf0e5; }
+.axiom-inbox__instructions p { margin: 0 0 8px; line-height: 1.45; }
+.axiom-inbox__history { flex: 1; min-height: 80px; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; }
+.axiom-inbox__message { padding: 12px 0; border-bottom: 1px solid #e1e4db; }
+.axiom-inbox__message p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; margin: 10px 0; }
+.axiom-inbox__meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #66745f; }
+.axiom-inbox__targets { display: flex; flex-wrap: wrap; gap: 5px; }
+.axiom-inbox__targets button { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.axiom-inbox__reply { margin-top: 12px; padding: 12px; background: #edf2e9; border-radius: 8px; border-left: 3px solid #718864; }
+.axiom-inbox__reply strong { font-size: 11px; }
+.axiom-inbox__compose { padding: 12px 16px 16px; border-top: 1px solid #dce0d6; display: flex; flex-direction: column; gap: 8px; }
+.axiom-inbox__compose textarea { padding: 10px; width: 100%; box-sizing: border-box; resize: vertical; min-height: 65px; max-height: 180px; border: 1px solid #b9c3b3; border-radius: 6px; font: inherit; background: white; color: inherit; }
+.axiom-inbox__compose button[type=submit] { background: #38563b; color: #fff; text-align: center; }
+.axiom-inbox__empty, .axiom-inbox small { color: #6b7565; line-height: 1.5; }
+.axiom-inbox__error { padding: 10px 16px; background: #fff0e8; color: #813c2c; overflow-wrap: anywhere; }
+.axiom-inbox__error button { margin-left: 8px; }
+.axiom-inbox__message .axiom-inbox__cancel { font-size: 11px; margin-top: 10px; background: transparent; }

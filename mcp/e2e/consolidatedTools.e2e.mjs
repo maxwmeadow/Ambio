@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { startHarness } from './mcpHarness.mjs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 
 /**
  * Proves the consolidated tool surface actually works end to end.
@@ -187,6 +188,47 @@ test('the work session lifecycle runs through two tools', async () => {
 test('the inbox answers without blocking', async () => {
   const result = await client.callTool('get_inbox', {})
   assert.equal(result.isError, false, result.text)
+})
+
+test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
+  const file = harness.snapshot.files[0]
+  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }
+  const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  for (let i = 0; i < 2; i++) {
+    const sent = await post('send', body)
+    assert.equal(sent.status, 200, await sent.text())
+  }
+  // Retrieving an MCP prompt must not claim the queued instruction.
+  await client.request('prompts/get', { name: 'review-canvas' })
+  const received = await client.callTool('get_inbox')
+  assert.equal(received.isError, false, received.text)
+  assert.equal(received.payload.messages.length, 1)
+  const message = received.payload.messages[0]
+  assert.equal(message.targets[0].id, file.id)
+  assert.equal(message.leaseToken, undefined)
+  const again = await client.callTool('get_inbox')
+  assert.equal(again.payload.messages[0].messageHandle, message.messageHandle)
+  const competitor = await post('claim', { workspaceId: harness.workspaceId, connectionId: 'competitor', agent: 'Other' })
+  assert.deepEqual((await competitor.json()).messages, [])
+  const context = await client.callTool('get_inbox', { messageHandle: message.messageHandle, contextOffset: 0 })
+  assert.equal(context.isError, false, context.text)
+  assert.equal(context.payload.nextOffset, -1)
+  const previous = readFileSync(harness.activeProjectPath, 'utf8')
+  try {
+    writeFileSync(harness.activeProjectPath, JSON.stringify({ workspaceId: 'unrelated-project' }))
+    const answer = { messageHandle: message.messageHandle, body: 'This file is responsible for storage.' }
+    for (let i = 0; i < 2; i++) {
+      const reply = await client.callTool('reply_to_canvas', answer)
+      assert.equal(reply.isError, false, reply.text)
+      assert.equal(reply.payload.message.workspaceId, harness.workspaceId)
+    }
+    const changed = await client.callTool('reply_to_canvas', { ...answer, body: 'Different answer' })
+    assert.equal(changed.isError, true)
+    const history = await fetch(`${harness.apiBase}/api/canvas/history?workspace=${harness.workspaceId}`)
+    const messages = (await history.json()).messages
+    assert.equal(messages.filter(item => item.id === body.id).length, 1)
+    assert.equal(messages.find(item => item.id === body.id).reply.body, answer.body)
+  } finally { writeFileSync(harness.activeProjectPath, previous) }
 })
 
 test('agent actions are logged with targets the canvas can light up', async () => {

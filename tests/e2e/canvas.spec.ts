@@ -1789,7 +1789,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
 
   const selectionActions = page.locator('.axiom-selection-actions')
   await expect(selectionActions).toBeVisible()
-  await expect(selectionActions.locator('.axiom-selection-actions__summary')).toContainText(/\d+\s*files selected/i)
+  await expect(selectionActions.locator('.axiom-selection-actions__summary')).toContainText(/\d+\s*items selected/i)
   await expect.poll(() => selectionActions.evaluate(element => {
     const style = getComputedStyle(element)
     return { border: style.borderColor, radius: style.borderRadius }
@@ -1840,12 +1840,12 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await systemDialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(systemDialog).toHaveCount(0)
 
-  await page.getByRole('button', { name: /Message agent/ }).click()
-  const agentDialog = page.getByRole('dialog', { name: 'Message the Agent' })
-  await expect(agentDialog.getByRole('textbox', { name: 'Message' })).toBeFocused()
-  await expect(agentDialog).toContainText('through the Axiom MCP channel')
-  await expect(agentDialog.getByRole('button', { name: 'Send to Agent' })).toBeDisabled()
-  await agentDialog.getByRole('button', { name: 'Cancel' }).click()
+  await selectionActions.getByRole('button', { name: 'Message agent', exact: true }).click()
+  const agentDialog = page.getByRole('complementary', { name: 'Agent inbox' })
+  await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
+  await expect(agentDialog).toContainText('Messages wait here until an agent checks Axiom')
+  await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
+  await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()
   await expect(agentDialog).toHaveCount(0)
 })
 

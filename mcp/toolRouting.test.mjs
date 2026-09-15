@@ -104,11 +104,11 @@ test('an empty fileIds list is not a call-graph request', () => {
   assert.equal(routeTool('trace_calls', { from: 'a', to: 'b', fileIds: [] }).tool, 'get_call_path')
 })
 
-test('the inbox blocks only when asked to wait', () => {
+test('the inbox stays nonblocking and forwards bounded context requests', () => {
   assert.equal(routeTool('get_inbox', {}).tool, 'get_canvas_updates')
   const waiting = routeTool('get_inbox', { waitSeconds: 30 })
-  assert.equal(waiting.tool, 'await_canvas')
-  assert.equal(waiting.args.timeoutSeconds, 30)
+  assert.equal(waiting.tool, 'get_canvas_updates')
+  assert.deepEqual(routeTool('get_inbox', { messageHandle: 'handle', contextOffset: 12000 }).args, { messageHandle: 'handle', contextOffset: 12000 })
   assert.equal(routeTool('get_inbox', { waitSeconds: 0 }).tool, 'get_canvas_updates')
 })
 

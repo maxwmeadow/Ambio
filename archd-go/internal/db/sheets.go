@@ -664,41 +664,58 @@ func EnqueueCanvasMessage(db *sql.DB, m *CanvasMessage) error {
 	}
 	m.Status = "queued"
 	m.CreatedAt = time.Now().UnixMilli()
-	_, err := db.Exec(`
+	result, err := db.Exec(`
 		INSERT INTO canvas_outbox (id, workspace_id, sheet_id, note, selection,
 		                           change_summary, sheet_context, build_spec, status, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
 		m.ID, m.WorkspaceID, m.SheetID, m.Note, m.Selection, m.ChangeSummary, m.SheetContext, m.BuildSpec,
 		m.Status, m.CreatedAt)
-	return err
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		existing, err := GetCanvasMessage(db, m.ID)
+		if err != nil {
+			return err
+		}
+		sameSheet := existing != nil && ((existing.SheetID == nil && m.SheetID == nil) || (existing.SheetID != nil && m.SheetID != nil && *existing.SheetID == *m.SheetID))
+		if existing == nil || existing.WorkspaceID != m.WorkspaceID || existing.Note != m.Note || existing.Selection != m.Selection || !sameSheet {
+			return ErrInboxConflict
+		}
+		*m = *existing
+	}
+	return nil
 }
 
 // CountQueuedCanvasMessages powers the piggyback trailer on tool responses.
 func CountQueuedCanvasMessages(db *sql.DB, workspaceID string) (int, error) {
 	var n int
-	err := db.QueryRow(`SELECT COUNT(*) FROM canvas_outbox WHERE workspace_id=? AND status='queued'`,
-		workspaceID).Scan(&n)
+	err := db.QueryRow(`SELECT COUNT(*) FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id WHERE m.workspace_id=? AND m.status IN ('queued','delivered') AND (c.message_id IS NULL OR c.expires_at<=?)`,
+		workspaceID, time.Now().UnixMilli()).Scan(&n)
 	return n, err
 }
 
-// DrainCanvasMessages returns queued messages and marks them delivered.
-func DrainCanvasMessages(db *sql.DB, workspaceID, deliveredTo string) ([]CanvasMessage, error) {
-	msgs, err := listCanvasMessages(db, workspaceID, "queued")
-	if err != nil || len(msgs) == 0 {
-		return msgs, err
+// DrainCanvasMessages is retained for older internal callers; ownership is atomic.
+func DrainCanvasMessages(d *sql.DB, workspaceID, deliveredTo string) ([]CanvasMessage, error) {
+	items, err := ClaimInbox(d, workspaceID, deliveredTo, deliveredTo, time.Now().UnixMilli())
+	if err != nil {
+		return nil, err
 	}
-	now := time.Now().UnixMilli()
-	for i := range msgs {
-		if _, err := db.Exec(`
-			UPDATE canvas_outbox SET status='delivered', delivered_to=?, delivered_at=?
-			WHERE id=?`, deliveredTo, now, msgs[i].ID); err != nil {
+	messages := make([]CanvasMessage, 0, len(items))
+	for _, item := range items {
+		message, err := GetCanvasMessage(d, item.ID)
+		if err != nil {
 			return nil, err
 		}
-		msgs[i].Status = "delivered"
-		msgs[i].DeliveredTo = &deliveredTo
-		msgs[i].DeliveredAt = &now
+		if message != nil {
+			messages = append(messages, *message)
+		}
 	}
-	return msgs, nil
+	return messages, nil
 }
 
 func listCanvasMessages(db *sql.DB, workspaceID, status string) ([]CanvasMessage, error) {
