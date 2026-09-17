@@ -85,6 +85,23 @@ async function queryDb(workspaceId: string, sql: string, params: any[] = []): Pr
   return res.json() as Promise<any[]>
 }
 
+// Helper: send a trace this server assembled to the canvas, so the map animates
+// it and any running investigation records it. /api/call-path broadcasts what it
+// walks; a graph built here from SQL has no other way to reach either.
+async function postCallTrace(workspaceId: string, steps: Array<Record<string, unknown>>) {
+  if (steps.length === 0) return
+  try {
+    await fetch(`${API_BASE}/api/call-trace`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, steps }),
+    })
+  } catch (err) {
+    // Showing the trace is an aid, never a dependency of answering the agent.
+    console.error('[axiom-mcp] failed to post call trace:', err)
+  }
+}
+
 // Helper: Post agent activity log to Go backend which broadcasts to WS client UI
 async function postAgentActivity(workspaceId: string, message: string, level: 'info' | 'warn' | 'success' | 'error') {
   try {
@@ -480,7 +497,7 @@ const CORE_TOOLS = [
   },
   {
     name: 'start_work',
-    description: "Declare what you are about to build, BEFORE editing files. Every structural change you then make is recorded under this goal, so the human's Morning Delta shows your intent next to its architectural effect instead of bare topology. Call this at the start of any multi-file task.",
+    description: "Declare what you are about to build, BEFORE editing files. Every structural change you then make is recorded under this goal, so the human's Morning Delta shows your intent next to its architectural effect instead of bare topology. Call this at the start of any multi-file task. Debugging rather than building? Use `investigation` instead - it records what you find so the human can replay it.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -503,6 +520,20 @@ const CORE_TOOLS = [
       },
     },
   },
+  {
+    name: 'investigation',
+    description: "Record a debugging session as a replayable timeline the human watches on their canvas. ops: start | note | stop | list | get. Call start before you dig, note each finding as you reach it, and stop once you have the answer - stop saves a shareable capture. Traces and data-flow queries you run in between are captured automatically, so the human replays how you got there instead of reading a summary.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        op: { type: 'string' },
+        name: { type: 'string', description: 'With start - what you are investigating, in a few words' },
+        text: { type: 'string', description: 'With note - the finding, in one plain sentence' },
+        id: { type: 'string', description: 'With get - the capture id' },
+      },
+      required: ['op'],
+    },
+  },
 ]
 
 const DEBUG_PROFILE_TOOLS = [
@@ -523,20 +554,6 @@ const DEBUG_PROFILE_TOOLS = [
         cwd: { type: 'string' },
         language: { type: 'string' },
         targetId: { type: 'string' },
-      },
-      required: ['op'],
-    },
-  },
-  {
-    name: 'investigation',
-    description: 'Record a debugging session as a replayable timeline. ops: start | note | stop | list | get.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        op: { type: 'string' },
-        name: { type: 'string' },
-        text: { type: 'string' },
-        id: { type: 'string' },
       },
       required: ['op'],
     },
@@ -1408,6 +1425,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           currentFrontier = nextFrontier
         }
         
+        // The canvas animates call:trace and the recorder captures it. Without
+        // this the fileIds shape - the one the tool description sends agents to
+        // - drew nothing and recorded only a prose line.
+        await postCallTrace(project.workspaceId, dependencies.map(dep => ({
+          callerFile: dep.callerFileId,
+          callerSymbol: dep.callerSymbol,
+          calleeFile: dep.calleeFileId,
+          calleeSymbol: dep.calleeSymbol,
+          callCount: dep.callCount ?? 1,
+        })))
+
         result = dependencies
         break
       }
