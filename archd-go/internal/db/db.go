@@ -736,6 +736,9 @@ func migrate(db *sql.DB) error {
 	if err := migrateInbox(db); err != nil {
 		return fmt.Errorf("migrate inbox: %w", err)
 	}
+	if err := migrateSheetWork(db); err != nil {
+		return err
+	}
 	if err := BackfillSheetLayouts(db); err != nil {
 		return err
 	}

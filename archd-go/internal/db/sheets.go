@@ -25,6 +25,7 @@ type Sheet struct {
 	Viewport    json.RawMessage `json:"viewport,omitempty"`
 	CreatedAt   int64           `json:"createdAt"`
 	UpdatedAt   int64           `json:"updatedAt"`
+	ResolvedAt  *int64          `json:"resolvedAt,omitempty"`
 }
 
 // SheetElement references exactly one model element (concrete nullable FKs).
@@ -125,10 +126,11 @@ func CreateSheet(db *sql.DB, s *Sheet) error {
 	return err
 }
 
-func GetSheets(db *sql.DB, workspaceID string) ([]Sheet, error) {
+func GetSheets(db Reader, workspaceID string) ([]Sheet, error) {
 	rows, err := db.Query(`
 		SELECT id, workspace_id, name, purpose, kind, folder, created_by,
-		       revision, viewport, created_at, updated_at
+		       revision, viewport, created_at, updated_at,
+		       (SELECT resolved_at FROM sheet_resolutions r WHERE r.sheet_id=sheets.id AND r.revision=sheets.revision)
 		FROM sheets WHERE workspace_id=? ORDER BY folder, name`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -139,7 +141,7 @@ func GetSheets(db *sql.DB, workspaceID string) ([]Sheet, error) {
 		var s Sheet
 		var vp sql.NullString
 		if err := rows.Scan(&s.ID, &s.WorkspaceID, &s.Name, &s.Purpose, &s.Kind,
-			&s.Folder, &s.CreatedBy, &s.Revision, &vp, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			&s.Folder, &s.CreatedBy, &s.Revision, &vp, &s.CreatedAt, &s.UpdatedAt, &s.ResolvedAt); err != nil {
 			return nil, err
 		}
 		if vp.Valid {
@@ -150,14 +152,15 @@ func GetSheets(db *sql.DB, workspaceID string) ([]Sheet, error) {
 	return out, rows.Err()
 }
 
-func GetSheet(db *sql.DB, id string) (*Sheet, error) {
+func GetSheet(db Reader, id string) (*Sheet, error) {
 	var s Sheet
 	var vp sql.NullString
 	err := db.QueryRow(`
 		SELECT id, workspace_id, name, purpose, kind, folder, created_by,
-		       revision, viewport, created_at, updated_at
+		       revision, viewport, created_at, updated_at,
+		       (SELECT resolved_at FROM sheet_resolutions r WHERE r.sheet_id=sheets.id AND r.revision=sheets.revision)
 		FROM sheets WHERE id=?`, id).Scan(&s.ID, &s.WorkspaceID, &s.Name, &s.Purpose,
-		&s.Kind, &s.Folder, &s.CreatedBy, &s.Revision, &vp, &s.CreatedAt, &s.UpdatedAt)
+		&s.Kind, &s.Folder, &s.CreatedBy, &s.Revision, &vp, &s.CreatedAt, &s.UpdatedAt, &s.ResolvedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -236,7 +239,7 @@ func AddSheetElement(db *sql.DB, e *SheetElement) error {
 	return err
 }
 
-func GetSheetElements(db *sql.DB, sheetID string) ([]SheetElement, error) {
+func GetSheetElements(db Reader, sheetID string) ([]SheetElement, error) {
 	rows, err := db.Query(`
 		SELECT id, sheet_id, system_id, file_id, infra_id, symbol_ref, label,
 		       position_x, position_y, parent_system_id, width, height, scale, emphasis, design_metadata, tombstone_ack, ghost, added_by
@@ -622,7 +625,7 @@ func CreateAnnotation(db *sql.DB, a *Annotation) error {
 	return err
 }
 
-func GetAnnotations(db *sql.DB, workspaceID string, sheetID *string) ([]Annotation, error) {
+func GetAnnotations(db Reader, workspaceID string, sheetID *string) ([]Annotation, error) {
 	q := `SELECT id, workspace_id, sheet_id, target_type, target_id, body, kind, author,
 	             position_x, position_y, created_at
 	      FROM annotations WHERE workspace_id=?`

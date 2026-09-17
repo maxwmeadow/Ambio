@@ -4,17 +4,20 @@ import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
 import { canvasReference, referenceTarget, messageReferences, inboxStatus } from './inboxModel'
+import { SheetComparison } from './SheetComparison'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
-  const sheet = useSheetStore(useShallow(s => ({ activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
+  const sheet = useSheetStore(useShallow(s => ({ sheets: s.sheets, activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
   const draftKey = `axiom:inbox-draft:${graph.workspaceId}`
   const pendingKey = `${draftKey}:pending`
   const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [attachedSheetId, setAttachedSheetId] = useState<string | null>(() => { try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:sheet`) ?? 'null'); return typeof saved === 'string' ? saved : null } catch { return null } })
+  const attachmentChosen = useRef((() => { try { return localStorage.getItem(`${draftKey}:sheet`) !== null } catch { return false } })())
   const sendLock = useRef(false)
   const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null }>(undefined)
   const restored = useRef(false)
@@ -27,6 +30,26 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
   }
   const { fitView, getNode } = useReactFlow()
 
+  const attachSheet = (id: string | null) => {
+    attachmentChosen.current = true
+    setAttachedSheetId(id)
+    try { localStorage.setItem(`${draftKey}:sheet`, JSON.stringify(id)) } catch { /* in-memory draft still works */ }
+  }
+  useEffect(() => {
+    const attach = (event: Event) => {
+      const id = (event as CustomEvent<{ sheetId?: string }>).detail?.sheetId
+      if (id) attachSheet(id)
+    }
+    window.addEventListener('axiom:open-agent-dispatch', attach)
+    return () => window.removeEventListener('axiom:open-agent-dispatch', attach)
+  }, [draftKey])
+  useEffect(() => {
+    if (isOpen && !attachmentChosen.current && !attachedSheetId) {
+      const active = useSheetStore.getState().activeSheetId
+      if (active) attachSheet(active)
+    }
+  }, [isOpen])
+
   useEffect(() => { try { localStorage.setItem(draftKey, note) } catch { /* drafting still works */ } }, [draftKey, note])
   useEffect(() => {
     if (!isOpen) return
@@ -37,6 +60,7 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
   }, [isOpen, graph.workspaceId, onClose])
 
   if (!isOpen) return null
+  const effectiveSheetId = retry.current ? retry.current.sheetId : attachedSheetId
   const planned = Object.values(sheet.layers).flatMap(layer => layer.planned)
   const selection = sheet.selected.flatMap(id => {
     const file = graph.files.find(item => item.id === id)
@@ -60,7 +84,7 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
     event.preventDefault()
     if (sendLock.current || !(retry.current?.note ?? note).trim()) return
     sendLock.current = true; setSending(true); setError(null)
-    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: sheet.activeSheetId }
+    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: attachedSheetId }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
       const pending = retry.current
@@ -90,6 +114,7 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
         <div className="axiom-inbox__meta"><span>{inboxStatus(message)}</span><time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>
         <p>{message.note}</p>
         {chips(messageReferences(message.selection))}
+        {message.sheetId && <button type="button" onClick={() => attachSheet(message.sheetId)}>Sheet: {sheet.sheets.find(item => item.id === message.sheetId)?.name ?? message.sheetId} · compare with live</button>}
         {message.reply && <div className="axiom-inbox__reply"><strong>{message.reply.agent}</strong><p>{message.reply.body}</p></div>}
         {message.status === 'answered' && !message.reply && <small>This older message was answered, but its original reply is no longer available.</small>}
         {(message.status === 'queued' || message.status === 'delivered') && <button className="axiom-inbox__cancel" type="button" onClick={() => { void cancelInboxMessage(graph.workspaceId, message.id).catch(err => setError(String(err))) }}>Cancel request</button>}
@@ -97,10 +122,16 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
       </article>)}
       {sheet.next && <button type="button" onClick={() => { void refreshInbox(graph.workspaceId, sheet.next) }}>Load earlier messages</button>}
     </div>
+    {effectiveSheetId && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
     <form className="axiom-inbox__compose" onSubmit={submit}>
       {chips(retry.current?.selection ?? selection)}
       {retry.current && !sending && <small>A send is awaiting confirmation. Retry to check it safely; its original instruction and selection are preserved.</small>}
-      {sheet.activeSheetId && <small>The active sheet’s context and approved build plan will be attached.</small>}
+      <label htmlFor="axiom-inbox-sheet">Attach a sheet</label>
+      <select id="axiom-inbox-sheet" value={(retry.current ? retry.current.sheetId : attachedSheetId) ?? ''} disabled={sending || !!retry.current} onChange={event => attachSheet(event.target.value || null)}>
+        <option value="">No sheet · project message</option>
+        {sheet.sheets.map(item => <option key={item.id} value={item.id}>{item.name} · revision {item.revision}{item.resolvedAt ? ' · resolved' : ''}</option>)}
+      </select>
+      {attachedSheetId && <small>The sheet snapshot and structural comparison will be attached when sent. You can watch the live canvas without changing this attachment.</small>}
       <label htmlFor="axiom-inbox-note">Instruction for your agent</label>
       <textarea id="axiom-inbox-note" value={retry.current?.note ?? note} disabled={sending || !!retry.current} onChange={event => setNote(event.target.value)} maxLength={16000} rows={4} placeholder="What would you like to understand or change?" />
       <button type="submit" disabled={sending || !(retry.current?.note ?? note).trim() || (retry.current?.selection ?? selection).length > 100}>{sending ? 'Saving…' : 'Send to inbox'}</button>

@@ -16,6 +16,10 @@ Selections use canonical IDs with a display label captured at send time. Active 
 attach their original context and approved build specification. Selecting nothing sends
 a project instruction. Drafts and uncertain sends are saved per workspace.
 
+Sheets can now be selected explicitly with **Attach a sheet**, independently of the
+active canvas. The attachment includes a structural comparison snapshot. See
+[SHEET_WORKFLOW.md](SHEET_WORKFLOW.md) for comparison, implementation and checked resolution.
+
 Ask an MCP-connected agent to **check the Axiom inbox**. The panel provides copyable
 instructions. Installers that support skills also install `axiom-inbox` beside `axiom-map`;
 manual language remains the universal entry point. Installing is optional for an already
@@ -86,7 +90,7 @@ Limits: 128 KiB request body; 16 KB instruction; 64 KB reply; 100 validated sele
 context snapshots and lease credentials. It reads messages, claims and replies together
 from one SQLite snapshot. Unknown JSON fields, invalid targets, malformed input and
 oversized bodies fail explicitly. A sheet revision change during context preparation
-requires a retry rather than silently dispatching mixed sheet revisions.
+is avoided by reading attached context and comparison in one database transaction.
 
 History is retained rather than silently deleted: closed dispatch snapshots also explain
 historical architectural intent. Pagination and indexed reads bound browsing costs. An

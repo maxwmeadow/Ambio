@@ -70,6 +70,11 @@ const SHEET_OPS: Record<string, string> = {
   create: 'create_sheet',
   add: 'add_to_sheet',
   annotate: 'annotate_sheet',
+  compare: 'compare_sheet',
+  bind: 'bind_sheet',
+  apply_nesting: 'apply_sheet_nesting',
+  resolve: 'resolve_sheet',
+  reopen: 'reopen_sheet',
 }
 
 const RUNTIME_OPS: Record<string, string> = {

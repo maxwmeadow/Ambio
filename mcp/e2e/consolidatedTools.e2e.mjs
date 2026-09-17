@@ -149,6 +149,48 @@ test('sheet ops route correctly', async () => {
   assert.equal(fetched.isError, false, fetched.text)
 })
 
+test('an agent finds a sheet, implements nesting, resolves it and restores it', async () => {
+  const workspaceId = harness.workspaceId
+  const post = async (path, body) => {
+    const response = await fetch(`${harness.apiBase}${path}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ workspaceId, ...body }) })
+    assert.equal(response.status,200,await response.clone().text())
+    return response.json()
+  }
+  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',source:'user' })
+  await post('/api/systems', { id:'sheet-child',name:'Sheet child',source:'user' })
+  const created = await client.callTool('edit_sheet', {op:'create',name:'Checkout structural redesign',members:['sheet-child']})
+  assert.equal(created.isError,false,created.text)
+  const sheetId = created.payload.created.id
+  await post(`/api/sheets/${sheetId}/layouts/batch`, {layouts:[{nodeId:'sheet-child',nodeType:'system',parentNodeId:'sheet-parent',parentNodeType:'system',positionX:900,positionY:800,width:400,height:300,scale:1}]})
+  const comparison = await client.callTool('edit_sheet',{op:'compare',sheet:'Checkout structural'})
+  assert.equal(comparison.isError,false,comparison.text)
+  assert.equal(comparison.payload.equivalent,false)
+  const {revision,token} = comparison.payload
+  const refused = await client.callTool('edit_sheet',{op:'resolve',sheet:sheetId,revision,token})
+  assert.equal(refused.isError,true,'must not archive unfinished structure')
+  const applied = await client.callTool('edit_sheet',{op:'apply_nesting',sheet:sheetId,nodeId:'sheet-child',revision,token})
+  assert.equal(applied.isError,false,applied.text)
+  const matched = await client.callTool('edit_sheet',{op:'compare',sheet:sheetId})
+  assert.equal(matched.payload.equivalent,true,matched.text)
+  const resolution = {op:'resolve',sheet:sheetId,revision:matched.payload.revision,token:matched.payload.token}
+  for(let i=0;i<2;i++) {
+    const result = await client.callTool('edit_sheet',resolution)
+    assert.equal(result.isError,false,result.text)
+    assert.ok(result.payload.resolvedAt)
+  }
+  const active = await client.callTool('edit_sheet',{op:'list'})
+  assert.equal(active.payload.some(sheet => sheet.id===sheetId),false)
+  const history = await client.callTool('edit_sheet',{op:'list',includeResolved:true})
+  assert.ok(history.payload.find(sheet => sheet.id===sheetId)?.resolvedAt)
+  const reopened = await client.callTool('edit_sheet',{op:'reopen',sheet:sheetId,revision:matched.payload.revision})
+  assert.equal(reopened.isError,false,reopened.text)
+  assert.equal(reopened.payload.resolvedAt,undefined)
+  await client.callTool('edit_sheet',{op:'create',name:'Checkout structural alternative'})
+  const ambiguous = await client.callTool('edit_sheet',{op:'compare',sheet:'Checkout structural'})
+  assert.equal(ambiguous.isError,true)
+  assert.match(ambiguous.text,/Ambiguous sheet/)
+})
+
 test('infra catalog and creation route correctly', async () => {
   // The service must exist in the registry, so read the catalog rather than
   // guessing a name - guessing is what a real agent would get wrong too.

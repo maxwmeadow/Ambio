@@ -174,13 +174,16 @@ async function currentWorktreeContext(workspaceId: string, cwd: string): Promise
 
 // Helper: resolve a sheet by ID or exact name.
 async function resolveSheetId(workspaceId: string, ref: string): Promise<string> {
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(ref)) return ref
   const res = await fetch(`${API_BASE}/api/sheets?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) throw new Error(`sheets list failed: ${await res.text()}`)
-  const sheets = await res.json() as { id: string; name: string }[]
-  const hit = (sheets ?? []).find(s => s.name === ref) ?? (sheets ?? []).find(s => s.name.toLowerCase() === ref.toLowerCase())
-  if (!hit) throw new Error(`Sheet not found: ${ref}. Existing: ${(sheets ?? []).map(s => s.name).join(', ') || '(none)'}`)
-  return hit.id
+  const sheets = (await res.json() ?? []) as { id: string; name: string }[]
+  const exact = sheets.filter(s => s.id === ref || s.name.toLowerCase() === ref.trim().toLowerCase())
+  if (exact.length === 1) return exact[0].id
+  const words = ref.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = exact.length ? exact : sheets.filter(s => words.length && words.every(word => s.name.toLowerCase().includes(word)))
+  if (matches.length === 1) return matches[0].id
+  if (matches.length > 1) throw new Error(`Ambiguous sheet reference. Ask the user which sheet: ${matches.map(s => `${s.name} (${s.id})`).join(', ')}`)
+  throw new Error(`Sheet not found: ${ref}. Existing: ${sheets.map(s => `${s.name} (${s.id})`).join(', ') || '(none)'}`)
 }
 
 // Helper: resolve a model ref (file rel path / system name / infra name / UUID)
@@ -430,15 +433,21 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Work with sheets - named diagrams layered over the live map. ops: list | get | create | add | annotate.',
+    description: 'Find sheets by name or ID. compare checks nesting and relationships, not pixels. Implement code, bind new nodes, then apply_nesting. Recompare after changes. resolve archives only matching structure using the latest revision/token; it does not verify runtime behavior.',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', description: 'list | get | create | add | annotate' },
-        sheet: { type: 'string', description: 'Sheet id or exact name' },
+        op: { type: 'string', enum: ['list','get','create','add','annotate','compare','bind','apply_nesting','resolve','reopen'] },
+        sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
+        includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
+        revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
+        token: { type: 'string', description: 'Latest comparison token; required for apply_nesting and resolve' },
+        plannedId: { type: 'string', description: 'bind: planned node ID' },
+        liveId: { type: 'string', description: 'bind: corresponding live node ID of the same type' },
+        nodeId: { type: 'string', description: 'apply_nesting: requirement node ID returned by compare' },
         name: { type: 'string' },
         purpose: { type: 'string' },
-        members: { type: 'array', items: { type: 'object' } },
+        members: { type: 'array', items: { type: 'string' }, description: 'Existing file paths or live node IDs to include' },
         target: { type: 'string' },
         body: { type: 'string' },
       },
@@ -1947,18 +1956,35 @@ Steps to execute:
       case 'list_sheets': {
         const res = await fetch(`${API_BASE}/api/sheets?workspace=${encodeURIComponent(project.workspaceId)}`)
         if (!res.ok) throw new Error(`sheets list failed: ${await res.text()}`)
-        result = await res.json()
+        const sheets = await res.json() as Array<{ resolvedAt?: number }>
+        result = (sheets ?? []).filter(sheet => args.includeResolved || !sheet.resolvedAt)
         break
       }
 
       case 'get_sheet': {
         const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
         const res = await fetch(
-          `${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/asm?workspace=${encodeURIComponent(project.workspaceId)}`
+          `${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/context?workspace=${encodeURIComponent(project.workspaceId)}`
         )
         if (!res.ok) throw new Error(`get sheet failed: ${await res.text()}`)
-        const data = await res.json() as { asm: string }
-        result = data.asm
+        result = await res.json()
+        break
+      }
+
+      case 'compare_sheet':
+      case 'bind_sheet':
+      case 'apply_sheet_nesting':
+      case 'resolve_sheet':
+      case 'reopen_sheet': {
+        const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const op = ({compare_sheet:'compare',bind_sheet:'bind',apply_sheet_nesting:'apply_nesting',resolve_sheet:'resolve',reopen_sheet:'reopen'} as const)[call as 'compare_sheet']
+        if (op !== 'compare' && !Number.isInteger(args.revision)) throw new Error('Read edit_sheet(compare) first and pass its revision')
+        const response = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/${op}?workspace=${encodeURIComponent(project.workspaceId)}`, op === 'compare' ? {} : {
+          method: 'POST', headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({workspaceId:project.workspaceId,revision:args.revision,token:args.token,plannedId:args.plannedId,liveId:args.liveId,nodeId:args.nodeId}),
+        })
+        if (!response.ok) throw new Error(`Sheet ${op} failed: ${await response.text()}`)
+        result = await response.json()
         break
       }
 
@@ -2114,7 +2140,7 @@ Steps to execute:
               })).toString('base64url') }
             }),
             note: data.messages.length
-              ? 'Answer with reply_to_canvas(messageHandle, body). Read attached context using get_inbox(messageHandle, contextOffset: 0). Recheck the inbox before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
+              ? 'Answer with reply_to_canvas(messageHandle, body). Read attached context using get_inbox(messageHandle, contextOffset: 0). For sheet work, read edit_sheet(compare) for current nesting/relationship differences; implement and verify, then resolve with the latest revision/token when equivalent. Unapproved proposals are discussion context only. Recheck the inbox before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
               : 'No available instructions. Other agents may already own pending work.',
           }
         }

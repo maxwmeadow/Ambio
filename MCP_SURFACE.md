@@ -53,7 +53,7 @@ in the surface for exactly that reason.
 | `get_data_flow` | - |
 | `edit_systems` | create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect |
-| `edit_sheet` | list, get, create, add, annotate |
+| `edit_sheet` | list, get, create, add, annotate, compare, bind, apply_nesting, resolve, reopen |
 | `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
@@ -65,6 +65,7 @@ in the surface for exactly that reason.
 
 The inbox lifecycle, workspace binding, local authentication, and migration
 contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
+Structural sheet implementation and archival are documented in [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
 
 Set `AXIOM_MCP_PROFILE=debug` to advertise:
 

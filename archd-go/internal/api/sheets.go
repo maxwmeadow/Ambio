@@ -209,6 +209,11 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaceID := r.URL.Query().Get("workspace")
 
+	if len(parts) == 2 && (parts[1] == "compare" || parts[1] == "resolve" || parts[1] == "bind" || parts[1] == "reopen" || parts[1] == "apply_nesting" || parts[1] == "context") {
+		s.handleSheetWork(w, r, id, parts[1])
+		return
+	}
+
 	// element subroutes: /api/sheets/:id/elements[/:elId[/position]]
 	if len(parts) >= 2 && parts[1] == "elements" {
 		s.handleSheetElements(w, r, id, parts[2:])
@@ -925,30 +930,53 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if m.SheetID != nil {
-		sheet, sheetErr := db.GetSheet(sqlDB, *m.SheetID)
+		tx, txErr := sqlDB.Begin()
+		if txErr != nil {
+			inboxError(w, txErr)
+			return
+		}
+		defer tx.Rollback()
+		sheet, sheetErr := db.GetSheet(tx, *m.SheetID)
 		if sheetErr != nil || sheet == nil || sheet.WorkspaceID != m.WorkspaceID {
 			jsonError(w, "sheet not found in workspace", 404)
 			return
 		}
-		context, contextErr := renderAgentSheetContext(sqlDB, sheet)
+		context, contextErr := renderAgentSheetContext(tx, sheet, true)
 		if contextErr != nil {
 			jsonError(w, contextErr.Error(), 500)
 			return
 		}
-		m.SheetContext = context
-		spec, specErr := renderBuildSpec(sqlDB, sheet)
+		comparison, compareErr := db.CompareSheetStructure(tx, m.WorkspaceID, sheet.ID)
+		if compareErr != nil {
+			inboxError(w, compareErr)
+			return
+		}
+		comparisonJSON, compareErr := json.Marshal(comparison)
+		if compareErr != nil {
+			inboxError(w, compareErr)
+			return
+		}
+		var snapshot map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(context), &snapshot); err != nil {
+			inboxError(w, err)
+			return
+		}
+		snapshot["comparisonAtSend"] = comparisonJSON
+		snapshotJSON, err := json.Marshal(snapshot)
+		if err != nil {
+			inboxError(w, err)
+			return
+		}
+		m.SheetContext = string(snapshotJSON)
+		spec, specErr := renderBuildSpec(tx, sheet)
 		if specErr != nil {
 			jsonError(w, specErr.Error(), 500)
 			return
 		}
 		m.BuildSpec = spec
-		current, err := db.GetSheet(sqlDB, *m.SheetID)
-		if err != nil {
+		// Freeze all attached reads together, then release the lock before enqueue.
+		if err := tx.Commit(); err != nil {
 			inboxError(w, err)
-			return
-		}
-		if current == nil || current.Revision != sheet.Revision {
-			jsonError(w, "sheet changed while preparing context; retry send", 409)
 			return
 		}
 	}

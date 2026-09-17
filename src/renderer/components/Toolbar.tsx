@@ -38,7 +38,7 @@ export function Toolbar({
     setAgentMsgOpen(false)
     if (!workspaceId) return
     void refreshInbox(workspaceId)
-    const timer = setInterval(() => { void refreshInbox(workspaceId) }, 5000)
+    const timer = setInterval(() => { void useSheetStore.getState().fetchSheets(workspaceId) }, 5000)
     return () => clearInterval(timer)
   }, [workspaceId])
 

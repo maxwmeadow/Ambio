@@ -40,6 +40,7 @@ export interface Sheet {
   viewport?: { x: number; y: number; zoom: number }
   createdAt: number
   updatedAt: number
+  resolvedAt?: number
 }
 
 export interface SheetElement {
@@ -337,6 +338,22 @@ function commitSheetLayer(state: SheetState, sheetId: string, layer: SheetLayerD
   }
 }
 
+function pruneResolvedLayers(state: SheetState, sheets: Sheet[]): Partial<SheetState> {
+  const resolved = new Set(sheets.filter(sheet => sheet.resolvedAt).map(sheet => sheet.id))
+  const visibleSheetIds = state.visibleSheetIds.filter(id => !resolved.has(id))
+  const activeSheetId = state.activeSheetId && resolved.has(state.activeSheetId) ? null : state.activeSheetId
+  const layersById = Object.fromEntries(Object.entries(state.layersById).filter(([id]) => !resolved.has(id)))
+  return { visibleSheetIds, activeSheetId, layersById, ...activeLayerProjection(activeSheetId, layersById) }
+}
+
+function mergeSheetStates(incoming: Sheet[], previous: Sheet[]): Sheet[] {
+  const known = new Map(previous.map(sheet => [sheet.id, sheet]))
+  return incoming.map(sheet => {
+    const old = known.get(sheet.id)
+    return old && (old.revision > sheet.revision || (old.revision === sheet.revision && old.resolvedAt)) ? old : sheet
+  })
+}
+
 export const useSheetStore = create<SheetState>((set, get) => ({
   workspaceId: null,
   sheets: [],
@@ -364,7 +381,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       const sheets = (await res.json()) ?? []
       if (request !== fetchSheetsRequest) return
       set(s => s.workspaceId === workspaceId
-        ? { sheets }
+        ? { sheets: mergeSheetStates(sheets,s.sheets), ...pruneResolvedLayers(s, mergeSheetStates(sheets,s.sheets)) }
         : {
             workspaceId, sheets, activeSheetId: null, visibleSheetIds: [], layersById: {},
             elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [],
@@ -384,7 +401,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       const current = get()
       const data = (current.workspaceId === workspaceId ? current.layersById[sheetId] : null)
         ?? await fetchSheetLayer(workspaceId, sheetId)
-      if (!data || request !== openSheetRequest) return
+      if (!data || data.sheet.resolvedAt || request !== openSheetRequest) return
+      if (get().sheets.find(sheet => sheet.id === sheetId)?.resolvedAt) return
       set(s => {
         const sameWorkspace = s.workspaceId === workspaceId
         const visibleSheetIds = sameWorkspace ? s.visibleSheetIds : []
@@ -871,9 +889,18 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
   switch (patch.type) {
     case 'sheet:upserted': {
       const sheet = patch.payload as Sheet
+      if (sheet.resolvedAt) {
+        useSheetStore.setState(st => {
+          const previous = st.sheets.find(item => item.id === sheet.id)
+          if (previous && previous.revision > sheet.revision) return st
+          const sheets = [...st.sheets.filter(item => item.id !== sheet.id), sheet]
+          return { sheets, ...pruneResolvedLayers(st, sheets) }
+        })
+        break
+      }
       useSheetStore.setState(st => ({
         sheets: st.sheets.some(x => x.id === sheet.id)
-          ? st.sheets.map(x => x.id === sheet.id && sheet.revision >= x.revision ? sheet : x)
+          ? st.sheets.map(x => x.id === sheet.id ? mergeSheetStates([sheet],[x])[0] : x)
           : [...st.sheets, sheet],
         layersById: st.layersById[sheet.id] && sheet.revision >= st.layersById[sheet.id].sheet.revision
           ? { ...st.layersById, [sheet.id]: { ...st.layersById[sheet.id], sheet } }

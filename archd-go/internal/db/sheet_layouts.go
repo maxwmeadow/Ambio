@@ -33,7 +33,7 @@ type SheetLayoutBatchResult struct {
 	Layouts  []SheetLayout `json:"layouts"`
 }
 
-func GetSheetLayouts(db *sql.DB, sheetID string) ([]SheetLayout, error) {
+func GetSheetLayouts(db Reader, sheetID string) ([]SheetLayout, error) {
 	rows, err := db.Query(`
 		SELECT sheet_id, workspace_id, node_id, node_type, parent_node_id,
 		       parent_node_type, containment_kind, position_x, position_y,

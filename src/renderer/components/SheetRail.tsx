@@ -48,6 +48,22 @@ export function SheetRail() {
   const [submitting, setSubmitting] = useState(false)
   const [newName, setNewName] = useState('New Sheet')
   const [createError, setCreateError] = useState<string | null>(null)
+  const [showResolved, setShowResolved] = useState(false)
+  const [restoreError, setRestoreError] = useState('')
+  const activeSheets = sheets.filter(sheet => !sheet.resolvedAt)
+  const resolvedSheets = sheets.filter(sheet => sheet.resolvedAt)
+  const restore = async (sheet: Sheet) => {
+    setRestoreError('')
+    try {
+      const response = await fetch(`http://127.0.0.1:7743/api/sheets/${encodeURIComponent(sheet.id)}/reopen`, {
+        method: 'POST', headers: { 'Content-Type':'application/json' }, signal: AbortSignal.timeout(15000),
+        body: JSON.stringify({ workspaceId, revision: sheet.revision }),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      await fetchSheets(workspaceId)
+      await openSheet(workspaceId, sheet.id)
+    } catch (err) { setRestoreError(err instanceof Error ? err.message : String(err)) }
+  }
   const newNameInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -103,8 +119,8 @@ export function SheetRail() {
     <aside className="axiom-sheet-rail" aria-label="Drawings">
       <header className="axiom-sheet-rail__titlebar">
         <span>Drawings</span>
-        <span className="axiom-sheet-rail__title-meta" aria-label={`${sheets.length} overlay sheets`}>
-          {String(sheets.length).padStart(2, '0')} SHEETS
+        <span className="axiom-sheet-rail__title-meta" aria-label={`${activeSheets.length} overlay sheets`}>
+          {String(activeSheets.length).padStart(2, '0')} SHEETS
         </span>
       </header>
 
@@ -171,7 +187,7 @@ export function SheetRail() {
           <p className="axiom-sheet-rail__create-error" role="alert">{createError}</p>
         )}
 
-        {sheets.map(sheet => {
+        {activeSheets.map(sheet => {
           const active = activeSheetId === sheet.id
           const visible = visibleSheetIds.includes(sheet.id)
           return (
@@ -212,6 +228,7 @@ export function SheetRail() {
                 {sheet.createdBy === 'agent' && <span className="axiom-sheet-rail__agent" title="Created by agent">AI</span>}
               </button>
 
+              {active && <button type="button" className="axiom-sheet-rail__attach" aria-label={`Attach ${sheet.name} to agent message`} title="Discuss or implement this sheet" onClick={() => window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { sheetId: sheet.id } }))}>↗</button>}
               {active && (
                 <button
                   type="button"
@@ -229,6 +246,11 @@ export function SheetRail() {
           )
         })}
       </div>
+      {resolvedSheets.length > 0 && <div className="axiom-sheet-rail__archive">
+        <button type="button" aria-expanded={showResolved} onClick={() => setShowResolved(value => !value)}>Resolved sheets ({resolvedSheets.length})</button>
+        {showResolved && resolvedSheets.map(sheet => <div key={sheet.id}><span>{sheet.name}</span><button type="button" onClick={() => { void restore(sheet) }}>Restore {sheet.name}</button></div>)}
+        {restoreError && <p role="alert">{restoreError}</p>}
+      </div>}
     </aside>
   )
 }

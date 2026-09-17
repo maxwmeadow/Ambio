@@ -22,3 +22,15 @@
 .axiom-inbox__error { padding: 10px 16px; background: #fff0e8; color: #813c2c; overflow-wrap: anywhere; }
 .axiom-inbox__error button { margin-left: 8px; }
 .axiom-inbox__message .axiom-inbox__cancel { font-size: 11px; margin-top: 10px; background: transparent; }
+.axiom-inbox__comparison { padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; background: #f0f3eb; border-top: 1px solid #dce0d6; max-height: 28vh; overflow-y: auto; flex-shrink: 0; }
+.axiom-inbox__comparison ul { list-style: none; margin: 8px 0; padding: 0; }
+.axiom-inbox__comparison li { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid #dce0d6; overflow-wrap: anywhere; }
+.axiom-inbox__comparison summary { cursor: pointer; }
+.axiom-inbox__comparison-actions { display: flex; gap: 8px; }
+.axiom-inbox__compose select { font: inherit; color: inherit; background: white; border: 1px solid #b9c3b3; border-radius: 6px; padding: 6px; width: 100%; }
+.axiom-inbox__compose { flex-shrink: 0; max-height: 42vh; overflow-y: auto; }
+.axiom-sheet-rail__attach { position: absolute; right: 27px; top: 50%; transform: translateY(-50%); z-index: 3; width: 18px; height: 20px; border: 0; background: transparent; color: #d9ece7; cursor: pointer; padding: 0; }
+.axiom-sheet-rail .axiom-sheet-rail__row--active .axiom-sheet-rail__button { padding-right: 48px; }
+.axiom-sheet-rail__archive { padding: 10px; border-top: 1px solid #dce0d6; font-size: 11px; }
+.axiom-sheet-rail__archive button { background: transparent; color: inherit; border: 1px solid #c7cec3; border-radius: 4px; padding: 5px; cursor: pointer; }
+.axiom-sheet-rail__archive > div { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }

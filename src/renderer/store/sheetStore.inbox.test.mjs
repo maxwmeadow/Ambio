@@ -59,3 +59,23 @@ test('refresh recovers replies on already-loaded older pages', async () => {
     assert.equal(useSheetStore.getState().inboxAvailableCount, 0)
   } finally { globalThis.fetch = original; useSheetStore.setState({ workspaceId: null, messages: [] }) }
 })
+
+test('resolved sheet events remove active overlays but preserve recoverable sheet history', () => {
+  const sheet = { id: 'design', workspaceId: 'a', revision: 3, name: 'Design' }
+  const layer = { sheet, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] }
+  useSheetStore.setState({ workspaceId: 'a', sheets: [sheet], activeSheetId: sheet.id, visibleSheetIds: [sheet.id], layersById: { [sheet.id]: layer } })
+  try {
+    handleSheetPatch({ type: 'sheet:upserted', payload: { ...sheet, resolvedAt: 42 } })
+    const state = useSheetStore.getState()
+    assert.equal(state.activeSheetId, null)
+    assert.deepEqual(state.visibleSheetIds, [])
+    assert.deepEqual(state.layersById, {})
+    assert.equal(state.sheets[0].resolvedAt, 42)
+    handleSheetPatch({ type: 'sheet:upserted', payload: sheet })
+    assert.equal(useSheetStore.getState().sheets[0].resolvedAt, 42, 'late same-revision event cannot resurrect an archive')
+    handleSheetPatch({ type: 'sheet:upserted', payload: { ...sheet, revision: 4 } })
+    assert.equal(useSheetStore.getState().sheets[0].resolvedAt, undefined)
+    handleSheetPatch({ type: 'sheet:upserted', payload: { ...sheet, resolvedAt: 42 } })
+    assert.equal(useSheetStore.getState().sheets[0].revision, 4, 'late resolution must not hide restored revision')
+  } finally { useSheetStore.setState({ workspaceId: null, sheets: [], layersById: {}, visibleSheetIds: [], activeSheetId: null }) }
+})
