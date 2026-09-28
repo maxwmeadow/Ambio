@@ -53,13 +53,14 @@ in the surface for exactly that reason.
 | `get_data_flow` | - |
 | `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect |
-| `edit_sheet` | list, get, create, add, annotate |
-| `get_inbox` | `get_canvas_updates`, `await_canvas` (via `waitSeconds`) |
+| `edit_sheet` | list, get, create, add, annotate, compare, bind, apply_nesting, resolve, reopen |
+| `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
-| `reply_to_canvas` | - |
+| `reply_to_canvas` | Transactional final reply via `messageHandle`, with safe identical retries |
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
+| `investigation` | start, hypothesis, run, verdict, note, conclude, stop, case, list, get - see INVESTIGATIONS.md |
 
 Large architecture maps use `edit_systems` with `begin_session`, repeated
 `add_chunk` calls, and `commit_session`. The session and its chunk IDs are
@@ -70,6 +71,10 @@ single-call `propose` operation remains available for small maps.
 
 ## Debug profile - 1 tool, off by default
 
+The inbox lifecycle, workspace binding, local authentication, and migration
+contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
+Structural sheet implementation and archival are documented in [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
+
 Set `AXIOM_MCP_PROFILE=debug` to advertise:
 
 | Tool | Absorbs |
@@ -79,10 +84,11 @@ Set `AXIOM_MCP_PROFILE=debug` to advertise:
 Real capability, wrong default. A coding agent does not need value injection in
 its context to write a class.
 
-`investigation` (start, note, stop, list, get) used to sit here too. That was a
-mistake: gating it meant no agent ever saw the recorder, so the debugging
-experience could not be reached from either side - the human had no way to start
-a recording either. Recording is not value injection, and it is now core.
+`investigation` used to sit here too. That was a mistake: gating it meant no
+agent ever saw it. It is now core, and its `run` op does what an agent debugging
+actually needs from the runtime - run the repro under observation and get the
+evidence back - without the live-watch and injection machinery. `debug_runtime`
+remains for attaching to long-running processes.
 
 ## Adding a tool
 
@@ -90,7 +96,10 @@ Ask first whether it is a new *question* or a new *selector* on an existing
 one. A selector is a scope or an op on a tool that already exists. Only a
 genuinely new question earns a new name.
 
-The guard tests enforce: core surface ≤ 15, core schema under 3,200 tokens,
+The guard tests enforce: core surface ≤ 15, core schema under 3,400 tokens
+(raised from 3,200 on 2026-09-28 when investigation experiments and addressed
+inbox routing landed together - each was trimmed first; raise it only for a
+new capability, never for wording),
 no merged-away name re-advertised, every legacy handler still present, and no
 tool description over 460 characters.
 

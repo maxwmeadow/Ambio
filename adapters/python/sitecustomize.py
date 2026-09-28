@@ -16,6 +16,17 @@ import sys
 
 
 def _bootstrap() -> None:
+    # An `investigation run` records in-process and writes evidence at exit.
+    # It needs no socket and works on every Python, so it skips the streaming
+    # adapter (3.12+ only), whose version warning would land in the user's
+    # program output.
+    if os.environ.get("AXIOM_EVIDENCE_DIR"):
+        try:
+            from axiom_adapter import recorder
+            recorder.start()
+        except Exception:
+            pass
+        return
     if os.environ.get("AXIOM_RUNTIME_PORT") or os.environ.get("AXIOM_WORKSPACE_ID"):
         try:
             import axiom_adapter

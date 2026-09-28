@@ -537,6 +537,9 @@ func approveArchitectureProposalSystemTx(tx *sql.Tx, proposalID, workspaceID str
 		}
 	}
 	materializedID := uuid.NewString()
+	if err := yieldPlaceholderNameTx(tx, workspaceID, parentID, system.Name, now); err != nil {
+		return false, err
+	}
 	if _, err := tx.Exec(`INSERT INTO systems(id,workspace_id,name,parent_id,source,description,depth,created_at,updated_at) VALUES(?,?,?,?,'agent',?,?,?,?)`, materializedID, workspaceID, system.Name, parentID, system.Description, system.Depth, now, now); err != nil {
 		return false, err
 	}
@@ -630,6 +633,35 @@ func bumpFloorLayoutRevisionTx(tx *sql.Tx, workspaceID string) error {
 // Delete empty leaves repeatedly so a classifier parent survives whenever it
 // still contains a file or any authored/classifier child. The systems delete
 // trigger removes their obsolete Floor layouts in the same transaction.
+// yieldPlaceholderNameTx moves a classifier placeholder out of the way of an
+// approved system that wants its name. Indexing names placeholders after
+// folders ("Tax" for tax/), and an agent naming the same responsibility the
+// obvious way then hit the unique-name index: finalize failed on the last
+// step of onboarding. The placeholder keeps its files under a suffixed name
+// until they move into the approved system, and is pruned once empty.
+func yieldPlaceholderNameTx(tx *sql.Tx, workspaceID string, parentID *string, name string, now int64) error {
+	parent := ""
+	if parentID != nil {
+		parent = *parentID
+	}
+	var placeholderID string
+	err := tx.QueryRow(`SELECT id FROM systems
+		WHERE workspace_id=? AND COALESCE(parent_id,'')=? AND name=? AND source IN ('cluster','directory')`,
+		workspaceID, parent, name).Scan(&placeholderID)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	suffix := " (auto)"
+	if len(placeholderID) >= 6 {
+		suffix = " (auto " + placeholderID[:6] + ")"
+	}
+	_, err = tx.Exec(`UPDATE systems SET name=?, updated_at=? WHERE id=?`, name+suffix, now, placeholderID)
+	return err
+}
+
 func pruneEmptyClassifierSystemsTx(tx *sql.Tx, workspaceID string) (int64, error) {
 	var total int64
 	for {

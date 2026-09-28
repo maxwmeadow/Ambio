@@ -129,14 +129,19 @@ test('Codex install and reinstall preserve TOML, write a skill, and tag the harn
     assert.match(config, /\[mcp_servers\.github\]\ncommand = "github-server"/)
 
     const skillPath = path.join(home, '.agents', 'skills', 'axiom-map', 'SKILL.md')
+    const inboxSkillPath = path.join(home, '.agents', 'skills', 'axiom-inbox', 'SKILL.md')
     const skill = fs.readFileSync(skillPath, 'utf8')
     assert.match(skill, /^---\nname: axiom-map\ndescription:/)
     assert.match(skill, /# Map this codebase/)
+    assert.ok(result.paths.includes(inboxSkillPath), 'install result lists the inbox skill it wrote')
+    assert.match(fs.readFileSync(inboxSkillPath, 'utf8'), /start_work/)
 
     const status = inspectHostConfiguration(codex)
     assert.equal(status.configured, true)
     assert.equal(status.workflowInstalled, true)
     assert.equal(status.workflowPath, skillPath)
+    fs.rmSync(inboxSkillPath)
+    assert.equal(inspectHostConfiguration(codex).workflowInstalled, false, 'a missing inbox skill requires repair')
   } finally {
     fs.rmSync(home, { recursive: true, force: true })
   }
@@ -229,6 +234,9 @@ test('every harness installs its workflow and MCP in current supported locations
         assert.equal(host.commandPath?.(project), expected.skill)
         assert.equal(fs.existsSync(expected.skill), true, `${host.id} skill missing`)
         assert.match(fs.readFileSync(expected.skill, 'utf8'), /^---\nname: axiom-map\ndescription:/)
+        const inboxSkill = path.join(expected.skill, '..', '..', 'axiom-inbox', 'SKILL.md')
+        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /^---\nname: axiom-inbox\ndescription:/)
+        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /reply_to_canvas\(messageHandle, body\)/)
       }
       assert.equal(fs.existsSync(expected.config), true, `${host.id} current MCP config missing`)
 

@@ -24,6 +24,14 @@ const MCP_ENTRY = join(ROOT, 'mcp', 'axiom-mcp.ts')
 
 // Deliberately not archd's defaults: a running Axiom must not be disturbed,
 // and must not silently serve these requests either.
+// archd requires its local API token on every request (api/auth.go). The
+// harness sets its own, so it never reads a developer's real token.
+const API_TOKEN = 'axiom-isolated-test-token-for-mcp-harness'
+export function harnessFetch(input, init = {}) {
+  return globalThis.fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${API_TOKEN}` } })
+}
+const fetch = harnessFetch
+
 /** Asks the OS for an unused port, so parallel harnesses cannot collide. */
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -114,8 +122,8 @@ class McpClient {
   }
 
   /** Calls a tool and returns its parsed payload plus whether it errored. */
-  async callTool(name, args = {}) {
-    const response = await this.request('tools/call', { name, arguments: args })
+  async callTool(name, args = {}, timeoutMs = 25000) {
+    const response = await this.request('tools/call', { name, arguments: args }, timeoutMs)
     const text = response?.result?.content?.[0]?.text ?? ''
     let payload = text
     try { payload = JSON.parse(text) } catch { /* some tools return prose */ }
@@ -132,22 +140,26 @@ class McpClient {
  * Boots archd + MCP against a throwaway workspace and hands back a client.
  * Always pair with the returned `stop()`.
  */
-export async function startHarness() {
+export async function startHarness(options = {}) {
   const apiPort = await freePort()
   const wsPort = await freePort()
   const runtimePort = await freePort()
   const apiBase = `http://127.0.0.1:${apiPort}`
 
   const dataDir = mkdtempSync(join(tmpdir(), 'axiom-mcp-data-'))
-  const projectDir = mkdtempSync(join(tmpdir(), 'axiom-mcp-project-'))
-  writeFixture(projectDir)
+  // A caller may point the harness at an existing project (a debugging lab)
+  // instead of the generated fixture. It is never deleted in that case.
+  const ownsProject = !options.projectDir
+  const projectDir = options.projectDir ?? mkdtempSync(join(tmpdir(), 'axiom-mcp-project-'))
+  if (ownsProject) writeFixture(projectDir)
+  const minFiles = options.minFiles ?? 6
 
   const archd = spawn(ARCHD_EXE, [
     '-data', dataDir,
     '-api-port', String(apiPort),
     '-ws-port', String(wsPort),
     '-runtime-port', String(runtimePort),
-  ], { stdio: ['pipe', 'pipe', 'pipe'] })
+  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AXIOM_API_TOKEN: API_TOKEN } })
 
   let archdLog = ''
   archd.stdout.setEncoding('utf8')
@@ -157,7 +169,7 @@ export async function startHarness() {
 
   const cleanup = () => {
     try { archd.kill() } catch { /* already gone */ }
-    for (const dir of [dataDir, projectDir]) {
+    for (const dir of ownsProject ? [dataDir, projectDir] : [dataDir]) {
       try { rmSync(dir, { recursive: true, force: true }) } catch { /* windows lock */ }
     }
   }
@@ -170,7 +182,8 @@ export async function startHarness() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        workspaceId, name: 'harness', rootPath: projectDir, ignoredPaths: [],
+        workspaceId, name: 'harness', rootPath: projectDir,
+        ignoredPaths: [join(projectDir, 'node_modules', '**'), join(projectDir, '.git', '**')],
       }),
     })
     if (!created.ok) throw new Error(`workspace registration failed: ${await created.text()}`)
@@ -182,11 +195,11 @@ export async function startHarness() {
       const res = await fetch(`${apiBase}/api/snapshot/${workspaceId}`)
       if (res.ok) {
         snapshot = await res.json()
-        if ((snapshot.files?.length ?? 0) >= 6) break
+        if ((snapshot.files?.length ?? 0) >= minFiles) break
       }
       await sleep(250)
     }
-    if (!snapshot || (snapshot.files?.length ?? 0) < 6) {
+    if (!snapshot || (snapshot.files?.length ?? 0) < minFiles) {
       throw new Error(`fixture never finished indexing.\narchd log:\n${archdLog}`)
     }
 
@@ -201,7 +214,9 @@ export async function startHarness() {
       env: {
         ...process.env,
         AXIOM_API_URL: apiBase,
+        AXIOM_API_TOKEN: API_TOKEN,
         AXIOM_ACTIVE_PROJECT: activeProjectPath,
+        ...(options.env ?? {}),
       },
     })
     const client = new McpClient(mcp)
@@ -217,6 +232,7 @@ export async function startHarness() {
       snapshot,
       workspaceId,
       projectDir,
+      activeProjectPath,
       apiBase,
       archdLog: () => archdLog,
       stop: () => { client.close(); cleanup() },

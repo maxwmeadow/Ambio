@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session } from 'electron'
+import { readDaemonToken } from './daemonAuth'
 import { join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import os from 'os'
@@ -390,7 +391,10 @@ function setupIPC(): void {
   // Deleting is a verified lifecycle boundary. Keep the recent entry if any
   // daemon or filesystem step fails so the UI cannot claim data was removed.
   ipcMain.handle('project:remove', async (_event, projectId: string) => {
-    await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: ARCHD_API_PORT })
+    const token = readDaemonToken()
+    await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: ARCHD_API_PORT,
+      request: (input, init) => fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } }),
+    })
     saveRecentProjects(loadRecentProjects().filter(project => project.id !== projectId))
     if (readResumeProjectId(SETTINGS_FILE) === projectId) writeResumeProjectId(SETTINGS_FILE, null)
   })
@@ -654,6 +658,20 @@ until they do.
 // ─── App lifecycle ──────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // The capability stays in main; only requests to our fixed loopback daemon
+  // receive it. Page scripts never receive the token through IPC or URLs.
+  if (!IS_E2E) session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['http://127.0.0.1:7743/*', 'ws://127.0.0.1:7744/*'] },
+    (details, callback) => {
+      if (details.webContentsId !== mainWindow?.webContents.id) { callback({ requestHeaders: details.requestHeaders }); return }
+      const frameUrl = details.frame?.url
+      if (frameUrl && !frameUrl.startsWith('file://') && !(DEV_SERVER_URL && new URL(frameUrl).origin === new URL(DEV_SERVER_URL).origin)) {
+        callback({ requestHeaders: details.requestHeaders }); return
+      }
+      try { details.requestHeaders.Authorization = `Bearer ${readDaemonToken()}` } catch { /* daemon may still be starting */ }
+      callback({ requestHeaders: details.requestHeaders })
+    },
+  )
   createWindow()
   setupIPC()
   if (!IS_E2E) startArchd()

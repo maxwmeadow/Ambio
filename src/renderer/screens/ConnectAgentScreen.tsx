@@ -23,7 +23,7 @@ function surfaceTooltip(host: AgentHostInfo, state: AgentHostState): string {
     case 'repair':
       return host.unreadablePaths.length > 0
         ? `Axiom could not read ${host.unreadablePaths.join(', ')}, so it will not overwrite it.`
-        : `Axiom is configured in ${host.configPath}, but its mapping workflow is missing.`
+        : `Axiom is configured in ${host.configPath}, but its mapping or inbox workflow is missing.`
     case 'available':
       return `Found on this machine. Axiom will write to ${host.configPath}`
     default:
@@ -55,6 +55,7 @@ interface Props {
   fileCount: number
   indexing: boolean
   blankProject: boolean
+  backLabel?: string
   onComplete: () => void
   onReview: () => void
   onSkip: () => void
@@ -82,7 +83,7 @@ const CODEBASE_STEPS: Array<{ id: SetupStep; label: string }> = [
 const progress = new Map<string, Phase>()
 
 export function ConnectAgentScreen({
-  project, fileCount, indexing, blankProject, onComplete, onReview, onSkip, onBack,
+  project, fileCount, indexing, blankProject, backLabel = '← Projects', onComplete, onReview, onSkip, onBack,
 }: Props) {
   const [activeStep, setActiveStep] = useState<SetupStep>(1)
   const [copied, setCopied] = useState(false)
@@ -337,7 +338,7 @@ export function ConnectAgentScreen({
 
       <main className="axiom-connect__card">
         <header className="axiom-connect__header">
-          <button type="button" className="axiom-connect__back" onClick={onBack}>← Projects</button>
+          <button type="button" className="axiom-connect__back" onClick={onBack}>{backLabel}</button>
           <div className="axiom-connect__identity">
             <div>
               <p className="axiom-connect__eyebrow">{project.name}</p>
@@ -380,7 +381,7 @@ export function ConnectAgentScreen({
                 <p className="axiom-connect__step-copy">
                   {blankProject
                     ? 'Choose the agent and harness you use. Axiom adds its MCP connection and reusable workflows.'
-                    : 'Choose the agent and harness you use. Axiom adds its MCP connection and reusable mapping workflows.'}
+                    : 'Choose the agent and harness you use. Axiom adds its MCP connection, canvas inbox, and mapping workflow.'}
                 </p>
 
                 <div className="axiom-connect__list-bar">

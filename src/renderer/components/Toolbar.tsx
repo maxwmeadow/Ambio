@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { CreateInfraDialog } from './CreateInfraDialog'
 import { SendToAgentDialog } from './SendToAgentDialog'
-import { useSheetStore } from '../store/sheetStore'
+import { useSheetStore, refreshInbox } from '../store/sheetStore'
 import { ChromeButton } from './ui/ChromeButton'
 import { InvestigationsMenu } from './InvestigationsMenu'
 import { RecordingControl } from './RecordingControl'
@@ -13,13 +13,14 @@ interface ToolbarProps {
   onSearch: () => void
   /** Return to the project launcher, leaving this project open in archd. */
   onCloseProject: () => void
+  onManageAgentConnections: () => void
   projectName?: string
   agentLogOpen: boolean
   onToggleAgentLog: () => void
 }
 
 export function Toolbar({
-  onSearch, onCloseProject, projectName, agentLogOpen, onToggleAgentLog,
+  onSearch, onCloseProject, onManageAgentConnections, projectName, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
   const { fitView } = useReactFlow()
   const isIndexing = useGraphStore(s => s.isIndexing)
@@ -28,13 +29,21 @@ export function Toolbar({
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const [infraOpen, setInfraOpen] = useState(false)
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
-  const queuedMsgs = useSheetStore(s => s.messages.filter(m => m.status === 'queued').length)
+  const queuedMsgs = useSheetStore(s => s.inboxAvailableCount)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
   const activeSheetName = useSheetStore(s =>
     s.activeSheetId ? s.sheets.find(sheet => sheet.id === s.activeSheetId)?.name : undefined
   )
   const surfaceName = activeSheetId ? (activeSheetName ?? 'Overlay Sheet') : 'The Floor'
   const surfaceKind = activeSheetId ? 'Overlay Sheet' : 'Live Code Graph'
+
+  useEffect(() => {
+    setAgentMsgOpen(false)
+    if (!workspaceId) return
+    void refreshInbox(workspaceId)
+    const timer = setInterval(() => { void useSheetStore.getState().fetchSheets(workspaceId) }, 5000)
+    return () => clearInterval(timer)
+  }, [workspaceId])
 
   useEffect(() => {
     void window.axiom?.setTitleBarHeight?.(34)
@@ -155,7 +164,7 @@ export function Toolbar({
       </div>
 
       </header>
-      <SendToAgentDialog isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} />
+      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
       <CreateInfraDialog isOpen={infraOpen} onClose={() => setInfraOpen(false)} />
     </>
   )

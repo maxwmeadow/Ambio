@@ -437,8 +437,8 @@ func migrate(db *sql.DB) error {
 		ON architecture_proposal_layouts(proposal_id, revision, parent_ref_type, parent_ref_id);
 
 	-- Canvas→agent outbox (UML_UX_PLAN.md Phase U-C). The user composes a
-	-- note on the canvas; MCP tools drain it; every axiom tool response
-	-- carries an unread-count trailer so any active agent sees it fast.
+	-- note on the canvas; MCP tools claim it with a renewable lease. Tool
+	-- responses carry an available-count hint for connected agents.
 	CREATE TABLE IF NOT EXISTS canvas_outbox (
 		id             TEXT PRIMARY KEY,
 		workspace_id   TEXT NOT NULL,
@@ -448,7 +448,7 @@ func migrate(db *sql.DB) error {
 		change_summary TEXT NOT NULL DEFAULT '',    -- 12-verb semantic summary
 		sheet_context  TEXT NOT NULL DEFAULT '',    -- immutable JSON snapshot resolved against the live Floor
 		build_spec     TEXT NOT NULL DEFAULT '',    -- approved planned increment at send time
-		status         TEXT NOT NULL DEFAULT 'queued', -- 'queued'|'delivered'|'answered'
+		status         TEXT NOT NULL DEFAULT 'queued', -- 'queued'|'delivered'|'answered'|'cancelled'
 		delivered_to   TEXT,
 		answer_annotation_id TEXT,
 		created_at INTEGER NOT NULL, delivered_at INTEGER, answered_at INTEGER
@@ -735,6 +735,9 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE planned_nodes ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		`ALTER TABLE canvas_outbox ADD COLUMN sheet_context TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE canvas_outbox ADD COLUMN build_spec TEXT NOT NULL DEFAULT ''`,
+		// New canvas work orders require an explicit ID in the receiving chat.
+		// Existing messages remain open so older MCP clients can drain them.
+		`ALTER TABLE canvas_outbox ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'open'`,
 		`ALTER TABLE sheet_elements ADD COLUMN design_metadata TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE sheet_elements ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.
@@ -758,6 +761,12 @@ func migrate(db *sql.DB) error {
 				return fmt.Errorf("migration: %s: %w", col, err)
 			}
 		}
+	}
+	if err := migrateInbox(db); err != nil {
+		return fmt.Errorf("migrate inbox: %w", err)
+	}
+	if err := migrateSheetWork(db); err != nil {
+		return err
 	}
 	if err := BackfillSheetLayouts(db); err != nil {
 		return err

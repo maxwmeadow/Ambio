@@ -445,3 +445,47 @@ func TestFinalizeArchitectureProposalRollsBackBlockedRemainder(t *testing.T) {
 		}
 	}
 }
+
+// An agent naming a responsibility after its folder collides with the
+// placeholder indexing created for that folder. Finalize used to fail on the
+// unique-name index at the very last step of onboarding.
+func TestFinalizeTakesANameFromAPlaceholderSystem(t *testing.T) {
+	database, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := UpsertWorkspace(database, Workspace{ID: "ws", Name: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpsertRoot(database, Root{ID: "root", WorkspaceID: "ws", Path: t.TempDir(), IsPrimary: true}); err != nil {
+		t.Fatal(err)
+	}
+	placeholder := System{ID: "dir_parent", WorkspaceID: "ws", Name: "Parent", Source: "directory"}
+	if err := UpsertSystem(database, placeholder); err != nil {
+		t.Fatal(err)
+	}
+	proposal, first, second := proposalFixture(t)
+	proposal.RootID = stringPtr("root")
+	first.SystemID = &placeholder.ID
+	second.SystemID = &placeholder.ID
+	for _, file := range []*File{first, second} {
+		if err := UpsertFile(database, *file); err != nil {
+			t.Fatal(err)
+		}
+	}
+	created, err := CreateArchitectureProposal(database, *proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := FinalizeArchitectureProposal(database, created.ID, "ws", 1, "user"); err != nil {
+		t.Fatalf("finalize must not fail because a placeholder holds the name: %v", err)
+	}
+	var source string
+	if err := database.QueryRow(`SELECT source FROM systems WHERE workspace_id='ws' AND parent_id IS NULL AND name='Parent'`).Scan(&source); err != nil || source != "agent" {
+		t.Fatalf("the approved system should own the name: source=%q err=%v", source, err)
+	}
+	if system, err := GetSystem(database, placeholder.ID); err != nil || system != nil {
+		t.Fatalf("the emptied placeholder should be pruned: %#v %v", system, err)
+	}
+}

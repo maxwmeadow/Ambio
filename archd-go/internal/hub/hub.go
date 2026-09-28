@@ -18,10 +18,12 @@ type Message struct {
 }
 
 type client struct {
-	conn *websocket.Conn
-	send chan []byte
-	done chan struct{}
-	once sync.Once
+	workspace string
+	seq       uint64
+	conn      *websocket.Conn
+	send      chan []byte
+	done      chan struct{}
+	once      sync.Once
 }
 
 func (c *client) close() {
@@ -33,8 +35,9 @@ func (c *client) close() {
 
 // Hub maintains the set of active WebSocket connections.
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[*client]struct{}
+	broadcastMu sync.Mutex
+	mu          sync.RWMutex
+	clients     map[*client]struct{}
 
 	tapMu sync.RWMutex
 	tap   func(msgType string, payload json.RawMessage)
@@ -56,8 +59,11 @@ func (h *Hub) SetTap(fn func(msgType string, payload json.RawMessage)) {
 }
 
 // Register adds a new WebSocket connection and starts its write pump.
-func (h *Hub) Register(conn *websocket.Conn) {
+func (h *Hub) Register(conn *websocket.Conn, workspace ...string) {
 	c := &client{conn: conn, send: make(chan []byte, 64), done: make(chan struct{})}
+	if len(workspace) > 0 {
+		c.workspace = workspace[0]
+	}
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
 	h.mu.Unlock()
@@ -87,6 +93,8 @@ func (c *client) writePump(onDone func()) {
 
 // Broadcast sends a typed message to all connected clients.
 func (h *Hub) Broadcast(msgType string, payload any) {
+	h.broadcastMu.Lock()
+	defer h.broadcastMu.Unlock()
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("hub: marshal %s: %v", msgType, err)
@@ -105,15 +113,48 @@ func (h *Hub) Broadcast(msgType string, payload any) {
 	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	workspace := eventWorkspace(raw)
 	for c := range h.clients {
+		out := msg
+		if c.workspace != "" {
+			if workspace != "" && workspace != c.workspace {
+				continue
+			}
+			c.seq++
+			kind, body := msgType, raw
+			// Old unscoped events only invalidate. Never apply another project's
+			// anonymous entity mutation to a scoped client.
+			if workspace == "" {
+				kind = "workspace:invalidate"
+				body, _ = json.Marshal(map[string]string{"workspaceId": c.workspace})
+			}
+			out, _ = json.Marshal(Message{Type: kind, Payload: body, Seq: c.seq})
+		}
 		select {
-		case c.send <- msg:
+		case c.send <- out:
 		default:
 			// Disconnect rather than silently dropping part of a graph update.
 			log.Printf("hub: disconnecting slow client for snapshot resync")
 			c.close()
 		}
 	}
+}
+
+func eventWorkspace(raw json.RawMessage) string {
+	var envelope struct {
+		WorkspaceID string          `json:"workspaceId"`
+		Payload     json.RawMessage `json:"payload"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil {
+		return ""
+	}
+	if envelope.WorkspaceID != "" {
+		return envelope.WorkspaceID
+	}
+	if len(envelope.Payload) > 0 {
+		return eventWorkspace(envelope.Payload)
+	}
+	return ""
 }
 
 // BroadcastSnapshot sends a full graph:snapshot event.
@@ -134,11 +175,15 @@ func (h *Hub) BroadcastPatch(payload any) {
 }
 
 // BroadcastIndexingProgress reports indexing progress to the UI.
-func (h *Hub) BroadcastIndexingProgress(indexed, total int) {
-	h.Broadcast("indexing:progress", map[string]any{
+func (h *Hub) BroadcastIndexingProgress(indexed, total int, workspace ...string) {
+	payload := map[string]any{
 		"indexed": indexed,
 		"total":   total,
-	})
+	}
+	if len(workspace) > 0 {
+		payload["workspaceId"] = workspace[0]
+	}
+	h.Broadcast("indexing:progress", payload)
 }
 
 // BroadcastIndexingComplete signals that initial indexing finished.

@@ -15,6 +15,7 @@ import { PaperTextureDefs } from './canvas/nodes/PaperTexture'
 import { DeltaPanel } from './components/DeltaPanel'
 import { ArchitectureProposalPanel } from './components/ArchitectureProposalPanel'
 import { ReplayBar } from './components/ReplayBar'
+import { CasePanel } from './components/CasePanel'
 import { OnboardingGuide } from './components/OnboardingGuide'
 import { AgentLane } from './components/AgentLane'
 import { InterruptionLane } from './components/InterruptionLane'
@@ -110,6 +111,7 @@ function projectIsReady(config: ProjectConfig): boolean {
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [agentLogOpen, setAgentLogOpen] = useState(false)
+  const caseOpen = useGraphStore(state => state.caseFile !== null || state.replay !== null)
   // Shared with the canvas documents bin, so both entry points open one browser.
   const documentsOpen = useGraphStore(state => state.documentsOpen)
   const setDocumentsOpen = useGraphStore(state => state.setDocumentsOpen)
@@ -138,6 +140,7 @@ export default function App() {
   const [completedAgentSetupId, setCompletedAgentSetupId] = useState<string | null>(null)
   const [initialJourneyProjectId, setInitialJourneyProjectId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
+  const [agentSetupOpen, setAgentSetupOpen] = useState(false)
   const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
   const architectureIsAuthored = readAuthorship({
     systems: graphSystems,
@@ -285,17 +288,34 @@ export default function App() {
       connectToArchd('ws://127.0.0.1:7744/ws')
       // Register workspace with archd and start indexing
       console.log('[openProject] posting workspace:', { workspaceId: config.id, rootPath: config.rootPath, ignoredPaths: config.ignoredPaths })
-      fetch('http://127.0.0.1:7743/api/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: config.id,
-          name: config.name,
-          rootPath: config.rootPath,
-          ignoredPaths: config.ignoredPaths,
-          sourceBoundariesReviewedAt: config.sourceBoundariesReviewedAt,
-        }),
-      }).then(() => {
+      // The app starts archd and can open the last project in the same
+      // second, before archd is listening. One refused connection then raised
+      // a permanent "could not reach archd" over a canvas that loaded moments
+      // later. Retry while the daemon starts; only a daemon that never
+      // answers is a failure.
+      const registerWorkspace = async (): Promise<Response> => {
+        let lastError: unknown
+        for (let attempt = 0; attempt < 12; attempt++) {
+          try {
+            return await fetch('http://127.0.0.1:7743/api/workspace', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                workspaceId: config.id,
+                name: config.name,
+                rootPath: config.rootPath,
+                ignoredPaths: config.ignoredPaths,
+                sourceBoundariesReviewedAt: config.sourceBoundariesReviewedAt,
+              }),
+            })
+          } catch (err) {
+            lastError = err
+            await new Promise(resolve => setTimeout(resolve, Math.min(400 * (attempt + 1), 2000)))
+          }
+        }
+        throw lastError
+      }
+      registerWorkspace().then(() => {
         // Snapshot is pushed over WS on open, but if the socket connects a
         // beat late the broadcast is missed and the canvas stays empty - pull
         // it explicitly, retrying while indexing warms up.
@@ -469,6 +489,7 @@ export default function App() {
     setCompletedAgentSetupId(null)
     setInitialJourneyProjectId(null)
     setBrowsingWithoutAgent(null)
+    setAgentSetupOpen(false)
     setReviewActive(false)
     setDocumentsOpen(false)
   }, [setStoreProject])
@@ -540,28 +561,31 @@ export default function App() {
   const needsAgentSetup = currentProject && initialJourneyProjectId === currentProject.id && (blankProject
     ? !blankAgentSetupComplete
     : !architectureIsAuthored && browsingWithoutAgent !== currentProject.id)
-  if (currentProject && (E2E_CONNECT || (!E2E_MODE && needsAgentSetup))) {
+  if (currentProject && (E2E_CONNECT || (!E2E_MODE && (agentSetupOpen || needsAgentSetup)))) {
     return (
       <ConnectAgentScreen
         project={currentProject}
         fileCount={sourceGraphFiles.length}
         indexing={graphIndexing}
         blankProject={blankProject}
+        backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
         onComplete={() => {
           void window.axiom?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
             .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
             .catch(error => raiseFailure('agent-setup-save', 'Could not save agent setup', String(error)))
           setCompletedAgentSetupId(currentProject.id)
+          setAgentSetupOpen(false)
         }}
-        onReview={() => setBrowsingWithoutAgent(currentProject.id)}
+        onReview={() => { setBrowsingWithoutAgent(currentProject.id); setAgentSetupOpen(false) }}
         onSkip={() => {
           setBrowsingWithoutAgent(currentProject.id)
+          setAgentSetupOpen(false)
           void window.axiom?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
             .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
             .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
           setReviewActive(false)
         }}
-        onBack={closeProject}
+        onBack={agentSetupOpen ? () => setAgentSetupOpen(false) : closeProject}
       />
     )
   }
@@ -588,6 +612,7 @@ export default function App() {
         <Toolbar
           onSearch={() => setSearchOpen(true)}
           onCloseProject={closeProject}
+          onManageAgentConnections={() => setAgentSetupOpen(true)}
           projectName={currentProject.name}
           agentLogOpen={agentLogOpen}
           onToggleAgentLog={() => setAgentLogOpen(open => !open)}
@@ -643,10 +668,19 @@ export default function App() {
           {/* Agent activity log - everything the agent is doing, live */}
           {agentLogOpen && <AgentLogPanel onClose={() => setAgentLogOpen(false)} />}
 
+          {/* The agent's investigation: hypotheses, runs and their evidence,
+              verdicts, the conclusion, and a way to talk back. Before the
+              replay bar so the transport can move out from under it. */}
+          <ErrorBoundary>
+            <CasePanel />
+          </ErrorBoundary>
+
           {/* Investigation Capture replay controls */}
           <ReplayBar />
 
-          {!E2E_MODE && <OnboardingGuide projectId={currentProject.id} />}
+          {/* Setup tips wait while a case is open or replaying - in a trial
+              the first one sat on top of the replay transport. */}
+          {!E2E_MODE && !caseOpen && <OnboardingGuide projectId={currentProject.id} />}
 
           {/* Which worktree each agent is in, and how the branches relate.
               Boundaried because a panel throwing during render takes the whole

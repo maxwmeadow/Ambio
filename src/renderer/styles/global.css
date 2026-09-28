@@ -7539,3 +7539,397 @@ select.axiom-inspector-input {
   border-color: #4f7a68;
   color: #9fd0ba;
 }
+
+/* ─── Investigation case panel ───────────────────────────────────────────────
+   An agent's investigation as the watcher sees it. Ink blue is its mode
+   accent (forensic, blueprint); a replayed case switches to replay amber, so
+   "this already happened" reads the same everywhere. Evidence severity uses
+   the app's semantic red and amber, never the accent. */
+.axiom-case {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 1150;
+  display: flex;
+  width: 404px;
+  max-width: calc(100vw - 28px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #4f5d58;
+  border-top: 2px solid #3d6a9e;
+  border-radius: 3px;
+  background: #eceae3;
+  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.46), 0 18px 44px rgba(0, 0, 0, 0.34);
+  color: #26332f;
+  font-family: var(--font-mono);
+}
+.axiom-case[data-status="replay"] { border-top-color: #9a6b2a; }
+.axiom-case[data-status="closed"] { border-top-color: #5c8a70; }
+
+/* The replay transport is centred; beside the case it would sit under it. */
+.axiom-case ~ .axiom-replay { left: calc(50% - 214px); }
+
+.axiom-case__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 10px 11px 12px;
+  border-bottom: 1px solid #1d2925;
+  background: linear-gradient(180deg, #4a5652 0%, #2d3834 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.axiom-case__mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid #6f98c8;
+  background: #2d4f78;
+  color: #e6eef9;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.axiom-case__mode[data-status="replay"] { border-color: #c89a4c; background: #6b4a17; color: #f7ead2; }
+.axiom-case__mode[data-status="closed"] { border-color: #86a896; background: #3f5a4c; color: #e4efe8; }
+
+.axiom-case__live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8fd0ff;
+  box-shadow: 0 0 0 0 rgba(143, 208, 255, 0.7);
+  animation: axiomCaseLive 1.6s ease-out infinite;
+}
+@keyframes axiomCaseLive {
+  0% { box-shadow: 0 0 0 0 rgba(143, 208, 255, 0.7); }
+  70% { box-shadow: 0 0 0 7px rgba(143, 208, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(143, 208, 255, 0); }
+}
+
+.axiom-case__identity { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.axiom-case__identity strong {
+  overflow: hidden;
+  color: #fffdf5;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.axiom-case__identity span { color: #a9bab4; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.axiom-case__close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #18231f;
+  background: linear-gradient(180deg, #667570 0%, #3c4945 100%);
+  color: #f2efe6;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.axiom-case__close:hover, .axiom-case__close:focus-visible { border-color: #8fb7e6; }
+
+.axiom-case__summary {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #c3c1b9;
+  background: #f6f4ee;
+}
+.axiom-case__summary > span,
+.axiom-case__entry-label,
+.axiom-case__composer-label {
+  color: #3d6a9e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.axiom-case[data-status="replay"] .axiom-case__summary > span { color: #8a5e22; }
+.axiom-case__summary p {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+.axiom-case__fix { font-weight: 400 !important; font-size: 13px !important; color: #3b4843; }
+.axiom-case__fix span { margin-right: 4px; color: #5c8a70; font-family: var(--font-mono); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.axiom-case__verified { font-family: var(--font-mono) !important; font-size: 10px !important; font-weight: 600 !important; color: #8a5e22; }
+.axiom-case__verified[data-verified] { color: #2f7a4d; }
+
+.axiom-case code {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(61, 106, 158, 0.1);
+  color: #1f3f63;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.axiom-case__closed {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #c3c1b9;
+  background: #e2ebe4;
+  font-size: 11px;
+}
+.axiom-case__closed p { margin: 0; }
+.axiom-case__closed button,
+.axiom-case__composer button[type="submit"] {
+  justify-self: start;
+  padding: 6px 12px;
+  border: 1px solid #1f3f63;
+  border-radius: 2px;
+  background: #2d4f78;
+  color: #f2f6fb;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.axiom-case__closed button:hover,
+.axiom-case__composer button[type="submit"]:not(:disabled):hover { background: #3d6a9e; }
+.axiom-case__composer button[type="submit"]:disabled { opacity: 0.45; cursor: default; }
+
+.axiom-case__board {
+  display: grid;
+  flex: 0 0 auto;
+  max-height: 34%;
+  overflow-y: auto;
+  border-bottom: 1px solid #c3c1b9;
+  background: #e3e1d9;
+}
+.axiom-case__hypothesis {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 12px;
+  border-top: 1px solid #d3d1c9;
+  font-size: 11px;
+}
+.axiom-case__hypothesis:first-child { border-top: 0; }
+.axiom-case__hypothesis-id { color: #3d6a9e; font-weight: 800; }
+.axiom-case__hypothesis-text { font-family: var(--font-ui); font-size: 12px; line-height: 1.35; }
+.axiom-case__hypothesis-status {
+  padding: 2px 6px;
+  border: 1px solid #a9b2ac;
+  border-radius: 2px;
+  color: #55635d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.axiom-case__hypothesis[data-status="confirmed"] .axiom-case__hypothesis-status { border-color: #2f7a4d; background: #2f7a4d; color: #f0f8f3; }
+.axiom-case__hypothesis[data-status="refuted"] .axiom-case__hypothesis-status { border-color: #a14a43; color: #a14a43; }
+.axiom-case__hypothesis[data-status="refuted"] .axiom-case__hypothesis-text { color: #7d8783; text-decoration: line-through; text-decoration-thickness: 1px; }
+.axiom-case__hypothesis[data-status="inconclusive"] .axiom-case__hypothesis-status { border-color: #9a6a17; color: #8a5e22; }
+.axiom-case__hypothesis[data-status="open"] .axiom-case__hypothesis-status { border-color: #3d6a9e; color: #2d4f78; }
+
+.axiom-case__story {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  background: #d6d4cc;
+  list-style: none;
+}
+.axiom-case__empty {
+  padding: 18px 14px;
+  background: #eceae3;
+  color: #5d6a65;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.axiom-case__entry {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  background: #eceae3;
+}
+.axiom-case__entry p { margin: 0; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
+.axiom-case__entry[data-kind="verdict"][data-status="confirmed"] .axiom-case__entry-label { color: #2f7a4d; }
+.axiom-case__entry[data-kind="verdict"][data-status="refuted"] .axiom-case__entry-label { color: #a14a43; }
+.axiom-case__entry[data-kind="message"] { background: #e7edf4; }
+.axiom-case__entry[data-kind="running"] { background: #e7edf4; }
+.axiom-case__entry[data-kind="running"] .axiom-case__entry-label::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #3d6a9e;
+  vertical-align: middle;
+  animation: axiomCaseLive 1.2s ease-out infinite;
+}
+.axiom-case__delivery { color: #6b7671; font-size: 10px; }
+.axiom-case__watching { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+
+.axiom-case__anchors { display: flex; flex-wrap: wrap; gap: 4px; }
+.axiom-case__anchor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid #b8bfbb;
+  border-radius: 2px;
+  background: #f6f4ee;
+  color: #1f3f63;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.axiom-case__anchor small { color: #6b7671; font-size: 9.5px; }
+.axiom-case__anchor:not(:disabled):hover,
+.axiom-case__anchor:focus-visible { border-color: #3d6a9e; background: #fff; }
+.axiom-case__anchor:disabled { cursor: default; color: #6b7671; }
+
+.axiom-case__run {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid #b9bdb7;
+  border-left: 3px solid #3d6a9e;
+  background: #f6f4ee;
+}
+.axiom-case__run[data-failed] { border-left-color: #a14a43; }
+.axiom-case__run header { display: grid; grid-template-columns: auto 1fr auto; gap: 7px; align-items: baseline; }
+.axiom-case__run-id { color: #3d6a9e; font-size: 11px; font-weight: 800; }
+.axiom-case__run-command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent !important; padding: 0 !important; font-size: 11.5px !important; color: #26332f !important; }
+.axiom-case__run-meta { color: #6b7671; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axiom-case__run-tests { color: #55635d; font-size: 11.5px !important; }
+.axiom-case__run-error { color: #a14a43; }
+.axiom-case__run-quiet { color: #5d6a65; font-size: 11.5px !important; }
+
+.axiom-case__findings { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.axiom-case__finding button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 14px 1fr;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #26332f;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.axiom-case__finding button:disabled { cursor: default; }
+.axiom-case__finding button:not(:disabled):hover,
+.axiom-case__finding button:focus-visible { border-color: #c3c1b9; background: #fff; }
+.axiom-case__finding-mark { color: #6b7671; font-family: var(--font-mono); font-weight: 800; text-align: center; }
+.axiom-case__finding[data-severity="high"] .axiom-case__finding-mark { color: #b6534b; }
+.axiom-case__finding[data-severity="high"] button { background: rgba(182, 83, 75, 0.06); }
+.axiom-case__finding[data-severity="medium"] .axiom-case__finding-mark { color: #9a6a17; }
+
+.axiom-case__watched { display: grid; gap: 2px; margin: 0; padding: 0; color: #55635d; font-size: 10.5px; list-style: none; }
+.axiom-case__output button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #3d6a9e;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.axiom-case__output pre {
+  max-height: 180px;
+  margin: 6px 0 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid #c3c1b9;
+  background: #22292b;
+  color: #e4e8e6;
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.axiom-case__composer {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #b9bdb7;
+  background: #e3e1d9;
+}
+.axiom-case__composer textarea {
+  width: 100%;
+  min-height: 44px;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid #a9b2ac;
+  border-radius: 2px;
+  background: #fbfaf6;
+  color: #26332f;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.axiom-case__composer textarea:focus-visible { outline: 2px solid #3d6a9e; outline-offset: -1px; }
+.axiom-case__composer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.axiom-case__attach, .axiom-case__hint { display: inline-flex; align-items: center; gap: 5px; color: #5d6a65; font-size: 10.5px; }
+.axiom-case__error { margin: 0; color: #a14a43; font-size: 11px; }
+
+/* Minimized case: a chip that keeps the case one click away. */
+.axiom-case-chip {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 1150;
+  display: grid;
+  grid-template-columns: auto auto;
+  max-width: min(420px, calc(100vw - 28px));
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #4f5d58;
+  border-top: 2px solid #3d6a9e;
+  border-radius: 3px;
+  background: #eceae3;
+  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.46);
+  color: #26332f;
+  font-family: var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.axiom-case-chip__dot { width: 7px; height: 7px; border-radius: 50%; background: #3d6a9e; animation: axiomCaseLive 1.6s ease-out infinite; }
+.axiom-case-chip[data-status="closed"] .axiom-case-chip__dot { background: #5c8a70; animation: none; }
+.axiom-case-chip__name { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.axiom-case-chip__summary { grid-column: 2; overflow: hidden; color: #5d6a65; font-family: var(--font-ui); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .axiom-case__live-dot,
+  .axiom-case-chip__dot,
+  .axiom-case__entry[data-kind="running"] .axiom-case__entry-label::after { animation: none; }
+}

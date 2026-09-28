@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { startHarness } from './mcpHarness.mjs'
+import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 
 test('large architecture can be submitted in durable chunks without changing the live map', { timeout: 90000 }, async () => {
   const harness = await startHarness()

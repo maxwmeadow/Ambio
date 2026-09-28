@@ -40,6 +40,7 @@ export interface Sheet {
   viewport?: { x: number; y: number; zoom: number }
   createdAt: number
   updatedAt: number
+  resolvedAt?: number
 }
 
 export interface SheetElement {
@@ -79,13 +80,17 @@ export interface SheetAnnotation {
 export interface CanvasMessage {
   id: string
   workspaceId: string
+  deliveryMode?: 'open' | 'addressed'
   sheetId: string | null
   note: string
   selection: string
   changeSummary: string
   sheetContext: string
   buildSpec: string
-  status: 'queued' | 'delivered' | 'answered'
+  status: 'queued' | 'delivered' | 'answered' | 'cancelled'
+  leaseExpiresAt?: number
+  agent?: string
+  reply?: { body: string; agent: string; createdAt: number }
   deliveredTo: string | null
   answerAnnotationId: string | null
   createdAt: number
@@ -282,6 +287,10 @@ interface SheetState {
   plannedEdges: PlannedEdge[]
   layouts: SheetLayout[]                 // active sheet's canonical geometry opinions
   messages: CanvasMessage[]              // recent canvas→agent messages (chips)
+  inboxError: string | null
+  inboxNextCursor: string
+  inboxAvailableCount: number
+  selectedCanvasIds: string[]
 
   fetchSheets: (workspaceId: string) => Promise<void>
   openSheet: (workspaceId: string, sheetId: string | null) => Promise<void>
@@ -292,7 +301,7 @@ interface SheetState {
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   updateElementMetadata: (workspaceId: string, elementId: string, metadata: PlannedNodeMetadata) => Promise<void>
   removeElement: (workspaceId: string, sheetId: string, elementId: string) => Promise<void>
-  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null) => Promise<void>
+  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string) => Promise<void>
   lastCreatedPlannedId: string | null   // node enters inline name-edit on mount
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
@@ -330,6 +339,22 @@ function commitSheetLayer(state: SheetState, sheetId: string, layer: SheetLayerD
   }
 }
 
+function pruneResolvedLayers(state: SheetState, sheets: Sheet[]): Partial<SheetState> {
+  const resolved = new Set(sheets.filter(sheet => sheet.resolvedAt).map(sheet => sheet.id))
+  const visibleSheetIds = state.visibleSheetIds.filter(id => !resolved.has(id))
+  const activeSheetId = state.activeSheetId && resolved.has(state.activeSheetId) ? null : state.activeSheetId
+  const layersById = Object.fromEntries(Object.entries(state.layersById).filter(([id]) => !resolved.has(id)))
+  return { visibleSheetIds, activeSheetId, layersById, ...activeLayerProjection(activeSheetId, layersById) }
+}
+
+function mergeSheetStates(incoming: Sheet[], previous: Sheet[]): Sheet[] {
+  const known = new Map(previous.map(sheet => [sheet.id, sheet]))
+  return incoming.map(sheet => {
+    const old = known.get(sheet.id)
+    return old && (old.revision > sheet.revision || (old.revision === sheet.revision && old.resolvedAt)) ? old : sheet
+  })
+}
+
 export const useSheetStore = create<SheetState>((set, get) => ({
   workspaceId: null,
   sheets: [],
@@ -342,8 +367,14 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   plannedEdges: [],
   layouts: [],
   messages: [],
+  inboxError: null,
+  inboxNextCursor: '',
+  inboxAvailableCount: 0,
+  selectedCanvasIds: [],
 
   fetchSheets: async (workspaceId) => {
+    if (get().workspaceId !== workspaceId) set({ workspaceId, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
+    void refreshInbox(workspaceId)
     const request = ++fetchSheetsRequest
     try {
       const res = await fetch(`${API}/api/sheets?workspace=${encodeURIComponent(workspaceId)}`)
@@ -351,7 +382,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       const sheets = (await res.json()) ?? []
       if (request !== fetchSheetsRequest) return
       set(s => s.workspaceId === workspaceId
-        ? { sheets }
+        ? { sheets: mergeSheetStates(sheets,s.sheets), ...pruneResolvedLayers(s, mergeSheetStates(sheets,s.sheets)) }
         : {
             workspaceId, sheets, activeSheetId: null, visibleSheetIds: [], layersById: {},
             elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [],
@@ -371,7 +402,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       const current = get()
       const data = (current.workspaceId === workspaceId ? current.layersById[sheetId] : null)
         ?? await fetchSheetLayer(workspaceId, sheetId)
-      if (!data || request !== openSheetRequest) return
+      if (!data || data.sheet.resolvedAt || request !== openSheetRequest) return
+      if (get().sheets.find(sheet => sheet.id === sheetId)?.resolvedAt) return
       set(s => {
         const sameWorkspace = s.workspaceId === workspaceId
         const visibleSheetIds = sameWorkspace ? s.visibleSheetIds : []
@@ -834,22 +866,18 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
   },
 
-  sendToAgent: async (workspaceId, note, selection, sheetId) => {
+  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID()) => {
     const res = await fetch(`${API}/api/canvas/send`, {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        workspaceId, note, sheetId,
+        id, workspaceId, note, sheetId, deliveryMode: 'addressed',
         selection: JSON.stringify(selection),
       }),
     })
-    if (!res.ok) throw new Error(await res.text())
-    const message = await res.json() as CanvasMessage
-    set(state => ({
-      messages: state.messages.some(item => item.id === message.id)
-        ? state.messages.map(item => item.id === message.id ? message : item)
-        : [...state.messages, message],
-    }))
+    if (!res.ok) throw Object.assign(new Error(await res.text()), { status: res.status })
+    await refreshInbox(workspaceId)
   },
 }))
 
@@ -857,12 +885,23 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 // sheet store. Called from graphStore's patch pipeline (one-way dependency).
 export function handleSheetPatch(patch: { type: string; payload: unknown }): void {
   const s = useSheetStore.getState()
+  const workspace = (patch.payload as { workspaceId?: string } | null)?.workspaceId
+  if (workspace && workspace !== s.workspaceId) return
   switch (patch.type) {
     case 'sheet:upserted': {
       const sheet = patch.payload as Sheet
+      if (sheet.resolvedAt) {
+        useSheetStore.setState(st => {
+          const previous = st.sheets.find(item => item.id === sheet.id)
+          if (previous && previous.revision > sheet.revision) return st
+          const sheets = [...st.sheets.filter(item => item.id !== sheet.id), sheet]
+          return { sheets, ...pruneResolvedLayers(st, sheets) }
+        })
+        break
+      }
       useSheetStore.setState(st => ({
         sheets: st.sheets.some(x => x.id === sheet.id)
-          ? st.sheets.map(x => x.id === sheet.id && sheet.revision >= x.revision ? sheet : x)
+          ? st.sheets.map(x => x.id === sheet.id ? mergeSheetStates([sheet],[x])[0] : x)
           : [...st.sheets, sheet],
         layersById: st.layersById[sheet.id] && sheet.revision >= st.layersById[sheet.id].sheet.revision
           ? { ...st.layersById, [sheet.id]: { ...st.layersById[sheet.id], sheet } }
@@ -1005,12 +1044,62 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'canvas:message': {
       const m = patch.payload as CanvasMessage
-      useSheetStore.setState(st => ({
-        messages: st.messages.some(x => x.id === m.id)
-          ? st.messages.map(x => x.id === m.id ? m : x)
-          : [...st.messages, m],
-      }))
+      if (m.workspaceId === s.workspaceId) void refreshInbox(m.workspaceId)
       break
     }
   }
+}
+
+let inboxRequest = 0
+const inboxLoads = new Map<string, { before: string; promise: Promise<void> }>()
+export function refreshInbox(workspaceId: string, before = ''): Promise<void> {
+  const existing = inboxLoads.get(workspaceId)
+  if (existing) return existing.before === before ? existing.promise : existing.promise.then(() => refreshInbox(workspaceId, before))
+  const promise = loadInbox(workspaceId, before).finally(() => {
+    if (inboxLoads.get(workspaceId)?.promise === promise) inboxLoads.delete(workspaceId)
+  })
+  inboxLoads.set(workspaceId, { before, promise })
+  return promise
+}
+async function loadInbox(workspaceId: string, before: string): Promise<void> {
+  const request = ++inboxRequest
+  try {
+    const compare = (a: CanvasMessage, b: CanvasMessage) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    const loaded = useSheetStore.getState().messages.filter(message => message.workspaceId === workspaceId)
+    const oldest = before ? undefined : loaded.reduce<CanvasMessage | undefined>((prior, message) => !prior || compare(message, prior) < 0 ? message : prior, undefined)
+    const signal = AbortSignal.timeout(15000)
+    const messages: CanvasMessage[] = []
+    let cursor = before
+    let data: { messages: CanvasMessage[]; nextCursor: string; availableCount: number }
+    do {
+      const response = await fetch(`${API}/api/canvas/history?workspace=${encodeURIComponent(workspaceId)}&before=${encodeURIComponent(cursor)}`, { signal })
+      if (!response.ok) throw new Error(await response.text())
+      data = await response.json()
+      if (request !== inboxRequest || useSheetStore.getState().workspaceId !== workspaceId) return
+      messages.push(...data.messages)
+      // Refresh every displayed page, including old requests that received a
+      // reply after the user loaded them. One deadline bounds the whole refresh.
+      if (!oldest || !data.nextCursor || !data.messages.length || data.messages.some(message => compare(message, oldest) <= 0)) break
+      if (cursor === data.nextCursor) throw new Error('Inbox history cursor did not advance')
+      cursor = data.nextCursor
+    } while (true)
+    if (request !== inboxRequest || useSheetStore.getState().workspaceId !== workspaceId) return
+    useSheetStore.setState(state => {
+      const byId = new Map(state.messages.filter(m => m.workspaceId === workspaceId).map(m => [m.id, m]))
+      for (const message of messages) byId.set(message.id, message)
+      return { messages: [...byId.values()].sort(compare), inboxError: null,
+        inboxAvailableCount: data.availableCount ?? messages.filter(message => message.status === 'queued').length,
+        inboxNextCursor: data.nextCursor }
+    })
+  } catch (error) {
+    if (request === inboxRequest && useSheetStore.getState().workspaceId === workspaceId) {
+      useSheetStore.setState({ inboxError: error instanceof Error ? error.message : 'Could not load messages' })
+    }
+  }
+}
+
+export async function cancelInboxMessage(workspaceId: string, msgId: string): Promise<void> {
+  const response = await fetch(`${API}/api/canvas/cancel`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, msgId }) })
+  if (!response.ok) throw new Error(await response.text())
+  await refreshInbox(workspaceId)
 }
