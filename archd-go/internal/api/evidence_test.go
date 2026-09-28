@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -183,13 +184,15 @@ func TestRunReportIsBoundedAndSaysWhatToDoNext(t *testing.T) {
 }
 
 func TestConfinedCwd(t *testing.T) {
-	if _, err := confinedCwd("/w", "../etc"); err == nil {
+	root := t.TempDir()
+	if _, err := confinedCwd(root, filepath.Join("..", "etc")); err == nil {
 		t.Fatal("a run must not leave the workspace")
 	}
-	if got, err := confinedCwd("/w", "packages/api"); err != nil || got != "/w/packages/api" {
-		t.Fatalf("relative cwd: %q %v", got, err)
+	want := filepath.Join(root, "packages", "api")
+	if got, err := confinedCwd(root, filepath.Join("packages", "api")); err != nil || got != want {
+		t.Fatalf("relative cwd: %q %v, want %q", got, err, want)
 	}
-	if got, _ := confinedCwd("/w", ""); got != "/w" {
+	if got, _ := confinedCwd(root, ""); got != root {
 		t.Fatalf("default cwd: %q", got)
 	}
 }
