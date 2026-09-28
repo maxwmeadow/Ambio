@@ -23,6 +23,21 @@ func inboxServer(t *testing.T) (*Server, *http.ServeMux, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
+	// Requests for another workspace open its database too. Close every one
+	// before the temp dir is removed: Windows cannot delete an open file, so a
+	// test that passes elsewhere fails there on cleanup alone. Registered
+	// after TempDir, so it runs first.
+	t.Cleanup(func() {
+		s.mu.Lock()
+		ids := make([]string, 0, len(s.dbs))
+		for id := range s.dbs {
+			ids = append(ids, id)
+		}
+		s.mu.Unlock()
+		for _, id := range ids {
+			s.closeDB(id)
+		}
+	})
 	root := t.TempDir()
 	if err = db.UpsertWorkspace(d, db.Workspace{ID: "ws", Name: "Workspace"}); err != nil {
 		t.Fatal(err)
