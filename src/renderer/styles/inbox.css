@@ -1,34 +1,128 @@
-.axiom-inbox { position: absolute; z-index: 180; top: 108px; right: 16px; bottom: 36px; width: min(410px, calc(100vw - 32px)); display: flex; flex-direction: column; background: #faf9f5; color: #26372d; border: 1px solid #bcc5ba; border-radius: 12px; box-shadow: 0 12px 36px #1b352025; font-size: 13px; overflow: hidden; }
-.axiom-inbox button { cursor: pointer; padding: 7px 10px; border: 1px solid #c7cec3; background: #f1f3ec; border-radius: 6px; color: inherit; text-align: left; }
-.axiom-inbox button:disabled { opacity: .5; cursor: default; }
-.axiom-inbox button:focus-visible, .axiom-inbox textarea:focus-visible { outline: 2px solid #64875a; outline-offset: 2px; }
-.axiom-inbox__header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #dce0d6; }
-.axiom-inbox__header h2 { font-size: 17px; margin: 0 0 4px; }
-.axiom-inbox__header span { color: #687260; }
-.axiom-inbox__instructions { padding: 10px 16px; background: #ecf0e5; }
-.axiom-inbox__instructions p { margin: 0 0 8px; line-height: 1.45; }
-.axiom-inbox__history { flex: 1; min-height: 80px; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; }
-.axiom-inbox__message { padding: 12px 0; border-bottom: 1px solid #e1e4db; }
-.axiom-inbox__message p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; margin: 10px 0; }
-.axiom-inbox__meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #66745f; }
-.axiom-inbox__targets { display: flex; flex-wrap: wrap; gap: 5px; }
-.axiom-inbox__targets button { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.axiom-inbox__reply { margin-top: 12px; padding: 12px; background: #edf2e9; border-radius: 8px; border-left: 3px solid #718864; }
-.axiom-inbox__reply strong { font-size: 11px; }
-.axiom-inbox__compose { padding: 12px 16px 16px; border-top: 1px solid #dce0d6; display: flex; flex-direction: column; gap: 8px; }
-.axiom-inbox__compose textarea { padding: 10px; width: 100%; box-sizing: border-box; resize: vertical; min-height: 65px; max-height: 180px; border: 1px solid #b9c3b3; border-radius: 6px; font: inherit; background: white; color: inherit; }
-.axiom-inbox__compose button[type=submit] { background: #38563b; color: #fff; text-align: center; }
-.axiom-inbox__empty, .axiom-inbox small { color: #6b7565; line-height: 1.5; }
-.axiom-inbox__error { padding: 10px 16px; background: #fff0e8; color: #813c2c; overflow-wrap: anywhere; }
-.axiom-inbox__error button { margin-left: 8px; }
-.axiom-inbox__message .axiom-inbox__cancel { font-size: 11px; margin-top: 10px; background: transparent; }
-.axiom-inbox__comparison { padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; background: #f0f3eb; border-top: 1px solid #dce0d6; max-height: 28vh; overflow-y: auto; flex-shrink: 0; }
-.axiom-inbox__comparison ul { list-style: none; margin: 8px 0; padding: 0; }
-.axiom-inbox__comparison li { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid #dce0d6; overflow-wrap: anywhere; }
-.axiom-inbox__comparison summary { cursor: pointer; }
-.axiom-inbox__comparison-actions { display: flex; gap: 8px; }
-.axiom-inbox__compose select { font: inherit; color: inherit; background: white; border: 1px solid #b9c3b3; border-radius: 6px; padding: 6px; width: 100%; }
-.axiom-inbox__compose { flex-shrink: 0; max-height: 42vh; overflow-y: auto; }
+/* The agent surface shares the canvas workbench's paper, ink, and teal palette. */
+.axiom-inbox {
+  position: absolute; z-index: 180; display: flex; flex-direction: column; overflow: hidden;
+  --inbox-paper: #f0eee7;
+  --inbox-surface: #f7f5ef;
+  --inbox-ink: #27332f;
+  --inbox-muted: #727c77;
+  --inbox-line: #d8dcd5;
+  --inbox-accent: #346a62;
+  top: var(--chrome-toolbar-height, 82px); right: 0; bottom: var(--chrome-status-height, 28px);
+  width: min(456px, 100vw); border: 0; border-left: 1px solid #aab7ae; border-radius: 0;
+  background: var(--inbox-paper); color: var(--inbox-ink); box-shadow: -10px 0 30px #1d30201c;
+  font: 13px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
+}
+.axiom-inbox button { cursor: pointer; border: 0; border-radius: 0; background: transparent; padding: 0; text-align: inherit; color: inherit; font: inherit; }
+.axiom-inbox button:disabled { cursor: default; opacity: .5; }
+.axiom-inbox button:hover:not(:disabled) { color: var(--inbox-accent); }
+.axiom-inbox button:focus-visible, .axiom-inbox textarea:focus-visible, .axiom-inbox input:focus-visible { outline: 2px solid var(--inbox-accent); outline-offset: 2px; }
+.axiom-inbox__header { display: flex; justify-content: space-between; align-items: center; height: 68px; box-sizing: border-box; gap: 12px; padding: 0 20px; background: #e6e5dd; border-bottom: 1px solid #cfd5cc; flex-shrink: 0; }
+.axiom-inbox__brand { width: 34px; height: 34px; display: grid; place-items: center; flex: none; color: #eef5ee; background: #355f58; border-radius: 7px; }
+.axiom-inbox__heading { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.axiom-inbox__heading h2 { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.2; letter-spacing: -.01em; }
+.axiom-inbox__heading > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--inbox-muted); }
+.axiom-inbox .axiom-inbox__icon { width: 30px; height: 30px; flex: none; display: grid; place-items: center; color: #68736f; border-radius: 6px; }
+.axiom-inbox .axiom-inbox__icon:hover:not(:disabled) { background: #dde5de; color: var(--inbox-accent); }
+.axiom-inbox__help-anchor, .axiom-inbox__attach-anchor { position: relative; flex: none; }
+.axiom-inbox__help { position: absolute; z-index: 6; right: 0; top: 40px; width: min(340px, calc(100vw - 40px)); box-sizing: border-box; padding: 18px; background: #faf9f5; box-shadow: 0 12px 36px #1c2e2833; border: 1px solid #ccd4cb; border-radius: 9px; line-height: 1.55; }
+.axiom-inbox__help strong { font-size: 13px; }
+.axiom-inbox__help p { margin: 9px 0; color: #53615b; }
+.axiom-inbox__help button { display: inline-flex; align-items: center; gap: 7px; margin-top: 5px; padding: 7px 10px; border: 1px solid #b8c8bc; border-radius: 6px; color: var(--inbox-accent); font-weight: 600; }
+.axiom-inbox__thread { position: relative; flex: 1; min-height: 0; }
+.axiom-inbox__history { height: 100%; min-height: 0; box-sizing: border-box; padding: 24px 22px 20px; display: flex; flex-direction: column; gap: 28px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #c6cec4 transparent; }
+.axiom-inbox__history--messages::before { content: ''; flex: 1 0 0; }
+.axiom-inbox__empty { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; max-width: 300px; align-self: center; padding: 20px 0 30px; }
+.axiom-inbox__empty-mark { width: 62px; height: 62px; margin-bottom: 21px; display: grid; place-items: center; color: #507d72; background: #e4ebe3; border: 1px solid #d3ded2; border-radius: 17px; transform: rotate(-5deg); }
+.axiom-inbox__empty h3 { font-size: 17px; letter-spacing: -.025em; font-weight: 600; margin: 0 0 7px; color: var(--inbox-ink); }
+.axiom-inbox__empty p { margin: 0; color: #65716b; line-height: 1.6; }
+.axiom-inbox__empty button { margin: 20px 0 14px; display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border: 1px solid #a9c2b2; background: #e7f0e7; border-radius: 7px; color: #2f6258; font-weight: 600; }
+.axiom-inbox__empty small { font-size: 11px; color: #8a938c; }
+.axiom-inbox__earlier { align-self: center; padding: 6px 12px !important; border: 1px solid var(--inbox-line) !important; border-radius: 20px !important; color: #61736a !important; font-size: 11px !important; }
+.axiom-inbox__message { padding: 0; border: 0; display: flex; flex-direction: column; align-items: stretch; gap: 7px; }
+.axiom-inbox__user { align-self: flex-end; max-width: 88%; min-width: 90px; box-sizing: border-box; background: #e2e8e2; border: 1px solid #d3ddd3; border-radius: 13px 13px 3px 13px; padding: 11px 13px; overflow-wrap: anywhere; }
+.axiom-inbox__user p { margin: 0; line-height: 1.55; white-space: pre-wrap; }
+.axiom-inbox__meta { display: flex; justify-content: flex-end; align-items: center; gap: 9px; padding-right: 3px; font-size: 10px; color: #7c8780; }
+.axiom-inbox__meta .axiom-inbox__status--answered { color: #39756a; }
+.axiom-inbox__meta .axiom-inbox__cancel { margin: 0; padding-left: 5px; font-size: 10px; background: transparent; color: #7d8780; text-decoration: underline; text-underline-offset: 2px; }
+.axiom-inbox__targets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.axiom-inbox .axiom-inbox__targets button { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 6px; background: #f2f5f0; border: 1px solid #cedbd0; border-radius: 5px; font-size: 10px; color: #446f62; }
+.axiom-inbox__targets span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.axiom-inbox .axiom-inbox__message-sheet { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #3b7166; font-size: 11px; font-weight: 600; }
+.axiom-inbox__message-sheet span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.axiom-inbox__reply { background: transparent; border: 0; border-radius: 0; padding: 10px 2px 0; margin: 0; }
+.axiom-inbox__reply-heading { display: flex; gap: 8px; align-items: center; color: #356f63; font-size: 11px; margin-bottom: 9px; }
+.axiom-inbox__reply-heading strong { font-size: 11px; font-weight: 650; }
+.axiom-inbox__prose { font-size: 13px; line-height: 1.64; overflow-wrap: anywhere; }
+.axiom-inbox__prose p { margin: 0 0 10px; white-space: pre-wrap; }
+.axiom-inbox__prose h4 { margin: 12px 0 5px; font-size: 13px; }
+.axiom-inbox__prose ul, .axiom-inbox__prose ol { padding-left: 20px; margin: 0 0 10px; }
+.axiom-inbox__prose li { margin: 3px 0; }
+.axiom-inbox__prose code { padding: 1px 4px; border-radius: 3px; background: #e5e9e3; font: 11px var(--font-mono, monospace); }
+.axiom-inbox__code { margin: 10px 0; border: 1px solid #cfd8d0; border-radius: 7px; overflow: hidden; background: #e9ede7; }
+.axiom-inbox__code > div { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #dfe7df; color: #596b60; font: 10px var(--font-mono, monospace); }
+.axiom-inbox__code button { display: flex; gap: 4px; align-items: center; font: 10px var(--font-ui, sans-serif); }
+.axiom-inbox__code pre { margin: 0; padding: 11px; overflow-x: auto; font: 11px/1.6 var(--font-mono, monospace); }
+.axiom-inbox__code pre code { background: transparent; padding: 0; }
+.axiom-inbox .axiom-inbox__copy-reply { display: inline-flex; gap: 5px; align-items: center; margin-top: 2px; color: #869189; font-size: 10px; }
+.axiom-inbox__notice { margin: 0; color: #858e86; font-size: 11px; }
+.axiom-inbox .axiom-inbox__latest { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); border: 1px solid #bfcfc1; background: #f7f8f2; border-radius: 20px; padding: 6px 12px; color: #355f56; box-shadow: 0 3px 12px #20372b20; font-size: 11px; white-space: nowrap; }
+.axiom-inbox__bottom { position: relative; flex: none; padding: 8px 17px 9px; background: #eeece4; border-top: 1px solid #cfd6cd; }
+.axiom-inbox__compose { display: flex; flex-direction: column; overflow: visible; box-sizing: border-box; padding: 0; gap: 0; background: #faf9f5; border: 1px solid #bfcfc3; border-radius: 10px; box-shadow: 0 3px 10px #1b312013; }
+.axiom-inbox__compose:focus-within { border-color: #79a493; box-shadow: 0 0 0 2px #7cae9a2e; }
+.axiom-inbox__compose textarea { display: block; width: 100%; box-sizing: border-box; min-height: 62px; max-height: 180px; margin: 0; border: 0; border-radius: 9px; padding: 12px 13px 2px; resize: none; background: transparent; font: 13px/1.5 var(--font-ui, sans-serif); color: var(--inbox-ink); }
+.axiom-inbox__compose textarea:focus-visible { outline: none; }
+.axiom-inbox__compose textarea::placeholder { color: #949e96; }
+.axiom-inbox__compose-tools { display: flex; align-items: center; gap: 7px; padding: 3px 7px 7px; }
+.axiom-inbox__compose-tools > span { flex: 1; color: #9aa49b; font-size: 10px; }
+.axiom-inbox .axiom-inbox__send { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 7px; color: white; background: #3d7468; }
+.axiom-inbox .axiom-inbox__send:hover:not(:disabled) { background: #2b5d52; color: white; }
+.axiom-inbox .axiom-inbox__send:disabled { color: #aebbb1; background: #e6ebe5; opacity: 1; }
+.axiom-inbox__footnote { padding: 8px 2px 0; text-align: center; color: #89938c; font-size: 10px; }
+.axiom-inbox__attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 9px 10px 0; max-height: 98px; overflow-y: auto; }
+.axiom-inbox__attachments .axiom-inbox__targets { margin: 0; }
+.axiom-inbox__attachment { display: flex; gap: 7px; align-items: center; min-width: 0; max-width: 100%; padding: 3px 4px 3px 3px; border: 1px solid #c6d5c6; border-radius: 6px; background: #e7eee7; }
+.axiom-inbox__sheet-icon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 5px; color: #3f776a; background: #e0ebe0; }
+.axiom-inbox__attachment > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; line-height: 1.1; }
+.axiom-inbox__attachment strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; }
+.axiom-inbox__attachment small { color: #74867a; font-size: 9px; }
+.axiom-inbox .axiom-inbox__attachment .axiom-inbox__icon { width: 22px; height: 22px; }
+.axiom-inbox__picker { position: absolute; z-index: 9; left: -7px; bottom: calc(100% + 10px); width: min(398px, calc(100vw - 26px)); overflow: hidden; color: var(--inbox-ink); background: #faf9f5; border: 1px solid #becbbf; border-radius: 9px; box-shadow: 0 14px 38px #15271b40; }
+.axiom-inbox__search { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid #dce3da; color: #688073; }
+.axiom-inbox__search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--inbox-ink); font: 13px var(--font-ui, sans-serif); }
+.axiom-inbox__search input:focus-visible { outline: 0; }
+.axiom-inbox__picker-label { display: flex; justify-content: space-between; padding: 8px 12px 5px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #7b897e; font-weight: 600; }
+.axiom-inbox__picker-label span { letter-spacing: 0; text-transform: none; font-weight: 400; }
+.axiom-inbox__picker [role='listbox'] { max-height: min(260px, 42vh); overflow-y: auto; padding: 3px 6px 7px; }
+.axiom-inbox .axiom-inbox__picker [role='option'] { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px; border-radius: 6px; }
+.axiom-inbox .axiom-inbox__picker [role='option']:hover, .axiom-inbox .axiom-inbox__picker [role='option'][aria-selected='true'] { background: #e9f0e8; }
+.axiom-inbox__picker [role='option'] > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.axiom-inbox__picker [role='option'] strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.axiom-inbox__picker [role='option'] small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #819087; font-size: 10px; }
+.axiom-inbox__picker-empty { margin: 12px; color: #77887d; }
+.axiom-inbox__picker-footer { border-top: 1px solid #e2e5dd; padding: 8px 12px; color: #89968b; font-size: 10px; }
+.axiom-inbox__comparison { display: flex; flex-direction: column; max-height: 35vh; overflow: visible; background: transparent; }
+.axiom-inbox .axiom-inbox__comparison-summary { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 6px 12px; }
+.axiom-inbox__comparison-summary > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.axiom-inbox__comparison-summary strong { font-size: 11px; font-weight: 600; color: #4b655a; }
+.axiom-inbox__comparison-summary small { color: #8b988e; font-size: 10px; }
+.axiom-inbox__comparison-summary > svg:last-child { transition: transform .16s ease; }
+.axiom-inbox__comparison-summary[aria-expanded='true'] > svg:last-child { transform: rotate(90deg); }
+.axiom-inbox__comparison-glyph { width: 27px; height: 27px; flex: none; display: grid; place-items: center; border-radius: 6px; color: #738c77; background: #dce8db; }
+.axiom-inbox__comparison-glyph--match { color: #28695f; background: #d1e8db; }
+.axiom-inbox__comparison-detail { max-height: 26vh; overflow-y: auto; margin: 0 0 10px; padding: 12px; border: 1px solid #d3dcd1; border-radius: 7px; background: #f4f6f0; font-size: 11px; }
+.axiom-inbox__comparison-detail > small { color: #738178; }
+.axiom-inbox__comparison-detail details { margin-top: 7px; }
+.axiom-inbox__comparison-detail summary { cursor: pointer; font-weight: 600; }
+.axiom-inbox__comparison-detail ul { list-style: none; margin: 8px 0; padding: 0; }
+.axiom-inbox__comparison-detail li { display: flex; flex-direction: column; gap: 4px; padding: 7px 0; border-bottom: 1px solid #dce0d6; overflow-wrap: anywhere; }
+.axiom-inbox__comparison-actions { display: flex; gap: 8px; margin: 10px 0; }
+.axiom-inbox .axiom-inbox__comparison-actions button { padding: 6px 8px; border: 1px solid #b8cabb; border-radius: 5px; background: #e5ede4; color: #36695e; }
+.axiom-inbox__error { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 9px 18px; color: #8d4235; background: #f8eae3; overflow-wrap: anywhere; }
+.axiom-inbox__error button { text-decoration: underline; }
+.axiom-inbox__limit { display: block; padding: 5px; color: #a5563b; }
+@media (max-width: 700px) { .axiom-inbox { top: var(--chrome-toolbar-height, 82px); bottom: var(--chrome-status-height, 28px); width: 100vw; } }
+@media (max-height: 620px) { .axiom-inbox__header { height: 54px; } .axiom-inbox__history { padding-top: 12px; gap: 18px; } .axiom-inbox__empty-mark { margin-bottom: 8px; } .axiom-inbox__empty button { margin: 12px 0 7px; } .axiom-inbox__footnote { display: none; } }
+@media (prefers-reduced-motion: reduce) { .axiom-inbox__comparison-summary > svg:last-child { transition: none; } }
 .axiom-sheet-rail__attach { position: absolute; right: 27px; top: 50%; transform: translateY(-50%); z-index: 3; width: 18px; height: 20px; border: 0; background: transparent; color: #d9ece7; cursor: pointer; padding: 0; }
 .axiom-sheet-rail .axiom-sheet-rail__row--active .axiom-sheet-rail__button { padding-right: 48px; }
 .axiom-sheet-rail__archive { padding: 10px; border-top: 1px solid #dce0d6; font-size: 11px; }

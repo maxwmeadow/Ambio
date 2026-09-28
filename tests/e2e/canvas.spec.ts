@@ -181,6 +181,8 @@ test.beforeEach(async () => {
               },
             ],
           }
+      : url.includes('/api/canvas/history')
+        ? { messages: [], nextCursor: '', availableCount: 0 }
         : []
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
   })
@@ -1843,8 +1845,9 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await selectionActions.getByRole('button', { name: 'Message agent', exact: true }).click()
   const agentDialog = page.getByRole('complementary', { name: 'Agent inbox' })
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
-  await expect(agentDialog).toContainText('Messages wait here until an agent checks Axiom')
+  await expect(agentDialog).toContainText('Send context here, then ask your agent')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
+  await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()
   await expect(agentDialog).toHaveCount(0)
 })
