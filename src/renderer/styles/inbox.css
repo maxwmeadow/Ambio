@@ -74,6 +74,18 @@
 .axiom-inbox__notice { margin: 0; color: #858e86; font-size: 11px; }
 .axiom-inbox .axiom-inbox__latest { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); border: 1px solid #627d6b; background: linear-gradient(#f8f7ef, #dbe4d8); padding: 5px 10px; color: #31584e; box-shadow: 2px 2px 0 #243d2c3b; font: 700 9px var(--font-mono, monospace); text-transform: uppercase; white-space: nowrap; }
 .axiom-inbox__bottom { position: relative; flex: none; padding: 9px 11px 7px; background: linear-gradient(#dcdcd4, #d5d8cf); border-top: 1px solid #8a9990; box-shadow: inset 0 1px #f9f7ed; }
+.axiom-inbox__handoff { margin: 0 0 9px; border: 1px solid #aab7aa; background: #e7e9e0; box-shadow: inset 1px 1px #f7f7ef; color: #3d584c; }
+.axiom-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 2px 8px; font: 9px var(--font-mono, monospace); }
+.axiom-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.axiom-inbox__signal { width: 6px; height: 6px; flex: none; border: 1px solid #8b9b8b; background: #aeb8a9; }
+.axiom-inbox__signal--live { border-color: #316f56; background: #5ca877; }
+.axiom-inbox__signal--configured { border-color: #8d753c; background: #d1b56a; }
+.axiom-inbox__signal--repair, .axiom-inbox__signal--unconfigured { border-color: #9c6b4e; background: #cf9275; }
+.axiom-inbox .axiom-inbox__handoff-status button { flex: none; color: #326a5c; text-decoration: underline; text-underline-offset: 2px; font: 700 9px var(--font-mono, monospace); }
+.axiom-inbox__handoff-next { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 8px; border-top: 1px solid #bbc7b9; background: #f1f1e9; font-size: 11px; line-height: 1.4; }
+.axiom-inbox__handoff-next > span { flex: 1 1 155px; }
+.axiom-inbox .axiom-inbox__handoff-next button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid #7e9988; background: linear-gradient(#faf9f2, #dce5db); box-shadow: inset 1px 1px #fff; color: #32695b; font: 700 9px var(--font-mono, monospace); white-space: nowrap; }
+.axiom-inbox__handoff-next p { width: 100%; margin: 0; padding: 6px; border: 1px solid #c9d0c1; background: #faf9f2; overflow-wrap: anywhere; user-select: text; font: 10px/1.5 var(--font-mono, monospace); }
 .axiom-inbox__compose { display: flex; flex-direction: column; overflow: visible; box-sizing: border-box; padding: 0; gap: 0; background: #f4f2eb; border: 1px solid #72847a; box-shadow: inset 1px 1px #fff, inset -1px -1px #c4ccc2, 2px 2px 0 #263d2d24; }
 .axiom-inbox__compose:focus-within { border-color: #377369; box-shadow: inset 1px 1px #fff, 0 0 0 1px #4b8b7a; }
 .axiom-inbox__compose-label { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px 4px; border-bottom: 1px solid #d4d9ce; color: #456358; font: 700 8px var(--font-mono, monospace); letter-spacing: .08em; }

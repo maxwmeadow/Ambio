@@ -11,13 +11,14 @@ interface ToolbarProps {
   onSearch: () => void
   /** Return to the project launcher, leaving this project open in archd. */
   onCloseProject: () => void
+  onManageAgentConnections: () => void
   projectName?: string
   agentLogOpen: boolean
   onToggleAgentLog: () => void
 }
 
 export function Toolbar({
-  onSearch, onCloseProject, projectName, agentLogOpen, onToggleAgentLog,
+  onSearch, onCloseProject, onManageAgentConnections, projectName, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
   const { fitView } = useReactFlow()
   const isIndexing = useGraphStore(s => s.isIndexing)
@@ -158,7 +159,7 @@ export function Toolbar({
       </div>
 
       </header>
-      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} />
+      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
       <CreateInfraDialog isOpen={infraOpen} onClose={() => setInfraOpen(false)} />
     </>
   )

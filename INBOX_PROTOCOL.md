@@ -25,6 +25,25 @@ instructions. Installers that support skills also install `axiom-inbox` beside `
 manual language remains the universal entry point. Installing is optional for an already
 connected agent. No hook, slash-command convention, or permanent polling loop is required.
 
+After a send, a queued-instruction handoff stays visible beside the composer. It states
+that the message is saved but has not been picked up, and gives a project-named prompt
+to paste into the agent's own chat. **Connections** reopens setup without leaving the
+project. The signal distinguishes an MCP process currently connected, a configuration
+found on disk but not connected, an incomplete installer workflow, and unavailable
+status. A live MCP connection is not evidence that the model has read a message; only
+the message's **Picked up** state indicates a claim. Neither state proves ongoing code
+work. Agents can use `start_work`/`update_work` to make substantial work visible in
+Morning Delta, while normal indexing updates the live canvas as files change.
+
+The same `get_inbox` and `reply_to_canvas` tools are exposed to every configured MCP
+host. Claude Code, Copilot VS Code/CLI, Codex, Cursor, Windsurf, and Antigravity
+install a reusable inbox skill; Claude Desktop, JetBrains, and Zed use the copyable
+natural-language prompt and MCP tools without a skill dependency. The installer
+checks both skill files before marking a skill-capable host ready. The local installer
+matrix verifies generated configuration and workflow files; it does not prove that
+every installed vendor version has loaded or enabled its MCP tools. A live presence
+signal and a successful claim/reply are the stronger end-to-end checks.
+
 The panel distinguishes waiting, picked up, answered, cancelled, and expired claims.
 Picked up means the connector claimed the instruction, not proof of ongoing model work.
 Replies remain visible after restarting Axiom or deleting the originating canvas objects.

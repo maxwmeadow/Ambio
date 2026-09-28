@@ -8,10 +8,11 @@ import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
+import { AgentHandoff } from './AgentHandoff'
 import '../styles/inbox.css'
 
-export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
+export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
+  const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', rootPath: s.currentProject?.rootPath ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
   const sheet = useSheetStore(useShallow(s => ({ sheets: s.sheets, activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
   const draftKey = `axiom:inbox-draft:${graph.workspaceId}`
   const pendingKey = `${draftKey}:pending`
@@ -177,6 +178,7 @@ export function SendToAgentDialog({ isOpen, onClose }: { isOpen: boolean; onClos
       {unseen && <button className="axiom-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
     <div className="axiom-inbox__bottom">
+      <AgentHandoff workspaceId={graph.workspaceId} projectRoot={graph.rootPath} projectName={graph.name ?? 'this project'} queued={sheet.messages.filter(message => message.status === 'queued').length} onManageConnections={onManageConnections} />
       {effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="axiom-inbox__compose" onSubmit={submit}>
         <div className="axiom-inbox__compose-label"><span>NEW INSTRUCTION</span><span>CANVAS → AGENT</span></div>
