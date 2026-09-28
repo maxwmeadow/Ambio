@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -297,9 +298,8 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 // scopes instrumentation to the user's files (node_modules is skipped).
 func injectNodeEnv(env []string, adapterDir string, port int, workspaceID, workspaceRoot string) []string {
 	cjs := filepath.Join(adapterDir, "cjs-bootstrap.cjs")
-	esm := filepath.ToSlash(filepath.Join(adapterDir, "esm-bootstrap.mjs"))
 	// --import needs a file: URL; --require takes a path (quote for spaces).
-	axiomOpts := fmt.Sprintf(`--require %q --import file:///%s`, cjs, esm)
+	axiomOpts := fmt.Sprintf(`--require %q --import %q`, cjs, fileURL(filepath.Join(adapterDir, "esm-bootstrap.mjs")))
 
 	out := make([]string, 0, len(env)+4)
 	for _, kv := range env {
@@ -320,6 +320,17 @@ func injectNodeEnv(env []string, adapterDir string, port int, workspaceID, works
 	return out
 }
 
+// fileURL builds a file: URL for an absolute path on any OS. Formatting it by
+// hand produced file:////Users/... on macOS and Linux (the path already starts
+// with a slash) and left spaces unescaped, which NODE_OPTIONS splits on.
+func fileURL(abs string) string {
+	p := filepath.ToSlash(abs)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p // C:/x -> /C:/x
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
 // FindNodeAdapterDir locates the bundled Node adapter (marker: cjs-bootstrap.cjs).
 func FindNodeAdapterDir() (string, error) {
 	return findAdapterDir("node", "cjs-bootstrap.cjs")
@@ -334,12 +345,19 @@ func findAdapterDir(sub, marker string) (string, error) {
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
 		for i := 0; i < 4; i++ {
-			candidates = append(candidates, filepath.Join(dir, "adapters", sub))
+			// A checkout has both: out/adapters is the built, self-contained
+			// adapter; adapters/ is its source, whose Node dependencies are
+			// only bundled at build time.
+			candidates = append(candidates,
+				filepath.Join(dir, "out", "adapters", sub),
+				filepath.Join(dir, "adapters", sub))
 			dir = filepath.Dir(dir)
 		}
 	}
 	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(cwd, "adapters", sub))
+		candidates = append(candidates,
+			filepath.Join(cwd, "out", "adapters", sub),
+			filepath.Join(cwd, "adapters", sub))
 	}
 	for _, c := range candidates {
 		if st, err := os.Stat(filepath.Join(c, marker)); err == nil && !st.IsDir() {

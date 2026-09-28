@@ -38,6 +38,7 @@ func (s *Server) handleInvestigationStart(w http.ResponseWriter, r *http.Request
 	var body struct {
 		WorkspaceID string `json:"workspaceId"`
 		Name        string `json:"name"`
+		Symptom     string `json:"symptom"`
 		Origin      string `json:"origin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -60,6 +61,9 @@ func (s *Server) handleInvestigationStart(w http.ResponseWriter, r *http.Request
 		adopted = true
 	} else {
 		inv = s.runtime.StartInvestigation(body.WorkspaceID, body.Name, commit, branch, origin)
+	}
+	if body.Symptom != "" {
+		s.runtime.SetSymptom(body.WorkspaceID, body.Symptom)
 	}
 	note := "Recording started. All traces, watches, values, perturbations, and notes are now captured. " +
 		"Add a note at each finding, and call stop when you have the answer - stop saves a shareable capture."
@@ -90,6 +94,8 @@ func (s *Server) handleInvestigationNote(w http.ResponseWriter, r *http.Request)
 	var body struct {
 		WorkspaceID string `json:"workspaceId"`
 		Text        string `json:"text"`
+		File        string `json:"file"`
+		Symbol      string `json:"symbol"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		jsonError(w, "bad request", 400)
@@ -99,11 +105,12 @@ func (s *Server) handleInvestigationNote(w http.ResponseWriter, r *http.Request)
 		jsonError(w, "text is required", 400)
 		return
 	}
-	if _, ok := s.runtime.AnnotateInvestigation(body.WorkspaceID, body.Text); !ok {
-		jsonError(w, "no investigation is recording - call start_investigation first", 409)
+	anchors := s.anchorsFor(body.WorkspaceID, body.Text, body.File, body.Symbol)
+	if _, ok := s.runtime.AnnotateInvestigation(body.WorkspaceID, body.Text, anchors...); !ok {
+		jsonError(w, "no investigation is open - call investigation start first", 409)
 		return
 	}
-	jsonOK(w, map[string]any{"noted": true})
+	s.respondWithMessages(w, body.WorkspaceID, map[string]any{"noted": true, "anchors": anchors})
 }
 
 func (s *Server) handleInvestigationStop(w http.ResponseWriter, r *http.Request) {

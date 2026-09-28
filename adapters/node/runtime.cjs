@@ -42,6 +42,8 @@ class AxiomRuntime {
     this.watchesByFile = new Map()
     // Injections keyed by normalized-file → array of {id, symbol, lineStart, lineEnd, paramName, value, once, consumed}
     this.injectsByFile = new Map()
+    // Set when archd launched this process as an investigation run.
+    this.recorder = require('./recorder.cjs').fromEnv()
     this._connect()
     this._heartbeat = setInterval(() => this._sendHeartbeat(), HEARTBEAT_MS)
     if (this._heartbeat.unref) this._heartbeat.unref()
@@ -50,6 +52,15 @@ class AxiomRuntime {
   // ── instrumentation hooks (hot path) ────────────────────────────────────────
 
   enter(file, name, line, argsArr, paramNames) {
+    const ctx = this._enter(file, name, line, argsArr, paramNames)
+    if (!this.recorder) return ctx
+    // Recording a run: every call carries its recorder frame, so the shared
+    // INACTIVE context cannot be reused.
+    const rf = this.recorder.enter(file, name, line, argsArr, paramNames)
+    return ctx === INACTIVE ? { active: false, o: null, rf } : Object.assign(ctx, { rf })
+  }
+
+  _enter(file, name, line, argsArr, paramNames) {
     const watch = this._matchWatch(file, name, line)
     const inject = this._matchInject(file, name, line)
     if (!watch && !inject) return INACTIVE
@@ -109,6 +120,7 @@ class AxiomRuntime {
   }
 
   ret(ctx, value) {
+    if (ctx && ctx.rf) this.recorder.ret(ctx.rf, value)
     if (ctx && ctx.active && !ctx.returned && !ctx.errored) {
       ctx.returned = true
       this._emit({
@@ -125,6 +137,7 @@ class AxiomRuntime {
   }
 
   error(ctx, err) {
+    if (ctx && ctx.rf) this.recorder.error(ctx.rf, err)
     if (ctx && ctx.active && !ctx.errored) {
       ctx.errored = true
       this._emit({
@@ -141,6 +154,7 @@ class AxiomRuntime {
   }
 
   exit(ctx) {
+    if (ctx && ctx.rf) this.recorder.exit(ctx.rf)
     if (!ctx || !ctx.active) return
     // Function fell off the end without an explicit return and didn't throw:
     // emit a return-undefined so the canvas closes the call.

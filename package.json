@@ -4,11 +4,11 @@
   "description": "Live Architectural Intelligence for the AI Development Era",
   "main": "out/main/index.js",
   "scripts": {
-    "predev": "npm run build:archd",
+    "predev": "npm run build:archd && npm run build:adapters",
     "dev": "electron-vite dev",
-    "build": "npm run build:mcp && electron-vite build",
+    "build": "npm run build:mcp && npm run build:adapters && electron-vite build",
     "test:renderer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\"",
-    "test:mcp": "npm run build:archd && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"mcp/e2e/*.e2e.mjs\"",
+    "test:mcp": "npm run build:archd && npm run build:adapters && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"mcp/e2e/*.e2e.mjs\"",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:update": "npm run build && playwright test --update-snapshots",
     "preview": "electron-vite preview",
@@ -21,7 +21,8 @@
     "seed-arch": "npx tsx scripts/seed-architecture.ts",
     "test:archd": "node scripts/archd.mjs test",
     "vet:archd": "node scripts/archd.mjs vet",
-    "build:mcp": "node scripts/build-mcp.mjs"
+    "build:mcp": "node scripts/build-mcp.mjs",
+    "build:adapters": "node scripts/build-adapters.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.5",
@@ -53,6 +54,7 @@
     "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.5.10",
     "@vitejs/plugin-react": "^4.3.0",
+    "acorn": "^8.18.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
@@ -79,6 +81,10 @@
         {
           "from": "out/mcp",
           "to": "mcp"
+        },
+        {
+          "from": "out/adapters",
+          "to": "adapters"
         }
       ]
     },
@@ -95,6 +101,10 @@
         {
           "from": "out/mcp",
           "to": "mcp"
+        },
+        {
+          "from": "out/adapters",
+          "to": "adapters"
         }
       ]
     },
@@ -110,6 +120,10 @@
         {
           "from": "out/mcp",
           "to": "mcp"
+        },
+        {
+          "from": "out/adapters",
+          "to": "adapters"
         }
       ]
     }

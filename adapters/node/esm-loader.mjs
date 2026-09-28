@@ -29,27 +29,34 @@ function inWorkspace(filePath) {
   }
 }
 
+// Node's native type stripping reports these formats for .ts/.mts/.cts. We
+// strip and instrument in one step and hand Node plain JS; Node would strip
+// the original itself if we fell through, so failure costs nothing.
+const TS_FORMATS = { 'module-typescript': 'module', 'commonjs-typescript': 'commonjs' }
+
 export async function load(url, context, nextLoad) {
   const result = await nextLoad(url, context)
   try {
+    const tsTarget = TS_FORMATS[result.format]
+    const jsFormat = result.format === 'module' || result.format === 'commonjs'
     if (
       transform &&
-      (context.format === 'module' || context.format === 'commonjs') &&
+      (jsFormat || tsTarget) &&
       url.startsWith('file:') &&
-      // .ts/.mts arrive as transpiled JS when a transpiler loader (tsx,
-      // ts-node/esm) sits earlier in the nextLoad chain; raw TS fails acorn
-      // parse and falls through. Node's native type stripping reports format
-      // 'module-typescript', which the format check above already excludes.
-      (url.endsWith('.js') || url.endsWith('.mjs') ||
-       url.endsWith('.ts') || url.endsWith('.mts'))
+      /\.(js|mjs|cjs|ts|mts|cts)$/.test(url)
     ) {
       const filePath = fileURLToPath(url)
       if (inWorkspace(filePath) && result.source != null) {
         const src = typeof result.source === 'string' ? result.source : Buffer.from(result.source).toString('utf8')
-        const out = transform(src, { filename: filePath, sourceType: 'module' })
+        const format = tsTarget || result.format
+        const out = transform(src, {
+          filename: filePath,
+          sourceType: format === 'commonjs' ? 'script' : 'module',
+          typescript: Boolean(tsTarget),
+        })
         if (out && out.code) {
           return {
-            format: result.format,
+            format,
             shortCircuit: true,
             source: out.code +
               '\n//# sourceMappingURL=data:application/json;base64,' +

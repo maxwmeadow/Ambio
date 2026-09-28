@@ -36,6 +36,15 @@ var recordableTypes = map[string]bool{
 	"data:flow":              true,
 	"agent:activity":         true,
 	"investigation:note":     true,
+	// The case file (case.go): hypotheses, experiments, verdicts, conclusion,
+	// and the human's side of the conversation.
+	"investigation:hypothesis":        true,
+	"investigation:verdict":           true,
+	"investigation:run_started":       true,
+	"investigation:run":               true,
+	"investigation:conclusion":        true,
+	"investigation:message":           true,
+	"investigation:message_delivered": true,
 }
 
 // CapturedEvent is one entry in an investigation timeline.
@@ -65,6 +74,14 @@ type Investigation struct {
 	// a window joining a recording already in progress could only show zero.
 	EventCount int             `json:"eventCount"`
 	Events     []CapturedEvent `json:"events"`
+
+	// The case file (case.go). Kept alongside the timeline so a saved capture
+	// opens straight to its conclusion instead of making the reader replay it.
+	Symptom    string         `json:"symptom,omitempty"`
+	Hypotheses []Hypothesis   `json:"hypotheses,omitempty"`
+	Runs       []RunRef       `json:"runs,omitempty"`
+	Conclusion *Conclusion    `json:"conclusion,omitempty"`
+	Messages   []HumanMessage `json:"messages,omitempty"`
 
 	// CanvasSnapshot is attached at save time so a fresh viewer can position
 	// nodes even if the live graph has since changed. Opaque to the recorder.
@@ -136,7 +153,7 @@ func (m *Manager) StartInvestigation(workspaceID, name, commit, branch, origin s
 
 // AnnotateInvestigation adds an agent note to the active timeline. The note is
 // broadcast (so a live viewer sees it) and captured via the tap.
-func (m *Manager) AnnotateInvestigation(workspaceID, text string) (int, bool) {
+func (m *Manager) AnnotateInvestigation(workspaceID, text string, anchors ...Anchor) (int, bool) {
 	m.captureMu.Lock()
 	inv := m.activeInvestigations[workspaceID]
 	count := 0
@@ -147,12 +164,16 @@ func (m *Manager) AnnotateInvestigation(workspaceID, text string) (int, bool) {
 	if inv == nil {
 		return 0, false
 	}
-	m.hub.Broadcast("investigation:note", map[string]any{
+	note := map[string]any{
 		"workspaceId": workspaceID,
 		"text":        text,
 		"ts":          time.Now().UnixMilli(),
 		"eventCount":  count,
-	})
+	}
+	if len(anchors) > 0 {
+		note["anchors"] = anchors
+	}
+	m.hub.Broadcast("investigation:note", note)
 	return count, true
 }
 
@@ -189,6 +210,7 @@ func (m *Manager) ActiveInvestigation(workspaceID string) *Investigation {
 	cp.EventCount = len(inv.Events)
 	cp.DurationMs = time.Since(inv.start).Milliseconds()
 	cp.Events = nil // callers that want events use the returned recording from Stop
+	cp.copyCase(inv)
 	return &cp
 }
 
@@ -223,6 +245,7 @@ func (m *Manager) ActiveInvestigationSnapshot(workspaceID string) *Investigation
 	cp := *inv
 	cp.Events = append([]CapturedEvent(nil), inv.Events...)
 	cp.DurationMs = time.Since(inv.start).Milliseconds()
+	cp.copyCase(inv)
 	return &cp
 }
 
@@ -287,4 +310,16 @@ func (m *Manager) AdoptAutoInvestigation(workspaceID, name, origin string) *Inve
 		"origin":      adopted.Origin,
 	})
 	return &adopted
+}
+
+// copyCase detaches the case slices from the live recording, so a snapshot
+// handed out under the lock cannot race later appends.
+func (inv *Investigation) copyCase(from *Investigation) {
+	inv.Hypotheses = append([]Hypothesis(nil), from.Hypotheses...)
+	inv.Runs = append([]RunRef(nil), from.Runs...)
+	inv.Messages = append([]HumanMessage(nil), from.Messages...)
+	if from.Conclusion != nil {
+		c := *from.Conclusion
+		inv.Conclusion = &c
+	}
 }

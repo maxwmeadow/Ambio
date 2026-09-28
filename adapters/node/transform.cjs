@@ -39,8 +39,43 @@ const FN_TYPES = new Set([
  * @param {string} source
  * @param {{filename: string, sourceType?: 'module'|'script'}} opts
  */
+// Node 22.13+ strips TypeScript by replacing every type with whitespace, so
+// line and column positions survive exactly - a watch on line 14 of the .ts
+// file is line 14 of what we instrument. TS that needs real transformation
+// (enums, namespaces, parameter properties) throws here; the caller then
+// leaves the file uninstrumented rather than breaking it.
+let stripTypes = null
+function stripTypeScript(source) {
+  if (stripTypes === null) {
+    try { stripTypes = require('module').stripTypeScriptTypes || false } catch (_) { stripTypes = false }
+  }
+  if (!stripTypes) return null
+  // The API is flagged experimental and warns once per process. That warning
+  // would land in the user's run output, attributed to their program.
+  const emit = process.emitWarning
+  process.emitWarning = function (warning, ...rest) {
+    const text = typeof warning === 'string' ? warning : (warning && warning.message) || ''
+    if (/stripTypeScriptTypes/.test(text)) return
+    return emit.call(process, warning, ...rest)
+  }
+  try {
+    return stripTypes(source, { mode: 'strip' })
+  } catch (_) {
+    return null
+  } finally {
+    process.emitWarning = emit
+  }
+}
+
+const TS_FILE = /\.(ts|mts|cts)$/
+
 function transform(source, opts) {
   const filename = opts.filename
+  if (opts.typescript || TS_FILE.test(filename)) {
+    const stripped = stripTypeScript(source)
+    // Already-transpiled output (tsx, ts-node) is plain JS and strips to itself.
+    if (stripped != null) source = stripped
+  }
   let ast
   const parseOpts = {
     ecmaVersion: 'latest',
@@ -247,4 +282,4 @@ function collectOwnReturns(body, out) {
   for (const stmt of body.body) visit(stmt)
 }
 
-module.exports = { transform }
+module.exports = { transform, stripTypeScript }
