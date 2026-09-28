@@ -298,8 +298,8 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 // scopes instrumentation to the user's files (node_modules is skipped).
 func injectNodeEnv(env []string, adapterDir string, port int, workspaceID, workspaceRoot string) []string {
 	cjs := filepath.Join(adapterDir, "cjs-bootstrap.cjs")
-	// --import needs a file: URL; --require takes a path (quote for spaces).
-	axiomOpts := fmt.Sprintf(`--require %q --import %q`, cjs, fileURL(filepath.Join(adapterDir, "esm-bootstrap.mjs")))
+	// --import needs a file: URL; --require takes a path.
+	axiomOpts := "--require " + nodeOptionQuote(cjs) + " --import " + nodeOptionQuote(fileURL(filepath.Join(adapterDir, "esm-bootstrap.mjs")))
 
 	out := make([]string, 0, len(env)+4)
 	for _, kv := range env {
@@ -318,6 +318,15 @@ func injectNodeEnv(env []string, adapterDir string, port int, workspaceID, works
 		"AXIOM_WORKSPACE_ROOT="+workspaceRoot,
 	)
 	return out
+}
+
+// nodeOptionQuote quotes a value for NODE_OPTIONS. Node's parser treats a
+// backslash inside quotes as an escape, so Windows paths are passed with
+// forward slashes (which Node accepts); Go's %q would also mangle non-ASCII
+// characters in a user's home directory into \u escapes Node does not read.
+func nodeOptionQuote(v string) string {
+	v = strings.ReplaceAll(v, `\`, "/")
+	return `"` + strings.ReplaceAll(v, `"`, `\"`) + `"`
 }
 
 // fileURL builds a file: URL for an absolute path on any OS. Formatting it by

@@ -154,3 +154,20 @@ test('shared state that changes between calls is caught even when no argument is
   assert.ok(d, `drift: ${JSON.stringify(w.drift)}`)
   assert.deepEqual(d.examples[0].changes.find(c => c.key === 'br'), { key: 'br', before: '"two-spaces"', after: '"any"' })
 })
+
+test('a cached object someone else changed shows up as drift in what the cache returns', () => {
+  const r = record(`
+    const cache = new Map()
+    function getCustomer(id) {
+      if (!cache.has(id)) cache.set(id, { id, discountRate: 0 })
+      return cache.get(id)
+    }
+    function applyReferral(c) { Object.assign(c, { discountRate: 0.15 }) }
+    getCustomer('a')
+    applyReferral(getCustomer('a'))
+    console.log(getCustomer('a').discountRate)
+  `, ['getCustomer'])
+  const d = r.watched('getCustomer').drift.find(x => x.path === 'return')
+  assert.ok(d, JSON.stringify(r.watched('getCustomer').drift))
+  assert.deepEqual(d.examples[0].changes, [{ key: 'discountRate', before: '0', after: '0.15' }])
+})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -36,7 +37,12 @@ func loginShellPath() string {
 		defer cancel()
 		// -i sources the rc file where version managers usually hook in; -l the
 		// profile. Markers fence off anything the rc files print themselves.
-		cmd := exec.CommandContext(ctx, shell, "-ilc", `printf '%s%s%s' "`+pathMarker+`" "$PATH" "`+pathMarker+`"`)
+		script := `printf '%s%s%s' "` + pathMarker + `" "$PATH" "` + pathMarker + `"`
+		if filepath.Base(shell) == "fish" {
+			// fish keeps PATH as a list; "$PATH" would join it with spaces.
+			script = `printf '%s%s%s' "` + pathMarker + `" (string join : $PATH) "` + pathMarker + `"`
+		}
+		cmd := exec.CommandContext(ctx, shell, "-ilc", script)
 		cmd.Stdin = nil
 		out, err := cmd.Output()
 		if err != nil && len(out) == 0 {

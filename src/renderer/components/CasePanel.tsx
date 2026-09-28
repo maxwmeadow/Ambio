@@ -111,7 +111,7 @@ function RunCard({ run, hypothesis }: { run: CaseRun; hypothesis?: CaseHypothesi
           {run.error ? 'could not run' : run.timedOut ? 'timed out' : `exit ${run.exitCode}`} · {duration(run.durationMs)}
         </span>
       </header>
-      {hypothesis && <p className="axiom-case__run-tests">Testing {hypothesis.id}: {hypothesis.text}</p>}
+      {hypothesis && <p className="axiom-case__run-tests" title={hypothesis.text}>Testing {hypothesis.id}</p>}
       {run.error && <p className="axiom-case__run-error">{run.error}</p>}
       {findings.length > 0 ? (
         <ul className="axiom-case__findings" aria-label={`What run R${run.n} showed`}>
@@ -126,7 +126,8 @@ function RunCard({ run, hypothesis }: { run: CaseRun; hypothesis?: CaseHypothesi
         <ul className="axiom-case__watched">
           {run.watched.map((w, i) => (
             <li key={i}>
-              <code>{w.anchor.symbol}</code> ×{w.calls}{w.errors ? ` · ${w.errors} threw` : ''}{w.returns ? ` · returns ${w.returns}` : ''}
+              <code>{w.anchor.symbol}</code> ×{w.calls}{w.errors ? ` · ${w.errors} threw` : ''}
+              {w.returns && w.returns.length <= 48 ? ` · returns ${w.returns}` : ''}
             </li>
           ))}
         </ul>

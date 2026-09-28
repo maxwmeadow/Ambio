@@ -655,6 +655,10 @@ class Recorder:
                                 else ("text", whole if len(whole) <= 80 else whole[:79] + "…"))
                 for p, l in flatten(value, "return").items():
                     rec.observe(p, l)
+                if _leaf(value) is None and value is not None:
+                    ret_nodes = []
+                    collect_nodes(value, "return", ret_nodes)
+                    rec.check_drift(ret_nodes, w["call"])
             changed = []
             nodes = []
             for n, v in zip(w["names"], w["values"]):

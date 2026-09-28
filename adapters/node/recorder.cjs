@@ -598,6 +598,14 @@ class Recorder {
       const whole = frame.w.returnPreview.length > 80 ? frame.w.returnPreview.slice(0, 79) + '…' : frame.w.returnPreview
       frame.w.rec.returns.add(typeof value === 'number' ? { k: 'number', v: value } : { k: 'text', v: whole })
       for (const [p, l] of flatten(value, 'return')) frame.w.rec.observe(p, l)
+      // A returned object that is the same object on a later call, with
+      // different contents, is a cache handing out shared state that someone
+      // else changed - the aliasing bug behind "it only happens sometimes".
+      if (value !== null && typeof value === 'object') {
+        const nodes = []
+        collectNodes(value, 'return', nodes)
+        frame.w.rec.checkDrift(nodes, frame.w.call)
+      }
     }
   }
 

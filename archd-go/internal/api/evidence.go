@@ -321,11 +321,19 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			for _, c := range ex.Changes {
 				parts = append(parts, fmt.Sprintf("`%s` %s → %s", c.Key, clip(c.Before, 60), clip(c.After, 60)))
 			}
-			rw.Findings = append(rw.Findings, Finding{
-				Kind: "drift", Severity: "high", Anchor: a, rank: 96,
-				Text: fmt.Sprintf("`%s` is the same object on calls %d and %d of %s, and it changed in between: %s - state is shared between calls",
-					d.Path, ex.FromCall, ex.ToCall, name, strings.Join(parts, ", ")),
-			})
+			text := fmt.Sprintf("`%s` is the same object on calls %d and %d of %s, and it changed in between: %s - state is shared between calls",
+				d.Path, ex.FromCall, ex.ToCall, name, strings.Join(parts, ", "))
+			if d.Path == "return" || strings.HasPrefix(d.Path, "return.") || strings.HasPrefix(d.Path, "return[") {
+				// What a function hands out came back changed: its callers are
+				// modifying shared state, typically a cached object.
+				what := "the same object"
+				if d.Path != "return" {
+					what = "the same `" + d.Path + "` object"
+				}
+				text = fmt.Sprintf("%s returns %s on calls %d and %d, and it changed in between: %s - code outside %s is modifying an object it hands out (a shared or cached object?)",
+					name, what, ex.FromCall, ex.ToCall, strings.Join(parts, ", "), name)
+			}
+			rw.Findings = append(rw.Findings, Finding{Kind: "drift", Severity: "high", Anchor: a, rank: 96, Text: text})
 		}
 
 		mutatedPaths := map[string]bool{}
