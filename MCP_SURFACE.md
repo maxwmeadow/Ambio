@@ -60,6 +60,7 @@ in the surface for exactly that reason.
 | `reply_to_canvas` | - |
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
+| `investigation` | start, hypothesis, run, verdict, note, conclude, stop, case, list, get - see INVESTIGATIONS.md |
 
 ## Debug profile - 1 tool, off by default
 
@@ -72,10 +73,11 @@ Set `AXIOM_MCP_PROFILE=debug` to advertise:
 Real capability, wrong default. A coding agent does not need value injection in
 its context to write a class.
 
-`investigation` (start, note, stop, list, get) used to sit here too. That was a
-mistake: gating it meant no agent ever saw the recorder, so the debugging
-experience could not be reached from either side - the human had no way to start
-a recording either. Recording is not value injection, and it is now core.
+`investigation` used to sit here too. That was a mistake: gating it meant no
+agent ever saw it. It is now core, and its `run` op does what an agent debugging
+actually needs from the runtime - run the repro under observation and get the
+evidence back - without the live-watch and injection machinery. `debug_runtime`
+remains for attaching to long-running processes.
 
 ## Adding a tool
 
