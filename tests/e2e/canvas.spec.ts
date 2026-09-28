@@ -729,6 +729,37 @@ test('presents project navigation as a desktop workbench launcher', async () => 
   })
 })
 
+test('navigates recent projects via search and keyboard flow', async () => {
+  const launcherUrl = new URL(page.url())
+  launcherUrl.searchParams.set('home', '1')
+  await page.goto(launcherUrl.toString())
+
+  const searchBox = page.locator('.axiom-launcher__search-box input')
+  await expect(searchBox).toBeVisible()
+
+  // Pressing '/' focuses search
+  await page.keyboard.press('/')
+  await expect(searchBox).toBeFocused()
+
+  // Read first project name dynamically from the rendered list
+  const firstProjectName = (await page.locator('.axiom-launcher__project-copy strong').first().textContent())?.trim() ?? 'shopfront'
+
+  // Typing filters recent projects
+  await searchBox.fill(firstProjectName)
+  await expect(page.locator('.axiom-launcher__recent-item')).toHaveCount(1)
+  await expect(page.locator('.axiom-launcher__project-copy strong')).toHaveText(firstProjectName)
+
+  // ArrowDown navigates and highlights active item
+  await page.keyboard.press('ArrowDown')
+  await expect(page.locator('.axiom-launcher__recent-item--active')).toHaveCount(1)
+
+  // Escape clears search query and restores list
+  await page.keyboard.press('Escape')
+  await expect(searchBox).toHaveValue('')
+  const totalCount = await page.locator('.axiom-launcher__recent-item').count()
+  expect(totalCount).toBeGreaterThanOrEqual(1)
+})
+
 test('chooses project sources in a folder-first file browser', async () => {
   const setupUrl = new URL(page.url())
   setupUrl.searchParams.set('setup', '1')

@@ -4365,6 +4365,96 @@ select.axiom-inspector-input {
   font-size: 10px;
 }
 
+.axiom-launcher__search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--launcher-rule);
+  border-radius: 4px;
+  background: #fbf9f4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.axiom-launcher__search-box:focus-within {
+  border-color: var(--launcher-accent);
+  box-shadow: 0 0 0 1px var(--launcher-accent);
+}
+
+.axiom-launcher__search-icon {
+  color: #717b76;
+  font-size: 15px;
+}
+
+.axiom-launcher__search-box input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--launcher-ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.axiom-launcher__search-box input::placeholder {
+  color: #8c9792;
+}
+
+.axiom-launcher__search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #717b76;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.axiom-launcher__search-clear:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--launcher-ink);
+}
+
+.axiom-launcher__search-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid #d5d1c3;
+  border-radius: 3px;
+  background: #edeae0;
+  color: #636e68;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.axiom-launcher__empty-search {
+  padding: 24px 16px;
+  border: 1px dashed var(--launcher-rule);
+  background: rgba(238, 235, 226, 0.4);
+  color: #636e68;
+  font-size: 13px;
+  text-align: center;
+}
+
+.axiom-launcher__recent-item--active {
+  background: #eeece4 !important;
+  box-shadow: inset 3px 0 var(--launcher-accent);
+}
+
+.axiom-launcher__recent-open--active {
+  outline: 1px dotted #214a43;
+  outline-offset: -3px;
+}
+
 .axiom-launcher__recent ul {
   margin: 0;
   padding: 0;
@@ -5764,6 +5854,14 @@ select.axiom-inspector-input {
   margin-top: 4px;
   color: #5b6762;
   font-size: 12px;
+}
+
+.axiom-source-browser__summary-note {
+  display: block;
+  margin-top: 4px;
+  color: #72807a;
+  font-size: 11px;
+  font-style: italic;
 }
 
 .axiom-source-setup__submit {
