@@ -357,6 +357,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/data-flow", s.handleDataFlow)
 	s.registerRuntimeRoutes(mux)
 	s.registerInvestigationRoutes(mux)
+	s.registerCaseRoutes(mux)
 	mux.HandleFunc("/api/agent/activity", s.handleAgentActivity)
 	mux.HandleFunc("/api/agent/presence", s.handleAgentPresence)
 	mux.HandleFunc("/api/agent/action", s.handleAgentAction)

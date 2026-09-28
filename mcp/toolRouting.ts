@@ -85,8 +85,13 @@ const RUNTIME_OPS: Record<string, string> = {
 
 const INVESTIGATION_OPS: Record<string, string> = {
   start: 'start_investigation',
+  hypothesis: 'investigation_hypothesis',
+  run: 'investigation_run',
+  verdict: 'investigation_verdict',
   note: 'annotate_investigation',
+  conclude: 'investigation_conclude',
   stop: 'stop_investigation',
+  case: 'investigation_case',
   list: 'list_investigations',
   get: 'get_investigation',
 }

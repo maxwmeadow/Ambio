@@ -147,7 +147,7 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
             <header className="axiom-investigations-menu__header">
               <div>
                 <h2>Investigation captures</h2>
-                <p>Saved runtime timelines</p>
+                <p>Agent investigations, ready to replay</p>
               </div>
               {!loading && !error && <output>{items.length}</output>}
             </header>
