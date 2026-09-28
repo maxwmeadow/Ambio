@@ -532,7 +532,10 @@ function install() {
 module.exports = { install, AxiomRuntime, safeValue, normFile }
 // Expose helpers for the bootstrap's workspace-file filter.
 module.exports.workspaceRoot = function () {
-  return process.env.AXIOM_WORKSPACE_ROOT || process.cwd()
+  const root = process.env.AXIOM_WORKSPACE_ROOT || process.cwd()
+  // Module filenames are real paths; a root reached through a symlink would
+  // never contain them.
+  try { return require('fs').realpathSync.native(root) } catch { return root }
 }
 module.exports.pathInWorkspace = function (file, root) {
   try {

@@ -57,8 +57,23 @@ func (s *Server) loadFileIndex(sqlDB *sql.DB, workspaceID string) (*fileIndex, e
 		return nil, err
 	}
 	idx := &fileIndex{workspaceID: workspaceID, byAbs: map[string]db.File{}, byRel: map[string]db.File{}, byBase: map[string][]db.File{}}
+	// Adapters report resolved real paths; the index holds paths as the user
+	// registered them. Index both, so a project under a symlink still maps.
+	realRoots := map[string]string{}
+	if roots, err := db.GetActiveRoots(sqlDB, workspaceID); err == nil {
+		for _, r := range roots {
+			if real, err := filepath.EvalSymlinks(r.Path); err == nil && real != r.Path {
+				realRoots[r.Path] = real
+			}
+		}
+	}
 	for _, f := range files {
 		idx.byAbs[normAbs(f.Path)] = f
+		for root, real := range realRoots {
+			if strings.HasPrefix(f.Path, root) {
+				idx.byAbs[normAbs(real+strings.TrimPrefix(f.Path, root))] = f
+			}
+		}
 		idx.byRel[filepath.ToSlash(f.RelPath)] = f
 		base := strings.ToLower(filepath.Base(f.RelPath))
 		idx.byBase[base] = append(idx.byBase[base], f)
@@ -66,6 +81,9 @@ func (s *Server) loadFileIndex(sqlDB *sql.DB, workspaceID string) (*fileIndex, e
 	if roots, err := db.GetActiveRoots(sqlDB, workspaceID); err == nil {
 		for _, r := range roots {
 			idx.roots = append(idx.roots, normAbs(r.Path))
+			if real, ok := realRoots[r.Path]; ok {
+				idx.roots = append(idx.roots, normAbs(real))
+			}
 		}
 	}
 	return idx, nil
@@ -294,8 +312,24 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			}
 			sharedBy[sh.Param] = sh.Calls
 		}
+		for i, d := range w.Drift {
+			if i >= 2 || len(d.Examples) == 0 {
+				break
+			}
+			ex := d.Examples[0]
+			parts := make([]string, 0, len(ex.Changes))
+			for _, c := range ex.Changes {
+				parts = append(parts, fmt.Sprintf("`%s` %s → %s", c.Key, clip(c.Before, 60), clip(c.After, 60)))
+			}
+			rw.Findings = append(rw.Findings, Finding{
+				Kind: "drift", Severity: "high", Anchor: a, rank: 96,
+				Text: fmt.Sprintf("`%s` is the same object on calls %d and %d of %s, and it changed in between: %s - state is shared between calls",
+					d.Path, ex.FromCall, ex.ToCall, name, strings.Join(parts, ", ")),
+			})
+		}
+
 		mutatedPaths := map[string]bool{}
-		for _, m := range collapseCollections(w.Mutations) {
+		for _, m := range collapseAdded(collapseCollections(w.Mutations)) {
 			collection := strings.HasSuffix(m.Path, collectionMark)
 			m.Path = strings.TrimSuffix(m.Path, collectionMark)
 			mutatedPaths[m.Path] = true
@@ -328,8 +362,18 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 				f.rank = 40
 				f.Text = fmt.Sprintf("%s's argument `%s` changes during the call, inside `%s`", name, m.Path, inner)
 			} else {
-				f.Severity = "high"
-				f.rank = 90
+				// Changing an object the caller handed in is often the point
+				// (filling in options, building a result). It becomes the lead
+				// only when the object comes back on a later call - below.
+				f.Severity = "medium"
+				f.rank = 55
+				if strings.HasPrefix(m.Path, addedMark) {
+					m.Path = strings.TrimPrefix(m.Path, addedMark)
+					f.Severity, f.rank = "info", 32
+					f.Text = fmt.Sprintf("%s adds `%s` to its argument (%s)", name, m.Path, m.Examples[0].After)
+					rw.Findings = append(rw.Findings, f)
+					continue
+				}
 				if collection {
 					f.Text = fmt.Sprintf("%s changes the size of its argument `%s` on %s (size %s%s)",
 						name, m.Path, ofCalls(int64(m.Calls), w.Calls), strings.Join(examples, ", "), more)
@@ -347,7 +391,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 					// twice can be the function's job (ship() lowers stock);
 					// every time is state leaking between calls.
 					if m.Calls >= 3 {
-						f.rank = 97
+						f.Severity, f.rank = "high", 97
 					} else {
 						f.Severity, f.rank = "medium", 65
 					}
@@ -513,6 +557,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			Text: fmt.Sprintf("Exited with code %d", out.ExitCode)})
 	}
 
+	rep.Findings = dedupeDrift(rep.Findings)
 	sort.SliceStable(rep.Findings, func(i, j int) bool { return rep.Findings[i].rank > rep.Findings[j].rank })
 
 	lines := strings.Split(strings.TrimRight(out.Output, "\n"), "\n")
@@ -939,4 +984,83 @@ func rootParam(path string) string {
 		return path[:i]
 	}
 	return path
+}
+
+// addedMark flags a collapsed group of fields a call added to an argument.
+const addedMark = "\x00added:"
+
+// collapseAdded folds a burst of fields a call added under one part of an
+// argument into one mutation. A constructor filling in a fresh options object
+// otherwise reads as eight "changes" to options.tokenizer.rules.other.*.
+func collapseAdded(ms []runtime.Mutation) []runtime.Mutation {
+	allAdded := func(m runtime.Mutation) bool {
+		for _, ex := range m.Examples {
+			if ex.Before != "(absent)" {
+				return false
+			}
+		}
+		return len(m.Examples) > 0
+	}
+	group := func(path string) string {
+		parts := strings.SplitN(path, ".", 3)
+		if len(parts) < 3 {
+			return ""
+		}
+		return parts[0] + "." + parts[1]
+	}
+	counts := map[string]int{}
+	for _, m := range ms {
+		if allAdded(m) {
+			if g := group(m.Path); g != "" {
+				counts[g]++
+			}
+		}
+	}
+	var out []runtime.Mutation
+	emitted := map[string]bool{}
+	for _, m := range ms {
+		g := group(m.Path)
+		if allAdded(m) && g != "" && counts[g] >= 3 {
+			if emitted[g] {
+				continue
+			}
+			emitted[g] = true
+			folded := runtime.Mutation{Path: addedMark + g, Calls: m.Calls, Examples: m.Examples[:1]}
+			folded.Examples[0].After = fmt.Sprintf("%d values", counts[g])
+			out = append(out, folded)
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// dedupeDrift keeps one finding per shared object that drifted. Several
+// watched functions can reach the same object (a static lex() and the
+// constructor it calls both see the rule table); the fact is said once, with
+// where else it was seen.
+func dedupeDrift(all []Finding) []Finding {
+	first := map[string]int{}
+	also := map[int][]string{}
+	var out []Finding
+	for _, f := range all {
+		if f.Kind != "drift" {
+			out = append(out, f)
+			continue
+		}
+		key := f.Text
+		if i := strings.Index(key, "changed in between:"); i >= 0 {
+			key = key[i:]
+		}
+		if at, ok := first[key]; ok {
+			also[at] = append(also[at], "`"+f.Anchor.Symbol+"`")
+			continue
+		}
+		first[key] = len(out)
+		out = append(out, f)
+	}
+	for at, names := range also {
+		out[at].Text += " (also seen from " + strings.Join(names, ", ") + ")"
+	}
+	return out
 }

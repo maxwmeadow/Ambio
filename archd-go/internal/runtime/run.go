@@ -147,6 +147,22 @@ type WatchedEvidence struct {
 		Calls     int    `json:"calls"`
 		FirstCall int    `json:"firstCall"`
 	} `json:"shared,omitempty"`
+	// Drift: an object reached from the arguments that is the same object on a
+	// later call, with different contents - state shared between calls.
+	Drift []struct {
+		Path     string `json:"path"`
+		Calls    int    `json:"calls"`
+		Examples []struct {
+			FromCall int `json:"fromCall"`
+			ToCall   int `json:"toCall"`
+			Changes  []struct {
+				Key    string `json:"key"`
+				Before string `json:"before"`
+				After  string `json:"after"`
+			} `json:"changes"`
+		} `json:"examples"`
+	} `json:"drift,omitempty"`
+	Sampled int `json:"sampled"`
 	// Repeats: calls whose arguments were identical to the previous call's.
 	Repeats       int `json:"repeats"`
 	RepeatExample *struct {

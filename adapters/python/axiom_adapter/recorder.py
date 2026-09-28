@@ -43,8 +43,21 @@ MAX_EXCEPTIONS = 20
 _EXCLUDE_PARTS = ("site-packages", "dist-packages", ".venv", "venv", "node_modules", "__pypackages__", ".tox")
 
 
+_REAL = {}
+
+
 def _norm(path):
-    return os.path.normcase(os.path.abspath(path))
+    """Canonical path. realpath matters: a project under a symlink (macOS
+    /tmp -> /private/tmp, a linked home directory) otherwise never matches the
+    paths Python reports, and the run silently records nothing."""
+    hit = _REAL.get(path)
+    if hit is None:
+        try:
+            hit = os.path.normcase(os.path.realpath(path))
+        except Exception:
+            hit = os.path.normcase(os.path.abspath(path))
+        _REAL[path] = hit
+    return hit
 
 
 # ── value flattening (mirrors recorder.cjs) ─────────────────────────────────
@@ -208,6 +221,65 @@ def _outcome_shape(returned):
     return "object:" + returned.split("(")[0][:40]
 
 
+MAX_NODES = 60
+NODE_DEPTH = 5
+NODE_FIELDS = 48
+
+
+def _leaf_text(v):
+    l = _leaf(v)
+    return _display(l) if l is not None else None
+
+
+def collect_nodes(root, prefix, nodes):
+    """Objects reachable from a value, each with its own leaf fields.
+
+    Drift detection recognises the same object on a later call by identity (see
+    recorder.cjs collectNodes). A separate walk with its own budget, because
+    shared state tends to sit a few objects below the argument.
+    """
+    seen = set()
+
+    def walk(v, p, depth):
+        if len(nodes) >= MAX_NODES or depth > NODE_DEPTH or _leaf(v) is not None:
+            return
+        if id(v) in seen:
+            return
+        seen.add(id(v))
+        fields = {}
+        children = []
+        try:
+            if isinstance(v, dict):
+                items = list(v.items())[:NODE_FIELDS]
+            elif isinstance(v, (list, tuple)):
+                fields["len"] = str(len(v))
+                items = [("[%d]" % i, x) for i, x in enumerate(v[:8])]
+            elif isinstance(v, (set, frozenset)):
+                fields["len"] = str(len(v))
+                items = []
+            else:
+                items = _attrs(v)[:NODE_FIELDS]
+            for k, child in items:
+                key = str(k)
+                t = _leaf_text(child)
+                if t is not None:
+                    fields[key] = t
+                elif child is not None:
+                    sep = "" if key.startswith("[") else "."
+                    children.append(("%s%s%s" % (p, sep, key), child))
+        except Exception:
+            return
+        if fields:
+            nodes.append((v, p, fields))
+        for cp, c in children:
+            walk(c, cp, depth + 1)
+
+    try:
+        walk(root, prefix, 0)
+    except Exception:
+        pass
+
+
 class PathStats:
     __slots__ = ("count", "kind", "first", "last", "min", "max", "non_dec", "non_inc", "changes",
                  "series", "tail", "distinct", "overflow", "last_num")
@@ -310,6 +382,8 @@ class WatchRecord:
         self.last_args = None
         self.repeats = 0
         self.repeat_example = None
+        self.objects = {}  # id -> (object, path, call, fields); objects kept alive for the run
+        self.drift = {}
 
     def observe(self, p, l):
         st = self.paths.get(p)
@@ -337,6 +411,29 @@ class WatchRecord:
             if self.repeat_example is None:
                 self.repeat_example = {"call": call, "args": args_preview}
         self.last_args = fingerprint
+
+    def check_drift(self, nodes, call):
+        for obj, path, fields in nodes:
+            parts = path.replace("[", ".[").split(".")
+            if parts[0] in ("self", "cls") and len(parts) <= 2:
+                continue  # the receiver's own state is expected to change
+            prev = self.objects.get(id(obj))
+            if prev is not None and prev[0] is obj and prev[2] != call:
+                changes = []
+                for k in list(dict.fromkeys(list(prev[3]) + list(fields))):
+                    a = prev[3].get(k, "(absent)")
+                    b = fields.get(k, "(absent)")
+                    if a != b:
+                        changes.append({"key": k, "before": a, "after": b})
+                if changes:
+                    d = self.drift.get(path)
+                    if d is None and len(self.drift) < 20:
+                        d = self.drift[path] = {"calls": 0, "examples": []}
+                    if d is not None:
+                        d["calls"] += 1
+                        if len(d["examples"]) < 4:
+                            d["examples"].append({"fromCall": prev[2], "toCall": call, "changes": changes[:4]})
+            self.objects[id(obj)] = (obj, path, call, fields)
 
     def sample(self, s):
         # First example of each kind of outcome, wherever it happens (see
@@ -371,6 +468,7 @@ class WatchRecord:
             "shared": list(self.shared.values()),
             "repeats": self.repeats,
             "repeatExample": self.repeat_example,
+            "drift": [{"path": p, "calls": d["calls"], "examples": d["examples"]} for p, d in self.drift.items()],
         }
 
 
@@ -500,10 +598,13 @@ class Recorder:
                     names.append(code.co_varnames[nargs])
                 values = [frame.f_locals.get(n) for n in names]
                 before = {}
+                nodes = []
                 for n, v in zip(names, values):
                     for p, l in flatten(v, n).items():
                         before[p] = l
                         w.observe("arg." + p, l)
+                    collect_nodes(v, n, nodes)
+                w.check_drift(nodes, w.calls)
                 args_preview = preview(dict(zip(names, values)))
                 fingerprint = "|".join("%s=%s" % (p, _display(l)) for p, l in before.items())
                 w.observe_args(w.calls, names, values, fingerprint, args_preview)
@@ -555,8 +656,10 @@ class Recorder:
                 for p, l in flatten(value, "return").items():
                     rec.observe(p, l)
             changed = []
+            nodes = []
             for n, v in zip(w["names"], w["values"]):
                 after = flatten(v, n)
+                collect_nodes(v, n, nodes)
                 keys = [k for k in w["before"] if k == n or k.startswith(n + ".") or k.startswith(n + "[")]
                 keys += [k for k in after if k not in w["before"]]
                 for k in keys:
@@ -564,6 +667,7 @@ class Recorder:
                     a = _display(after.get(k))
                     if a != b:
                         changed.append((k, b, a))
+            rec.check_drift(nodes, w["call"])
             real = [c for c in changed if not (
                 c[1] in ("{}", "(absent)") or c[2] in ("{}", "(absent)")
             ) or not any(o is not c and (o[0].startswith(c[0] + ".") or o[0].startswith(c[0] + "[")) for o in changed)]

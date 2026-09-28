@@ -8,6 +8,7 @@
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { relative, isAbsolute, sep } from 'node:path'
+import { realpathSync } from 'node:fs'
 
 let transform = null
 let workspaceRoot = process.cwd()
@@ -15,6 +16,8 @@ let workspaceRoot = process.cwd()
 export async function initialize(data) {
   data = data || {}
   workspaceRoot = data.workspaceRoot || process.cwd()
+  // Loaded URLs are real paths; resolve the root the same way.
+  try { workspaceRoot = realpathSync.native(workspaceRoot) } catch { /* keep as given */ }
   if (!data.transformPath) return // misconfigured - degrade to no instrumentation
   const require = createRequire(import.meta.url)
   transform = require(data.transformPath).transform

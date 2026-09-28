@@ -34,9 +34,18 @@ const PREVIEW_MAX = 240
 const MUTATION_EXAMPLES = 6
 const MAX_EXCEPTIONS = 20
 
+// Canonical path for matching watches to running code. Node reports resolved
+// real paths; archd sends paths as the user registered them, which may go
+// through a symlink (macOS /tmp -> /private/tmp, a linked home directory).
+const realCache = new Map()
 function normFile(p) {
   if (!p) return ''
-  let out = p.replace(/\\/g, '/')
+  let real = realCache.get(p)
+  if (real === undefined) {
+    try { real = fs.realpathSync.native(p) } catch { real = p }
+    realCache.set(p, real)
+  }
+  let out = real.replace(/\\/g, '/')
   if (process.platform === 'win32') out = out.toLowerCase()
   return out
 }
@@ -58,6 +67,20 @@ function leaf(v) {
   if (t === 'function') return { k: 'function', v: `[Function ${v.name || 'anonymous'}]` }
   return null
 }
+
+// Display text for a value that is a leaf in flattened form, or null for a
+// container. Used to snapshot an object's own fields for drift detection.
+function leafText(v) {
+  const l = leaf(v)
+  if (l) return display(l)
+  if (v instanceof RegExp) return String(v).slice(0, 120)
+  if (v instanceof Date) return isNaN(v) ? 'Invalid Date' : v.toISOString()
+  return null
+}
+
+const MAX_NODES = 60
+const NODE_DEPTH = 5
+const NODE_FIELDS = 48
 
 function flatten(root, prefix, maxDepth = FLATTEN_DEPTH, maxLeaves = FLATTEN_LEAVES) {
   const out = new Map()
@@ -106,6 +129,41 @@ function flatten(root, prefix, maxDepth = FLATTEN_DEPTH, maxLeaves = FLATTEN_LEA
   }
   try { walk(root, prefix, 0) } catch { /* never break the target */ }
   return out
+}
+
+// Objects reachable from a value, each with a snapshot of its own leaf fields.
+// A separate walk from flatten() with its own budget: flatten stops after 160
+// values, often inside the first large sub-object, while shared state tends to
+// sit a few objects down (options.tokenizer.rules.inline).
+function collectNodes(root, prefix, nodes) {
+  const seen = new WeakSet()
+  const walk = (v, p, depth) => {
+    if (nodes.length >= MAX_NODES || v === null || typeof v !== 'object' || depth > NODE_DEPTH) return
+    if (seen.has(v) || v instanceof RegExp || v instanceof Date || v instanceof Promise || ArrayBuffer.isView(v)) return
+    seen.add(v)
+    const fields = new Map()
+    const children = []
+    try {
+      if (Array.isArray(v)) {
+        fields.set('length', String(v.length))
+        for (let i = 0; i < v.length && i < 8; i++) children.push([`${p}[${i}]`, v[i]])
+      } else if (v instanceof Map || v instanceof Set) {
+        fields.set('size', String(v.size))
+      } else {
+        const keys = Object.keys(v)
+        for (let i = 0; i < keys.length && i < NODE_FIELDS; i++) {
+          let child
+          try { child = v[keys[i]] } catch { continue }
+          const t = leafText(child)
+          if (t !== null) fields.set(keys[i], t)
+          else if (child && typeof child === 'object') children.push([`${p}.${keys[i]}`, child])
+        }
+      }
+    } catch { return }
+    if (fields.size) nodes.push({ obj: v, path: p, fields })
+    for (const [cp, c] of children) walk(c, cp, depth + 1)
+  }
+  try { walk(root, prefix, 0) } catch { /* never break the target */ }
 }
 
 function ctorName(v) {
@@ -258,6 +316,12 @@ class WatchRecord {
     this.repeatExample = null
     // Detailed recording is sampled once a function gets hot (see sampled()).
     this.sampledCalls = 0
+    // Drift: an object reached from this function's arguments on one call is
+    // the same object on a later call, and its contents differ. That is state
+    // shared between calls - module-level tables, caches, singletons - which
+    // argument mutation alone cannot see.
+    this.objects = new WeakMap() // object -> { path, call, fields }
+    this.drift = new Map()       // path -> { calls, first, examples }
   }
 
   // Runs on EVERY call of a watched function, so it only compares identities:
@@ -294,6 +358,36 @@ class WatchRecord {
     }
     this.prevArgs = argsArr
     this.prevSelf = self
+  }
+
+  checkDrift(nodes, call) {
+    for (const n of nodes) {
+      const root = n.path.split(/[.[]/)[0]
+      // The receiver and its direct fields are the object's own state; they
+      // are expected to change between method calls.
+      if ((root === 'this') && n.path.split('.').length <= 2) continue
+      const prev = this.objects.get(n.obj)
+      if (prev && prev.call !== call) {
+        const changes = []
+        const keys = new Set([...prev.fields.keys(), ...n.fields.keys()])
+        for (const k of keys) {
+          const a = prev.fields.has(k) ? prev.fields.get(k) : '(absent)'
+          const b = n.fields.has(k) ? n.fields.get(k) : '(absent)'
+          if (a !== b) changes.push({ key: k, before: a, after: b })
+        }
+        if (changes.length) {
+          let d = this.drift.get(n.path)
+          if (!d) {
+            if (this.drift.size >= 20) { this.objects.set(n.obj, { path: n.path, call, fields: n.fields }); continue }
+            d = { calls: 0, examples: [] }
+            this.drift.set(n.path, d)
+          }
+          d.calls++
+          if (d.examples.length < 4) d.examples.push({ fromCall: prev.call, toCall: call, changes: changes.slice(0, 4) })
+        }
+      }
+      this.objects.set(n.obj, { path: n.path, call, fields: n.fields })
+    }
   }
 
   observe(p, l) {
@@ -336,6 +430,7 @@ class WatchRecord {
       repeats: this.repeats,
       repeatExample: this.repeatExample || undefined,
       sampled: this.sampledCalls,
+      drift: [...this.drift].map(([path, d]) => ({ path, calls: d.calls, examples: d.examples })),
     }
   }
 }
@@ -460,19 +555,25 @@ class Recorder {
       frame.t0 = process.hrtime.bigint()
       const before = new Map()
       const args = {}
+      const nodes = []
       for (let i = 0; i < paramNames.length; i++) {
         args[paramNames[i]] = argsArr[i]
         for (const [p, l] of flatten(argsArr[i], paramNames[i])) {
           before.set(p, l)
           w.observe('arg.' + p, l)
         }
+        collectNodes(argsArr[i], paramNames[i], nodes)
       }
       if (receiver) {
         for (const [p, l] of flatten(receiver, 'this', RECEIVER_DEPTH, RECEIVER_LEAVES)) {
           before.set(p, l)
           w.observe('arg.' + p, l)
         }
+        // Walked deeper for drift than for display: shared state usually
+        // hangs a few objects below `this`.
+        collectNodes(receiver, 'this', nodes)
       }
+      w.checkDrift(nodes, w.calls)
       frame.w = {
         rec: w,
         argsArr: receiver ? argsArr.concat([receiver]) : argsArr,
@@ -528,13 +629,17 @@ class Recorder {
     if (!w.returned && !w.threw) this.ret(frame, undefined)
     const ms = Number(process.hrtime.bigint() - frame.t0) / 1e6
     w.rec.totalMs += ms
-    // Mutations: re-flatten the arguments now and diff against entry.
+    // Mutations: re-flatten the arguments now and diff against entry. The
+    // exit walk also feeds drift detection: an object this call changed is
+    // remembered in its new state.
     const changed = []
+    const nodes = []
     for (let i = 0; i < w.paramNames.length; i++) {
       const name = w.paramNames[i]
       const after = i === w.receiverAt
         ? flatten(w.argsArr[i], name, RECEIVER_DEPTH, RECEIVER_LEAVES)
         : flatten(w.argsArr[i], name)
+      collectNodes(w.argsArr[i], name, nodes)
       const keys = new Set()
       for (const k of w.before.keys()) if (k === name || k.startsWith(name + '.') || k.startsWith(name + '[')) keys.add(k)
       for (const k of after.keys()) keys.add(k)
@@ -546,6 +651,7 @@ class Recorder {
     }
     // `{}` gaining its first key reads as two changes: the empty-object leaf
     // disappearing and the new child appearing. Only the child is real.
+    w.rec.checkDrift(nodes, w.call)
     const real = changed.filter(c => !(
       (c.before === '{}' || c.before === '(absent)' || c.after === '{}' || c.after === '(absent)') &&
       changed.some(o => o !== c && (o.path.startsWith(c.path + '.') || o.path.startsWith(c.path + '[')))

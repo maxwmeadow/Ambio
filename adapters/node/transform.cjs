@@ -143,6 +143,16 @@ function collectFunctions(root, _parent, out) {
   // properties, methods, assignments).
   const visit = (node, parent, key) => {
     if (!node || typeof node.type !== 'string') return
+    // Constructors are where objects get wired up, so they are observed too.
+    // A derived class has no `this` until super() returns; mark which kind
+    // each constructor is so instrumentation can start after that call.
+    if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && node.body) {
+      for (const member of node.body.body) {
+        if (member.type === 'MethodDefinition' && member.kind === 'constructor' && member.value) {
+          member.value.__axCtor = { derived: !!node.superClass }
+        }
+      }
+    }
     if (FN_TYPES.has(node.type) && !skipFunction(node, parent)) {
       out.push({ node, name: inferName(node, parent, key), nameNode: nameNodeOf(node, parent) })
     }
@@ -212,7 +222,7 @@ function keyName(key) {
 function skipFunction(node, parent) {
   if (!parent) return false
   if (parent.type === 'MethodDefinition') {
-    return parent.kind === 'constructor' || parent.kind === 'get' || parent.kind === 'set'
+    return parent.kind === 'get' || parent.kind === 'set'
   }
   if (parent.type === 'Property') {
     return parent.kind === 'get' || parent.kind === 'set'
@@ -298,15 +308,28 @@ function instrumentFunction(s, source, node, name, fileLit, names, mappedLine, s
   const openBrace = body.start // index of '{'
   const closeBrace = body.end - 1 // index of '}'
 
+  // In a derived class constructor, observation starts after a top-level
+  // super(...) call; a conditional super() is left alone rather than risked.
+  let startAt = openBrace + 1
+  if (node.__axCtor && node.__axCtor.derived) {
+    const superStmt = body.body.find(st =>
+      st.type === 'ExpressionStatement' && st.expression.type === 'CallExpression' && st.expression.callee.type === 'Super')
+    if (!superStmt) return false
+    startAt = superStmt.end
+  }
+
   const header = ` const ${CTX} = ${enterCall};${injectApply} try {`
   const footer = ` } catch (${ERR}) { ${G}.error(${CTX}, ${ERR}); throw ${ERR}; } finally { ${G}.exit(${CTX}); } `
 
-  s.appendRight(openBrace + 1, header)
+  s.appendRight(startAt, header)
   s.prependLeft(closeBrace, footer)
 
   // Wrap this function's own return statements (not nested functions').
   const returns = []
   collectOwnReturns(body, returns)
+  if (startAt !== openBrace + 1) {
+    for (let i = returns.length - 1; i >= 0; i--) if (returns[i].start < startAt) returns.splice(i, 1)
+  }
   // The footer is already in place, so each closer prepended here lands before
   // it - which matters for minified `return{...}}`, where the return value
   // ends exactly where the body does. The leading space covers `return{`.
