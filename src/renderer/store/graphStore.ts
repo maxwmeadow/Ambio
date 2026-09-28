@@ -1349,7 +1349,11 @@ export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
     socket.onopen = () => {
       if (generation !== wsGeneration) return
       useGraphStore.getState().setConnectionStatus('connected')
-      void resyncSnapshot('connection')
+      void resyncSnapshot('connection').finally(() => {
+        if (generation !== wsGeneration || typeof window === 'undefined') return
+        window.dispatchEvent(new Event('axiom:proposal-draft'))
+        window.dispatchEvent(new Event('axiom:proposal-refresh'))
+      })
     }
 
     socket.onmessage = (event) => {
@@ -1467,6 +1471,23 @@ export function handleWsMessage(msg: { type: string; payload: unknown }): void {
     case 'agent:activity':
       store.addAgentActivity(msg.payload as { message: string; level: 'info' | 'warn' | 'success' | 'error' })
       break
+    case 'architecture:proposal-draft': {
+      const draft = msg.payload as { workspaceId: string; status: string; systems?: number; chunks?: number }
+      if (draft.workspaceId !== store.currentProject?.id) break
+      if (draft.status === 'open' && (draft.chunks ?? 0) > 0) {
+        store.addAgentActivity({ message: `Architecture mapping: ${draft.systems ?? 0} systems in ${draft.chunks} chunks`, level: 'info' })
+      }
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('axiom:proposal-draft'))
+      break
+    }
+    case 'architecture:proposal': {
+      const notice = msg.payload as { workspaceId: string; proposalId: string }
+      if (notice.workspaceId !== store.currentProject?.id) break
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('axiom:proposal', { detail: notice }))
+      }
+      break
+    }
     case 'data:flow': {
       const { variable, fileIds } = msg.payload as { variable: string; fileIds: string[] }
       store.setDataFlow({ variable, fileIds: fileIds ?? [] })

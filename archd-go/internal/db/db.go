@@ -348,6 +348,27 @@ func migrate(db *sql.DB) error {
 		updated_at INTEGER NOT NULL
 	);
 	CREATE INDEX IF NOT EXISTS architecture_proposals_ws ON architecture_proposals(workspace_id, updated_at DESC);
+	-- Agents can assemble a large proposal across MCP calls and process restarts.
+	-- Draft chunks are never visible as live systems or reviewable proposals.
+	CREATE TABLE IF NOT EXISTS architecture_proposal_drafts (
+		id TEXT PRIMARY KEY,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		rationale TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','committed','aborted')),
+		proposal_id TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS architecture_proposal_drafts_ws ON architecture_proposal_drafts(workspace_id,status,updated_at DESC);
+	CREATE TABLE IF NOT EXISTS architecture_proposal_draft_chunks (
+		draft_id TEXT NOT NULL REFERENCES architecture_proposal_drafts(id) ON DELETE CASCADE,
+		chunk_id TEXT NOT NULL,
+		ordinal INTEGER NOT NULL,
+		systems_json TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		PRIMARY KEY(draft_id,chunk_id),
+		UNIQUE(draft_id,ordinal)
+	);
 	CREATE TABLE IF NOT EXISTS architecture_proposal_rounds (
 		proposal_id TEXT NOT NULL REFERENCES architecture_proposals(id) ON DELETE CASCADE,
 		revision INTEGER NOT NULL CHECK(revision > 0),

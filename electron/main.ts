@@ -11,8 +11,11 @@ import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import {
   createProjectId,
   findProjectByRoot,
+  migrateIndexedProjectLifecycle,
   refreshProjectDiskState,
+  readResumeProjectId,
   removeProjectData,
+  writeResumeProjectId,
 } from './projectRegistry'
 
 // electron-vite injects ELECTRON_RENDERER_URL in dev. The name matters: this
@@ -27,6 +30,7 @@ const IS_E2E = process.env.AXIOM_E2E === '1'
 const IS_E2E_HOME = process.env.AXIOM_E2E_HOME === '1'  // route straight to the launcher for capture
 const CONFIG_DIR = join(os.homedir(), '.axiom')
 const PROJECTS_FILE = join(CONFIG_DIR, 'projects.json')
+const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
 const DATA_DIR = join(os.homedir(), '.axiom', 'data')
 const ARCHD_API_PORT = 7743
 const ARCHD_WS_PORT = 7744
@@ -40,7 +44,12 @@ let tray: Tray | null = null
 function loadRecentProjects(): ProjectConfig[] {
   try {
     const data = fs.readFileSync(PROJECTS_FILE, 'utf8')
-    return JSON.parse(data)
+    const stored = JSON.parse(data) as ProjectConfig[]
+    const migrated = stored.map(project => migrateIndexedProjectLifecycle(project, DATA_DIR))
+    if (migrated.some((project, index) => project !== stored[index])) {
+      try { saveRecentProjects(migrated) } catch { /* still return the readable registry */ }
+    }
+    return migrated
   } catch {
     return []
   }
@@ -48,7 +57,9 @@ function loadRecentProjects(): ProjectConfig[] {
 
 function saveRecentProjects(projects: ProjectConfig[]): void {
   fs.mkdirSync(CONFIG_DIR, { recursive: true })
-  fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2))
+  const temp = `${PROJECTS_FILE}.tmp`
+  fs.writeFileSync(temp, JSON.stringify(projects, null, 2))
+  fs.renameSync(temp, PROJECTS_FILE)
 }
 
 function upsertRecentProject(config: ProjectConfig): void {
@@ -357,11 +368,31 @@ function setupIPC(): void {
   // Get recent projects
   ipcMain.handle('project:list-recent', () => loadRecentProjects().map(refreshProjectDiskState))
 
+  ipcMain.handle('project:get-resume-id', () => readResumeProjectId(SETTINGS_FILE))
+  ipcMain.handle('project:set-resume-id', (_event, projectId: string | null) => {
+    if (projectId !== null && !loadRecentProjects().some(project => project.id === projectId)) {
+      throw new Error('Cannot resume a project outside the recent-project registry.')
+    }
+    writeResumeProjectId(SETTINGS_FILE, projectId)
+  })
+  ipcMain.handle('project:complete-lifecycle', (_event, projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt') => {
+    if (milestone !== 'agentSetupCompletedAt' && milestone !== 'reviewCompletedAt') {
+      throw new Error('Invalid project lifecycle milestone.')
+    }
+    const projects = loadRecentProjects()
+    const index = projects.findIndex(project => project.id === projectId)
+    if (index < 0) throw new Error('Project is missing from the recent-project registry.')
+    projects[index] = { ...projects[index], [milestone]: Date.now() }
+    saveRecentProjects(projects)
+    return projects[index]
+  })
+
   // Deleting is a verified lifecycle boundary. Keep the recent entry if any
   // daemon or filesystem step fails so the UI cannot claim data was removed.
   ipcMain.handle('project:remove', async (_event, projectId: string) => {
     await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: ARCHD_API_PORT })
     saveRecentProjects(loadRecentProjects().filter(project => project.id !== projectId))
+    if (readResumeProjectId(SETTINGS_FILE) === projectId) writeResumeProjectId(SETTINGS_FILE, null)
   })
 
   // Send a mutation intent to archd
@@ -607,10 +638,14 @@ coordinates others. Do not infer from filenames - a file called utils.ts may be
 the core of a system. Do not begin from the systems already on the map: those
 were named automatically from word frequency and describe nothing.
 
-**Submit it** with Axiom's \`edit_systems\` tool using \`op: "propose"\`, passing the
-whole tree in one call: each entry takes a systemKey, name, description, an
-optional parentKey naming another proposed system, and files (repository-relative
-paths) for leaf systems.
+**Submit it incrementally** with Axiom's \`edit_systems\` tool. Call
+\`begin_session\` once, then \`add_chunk\` for small groups of systems with a
+stable chunkId per group. Each system takes a systemKey, name, description,
+optional parentKey (which may refer to another chunk), and repository-relative
+files. Set rootId on a system when its file paths are ambiguous across roots.
+Call \`commit_session\` after the whole tree is submitted. If your
+session is interrupted, use \`session_status\` and resume with the same
+sessionId. A small map can still use \`op: "propose"\` in one call.
 
 The human confirms, renames or rejects each system. Nothing reaches their map
 until they do.

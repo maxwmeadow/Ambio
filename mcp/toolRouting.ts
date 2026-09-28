@@ -49,6 +49,16 @@ const ARCHITECTURE_SCOPES: Record<string, string> = {
 /** Architecture curation. Agents keep the map true; that is the product. */
 const SYSTEM_OPS: Record<string, string> = {
   propose: 'propose_architecture',
+  begin_session: 'begin_architecture_proposal_draft',
+  begin: 'begin_architecture_proposal_draft',
+  add_chunk: 'add_architecture_proposal_draft_chunk',
+  chunk: 'add_architecture_proposal_draft_chunk',
+  commit_session: 'commit_architecture_proposal_draft',
+  commit: 'commit_architecture_proposal_draft',
+  abort_session: 'abort_architecture_proposal_draft',
+  abort: 'abort_architecture_proposal_draft',
+  session_status: 'get_architecture_proposal_draft',
+  status: 'get_architecture_proposal_draft',
   create: 'create_system',
   update: 'update_system',
   delete: 'delete_system',

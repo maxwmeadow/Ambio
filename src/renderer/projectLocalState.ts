@@ -4,11 +4,10 @@
  *
  * Removing a project used to drop it from the recent list and delete its
  * database, and leave every local-storage hint keyed to its id behind. Those
- * hints outlive the data they describe: reopening the same folder later -
- * which produces the same id, because the id is a hash of the path - resurrected
- * "you already reviewed this" and "you already saw the guide" for a workspace
- * that no longer existed. The setup a user needed was hidden because a journey
- * had once been completed on that machine.
+ * hints outlive the data they describe. Older releases reused project ids for
+ * the same path, so reopening a deleted project could resurrect completed
+ * setup. Project ids now name lifetimes, but old browser hints still need
+ * removal when a project is deleted.
  *
  * Every project-scoped key belongs in KEYS. A new one added elsewhere and not
  * registered here is a new way for a deleted project to haunt the next one.
@@ -30,26 +29,6 @@ const KEYS = [
 ] as const
 
 /**
- * A completed baseline review was the old end of project setup. Treat it as
- * proof that an existing project already crossed the agent-connection gate so
- * an upgrade never walks a user backwards through setup.
- */
-export function agentSetupIsComplete(projectId: string): boolean {
-  if (!projectId) return false
-  try {
-    return localStorage.getItem(AGENT_SETUP_KEY(projectId)) === 'true' ||
-      localStorage.getItem(LEGACY_REVIEW_KEY(projectId)) === 'true'
-  } catch {
-    return false
-  }
-}
-
-export function markAgentSetupComplete(projectId: string): void {
-  if (!projectId) return
-  try { localStorage.setItem(AGENT_SETUP_KEY(projectId), 'true') } catch { /* storage may be unavailable */ }
-}
-
-/**
  * One release recorded New Project only in local storage. Promote that hint
  * into the persisted project config the next time the project opens. Projects
  * without the old hint safely retain the historical Open Codebase behavior.
@@ -63,6 +42,20 @@ export function migrateLegacyProjectCreationSource(config: ProjectConfig): Proje
     }
   } catch { /* storage may be unavailable */ }
   return { ...config, creationSource }
+}
+
+/** One-time promotion of the old browser hints into the durable registry. */
+export function migrateLegacyProjectLifecycle(config: ProjectConfig): ProjectConfig {
+  const migrated = migrateLegacyProjectCreationSource(config)
+  try {
+    if (!migrated.reviewCompletedAt && localStorage.getItem(LEGACY_REVIEW_KEY(config.id)) === 'true') {
+      return { ...migrated, workbenchOpenedAt: migrated.workbenchOpenedAt || migrated.openedAt || Date.now(), reviewCompletedAt: Date.now() }
+    }
+    if (!migrated.agentSetupCompletedAt && localStorage.getItem(AGENT_SETUP_KEY(config.id)) === 'true') {
+      return { ...migrated, workbenchOpenedAt: migrated.workbenchOpenedAt || migrated.openedAt || Date.now(), agentSetupCompletedAt: Date.now() }
+    }
+  } catch { /* the backend's indexed status can still recover older projects */ }
+  return migrated
 }
 
 /** Forget everything this machine remembers about one project. */

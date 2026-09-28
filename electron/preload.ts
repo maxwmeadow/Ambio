@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('axiom', {
   removeProject: (projectId: string): Promise<void> =>
     ipcRenderer.invoke('project:remove', projectId),
 
+  getResumeProjectId: (): Promise<string | null> => ipcRenderer.invoke('project:get-resume-id'),
+  setResumeProjectId: (projectId: string | null): Promise<void> => ipcRenderer.invoke('project:set-resume-id', projectId),
+  completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt'): Promise<ProjectConfig> =>
+    ipcRenderer.invoke('project:complete-lifecycle', projectId, milestone),
+
   // Mutations
   sendMutationIntent: (intent: unknown) =>
     ipcRenderer.invoke('mutation:intent', intent),
@@ -150,6 +155,9 @@ declare global {
       createProject: (parentDir: string, name: string) => Promise<ProjectConfig>
       listRecentProjects: () => Promise<ProjectConfig[]>
       removeProject: (projectId: string) => Promise<void>
+      getResumeProjectId: () => Promise<string | null>
+      setResumeProjectId: (projectId: string | null) => Promise<void>
+      completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt') => Promise<ProjectConfig>
       sendMutationIntent: (intent: unknown) => void
       saveNodePosition: (id: string, x: number, y: number, projectId: string) => void
       listDir: (dirPath: string) => Promise<Array<{ name: string; isDirectory: boolean; path: string }>>

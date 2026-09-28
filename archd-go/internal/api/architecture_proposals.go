@@ -47,6 +47,8 @@ type finalizeArchitectureProposalRequest struct {
 func (s *Server) registerArchitectureProposalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/architecture-proposals", s.handleArchitectureProposals)
 	mux.HandleFunc("/api/architecture-proposals/", s.handleArchitectureProposalByID)
+	mux.HandleFunc("/api/architecture-proposal-drafts", s.handleArchitectureProposalDrafts)
+	mux.HandleFunc("/api/architecture-proposal-drafts/", s.handleArchitectureProposalDraftByID)
 }
 
 func proposalErrorStatus(err error) int {
@@ -54,10 +56,10 @@ func proposalErrorStatus(err error) int {
 		return http.StatusNotFound
 	}
 	message := err.Error()
-	if strings.Contains(message, "stale proposal revision") || strings.Contains(message, "already ") || strings.Contains(message, "must be approved first") || strings.Contains(message, "UNIQUE constraint") {
+	if strings.Contains(message, "stale proposal revision") || strings.Contains(message, "already ") || strings.Contains(message, "duplicate ") || strings.Contains(message, "must be approved first") || strings.Contains(message, "UNIQUE constraint") {
 		return http.StatusConflict
 	}
-	if strings.Contains(message, "required") || strings.Contains(message, "invalid") || strings.Contains(message, "does not exist") || strings.Contains(message, "does not belong") || strings.Contains(message, "unique file path") || strings.Contains(message, "proposal depth") || strings.Contains(message, "parent must") || strings.Contains(message, "not editable") || strings.Contains(message, "hierarchy cycle") {
+	if strings.Contains(message, "required") || strings.Contains(message, "invalid") || strings.Contains(message, "does not exist") || strings.Contains(message, "does not belong") || strings.Contains(message, "unique file path") || strings.Contains(message, "proposal depth") || strings.Contains(message, "parent must") || strings.Contains(message, "not editable") || strings.Contains(message, "hierarchy cycle") || strings.Contains(message, "needs at least") || strings.Contains(message, "does not resolve") || strings.Contains(message, "resolved to") {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError

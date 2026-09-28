@@ -71,6 +71,36 @@ test('architecture curation reaches every write, because agents own the map', ()
   }
 })
 
+test('chunked proposal operations reach their durable session handlers', () => {
+  const operations = {
+    begin_session: 'begin_architecture_proposal_draft',
+    add_chunk: 'add_architecture_proposal_draft_chunk',
+    commit_session: 'commit_architecture_proposal_draft',
+    abort_session: 'abort_architecture_proposal_draft',
+    session_status: 'get_architecture_proposal_draft',
+  }
+  for (const [op, tool] of Object.entries(operations)) {
+    assert.equal(routeTool('edit_systems', { op }).tool, tool, op)
+  }
+})
+
+test('short draft operation aliases reach the same handlers', () => {
+  const aliases = {
+    begin: 'begin_session',
+    chunk: 'add_chunk',
+    commit: 'commit_session',
+    abort: 'abort_session',
+    status: 'session_status',
+  }
+  for (const [alias, canonical] of Object.entries(aliases)) {
+    assert.equal(
+      routeTool('edit_systems', { op: alias }).tool,
+      routeTool('edit_systems', { op: canonical }).tool,
+      alias,
+    )
+  }
+})
+
 test('the op discriminator is stripped before the legacy handler sees it', () => {
   const routed = routeTool('edit_systems', { op: 'create', name: 'Storage', parentId: 'p1' })
   assert.deepEqual(routed.args, { name: 'Storage', parentId: 'p1' })

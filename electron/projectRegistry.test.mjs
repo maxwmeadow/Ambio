@@ -7,9 +7,41 @@ import test from 'node:test'
 import {
   createProjectId,
   findProjectByRoot,
+  migrateIndexedProjectLifecycle,
   refreshProjectDiskState,
+  readResumeProjectId,
   removeProjectData,
+  writeResumeProjectId,
 } from './projectRegistry.ts'
+
+test('resume pointer persists and clears independently from browser storage', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-resume-'))
+  const settings = path.join(dir, 'settings.json')
+  try {
+    assert.equal(readResumeProjectId(settings), null)
+    writeResumeProjectId(settings, 'workspace-1')
+    assert.equal(readResumeProjectId(settings), 'workspace-1')
+    fs.writeFileSync(settings, JSON.stringify({ resumeProjectId: 'workspace-1', theme: 'dark' }))
+    writeResumeProjectId(settings, null)
+    assert.equal(readResumeProjectId(settings), null)
+    assert.equal(JSON.parse(fs.readFileSync(settings, 'utf8')).theme, 'dark')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('an older indexed project gains a durable workbench marker without daemon access', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-legacy-index-'))
+  const project = { id: 'legacy', rootPath: '/repo', openedAt: 123 }
+  try {
+    assert.equal(migrateIndexedProjectLifecycle(project, dataDir), project)
+    fs.mkdirSync(path.join(dataDir, project.id))
+    fs.writeFileSync(path.join(dataDir, project.id, 'axiom.db'), '')
+    assert.equal(migrateIndexedProjectLifecycle(project, dataDir).workbenchOpenedAt, 123)
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true })
+  }
+})
 
 test('an existing recent path keeps its project lifetime but a removed path gets a new id', () => {
   const rootPath = path.join(os.tmpdir(), 'axiom-project-lifetime')

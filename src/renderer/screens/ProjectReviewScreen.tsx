@@ -5,6 +5,7 @@ import type { ProjectConfig } from '../../shared/types'
 import { describeProgress, readProgress } from '../canvas/architectureProposal'
 import { ArchitectureProposalPanel } from '../components/ArchitectureProposalPanel'
 import { ProposalReviewCanvas } from '../components/ProposalReviewCanvas'
+import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { useProposalStore } from '../store/architectureProposalStore'
 import { useGraphStore } from '../store/graphStore'
@@ -103,6 +104,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
             <div className="axiom-review__loading" role="status">
               <strong>{loading ? 'Loading the proposed architecture…' : 'No proposal is available yet.'}</strong>
               <p>{error ?? 'Return to the connection step and ask the agent to map this project.'}</p>
+              <ProposalDraftProgress workspaceId={project.id} inline />
             </div>
           )}
 
