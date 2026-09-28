@@ -38,6 +38,18 @@ const MAX_EXCEPTIONS = 20
 // real paths; archd sends paths as the user registered them, which may go
 // through a symlink (macOS /tmp -> /private/tmp, a linked home directory).
 const realCache = new Map()
+// The canonical spelling of a path, for evidence: archd maps paths back to
+// files and cannot guess that C:\\Users\\RUNNER~1 is C:\\Users\\runneradmin.
+function realOf(p) {
+  if (!p) return p
+  let real = realCache.get(p)
+  if (real === undefined) {
+    try { real = fs.realpathSync.native(p) } catch { real = p }
+    realCache.set(p, real)
+  }
+  return real
+}
+
 function normFile(p) {
   if (!p) return ''
   let real = realCache.get(p)
@@ -711,12 +723,12 @@ class Recorder {
     for (const lines of this.byFile.values()) {
       for (const list of lines.values()) {
         for (const f of list) {
-          functions.push({ file: f.file, name: f.name, line: f.line, calls: f.calls, errors: f.errors, ms: 0 })
+          functions.push({ file: realOf(f.file), name: f.name, line: f.line, calls: f.calls, errors: f.errors, ms: 0 })
           if (f.callees === null) continue
           for (const [to, n] of f.callees) {
             edges.push({
-              from: { file: f.file, name: f.name, line: f.line },
-              to: { file: to.file, name: to.name, line: to.line },
+              from: { file: realOf(f.file), name: f.name, line: f.line },
+              to: { file: realOf(to.file), name: to.name, line: to.line },
               calls: n,
             })
           }
@@ -733,7 +745,7 @@ class Recorder {
       functions,
       edges,
       edgesDropped: this.edgesDropped,
-      watched: this.watched.map(w => w.toJSON()),
+      watched: this.watched.map(w => ({ ...w.toJSON(), file: realOf(w.spec.file) })),
       uncaught: this.uncaught,
     }
     try {

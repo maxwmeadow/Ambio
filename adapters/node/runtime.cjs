@@ -537,11 +537,23 @@ module.exports.workspaceRoot = function () {
   // never contain them.
   try { return require('fs').realpathSync.native(root) } catch { return root }
 }
+// The same location can be spelled several ways: through a symlink, or on
+// Windows with 8.3 short names (C:\\Users\\RUNNER~1) that Node reports for
+// modules while the root resolves to the long name. Accept a file when any
+// spelling of it is inside any spelling of the root.
+const realNative = (p) => {
+  try { return require('fs').realpathSync.native(p) } catch { return p }
+}
 module.exports.pathInWorkspace = function (file, root) {
-  try {
-    const rel = path.relative(root, file)
-    return rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.split(path.sep).includes('node_modules')
-  } catch {
-    return false
+  const inside = (r, f) => {
+    try {
+      const rel = path.relative(r, f)
+      return rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.split(path.sep).includes('node_modules')
+    } catch {
+      return false
+    }
   }
+  if (inside(root, file)) return true
+  const realRoot = realNative(root)
+  return inside(realRoot, file) || inside(realRoot, realNative(file)) || inside(root, realNative(file))
 }

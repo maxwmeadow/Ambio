@@ -44,6 +44,20 @@ _EXCLUDE_PARTS = ("site-packages", "dist-packages", ".venv", "venv", "node_modul
 
 
 _REAL = {}
+_CANON = {}
+
+
+def _real(path):
+    """Canonical spelling of a path for evidence (no case folding), so archd
+    can map it to a file whatever spelling Python reported."""
+    hit = _CANON.get(path)
+    if hit is None:
+        try:
+            hit = os.path.realpath(path)
+        except Exception:
+            hit = path
+        _CANON[path] = hit
+    return hit
 
 
 def _norm(path):
@@ -719,16 +733,21 @@ class Recorder:
             self.last_written = total
             if not self.functions and not self.uncaught:
                 return
-            functions = [{"file": f[0], "name": f[1], "line": f[2], "calls": f[3], "errors": f[4], "ms": round(f[5], 3)}
+            functions = [{"file": _real(f[0]), "name": f[1], "line": f[2], "calls": f[3], "errors": f[4], "ms": round(f[5], 3)}
                          for f in self.functions.values()]
             edges = []
             for (a, b), n in self.edges.items():
                 edges.append({
-                    "from": {"file": a.co_filename, "name": a.co_name, "line": a.co_firstlineno},
-                    "to": {"file": b.co_filename, "name": b.co_name, "line": b.co_firstlineno},
+                    "from": {"file": _real(a.co_filename), "name": a.co_name, "line": a.co_firstlineno},
+                    "to": {"file": _real(b.co_filename), "name": b.co_name, "line": b.co_firstlineno},
                     "calls": n,
                 })
-            watched = [r.to_json() for r in self.watched.values() if r is not None]
+            watched = []
+            for r in self.watched.values():
+                if r is not None:
+                    doc = r.to_json()
+                    doc["file"] = _real(doc["file"])
+                    watched.append(doc)
             doc = {
                 "version": 1,
                 "runId": self.run_id,

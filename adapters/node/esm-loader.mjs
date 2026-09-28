@@ -23,13 +23,22 @@ export async function initialize(data) {
   transform = require(data.transformPath).transform
 }
 
-function inWorkspace(filePath) {
+function inside(root, filePath) {
   try {
-    const rel = relative(workspaceRoot, filePath)
+    const rel = relative(root, filePath)
     return rel && !rel.startsWith('..') && !isAbsolute(rel) && !rel.split(sep).includes('node_modules')
   } catch {
     return false
   }
+}
+
+// Any spelling of the file inside the root counts: symlinks, and Windows 8.3
+// short names, which the loader reports while the root resolves long.
+function inWorkspace(filePath) {
+  if (inside(workspaceRoot, filePath)) return true
+  let real = filePath
+  try { real = realpathSync.native(filePath) } catch { /* keep as given */ }
+  return real !== filePath && inside(workspaceRoot, real)
 }
 
 // Node's native type stripping reports these formats for .ts/.mts/.cts. We

@@ -87,7 +87,7 @@ test('built code with a source map is recorded under its source names', () => {
   const out = transform(bundle, { filename: join(dir, 'bundle.js'), sourceType: 'module' })
   assert.ok(out)
   const calls = [...out.code.matchAll(/__axiom\.enter\("([^"]+)", "([^"]+)", (\d+), \[[^\]]*\], (\[[^\]]*\])/g)]
-    .map(m => ({ file: m[1], name: m[2], line: Number(m[3]), params: JSON.parse(m[4]) }))
+    .map(m => ({ file: JSON.parse(`"${m[1]}"`), name: m[2], line: Number(m[3]), params: JSON.parse(m[4]) }))
   const codespan = calls.find(c => c.name === 'codespan')
   assert.ok(codespan, `codespan not found in ${JSON.stringify(calls)}`)
   assert.equal(codespan.file, join(dir, 'tokenizer.ts'), 'recorded under the source file, not the bundle')
