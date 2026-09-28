@@ -758,6 +758,12 @@ test('navigates recent projects via search and keyboard flow', async () => {
   await expect(searchBox).toHaveValue('')
   const totalCount = await page.locator('.axiom-launcher__recent-item').count()
   expect(totalCount).toBeGreaterThanOrEqual(1)
+
+  // A highlighted recent project must not steal Enter from a focused action.
+  await page.keyboard.press('ArrowDown')
+  await page.locator('.axiom-launcher__fork--new').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog', { name: 'Create a model from scratch' })).toBeVisible()
 })
 
 test('chooses project sources in a folder-first file browser', async () => {

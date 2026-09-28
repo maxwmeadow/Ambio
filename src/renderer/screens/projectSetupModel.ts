@@ -150,8 +150,8 @@ export function formatExploredScopeSummary(counts: ExploredScopeCounts): {
   const docPart = `${counts.documents} ${counts.documents === 1 ? 'document' : 'documents'}`
   const folderPart = `${counts.folders} ${counts.folders === 1 ? 'folder' : 'folders'}`
 
-  const headline = `${sourcePart} and ${docPart} discovered across ${folderPart}`
-  const subtext = 'Counts reflect folders explored in this preview, not total files on disk.'
+  const headline = `${sourcePart} and ${docPart} discovered in this preview`
+  const subtext = `${folderPart} shown. Counts cover loaded folders, not all files on disk; indexing scans included folders recursively.`
 
   return { headline, subtext }
 }

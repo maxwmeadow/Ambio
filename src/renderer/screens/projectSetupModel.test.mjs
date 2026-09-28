@@ -125,8 +125,8 @@ test('countExploredKinds honestly counts discovered nodes without claiming whole
   assert.equal(counts.excludedCount, 2) // utils.ts and banner.png
 
   const summary = formatExploredScopeSummary(counts)
-  assert.match(summary.headline, /1 source file and 1 document discovered across 2 folders/)
-  assert.match(summary.subtext, /Counts reflect folders explored in this preview, not total files on disk/)
+  assert.match(summary.headline, /1 source file and 1 document discovered in this preview/)
+  assert.match(summary.subtext, /2 folders shown.*not all files on disk.*included folders recursively/)
 })
 
 test('collectExcluded generates wildcards for folders and omits unsupported files', () => {

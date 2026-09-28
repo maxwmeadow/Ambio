@@ -82,6 +82,22 @@ test('handleLauncherKey keyboard dispatcher routes keys properly', () => {
   assert.equal(slashInInputAction.type, 'NOOP')
   assert.equal(prevented, false)
 
+  // Enter on a focused launcher button must activate that button, not a
+  // previously highlighted recent project.
+  assert.equal(handleLauncherKey(makeEvent('Enter', 'button'), {
+    isSearchFocused: false,
+    hasQuery: false,
+    totalProjects: 4,
+    activeIndex: 1,
+  }).type, 'NOOP')
+
+  assert.equal(handleLauncherKey(makeEvent('Enter', 'input'), {
+    isSearchFocused: false,
+    hasQuery: false,
+    totalProjects: 4,
+    activeIndex: 1,
+  }).type, 'NOOP')
+
   // ArrowDown selects next
   const downAction = handleLauncherKey(makeEvent('ArrowDown'), {
     isSearchFocused: false,

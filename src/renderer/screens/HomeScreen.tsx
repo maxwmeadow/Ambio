@@ -57,6 +57,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const recentListRef = useRef<HTMLUListElement>(null)
 
   const filteredProjects = useMemo(
     () => filterRecentProjects(recentProjects, searchQuery),
@@ -68,6 +69,11 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
       setActiveIndex(filteredProjects.length > 0 ? 0 : null)
     }
   }, [filteredProjects.length, activeIndex])
+
+  useEffect(() => {
+    if (activeIndex === null) return
+    recentListRef.current?.querySelector(`[data-project-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, filteredProjects])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -315,12 +321,13 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                   No projects matching &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
-                <ul role="listbox" aria-label="Recent projects">
-                  {filteredProjects.slice(0, 8).map((project, index) => {
+                <ul ref={recentListRef} aria-label="Recent projects">
+                  {filteredProjects.map((project, index) => {
                     const isActive = index === activeIndex
                     return (
                       <li
                         key={project.id}
+                        data-project-index={index}
                         className={`axiom-launcher__recent-item${isActive ? ' axiom-launcher__recent-item--active' : ''}`}
                         onMouseEnter={() => setActiveIndex(index)}
                       >
@@ -328,8 +335,6 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                           className={`axiom-launcher__recent-open${isActive ? ' axiom-launcher__recent-open--active' : ''}`}
                           onClick={() => onOpenProject(project)}
                           aria-label={`Open ${project.name}`}
-                          aria-selected={isActive}
-                          role="option"
                         >
                           <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
                           <span className="axiom-launcher__project-copy">

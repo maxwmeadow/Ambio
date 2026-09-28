@@ -38,6 +38,9 @@ export interface KeyboardEventLike {
   key: string
   target?: EventTarget | null
   defaultPrevented?: boolean
+  altKey?: boolean
+  ctrlKey?: boolean
+  metaKey?: boolean
   preventDefault?: () => void
 }
 
@@ -51,14 +54,21 @@ export function handleLauncherKey(
   },
 ): KeyNavAction {
   const { isSearchFocused, hasQuery, totalProjects, activeIndex } = options
-  const targetTag = (event.target as HTMLElement | undefined)?.tagName?.toLowerCase()
-  const isInputTarget = targetTag === 'input' || targetTag === 'textarea'
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return { type: 'NOOP' }
+  const target = event.target as HTMLElement | undefined
+  const targetTag = target?.tagName?.toLowerCase()
+  const isEditable = targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || Boolean(target?.isContentEditable)
+  const isSearchInput = targetTag === 'input' && isSearchFocused
 
   // Pressing '/' when not in another input focuses the search box
-  if (event.key === '/' && !isInputTarget) {
+  if (event.key === '/' && !isEditable) {
     event.preventDefault?.()
     return { type: 'FOCUS_SEARCH' }
   }
+
+  // Native controls keep their own keys. Only the launcher search input uses
+  // arrows and Enter to choose a project.
+  if (targetTag === 'button' || (isEditable && !isSearchInput)) return { type: 'NOOP' }
 
   // Arrow navigation
   if (event.key === 'ArrowDown') {
