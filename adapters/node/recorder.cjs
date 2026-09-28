@@ -59,18 +59,19 @@ function leaf(v) {
   return null
 }
 
-function flatten(root, prefix) {
+function flatten(root, prefix, maxDepth = FLATTEN_DEPTH, maxLeaves = FLATTEN_LEAVES) {
   const out = new Map()
   const seen = new WeakSet()
   const walk = (v, p, depth) => {
-    if (out.size >= FLATTEN_LEAVES) return
+    if (out.size >= maxLeaves) return
     const l = leaf(v)
     if (l) { out.set(p, l); return }
     if (seen.has(v)) { out.set(p, { k: 'ref', v: '<circular>' }); return }
+    if (v instanceof RegExp) { out.set(p, { k: 'regexp', v: String(v).slice(0, 120) }); return }
     if (v instanceof Date) { out.set(p, { k: 'date', v: isNaN(v) ? 'Invalid Date' : v.toISOString() }); return }
     if (v instanceof Error) { out.set(p, { k: 'error', v: `${v.name}: ${v.message}` }); return }
     if (typeof Promise !== 'undefined' && v instanceof Promise) { out.set(p, { k: 'promise', v: '[Promise]' }); return }
-    if (depth >= FLATTEN_DEPTH) {
+    if (depth >= maxDepth) {
       out.set(p, { k: 'object', v: Array.isArray(v) ? `[Array(${v.length})]` : `<${ctorName(v)}>` })
       return
     }
@@ -133,6 +134,23 @@ function preview(v) {
   }
   if (s === undefined) s = String(v)
   return s.length > PREVIEW_MAX ? s.slice(0, PREVIEW_MAX - 1) + '…' : s
+}
+
+// What kind of outcome a call had, coarsely: undefined, null, a number, a
+// string, or an object with a particular set of keys.
+function outcomeShape(returned) {
+  if (returned === undefined || returned === 'undefined') return 'undefined'
+  const c = returned.charAt(0)
+  if (c === '{') {
+    const keys = returned.match(/"([^"]+)":/g)
+    return 'object:' + (keys ? keys.slice(0, 4).join('') : '')
+  }
+  if (c === '[') return 'array'
+  if (c === '"') return 'string'
+  if (returned === 'null') return 'null'
+  if (returned === 'true' || returned === 'false') return 'boolean:' + returned
+  if (!isNaN(Number(returned))) return 'number'
+  return 'other'
 }
 
 function display(l) {
@@ -219,6 +237,8 @@ class WatchRecord {
     this.totalMs = 0
     this.head = []
     this.tail = []
+    this.novel = []
+    this.shapes = new Set()
     this.paths = new Map()      // 'arg.x.y' | 'return.y' -> PathStats
     this.mutations = new Map()  // 'x.y' -> {calls, examples:[{call,before,after}]}
     this.exceptions = new Map() // 'Type: message' -> count
@@ -231,29 +251,49 @@ class WatchRecord {
     this.shared = new Map()          // param -> {calls, firstCall}
     // Repeats: a call with exactly the previous call's arguments usually means
     // the same work ran twice (a double subscription, a retry, a re-render).
-    this.lastArgs = null
+    this.prevArgs = null
+    this.prevSelf = undefined
+    this.paramNames = []
     this.repeats = 0
     this.repeatExample = null
+    // Detailed recording is sampled once a function gets hot (see sampled()).
+    this.sampledCalls = 0
   }
 
-  observeArgs(call, paramNames, argsArr, fingerprint, argsPreview) {
-    for (let i = 0; i < paramNames.length; i++) {
+  // Runs on EVERY call of a watched function, so it only compares identities:
+  // no copying, no formatting. Shared objects and repeats stay exact even
+  // when the detailed recording is sampled.
+  observeArgs(call, argsArr, self) {
+    for (let i = 0; i < argsArr.length; i++) {
       const v = argsArr[i]
       if (v === null || (typeof v !== 'object' && typeof v !== 'function')) continue
       const first = this.seenObjects.get(v)
       if (first === undefined) {
         this.seenObjects.set(v, call)
       } else {
-        const st = this.shared.get(paramNames[i]) || { calls: 0, firstCall: first }
+        const name = this.paramNames[i] || `arg${i}`
+        const st = this.shared.get(name) || { calls: 0, firstCall: first }
         st.calls++
-        this.shared.set(paramNames[i], st)
+        this.shared.set(name, st)
       }
     }
-    if (this.lastArgs !== null && fingerprint === this.lastArgs && paramNames.length > 0) {
-      this.repeats++
-      if (!this.repeatExample) this.repeatExample = { call, args: argsPreview }
+    // A repeat is the same arguments (identical objects, equal primitives) on
+    // the same receiver as the call just before it.
+    const prev = this.prevArgs
+    let same = prev !== null && prev.length === argsArr.length && argsArr.length > 0 && self === this.prevSelf
+    for (let i = 0; same && i < argsArr.length; i++) {
+      if (!Object.is(argsArr[i], prev[i])) same = false
     }
-    this.lastArgs = fingerprint
+    if (same) {
+      this.repeats++
+      if (!this.repeatExample) {
+        const args = {}
+        for (let i = 0; i < argsArr.length; i++) args[this.paramNames[i] || `arg${i}`] = argsArr[i]
+        this.repeatExample = { call, args: preview(args) }
+      }
+    }
+    this.prevArgs = argsArr
+    this.prevSelf = self
   }
 
   observe(p, l) {
@@ -267,11 +307,16 @@ class WatchRecord {
   }
 
   sample(s) {
-    if (this.head.length < SAMPLE_HEAD) this.head.push(s)
-    else {
-      this.tail.push(s)
-      if (this.tail.length > SAMPLE_TAIL) this.tail.shift()
-    }
+    // Keep the first example of each kind of outcome, wherever it happens: a
+    // tokenizer that returns undefined for 700,000 calls and a token for the
+    // rest is only understood from the token-returning calls.
+    const shape = s.threw ? 'threw:' + s.threw.split(':')[0] : outcomeShape(s.returned)
+    const known = this.shapes.has(shape)
+    if (!known && this.shapes.size < 8) this.shapes.add(shape)
+    if (this.head.length < SAMPLE_HEAD) { this.head.push(s); return }
+    if (!known && this.novel.length < 6) { this.novel.push(s); return }
+    this.tail.push(s)
+    if (this.tail.length > SAMPLE_TAIL) this.tail.shift()
   }
 
   toJSON() {
@@ -282,7 +327,7 @@ class WatchRecord {
       calls: this.calls,
       errors: this.errors,
       avgMs: this.calls ? +(this.totalMs / this.calls).toFixed(3) : 0,
-      samples: this.head.concat(this.tail),
+      samples: this.head.concat(this.novel, this.tail).sort((a, b) => a.call - b.call),
       values: Object.fromEntries([...this.paths].map(([k, v]) => [k, v.toJSON()])),
       mutations: [...this.mutations].map(([p, m]) => ({ path: p, calls: m.calls, examples: m.examples })),
       exceptions: [...this.exceptions].map(([what, n]) => ({ what, n })),
@@ -290,51 +335,79 @@ class WatchRecord {
       shared: [...this.shared].map(([param, st]) => ({ param, calls: st.calls, firstCall: st.firstCall })),
       repeats: this.repeats,
       repeatExample: this.repeatExample || undefined,
+      sampled: this.sampledCalls,
     }
   }
 }
 
 // ─── the recorder ────────────────────────────────────────────────────────────
 
+// Detailed recording per watched function: every call up to FULL_CALLS, then
+// every 2nd, 4th, 8th... - roughly FULL_CALLS samples per doubling. A repro
+// that calls a function 730,000 times would otherwise spend minutes copying
+// arguments; this keeps a few hundred samples spread across the whole run.
+const FULL_CALLS = 100
+// The receiver is often a large object (a lexer with its whole token list).
+const RECEIVER_DEPTH = 2
+const RECEIVER_LEAVES = 60
+
+class FnRec {
+  constructor(file, name, line) {
+    this.file = file
+    this.name = name
+    this.line = line
+    this.calls = 0
+    this.errors = 0
+    this.callees = null // Map<FnRec, count>
+    this.watch = undefined // WatchRecord | null, resolved on first call
+  }
+}
+
 class Recorder {
   constructor(opts) {
     this.dir = opts.dir
     this.runId = opts.runId || ''
     this.startedAt = Date.now()
-    this.functions = new Map()   // key -> {file,name,line,calls,errors,ms}
-    this.edges = new Map()       // callerKey\u0001calleeKey -> count
+    this.byFile = new Map() // file -> Map<line, FnRec[]>
+    this.fnCount = 0
+    this.edgeCount = 0
     this.edgesDropped = 0
     this.stack = []
-    this.watchSpecs = new Map()  // normFile -> [{symbol|'*', lineStart, lineEnd, file}]
-    this.watched = new Map()     // functionKey -> WatchRecord
+    this.watchSpecs = new Map()
+    this.watched = []
     this.uncaught = []
     this._lastWritten = -1
     for (const w of opts.watches || []) {
       const file = normFile(w.absPath || w.file || '')
       if (!file) continue
       const list = this.watchSpecs.get(file) || []
-      list.push({
-        symbol: w.symbol || '*',
-        lineStart: w.lineStart | 0,
-        lineEnd: w.lineEnd | 0,
-      })
+      list.push({ symbol: w.symbol || '*', lineStart: w.lineStart | 0, lineEnd: w.lineEnd | 0 })
       this.watchSpecs.set(file, list)
     }
   }
 
+  // No allocation on the hot path once a function has been seen.
   _fn(file, name, line) {
-    const key = file + '\u0000' + name + '\u0000' + line
-    let f = this.functions.get(key)
-    if (!f) {
-      if (this.functions.size >= MAX_FUNCTIONS) return null
-      f = { key, file, name, line, calls: 0, errors: 0, ms: 0 }
-      this.functions.set(key, f)
+    let lines = this.byFile.get(file)
+    if (lines === undefined) {
+      lines = new Map()
+      this.byFile.set(file, lines)
     }
+    let list = lines.get(line)
+    if (list !== undefined) {
+      for (let i = 0; i < list.length; i++) if (list[i].name === name) return list[i]
+    } else {
+      list = []
+      lines.set(line, list)
+    }
+    if (this.fnCount >= MAX_FUNCTIONS) return null
+    const f = new FnRec(file, name, line)
+    list.push(f)
+    this.fnCount++
     return f
   }
 
   _watchFor(f) {
-    if (this.watched.has(f.key)) return this.watched.get(f.key)
     const specs = this.watchSpecs.get(normFile(f.file))
     if (!specs) return null
     let hit = null
@@ -343,32 +416,48 @@ class Recorder {
       if (s.symbol !== f.name) continue
       if (!s.lineStart || (s.lineStart <= f.line && f.line <= Math.max(s.lineEnd, s.lineStart))) { hit = s; break }
     }
-    // A stale index may disagree on line numbers; accept a unique name match.
     if (!hit) {
       const named = specs.filter(s => s.symbol === f.name)
       if (named.length === 1) hit = named[0]
     }
-    const rec = hit ? new WatchRecord({ file: f.file, symbol: f.name, line: f.line }) : null
-    this.watched.set(f.key, rec)
+    if (!hit) return null
+    const rec = new WatchRecord({ file: f.file, symbol: f.name, line: f.line })
+    this.watched.push(rec)
     return rec
   }
 
-  enter(file, name, line, argsArr, paramNames) {
+  enter(file, name, line, argsArr, paramNames, self) {
     const f = this._fn(file, name, line)
-    if (!f) return null
+    if (f === null) return null
     f.calls++
-    const caller = this.stack.length ? this.stack[this.stack.length - 1].f : null
-    if (caller && caller !== f) {
-      const ek = caller.key + '\u0001' + f.key
-      const n = this.edges.get(ek)
-      if (n !== undefined) this.edges.set(ek, n + 1)
-      else if (this.edges.size < MAX_EDGES) this.edges.set(ek, 1)
+    const top = this.stack.length ? this.stack[this.stack.length - 1] : null
+    const caller = top === null ? null : (top instanceof FnRec ? top : top.f)
+    if (caller !== null && caller !== f) {
+      let m = caller.callees
+      if (m === null) m = caller.callees = new Map()
+      const n = m.get(f)
+      if (n !== undefined) m.set(f, n + 1)
+      else if (this.edgeCount < MAX_EDGES) { m.set(f, 1); this.edgeCount++ }
       else this.edgesDropped++
     }
-    const frame = { f, t0: process.hrtime.bigint(), w: null }
-    const w = this._watchFor(f)
-    if (w) {
-      w.calls++
+    let w = f.watch
+    if (w === undefined) w = f.watch = this._watchFor(f)
+    if (w === null) {
+      // Unwatched: the function record itself is the frame.
+      this.stack.push(f)
+      return f
+    }
+
+    w.calls++
+    if (w.paramNames.length === 0 && paramNames.length) w.paramNames = paramNames
+    const receiver = self !== null && typeof self === 'object' && self !== globalThis ? self : undefined
+    w.observeArgs(w.calls, argsArr, receiver)
+
+    const sampled = w.calls <= FULL_CALLS || (w.calls & (sampleStride(w.calls) - 1)) === 0
+    const frame = { isRec: true, f, w: null, t0: 0, watchOnly: null }
+    if (sampled) {
+      w.sampledCalls++
+      frame.t0 = process.hrtime.bigint()
       const before = new Map()
       const args = {}
       for (let i = 0; i < paramNames.length; i++) {
@@ -378,19 +467,31 @@ class Recorder {
           w.observe('arg.' + p, l)
         }
       }
-      frame.w = { rec: w, argsArr, paramNames, before, call: w.calls, args: preview(args) }
-      // Fingerprint on the flattened values, not the truncated preview, so two
-      // large arguments that differ past the cut are not called identical.
-      let fingerprint = ''
-      for (const [p, l] of before) fingerprint += p + '=' + display(l) + '|'
-      w.observeArgs(w.calls, paramNames, argsArr, fingerprint, frame.w.args)
+      if (receiver) {
+        for (const [p, l] of flatten(receiver, 'this', RECEIVER_DEPTH, RECEIVER_LEAVES)) {
+          before.set(p, l)
+          w.observe('arg.' + p, l)
+        }
+      }
+      frame.w = {
+        rec: w,
+        argsArr: receiver ? argsArr.concat([receiver]) : argsArr,
+        paramNames: receiver ? paramNames.concat(['this']) : paramNames,
+        receiverAt: receiver ? paramNames.length : -1,
+        before,
+        call: w.calls,
+        args: preview(args),
+      }
+    } else {
+      frame.watchOnly = w // counts and exceptions only
     }
     this.stack.push(frame)
     return frame
   }
 
   ret(frame, value) {
-    if (frame && frame.w && !frame.w.returned) {
+    if (frame === null || frame instanceof FnRec) return
+    if (frame.w && !frame.w.returned) {
       frame.w.returned = true
       frame.w.returnPreview = preview(value)
       const whole = frame.w.returnPreview.length > 80 ? frame.w.returnPreview.slice(0, 79) + '…' : frame.w.returnPreview
@@ -400,32 +501,42 @@ class Recorder {
   }
 
   error(frame, err) {
-    if (!frame) return
+    if (frame === null) return
+    if (frame instanceof FnRec) { frame.errors++; return }
     frame.f.errors++
-    if (frame.w) {
-      frame.w.rec.errors++
-      frame.w.threw = `${(err && err.name) || 'Error'}: ${String(err && err.message != null ? err.message : err).slice(0, 200)}`
-      const ex = frame.w.rec.exceptions
-      if (ex.size < MAX_EXCEPTIONS || ex.has(frame.w.threw)) ex.set(frame.w.threw, (ex.get(frame.w.threw) || 0) + 1)
-    }
+    const w = frame.w ? frame.w.rec : frame.watchOnly
+    if (!w) return
+    w.errors++
+    const what = `${(err && err.name) || 'Error'}: ${String(err && err.message != null ? err.message : err).slice(0, 200)}`
+    if (frame.w) frame.w.threw = what
+    if (w.exceptions.size < MAX_EXCEPTIONS || w.exceptions.has(what)) w.exceptions.set(what, (w.exceptions.get(what) || 0) + 1)
   }
 
   exit(frame) {
-    if (!frame) return
-    const ms = Number(process.hrtime.bigint() - frame.t0) / 1e6
-    frame.f.ms += ms
-    // Async functions exit out of order; remove this frame wherever it sits.
-    const i = this.stack.lastIndexOf(frame)
-    if (i >= 0) this.stack.splice(i, 1)
+    if (frame === null) return
+    const stack = this.stack
+    if (stack[stack.length - 1] === frame) stack.pop()
+    else {
+      // Async functions finish out of order; remove this frame wherever it is.
+      const i = stack.lastIndexOf(frame)
+      if (i >= 0) stack.splice(i, 1)
+    }
+    if (frame instanceof FnRec || !frame.w) return
     const w = frame.w
-    if (!w) return
+    // A function that ends without a return statement returns undefined, and
+    // the instrumentation only calls ret() for explicit returns.
+    if (!w.returned && !w.threw) this.ret(frame, undefined)
+    const ms = Number(process.hrtime.bigint() - frame.t0) / 1e6
     w.rec.totalMs += ms
     // Mutations: re-flatten the arguments now and diff against entry.
     const changed = []
     for (let i = 0; i < w.paramNames.length; i++) {
-      const after = flatten(w.argsArr[i], w.paramNames[i])
+      const name = w.paramNames[i]
+      const after = i === w.receiverAt
+        ? flatten(w.argsArr[i], name, RECEIVER_DEPTH, RECEIVER_LEAVES)
+        : flatten(w.argsArr[i], name)
       const keys = new Set()
-      for (const k of w.before.keys()) if (k === w.paramNames[i] || k.startsWith(w.paramNames[i] + '.') || k.startsWith(w.paramNames[i] + '[')) keys.add(k)
+      for (const k of w.before.keys()) if (k === name || k.startsWith(name + '.') || k.startsWith(name + '[')) keys.add(k)
       for (const k of after.keys()) keys.add(k)
       for (const k of keys) {
         const b = display(w.before.get(k))
@@ -439,9 +550,7 @@ class Recorder {
       (c.before === '{}' || c.before === '(absent)' || c.after === '{}' || c.after === '(absent)') &&
       changed.some(o => o !== c && (o.path.startsWith(c.path + '.') || o.path.startsWith(c.path + '[')))
     ))
-    changed.length = 0
-    changed.push(...real)
-    for (const c of changed.slice(0, 20)) {
+    for (const c of real.slice(0, 20)) {
       let m = w.rec.mutations.get(c.path)
       if (!m) {
         if (w.rec.mutations.size >= 40) continue
@@ -456,14 +565,14 @@ class Recorder {
       args: w.args,
       returned: w.threw ? undefined : (w.returnPreview !== undefined ? w.returnPreview : 'undefined'),
       threw: w.threw,
-      mutated: changed.length ? changed.slice(0, 4).map(c => `${c.path}: ${c.before} → ${c.after}`) : undefined,
+      mutated: real.length ? real.slice(0, 4).map(c => `${c.path}: ${c.before} → ${c.after}`) : undefined,
       ms: +ms.toFixed(3),
     })
   }
 
   _totalCalls() {
     let n = 0
-    for (const f of this.functions.values()) n += f.calls
+    for (const lines of this.byFile.values()) for (const list of lines.values()) for (const f of list) n += f.calls
     return n
   }
 
@@ -482,20 +591,24 @@ class Recorder {
     this._lastWritten = dirty
     // Processes that ran no workspace code (npm itself, a shell shim) have
     // nothing to say; writing them would only add empty files to merge.
-    if (this.functions.size === 0 && this.uncaught.length === 0) return
+    if (this.fnCount === 0 && this.uncaught.length === 0) return
     const functions = []
-    for (const f of this.functions.values()) {
-      functions.push({ file: f.file, name: f.name, line: f.line, calls: f.calls, errors: f.errors, ms: +f.ms.toFixed(3) })
-    }
     const edges = []
-    for (const [k, n] of this.edges) {
-      const [a, b] = k.split('\u0001')
-      const [af, an, al] = a.split('\u0000')
-      const [bf, bn, bl] = b.split('\u0000')
-      edges.push({ from: { file: af, name: an, line: +al }, to: { file: bf, name: bn, line: +bl }, calls: n })
+    for (const lines of this.byFile.values()) {
+      for (const list of lines.values()) {
+        for (const f of list) {
+          functions.push({ file: f.file, name: f.name, line: f.line, calls: f.calls, errors: f.errors, ms: 0 })
+          if (f.callees === null) continue
+          for (const [to, n] of f.callees) {
+            edges.push({
+              from: { file: f.file, name: f.name, line: f.line },
+              to: { file: to.file, name: to.name, line: to.line },
+              calls: n,
+            })
+          }
+        }
+      }
     }
-    const watched = []
-    for (const rec of this.watched.values()) if (rec) watched.push(rec.toJSON())
     const doc = {
       version: 1,
       runId: this.runId,
@@ -506,16 +619,30 @@ class Recorder {
       functions,
       edges,
       edgesDropped: this.edgesDropped,
-      watched,
+      watched: this.watched.map(w => w.toJSON()),
       uncaught: this.uncaught,
     }
     try {
       fs.mkdirSync(this.dir, { recursive: true })
-      fs.writeFileSync(path.join(this.dir, `${process.pid}.json`), JSON.stringify(doc))
+      const target = path.join(this.dir, `${process.pid}.json`)
+      fs.writeFileSync(target + '.tmp', JSON.stringify(doc))
+      fs.renameSync(target + '.tmp', target)
     } catch (_) {
       // Nowhere to report to. The run still completes; archd notices the gap.
     }
   }
+}
+
+// Marks recorder frames, so the runtime can tell them from live-watch contexts.
+FnRec.prototype.isRec = true
+
+// Power-of-two stride that doubles each time the call count doubles past
+// FULL_CALLS: calls 101-200 record every 2nd, 201-400 every 4th, and so on.
+function sampleStride(calls) {
+  let stride = 1
+  let limit = FULL_CALLS
+  while (calls > limit) { stride *= 2; limit *= 2 }
+  return stride
 }
 
 /** Build a recorder from the environment, or null when this is not a run. */

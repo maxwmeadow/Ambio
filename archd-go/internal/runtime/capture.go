@@ -82,6 +82,7 @@ type Investigation struct {
 	Runs       []RunRef       `json:"runs,omitempty"`
 	Conclusion *Conclusion    `json:"conclusion,omitempty"`
 	Messages   []HumanMessage `json:"messages,omitempty"`
+	Notes      []CaseNote     `json:"notes,omitempty"`
 
 	// CanvasSnapshot is attached at save time so a fresh viewer can position
 	// nodes even if the live graph has since changed. Opaque to the recorder.
@@ -159,6 +160,7 @@ func (m *Manager) AnnotateInvestigation(workspaceID, text string, anchors ...Anc
 	count := 0
 	if inv != nil {
 		count = len(inv.Events)
+		inv.Notes = append(inv.Notes, CaseNote{Text: text, Anchors: anchors, At: time.Now().UnixMilli()})
 	}
 	m.captureMu.Unlock()
 	if inv == nil {
@@ -318,6 +320,7 @@ func (inv *Investigation) copyCase(from *Investigation) {
 	inv.Hypotheses = append([]Hypothesis(nil), from.Hypotheses...)
 	inv.Runs = append([]RunRef(nil), from.Runs...)
 	inv.Messages = append([]HumanMessage(nil), from.Messages...)
+	inv.Notes = append([]CaseNote(nil), from.Notes...)
 	if from.Conclusion != nil {
 		c := *from.Conclusion
 		inv.Conclusion = &c

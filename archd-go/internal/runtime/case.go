@@ -57,18 +57,35 @@ type HumanMessage struct {
 	DeliveredAt int64   `json:"deliveredAt,omitempty"`
 }
 
+// RunFinding is one headline finding from a run, kept on the case so someone
+// joining mid-investigation sees evidence, not just a command list.
+type RunFinding struct {
+	Kind     string `json:"kind"`
+	Severity string `json:"severity"`
+	Text     string `json:"text"`
+	Anchor   Anchor `json:"anchor"`
+}
+
+// CaseNote is a finding the agent wrote down.
+type CaseNote struct {
+	Text    string   `json:"text"`
+	Anchors []Anchor `json:"anchors,omitempty"`
+	At      int64    `json:"at"`
+}
+
 // RunRef is the case's index of the experiments it ran. The full evidence is
 // in the timeline's investigation:run event.
 type RunRef struct {
-	ID           string `json:"id"`
-	N            int    `json:"n"`
-	Command      string `json:"command"`
-	ExitCode     int    `json:"exitCode"`
-	TimedOut     bool   `json:"timedOut"`
-	DurationMs   int64  `json:"durationMs"`
-	HypothesisID string `json:"hypothesisId,omitempty"`
-	Headline     string `json:"headline,omitempty"`
-	At           int64  `json:"at"`
+	ID           string       `json:"id"`
+	N            int          `json:"n"`
+	Command      string       `json:"command"`
+	ExitCode     int          `json:"exitCode"`
+	TimedOut     bool         `json:"timedOut"`
+	DurationMs   int64        `json:"durationMs"`
+	HypothesisID string       `json:"hypothesisId,omitempty"`
+	Headline     string       `json:"headline,omitempty"`
+	Findings     []RunFinding `json:"findings,omitempty"`
+	At           int64        `json:"at"`
 }
 
 var hypothesisStatuses = map[string]bool{"open": true, "confirmed": true, "refuted": true, "inconclusive": true}
@@ -294,6 +311,9 @@ type CaseState struct {
 	Runs       []RunRef       `json:"runs"`
 	Conclusion *Conclusion    `json:"conclusion,omitempty"`
 	Messages   []HumanMessage `json:"messages"`
+	Notes      []CaseNote     `json:"notes"`
+	Origin     string         `json:"origin"`
+	StartedAt  int64          `json:"startedAt"`
 	DurationMs int64          `json:"durationMs"`
 }
 
@@ -309,6 +329,9 @@ func (m *Manager) Case(workspaceID string) *CaseState {
 			Runs:       append([]RunRef{}, inv.Runs...),
 			Conclusion: inv.Conclusion,
 			Messages:   append([]HumanMessage{}, inv.Messages...),
+			Notes:      append([]CaseNote{}, inv.Notes...),
+			Origin:     inv.Origin,
+			StartedAt:  inv.CreatedAt,
 			DurationMs: time.Since(inv.start).Milliseconds(),
 		}
 		return nil

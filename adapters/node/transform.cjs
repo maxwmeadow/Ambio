@@ -23,6 +23,7 @@
 
 const acorn = require('acorn')
 const MagicString = require('magic-string')
+const { loadSourceMap, originalPosition } = require('./sourcemap.cjs')
 
 const G = 'globalThis.__axiom'
 
@@ -100,6 +101,8 @@ function transform(source, opts) {
 
   const s = new MagicString(source)
   const fileLit = JSON.stringify(filename)
+  // Build output with a source map is recorded in source terms (sourcemap.cjs).
+  const sm = opts.typescript ? null : loadSourceMap(source, filename)
   let count = 0
 
   // Unique per-file identifiers so instrumentation never collides with a
@@ -112,13 +115,23 @@ function transform(source, opts) {
   const functions = []
   collectFunctions(ast, null, functions)
 
-  for (const { node, name } of functions) {
-    if (instrumentFunction(s, source, node, name, fileLit, names)) count++
+  for (const fn of functions) {
+    const id = identityFor(sm, filename, fn)
+    const lit = id.file === filename ? fileLit : JSON.stringify(id.file)
+    if (instrumentFunction(s, source, fn.node, id.name, lit, names, id.line, sm)) count++
   }
 
   if (count === 0) return null
+  const code = s.toString()
+  // Instrumentation must never break the program it observes. Anything the
+  // rewrite got wrong is caught here and the file runs uninstrumented.
+  try {
+    acorn.parse(code, { ...parseOpts, sourceType: ast.sourceType || opts.sourceType || 'module' })
+  } catch (_) {
+    return null
+  }
   return {
-    code: s.toString(),
+    code,
     map: s.generateMap({ source: filename, hires: false, includeContent: false }),
   }
 }
@@ -131,7 +144,7 @@ function collectFunctions(root, _parent, out) {
   const visit = (node, parent, key) => {
     if (!node || typeof node.type !== 'string') return
     if (FN_TYPES.has(node.type) && !skipFunction(node, parent)) {
-      out.push({ node, name: inferName(node, parent, key) })
+      out.push({ node, name: inferName(node, parent, key), nameNode: nameNodeOf(node, parent) })
     }
     for (const k of Object.keys(node)) {
       if (k === 'loc' || k === 'start' || k === 'end' || k === 'range') continue
@@ -161,6 +174,32 @@ function inferName(node, parent, key) {
   return '<anonymous>'
 }
 
+// The identifier a function's name came from - where a source map records the
+// original, unminified name.
+function nameNodeOf(node, parent) {
+  if (node.id) return node.id
+  if (!parent) return null
+  if (parent.type === 'VariableDeclarator') return parent.id
+  if ((parent.type === 'MethodDefinition' || parent.type === 'Property') && parent.key) return parent.key
+  if (parent.type === 'AssignmentExpression' && parent.left) {
+    return parent.left.type === 'MemberExpression' ? parent.left.property : parent.left
+  }
+  return null
+}
+
+function identityFor(sm, filename, fn) {
+  const own = { file: filename, name: fn.name, line: fn.node.loc.start.line }
+  if (!sm) return own
+  const pos = originalPosition(sm, fn.node.loc.start.line, fn.node.loc.start.column)
+  if (!pos) return own
+  let name = fn.name
+  if (fn.nameNode && fn.nameNode.loc) {
+    const at = originalPosition(sm, fn.nameNode.loc.start.line, fn.nameNode.loc.start.column)
+    if (at && at.exact && at.name) name = at.name
+  }
+  return { file: pos.source, name, line: pos.line }
+}
+
 function keyName(key) {
   if (!key) return '<computed>'
   if (key.type === 'Identifier') return key.name
@@ -183,11 +222,11 @@ function skipFunction(node, parent) {
 
 // ─── instrumentation ──────────────────────────────────────────────────────────
 
-function instrumentFunction(s, source, node, name, fileLit, names) {
+function instrumentFunction(s, source, node, name, fileLit, names, mappedLine, sm) {
   const CTX = names.CTX
   const ERR = names.ERR
   const body = node.body
-  const line = node.loc.start.line
+  const line = mappedLine || node.loc.start.line
 
   // Simple identifier params (incl. defaulted) are captured + injectable.
   const params = []
@@ -196,8 +235,21 @@ function instrumentFunction(s, source, node, name, fileLit, names) {
     else if (p.type === 'AssignmentPattern' && p.left.type === 'Identifier') params.push(p.left.name)
   }
   const argsArr = '[' + params.join(', ') + ']'
-  const namesArr = '[' + params.map((n) => JSON.stringify(n)).join(', ') + ']'
-  const enterCall = `${G}.enter(${fileLit}, ${JSON.stringify(name)}, ${line}, ${argsArr}, ${namesArr})`
+  // Minified builds rename parameters (src -> e); the source map remembers.
+  const shown = params.map((n) => {
+    if (!sm) return n
+    const p = node.params.find(x => (x.type === 'Identifier' ? x : x.left) && (x.type === 'Identifier' ? x.name : x.left && x.left.name) === n)
+    const id = p && (p.type === 'Identifier' ? p : p.left)
+    if (!id || !id.loc) return n
+    const at = originalPosition(sm, id.loc.start.line, id.loc.start.column)
+    return at && at.exact && at.name ? at.name : n
+  })
+  const namesArr = '[' + shown.map((n) => JSON.stringify(n)).join(', ') + ']'
+  // Methods and plain functions pass their receiver, so a run can show the
+  // object state a method reads and changes. Arrows have no receiver of their
+  // own; `this` there is the enclosing one, already seen by the outer call.
+  const receiver = node.type === 'ArrowFunctionExpression' ? '' : ', this'
+  const enterCall = `${G}.enter(${fileLit}, ${JSON.stringify(name)}, ${line}, ${argsArr}, ${namesArr}${receiver})`
 
   // Parameter injection reassignment (only simple identifier params).
   let injectApply = ''
@@ -214,6 +266,10 @@ function instrumentFunction(s, source, node, name, fileLit, names) {
     // `=> ( { ...block... } )` is a syntax error. We re-parenthesize EXPR
     // inside our own `ret(ctx, (…))`, so removing the outer parens is safe
     // (and required for `=> ({obj})`, whose parens would otherwise wrap a block).
+    // Grouping parens acorn stripped from EXPR (`=> ({ obj })`) stay in the
+    // output: the wrapper opens before them and closes after, so they become
+    // part of the returned expression. Deleting them instead also deleted any
+    // enclosing arrow's closer attached to the same character.
     let exprStart = body.start
     let exprEnd = body.end
     let li = exprStart - 1
@@ -221,8 +277,8 @@ function instrumentFunction(s, source, node, name, fileLit, names) {
     let ri = exprEnd
     while (ri < source.length && /\s/.test(source[ri])) ri++
     while (li >= 0 && ri < source.length && source[li] === '(' && source[ri] === ')') {
-      s.remove(li, li + 1)
-      s.remove(ri, ri + 1)
+      exprStart = li
+      exprEnd = ri + 1
       li--
       while (li >= 0 && /\s/.test(source[li])) li--
       ri++
@@ -230,8 +286,11 @@ function instrumentFunction(s, source, node, name, fileLit, names) {
     }
     const prefix = `{ const ${CTX} = ${enterCall};${injectApply} try { return ${G}.ret(${CTX}, (`
     const suffix = `)); } catch (${ERR}) { ${G}.error(${CTX}, ${ERR}); throw ${ERR}; } finally { ${G}.exit(${CTX}); } }`
-    s.prependLeft(exprStart, prefix)
-    s.appendRight(exprEnd, suffix)
+    // Insertions that share a position must nest: openers outer-first,
+    // closers inner-first. Functions are instrumented outer before inner, so
+    // openers append to the right side and closers prepend to the left.
+    s.appendRight(exprStart, prefix)
+    s.prependLeft(exprEnd, suffix)
     return true
   }
 
@@ -248,15 +307,17 @@ function instrumentFunction(s, source, node, name, fileLit, names) {
   // Wrap this function's own return statements (not nested functions').
   const returns = []
   collectOwnReturns(body, returns)
+  // The footer is already in place, so each closer prepended here lands before
+  // it - which matters for minified `return{...}}`, where the return value
+  // ends exactly where the body does. The leading space covers `return{`.
   for (const ret of returns) {
     if (ret.argument) {
-      s.prependLeft(ret.argument.start, `${G}.ret(${CTX}, (`)
-      s.appendRight(ret.argument.end, `))`)
+      s.appendRight(ret.argument.start, ` ${G}.ret(${CTX}, (`)
+      s.prependLeft(ret.argument.end, `))`)
     } else {
       // `return;`  →  `return globalThis.__axiom.ret(__axm, void 0);`
-      // Insert the value expression right after `return`.
       const afterReturn = ret.start + 'return'.length
-      s.appendRight(afterReturn, ` ${G}.ret(${CTX}, void 0)`)
+      s.prependLeft(afterReturn, ` ${G}.ret(${CTX}, void 0)`)
     }
   }
   return true

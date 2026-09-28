@@ -463,6 +463,7 @@ func (s *Server) handleCaseRun(w http.ResponseWriter, r *http.Request) {
 		DurationMs:   rep.DurationMs,
 		HypothesisID: hypothesisID,
 		Headline:     rep.Headline,
+		Findings:     headlineFindings(rep.Findings),
 		At:           time.Now().UnixMilli(),
 	})
 	rep.N = ref.N
@@ -666,4 +667,15 @@ func (s *Server) handleCasePending(w http.ResponseWriter, r *http.Request) {
 		msgs = []runtime.HumanMessage{}
 	}
 	jsonOK(w, map[string]any{"humanMessages": msgs})
+}
+
+func headlineFindings(all []Finding) []runtime.RunFinding {
+	var out []runtime.RunFinding
+	for _, f := range all {
+		if f.Severity == "info" || len(out) >= 5 {
+			continue
+		}
+		out = append(out, runtime.RunFinding{Kind: f.Kind, Severity: f.Severity, Text: f.Text, Anchor: f.Anchor})
+	}
+	return out
 }

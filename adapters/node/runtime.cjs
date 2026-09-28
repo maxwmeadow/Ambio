@@ -51,13 +51,16 @@ class AxiomRuntime {
 
   // ── instrumentation hooks (hot path) ────────────────────────────────────────
 
-  enter(file, name, line, argsArr, paramNames) {
+  enter(file, name, line, argsArr, paramNames, self) {
     const ctx = this._enter(file, name, line, argsArr, paramNames)
     if (!this.recorder) return ctx
     // Recording a run: every call carries its recorder frame, so the shared
     // INACTIVE context cannot be reused.
-    const rf = this.recorder.enter(file, name, line, argsArr, paramNames)
-    return ctx === INACTIVE ? { active: false, o: null, rf } : Object.assign(ctx, { rf })
+    const rf = this.recorder.enter(file, name, line, argsArr, paramNames, self)
+    // With no live watch or injection, the recorder frame is the whole
+    // context: one less allocation on every call of every function.
+    if (ctx === INACTIVE) return rf === null ? INACTIVE : rf
+    return Object.assign(ctx, { rf })
   }
 
   _enter(file, name, line, argsArr, paramNames) {
@@ -120,6 +123,7 @@ class AxiomRuntime {
   }
 
   ret(ctx, value) {
+    if (ctx && ctx.isRec) { this.recorder.ret(ctx, value); return value }
     if (ctx && ctx.rf) this.recorder.ret(ctx.rf, value)
     if (ctx && ctx.active && !ctx.returned && !ctx.errored) {
       ctx.returned = true
@@ -137,6 +141,7 @@ class AxiomRuntime {
   }
 
   error(ctx, err) {
+    if (ctx && ctx.isRec) { this.recorder.error(ctx, err); return }
     if (ctx && ctx.rf) this.recorder.error(ctx.rf, err)
     if (ctx && ctx.active && !ctx.errored) {
       ctx.errored = true
@@ -154,6 +159,7 @@ class AxiomRuntime {
   }
 
   exit(ctx) {
+    if (ctx && ctx.isRec) { this.recorder.exit(ctx); return }
     if (ctx && ctx.rf) this.recorder.exit(ctx.rf)
     if (!ctx || !ctx.active) return
     // Function fell off the end without an explicit return and didn't throw:

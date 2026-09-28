@@ -65,6 +65,8 @@ def _leaf(v):
         return ("string", v if len(v) <= 120 else v[:119] + "…")
     if isinstance(v, bytes):
         return ("bytes", "<%d bytes>" % len(v))
+    if type(v).__name__ == "Pattern" and hasattr(v, "pattern"):
+        return ("regexp", "re.compile(%r)" % (v.pattern[:100],))
     if callable(v) and not isinstance(v, type):
         return ("function", "<function %s>" % getattr(v, "__name__", "?"))
     try:
@@ -186,6 +188,26 @@ def _preview(v, depth):
     return "%s(%s)" % (type(v).__name__, ", ".join("%s=%s" % (k, _preview(x, depth + 1)) for k, x in attrs))
 
 
+def _outcome_shape(returned):
+    if returned is None or returned == "None":
+        return "none"
+    c = returned[:1]
+    if c == "{":
+        return "dict"
+    if c in "[(":
+        return "sequence"
+    if c == '"':
+        return "string"
+    if returned in ("True", "False"):
+        return "bool:" + returned
+    try:
+        float(returned)
+        return "number"
+    except ValueError:
+        pass
+    return "object:" + returned.split("(")[0][:40]
+
+
 class PathStats:
     __slots__ = ("count", "kind", "first", "last", "min", "max", "non_dec", "non_inc", "changes",
                  "series", "tail", "distinct", "overflow", "last_num")
@@ -277,6 +299,8 @@ class WatchRecord:
         self.total_ms = 0.0
         self.head = []
         self.tail = []
+        self.novel = []
+        self.shapes = set()
         self.paths = {}
         self.mutations = {}
         self.exceptions = {}
@@ -315,12 +339,21 @@ class WatchRecord:
         self.last_args = fingerprint
 
     def sample(self, s):
+        # First example of each kind of outcome, wherever it happens (see
+        # recorder.cjs): rare outcomes are usually the interesting ones.
+        shape = ("threw:" + s["threw"].split(":")[0]) if s.get("threw") else _outcome_shape(s.get("returned"))
+        known = shape in self.shapes
+        if not known and len(self.shapes) < 8:
+            self.shapes.add(shape)
         if len(self.head) < SAMPLE_HEAD:
             self.head.append(s)
-        else:
-            self.tail.append(s)
-            if len(self.tail) > SAMPLE_TAIL:
-                self.tail.pop(0)
+            return
+        if not known and len(self.novel) < 6:
+            self.novel.append(s)
+            return
+        self.tail.append(s)
+        if len(self.tail) > SAMPLE_TAIL:
+            self.tail.pop(0)
 
     def to_json(self):
         return {
@@ -330,7 +363,7 @@ class WatchRecord:
             "calls": self.calls,
             "errors": self.errors,
             "avgMs": round(self.total_ms / self.calls, 3) if self.calls else 0,
-            "samples": self.head + self.tail,
+            "samples": sorted(self.head + self.novel + self.tail, key=lambda x: x["call"]),
             "values": {k: v.to_json() for k, v in self.paths.items()},
             "mutations": [{"path": p, "calls": m["calls"], "examples": m["examples"]} for p, m in self.mutations.items()],
             "exceptions": [{"what": w, "n": n} for w, n in self.exceptions.items()],

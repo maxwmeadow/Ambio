@@ -111,6 +111,16 @@ type ReportFile struct {
 	Functions int    `json:"functions"`
 }
 
+// ReportCall is a function-level call that crossed files - what the canvas
+// animates to show the path execution actually took.
+type ReportCall struct {
+	FromFileID string `json:"fromFileId"`
+	FromSymbol string `json:"fromSymbol"`
+	ToFileID   string `json:"toFileId"`
+	ToSymbol   string `json:"toSymbol"`
+	Calls      int64  `json:"calls"`
+}
+
 type ReportEdge struct {
 	From  string `json:"from"` // file id
 	To    string `json:"to"`
@@ -155,10 +165,12 @@ type RunReport struct {
 	NotCalled    []runtime.Anchor `json:"notCalled,omitempty"`
 	Files        []ReportFile     `json:"files"`
 	Edges        []ReportEdge     `json:"edges"`
+	Calls        []ReportCall     `json:"calls"`
 	Hot          []ReportFunction `json:"hot"`
 	FunctionsRun int              `json:"functionsRun"`
 	FilesRun     int              `json:"filesRun"`
 	Crashes      []ReportCrash    `json:"crashes,omitempty"`
+	FailedTests  []string         `json:"failedTests,omitempty"`
 	OutputTail   string           `json:"outputTail"`
 	OutputLines  int              `json:"outputLines"`
 	Instrumented []string         `json:"instrumented"`
@@ -224,6 +236,15 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		}
 		edgeAgg[[2]string{from.FileID, to.FileID}] += e.Calls
 	}
+	for _, e := range out.Edges {
+		from := idx.anchorFor(e.From.File, e.From.Name, e.From.Line)
+		to := idx.anchorFor(e.To.File, e.To.Name, e.To.Line)
+		if from.FileID == "" || to.FileID == "" || from.FileID == to.FileID || len(rep.Calls) >= 40 {
+			continue
+		}
+		rep.Calls = append(rep.Calls, ReportCall{FromFileID: from.FileID, FromSymbol: e.From.Name,
+			ToFileID: to.FileID, ToSymbol: e.To.Name, Calls: e.Calls})
+	}
 	for k, n := range edgeAgg {
 		rep.Edges = append(rep.Edges, ReportEdge{From: k[0], To: k[1], Calls: n})
 	}
@@ -268,6 +289,9 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 
 		sharedBy := map[string]int{} // param -> calls that got an object seen before
 		for _, sh := range w.Shared {
+			if receiverParam(sh.Param) {
+				continue // a method is always called on the same object; that is not sharing
+			}
 			sharedBy[sh.Param] = sh.Calls
 		}
 		mutatedPaths := map[string]bool{}
@@ -290,6 +314,15 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 				more = " …"
 			}
 			f := Finding{Kind: "mutation", Anchor: a}
+			if receiverParam(rootParam(m.Path)) {
+				// A method changing its own object is its job. Worth seeing in
+				// the detail, never worth leading with.
+				f.Severity = "info"
+				f.rank = 30
+				f.Text = fmt.Sprintf("%s changes its own `%s`: %s%s", name, m.Path, strings.Join(examples, ", "), more)
+				rw.Findings = append(rw.Findings, f)
+				continue
+			}
 			if inner != "" {
 				f.Severity = "info"
 				f.rank = 40
@@ -360,6 +393,9 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			if strings.Contains(p, "[") {
 				continue // positional data (cart.lines[2]) varies by input, not state
 			}
+			if receiverParam(rootParam(strings.TrimPrefix(p, "arg."))) {
+				continue // an object's own fields drift as it works
+			}
 			trends = append(trends, trend{p, v})
 		}
 		sort.Slice(trends, func(i, j int) bool {
@@ -416,9 +452,24 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		}
 		a := runtime.Anchor{FileID: rq.FileID, RelPath: rq.RelPath, Symbol: rq.Symbol, Line: rq.LineStart}
 		rep.NotCalled = append(rep.NotCalled, a)
+		text := fmt.Sprintf("`%s` never ran during this command", rq.Symbol)
+		// Build output without a source map runs the same function from
+		// another file. Saying "never ran" there would send the agent looking
+		// for a reason the code is skipped, when it ran all along.
+		var elsewhere *runtime.EvidenceFunction
+		for i, fn := range out.Functions {
+			if fn.Name == rq.Symbol && normAbs(fn.File) != normAbs(rq.AbsPath) && (elsewhere == nil || fn.Calls > elsewhere.Calls) {
+				elsewhere = &out.Functions[i]
+			}
+		}
+		if elsewhere != nil {
+			other := idx.anchorFor(elsewhere.File, elsewhere.Name, elsewhere.Line)
+			text = fmt.Sprintf("`%s` in %s never ran, but a `%s` in %s ran %d times - this command is probably running built code without a source map; rebuild with source maps, run the source directly, or watch the built file",
+				rq.Symbol, rq.RelPath, rq.Symbol, other.RelPath, elsewhere.Calls)
+		}
 		rep.Findings = append(rep.Findings, Finding{
 			Kind: "not_called", Severity: "medium", Anchor: a, rank: 60,
-			Text: fmt.Sprintf("`%s` never ran during this command", rq.Symbol),
+			Text: text,
 		})
 	}
 
@@ -438,10 +489,26 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		})
 	}
 
+	if names, count := failedTests(out.Output); count > 0 {
+		shown := names
+		if len(shown) > 6 {
+			shown = shown[:6]
+		}
+		text := fmt.Sprintf("%d test%s failed", count, plural(count))
+		if len(shown) > 0 {
+			text += ": " + strings.Join(quoteAll(shown), ", ")
+			if count > len(shown) {
+				text += fmt.Sprintf(" and %d more", count-len(shown))
+			}
+		}
+		rep.FailedTests = names
+		rep.Findings = append(rep.Findings, Finding{Kind: "tests", Severity: "high", rank: 75, Text: text})
+	}
+
 	if out.TimedOut {
 		rep.Findings = append(rep.Findings, Finding{Kind: "exit", Severity: "high", rank: 70,
 			Text: fmt.Sprintf("Timed out after %s and was stopped", humanMs(out.DurationMs))})
-	} else if out.ExitCode != 0 && len(out.Uncaught) == 0 {
+	} else if out.ExitCode != 0 && len(out.Uncaught) == 0 && len(rep.FailedTests) == 0 {
 		rep.Findings = append(rep.Findings, Finding{Kind: "exit", Severity: "medium", rank: 45,
 			Text: fmt.Sprintf("Exited with code %d", out.ExitCode)})
 	}
@@ -481,6 +548,21 @@ func stripRoot(path string) string {
 }
 
 func stripTicks(s string) string { return strings.ReplaceAll(s, "`", "") }
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+func quoteAll(list []string) []string {
+	out := make([]string, len(list))
+	for i, s := range list {
+		out[i] = "`" + clip(s, 80) + "`"
+	}
+	return out
+}
 
 func ofCalls(n, total int64) string {
 	if n >= total {
@@ -529,19 +611,111 @@ func returnsText(v runtime.ValueStats, calls int64) string {
 
 func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
-// pickSamples keeps the first two and the last call, plus any that threw or
-// mutated - the calls worth reading.
+// pickSamples keeps the calls worth reading: the first two, one of each other
+// kind of outcome (a tokenizer that mostly returns undefined is understood
+// from the calls that returned a token), any that threw or mutated, and the
+// last.
 func pickSamples(all []runtime.CallSample) []runtime.CallSample {
 	if len(all) <= 3 {
 		return all
 	}
+	shape := func(s runtime.CallSample) string {
+		if s.Threw != "" {
+			return "threw"
+		}
+		if s.Returned == nil {
+			return "none"
+		}
+		r := *s.Returned
+		switch {
+		case r == "undefined" || r == "None" || r == "null":
+			return "empty"
+		case strings.HasPrefix(r, "{"):
+			return "object"
+		case strings.HasPrefix(r, "["):
+			return "array"
+		default:
+			return "value"
+		}
+	}
 	out := []runtime.CallSample{all[0], all[1]}
+	seen := map[string]bool{shape(all[0]): true, shape(all[1]): true}
 	for _, s := range all[2 : len(all)-1] {
-		if (s.Threw != "" || len(s.Mutated) > 0) && len(out) < 4 {
+		if len(out) >= 6 {
+			break
+		}
+		k := shape(s)
+		if !seen[k] || s.Threw != "" || len(s.Mutated) > 0 {
+			seen[k] = true
 			out = append(out, s)
 		}
 	}
 	return append(out, all[len(all)-1])
+}
+
+var (
+	failLine = []*regexp.Regexp{
+		regexp.MustCompile(`^\s*✖\s+(.+?)(?:\s+\([\d.]+m?s\))?\s*$`),             // node:test spec
+		regexp.MustCompile(`^not ok \d+ - (.+?)(?:\s+#.*)?$`),                    // TAP
+		regexp.MustCompile(`^FAILED (\S+::\S+)`),                                 // pytest
+		regexp.MustCompile(`^\s*[✕×]\s+(.+?)(?:\s+\(\d+(?:\.\d+)? ?m?s\))?\s*$`), // jest, vitest
+		regexp.MustCompile(`^\s*--- FAIL: (\S+)`),                                // go test
+		regexp.MustCompile(`^test (\S+) \.\.\. FAILED$`),                         // cargo
+	}
+	failCount = []*regexp.Regexp{
+		regexp.MustCompile(`(?m)^# fail (\d+)`),
+		regexp.MustCompile(`(?m)^ℹ fail (\d+)`),
+		regexp.MustCompile(`(\d+) failed`),
+		regexp.MustCompile(`(?m)^Tests:\s+(\d+) failed`),
+	}
+)
+
+// failedTests pulls failing test names out of common runners' output, so
+// "exited 1" becomes "these three tests failed".
+func failedTests(output string) (names []string, count int) {
+	seen := map[string]bool{}
+	for _, line := range strings.Split(output, "\n") {
+		for _, re := range failLine {
+			m := re.FindStringSubmatch(strings.TrimRight(line, "\r"))
+			if m == nil {
+				continue
+			}
+			name := strings.TrimSpace(m[1])
+			if name == "" || seen[name] || strings.HasPrefix(name, "failing tests") {
+				continue
+			}
+			seen[name] = true
+			names = append(names, name)
+			break
+		}
+	}
+	for _, re := range failCount {
+		if m := re.FindStringSubmatch(output); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n > count {
+				count = n
+			}
+		}
+	}
+	// Reporters print a suite and its cases ("parser" and "parser should
+	// pass"). Keep the leaves: a name that prefixes another is its suite.
+	leaves := names[:0:0]
+	for _, n := range names {
+		parent := false
+		for _, other := range names {
+			if other != n && strings.HasPrefix(other, n+" ") {
+				parent = true
+				break
+			}
+		}
+		if !parent {
+			leaves = append(leaves, n)
+		}
+	}
+	names = leaves
+	if count < len(names) {
+		count = len(names)
+	}
+	return names, count
 }
 
 var stackFrame = regexp.MustCompile(`\(?((?:file://)?(?:[A-Za-z]:)?[^\s():]+):(\d+):\d+\)?\s*$`)
@@ -752,4 +926,17 @@ func explainedByMutation(path string, mutated map[string]bool) bool {
 		p = p[:i]
 	}
 	return false
+}
+
+// receiverParam reports whether a parameter is the method's own object.
+func receiverParam(name string) bool {
+	return name == "this" || name == "self" || name == "cls"
+}
+
+// rootParam returns the parameter a value path starts from.
+func rootParam(path string) string {
+	if i := strings.IndexAny(path, ".["); i >= 0 {
+		return path[:i]
+	}
+	return path
 }

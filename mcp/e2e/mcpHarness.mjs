@@ -114,8 +114,8 @@ class McpClient {
   }
 
   /** Calls a tool and returns its parsed payload plus whether it errored. */
-  async callTool(name, args = {}) {
-    const response = await this.request('tools/call', { name, arguments: args })
+  async callTool(name, args = {}, timeoutMs = 25000) {
+    const response = await this.request('tools/call', { name, arguments: args }, timeoutMs)
     const text = response?.result?.content?.[0]?.text ?? ''
     let payload = text
     try { payload = JSON.parse(text) } catch { /* some tools return prose */ }
