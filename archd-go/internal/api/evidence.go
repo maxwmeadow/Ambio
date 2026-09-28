@@ -203,7 +203,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		agg.f.Errors += fn.Errors
 		agg.functions++
 		rep.FunctionsRun++
-		if len(rep.Hot) < 10 && fn.Name != "<anonymous>" {
+		if len(rep.Hot) < 10 && !strings.HasPrefix(fn.Name, "<") {
 			rep.Hot = append(rep.Hot, ReportFunction{Anchor: a, Calls: fn.Calls, Errors: fn.Errors})
 		}
 	}
@@ -271,8 +271,10 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			sharedBy[sh.Param] = sh.Calls
 		}
 		mutatedPaths := map[string]bool{}
-		for _, m := range w.Mutations {
-			mutatedPaths[stripRoot(m.Path)] = true
+		for _, m := range collapseCollections(w.Mutations) {
+			collection := strings.HasSuffix(m.Path, collectionMark)
+			m.Path = strings.TrimSuffix(m.Path, collectionMark)
+			mutatedPaths[m.Path] = true
 			inner := ""
 			for _, other := range mutatedBy[mutationSig(m)] {
 				if other != self && calls[self][other] {
@@ -295,16 +297,27 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			} else {
 				f.Severity = "high"
 				f.rank = 90
-				f.Text = fmt.Sprintf("%s changes its argument `%s` on %s: %s%s",
-					name, m.Path, ofCalls(int64(m.Calls), w.Calls), strings.Join(examples, ", "), more)
+				if collection {
+					f.Text = fmt.Sprintf("%s changes the size of its argument `%s` on %s (size %s%s)",
+						name, m.Path, ofCalls(int64(m.Calls), w.Calls), strings.Join(examples, ", "), more)
+				} else {
+					f.Text = fmt.Sprintf("%s changes its argument `%s` on %s: %s%s",
+						name, m.Path, ofCalls(int64(m.Calls), w.Calls), strings.Join(examples, ", "), more)
+				}
 				param := m.Path
 				if i := strings.IndexAny(param, ".["); i >= 0 {
 					param = param[:i]
 				}
 				if n := sharedBy[param]; n > 0 {
 					// The whole explanation in one line: the function writes into
-					// an object that is handed back to it next time.
-					f.rank = 97
+					// an object that is handed back to it next time. Once or
+					// twice can be the function's job (ship() lowers stock);
+					// every time is state leaking between calls.
+					if m.Calls >= 3 {
+						f.rank = 97
+					} else {
+						f.Severity, f.rank = "medium", 65
+					}
 					f.Text += fmt.Sprintf(" - and it receives the same `%s` object again on %s, so each change carries into the next call",
 						param, ofCalls(int64(n), w.Calls))
 				}
@@ -363,8 +376,8 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 			}
 			reported[tail] = true
 			arg := strings.HasPrefix(t.path, "arg.")
-			if arg && mutatedPaths[tail] {
-				continue // already explained by the mutation finding
+			if arg && explainedByMutation(strings.TrimPrefix(t.path, "arg."), mutatedPaths) {
+				continue // the mutation finding already says this
 			}
 			seq := seriesText(t.v)
 			f := Finding{Anchor: a}
@@ -388,7 +401,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		}
 
 		if w.Returns != nil {
-			rw.Returns = returnsText(*w.Returns)
+			rw.Returns = returnsText(*w.Returns, w.Calls)
 		}
 		rw.Samples = pickSamples(w.Samples)
 		rep.Watched = append(rep.Watched, rw)
@@ -428,7 +441,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 	if out.TimedOut {
 		rep.Findings = append(rep.Findings, Finding{Kind: "exit", Severity: "high", rank: 70,
 			Text: fmt.Sprintf("Timed out after %s and was stopped", humanMs(out.DurationMs))})
-	} else if out.ExitCode != 0 {
+	} else if out.ExitCode != 0 && len(out.Uncaught) == 0 {
 		rep.Findings = append(rep.Findings, Finding{Kind: "exit", Severity: "medium", rank: 45,
 			Text: fmt.Sprintf("Exited with code %d", out.ExitCode)})
 	}
@@ -488,11 +501,14 @@ func seriesText(v runtime.ValueStats) string {
 	return text
 }
 
-func returnsText(v runtime.ValueStats) string {
+func returnsText(v runtime.ValueStats, calls int64) string {
 	if v.Count == 0 {
 		return ""
 	}
 	if v.Changes == 0 {
+		if int64(v.Count) < calls {
+			return fmt.Sprintf("%s (on the %d calls that returned)", v.First, v.Count)
+		}
 		return "always " + v.First
 	}
 	if strings.HasSuffix(string(v.Distinct), "+\"") {
@@ -690,4 +706,50 @@ func clip(s string, n int) string {
 		return s
 	}
 	return s[:n-1] + "…"
+}
+
+var indexSuffix = regexp.MustCompile(`\[\d+\]$`)
+
+// collectionMark flags a collapsed collection mutation, whose examples are
+// sizes rather than values.
+const collectionMark = "\x00size"
+
+// collapseCollections folds per-element mutations of a list, map or set into
+// one mutation of the collection. Appending to a list changes list.length and
+// list[n] for a new n on every call; reported separately that is a wall of
+// near-identical findings, when the fact is "this function grows the list".
+func collapseCollections(ms []runtime.Mutation) []runtime.Mutation {
+	containers := map[string]bool{}
+	for _, m := range ms {
+		if strings.HasSuffix(m.Path, ".length") || strings.HasSuffix(m.Path, ".size") {
+			containers[m.Path[:strings.LastIndex(m.Path, ".")]] = true
+		}
+	}
+	var out []runtime.Mutation
+	for _, m := range ms {
+		if base := indexSuffix.ReplaceAllString(m.Path, ""); base != m.Path && containers[base] {
+			continue // an element of a collection whose size change is reported
+		}
+		if strings.HasSuffix(m.Path, ".length") || strings.HasSuffix(m.Path, ".size") {
+			m.Path = m.Path[:strings.LastIndex(m.Path, ".")] + collectionMark
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// explainedByMutation reports whether a drifting argument value is the same
+// slot (or a part of the same collection) a mutation finding already covers.
+func explainedByMutation(path string, mutated map[string]bool) bool {
+	for p := strings.TrimSuffix(strings.TrimSuffix(path, ".length"), ".size"); p != ""; {
+		if mutated[p] {
+			return true
+		}
+		i := strings.LastIndexAny(p, ".[")
+		if i <= 0 {
+			break
+		}
+		p = p[:i]
+	}
+	return false
 }
