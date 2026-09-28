@@ -27,6 +27,11 @@ test('sheet attachment follows live differences, survives Floor navigation, and 
       }
       await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)})
     })
+    await page.evaluate(() => {
+      localStorage.removeItem('axiom:inbox-draft:demo')
+      localStorage.removeItem('axiom:inbox-draft:demo:pending')
+      localStorage.removeItem('axiom:inbox-draft:demo:sheet')
+    })
     await page.reload()
     await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
     const rail = page.getByRole('complementary',{name:'Drawings'})

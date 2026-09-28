@@ -21,6 +21,11 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
       }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
+    await page.evaluate(() => {
+      localStorage.removeItem('axiom:inbox-draft:demo')
+      localStorage.removeItem('axiom:inbox-draft:demo:pending')
+      localStorage.removeItem('axiom:inbox-draft:demo:sheet')
+    })
     await page.reload()
     await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
     await expect(page.locator('.react-flow__node-system').first()).toBeVisible()
@@ -56,5 +61,17 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await page.getByRole('button', { name: 'Message agent', exact: true }).click()
     await expect(page.getByText('They communicate through the project API.')).toBeVisible()
     await page.screenshot({ path: 'test-results/inbox-complete.png' })
+    // A remembered sheet can disappear between sessions. Show it clearly and
+    // require the user to remove it before creating a new request.
+    await page.evaluate(() => localStorage.setItem('axiom:inbox-draft:demo:sheet', JSON.stringify('deleted_sheet')))
+    await page.reload()
+    await page.getByRole('button', { name: 'Message agent', exact: true }).click()
+    await expect(panel.locator('.axiom-inbox__attachment')).toContainText('Sheet unavailable')
+    await panel.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Another task')
+    await panel.getByRole('button', { name: 'Send to inbox' }).click()
+    await expect(panel.getByRole('alert')).toContainText('no longer available')
+    expect(sends).toHaveLength(2)
+    await panel.getByRole('button', { name: 'Remove attached sheet' }).click()
+    await expect(panel.locator('.axiom-inbox__attachment')).toHaveCount(0)
   } finally { await app.close() }
 })

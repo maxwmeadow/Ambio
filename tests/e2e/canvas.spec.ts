@@ -188,6 +188,11 @@ test.beforeEach(async () => {
   })
   // Reload after routing so even the fixture's initial layout persistence is
   // deterministic and cannot race a refused localhost request.
+  await page.evaluate(() => {
+    localStorage.removeItem('axiom:inbox-draft:demo')
+    localStorage.removeItem('axiom:inbox-draft:demo:pending')
+    localStorage.removeItem('axiom:inbox-draft:demo:sheet')
+  })
   await page.reload()
   await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
