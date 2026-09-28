@@ -81,6 +81,7 @@ func (s *Server) handleInboxClaim(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID  string `json:"workspaceId"`
 		ConnectionID string `json:"connectionId"`
 		Agent        string `json:"agent"`
+		MessageID    string `json:"messageId"`
 	}
 	if !decodeInbox(w, r, &body) {
 		return
@@ -89,12 +90,21 @@ func (s *Server) handleInboxClaim(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "connectionId and agent required (maximum 128 characters)", 400)
 		return
 	}
+	if len(body.MessageID) > 128 {
+		jsonError(w, "messageId is too long", 400)
+		return
+	}
 	d, err := s.dbFor(body.WorkspaceID)
 	if err != nil {
 		jsonError(w, err.Error(), 404)
 		return
 	}
-	items, err := db.ClaimInbox(d, body.WorkspaceID, body.ConnectionID, body.Agent, time.Now().UnixMilli())
+	var items []db.InboxItem
+	if body.MessageID != "" {
+		items, err = db.ClaimInboxByID(d, body.WorkspaceID, body.ConnectionID, body.Agent, body.MessageID, time.Now().UnixMilli())
+	} else {
+		items, err = db.ClaimInbox(d, body.WorkspaceID, body.ConnectionID, body.Agent, time.Now().UnixMilli())
+	}
 	if err != nil {
 		inboxError(w, err)
 		return

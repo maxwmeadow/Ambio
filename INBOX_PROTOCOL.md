@@ -20,13 +20,30 @@ Sheets can now be selected explicitly with **Attach a sheet**, independently of 
 active canvas. The attachment includes a structural comparison snapshot. See
 [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md) for comparison, implementation and checked resolution.
 
-Ask an MCP-connected agent to **check the Axiom inbox**. The panel provides copyable
-instructions. Installers that support skills also install `axiom-inbox` beside `axiom-map`;
+Each new canvas send creates an **addressed work order** with a durable ID. Copy the
+handoff from that particular message and paste it into the agent chat you choose.
+The full ID remains visible and selectable on the message if clipboard access fails.
+The agent calls `get_inbox({messageId: "…", expectedWorkspaceId: "…"})` to claim
+exactly that request. A mismatched MCP workspace fails before any claim. This is
+the universal route for two different harnesses, or two chats in the same harness:
+MCP does not tell Axiom which human chat owns a connection. The request ID selects
+the task; a connection lease prevents a different connector from claiming it at
+the same time. The ID is routing information, not an access-control secret or proof
+of the chat's identity. A connector already holding a lease can renew that request.
+The inbox displays a short connector fingerprint on picked-up work so two terminals
+using the same harness are distinguishable; it does not claim to identify a chat
+when a harness shares one MCP process across chats.
+
+Older open-queue messages remain claimable with `get_inbox()` and are never silently
+converted. New addressed work does **not** appear in an unspecific inbox check or
+legacy outbox read. It waits until the user gives its ID to a chat. The handoff asks
+the agent to handle only that work order; it does not invite queue draining. There is
+no automatic delivery or reliable cross-harness hook. Installers that support skills
+also install `axiom-inbox` beside `axiom-map`;
 manual language remains the universal entry point. Installing is optional for an already
 connected agent. No hook, slash-command convention, or permanent polling loop is required.
 
-After a send, a queued-instruction handoff stays visible beside the composer. It states
-that the message is saved but has not been picked up, and gives a project-named prompt
+After a send, the request card exposes its ID and a copyable project-named prompt
 to paste into the agent's own chat. **Connections** reopens setup without leaving the
 project. The signal distinguishes an MCP process currently connected, a configuration
 found on disk but not connected, an incomplete installer workflow, and unavailable
@@ -52,9 +69,11 @@ process. The panel tells the user to stop that agent separately if necessary.
 
 ## MCP contract, version 1
 
-- `get_inbox()` atomically claims at most one pending instruction for the bound workspace.
-  The same connector gets its existing live claim back and renews it. Other connectors
-  cannot claim that instruction until its lease expires. An empty inbox returns immediately.
+- `get_inbox({messageId, expectedWorkspaceId})` checks the bound workspace and
+  atomically claims that exact addressed instruction in the
+  bound workspace. `get_inbox()` claims at most one legacy/open instruction. The same
+  connector gets its existing live claim back and renews it. Other connectors cannot
+  claim that instruction until its lease expires. An empty open queue returns immediately.
 - Responses include `protocolVersion`, explicit workspace identity/root, selected targets
   (type, ID, original label), claim expiry, and an opaque `messageHandle`.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
@@ -69,7 +88,8 @@ process. The panel tells the user to stop that agent separately if necessary.
   prompt never reads or claims user work. Legacy read names remain executable but no
   longer implement a destructive drain or a long-running wait.
 
-Each claim lasts 15 minutes. Explicit `get_inbox()` calls renew it; passive connector
+Each claim lasts 15 minutes. Explicit `get_inbox({messageId})` calls renew an addressed
+claim; passive connector
 presence does not. An idle MCP process can outlive the conversation, so renewing work
 from presence alone would strand messages indefinitely. Agents are instructed to renew
 before expiry and check ownership before continuing after interruption.
@@ -95,13 +115,13 @@ Endpoints (all require the local bearer token):
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId}` |
-| `POST /api/canvas/claim` | Claim/renew using `{workspaceId, connectionId, agent}` |
+| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId, deliveryMode: "addressed"}`; omitted mode remains legacy `open` |
+| `POST /api/canvas/claim` | Claim/renew using `{workspaceId, connectionId, agent, messageId?}`; no ID sees only `open` work |
 | `POST /api/canvas/context` | Read a context page using `{workspaceId, msgId, leaseToken, offset}` |
 | `POST /api/canvas/reply` | Resolve using `{workspaceId, msgId, leaseToken, body}` |
 | `POST /api/canvas/cancel` | Cancel unresolved work using `{workspaceId, msgId}` |
 | `GET /api/canvas/history?workspace=…&before=…&limit=…` | Newest-first history; stable `(createdAt,id)` pagination |
-| `GET /api/canvas/outbox?workspace=…&peek=1` | Available instruction count for discovery hints |
+| `GET /api/canvas/outbox?workspace=…&peek=1` | `queued` total and `open` count; only `open` drives generic discovery hints |
 | `GET /api/agent/workspace?cwd=…&workspace=…` | Resolve persisted project/root identity |
 
 Limits: 128 KiB request body; 16 KB instruction; 64 KB reply; 100 validated selections;

@@ -48,8 +48,11 @@
 .axiom-inbox__user { align-self: stretch; max-width: none; min-width: 0; box-sizing: border-box; background: #e6e8e0; border: 1px solid #aab7aa; border-left: 3px solid #3c7d76; padding: 8px 10px 9px; overflow-wrap: anywhere; box-shadow: inset 1px 1px #f6f6ee; }
 .axiom-inbox__entry-label { display: block; margin-bottom: 6px; color: #386e61; font: 700 8px var(--font-mono, monospace); letter-spacing: .1em; }
 .axiom-inbox__user p { margin: 0; line-height: 1.5; white-space: pre-wrap; }
-.axiom-inbox__meta { display: flex; justify-content: flex-end; align-items: center; gap: 9px; padding-right: 1px; font: 9px var(--font-mono, monospace); color: #586b60; }
+.axiom-inbox__meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 9px; padding-right: 1px; font: 9px var(--font-mono, monospace); color: #586b60; }
 .axiom-inbox__meta .axiom-inbox__status--answered { color: #39756a; }
+.axiom-inbox__work-order { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; color: #60756a; font: 8px/1.35 var(--font-mono, monospace); user-select: text; }
+.axiom-inbox__work-order code { color: #305e52; font: inherit; overflow-wrap: anywhere; user-select: text; }
+.axiom-inbox .axiom-inbox__handoff-copy { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 1px solid #8ea99a; background: #e3ece2; color: #285e52; font: 700 8px var(--font-mono, monospace); white-space: nowrap; }
 .axiom-inbox__meta .axiom-inbox__cancel { margin: 0; padding-left: 5px; font-size: 10px; background: transparent; color: #7d8780; text-decoration: underline; text-underline-offset: 2px; }
 .axiom-inbox__targets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .axiom-inbox .axiom-inbox__targets button { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 5px; background: #f0f2ea; border: 1px solid #adbfb0; font: 9px var(--font-mono, monospace); color: #355e51; }

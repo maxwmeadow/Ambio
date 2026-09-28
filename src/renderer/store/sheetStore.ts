@@ -80,6 +80,7 @@ export interface SheetAnnotation {
 export interface CanvasMessage {
   id: string
   workspaceId: string
+  deliveryMode?: 'open' | 'addressed'
   sheetId: string | null
   note: string
   selection: string
@@ -871,7 +872,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id, workspaceId, note, sheetId,
+        id, workspaceId, note, sheetId, deliveryMode: 'addressed',
         selection: JSON.stringify(selection),
       }),
     })

@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { AgentHostInfo } from '../../../electron/preload'
-import { InboxIcon } from './InboxIcon'
 
 type Connection = 'checking' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
 
-function handoffPrompt(projectName: string): string {
-  return `Check the Axiom inbox for the project "${projectName}". Read each queued instruction and its attached canvas or sheet context, do the requested work, and reply through Axiom. Stop when the inbox is empty.`
-}
-
-export function AgentHandoff({ workspaceId, projectRoot, projectName, queued, onManageConnections }: {
+export function AgentHandoff({ workspaceId, projectRoot, queued, onManageConnections }: {
   workspaceId: string
   projectRoot: string
-  projectName: string
   queued: number
   onManageConnections?: () => void
 }) {
   const [connection, setConnection] = useState<Connection>('checking')
   const [hostLabel, setHostLabel] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [copyFailed, setCopyFailed] = useState(false)
+  const [liveDescription, setLiveDescription] = useState('')
 
   useEffect(() => {
     let active = true
@@ -37,6 +30,13 @@ export function AgentHandoff({ workspaceId, projectRoot, projectName, queued, on
         const installedHost = hosts.find((host: AgentHostInfo) => host.configured && host.workflowInstalled)
         const configuredHost = hosts.find((host: AgentHostInfo) => host.configured)
         setHostLabel(liveHost?.label ?? installedHost?.label ?? configuredHost?.label ?? '')
+        const counts = new Map<string, number>()
+        for (const item of presence.connections ?? []) {
+          const label = hosts.find((host: AgentHostInfo) => host.id === item.hostId)?.label ?? (item.hostId === 'unknown' ? 'Unknown host' : item.hostId)
+          counts.set(label, (counts.get(label) ?? 0) + 1)
+        }
+        const hostSummary = [...counts].map(([label, count]) => count > 1 ? `${label} ×${count}` : label).join(', ')
+        setLiveDescription(`${presence.connections?.length ?? 0} MCP process${presence.connections?.length === 1 ? '' : 'es'} connected${hostSummary ? ` · ${hostSummary}` : ''}`)
         setConnection(presence.connected ? 'live' : installedHost ? 'configured' : configuredHost ? 'repair' : 'unconfigured')
       } catch {
         if (active) setConnection('unavailable')
@@ -47,17 +47,7 @@ export function AgentHandoff({ workspaceId, projectRoot, projectName, queued, on
     return () => { active = false; clearInterval(timer) }
   }, [workspaceId, projectRoot])
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(handoffPrompt(projectName))
-      setCopied(true)
-      setCopyFailed(false)
-    } catch {
-      setCopied(false)
-      setCopyFailed(true)
-    }
-  }
-  const status = connection === 'live' ? `${hostLabel || 'Agent'} MCP connected`
+  const status = connection === 'live' ? liveDescription
     : connection === 'configured' ? `${hostLabel || 'Agent'} configured · not connected`
       : connection === 'repair' ? `${hostLabel || 'Agent'} setup needs repair`
         : connection === 'unconfigured' ? 'No known local agent setup'
@@ -70,9 +60,7 @@ export function AgentHandoff({ workspaceId, projectRoot, projectName, queued, on
       {onManageConnections && <button type="button" onClick={onManageConnections}>Connections</button>}
     </div>
     {queued > 0 && <div className="axiom-inbox__handoff-next">
-      <span><strong>{queued} queued.</strong> Saved in Axiom; an agent must check the inbox to receive {queued === 1 ? 'it' : 'them'}.</span>
-      <button type="button" onClick={() => void copy()}><InboxIcon name={copied ? 'check' : 'copy'} size={13} />{copied ? 'Copied' : 'Copy prompt for agent chat'}</button>
-      {copyFailed && <p>Select and copy this prompt: {handoffPrompt(projectName)}</p>}
+      <span><strong>{queued} queued.</strong> Saved in Axiom. Use <strong>Copy handoff</strong> on the request you want a particular agent chat to handle.</span>
     </div>}
   </section>
 }

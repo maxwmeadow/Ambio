@@ -709,6 +709,9 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE planned_nodes ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		`ALTER TABLE canvas_outbox ADD COLUMN sheet_context TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE canvas_outbox ADD COLUMN build_spec TEXT NOT NULL DEFAULT ''`,
+		// New canvas work orders require an explicit ID in the receiving chat.
+		// Existing messages remain open so older MCP clients can drain them.
+		`ALTER TABLE canvas_outbox ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'open'`,
 		`ALTER TABLE sheet_elements ADD COLUMN design_metadata TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE sheet_elements ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.

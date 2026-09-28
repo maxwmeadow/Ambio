@@ -51,10 +51,12 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
     await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toContainText('1 queued. Saved in Axiom')
-    await expect(panel.getByRole('button', { name: 'Copy prompt for agent chat' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
+    await expect(panel.locator('.axiom-inbox__work-order code')).toHaveText(sends[0].id)
     await expect(panel.getByRole('button', { name: 'Connections' })).toBeVisible()
     expect(sends).toHaveLength(2)
     expect(sends[0].id).toBe(sends[1].id)
+    expect(sends[0].deliveryMode).toBe('addressed')
     expect(JSON.parse(sends[0].selection)).toHaveLength(2)
     expect(messages).toHaveLength(1)
     messages[0].status = 'answered'

@@ -232,6 +232,26 @@ test('the inbox answers without blocking', async () => {
   assert.equal(result.isError, false, result.text)
 })
 
+test('an addressed canvas request requires its explicit work-order ID', async () => {
+  const id = 'addressed-e2e'
+  const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  const sent = await post('send', { id, workspaceId: harness.workspaceId, note: 'Handle only this task', deliveryMode: 'addressed' })
+  assert.equal(sent.status, 200, await sent.text())
+  const unspecific = await client.callTool('get_inbox', {})
+  assert.equal(unspecific.isError, false, unspecific.text)
+  assert.equal(unspecific.payload.messages.length, 0, 'an unspecific inbox check must not claim addressed work')
+  const wrongWorkspace = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: 'wrong-project' })
+  assert.equal(wrongWorkspace.isError, true)
+  assert.match(wrongWorkspace.text, /bound to workspace/)
+  const specific = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: harness.workspaceId })
+  assert.equal(specific.isError, false, specific.text)
+  assert.equal(specific.payload.messages[0].id, id)
+  const competitor = await post('claim', { workspaceId: harness.workspaceId, connectionId: 'another-chat', agent: 'Claude Code', messageId: id })
+  assert.equal(competitor.status, 409, await competitor.text())
+  const answer = await client.callTool('reply_to_canvas', { messageHandle: specific.payload.messages[0].messageHandle, body: 'This work order is complete.' })
+  assert.equal(answer.isError, false, answer.text)
+})
+
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
   const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }

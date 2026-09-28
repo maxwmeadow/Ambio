@@ -100,6 +100,64 @@ func TestInboxHTTPLifecycle(t *testing.T) {
 		t.Fatal(r.Code, r.Body.String())
 	}
 }
+func TestAddressedInboxDoesNotLeakAcrossAgentsOrChats(t *testing.T) {
+	_, mux, _ := inboxServer(t)
+	for _, id := range []string{"chat-one", "chat-two"} {
+		body := map[string]any{"id": id, "workspaceId": "ws", "note": "Implement " + id, "deliveryMode": "addressed"}
+		if r := inboxHTTP(t, mux, "POST", "/api/canvas/send", body); r.Code != 200 {
+			t.Fatal(r.Code, r.Body.String())
+		}
+	}
+	peek := inboxHTTP(t, mux, "GET", "/api/canvas/outbox?workspace=ws&peek=1", nil)
+	var counts struct {
+		Queued int `json:"queued"`
+		Open   int `json:"open"`
+	}
+	if err := json.Unmarshal(peek.Body.Bytes(), &counts); err != nil || counts.Queued != 2 || counts.Open != 0 {
+		t.Fatal(peek.Code, peek.Body.String(), err)
+	}
+	legacyRead := inboxHTTP(t, mux, "GET", "/api/canvas/outbox?workspace=ws", nil)
+	if legacyRead.Code != 200 || strings.Contains(legacyRead.Body.String(), "chat-one") || strings.Contains(legacyRead.Body.String(), "chat-two") {
+		t.Fatal("legacy open-queue read exposed addressed work", legacyRead.Code, legacyRead.Body.String())
+	}
+	claim := func(owner, id string) (*httptest.ResponseRecorder, []db.InboxItem) {
+		body := map[string]string{"workspaceId": "ws", "connectionId": owner, "agent": "Claude Code", "messageId": id}
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/claim", body)
+		var result struct {
+			Messages []db.InboxItem `json:"messages"`
+		}
+		if r.Code == 200 {
+			if err := json.Unmarshal(r.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return r, result.Messages
+	}
+	if r, items := claim("terminal-one", ""); r.Code != 200 || len(items) != 0 {
+		t.Fatal("undirected claim took addressed work", r.Code, r.Body.String())
+	}
+	first, items := claim("terminal-one", "chat-one")
+	if first.Code != 200 || len(items) != 1 || items[0].ID != "chat-one" {
+		t.Fatal(first.Code, first.Body.String())
+	}
+	if r, _ := claim("terminal-two", "chat-one"); r.Code != 409 {
+		t.Fatal("another terminal claimed the same work", r.Code, r.Body.String())
+	}
+	second, items := claim("terminal-two", "chat-two")
+	if second.Code != 200 || len(items) != 1 || items[0].ID != "chat-two" {
+		t.Fatal(second.Code, second.Body.String())
+	}
+	if r, _ := claim("terminal-one", "chat-two"); r.Code != 409 {
+		t.Fatal("cross-chat claim succeeded", r.Code, r.Body.String())
+	}
+	if r, _ := claim("terminal-one", "does-not-exist"); r.Code != 409 {
+		t.Fatal("missing addressed work did not fail", r.Code, r.Body.String())
+	}
+	changed := map[string]any{"id": "chat-one", "workspaceId": "ws", "note": "Implement chat-one", "deliveryMode": "open"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/send", changed); r.Code != 409 {
+		t.Fatal("retry changed delivery mode", r.Code, r.Body.String())
+	}
+}
 func TestInboxRejectsInvalidBodiesAndForeignTargets(t *testing.T) {
 	_, mux, _ := inboxServer(t)
 	for _, body := range []map[string]any{
@@ -109,6 +167,8 @@ func TestInboxRejectsInvalidBodiesAndForeignTargets(t *testing.T) {
 		{"workspaceId": "ws", "note": "valid", "selection": "null"},
 		{"workspaceId": "ws", "note": "valid", "selection": "[\"axiom://file/foreign\"]"},
 		{"workspaceId": "ws", "note": "valid", "status": "answered"},
+		{"workspaceId": "ws", "note": "valid", "deliveryMode": "addressed"},
+		{"workspaceId": "ws", "note": "valid", "deliveryMode": "unknown"},
 		{"workspaceId": "../outside", "note": "valid"},
 	} {
 		r := inboxHTTP(t, mux, "POST", "/api/canvas/send", body)

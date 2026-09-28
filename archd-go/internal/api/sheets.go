@@ -12,7 +12,7 @@
 //	POST   /api/annotations                  - create note/flag/reply
 //	DELETE /api/annotations/:id?workspace=
 //	POST   /api/canvas/send                  - canvas enqueues a message to agents
-//	GET    /api/canvas/outbox?workspace=&peek= - drain (or peek) queued messages
+//	GET    /api/canvas/outbox?workspace=&peek= - non-destructive legacy open-queue read (or peek)
 //	POST   /api/canvas/reply                 - agent answers a message {msgId, body}
 package api
 
@@ -850,16 +850,28 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		ID          string  `json:"id"`
-		WorkspaceID string  `json:"workspaceId"`
-		SheetID     *string `json:"sheetId"`
-		Note        string  `json:"note"`
-		Selection   string  `json:"selection"`
+		ID           string  `json:"id"`
+		WorkspaceID  string  `json:"workspaceId"`
+		SheetID      *string `json:"sheetId"`
+		Note         string  `json:"note"`
+		Selection    string  `json:"selection"`
+		DeliveryMode string  `json:"deliveryMode"`
 	}
 	if !decodeInbox(w, r, &input) {
 		return
 	}
-	m := db.CanvasMessage{ID: input.ID, WorkspaceID: input.WorkspaceID, SheetID: input.SheetID, Note: strings.TrimSpace(input.Note), Selection: input.Selection}
+	m := db.CanvasMessage{ID: input.ID, WorkspaceID: input.WorkspaceID, SheetID: input.SheetID, Note: strings.TrimSpace(input.Note), Selection: input.Selection, DeliveryMode: input.DeliveryMode}
+	if m.DeliveryMode == "" {
+		m.DeliveryMode = "open"
+	}
+	if m.DeliveryMode != "open" && m.DeliveryMode != "addressed" {
+		jsonError(w, "deliveryMode must be open or addressed", 400)
+		return
+	}
+	if m.DeliveryMode == "addressed" && m.ID == "" {
+		jsonError(w, "addressed work requires a stable message id", 400)
+		return
+	}
 	if !validInboxText(m.Note, 16000) || len(m.ID) > 128 {
 		jsonError(w, "bad request: note required", 400)
 		return
@@ -881,7 +893,7 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		}
 		if previous != nil {
 			sameSheet := (previous.SheetID == nil && m.SheetID == nil) || (previous.SheetID != nil && m.SheetID != nil && *previous.SheetID == *m.SheetID)
-			if previous.WorkspaceID != m.WorkspaceID || previous.Note != m.Note || previous.Selection != m.Selection || !sameSheet {
+			if previous.WorkspaceID != m.WorkspaceID || previous.Note != m.Note || previous.Selection != m.Selection || previous.DeliveryMode != m.DeliveryMode || !sameSheet {
 				inboxError(w, db.ErrInboxConflict)
 				return
 			}
@@ -992,8 +1004,7 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, m)
 }
 
-// handleCanvasOutbox: GET ?workspace=&peek=1 returns queued count only;
-// without peek, drains queued messages (marks delivered).
+// handleCanvasOutbox: legacy reads are non-destructive and exclude addressed work.
 func (s *Server) handleCanvasOutbox(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -1011,7 +1022,12 @@ func (s *Server) handleCanvasOutbox(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), 500)
 			return
 		}
-		jsonOK(w, map[string]int{"queued": n})
+		open, err := db.CountOpenCanvasMessages(sqlDB, workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		jsonOK(w, map[string]int{"queued": n, "open": open})
 		return
 	}
 	// Legacy reads are non-destructive. New clients explicitly POST /claim.
@@ -1022,7 +1038,7 @@ func (s *Server) handleCanvasOutbox(w http.ResponseWriter, r *http.Request) {
 	}
 	pending := []db.CanvasMessage{}
 	for _, m := range messages {
-		if m.Status == "queued" {
+		if m.Status == "queued" && m.DeliveryMode == "open" {
 			pending = append(pending, m.CanvasMessage)
 		}
 	}

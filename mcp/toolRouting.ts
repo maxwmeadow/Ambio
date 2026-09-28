@@ -181,7 +181,7 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
     }
 
     case 'get_inbox': {
-      return { tool: 'get_canvas_updates', args: compact({ messageHandle: args.messageHandle, contextOffset: args.contextOffset }) }
+      return { tool: 'get_canvas_updates', args: compact({ messageId: args.messageId, expectedWorkspaceId: args.expectedWorkspaceId, messageHandle: args.messageHandle, contextOffset: args.contextOffset }) }
     }
 
     case 'get_build_plan': {

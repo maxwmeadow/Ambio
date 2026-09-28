@@ -53,7 +53,7 @@ func migrateInbox(d *sql.DB) error {
 	return err
 }
 
-const inboxColumns = `m.id,m.workspace_id,m.sheet_id,m.note,m.selection,m.change_summary,
+const inboxColumns = `m.id,m.workspace_id,m.delivery_mode,m.sheet_id,m.note,m.selection,m.change_summary,
  m.status,m.delivered_to,m.answer_annotation_id,m.created_at,m.delivered_at,m.answered_at,
  COALESCE(c.token,''),COALESCE(c.expires_at,0),COALESCE(c.agent,''),
  r.body,COALESCE(r.agent,''),COALESCE(r.created_at,0)`
@@ -65,7 +65,7 @@ func scanInbox(row inboxScanner, now int64) (*InboxItem, error) {
 	item := &InboxItem{}
 	var body sql.NullString
 	reply := &InboxReply{}
-	err := row.Scan(&item.ID, &item.WorkspaceID, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
+	err := row.Scan(&item.ID, &item.WorkspaceID, &item.DeliveryMode, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
 		&item.Status, &item.DeliveredTo, &item.AnswerAnnotationID, &item.CreatedAt, &item.DeliveredAt, &item.AnsweredAt,
 		&item.LeaseToken, &item.LeaseExpiresAt, &item.Agent, &body, &reply.Agent, &reply.CreatedAt)
 	if err != nil {
@@ -113,6 +113,19 @@ func ReadInboxItem(d *sql.DB, id string, now int64) (*InboxItem, error) {
 // SQLite's BEGIN IMMEDIATE serializes selection and ownership assignment.
 // At most one instruction is claimed per call: don't reserve a whole backlog.
 func ClaimInbox(d *sql.DB, workspace, owner, agent string, now int64) ([]InboxItem, error) {
+	return claimInbox(d, workspace, owner, agent, "", now)
+}
+
+// ClaimInboxByID lets the human hand one durable request to a chosen chat.
+// The ID selects work; the existing lease still fences concurrent agents.
+func ClaimInboxByID(d *sql.DB, workspace, owner, agent, messageID string, now int64) ([]InboxItem, error) {
+	if messageID == "" {
+		return nil, ErrInboxConflict
+	}
+	return claimInbox(d, workspace, owner, agent, messageID, now)
+}
+
+func claimInbox(d *sql.DB, workspace, owner, agent, messageID string, now int64) ([]InboxItem, error) {
 	if owner == "" || agent == "" {
 		return nil, fmt.Errorf("owner and agent required")
 	}
@@ -122,11 +135,20 @@ func ClaimInbox(d *sql.DB, workspace, owner, agent string, now int64) ([]InboxIt
 	}
 	defer tx.Rollback()
 	var id string
-	err = tx.QueryRow(`SELECT m.id FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id
- WHERE m.workspace_id=? AND m.status IN ('queued','delivered')
+	if messageID == "" {
+		err = tx.QueryRow(`SELECT m.id FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id
+ WHERE m.workspace_id=? AND m.delivery_mode='open' AND m.status IN ('queued','delivered')
  AND (c.message_id IS NULL OR c.expires_at<=? OR c.owner=?)
  ORDER BY CASE WHEN c.owner=? AND c.expires_at>? THEN 0 ELSE 1 END,m.created_at,m.id LIMIT 1`, workspace, now, owner, owner, now).Scan(&id)
+	} else {
+		err = tx.QueryRow(`SELECT m.id FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id
+ WHERE m.workspace_id=? AND m.id=? AND m.status IN ('queued','delivered')
+ AND (c.message_id IS NULL OR c.expires_at<=? OR c.owner=?)`, workspace, messageID, now, owner).Scan(&id)
+	}
 	if err == sql.ErrNoRows {
+		if messageID != "" {
+			return nil, ErrInboxConflict
+		}
 		return []InboxItem{}, nil
 	}
 	if err != nil {
