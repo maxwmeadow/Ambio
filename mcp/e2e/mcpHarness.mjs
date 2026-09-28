@@ -24,6 +24,14 @@ const MCP_ENTRY = join(ROOT, 'mcp', 'axiom-mcp.ts')
 
 // Deliberately not archd's defaults: a running Axiom must not be disturbed,
 // and must not silently serve these requests either.
+// archd requires its local API token on every request (api/auth.go). The
+// harness sets its own, so it never reads a developer's real token.
+const API_TOKEN = 'axiom-isolated-test-token-for-mcp-harness'
+export function harnessFetch(input, init = {}) {
+  return globalThis.fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${API_TOKEN}` } })
+}
+const fetch = harnessFetch
+
 /** Asks the OS for an unused port, so parallel harnesses cannot collide. */
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -151,7 +159,7 @@ export async function startHarness(options = {}) {
     '-api-port', String(apiPort),
     '-ws-port', String(wsPort),
     '-runtime-port', String(runtimePort),
-  ], { stdio: ['pipe', 'pipe', 'pipe'] })
+  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AXIOM_API_TOKEN: API_TOKEN } })
 
   let archdLog = ''
   archd.stdout.setEncoding('utf8')
@@ -206,6 +214,7 @@ export async function startHarness(options = {}) {
       env: {
         ...process.env,
         AXIOM_API_URL: apiBase,
+        AXIOM_API_TOKEN: API_TOKEN,
         AXIOM_ACTIVE_PROJECT: activeProjectPath,
         ...(options.env ?? {}),
       },
@@ -223,6 +232,7 @@ export async function startHarness(options = {}) {
       snapshot,
       workspaceId,
       projectDir,
+      activeProjectPath,
       apiBase,
       archdLog: () => archdLog,
       stop: () => { client.close(); cleanup() },

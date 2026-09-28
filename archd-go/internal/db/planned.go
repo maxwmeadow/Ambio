@@ -154,7 +154,7 @@ func scanPlanned(rows *sql.Rows) ([]PlannedNode, error) {
 	return out, rows.Err()
 }
 
-func GetPlannedNodes(db *sql.DB, sheetID string) ([]PlannedNode, error) {
+func GetPlannedNodes(db Reader, sheetID string) ([]PlannedNode, error) {
 	rows, err := db.Query(`SELECT `+plannedCols+` FROM planned_nodes WHERE sheet_id=?`, sheetID)
 	if err != nil {
 		return nil, err
@@ -180,7 +180,10 @@ func GetPlannedNode(db *sql.DB, id string) (*PlannedNode, error) {
 // the reconciliation working set.
 func GetOpenPlannedNodes(db *sql.DB, workspaceID string) ([]PlannedNode, error) {
 	rows, err := db.Query(`SELECT `+plannedCols+` FROM planned_nodes
-		WHERE workspace_id=? AND status IN ('planned','partial') AND approval_status='approved'`, workspaceID)
+		WHERE workspace_id=? AND status IN ('planned','partial','realized') AND approval_status='approved'
+		AND kind NOT IN ('system','infra')
+		AND NOT EXISTS (SELECT 1 FROM sheet_resolutions r JOIN sheets s ON s.id=r.sheet_id
+		 WHERE r.sheet_id=planned_nodes.sheet_id AND r.revision=s.revision)`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +279,7 @@ func UpsertPlannedEdge(db *sql.DB, e *PlannedEdge) error {
 	return err
 }
 
-func GetPlannedEdges(db *sql.DB, sheetID string) ([]PlannedEdge, error) {
+func GetPlannedEdges(db Reader, sheetID string) ([]PlannedEdge, error) {
 	rows, err := db.Query(`
 		SELECT id, sheet_id, workspace_id, kind, src_planned, src_live, dst_planned, dst_live, note
 		FROM planned_edges WHERE sheet_id=?`, sheetID)

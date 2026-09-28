@@ -44,7 +44,9 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin:      func(r *http.Request) bool { return true }, // Electron origin
+	CheckOrigin: func(r *http.Request) bool {
+		return r.Header.Get("Origin") == "" || isLoopbackOrigin(r.Header.Get("Origin")) || r.Header.Get("Authorization") != ""
+	},
 	HandshakeTimeout: 5 * time.Second,
 }
 
@@ -235,7 +237,7 @@ func (s *Server) deleteWorkspace(workspaceID string) error {
 // dbFor returns the already-open database for a workspace, or an error if it
 // has not been opened yet (i.e. the workspace was never registered via POST /api/workspace).
 func (s *Server) dbFor(workspaceID string) (*sql.DB, error) {
-	if workspaceID == "" {
+	if !validWorkspaceID(workspaceID) {
 		return nil, fmt.Errorf("workspaceId is required")
 	}
 	s.mu.RLock()
@@ -360,6 +362,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	s.registerCaseRoutes(mux)
 	mux.HandleFunc("/api/agent/activity", s.handleAgentActivity)
 	mux.HandleFunc("/api/agent/presence", s.handleAgentPresence)
+	mux.HandleFunc("/api/agent/workspace", s.handleAgentWorkspace)
 	mux.HandleFunc("/api/agent/action", s.handleAgentAction)
 	mux.HandleFunc("/api/agent/actions", s.handleAgentActions)
 	mux.HandleFunc("/api/activity/hotspots", s.handleActivityHotspots)
@@ -374,12 +377,16 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	if !validWorkspaceID(r.URL.Query().Get("workspace")) {
+		jsonError(w, "workspace subscription required", 400)
+		return
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ws upgrade: %v", err)
 		return
 	}
-	s.hub.Register(conn)
+	s.hub.Register(conn, r.URL.Query().Get("workspace"))
 }
 
 // ─── Snapshot ─────────────────────────────────────────────────────────────────
@@ -604,7 +611,7 @@ func (s *Server) handleSystemByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), 500)
 			return
 		}
-		s.broadcastPatch("system:deleted", map[string]string{"id": id})
+		s.broadcastPatch("system:deleted", map[string]string{"id": id, "workspaceId": workspaceID})
 		jsonOK(w, map[string]string{"deleted": id})
 
 	case r.Method == http.MethodPost && sub == "position":
@@ -664,7 +671,7 @@ func (s *Server) handleFileByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), 500)
 			return
 		}
-		s.broadcastPatch("file:assigned", map[string]string{"fileId": id, "systemId": body.SystemID})
+		s.broadcastPatch("file:assigned", map[string]string{"fileId": id, "systemId": body.SystemID, "workspaceId": body.WorkspaceID})
 		jsonOK(w, map[string]string{"fileId": id, "systemId": body.SystemID})
 
 	case r.Method == http.MethodPost && sub == "position":
@@ -763,11 +770,15 @@ func (s *Server) handleCallPath(w http.ResponseWriter, r *http.Request) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-func (s *Server) broadcastPatch(eventType string, payload any) {
-	s.hub.Broadcast("graph:patch", map[string]any{
+func (s *Server) broadcastPatch(eventType string, payload any, workspace ...string) {
+	patch := map[string]any{
 		"type":    eventType,
 		"payload": payload,
-	})
+	}
+	if len(workspace) > 0 {
+		patch["workspaceId"] = workspace[0]
+	}
+	s.hub.Broadcast("graph:patch", patch)
 }
 
 func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {

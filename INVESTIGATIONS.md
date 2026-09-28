@@ -19,7 +19,7 @@ One MCP tool, `investigation`, with these ops:
 | `run` | `command`, `watch`, optional `hypothesis` | The evidence report (below) |
 | `verdict` | `hypothesis`, `result` (confirmed, refuted, inconclusive), `text` | Recorded; next step |
 | `note` | `text` | Anchored note |
-| `conclude` | `rootCause`, optional `fix`, `verified` (a run) | Recorded |
+| `conclude` | `text` - the root cause, optional `fix`, optional `run` that proved the fix | Recorded |
 | `stop` | - | Case saved for replay |
 | `case`, `list`, `get` | - | The case file, saved cases, one saved case |
 

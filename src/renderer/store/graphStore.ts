@@ -40,7 +40,7 @@ const AGENT_ATTENTION_MS = 2600
 // Recent actions kept in memory for the visual log; archd holds the full log.
 const AGENT_LOG_WINDOW = 300
 
-import { handleSheetPatch } from './sheetStore.ts'
+import { handleSheetPatch, refreshInbox, useSheetStore } from './sheetStore.ts'
 import type { NodeFx } from '../canvas/sceneTypes'
 import {
   editNodeFxKind,
@@ -740,6 +740,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
     }
     deltaRefreshPending = false
+    useSheetStore.setState({ workspaceId: project?.id ?? null, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
     return {
       currentProject: project,
       systems: [],
@@ -1397,24 +1398,33 @@ export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
 
   const tryConnect = () => {
     if (generation !== wsGeneration) return
-    const socket = new WebSocket(wsUrl)
+    const connectionWorkspace = useGraphStore.getState().currentProject?.id
+    const scopedUrl = new URL(wsUrl)
+    if (connectionWorkspace) scopedUrl.searchParams.set('workspace', connectionWorkspace)
+    const socket = new WebSocket(scopedUrl.toString())
     let lastSeq: number | null = null
     let resyncing = false
+    let resyncAgain = false
     let buffered: Array<{ type: string; payload: unknown; seq?: number }> = []
 
     const resyncSnapshot = async (reason: string) => {
-      if (resyncing || generation !== wsGeneration) return
+      if (generation !== wsGeneration) return
+      if (resyncing) { resyncAgain = true; return }
       const workspaceId = useGraphStore.getState().currentProject?.id
       if (!workspaceId) return
       resyncing = true
       try {
         const response = await fetch(`http://127.0.0.1:7743/api/snapshot/${workspaceId}`)
         if (!response.ok) throw new Error(`snapshot ${response.status}`)
-        useGraphStore.getState().applySnapshot(await response.json() as CanvasSnapshot)
+        const snapshot = await response.json() as CanvasSnapshot
+        if (generation !== wsGeneration || useGraphStore.getState().currentProject?.id !== workspaceId) return
+        useGraphStore.getState().applySnapshot(snapshot)
+        void refreshInbox(workspaceId)
         const pending = buffered
         buffered = []
         resyncing = false
         for (const message of pending) handleWsMessage(message)
+        if (resyncAgain) { resyncAgain = false; void resyncSnapshot('changes-during-resync') }
       } catch (error) {
         console.error(`[ws] ${reason} resync failed:`, error)
         resyncing = false
@@ -1437,6 +1447,10 @@ export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
           lastSeq !== null &&
           msg.seq !== lastSeq + 1
         if (typeof msg.seq === 'number') lastSeq = msg.seq
+        if (msg.type === 'workspace:invalidate') {
+          void resyncSnapshot('workspace-change')
+          return
+        }
         if (sequenceGap) {
           console.warn('[ws] message sequence gap; restoring graph snapshot', { received: msg.seq })
           buffered.push(msg)
@@ -1529,6 +1543,9 @@ function applyRunVisuals(run: CaseRun): void {
 
 export function handleWsMessage(msg: { type: string; payload: unknown; at?: number }): void {
   const store = useGraphStore.getState()
+  const envelope = msg.payload as { workspaceId?: string; payload?: { workspaceId?: string } } | null
+  const eventWorkspace = envelope?.workspaceId ?? envelope?.payload?.workspaceId
+  if (eventWorkspace && eventWorkspace !== store.currentProject?.id) return
   // Gate live dynamic events during replay (graph/indexing events still apply).
   if (store.replay && !replayDispatching && LIVE_GATED_TYPES.has(msg.type)) {
     return

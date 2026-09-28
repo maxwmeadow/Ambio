@@ -70,6 +70,11 @@ const SHEET_OPS: Record<string, string> = {
   create: 'create_sheet',
   add: 'add_to_sheet',
   annotate: 'annotate_sheet',
+  compare: 'compare_sheet',
+  bind: 'bind_sheet',
+  apply_nesting: 'apply_sheet_nesting',
+  resolve: 'resolve_sheet',
+  reopen: 'reopen_sheet',
 }
 
 const RUNTIME_OPS: Record<string, string> = {
@@ -181,11 +186,7 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
     }
 
     case 'get_inbox': {
-      // Polling and blocking are the same request with a different patience.
-      if (typeof args.waitSeconds === 'number' && args.waitSeconds > 0) {
-        return { tool: 'await_canvas', args: { timeoutSeconds: args.waitSeconds } }
-      }
-      return { tool: 'get_canvas_updates', args: {} }
+      return { tool: 'get_canvas_updates', args: compact({ messageId: args.messageId, expectedWorkspaceId: args.expectedWorkspaceId, messageHandle: args.messageHandle, contextOffset: args.contextOffset }) }
     }
 
     case 'get_build_plan': {

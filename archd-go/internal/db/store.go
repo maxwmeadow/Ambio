@@ -316,7 +316,7 @@ func UpsertSystem(db *sql.DB, s System) error {
 	return err
 }
 
-func GetSystems(db *sql.DB, workspaceID string) ([]System, error) {
+func GetSystems(db Reader, workspaceID string) ([]System, error) {
 	rows, err := db.Query(`
 		SELECT id, workspace_id, name, parent_id, source, color, description, agent_notes,
 		       depth, position_x, position_y, width, height, created_at, updated_at
@@ -550,7 +550,7 @@ func UpdateFileActivity(db *sql.DB, fileID string, score float64, atMs int64, co
 	return err
 }
 
-func GetFiles(db *sql.DB, workspaceID string) ([]File, error) {
+func GetFiles(db Reader, workspaceID string) ([]File, error) {
 	rows, err := db.Query(`
 		SELECT f.id, f.root_id, f.path, f.rel_path, f.language, f.system_id,
 		       f.line_count, f.churn_score, f.activity_score, f.activity_at, f.content_hash,
@@ -1033,7 +1033,7 @@ func UpsertDependency(db *sql.DB, d Dependency) error {
 	return err
 }
 
-func GetDependencies(db *sql.DB, workspaceID string) ([]Dependency, error) {
+func GetDependencies(db Reader, workspaceID string) ([]Dependency, error) {
 	rows, err := db.Query(`
 		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence
 		FROM dependencies WHERE workspace_id=?`, workspaceID)
@@ -1187,7 +1187,7 @@ func nullableJSON(m json.RawMessage) any {
 	return string(m)
 }
 
-func GetInfraNodes(db *sql.DB, workspaceID string) ([]InfraNode, error) {
+func GetInfraNodes(db Reader, workspaceID string) ([]InfraNode, error) {
 	rows, err := db.Query(`SELECT `+infraCols+` FROM infra_nodes WHERE workspace_id=?`, workspaceID)
 	if err != nil {
 		return nil, err

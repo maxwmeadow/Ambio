@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { startHarness } from './mcpHarness.mjs'
+import { startHarness, harnessFetch } from './mcpHarness.mjs'
 
 /**
  * The experiment loop, end to end through the real MCP server, archd and the
@@ -24,7 +24,7 @@ let client
 let project
 
 async function api(path, init) {
-  const res = await fetch(`${harness.apiBase}${path}`, init)
+  const res = await harnessFetch(`${harness.apiBase}${path}`, init)
   return res.json()
 }
 
@@ -121,7 +121,7 @@ test('a watch that names nothing fails before running, with the reason', async (
 
 test('closing the case leaves a timeline the canvas can replay step by step', async () => {
   const concluded = await client.callTool('investigation', {
-    op: 'conclude', rootCause: 'applyLateFee writes into DEFAULT_FEES, which every invoice shares', fix: 'copy the table per invoice',
+    op: 'conclude', text: 'applyLateFee writes into DEFAULT_FEES, which every invoice shares', fix: 'copy the table per invoice',
   })
   assert.equal(concluded.isError, false, concluded.text)
   const c = await api(`/api/investigation/case?workspace=${harness.workspaceId}`)

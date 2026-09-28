@@ -53,16 +53,20 @@ in the surface for exactly that reason.
 | `get_data_flow` | - |
 | `edit_systems` | create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect |
-| `edit_sheet` | list, get, create, add, annotate |
-| `get_inbox` | `get_canvas_updates`, `await_canvas` (via `waitSeconds`) |
+| `edit_sheet` | list, get, create, add, annotate, compare, bind, apply_nesting, resolve, reopen |
+| `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
-| `reply_to_canvas` | - |
+| `reply_to_canvas` | Transactional final reply via `messageHandle`, with safe identical retries |
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
 | `investigation` | start, hypothesis, run, verdict, note, conclude, stop, case, list, get - see INVESTIGATIONS.md |
 
 ## Debug profile - 1 tool, off by default
+
+The inbox lifecycle, workspace binding, local authentication, and migration
+contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
+Structural sheet implementation and archival are documented in [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
 
 Set `AXIOM_MCP_PROFILE=debug` to advertise:
 
@@ -85,7 +89,10 @@ Ask first whether it is a new *question* or a new *selector* on an existing
 one. A selector is a scope or an op on a tool that already exists. Only a
 genuinely new question earns a new name.
 
-The guard tests enforce: core surface ≤ 15, core schema under 3,200 tokens,
+The guard tests enforce: core surface ≤ 15, core schema under 3,400 tokens
+(raised from 3,200 on 2026-09-28 when investigation experiments and addressed
+inbox routing landed together - each was trimmed first; raise it only for a
+new capability, never for wording),
 no merged-away name re-advertised, every legacy handler still present, and no
 tool description over 460 characters.
 

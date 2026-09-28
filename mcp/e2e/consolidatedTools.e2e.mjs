@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { startHarness } from './mcpHarness.mjs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 
 /**
  * Proves the consolidated tool surface actually works end to end.
@@ -148,6 +149,48 @@ test('sheet ops route correctly', async () => {
   assert.equal(fetched.isError, false, fetched.text)
 })
 
+test('an agent finds a sheet, implements nesting, resolves it and restores it', async () => {
+  const workspaceId = harness.workspaceId
+  const post = async (path, body) => {
+    const response = await fetch(`${harness.apiBase}${path}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ workspaceId, ...body }) })
+    assert.equal(response.status,200,await response.clone().text())
+    return response.json()
+  }
+  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',source:'user' })
+  await post('/api/systems', { id:'sheet-child',name:'Sheet child',source:'user' })
+  const created = await client.callTool('edit_sheet', {op:'create',name:'Checkout structural redesign',members:['sheet-child']})
+  assert.equal(created.isError,false,created.text)
+  const sheetId = created.payload.created.id
+  await post(`/api/sheets/${sheetId}/layouts/batch`, {layouts:[{nodeId:'sheet-child',nodeType:'system',parentNodeId:'sheet-parent',parentNodeType:'system',positionX:900,positionY:800,width:400,height:300,scale:1}]})
+  const comparison = await client.callTool('edit_sheet',{op:'compare',sheet:'Checkout structural'})
+  assert.equal(comparison.isError,false,comparison.text)
+  assert.equal(comparison.payload.equivalent,false)
+  const {revision,token} = comparison.payload
+  const refused = await client.callTool('edit_sheet',{op:'resolve',sheet:sheetId,revision,token})
+  assert.equal(refused.isError,true,'must not archive unfinished structure')
+  const applied = await client.callTool('edit_sheet',{op:'apply_nesting',sheet:sheetId,nodeId:'sheet-child',revision,token})
+  assert.equal(applied.isError,false,applied.text)
+  const matched = await client.callTool('edit_sheet',{op:'compare',sheet:sheetId})
+  assert.equal(matched.payload.equivalent,true,matched.text)
+  const resolution = {op:'resolve',sheet:sheetId,revision:matched.payload.revision,token:matched.payload.token}
+  for(let i=0;i<2;i++) {
+    const result = await client.callTool('edit_sheet',resolution)
+    assert.equal(result.isError,false,result.text)
+    assert.ok(result.payload.resolvedAt)
+  }
+  const active = await client.callTool('edit_sheet',{op:'list'})
+  assert.equal(active.payload.some(sheet => sheet.id===sheetId),false)
+  const history = await client.callTool('edit_sheet',{op:'list',includeResolved:true})
+  assert.ok(history.payload.find(sheet => sheet.id===sheetId)?.resolvedAt)
+  const reopened = await client.callTool('edit_sheet',{op:'reopen',sheet:sheetId,revision:matched.payload.revision})
+  assert.equal(reopened.isError,false,reopened.text)
+  assert.equal(reopened.payload.resolvedAt,undefined)
+  await client.callTool('edit_sheet',{op:'create',name:'Checkout structural alternative'})
+  const ambiguous = await client.callTool('edit_sheet',{op:'compare',sheet:'Checkout structural'})
+  assert.equal(ambiguous.isError,true)
+  assert.match(ambiguous.text,/Ambiguous sheet/)
+})
+
 test('infra catalog and creation route correctly', async () => {
   // The service must exist in the registry, so read the catalog rather than
   // guessing a name - guessing is what a real agent would get wrong too.
@@ -187,6 +230,67 @@ test('the work session lifecycle runs through two tools', async () => {
 test('the inbox answers without blocking', async () => {
   const result = await client.callTool('get_inbox', {})
   assert.equal(result.isError, false, result.text)
+})
+
+test('an addressed canvas request requires its explicit work-order ID', async () => {
+  const id = 'addressed-e2e'
+  const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  const sent = await post('send', { id, workspaceId: harness.workspaceId, note: 'Handle only this task', deliveryMode: 'addressed' })
+  assert.equal(sent.status, 200, await sent.text())
+  const unspecific = await client.callTool('get_inbox', {})
+  assert.equal(unspecific.isError, false, unspecific.text)
+  assert.equal(unspecific.payload.messages.length, 0, 'an unspecific inbox check must not claim addressed work')
+  const wrongWorkspace = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: 'wrong-project' })
+  assert.equal(wrongWorkspace.isError, true)
+  assert.match(wrongWorkspace.text, /bound to workspace/)
+  const specific = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: harness.workspaceId })
+  assert.equal(specific.isError, false, specific.text)
+  assert.equal(specific.payload.messages[0].id, id)
+  const competitor = await post('claim', { workspaceId: harness.workspaceId, connectionId: 'another-chat', agent: 'Claude Code', messageId: id })
+  assert.equal(competitor.status, 409, await competitor.text())
+  const answer = await client.callTool('reply_to_canvas', { messageHandle: specific.payload.messages[0].messageHandle, body: 'This work order is complete.' })
+  assert.equal(answer.isError, false, answer.text)
+})
+
+test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
+  const file = harness.snapshot.files[0]
+  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }
+  const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  for (let i = 0; i < 2; i++) {
+    const sent = await post('send', body)
+    assert.equal(sent.status, 200, await sent.text())
+  }
+  // Retrieving an MCP prompt must not claim the queued instruction.
+  await client.request('prompts/get', { name: 'review-canvas' })
+  const received = await client.callTool('get_inbox')
+  assert.equal(received.isError, false, received.text)
+  assert.equal(received.payload.messages.length, 1)
+  const message = received.payload.messages[0]
+  assert.equal(message.targets[0].id, file.id)
+  assert.equal(message.leaseToken, undefined)
+  const again = await client.callTool('get_inbox')
+  assert.equal(again.payload.messages[0].messageHandle, message.messageHandle)
+  const competitor = await post('claim', { workspaceId: harness.workspaceId, connectionId: 'competitor', agent: 'Other' })
+  assert.deepEqual((await competitor.json()).messages, [])
+  const context = await client.callTool('get_inbox', { messageHandle: message.messageHandle, contextOffset: 0 })
+  assert.equal(context.isError, false, context.text)
+  assert.equal(context.payload.nextOffset, -1)
+  const previous = readFileSync(harness.activeProjectPath, 'utf8')
+  try {
+    writeFileSync(harness.activeProjectPath, JSON.stringify({ workspaceId: 'unrelated-project' }))
+    const answer = { messageHandle: message.messageHandle, body: 'This file is responsible for storage.' }
+    for (let i = 0; i < 2; i++) {
+      const reply = await client.callTool('reply_to_canvas', answer)
+      assert.equal(reply.isError, false, reply.text)
+      assert.equal(reply.payload.message.workspaceId, harness.workspaceId)
+    }
+    const changed = await client.callTool('reply_to_canvas', { ...answer, body: 'Different answer' })
+    assert.equal(changed.isError, true)
+    const history = await fetch(`${harness.apiBase}/api/canvas/history?workspace=${harness.workspaceId}`)
+    const messages = (await history.json()).messages
+    assert.equal(messages.filter(item => item.id === body.id).length, 1)
+    assert.equal(messages.find(item => item.id === body.id).reply.body, answer.body)
+  } finally { writeFileSync(harness.activeProjectPath, previous) }
 })
 
 test('agent actions are logged with targets the canvas can light up', async () => {

@@ -42,14 +42,16 @@ type agentFloorRef struct {
 }
 
 type agentSheetNode struct {
-	ID           string          `json:"id"`
-	Type         string          `json:"type"`
-	Name         string          `json:"name"`
-	Metadata     json.RawMessage `json:"metadata,omitempty"`
-	Sheet        agentPlacement  `json:"sheet"`
-	LiveFloor    *agentFloorRef  `json:"liveFloor,omitempty"`
-	Planned      bool            `json:"planned"`
-	DeclaredPath string          `json:"declaredPath,omitempty"`
+	ID              string          `json:"id"`
+	Type            string          `json:"type"`
+	Name            string          `json:"name"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	Sheet           agentPlacement  `json:"sheet"`
+	LiveFloor       *agentFloorRef  `json:"liveFloor,omitempty"`
+	Planned         bool            `json:"planned"`
+	DeclaredPath    string          `json:"declaredPath,omitempty"`
+	ApprovalStatus  string          `json:"approvalStatus,omitempty"`
+	ContainmentKind string          `json:"containmentKind,omitempty"`
 }
 
 type agentSheetEdge struct {
@@ -72,7 +74,8 @@ type agentSheetContext struct {
 // Floor identity of every referenced node. Coordinates are sheet-local; the
 // parentRef makes containment explicit, while liveFloor preserves where the
 // same entity comes from in the indexed codebase.
-func renderAgentSheetContext(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
+func renderAgentSheetContext(sqlDB db.Reader, sheet *db.Sheet, includeUnapproved ...bool) (string, error) {
+	includeDrafts := len(includeUnapproved) > 0 && includeUnapproved[0]
 	elements, err := db.GetSheetElements(sqlDB, sheet.ID)
 	if err != nil {
 		return "", err
@@ -124,7 +127,7 @@ func renderAgentSheetContext(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 	}
 	plannedByID := make(map[string]db.PlannedNode, len(planned))
 	for _, p := range planned {
-		if p.ApprovalStatus == "approved" {
+		if includeDrafts || p.ApprovalStatus == "approved" {
 			plannedByID[p.ID] = p
 		}
 	}
@@ -224,12 +227,12 @@ func renderAgentSheetContext(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 		nodes = append(nodes, n)
 	}
 	for _, p := range planned {
-		if p.ApprovalStatus != "approved" || p.Status == "flattened" {
+		if p.Status == "flattened" || (!includeDrafts && p.ApprovalStatus != "approved") {
 			continue
 		}
 		n := agentSheetNode{
 			ID: "planned:" + p.ID, Type: p.Kind, Name: p.Name, Metadata: p.Metadata,
-			Planned: true, DeclaredPath: p.DeclaredPath,
+			Planned: true, DeclaredPath: p.DeclaredPath, ApprovalStatus: p.ApprovalStatus,
 			Sheet: agentPlacement{X: p.PositionX, Y: p.PositionY, Width: p.Width, Height: p.Height, Scale: normalizedAgentScale(p.Scale), ParentRef: resolveRef(p.ParentSystemID)},
 		}
 		if p.RealizedFileID != nil {
@@ -284,6 +287,67 @@ func renderAgentSheetContext(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 		})
 	}
 
+	layouts, err := db.GetSheetLayouts(sqlDB, sheet.ID)
+	if err != nil {
+		return "", err
+	}
+	layoutByID := map[string]db.SheetLayout{}
+	for _, layout := range layouts {
+		layoutByID[layout.NodeID] = layout
+	}
+	present := map[string]bool{}
+	for _, node := range nodes {
+		key := node.ID
+		if !node.Planned && node.LiveFloor != nil {
+			key = node.LiveFloor.ID
+		}
+		present[key] = true
+	}
+	for _, layout := range layouts {
+		if present[layout.NodeID] || strings.HasPrefix(layout.NodeID, "planned:") {
+			continue
+		}
+		n := agentSheetNode{ID: layout.NodeID, Type: layout.NodeType, Name: layout.NodeID}
+		floor := &agentFloorRef{ID: layout.NodeID, URI: liveURI(layout.NodeID)}
+		switch layout.NodeType {
+		case "file":
+			if file, ok := fileByID[layout.NodeID]; ok {
+				n.Name = file.RelPath
+				floor.Path = file.RelPath
+				if file.SystemID != nil {
+					parent := liveURI(*file.SystemID)
+					floor.ParentURI = &parent
+				}
+			}
+		case "system":
+			if system, ok := sysByID[layout.NodeID]; ok {
+				n.Name = system.Name
+				if system.ParentID != nil {
+					parent := liveURI(*system.ParentID)
+					floor.ParentURI = &parent
+				}
+			}
+		case "infra":
+			if infra, ok := infraByID[layout.NodeID]; ok {
+				n.Name = infra.Name
+			}
+		}
+		applyFloorLayout(floor)
+		n.LiveFloor = floor
+		nodes = append(nodes, n)
+	}
+	for i := range nodes {
+		id := nodes[i].ID
+		if !nodes[i].Planned && nodes[i].LiveFloor != nil {
+			id = nodes[i].LiveFloor.ID
+		}
+		if layout, ok := layoutByID[id]; ok {
+			width, height := layout.Width, layout.Height
+			nodes[i].Sheet = agentPlacement{X: layout.PositionX, Y: layout.PositionY, Width: &width, Height: &height, Scale: normalizedAgentScale(layout.Scale), ParentRef: resolveRef(layout.ParentNodeID)}
+			nodes[i].ContainmentKind = layout.ContainmentKind
+		}
+	}
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
 	ctx := agentSheetContext{
 		SchemaVersion: 1,
 		Sheet:         map[string]any{"id": sheet.ID, "name": sheet.Name, "purpose": sheet.Purpose, "revision": sheet.Revision},
@@ -459,7 +523,7 @@ func renderSheetASM(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 // (UML_UX_PLAN.md REVISION 2 - "the sheet as prompt"): target additions with
 // paths and member signature tables, structural intent edges, and precise
 // live-context links so the agent doesn't search-hallucinate.
-func renderBuildSpec(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
+func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {
 	planned, err := db.GetPlannedNodes(sqlDB, sheet.ID)
 	if err != nil {
 		return "", err

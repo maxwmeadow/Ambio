@@ -134,6 +134,7 @@ export default function App() {
     })))
   const [completedAgentSetupId, setCompletedAgentSetupId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
+  const [agentSetupOpen, setAgentSetupOpen] = useState(false)
   const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
   const architectureIsAuthored = readAuthorship({
     systems: graphSystems,
@@ -435,6 +436,7 @@ export default function App() {
     setStoreProject(null)
     setCompletedAgentSetupId(null)
     setBrowsingWithoutAgent(null)
+    setAgentSetupOpen(false)
     setReviewActive(false)
     setDocumentsOpen(false)
   }, [setStoreProject])
@@ -506,24 +508,27 @@ export default function App() {
   const needsAgentSetup = currentProject && (blankProject
     ? !blankAgentSetupComplete
     : !architectureIsAuthored && browsingWithoutAgent !== currentProject.id)
-  if (currentProject && (E2E_CONNECT || (!E2E_MODE && needsAgentSetup))) {
+  if (currentProject && (E2E_CONNECT || (!E2E_MODE && (agentSetupOpen || needsAgentSetup)))) {
     return (
       <ConnectAgentScreen
         project={currentProject}
         fileCount={sourceGraphFiles.length}
         indexing={graphIndexing}
         blankProject={blankProject}
+        backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
         onComplete={() => {
           markAgentSetupComplete(currentProject.id)
           setCompletedAgentSetupId(currentProject.id)
+          setAgentSetupOpen(false)
         }}
-        onReview={() => setBrowsingWithoutAgent(currentProject.id)}
+        onReview={() => { setBrowsingWithoutAgent(currentProject.id); setAgentSetupOpen(false) }}
         onSkip={() => {
           setBrowsingWithoutAgent(currentProject.id)
+          setAgentSetupOpen(false)
           localStorage.setItem(`review_completed_${currentProject.id}`, 'true')
           setReviewActive(false)
         }}
-        onBack={closeProject}
+        onBack={agentSetupOpen ? () => setAgentSetupOpen(false) : closeProject}
       />
     )
   }
@@ -548,6 +553,7 @@ export default function App() {
         <Toolbar
           onSearch={() => setSearchOpen(true)}
           onCloseProject={closeProject}
+          onManageAgentConnections={() => setAgentSetupOpen(true)}
           projectName={currentProject.name}
           agentLogOpen={agentLogOpen}
           onToggleAgentLog={() => setAgentLogOpen(open => !open)}

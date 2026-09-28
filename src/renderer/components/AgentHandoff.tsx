@@ -1,0 +1,66 @@
+import { useEffect, useState } from 'react'
+import type { AgentHostInfo } from '../../../electron/preload'
+
+type Connection = 'checking' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
+
+export function AgentHandoff({ workspaceId, projectRoot, queued, onManageConnections }: {
+  workspaceId: string
+  projectRoot: string
+  queued: number
+  onManageConnections?: () => void
+}) {
+  const [connection, setConnection] = useState<Connection>('checking')
+  const [hostLabel, setHostLabel] = useState('')
+  const [liveDescription, setLiveDescription] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const check = async () => {
+      try {
+        const hosts = await window.axiom.listAgentHosts(projectRoot)
+        const response = await fetch(`http://127.0.0.1:7743/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
+        if (!response.ok) throw new Error('Presence unavailable')
+        const presence = await response.json() as {
+          connected?: boolean
+          connections?: Array<{ hostId: string }>
+        }
+        if (!active) return
+        const liveId = presence.connections?.find(item => item.hostId !== 'unknown')?.hostId
+        const liveHost = hosts.find((host: AgentHostInfo) => host.id === liveId)
+        const installedHost = hosts.find((host: AgentHostInfo) => host.configured && host.workflowInstalled)
+        const configuredHost = hosts.find((host: AgentHostInfo) => host.configured)
+        setHostLabel(liveHost?.label ?? installedHost?.label ?? configuredHost?.label ?? '')
+        const counts = new Map<string, number>()
+        for (const item of presence.connections ?? []) {
+          const label = hosts.find((host: AgentHostInfo) => host.id === item.hostId)?.label ?? (item.hostId === 'unknown' ? 'Unknown host' : item.hostId)
+          counts.set(label, (counts.get(label) ?? 0) + 1)
+        }
+        const hostSummary = [...counts].map(([label, count]) => count > 1 ? `${label} ×${count}` : label).join(', ')
+        setLiveDescription(`${presence.connections?.length ?? 0} MCP process${presence.connections?.length === 1 ? '' : 'es'} connected${hostSummary ? ` · ${hostSummary}` : ''}`)
+        setConnection(presence.connected ? 'live' : installedHost ? 'configured' : configuredHost ? 'repair' : 'unconfigured')
+      } catch {
+        if (active) setConnection('unavailable')
+      }
+    }
+    void check()
+    const timer = setInterval(() => { void check() }, 8000)
+    return () => { active = false; clearInterval(timer) }
+  }, [workspaceId, projectRoot])
+
+  const status = connection === 'live' ? liveDescription
+    : connection === 'configured' ? `${hostLabel || 'Agent'} configured · not connected`
+      : connection === 'repair' ? `${hostLabel || 'Agent'} setup needs repair`
+        : connection === 'unconfigured' ? 'No known local agent setup'
+        : connection === 'unavailable' ? 'Connection status unavailable'
+          : 'Checking agent connection…'
+
+  return <section className="axiom-inbox__handoff" aria-label="Agent connection and handoff">
+    <div className="axiom-inbox__handoff-status"><span className={`axiom-inbox__signal axiom-inbox__signal--${connection}`} />
+      <span>{status}</span>
+      {onManageConnections && <button type="button" onClick={onManageConnections}>Connections</button>}
+    </div>
+    {queued > 0 && <div className="axiom-inbox__handoff-next">
+      <span><strong>{queued} queued.</strong> Saved in Axiom. Use <strong>Copy handoff</strong> on the request you want a particular agent chat to handle.</span>
+    </div>}
+  </section>
+}

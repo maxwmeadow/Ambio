@@ -31,7 +31,7 @@ type FloorLayoutBatchResult struct {
 	Layouts  []FloorLayout `json:"layouts"`
 }
 
-func GetFloorLayouts(db *sql.DB, workspaceID string) ([]FloorLayout, error) {
+func GetFloorLayouts(db Reader, workspaceID string) ([]FloorLayout, error) {
 	rows, err := db.Query(`
 		SELECT workspace_id, node_id, node_type, parent_node_id, parent_node_type,
 		       containment_kind, position_x, position_y, width, height, scale,
@@ -120,7 +120,17 @@ func ApplyFloorLayoutBatch(db *sql.DB, workspaceID string, updates []FloorLayout
 		return nil, err
 	}
 	defer tx.Rollback()
+	result, err := applyFloorLayoutBatch(tx, workspaceID, updates)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
 
+func applyFloorLayoutBatch(tx *sql.Tx, workspaceID string, updates []FloorLayout) (*FloorLayoutBatchResult, error) {
 	parents := make(map[string]string)
 	rows, err := tx.Query(`SELECT node_type, node_id, parent_node_type, parent_node_id FROM floor_layouts WHERE workspace_id=?`, workspaceID)
 	if err != nil {
@@ -239,9 +249,6 @@ func ApplyFloorLayoutBatch(db *sql.DB, workspaceID string, updates []FloorLayout
 	}
 	var revision int64
 	if err := tx.QueryRow(`SELECT revision FROM floor_layout_revisions WHERE workspace_id=?`, workspaceID).Scan(&revision); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &FloorLayoutBatchResult{Revision: revision, Layouts: updates}, nil

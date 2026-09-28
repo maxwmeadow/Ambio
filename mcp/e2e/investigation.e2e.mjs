@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { startHarness } from './mcpHarness.mjs'
+import { startHarness, harnessFetch } from './mcpHarness.mjs'
 
 /**
  * Proves the debugging loop an agent actually drives.
@@ -40,7 +40,7 @@ test('a session records the work done inside it and replays as a document', asyn
   const started = await client.callTool('investigation', { op: 'start', name: 'Checkout timeout' })
   assert.equal(started.isError, false, started.text)
   assert.match(started.text, /Checkout timeout/, 'the agent is told which case it opened')
-  const open = await (await fetch(`${harness.apiBase}/api/investigation/case?workspace=${harness.workspaceId}`)).json()
+  const open = await (await harnessFetch(`${harness.apiBase}/api/investigation/case?workspace=${harness.workspaceId}`)).json()
   const id = open.case?.id
   assert.ok(id, 'a case is open')
 
@@ -70,7 +70,7 @@ test('a session records the work done inside it and replays as a document', asyn
 
   // The canvas replays the document event by event, so the timeline has to
   // be intact where the canvas reads it.
-  const doc = await (await fetch(`${harness.apiBase}/api/investigation/${id}?workspace=${harness.workspaceId}`)).json()
+  const doc = await (await harnessFetch(`${harness.apiBase}/api/investigation/${id}?workspace=${harness.workspaceId}`)).json()
   const events = doc.events ?? []
   assert.ok(events.some(event => event.type === 'investigation:note'),
     `the agent's note should be on the timeline: ${events.map(e => e.type).join(', ')}`)
