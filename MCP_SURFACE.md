@@ -1,6 +1,6 @@
 # Axiom MCP tool surface
 
-Status: consolidated 2026-07-30. 59 advertised tools → 14 core (+2 debug).
+Status: consolidated 2026-07-30. 59 advertised tools → 15 core (+1 debug).
 
 ## Why this is a budget, not a detail
 
@@ -42,7 +42,7 @@ boundaries after a build, or during first-run review, is the bidirectional
 thesis, not a risk to be gated. `edit_systems` carries the longest description
 in the surface for exactly that reason.
 
-## Core profile - 14 tools
+## Core profile - 15 tools
 
 | Tool | Absorbs |
 |---|---|
@@ -60,8 +60,9 @@ in the surface for exactly that reason.
 | `reply_to_canvas` | Transactional final reply via `messageHandle`, with safe identical retries |
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
+| `investigation` | start, hypothesis, run, verdict, note, conclude, stop, case, list, get - see INVESTIGATIONS.md |
 
-## Debug profile - 2 tools, off by default
+## Debug profile - 1 tool, off by default
 
 The inbox lifecycle, workspace binding, local authentication, and migration
 contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
@@ -72,10 +73,15 @@ Set `AXIOM_MCP_PROFILE=debug` to advertise:
 | Tool | Absorbs |
 |---|---|
 | `debug_runtime` | watch, unwatch, inject, cancel_inject, snapshot, launch, stop, log |
-| `investigation` | start, note, stop, list, get |
 
 Real capability, wrong default. A coding agent does not need value injection in
 its context to write a class.
+
+`investigation` used to sit here too. That was a mistake: gating it meant no
+agent ever saw it. It is now core, and its `run` op does what an agent debugging
+actually needs from the runtime - run the repro under observation and get the
+evidence back - without the live-watch and injection machinery. `debug_runtime`
+remains for attaching to long-running processes.
 
 ## Adding a tool
 
@@ -83,7 +89,10 @@ Ask first whether it is a new *question* or a new *selector* on an existing
 one. A selector is a scope or an op on a tool that already exists. Only a
 genuinely new question earns a new name.
 
-The guard tests enforce: core surface ≤ 15, core schema under 3,200 tokens,
+The guard tests enforce: core surface ≤ 15, core schema under 3,400 tokens
+(raised from 3,200 on 2026-09-28 when investigation experiments and addressed
+inbox routing landed together - each was trimmed first; raise it only for a
+new capability, never for wording),
 no merged-away name re-advertised, every legacy handler still present, and no
 tool description over 460 characters.
 

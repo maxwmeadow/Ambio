@@ -42,6 +42,8 @@ class AxiomRuntime {
     this.watchesByFile = new Map()
     // Injections keyed by normalized-file → array of {id, symbol, lineStart, lineEnd, paramName, value, once, consumed}
     this.injectsByFile = new Map()
+    // Set when archd launched this process as an investigation run.
+    this.recorder = require('./recorder.cjs').fromEnv()
     this._connect()
     this._heartbeat = setInterval(() => this._sendHeartbeat(), HEARTBEAT_MS)
     if (this._heartbeat.unref) this._heartbeat.unref()
@@ -49,7 +51,19 @@ class AxiomRuntime {
 
   // ── instrumentation hooks (hot path) ────────────────────────────────────────
 
-  enter(file, name, line, argsArr, paramNames) {
+  enter(file, name, line, argsArr, paramNames, self) {
+    const ctx = this._enter(file, name, line, argsArr, paramNames)
+    if (!this.recorder) return ctx
+    // Recording a run: every call carries its recorder frame, so the shared
+    // INACTIVE context cannot be reused.
+    const rf = this.recorder.enter(file, name, line, argsArr, paramNames, self)
+    // With no live watch or injection, the recorder frame is the whole
+    // context: one less allocation on every call of every function.
+    if (ctx === INACTIVE) return rf === null ? INACTIVE : rf
+    return Object.assign(ctx, { rf })
+  }
+
+  _enter(file, name, line, argsArr, paramNames) {
     const watch = this._matchWatch(file, name, line)
     const inject = this._matchInject(file, name, line)
     if (!watch && !inject) return INACTIVE
@@ -109,6 +123,8 @@ class AxiomRuntime {
   }
 
   ret(ctx, value) {
+    if (ctx && ctx.isRec) { this.recorder.ret(ctx, value); return value }
+    if (ctx && ctx.rf) this.recorder.ret(ctx.rf, value)
     if (ctx && ctx.active && !ctx.returned && !ctx.errored) {
       ctx.returned = true
       this._emit({
@@ -125,6 +141,8 @@ class AxiomRuntime {
   }
 
   error(ctx, err) {
+    if (ctx && ctx.isRec) { this.recorder.error(ctx, err); return }
+    if (ctx && ctx.rf) this.recorder.error(ctx.rf, err)
     if (ctx && ctx.active && !ctx.errored) {
       ctx.errored = true
       this._emit({
@@ -141,6 +159,8 @@ class AxiomRuntime {
   }
 
   exit(ctx) {
+    if (ctx && ctx.isRec) { this.recorder.exit(ctx); return }
+    if (ctx && ctx.rf) this.recorder.exit(ctx.rf)
     if (!ctx || !ctx.active) return
     // Function fell off the end without an explicit return and didn't throw:
     // emit a return-undefined so the canvas closes the call.
@@ -512,13 +532,28 @@ function install() {
 module.exports = { install, AxiomRuntime, safeValue, normFile }
 // Expose helpers for the bootstrap's workspace-file filter.
 module.exports.workspaceRoot = function () {
-  return process.env.AXIOM_WORKSPACE_ROOT || process.cwd()
+  const root = process.env.AXIOM_WORKSPACE_ROOT || process.cwd()
+  // Module filenames are real paths; a root reached through a symlink would
+  // never contain them.
+  try { return require('fs').realpathSync.native(root) } catch { return root }
+}
+// The same location can be spelled several ways: through a symlink, or on
+// Windows with 8.3 short names (C:\\Users\\RUNNER~1) that Node reports for
+// modules while the root resolves to the long name. Accept a file when any
+// spelling of it is inside any spelling of the root.
+const realNative = (p) => {
+  try { return require('fs').realpathSync.native(p) } catch { return p }
 }
 module.exports.pathInWorkspace = function (file, root) {
-  try {
-    const rel = path.relative(root, file)
-    return rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.split(path.sep).includes('node_modules')
-  } catch {
-    return false
+  const inside = (r, f) => {
+    try {
+      const rel = path.relative(r, f)
+      return rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.split(path.sep).includes('node_modules')
+    } catch {
+      return false
+    }
   }
+  if (inside(root, file)) return true
+  const realRoot = realNative(root)
+  return inside(realRoot, file) || inside(realRoot, realNative(file)) || inside(root, realNative(file))
 }

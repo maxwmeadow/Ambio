@@ -113,6 +113,23 @@ async function queryDb(workspaceId: string, sql: string, params: any[] = []): Pr
   return res.json() as Promise<any[]>
 }
 
+// Helper: send a trace this server assembled to the canvas, so the map animates
+// it and any running investigation records it. /api/call-path broadcasts what it
+// walks; a graph built here from SQL has no other way to reach either.
+async function postCallTrace(workspaceId: string, steps: Array<Record<string, unknown>>) {
+  if (steps.length === 0) return
+  try {
+    await fetch(`${API_BASE}/api/call-trace`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, steps }),
+    })
+  } catch (err) {
+    // Showing the trace is an aid, never a dependency of answering the agent.
+    console.error('[axiom-mcp] failed to post call trace:', err)
+  }
+}
+
 // Helper: Post agent activity log to Go backend which broadcasts to WS client UI
 async function postAgentActivity(workspaceId: string, message: string, level: 'info' | 'warn' | 'success' | 'error') {
   try {
@@ -242,9 +259,26 @@ async function canvasTrailer(workspaceId: string, toolName: string): Promise<str
   return ''
 }
 
+// Sent once at connect and placed in the agent's system prompt by clients that
+// support it. In an agent trial, tool descriptions alone never got a debugging
+// agent to use investigations: Claude Code defers MCP tools, so the agent saw
+// only a bare tool name. These instructions took adoption from none to every
+// run. They lead with what `run` does for the agent, because an agent adopts
+// a tool that helps it, not one that only helps the person watching.
+const SERVER_INSTRUCTIONS = `Axiom maps this codebase's architecture, and the person you are working with is usually watching that map while you work. Axiom can also run code under observation.
+
+When you are asked to find the cause of a bug, a wrong value, a crash, a flaky test or any other unexpected behaviour, debug through the \`investigation\` tool:
+1. op "start" with the symptom as the name.
+2. op "hypothesis" for each suspicion, in one sentence naming the function or file.
+3. op "run" to test it: the command that reproduces the problem (a test, a script, the CLI) plus \`watch\` on the functions you suspect, e.g. watch: ["src/pricing.ts:applyDiscount"]. It returns what those functions actually did while the code ran - arguments, return values, arguments they mutated, values that drift from call to call, exceptions - and which functions executed at all. This answers most "why is this value wrong" questions in one step, without editing the code to add logging.
+4. op "verdict" on the hypothesis (confirmed, refuted or inconclusive), then op "conclude" with the root cause.
+5. Fix it, op "run" the repro again to verify, and op "stop" to save the case.
+
+Keep reading and searching files the way you normally do. What you do through \`investigation\` appears on the person's map next to the code it concerns, and anything they say back to you arrives in your tool results.`
+
 const server = new Server(
   { name: 'axiom', version: '0.3.0' },
-  { capabilities: { tools: {}, prompts: {} } }
+  { capabilities: { tools: {}, prompts: {} }, instructions: SERVER_INSTRUCTIONS }
 )
 
 // ─── MCP Prompts: /axiom:review-canvas ──────────────────────────────────────
@@ -302,6 +336,101 @@ server.setRequestHandler(GetPromptRequestSchema, async (request) => {
   } }] }
 
 })
+
+
+// ─── Investigation helpers ─────────────────────────────────────────────────
+
+interface InvestigationAnchor { fileId?: string; relPath?: string; symbol?: string; line?: number }
+interface HumanMessage { id: string; text: string; anchor?: InvestigationAnchor; at: number }
+
+async function investigationPost(workspaceId: string, op: string, body: Record<string, unknown>): Promise<any> {
+  // daemonFetch gives up after 15s, which suits a lookup but not a run: a run
+  // lasts as long as the command it executes (up to 10 minutes). Wait for
+  // archd's own deadline plus room to stop the process and write the report.
+  const runSeconds = Math.min(600, Number(body.timeoutSec) > 0 ? Number(body.timeoutSec) : 60)
+  const signal = op === 'run' ? AbortSignal.timeout((runSeconds + 30) * 1000) : undefined
+  const res = await fetch(`${API_BASE}/api/investigation/${op}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, ...body }),
+    signal,
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = text
+    try { msg = JSON.parse(text).error ?? text } catch { /* plain text */ }
+    throw new Error(msg)
+  }
+  return JSON.parse(text)
+}
+
+function anchorText(anchors?: InvestigationAnchor[]): string {
+  if (!anchors?.length) return ''
+  const parts = anchors.map(a => a.symbol ? `${a.relPath} › ${a.symbol}` : a.relPath).filter(Boolean)
+  return parts.length ? ` on ${parts.join(', ')}` : ''
+}
+
+function renderCase(c: any): string {
+  const lines = [`Case: ${c.name}${c.symptom ? ` - ${c.symptom}` : ''}`]
+  for (const h of c.hypotheses ?? []) {
+    lines.push(`  ${h.id} [${h.status}] ${h.text}${h.verdict ? ` - ${h.verdict}` : ''}`)
+  }
+  for (const r of c.runs ?? []) {
+    lines.push(`  R${r.n} \`${r.command}\` exit ${r.exitCode}${r.hypothesisId ? ` (${r.hypothesisId})` : ''}: ${r.headline}`)
+  }
+  if (c.conclusion) {
+    lines.push(`  Root cause: ${c.conclusion.rootCause}`)
+    if (c.conclusion.fix) lines.push(`  Fix: ${c.conclusion.fix}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * The commands a project already uses to run itself - what an agent should
+ * reach for as a reproduction before writing a new script.
+ */
+function reproCommands(rootPath: string): string[] {
+  const out: string[] = []
+  try {
+    const pkg = JSON.parse(fs.readFileSync(join(rootPath, 'package.json'), 'utf8'))
+    const runner = fs.existsSync(join(rootPath, 'pnpm-lock.yaml')) ? 'pnpm'
+      : fs.existsSync(join(rootPath, 'yarn.lock')) ? 'yarn' : 'npm'
+    for (const name of Object.keys(pkg.scripts ?? {})) {
+      if (/^(pre|post)/.test(name) || /^(build|lint|format|dev|start|watch|prepare|release)/.test(name)) continue
+      out.push(name === 'test' ? `${runner} test` : `${runner} run ${name}`)
+      if (out.length >= 6) break
+    }
+  } catch { /* no package.json */ }
+  if (fs.existsSync(join(rootPath, 'pytest.ini')) || fs.existsSync(join(rootPath, 'pyproject.toml')) || fs.existsSync(join(rootPath, 'tests'))) {
+    if (fs.existsSync(join(rootPath, 'pyproject.toml')) || fs.existsSync(join(rootPath, 'pytest.ini'))) out.push('pytest')
+  }
+  if (fs.existsSync(join(rootPath, 'go.mod'))) out.push('go test ./...')
+  if (fs.existsSync(join(rootPath, 'Cargo.toml'))) out.push('cargo test')
+  return out
+}
+
+/**
+ * Messages the person watching sent from the canvas. Every tool result is a
+ * chance to deliver them, in every MCP client, so they are appended to
+ * whatever the agent called - not only investigation ops.
+ */
+async function takeHumanMessages(workspaceId: string): Promise<HumanMessage[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/investigation/pending?workspace=${encodeURIComponent(workspaceId)}`)
+    if (!res.ok) return []
+    return ((await res.json()) as any).humanMessages ?? []
+  } catch {
+    return []
+  }
+}
+
+function humanMessagesText(messages: HumanMessage[]): string {
+  if (messages.length === 0) return ''
+  const lines = messages.map(m => {
+    const where = m.anchor?.relPath ? ` (pointing at ${m.anchor.relPath}${m.anchor.symbol ? ` › ${m.anchor.symbol}` : ''})` : ''
+    return `> ${m.text}${where}`
+  })
+  return `\n\n--- The person watching your investigation says:\n${lines.join('\n')}\nTake this into account, and answer it in your next note or hypothesis.`
+}
 
 // ─── Tool list ─────────────────────────────────────────────────────────────
 
@@ -510,7 +639,7 @@ const CORE_TOOLS = [
   },
   {
     name: 'start_work',
-    description: "Declare what you are about to build, BEFORE editing files. Every structural change you then make is recorded under this goal, so the human's Morning Delta shows your intent next to its architectural effect instead of bare topology. Call this at the start of any multi-file task.",
+    description: "Declare what you are about to build, BEFORE editing files. Every structural change you then make is recorded under this goal, so the human's Morning Delta shows your intent next to its architectural effect instead of bare topology. Call this at the start of any multi-file task. Debugging instead? Use `investigation`.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -533,6 +662,30 @@ const CORE_TOOLS = [
       },
     },
   },
+  {
+    name: 'investigation',
+    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        op: { type: 'string' },
+        name: { type: 'string', description: 'start: the symptom' },
+        text: { type: 'string', description: 'hypothesis, note, verdict reason, conclude root cause' },
+        command: { type: 'string', description: 'run: the repro, as typed in a terminal' },
+        watch: { type: 'array', items: { type: 'string' }, description: '"file.ts:fn", "fn" or a file' },
+        hypothesis: { type: 'string', description: 'e.g. H1' },
+        result: { type: 'string', description: 'confirmed | refuted | inconclusive' },
+        run: { type: 'string', description: 'e.g. R2: the deciding run, or the one proving a fix' },
+        fix: { type: 'string' },
+        file: { type: 'string' },
+        symbol: { type: 'string' },
+        cwd: { type: 'string' },
+        timeoutSec: { type: 'number' },
+        id: { type: 'string' },
+      },
+      required: ['op'],
+    },
+  },
 ]
 
 const DEBUG_PROFILE_TOOLS = [
@@ -553,20 +706,6 @@ const DEBUG_PROFILE_TOOLS = [
         cwd: { type: 'string' },
         language: { type: 'string' },
         targetId: { type: 'string' },
-      },
-      required: ['op'],
-    },
-  },
-  {
-    name: 'investigation',
-    description: 'Record a debugging session as a replayable timeline. ops: start | note | stop | list | get.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        op: { type: 'string' },
-        name: { type: 'string' },
-        text: { type: 'string' },
-        id: { type: 'string' },
       },
       required: ['op'],
     },
@@ -599,6 +738,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     loggedWorkspaceId = project.workspaceId
     loggedWorkSession = activeWorkSessions.get(project.workspaceId)
     let result: unknown
+    // Human messages an investigation endpoint already took off the queue.
+    let pendingFromResult: HumanMessage[] | undefined
 
     // Consolidated tools are rewritten into the legacy call that already
     // implements them. Legacy names still work when called directly - they are
@@ -1438,6 +1579,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           currentFrontier = nextFrontier
         }
         
+        // The canvas animates call:trace and the recorder captures it. Without
+        // this the fileIds shape - the one the tool description sends agents to
+        // - drew nothing and recorded only a prose line.
+        await postCallTrace(project.workspaceId, dependencies.map(dep => ({
+          callerFile: dep.callerFileId,
+          callerSymbol: dep.callerSymbol,
+          calleeFile: dep.calleeFileId,
+          calleeSymbol: dep.calleeSymbol,
+          callCount: dep.callCount ?? 1,
+        })))
+
         result = dependencies
         break
       }
@@ -1680,37 +1832,96 @@ Steps to execute:
       }
 
       case 'start_investigation': {
-        const name = (args.name as string) ?? ''
-        const res = await fetch(`${API_BASE}/api/investigation/start`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: project.workspaceId, name }),
+        const name = ((args.name as string) ?? (args.symptom as string) ?? '').trim()
+        const data = await investigationPost(project.workspaceId, 'start', { name, symptom: args.symptom })
+        const commands = reproCommands(project.rootPath)
+        result = [
+          `Case open: "${data.name}"${data.commit ? ` (pinned to ${String(data.commit).slice(0, 8)})` : ''}. The person watching sees it on their map.`,
+          '',
+          'Next: state what you suspect with op "hypothesis", then test it with op "run" - the command that reproduces the problem, plus `watch` on the functions you suspect.',
+          commands.length ? `Commands in this project: ${commands.join(' · ')}` : '',
+        ].filter(Boolean).join('\n')
+        await postAgentActivity(project.workspaceId, `Agent opened a case: ${data.name}`, 'success')
+        break
+      }
+
+      case 'investigation_hypothesis': {
+        const data = await investigationPost(project.workspaceId, 'hypothesis', {
+          text: args.text ?? args.name, file: args.file, symbol: args.symbol,
         })
-        if (!res.ok) throw new Error(`start_investigation failed: ${await res.text()}`)
-        result = await res.json()
-        await postAgentActivity(project.workspaceId, `Agent started investigation "${name || 'untitled'}" - recording`, 'success')
+        pendingFromResult = data.humanMessages
+        const h = data.hypothesis
+        result = `${h.id} recorded${anchorText(h.anchors)}. Test it: op "run" with hypothesis "${h.id}", the repro command, and watch on the functions involved.` +
+          (data.openedCase ? '\n(No case was open, so one was opened for you.)' : '')
+        break
+      }
+
+      case 'investigation_run': {
+        const watch = Array.isArray(args.watch) ? args.watch : args.watch ? [args.watch] : []
+        const data = await investigationPost(project.workspaceId, 'run', {
+          command: args.command,
+          watch,
+          cwd: args.cwd,
+          timeoutSec: args.timeoutSec ?? args.timeout,
+          hypothesis: args.hypothesis,
+        })
+        pendingFromResult = data.humanMessages
+        result = data.report + (data.openedCase ? '\n(No case was open, so this run opened one.)' : '')
+        break
+      }
+
+      case 'investigation_verdict': {
+        const data = await investigationPost(project.workspaceId, 'verdict', {
+          hypothesis: args.hypothesis ?? args.id,
+          result: args.result ?? args.status,
+          text: args.text,
+          run: args.run,
+        })
+        pendingFromResult = data.humanMessages
+        const h = data.hypothesis
+        result = `${h.id} marked ${h.status}.` + (h.status === 'confirmed'
+          ? ' When you know the root cause, op "conclude" with it as text (and fix once you have one).'
+          : ' State the next suspicion with op "hypothesis".')
         break
       }
 
       case 'annotate_investigation': {
-        const text = args.text as string
-        const res = await fetch(`${API_BASE}/api/investigation/note`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: project.workspaceId, text }),
+        const data = await investigationPost(project.workspaceId, 'note', {
+          text: args.text, file: args.file, symbol: args.symbol,
         })
-        if (!res.ok) throw new Error(`annotate_investigation failed: ${await res.text()}`)
-        result = await res.json()
-        await postAgentActivity(project.workspaceId, `📝 ${text}`, 'info')
+        pendingFromResult = data.humanMessages
+        result = `Noted${anchorText(data.anchors)}.`
+        break
+      }
+
+      case 'investigation_conclude': {
+        const data = await investigationPost(project.workspaceId, 'conclude', {
+          rootCause: args.rootCause ?? args.text,
+          file: args.file,
+          symbol: args.symbol,
+          fix: args.fix,
+          verified: args.verified ?? args.run,
+        })
+        pendingFromResult = data.humanMessages
+        result = `Root cause recorded${anchorText(data.conclusion.anchors)}. ` +
+          (data.conclusion.verified
+            ? 'Verified by a run. Call op "stop" to save the case.'
+            : 'After fixing, run the repro again to verify, conclude again with that run as `run`, then op "stop".')
         break
       }
 
       case 'stop_investigation': {
-        const res = await fetch(`${API_BASE}/api/investigation/stop`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: project.workspaceId }),
-        })
-        if (!res.ok) throw new Error(`stop_investigation failed: ${await res.text()}`)
-        result = await res.json()
-        await postAgentActivity(project.workspaceId, `Agent saved investigation ${(result as any).id}`, 'success')
+        const data = await investigationPost(project.workspaceId, 'stop', {})
+        result = `Case saved (${data.id}): ${data.eventCount} events over ${Math.round((data.durationMs ?? 0) / 1000)}s. The person can replay it from Investigations on their map.`
+        await postAgentActivity(project.workspaceId, `Agent closed the case ${data.name ?? data.id}`, 'success')
+        break
+      }
+
+      case 'investigation_case': {
+        const res = await fetch(`${API_BASE}/api/investigation/case?workspace=${encodeURIComponent(project.workspaceId)}`)
+        if (!res.ok) throw new Error(`case failed: ${await res.text()}`)
+        const c = (await res.json() as any).case
+        result = c ? renderCase(c) : 'No case is open. Start one with op "start".'
         break
       }
 
@@ -1725,7 +1936,9 @@ Steps to execute:
         const id = args.id as string
         const res = await fetch(`${API_BASE}/api/investigation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(project.workspaceId)}`)
         if (!res.ok) throw new Error(`get_investigation failed: ${await res.text()}`)
-        result = await res.json()
+        const inv = await res.json() as any
+        // The whole timeline can be megabytes; the case file is what a reader wants.
+        result = renderCase(inv) + `\n\n${inv.events?.length ?? 0} timeline events, ${Math.round((inv.durationMs ?? 0) / 1000)}s.`
         break
       }
 
@@ -2167,7 +2380,8 @@ Steps to execute:
       project.workspaceId, name, callerArgs, result, startedAt, undefined, loggedWorkSession,
     )
 
-    const trailer = await canvasTrailer(project.workspaceId, call)
+    const human = [...(pendingFromResult ?? []), ...(await takeHumanMessages(project.workspaceId))]
+    const trailer = await canvasTrailer(project.workspaceId, call) + humanMessagesText(human)
     return {
       ...(result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result as Record<string, unknown> } : {}),
       content: [{

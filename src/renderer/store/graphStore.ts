@@ -18,6 +18,16 @@ import type {
 } from '../../shared/types'
 import { apiAckDelta, apiGetAgentActions, apiGetDelta } from '../canvas/arcdApi.ts'
 import {
+  CASE_EVENT_TYPES,
+  caseFromState,
+  emptyCase,
+  reduceCase,
+  traceStepsForRun,
+  type CaseAnchor,
+  type CaseFile,
+  type CaseRun,
+} from './caseFile.ts'
+import {
   agentAttentionFor,
   expireAttention,
   mergeAttention,
@@ -133,6 +143,8 @@ export interface ReplayState {
   name: string
   commit: string
   branch: string
+  /** When the captured investigation began - replayed events are placed on its clock. */
+  startedAt: number
   events: CapturedEvent[]
   cursor: number   // index of the last-applied event; -1 = nothing applied yet
   playing: boolean
@@ -264,7 +276,41 @@ interface GraphState {
 
   // Investigation replay (Phase 8) - re-feeds captured events through the live
   // render path so a saved investigation plays back on the canvas.
+  /**
+   * The recording happening right now, agent-started or human-started. The
+   * canvas showed nothing while an agent recorded, so a watcher could not tell
+   * a live investigation from an idle one.
+   */
+  activeInvestigation: {
+    id: string
+    name: string
+    startedAt: number
+    eventCount: number
+    origin: string
+  } | null
   replay: ReplayState | null
+  /**
+   * The investigation as the person watching sees it: hypotheses, runs and
+   * their evidence, verdicts, notes, the conclusion, and the conversation.
+   * Folded from investigation:* events (caseFile.ts), live or replayed.
+   */
+  caseFile: CaseFile | null
+  /** The watcher closed the panel for this case id; it reopens for the next case. */
+  caseDismissedId: string | null
+  applyCaseEvent: (type: string, payload: unknown, at?: number) => void
+  loadCase: (workspaceId: string) => Promise<void>
+  dismissCase: () => void
+  showCase: () => void
+  sendCaseMessage: (text: string, anchor?: CaseAnchor) => Promise<void>
+  beginInvestigation: (
+    id: string,
+    name: string,
+    startedAt?: number,
+    eventCount?: number,
+    origin?: string,
+  ) => void
+  endInvestigation: () => void
+  countInvestigationEvent: () => void
   startReplay: (doc: InvestigationDoc) => void
   stopReplay: () => void
   replaySeek: (index: number) => void      // reset visuals + apply events[0..index]
@@ -489,23 +535,95 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     dataFlow: flow ? { variable: flow.variable, fileIds: new Set(flow.fileIds) } : null,
   }),
 
+  activeInvestigation: null,
   replay: null,
+  caseFile: null,
+  caseDismissedId: null,
+  applyCaseEvent: (type, payload, at) => {
+    const before = get().caseFile
+    const next = reduceCase(before, type, payload, at ?? Date.now())
+    if (next === before) return
+    set({ caseFile: next })
+    if (type === 'investigation:run' && next) {
+      const run = next.runs.at(-1)
+      if (run) applyRunVisuals(run)
+    }
+  },
+  loadCase: async (workspaceId) => {
+    if (get().replay) return
+    try {
+      const res = await fetch(`http://127.0.0.1:7743/api/investigation/case?workspace=${encodeURIComponent(workspaceId)}`)
+      if (!res.ok) return
+      const body = await res.json() as { case?: unknown }
+      const hydrated = caseFromState(body.case)
+      // Keep a closed case on screen: the watcher may not have read it yet.
+      if (hydrated || get().caseFile?.status !== 'closed') set({ caseFile: hydrated })
+    } catch {
+      // archd unreachable - the panel simply stays as it was
+    }
+  },
+  dismissCase: () => {
+    const c = get().caseFile
+    if (!c) return
+    if (c.status === 'closed') set({ caseFile: null, caseDismissedId: null })
+    else set({ caseDismissedId: c.id })
+  },
+  showCase: () => set({ caseDismissedId: null }),
+  sendCaseMessage: async (text, anchor) => {
+    const workspaceId = get().currentProject?.id
+    if (!workspaceId || !text.trim()) return
+    const res = await fetch('http://127.0.0.1:7743/api/investigation/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, text, fileId: anchor?.fileId, symbol: anchor?.symbol }),
+    })
+    if (!res.ok) {
+      let message = await res.text()
+      try { message = JSON.parse(message).error ?? message } catch { /* plain text */ }
+      throw new Error(message)
+    }
+  },
   resetRuntimeVisuals: () => set({
     runtimeSessions: [], runtimeWatches: {}, runtimeNodes: {}, runtimeInjections: {},
     activeTrace: null, dataFlow: null,
   }),
+  beginInvestigation: (id, name, startedAt, eventCount, origin) => set({
+    activeInvestigation: {
+      id,
+      name,
+      origin: origin ?? 'agent',
+      // Defaults are for a recording that starts now, via the live broadcast.
+      // Reconciling with archd passes the real values instead.
+      startedAt: startedAt ?? Date.now(),
+      eventCount: eventCount ?? 0,
+    },
+  }),
+  endInvestigation: () => set({ activeInvestigation: null }),
+  countInvestigationEvent: () => set(state => (state.activeInvestigation
+    ? {
+        activeInvestigation: {
+          ...state.activeInvestigation,
+          eventCount: state.activeInvestigation.eventCount + 1,
+        },
+      }
+    : {})),
   startReplay: (doc) => {
     get().resetRuntimeVisuals()
     set({
       replay: {
         id: doc.id, name: doc.name, commit: doc.commit, branch: doc.branch,
+        startedAt: doc.createdAt ?? Date.now(),
         events: doc.events ?? [], cursor: -1, playing: false,
       },
+      caseFile: emptyCase(doc.id, doc.name, 'replay', 'agent', doc.createdAt ?? Date.now()),
+      caseDismissedId: null,
     })
   },
   stopReplay: () => {
     get().resetRuntimeVisuals()
-    set({ replay: null })
+    set({ replay: null, caseFile: null })
+    const workspaceId = get().currentProject?.id
+    if (workspaceId) void get().loadCase(workspaceId)
   },
   replayNext: () => {
     const rp = get().replay
@@ -522,6 +640,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const target = Math.max(-1, Math.min(index, rp.events.length - 1))
     // Reset visuals and re-apply from the start for a deterministic frame.
     get().resetRuntimeVisuals()
+    set({ caseFile: emptyCase(rp.id, rp.name, 'replay', 'agent', rp.startedAt) })
     for (let i = 0; i <= target; i++) dispatchReplayEvent(rp.events[i])
     set({ replay: { ...get().replay!, cursor: target } })
   },
@@ -1368,19 +1487,61 @@ const LIVE_GATED_TYPES = new Set([
   'runtime:call', 'runtime:return', 'runtime:exception', 'runtime:rate_limit',
   'runtime:watch', 'runtime:unwatch', 'runtime:session', 'runtime:inject',
   'runtime:inject_pending', 'call:trace', 'data:flow', 'agent:activity',
-  'investigation:note',
+  'investigation:note', ...CASE_EVENT_TYPES,
 ])
 
 function dispatchReplayEvent(ev: CapturedEvent): void {
   replayDispatching = true
   try {
-    handleWsMessage({ type: ev.type, payload: ev.payload })
+    const startedAt = useGraphStore.getState().replay?.startedAt ?? 0
+    handleWsMessage({ type: ev.type, payload: ev.payload, at: startedAt + (ev.offsetMs ?? 0) })
   } finally {
     replayDispatching = false
   }
 }
 
-export function handleWsMessage(msg: { type: string; payload: unknown }): void {
+// A run's evidence, drawn on the map with the same visuals as live runtime
+// watches: the cross-file calls that actually happened animate as a trace, and
+// each watched function's file carries its call count and last real values.
+let runTraceClearTimer: ReturnType<typeof setTimeout> | null = null
+function applyRunVisuals(run: CaseRun): void {
+  const store = useGraphStore.getState()
+  const steps = traceStepsForRun(run)
+  if (steps.length > 0) {
+    store.setActiveTrace(steps)
+    if (runTraceClearTimer) clearTimeout(runTraceClearTimer)
+    runTraceClearTimer = setTimeout(() => {
+      if (useGraphStore.getState().activeTrace === steps) useGraphStore.getState().setActiveTrace(null)
+      runTraceClearTimer = null
+    }, 45_000)
+  }
+  if (run.watched.length === 0) return
+  const nodes = { ...store.runtimeNodes }
+  for (const w of run.watched) {
+    const fileId = w.anchor?.fileId
+    if (!fileId) continue
+    const prev = nodes[fileId]
+    const last = w.samples?.at(-1)
+    const finding = run.findings.find(f => f.anchor?.fileId === fileId && f.severity !== 'info')
+    nodes[fileId] = {
+      watchedSymbols: [...new Set([...(prev?.watchedSymbols ?? []), w.anchor.symbol ?? ''])].filter(Boolean),
+      callCount: w.calls,
+      pulseKey: (prev?.pulseKey ?? 0) + 1,
+      lastKind: w.errors > 0 ? 'exception' : 'return',
+      lastLabel: finding ? finding.text.replace(/`/g, '') : `${w.anchor.symbol} ×${w.calls}`,
+      rateLimited: false,
+      injection: null,
+      verdict: null,
+      lastSymbol: w.anchor.symbol ?? '',
+      lastArgs: last?.args ?? '',
+      lastReturn: last?.returned ?? '',
+      lastException: last?.threw ?? '',
+    }
+  }
+  useGraphStore.setState({ runtimeNodes: nodes })
+}
+
+export function handleWsMessage(msg: { type: string; payload: unknown; at?: number }): void {
   const store = useGraphStore.getState()
   const envelope = msg.payload as { workspaceId?: string; payload?: { workspaceId?: string } } | null
   const eventWorkspace = envelope?.workspaceId ?? envelope?.payload?.workspaceId
@@ -1388,6 +1549,11 @@ export function handleWsMessage(msg: { type: string; payload: unknown }): void {
   // Gate live dynamic events during replay (graph/indexing events still apply).
   if (store.replay && !replayDispatching && LIVE_GATED_TYPES.has(msg.type)) {
     return
+  }
+  // These are precisely the types archd records, so the live count matches
+  // what the capture will contain.
+  if (store.activeInvestigation && !replayDispatching && LIVE_GATED_TYPES.has(msg.type)) {
+    store.countInvestigationEvent()
   }
   switch (msg.type) {
     case 'graph:snapshot':
@@ -1413,6 +1579,37 @@ export function handleWsMessage(msg: { type: string; payload: unknown }): void {
       // event for both paths and closes the explicit beginIndexing boundary.
       store.setIndexingComplete()
       void store.loadDelta()
+      break
+    case 'investigation:started': {
+      const started = msg.payload as { id?: string; name?: string; origin?: string }
+      store.beginInvestigation(
+        started?.id ?? '',
+        started?.name ?? 'Investigation',
+        undefined,
+        undefined,
+        started?.origin,
+      )
+      // An adopted auto-recording keeps its id; everything else is a new case.
+      if (store.caseFile?.id !== started?.id || store.caseFile?.status !== 'live') {
+        store.applyCaseEvent(msg.type, msg.payload, msg.at)
+      } else if (started?.name) {
+        useGraphStore.setState({ caseFile: { ...store.caseFile, name: started.name } })
+      }
+      break
+    }
+    case 'investigation:stopped':
+      store.endInvestigation()
+      store.applyCaseEvent(msg.type, msg.payload, msg.at)
+      break
+    case 'investigation:note':
+    case 'investigation:hypothesis':
+    case 'investigation:verdict':
+    case 'investigation:run_started':
+    case 'investigation:run':
+    case 'investigation:conclusion':
+    case 'investigation:message':
+    case 'investigation:message_delivered':
+      store.applyCaseEvent(msg.type, msg.payload, msg.at)
       break
     case 'agent:action':
       store.applyAgentAction(msg.payload as AgentAction)

@@ -317,8 +317,17 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
         }),
       })
       if (response.status === 409) {
+        // 409 covers several conflicts. Only a stale revision means the
+        // proposal changed underneath the reviewer; anything else (a name
+        // clash, an unapproved parent) must be shown as it is, or the user is
+        // told to retry something that can never succeed.
+        let reason = await response.text()
+        try { reason = JSON.parse(reason).error ?? reason } catch { /* plain text */ }
         await get().load(proposal.workspaceId)
-        throw new Error('This proposal changed while you were finishing it. Review the refreshed map and try again.')
+        if (/stale proposal revision/.test(reason)) {
+          throw new Error('This proposal changed while you were finishing it. Review the refreshed map and try again.')
+        }
+        throw new Error(`Could not finish the review: ${reason}`)
       }
       if (!response.ok) throw new Error(await response.text())
       const body = await response.json() as FinalizeProposalResponse

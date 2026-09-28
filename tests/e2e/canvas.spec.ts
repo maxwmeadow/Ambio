@@ -1648,7 +1648,7 @@ test('opens saved investigations and controls replay through the workbench trans
   await expect(replay).toBeVisible()
   await expect(replay).toContainText('fix/checkout@9fc31ab4')
   await expect(replay).toContainText('0/2')
-  await expect(replay).toContainText('Ready to replay')
+  await expect(replay).toContainText('Press Play to watch it unfold')
   await expect(timeline).toHaveValue('-1')
   await expect.poll(() => replay.evaluate(element => {
     const style = getComputedStyle(element)
@@ -1850,7 +1850,9 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await selectionActions.getByRole('button', { name: 'Message agent', exact: true }).click()
   const agentDialog = page.getByRole('complementary', { name: 'Agent inbox' })
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
-  await expect(agentDialog).toContainText('Send context here, then ask your agent')
+  // Addressed inbox routing: a send creates a work order the user hands to a
+  // chat of their choosing, instead of asking any agent to drain the queue.
+  await expect(agentDialog).toContainText('Send here, then hand the request')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
   await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()

@@ -6,6 +6,8 @@ import { SendToAgentDialog } from './SendToAgentDialog'
 import { useSheetStore, refreshInbox } from '../store/sheetStore'
 import { ChromeButton } from './ui/ChromeButton'
 import { InvestigationsMenu } from './InvestigationsMenu'
+import { RecordingControl } from './RecordingControl'
+import { WindowControls } from './ui/WindowControls'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -44,6 +46,7 @@ export function Toolbar({
   }, [workspaceId])
 
   useEffect(() => {
+    void window.axiom?.setTitleBarHeight?.(34)
     const openDispatch = () => setAgentMsgOpen(true)
     window.addEventListener('axiom:open-agent-dispatch', openDispatch)
     return () => window.removeEventListener('axiom:open-agent-dispatch', openDispatch)
@@ -66,6 +69,7 @@ export function Toolbar({
         <div className={isIndexing ? 'axiom-title-strip__status axiom-title-strip__status--busy' : 'axiom-title-strip__status'}>
           {isIndexing ? 'INDEXING SOURCE…' : 'INDEX CLEAN'}
         </div>
+        <WindowControls />
       </div>
 
       <div className="axiom-command-strip">
@@ -98,6 +102,7 @@ export function Toolbar({
               <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
             </svg>
           </ChromeButton>
+          <RecordingControl workspaceId={workspaceId} />
           <InvestigationsMenu workspaceId={workspaceId} />
           <ChromeButton
             onClick={onToggleAgentLog}

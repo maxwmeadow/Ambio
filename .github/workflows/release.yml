@@ -32,7 +32,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: archd-go/go.mod
+          # go.mod's `go 1.22` is the minimum language version, not the
+          # toolchain. Resolving it gave CI go1.22.12, whose internal linker
+          # omits LC_UUID and current macOS refuses to load its test binaries.
+          # Build with the toolchain development uses.
+          go-version: '1.27.x'
           cache-dependency-path: archd-go/go.sum
 
       - name: Put mingw64 on PATH

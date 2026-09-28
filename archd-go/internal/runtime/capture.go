@@ -36,6 +36,15 @@ var recordableTypes = map[string]bool{
 	"data:flow":              true,
 	"agent:activity":         true,
 	"investigation:note":     true,
+	// The case file (case.go): hypotheses, experiments, verdicts, conclusion,
+	// and the human's side of the conversation.
+	"investigation:hypothesis":        true,
+	"investigation:verdict":           true,
+	"investigation:run_started":       true,
+	"investigation:run":               true,
+	"investigation:conclusion":        true,
+	"investigation:message":           true,
+	"investigation:message_delivered": true,
 }
 
 // CapturedEvent is one entry in an investigation timeline.
@@ -47,15 +56,33 @@ type CapturedEvent struct {
 
 // Investigation is a recorded (or recording) agent session.
 type Investigation struct {
-	ID          string          `json:"id"`
-	WorkspaceID string          `json:"workspaceId"`
-	Name        string          `json:"name"`
-	Commit      string          `json:"commit"` // git SHA at capture time
-	Branch      string          `json:"branch"`
-	CreatedAt   int64           `json:"createdAt"`
-	DurationMs  int64           `json:"durationMs"`
-	Status      string          `json:"status"` // 'recording' | 'saved'
-	Events      []CapturedEvent `json:"events"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Name        string `json:"name"`
+	Commit      string `json:"commit"` // git SHA at capture time
+	Branch      string `json:"branch"`
+	CreatedAt   int64  `json:"createdAt"`
+	DurationMs  int64  `json:"durationMs"`
+	Status      string `json:"status"` // 'recording' | 'saved'
+	// Origin says who began it: an agent that asked, the human pressing record,
+	// or Axiom noticing the agent had started investigating. A recording Axiom
+	// started closes itself once activity stops; one that was asked for never
+	// does - ending it is the caller's decision, not a timeout's.
+	Origin string `json:"origin"` // 'agent' | 'human' | 'auto'
+	// EventCount lets a caller report how much has been captured without
+	// shipping the timeline. ActiveInvestigation omits Events, so without this
+	// a window joining a recording already in progress could only show zero.
+	EventCount int             `json:"eventCount"`
+	Events     []CapturedEvent `json:"events"`
+
+	// The case file (case.go). Kept alongside the timeline so a saved capture
+	// opens straight to its conclusion instead of making the reader replay it.
+	Symptom    string         `json:"symptom,omitempty"`
+	Hypotheses []Hypothesis   `json:"hypotheses,omitempty"`
+	Runs       []RunRef       `json:"runs,omitempty"`
+	Conclusion *Conclusion    `json:"conclusion,omitempty"`
+	Messages   []HumanMessage `json:"messages,omitempty"`
+	Notes      []CaseNote     `json:"notes,omitempty"`
 
 	// CanvasSnapshot is attached at save time so a fresh viewer can position
 	// nodes even if the live graph has since changed. Opaque to the recorder.
@@ -96,7 +123,7 @@ func (m *Manager) recordTap(msgType string, payload json.RawMessage) {
 // StartInvestigation begins recording for a workspace. commit/branch are
 // resolved by the caller (git in the workspace root). Only one recording per
 // workspace; starting a new one supersedes any in progress.
-func (m *Manager) StartInvestigation(workspaceID, name, commit, branch string) *Investigation {
+func (m *Manager) StartInvestigation(workspaceID, name, commit, branch, origin string) *Investigation {
 	if name == "" {
 		name = "Investigation " + time.Now().Format("2006-01-02 15:04")
 	}
@@ -108,6 +135,7 @@ func (m *Manager) StartInvestigation(workspaceID, name, commit, branch string) *
 		Branch:      branch,
 		CreatedAt:   time.Now().UnixMilli(),
 		Status:      "recording",
+		Origin:      origin,
 		Events:      make([]CapturedEvent, 0, 64),
 		start:       time.Now(),
 	}
@@ -119,25 +147,36 @@ func (m *Manager) StartInvestigation(workspaceID, name, commit, branch string) *
 		"workspaceId": workspaceID,
 		"id":          inv.ID,
 		"name":        inv.Name,
+		"origin":      inv.Origin,
 	})
 	return inv
 }
 
 // AnnotateInvestigation adds an agent note to the active timeline. The note is
 // broadcast (so a live viewer sees it) and captured via the tap.
-func (m *Manager) AnnotateInvestigation(workspaceID, text string) bool {
+func (m *Manager) AnnotateInvestigation(workspaceID, text string, anchors ...Anchor) (int, bool) {
 	m.captureMu.Lock()
-	active := m.activeInvestigations[workspaceID] != nil
-	m.captureMu.Unlock()
-	if !active {
-		return false
+	inv := m.activeInvestigations[workspaceID]
+	count := 0
+	if inv != nil {
+		count = len(inv.Events)
+		inv.Notes = append(inv.Notes, CaseNote{Text: text, Anchors: anchors, At: time.Now().UnixMilli()})
 	}
-	m.hub.Broadcast("investigation:note", map[string]any{
+	m.captureMu.Unlock()
+	if inv == nil {
+		return 0, false
+	}
+	note := map[string]any{
 		"workspaceId": workspaceID,
 		"text":        text,
 		"ts":          time.Now().UnixMilli(),
-	})
-	return true
+		"eventCount":  count,
+	}
+	if len(anchors) > 0 {
+		note["anchors"] = anchors
+	}
+	m.hub.Broadcast("investigation:note", note)
+	return count, true
 }
 
 // StopInvestigation finalizes and returns the recording (status=saved). The
@@ -170,7 +209,10 @@ func (m *Manager) ActiveInvestigation(workspaceID string) *Investigation {
 		return nil
 	}
 	cp := *inv
+	cp.EventCount = len(inv.Events)
+	cp.DurationMs = time.Since(inv.start).Milliseconds()
 	cp.Events = nil // callers that want events use the returned recording from Stop
+	cp.copyCase(inv)
 	return &cp
 }
 
@@ -190,4 +232,97 @@ func shortID() string {
 		b[i] = alphabet[int(b[i])%len(alphabet)]
 	}
 	return string(b)
+}
+
+// ActiveInvestigationSnapshot returns a copy of the in-progress recording
+// INCLUDING its events. ActiveInvestigation deliberately omits them for cheap
+// status reads; the periodic flusher needs the whole document.
+func (m *Manager) ActiveInvestigationSnapshot(workspaceID string) *Investigation {
+	m.captureMu.Lock()
+	defer m.captureMu.Unlock()
+	inv := m.activeInvestigations[workspaceID]
+	if inv == nil {
+		return nil
+	}
+	cp := *inv
+	cp.Events = append([]CapturedEvent(nil), inv.Events...)
+	cp.DurationMs = time.Since(inv.start).Milliseconds()
+	cp.copyCase(inv)
+	return &cp
+}
+
+// ActiveInvestigationWorkspaces lists the workspaces currently recording.
+func (m *Manager) ActiveInvestigationWorkspaces() []string {
+	m.captureMu.Lock()
+	defer m.captureMu.Unlock()
+	out := make([]string, 0, len(m.activeInvestigations))
+	for workspaceID := range m.activeInvestigations {
+		out = append(out, workspaceID)
+	}
+	return out
+}
+
+// InvestigationIdleFor reports how long the active recording has gone without
+// capturing anything, and who started it. A recording Axiom began on its own
+// uses this to close itself once the agent has moved on.
+func (m *Manager) InvestigationIdleFor(workspaceID string) (time.Duration, string, bool) {
+	m.captureMu.Lock()
+	defer m.captureMu.Unlock()
+	inv := m.activeInvestigations[workspaceID]
+	if inv == nil {
+		return 0, "", false
+	}
+	elapsed := time.Since(inv.start)
+	if len(inv.Events) == 0 {
+		return elapsed, inv.Origin, true
+	}
+	sinceLast := elapsed - time.Duration(inv.Events[len(inv.Events)-1].OffsetMs)*time.Millisecond
+	return sinceLast, inv.Origin, true
+}
+
+// AdoptAutoInvestigation turns a recording Axiom started on its own into an
+// explicitly requested one, keeping everything captured so far.
+//
+// Without this, the ordinary sequence loses data: Axiom notices the agent
+// tracing and starts recording, the agent then calls start itself, and
+// StartInvestigation replaces the in-progress recording - discarding exactly
+// the traces that led the agent to investigate. Returns nil when the active
+// recording was not self-started, so an explicit recording is never silently
+// renamed underneath its owner.
+func (m *Manager) AdoptAutoInvestigation(workspaceID, name, origin string) *Investigation {
+	m.captureMu.Lock()
+	inv := m.activeInvestigations[workspaceID]
+	if inv == nil || inv.Origin != "auto" {
+		m.captureMu.Unlock()
+		return nil
+	}
+	if name != "" {
+		inv.Name = name
+	}
+	inv.Origin = origin
+	adopted := *inv
+	adopted.EventCount = len(inv.Events)
+	adopted.Events = nil
+	m.captureMu.Unlock()
+
+	m.hub.Broadcast("investigation:started", map[string]any{
+		"workspaceId": workspaceID,
+		"id":          adopted.ID,
+		"name":        adopted.Name,
+		"origin":      adopted.Origin,
+	})
+	return &adopted
+}
+
+// copyCase detaches the case slices from the live recording, so a snapshot
+// handed out under the lock cannot race later appends.
+func (inv *Investigation) copyCase(from *Investigation) {
+	inv.Hypotheses = append([]Hypothesis(nil), from.Hypotheses...)
+	inv.Runs = append([]RunRef(nil), from.Runs...)
+	inv.Messages = append([]HumanMessage(nil), from.Messages...)
+	inv.Notes = append([]CaseNote(nil), from.Notes...)
+	if from.Conclusion != nil {
+		c := *from.Conclusion
+		inv.Conclusion = &c
+	}
 }
