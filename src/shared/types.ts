@@ -176,6 +176,10 @@ export interface ProjectConfig {
   // Explicitly distinguishes "reviewed and include everything" (an empty
   // ignoredPaths array) from "the source-boundary decision has never run".
   sourceBoundariesReviewedAt?: number
+  /** Durable entry marker. Reopening a project never repeats initial agent/review gates. */
+  workbenchOpenedAt?: number
+  agentSetupCompletedAt?: number
+  reviewCompletedAt?: number
   languageOverrides: Record<string, string>
   layoutPreferences: {
     zoom: number

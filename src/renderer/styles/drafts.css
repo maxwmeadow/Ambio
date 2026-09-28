@@ -1,0 +1,54 @@
+.axiom-draft-progress {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  border-right: 1px solid #3e4847;
+  color: #e9f7f4;
+}
+.axiom-draft-progress__content {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.axiom-draft-progress strong { font-size: 9px; font-weight: 650; }
+.axiom-draft-progress p { margin: 0; color: #a3c6c1; font-size: 9px; }
+.axiom-draft-progress__pulse {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5fe0ce;
+  box-shadow: 0 0 0 3px rgba(95, 224, 206, .16);
+}
+.axiom-draft-progress button {
+  padding: 2px 5px;
+  border: 1px solid #6b8b85;
+  border-radius: 2px;
+  background: transparent;
+  color: #cce7e2;
+  font: inherit;
+  cursor: pointer;
+}
+.axiom-draft-progress button:hover:not(:disabled) { background: #334c48; }
+.axiom-draft-progress button:disabled { opacity: .6; cursor: default; }
+.axiom-draft-progress__error { color: #ffb4a8; font-size: 9px; }
+.axiom-draft-progress--inline {
+  width: fit-content;
+  max-width: 100%;
+  height: auto;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(88, 192, 183, .52);
+  border-radius: 8px;
+  background: rgba(15, 23, 28, .94);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .22);
+}
+.axiom-draft-progress--inline .axiom-draft-progress__content { display: block; }
+.axiom-draft-progress--inline strong { font-size: 12px; }
+.axiom-draft-progress--inline p { margin-top: 3px; font-size: 11px; }

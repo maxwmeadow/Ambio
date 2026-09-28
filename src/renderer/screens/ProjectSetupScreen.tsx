@@ -1,61 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import { completeSourceBoundaries } from '../../shared/projectLifecycle'
-import { classifyProjectFile, type ProjectFileKind } from '../../shared/fileKinds'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
-
-interface DirEntry {
-  name: string
-  isDirectory: boolean
-  path: string
-}
-
-interface TreeNode {
-  name: string
-  path: string
-  isDirectory: boolean
-  kind: ProjectFileKind
-  children?: TreeNode[]
-  excluded: boolean
-  expanded: boolean
-}
-
-const COMMON_NOISE = new Set([
-  'node_modules', '.git', '.svn', '.hg',
-  'dist', 'build', 'out', '.next', '.nuxt',
-  '__pycache__', '.venv', 'venv', '.env',
-  'coverage', '.nyc_output',
-  'vendor', 'target',
-  '.idea', '.vscode', '.vs',
-  'Library', 'Temp', 'Logs', 'UserSettings', 'obj',
-  '.gradle', '.mvn', 'bin', '.cache',
-])
-
-function shouldAutoExclude(name: string): boolean {
-  return COMMON_NOISE.has(name) || name.startsWith('.')
-}
-
-function makeTreeNode(entry: DirEntry): TreeNode {
-  const kind = classifyProjectFile(entry.name, entry.isDirectory)
-  return {
-    name: entry.name,
-    path: entry.path,
-    isDirectory: entry.isDirectory,
-    kind,
-    excluded: shouldAutoExclude(entry.name) || kind === 'unsupported',
-    expanded: false,
-  }
-}
-
-function foldersFirst(entries: DirEntry[]): DirEntry[] {
-  return [...entries].sort((left, right) => {
-    if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1
-    const leftExcluded = shouldAutoExclude(left.name)
-    const rightExcluded = shouldAutoExclude(right.name)
-    if (leftExcluded !== rightExcluded) return leftExcluded ? 1 : -1
-    return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
-  })
-}
+import {
+  type DirEntry,
+  type TreeNode,
+  foldersFirst,
+  makeTreeNode,
+  findNode,
+  toggleNode,
+  setChildren,
+  collectExcluded,
+  countExploredKinds,
+  formatExploredScopeSummary,
+} from './projectSetupModel'
 
 interface ProjectSetupScreenProps {
   baseConfig: ProjectConfig
@@ -115,7 +73,8 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
   }, [tree])
 
   const excludedPaths = useMemo(() => collectExcluded(tree), [tree])
-  const included = useMemo(() => countIncludedKinds(tree), [tree])
+  const explored = useMemo(() => countExploredKinds(tree), [tree])
+  const scopeSummary = useMemo(() => formatExploredScopeSummary(explored), [explored])
 
   const handleConfirm = () => {
     onConfirm({
@@ -156,7 +115,8 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
             <div className="axiom-source-browser__legend" aria-label="Selection key">
               <span><i className="axiom-source-browser__legend-check" aria-hidden="true" /> Source → canvas</span>
               <span>Documents → library</span>
-              <span>Unsupported → skipped</span>
+              <span>Excluded → skipped</span>
+              <span>Unsupported → ignored</span>
             </div>
           </header>
 
@@ -186,12 +146,15 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
           <footer className="axiom-source-browser__footer">
             <div className="axiom-source-browser__summary" aria-live="polite">
               <strong>
-                {included.files} source {included.files === 1 ? 'file' : 'files'} and {included.documents} {included.documents === 1 ? 'document' : 'documents'} selected
+                {scopeSummary.headline}
               </strong>
               <span>
-                {excludedPaths.length === 0 ? 'Nothing excluded' : `${excludedPaths.length} ${excludedPaths.length === 1 ? 'item' : 'items'} excluded`}
-                {included.unsupported > 0 ? ` · ${included.unsupported} unsupported skipped` : ''}
+                {excludedPaths.length === 0 ? 'No items excluded' : `${excludedPaths.length} ${excludedPaths.length === 1 ? 'item' : 'items'} excluded`}
+                {explored.unsupported > 0 ? ` · ${explored.unsupported} unsupported skipped` : ''}
               </span>
+              <small className="axiom-source-browser__summary-note">
+                {scopeSummary.subtext}
+              </small>
             </div>
             <button
               className="axiom-source-setup__submit"
@@ -290,66 +253,4 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
   )
 }
 
-function findNode(nodes: TreeNode[], targetPath: string): TreeNode | undefined {
-  for (const node of nodes) {
-    if (node.path === targetPath) return node
-    if (node.children) {
-      const found = findNode(node.children, targetPath)
-      if (found) return found
-    }
-  }
-  return undefined
-}
 
-function toggleNode(nodes: TreeNode[], targetPath: string, field: 'excluded' | 'expanded'): TreeNode[] {
-  return nodes.map(node => {
-    if (node.path === targetPath) return { ...node, [field]: !node[field] }
-    if (node.children) return { ...node, children: toggleNode(node.children, targetPath, field) }
-    return node
-  })
-}
-
-function setChildren(nodes: TreeNode[], targetPath: string, children: TreeNode[]): TreeNode[] {
-  return nodes.map(node => {
-    if (node.path === targetPath) return { ...node, children }
-    if (node.children) return { ...node, children: setChildren(node.children, targetPath, children) }
-    return node
-  })
-}
-
-function collectExcluded(nodes: TreeNode[]): string[] {
-  const result: string[] = []
-  const visit = (branch: TreeNode[]) => {
-    for (const node of branch) {
-      // Unsupported files are rejected by Axiom's global file policy. They are
-      // not project-specific ignore choices and must not bloat ignoredPaths.
-      if (node.kind === 'unsupported') continue
-      if (node.excluded) {
-        result.push(node.isDirectory ? `${node.path}/**` : node.path)
-      } else if (node.children) {
-        visit(node.children)
-      }
-    }
-  }
-  visit(nodes)
-  return result
-}
-
-function countIncludedKinds(nodes: TreeNode[]): { folders: number; files: number; documents: number; unsupported: number } {
-  const result = { folders: 0, files: 0, documents: 0, unsupported: 0 }
-  const visit = (branch: TreeNode[]) => {
-    for (const node of branch) {
-      if (node.kind === 'unsupported') {
-        result.unsupported += 1
-        continue
-      }
-      if (node.excluded) continue
-      if (node.kind === 'folder') result.folders += 1
-      else if (node.kind === 'document') result.documents += 1
-      else if (node.kind === 'source') result.files += 1
-      if (node.children) visit(node.children)
-    }
-  }
-  visit(nodes)
-  return result
-}

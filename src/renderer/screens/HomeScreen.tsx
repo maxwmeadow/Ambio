@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
 import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
+import { filterRecentProjects, handleLauncherKey } from './homeScreenModel'
 
 interface HomeScreenProps {
   onOpenProject: (config: ProjectConfig) => void
@@ -50,6 +51,68 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
   const [newLocation, setNewLocation] = useState<string | null>(null)
   const [createBusy, setCreateBusy] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  // Search & keyboard navigation for recent projects
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const recentListRef = useRef<HTMLUListElement>(null)
+
+  const filteredProjects = useMemo(
+    () => filterRecentProjects(recentProjects, searchQuery),
+    [recentProjects, searchQuery],
+  )
+
+  useEffect(() => {
+    if (activeIndex !== null && (activeIndex >= filteredProjects.length || activeIndex < 0)) {
+      setActiveIndex(filteredProjects.length > 0 ? 0 : null)
+    }
+  }, [filteredProjects.length, activeIndex])
+
+  useEffect(() => {
+    if (activeIndex === null) return
+    recentListRef.current?.querySelector(`[data-project-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, filteredProjects])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Do not intercept if a modal dialog is active
+      if (projectToDelete || creating) return
+
+      const action = handleLauncherKey(event, {
+        isSearchFocused,
+        hasQuery: searchQuery.length > 0,
+        totalProjects: filteredProjects.length,
+        activeIndex,
+      })
+
+      switch (action.type) {
+        case 'FOCUS_SEARCH':
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+          break
+        case 'NAVIGATE':
+          setActiveIndex(action.nextIndex ?? null)
+          break
+        case 'OPEN':
+          if (action.nextIndex !== undefined && action.nextIndex !== null && filteredProjects[action.nextIndex]) {
+            onOpenProject(filteredProjects[action.nextIndex])
+          }
+          break
+        case 'CLEAR_SEARCH':
+          setSearchQuery('')
+          setActiveIndex(null)
+          searchInputRef.current?.blur()
+          break
+        case 'NOOP':
+          break
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [projectToDelete, creating, isSearchFocused, searchQuery, filteredProjects, activeIndex, onOpenProject])
 
   useEffect(() => {
     let active = true
@@ -212,42 +275,92 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
             <div className="axiom-launcher__recent">
               <div className="axiom-launcher__section-label">
                 <span>RECENTLY OPENED</span>
-                <small>{recentProjects.slice(0, 6).length} PROJECTS</small>
+                <small>{filteredProjects.length} OF {recentProjects.length} PROJECTS</small>
               </div>
+
+              <div className="axiom-launcher__search-box">
+                <span className="axiom-launcher__search-icon" aria-hidden="true">⌕</span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={event => {
+                    setSearchQuery(event.target.value)
+                    setActiveIndex(0)
+                  }}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  placeholder="Search recent projects (/ to focus, ↑↓ to navigate)…"
+                  aria-label="Search recent projects"
+                  spellCheck={false}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    className="axiom-launcher__search-clear"
+                    onClick={() => {
+                      setSearchQuery('')
+                      setActiveIndex(null)
+                      searchInputRef.current?.focus()
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                ) : (
+                  <kbd className="axiom-launcher__search-shortcut" title="Press / to focus search">/</kbd>
+                )}
+              </div>
+
               {removeError && (
                 <div className="axiom-launcher__remove-error" role="alert">{removeError}</div>
               )}
-              <ul>
-                {recentProjects.slice(0, 6).map(project => (
-                  <li key={project.id}>
-                    <button
-                      className="axiom-launcher__recent-open"
-                      onClick={() => onOpenProject(project)}
-                      aria-label={`Open ${project.name}`}
-                    >
-                      <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
-                      <span className="axiom-launcher__project-copy">
-                        <strong>{project.name}</strong>
-                        <small title={project.rootPath}>{project.rootPath}</small>
-                        <ProjectDeckSignals status={deckStatus[project.id]} />
-                      </span>
-                      <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
-                    </button>
-                    <button
-                      className="axiom-launcher__recent-remove"
-                      onClick={() => {
-                        setRemoveError(null)
-                        setProjectToDelete(project)
-                      }}
-                      disabled={removingProjectId !== null}
-                      aria-label={`Remove ${project.name} from recent projects`}
-                      title="Remove from recents and delete the cached index"
-                    >
-                      {removingProjectId === project.id ? '…' : '×'}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+              {filteredProjects.length === 0 ? (
+                <div className="axiom-launcher__empty-search" role="status">
+                  No projects matching &ldquo;{searchQuery}&rdquo;
+                </div>
+              ) : (
+                <ul ref={recentListRef} aria-label="Recent projects">
+                  {filteredProjects.map((project, index) => {
+                    const isActive = index === activeIndex
+                    return (
+                      <li
+                        key={project.id}
+                        data-project-index={index}
+                        className={`axiom-launcher__recent-item${isActive ? ' axiom-launcher__recent-item--active' : ''}`}
+                        onMouseEnter={() => setActiveIndex(index)}
+                      >
+                        <button
+                          className={`axiom-launcher__recent-open${isActive ? ' axiom-launcher__recent-open--active' : ''}`}
+                          onClick={() => onOpenProject(project)}
+                          aria-label={`Open ${project.name}`}
+                        >
+                          <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
+                          <span className="axiom-launcher__project-copy">
+                            <strong>{project.name}</strong>
+                            <small title={project.rootPath}>{project.rootPath}</small>
+                            <ProjectDeckSignals status={deckStatus[project.id]} />
+                          </span>
+                          <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
+                        </button>
+                        <button
+                          className="axiom-launcher__recent-remove"
+                          onClick={() => {
+                            setRemoveError(null)
+                            setProjectToDelete(project)
+                          }}
+                          disabled={removingProjectId !== null}
+                          aria-label={`Remove ${project.name} from recent projects`}
+                          title="Remove from recents and delete the cached index"
+                        >
+                          {removingProjectId === project.id ? '…' : '×'}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
           )}
 

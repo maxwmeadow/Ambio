@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
+import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
   commandKind,
@@ -770,6 +771,7 @@ export function ConnectAgentScreen({
                     <span aria-hidden="true" /> Waiting for a mapping proposal
                   </div>
                 )}
+                <ProposalDraftProgress workspaceId={project.id} inline />
                 <StepActions backLabel="Back" onBack={() => setActiveStep(3)} />
               </div>
             )}

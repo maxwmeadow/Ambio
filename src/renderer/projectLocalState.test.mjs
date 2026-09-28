@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  agentSetupIsComplete,
   clearProjectLocalState,
-  markAgentSetupComplete,
   migrateLegacyProjectCreationSource,
+  migrateLegacyProjectLifecycle,
 } from './projectLocalState.ts'
 
 class MemoryStorage {
@@ -17,13 +16,12 @@ class MemoryStorage {
   removeItem(key) { this.#values.delete(key) }
 }
 
-test('agent setup completion persists, migrates legacy reviews, and clears with the project', () => {
+test('legacy browser hints promote into durable project config and clear on removal', () => {
   const previousStorage = globalThis.localStorage
   const storage = new MemoryStorage()
   globalThis.localStorage = storage
 
   try {
-    assert.equal(agentSetupIsComplete('new-project'), false)
     storage.setItem('project_created_blank_new-project', 'true')
     assert.equal(
       migrateLegacyProjectCreationSource({ id: 'new-project' }).creationSource,
@@ -40,16 +38,21 @@ test('agent setup completion persists, migrates legacy reviews, and clears with 
       }).creationSource,
       'new-project',
     )
-    markAgentSetupComplete('new-project')
-    assert.equal(agentSetupIsComplete('new-project'), true)
+    storage.setItem('agent_setup_completed_new-project', 'true')
+    const migratedSetup = migrateLegacyProjectLifecycle({ id: 'new-project', openedAt: 100 })
+    assert.equal(migratedSetup.workbenchOpenedAt, 100)
+    assert.ok(migratedSetup.agentSetupCompletedAt > 0)
 
     storage.setItem('review_completed_legacy-project', 'true')
-    assert.equal(agentSetupIsComplete('legacy-project'), true)
+    const migratedReview = migrateLegacyProjectLifecycle({ id: 'legacy-project', openedAt: 200 })
+    assert.equal(migratedReview.workbenchOpenedAt, 200)
+    assert.ok(migratedReview.reviewCompletedAt > 0)
+    assert.ok(migrateLegacyProjectLifecycle({ id: 'legacy-project', workbenchOpenedAt: 150 }).reviewCompletedAt > 0)
 
     clearProjectLocalState('new-project')
     clearProjectLocalState('legacy-project')
-    assert.equal(agentSetupIsComplete('new-project'), false)
-    assert.equal(agentSetupIsComplete('legacy-project'), false)
+    assert.equal(migrateLegacyProjectLifecycle({ id: 'new-project' }).workbenchOpenedAt, undefined)
+    assert.equal(migrateLegacyProjectLifecycle({ id: 'legacy-project' }).reviewCompletedAt, undefined)
   } finally {
     if (previousStorage === undefined) delete globalThis.localStorage
     else globalThis.localStorage = previousStorage

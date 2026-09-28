@@ -51,7 +51,7 @@ in the surface for exactly that reason.
 | `get_symbols` | `get_symbols_for_files`, `get_function_body` |
 | `trace_calls` | `get_call_path`, `get_call_graph`, `get_call_graph_for_files` |
 | `get_data_flow` | - |
-| `edit_systems` | create, update, delete, assign, merge, bulk |
+| `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect |
 | `edit_sheet` | list, get, create, add, annotate, compare, bind, apply_nesting, resolve, reopen |
 | `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
@@ -61,6 +61,13 @@ in the surface for exactly that reason.
 | `start_work` | - |
 | `update_work` | `note_work`, `finish_work` (via `done`) |
 | `investigation` | start, hypothesis, run, verdict, note, conclude, stop, case, list, get - see INVESTIGATIONS.md |
+
+Large architecture maps use `edit_systems` with `begin_session`, repeated
+`add_chunk` calls, and `commit_session`. The session and its chunk IDs are
+stored in SQLite, so `session_status` can resume after an MCP restart. The
+draft stays separate from the live map and becomes a normal reviewable
+proposal only at commit. `abort_session` discards an unfinished draft; the
+single-call `propose` operation remains available for small maps.
 
 ## Debug profile - 1 tool, off by default
 

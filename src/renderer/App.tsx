@@ -27,9 +27,7 @@ import { ConnectAgentScreen } from './screens/ConnectAgentScreen'
 import { readAuthorship } from './canvas/architectureAuthorship.ts'
 import { isCanvasSourceFile } from '../shared/fileKinds'
 import {
-  agentSetupIsComplete,
-  markAgentSetupComplete,
-  migrateLegacyProjectCreationSource,
+  migrateLegacyProjectLifecycle,
 } from './projectLocalState'
 
 import { useGraphStore, connectToArchd } from './store/graphStore'
@@ -37,10 +35,12 @@ import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, useInterruptionStore } from './store/interruptionStore.ts'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
+import { useProposalStore } from './store/architectureProposalStore'
 import { SheetRail } from './components/SheetRail'
 import type { ProjectConfig } from '../shared/types'
 import {
   completeSourceBoundaries,
+  projectHasEnteredWorkbench,
   projectUsesBlankSetup,
   resolveProjectSourceBoundaries,
   sourceBoundariesAreComplete,
@@ -79,7 +79,11 @@ const E2E_SNAPSHOT = {
 // to the launcher on purpose, which the next launch has to respect.
 const RESUME_KEY = 'axiom_resume_project'
 
-function rememberOpenProject(projectId: string) {
+async function rememberOpenProject(projectId: string) {
+  if (window.axiom) {
+    await window.axiom.setResumeProjectId(projectId)
+    return
+  }
   try {
     localStorage.setItem(RESUME_KEY, projectId)
   } catch {
@@ -88,7 +92,11 @@ function rememberOpenProject(projectId: string) {
   }
 }
 
-function forgetOpenProject() {
+async function forgetOpenProject() {
+  if (window.axiom) {
+    await window.axiom.setResumeProjectId(null)
+    return
+  }
   try {
     localStorage.removeItem(RESUME_KEY)
   } catch { /* see rememberOpenProject */ }
@@ -96,11 +104,8 @@ function forgetOpenProject() {
 
 /** Setup finished according to the journey that created this project. */
 function projectIsReady(config: ProjectConfig): boolean {
-  config = migrateLegacyProjectCreationSource(config)
-  if (!sourceBoundariesAreComplete(config)) return false
-  return projectUsesBlankSetup(config)
-    ? agentSetupIsComplete(config.id)
-    : localStorage.getItem(`review_completed_${config.id}`) === 'true'
+  config = migrateLegacyProjectLifecycle(config)
+  return sourceBoundariesAreComplete(config) && projectHasEnteredWorkbench(config)
 }
 
 export default function App() {
@@ -133,6 +138,7 @@ export default function App() {
       isIndexing: s.isIndexing,
     })))
   const [completedAgentSetupId, setCompletedAgentSetupId] = useState<string | null>(null)
+  const [initialJourneyProjectId, setInitialJourneyProjectId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
   const [agentSetupOpen, setAgentSetupOpen] = useState(false)
   const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
@@ -187,6 +193,35 @@ export default function App() {
     return subscribeToDeltaRefresh(window, () => useGraphStore.getState().loadDelta())
   }, [])
 
+  useEffect(() => {
+    if (!currentProject) return
+    const onProposal = (event: Event) => {
+      const notice = (event as CustomEvent<{ workspaceId: string; proposalId: string }>).detail
+      if (notice.workspaceId !== currentProject.id) return
+      // Decision and layout writes update their own store. A new proposal
+      // refreshes the invitation even when Axiom was already open.
+      const proposalStore = useProposalStore.getState()
+      if (proposalStore.proposal?.id !== notice.proposalId) void proposalStore.load(currentProject.id)
+    }
+    const refreshProposal = async () => {
+      try {
+        const response = await fetch(`http://127.0.0.1:7743/api/architecture-proposals?workspace=${encodeURIComponent(currentProject.id)}`)
+        if (!response.ok) return
+        const proposals = await response.json() as Array<{ id: string }>
+        const head = proposals[0]
+        if (head && useProposalStore.getState().proposal?.id !== head.id) {
+          await useProposalStore.getState().load(currentProject.id)
+        }
+      } catch { /* the daemon can reconnect before its API is ready */ }
+    }
+    window.addEventListener('axiom:proposal', onProposal)
+    window.addEventListener('axiom:proposal-refresh', refreshProposal)
+    return () => {
+      window.removeEventListener('axiom:proposal', onProposal)
+      window.removeEventListener('axiom:proposal-refresh', refreshProposal)
+    }
+  }, [currentProject?.id])
+
   // Load this project's onboarding progress before anything renders against it,
   // so the guide and the status bar agree about where the user left off.
   useEffect(() => {
@@ -207,17 +242,25 @@ export default function App() {
   }, [currentProject])
 
   const openProject = useCallback(async (incomingConfig: ProjectConfig) => {
-    const config = migrateLegacyProjectCreationSource(incomingConfig)
+    let config = migrateLegacyProjectLifecycle(incomingConfig)
+    let returning = projectHasEnteredWorkbench(config)
+    // Older builds did not persist this milestone. Their existing index is
+    // durable evidence that opening should go straight to the workbench.
+    if (!returning && window.axiom) {
+      try {
+        const scope = await fetch(`http://127.0.0.1:7743/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`)
+        if (scope.ok && ((await scope.json()) as { indexed?: boolean }).indexed) returning = true
+      } catch { /* a genuinely new project still follows its initial journey */ }
+    }
+    config = { ...config, workbenchOpenedAt: config.workbenchOpenedAt || Date.now() }
     setCurrentProject(config)
     setStoreProject(config)
     // Questions and failures belong to the project that raised them. A new
     // workspace starts with an empty lane.
     useInterruptionStore.getState().clear()
-    rememberOpenProject(config.id)
-
     const isBlankProject = projectUsesBlankSetup(config)
-    const reviewCompleted = localStorage.getItem(`review_completed_${config.id}`) === 'true'
-    setReviewActive(!isBlankProject && !reviewCompleted)
+    setInitialJourneyProjectId(returning ? null : config.id)
+    setReviewActive(!returning && !isBlankProject && !config.reviewCompletedAt)
     setCreatedProjectId(isBlankProject ? config.id : null)
 
     if (window.axiom) {
@@ -229,7 +272,7 @@ export default function App() {
         await window.axiom.openProject(config)
       } catch (err) {
         console.error('[openProject] could not record the project:', err)
-        forgetOpenProject()
+        void forgetOpenProject()
         setCurrentProject(null)
         setStoreProject(null)
         raiseFailure(
@@ -239,6 +282,8 @@ export default function App() {
         )
         return
       }
+      void rememberOpenProject(config.id).catch(error =>
+        raiseFailure('resume-save', 'Could not save project resume state', String(error)))
       // Connect to archd WebSocket for real-time graph updates
       connectToArchd('ws://127.0.0.1:7744/ws')
       // Register workspace with archd and start indexing
@@ -407,8 +452,11 @@ export default function App() {
       try {
         const recent = await window.axiom!.listRecentProjects()
         if (!active) return
+        const storedResume = await window.axiom!.getResumeProjectId()
+        const legacyResume = localStorage.getItem(RESUME_KEY)
+        if (legacyResume) localStorage.removeItem(RESUME_KEY)
         const decision = resumeDecision({
-          resumeProjectId: localStorage.getItem(RESUME_KEY),
+          resumeProjectId: storedResume ?? legacyResume,
           recentIds: recent.map(project => project.id),
           readyIds: new Set(recent.filter(projectIsReady).map(project => project.id)),
         })
@@ -429,12 +477,17 @@ export default function App() {
   // Leaving a project. Deliberate, so the next launch honours it rather than
   // resuming straight back into what was just left. archd keeps the project
   // indexed; this closes the view, not the workspace.
-  const closeProject = useCallback(() => {
-    forgetOpenProject()
+  const closeProject = useCallback(async () => {
+    try { await forgetOpenProject() }
+    catch (error) {
+      raiseFailure('resume-clear', 'Could not clear project resume state', String(error))
+      return
+    }
     useInterruptionStore.getState().clear()
     setCurrentProject(null)
     setStoreProject(null)
     setCompletedAgentSetupId(null)
+    setInitialJourneyProjectId(null)
     setBrowsingWithoutAgent(null)
     setAgentSetupOpen(false)
     setReviewActive(false)
@@ -503,9 +556,9 @@ export default function App() {
     ? E2E_BLANK_PROJECT || projectUsesBlankSetup(currentProject)
     : false
   const blankAgentSetupComplete = currentProject
-    ? completedAgentSetupId === currentProject.id || agentSetupIsComplete(currentProject.id)
+    ? completedAgentSetupId === currentProject.id || (currentProject.agentSetupCompletedAt ?? 0) > 0
     : false
-  const needsAgentSetup = currentProject && (blankProject
+  const needsAgentSetup = currentProject && initialJourneyProjectId === currentProject.id && (blankProject
     ? !blankAgentSetupComplete
     : !architectureIsAuthored && browsingWithoutAgent !== currentProject.id)
   if (currentProject && (E2E_CONNECT || (!E2E_MODE && (agentSetupOpen || needsAgentSetup)))) {
@@ -517,7 +570,9 @@ export default function App() {
         blankProject={blankProject}
         backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
         onComplete={() => {
-          markAgentSetupComplete(currentProject.id)
+          void window.axiom?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
+            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+            .catch(error => raiseFailure('agent-setup-save', 'Could not save agent setup', String(error)))
           setCompletedAgentSetupId(currentProject.id)
           setAgentSetupOpen(false)
         }}
@@ -525,7 +580,9 @@ export default function App() {
         onSkip={() => {
           setBrowsingWithoutAgent(currentProject.id)
           setAgentSetupOpen(false)
-          localStorage.setItem(`review_completed_${currentProject.id}`, 'true')
+          void window.axiom?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+            .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
           setReviewActive(false)
         }}
         onBack={agentSetupOpen ? () => setAgentSetupOpen(false) : closeProject}
@@ -538,7 +595,9 @@ export default function App() {
       <ProjectReviewScreen
         project={currentProject}
         onFinishReview={() => {
-          localStorage.setItem(`review_completed_${currentProject.id}`, 'true')
+          void window.axiom?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+            .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
           setReviewActive(false)
         }}
         onBack={() => setBrowsingWithoutAgent(null)}
@@ -635,7 +694,7 @@ export default function App() {
         </div>
 
         {/* Status bar */}
-        <StatusBar />
+        <StatusBar workspaceId={currentProject.id} />
       </div>
     </ReactFlowProvider>
   )

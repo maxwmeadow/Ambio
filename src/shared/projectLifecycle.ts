@@ -8,6 +8,12 @@ export function sourceBoundariesAreComplete(
     project.sourceBoundariesReviewedAt > 0
 }
 
+export function projectHasEnteredWorkbench(
+  project: Pick<ProjectConfig, 'workbenchOpenedAt' | 'reviewCompletedAt'>,
+): boolean {
+  return (project.workbenchOpenedAt ?? 0) > 0 || (project.reviewCompletedAt ?? 0) > 0
+}
+
 /** Only a still-empty folder created through New Project uses the blank flow. */
 export function projectUsesBlankSetup(
   project: Pick<ProjectConfig, 'creationSource' | 'rootIsEmpty'>,

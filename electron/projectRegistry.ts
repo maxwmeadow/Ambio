@@ -3,6 +3,33 @@ import fs from 'fs'
 import { dirname, join, relative, resolve, sep } from 'path'
 import type { ProjectConfig } from '../src/shared/types'
 
+export function readResumeProjectId(settingsFile: string): string | null {
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')) as { resumeProjectId?: unknown }
+    return typeof settings.resumeProjectId === 'string' ? settings.resumeProjectId : null
+  } catch { return null }
+}
+
+export function writeResumeProjectId(settingsFile: string, projectId: string | null): void {
+  fs.mkdirSync(dirname(settingsFile), { recursive: true })
+  let previous: Record<string, unknown> = {}
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsFile, 'utf8')) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) previous = parsed as Record<string, unknown>
+  } catch { /* a missing or malformed settings file starts fresh */ }
+  const temp = `${settingsFile}.tmp`
+  fs.writeFileSync(temp, JSON.stringify({ ...previous, resumeProjectId: projectId }, null, 2))
+  fs.renameSync(temp, settingsFile)
+}
+
+/** A database on disk proves an older project already entered the workbench. */
+export function migrateIndexedProjectLifecycle(config: ProjectConfig, dataDir: string): ProjectConfig {
+  if (config.workbenchOpenedAt || config.reviewCompletedAt) return config
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(config.id) || config.id === '.' || config.id === '..') return config
+  if (!fs.existsSync(join(dataDir, config.id, 'axiom.db'))) return config
+  return { ...config, workbenchOpenedAt: config.openedAt || Date.now() }
+}
+
 export function sameProjectRoot(left: string, right: string): boolean {
   const normalize = (value: string) => {
     const resolved = resolve(value)

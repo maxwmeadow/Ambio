@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useOnboardingStore } from '../store/onboardingStore'
+import { ProposalDraftProgress } from './ProposalDraftProgress'
 
 const CONNECTION_LABELS = {
   connected: 'connected',
@@ -8,7 +9,7 @@ const CONNECTION_LABELS = {
   disconnected: 'disconnected',
 } as const
 
-export function StatusBar() {
+export function StatusBar({ workspaceId }: { workspaceId: string }) {
   const {
     systems,
     files,
@@ -78,6 +79,8 @@ export function StatusBar() {
           <span>dependencies</span>
         </span>
       </div>
+
+      <ProposalDraftProgress workspaceId={workspaceId} />
 
       {setAside && (
         <button

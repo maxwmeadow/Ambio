@@ -322,7 +322,7 @@ A system is NOT a folder. Folders are for navigation; use them to find your way 
 
 **What matters most.** Someone who did NOT write this code - because an agent wrote it for them - should read your tree and understand what this software is and how it is put together.
 
-Write the result with edit_systems (op: create, then assign). The human confirms, renames or rejects what you propose; you are not committing an architecture, you are making a proposal they can read.`
+Write the result with edit_systems: begin_session, add_chunk for small groups, then commit_session. Use stable chunkId values so retries are safe; session_status resumes a session after a restart. Set rootId on a system when file paths are ambiguous across roots. A small map may use op: propose. The human confirms, renames or rejects the committed proposal before it becomes canonical.`
 
 server.setRequestHandler(GetPromptRequestSchema, async (request) => {
   if (request.params.name === 'name-architecture') {
@@ -513,15 +513,17 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_systems',
-    description: "Author the architecture map. YOU name the systems - existing names are placeholders from word frequency, never a starting point. Build a tree of responsibilities, not folders, nested as deep as the code justifies. `propose` submits the whole tree for the human to confirm and is the normal path; see /axiom:name-architecture. ops: propose | create | update | delete | assign | merge | bulk.",
+    description: "Author the architecture map. Name systems by responsibility, not folder. For large maps use begin_session, add_chunk (stable chunkId), then commit_session; session_status resumes after a restart. A committed proposal awaits human review. Small maps may use propose.",
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', description: 'propose | create | update | delete | assign | merge | bulk' },
+        op: { type: 'string', description: 'begin_session | add_chunk | commit_session | abort_session | session_status | propose | create | update | delete | assign | merge | bulk' },
+        sessionId: { type: 'string', description: 'From begin_session' },
+        chunkId: { type: 'string', description: 'Stable unique key for an add_chunk retry' },
         systems: {
           type: 'array',
           items: { type: 'object' },
-          description: 'propose: the whole tree at once. Each: {systemKey, name, description, parentKey?, files?[]}',
+          description: 'propose: whole tree; add_chunk: one batch. Each: {systemKey, name, description, parentKey?, rootId?, files?[]}',
         },
         rationale: { type: 'string', description: 'propose: one paragraph on how you read this codebase' },
         systemId: { type: 'string' },
@@ -671,11 +673,11 @@ const CORE_TOOLS = [
         op: { type: 'string' },
         name: { type: 'string', description: 'start: the symptom' },
         text: { type: 'string', description: 'hypothesis, note, verdict reason, conclude root cause' },
-        command: { type: 'string', description: 'run: the repro, as typed in a terminal' },
+        command: { type: 'string', description: 'run: the repro command' },
         watch: { type: 'array', items: { type: 'string' }, description: '"file.ts:fn", "fn" or a file' },
         hypothesis: { type: 'string', description: 'e.g. H1' },
         result: { type: 'string', description: 'confirmed | refuted | inconclusive' },
-        run: { type: 'string', description: 'e.g. R2: the deciding run, or the one proving a fix' },
+        run: { type: 'string', description: 'e.g. R2' },
         fix: { type: 'string' },
         file: { type: 'string' },
         symbol: { type: 'string' },
@@ -909,6 +911,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // ── WRITES (Forwarded HTTP Mutations) ──────────────────────────────────
 
+      // Durable draft sessions let an agent submit one responsibility group
+      // at a time without exposing incomplete maps as reviewable proposals.
+      case 'begin_architecture_proposal_draft': {
+        const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId, rationale: args.rationale ?? '' }),
+        })
+        if (!response.ok) throw new Error(`Could not begin proposal session: ${await response.text()}`)
+        const draft = await response.json() as { sessionId: string }
+        result = { status: 'open', sessionId: draft.sessionId, next: 'Call edit_systems(op: "add_chunk", sessionId, chunkId, systems) for each batch, then commit_session.' }
+        break
+      }
+
+      case 'add_architecture_proposal_draft_chunk': {
+        if (!args.sessionId || !args.chunkId) throw new Error('add_chunk requires sessionId and a stable chunkId for safe retries.')
+        const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/chunks`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId, chunkId: args.chunkId, systems: args.systems ?? [] }),
+        })
+        if (!response.ok) throw new Error(`Could not add proposal chunk: ${await response.text()}`)
+        const draft = await response.json() as { sessionId: string; status: string; chunkCount: number; systems: unknown[] }
+        if (draft.status === 'open') await postAgentActivity(project.workspaceId, `Mapped ${draft.systems.length} systems in ${draft.chunkCount} proposal chunks`, 'info')
+        result = { status: draft.status, sessionId: draft.sessionId, chunkId: args.chunkId, chunks: draft.chunkCount, systems: draft.systems.length }
+        break
+      }
+
+      case 'get_architecture_proposal_draft': {
+        if (!args.sessionId) throw new Error('session_status requires sessionId.')
+        const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}?workspace=${encodeURIComponent(project.workspaceId)}`)
+        if (!response.ok) throw new Error(`Could not read proposal session: ${await response.text()}`)
+        const draft = await response.json() as { sessionId: string; status: string; proposalId?: string; chunkCount: number; chunkIds: string[]; systems: Array<{ systemKey: string; name: string; files?: string[] }> }
+        result = { sessionId: draft.sessionId, status: draft.status, proposalId: draft.proposalId, chunks: draft.chunkCount, chunkIds: draft.chunkIds, systems: draft.systems.map(system => ({ systemKey: system.systemKey, name: system.name, files: system.files?.length ?? 0 })) }
+        break
+      }
+
+      case 'commit_architecture_proposal_draft': {
+        if (!args.sessionId) throw new Error('commit_session requires sessionId.')
+        const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/commit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId }),
+        })
+        if (!response.ok) throw new Error(`Could not commit proposal session: ${await response.text()}`)
+        const proposal = await response.json() as { id: string; round?: { systems?: unknown[] } }
+        await postAgentActivity(project.workspaceId, `Architecture proposal ready for review: ${proposal.round?.systems?.length ?? 0} systems`, 'success')
+        result = { status: 'proposed', sessionId: args.sessionId, proposalId: proposal.id, systems: proposal.round?.systems?.length ?? 0 }
+        break
+      }
+
+      case 'abort_architecture_proposal_draft': {
+        if (!args.sessionId) throw new Error('abort_session requires sessionId.')
+        const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/abort`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId }),
+        })
+        if (!response.ok) throw new Error(`Could not abort proposal session: ${await response.text()}`)
+        result = { status: 'aborted', sessionId: args.sessionId }
+        break
+      }
+
       // Propose a whole architecture for the human to confirm.
       //
       // One call carrying the entire tree, rather than a create-per-system
@@ -1035,7 +1096,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error(
             'An architecture you proposed is still awaiting review. Adding systems directly would ' +
             'bypass it. Wait for the user to approve or send back what you proposed, then revise ' +
-            'with edit_systems(op: "propose").',
+            'with edit_systems(op: "propose") or a committed chunked session.',
           )
         }
         const systemId = generateUUID()
