@@ -19,7 +19,13 @@ import (
 const mcpRunCommand = "mcp-run"
 
 func mcpRunEnv() []string {
-	return append(os.Environ(), "ELECTRON_RUN_AS_NODE=1")
+	env := append(os.Environ(), "ELECTRON_RUN_AS_NODE=1")
+	// The MCP server starts this same binary headless when Axiom is closed,
+	// so agents keep working without the app open.
+	if self, err := os.Executable(); err == nil {
+		env = append(env, "AXIOM_ARCHD_PATH="+self)
+	}
+	return env
 }
 
 func runMCP(args []string) {

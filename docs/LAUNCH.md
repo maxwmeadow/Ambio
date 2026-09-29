@@ -109,7 +109,25 @@ trademark collision. Next step: shortlist 3, check USPTO/EUIPO classes 9 and
 
 ---
 
-## 4. Agents when Axiom is closed
+## 4. Agents when Axiom is closed ✅ (2026-09-30)
+
+**Built:** archd writes `~/.axiom/data/daemon.json` (pid, version, ports,
+headless) while it runs. In packaged builds the MCP server knows where archd
+is (`archd mcp-run` passes `AXIOM_ARCHD_PATH`); when archd does not answer it
+starts it with `-headless`, waits for it and retries, and otherwise tells the
+agent "Axiom is not running. Open the Axiom app, then try again." A headless
+daemon exits after 15 minutes with no requests and no open windows. When the
+app starts it attaches to a running daemon of its own version, asks one from
+another version to stop (`POST /api/daemon/shutdown`), and polls an attached
+daemon so it can take over if it disappears. Quitting the app stops only the
+daemon the app started.
+
+**Still open:** ports are still fixed (7743-7745); the discovery file carries
+them, so moving to dynamic ports is now a small change. A headless daemon
+answers from the persisted map but does not watch files until the app opens
+the project, when reconcile catches up (the Morning Delta covers the gap).
+
+Original design notes:
 
 How it works today: the agent (Claude Code, Cursor, …) launches the MCP
 server itself as a separate process over stdio. The MCP server talks HTTP to
@@ -325,7 +343,8 @@ Keyboard accelerators then work everywhere.
 - ✅ Report a Bug / Copy Diagnostics / Open Logs on the launcher, the archd failure notice and the crash screen (Help menu later)
 - ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
 - ⬜ Opt-in crash reporting
-- ⬜ Daemon discovery and graceful agent behaviour when the app is closed (§4)
+- ✅ Daemon discovery and graceful agent behaviour when the app is closed (§4)
+- ⬜ Dynamic ports via `daemon.json`
 
 ### Leaving
 - ⬜ "Remove Axiom from agents" (undo every installer write)

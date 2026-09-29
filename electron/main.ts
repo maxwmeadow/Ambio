@@ -253,6 +253,86 @@ function startArchd(): void {
   console.log('[main] archd started, pid:', archdProcess.pid)
 }
 
+// ─── Attaching to a daemon that is already running ─────────────────────────
+//
+// An agent can start archd headless while Axiom is closed (see daemonAuth.ts).
+// When the app then opens it uses that daemon instead of starting a second
+// one that would lose the race for the ports. A daemon from another Axiom
+// version is asked to step aside first.
+
+interface RunningDaemon { pid: number; version: string; headless: boolean }
+
+let attachedDaemon: RunningDaemon | null = null
+let attachedWatch: ReturnType<typeof setInterval> | null = null
+
+function readDaemonFile(): RunningDaemon | null {
+  try {
+    const info = JSON.parse(fs.readFileSync(join(DATA_DIR, 'daemon.json'), 'utf8')) as Partial<RunningDaemon>
+    return typeof info.pid === 'number' ? { pid: info.pid, version: String(info.version ?? ''), headless: Boolean(info.headless) } : null
+  } catch { return null }
+}
+
+function processAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+async function daemonAnswers(): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/daemon/info`, {
+      headers: { Authorization: `Bearer ${readDaemonToken()}` },
+      signal: AbortSignal.timeout(1500),
+    })
+    return response.ok
+  } catch { return false }
+}
+
+async function startOrAttachArchd(): Promise<void> {
+  const running = readDaemonFile()
+  if (running && processAlive(running.pid) && await daemonAnswers()) {
+    if (running.version === app.getVersion()) {
+      console.log(`[main] attaching to running archd pid ${running.pid}${running.headless ? ' (started by an agent)' : ''}`)
+      attachedDaemon = running
+      watchAttachedDaemon()
+      return
+    }
+    console.log(`[main] archd ${running.version} is running; asking it to stop for ${app.getVersion()}`)
+    try {
+      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/daemon/shutdown`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${readDaemonToken()}` },
+        signal: AbortSignal.timeout(2000),
+      })
+    } catch { /* it may already be going */ }
+    const deadline = Date.now() + 5000
+    while (processAlive(running.pid) && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+  startArchd()
+}
+
+// An attached daemon is not our child, so its exit is noticed by polling. If
+// it goes away, start our own and bring the open project back.
+function watchAttachedDaemon(): void {
+  if (attachedWatch) clearInterval(attachedWatch)
+  let misses = 0
+  attachedWatch = setInterval(() => {
+    void daemonAnswers().then(ok => {
+      misses = ok ? 0 : misses + 1
+      if (misses < 2 || quitting) return
+      if (attachedWatch) clearInterval(attachedWatch)
+      attachedWatch = null
+      attachedDaemon = null
+      console.warn('[main] attached archd stopped answering; starting our own')
+      sendArchdStatus({ state: 'restarting', attempt: 1 })
+      startArchd()
+      void reattachActiveProject()
+    })
+  }, 5000)
+}
+
 function reportArchdLaunchError(binary: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`[main] archd launch failed at ${binary}:`, error)
@@ -319,7 +399,7 @@ function handleArchdCrash(code: number | null): void {
 async function waitForArchd(timeoutMs = 10_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (!archdProcess) return false
+    if (!archdProcess && !attachedDaemon) return false
     try {
       await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace-scope/health`, { signal: AbortSignal.timeout(1000) })
       return true
@@ -835,7 +915,7 @@ function setupIPC(): void {
   // backoff budget.
   ipcMain.handle('archd:restart', async () => {
     archdRestarts.length = 0
-    if (!archdProcess) startArchd()
+    if (!archdProcess && !attachedDaemon) startArchd()
     await reattachActiveProject()
   })
 
@@ -966,7 +1046,7 @@ function buildDiagnostics(logLines: number): string {
     osRelease: os.release(),
     locale: app.getLocale(),
     packaged: app.isPackaged,
-    archdRunning: archdProcess !== null,
+    archdRunning: archdProcess !== null || attachedDaemon !== null,
     archdRestartsLastMinute: archdRestarts.filter(at => now - at < 60_000).length,
     projectCount: loadRecentProjects().length,
     logs: logLines > 0
@@ -1062,7 +1142,7 @@ app.whenReady().then(() => {
   setupIPC()
   applyApplicationMenu(mainWindow, menuState)
   initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
-  if (!IS_E2E) startArchd()
+  if (!IS_E2E) void startOrAttachArchd()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1079,6 +1159,9 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true
+  // An attached daemon was started by an agent and stays for it; it exits by
+  // itself once idle. Only the daemon this app started is stopped.
+  if (attachedWatch) clearInterval(attachedWatch)
   stopArchd()
 })
 

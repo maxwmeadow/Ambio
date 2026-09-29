@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"axiom.local/archd/internal/api"
 	"axiom.local/archd/internal/hub"
@@ -36,7 +37,15 @@ func main() {
 	wsPort := flag.Int("ws-port", 7744, "WebSocket port")
 	apiPort := flag.Int("api-port", 7743, "HTTP API port")
 	runtimePort := flag.Int("runtime-port", 7745, "runtime adapter TCP port")
+	headless := flag.Bool("headless", false, "started for an agent without the app; exit when idle")
+	idleExit := flag.Duration("idle-exit", 15*time.Minute, "with -headless, exit after this long unused")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	if *dataDir == "" {
 		fmt.Fprintln(os.Stderr, "archd: -data flag required")
@@ -65,6 +74,14 @@ func main() {
 	mux := http.NewServeMux()
 	srv.RegisterRoutes(mux)
 
+	quit := make(chan os.Signal, 1)
+	info := daemonInfo{
+		PID: os.Getpid(), Version: version, APIPort: *apiPort, WSPort: *wsPort,
+		RuntimePort: *runtimePort, Headless: *headless, StartedAt: time.Now().UnixMilli(),
+	}
+	registerDaemonRoutes(mux, info, quit)
+	activity := newActivityTracker()
+
 	addr := fmt.Sprintf("127.0.0.1:%d", *apiPort)
 	// Loopback-origin CORS: the dev renderer is served from localhost:5173,
 	// a different origin from this port. See api.AllowLoopbackOrigins.
@@ -72,7 +89,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("archd: local authentication: %v", err)
 	}
-	handler := api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux))
+	handler := activity.wrap(api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux)))
 	httpServer := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		log.Printf("archd: HTTP API listening on %s", addr)
@@ -99,8 +116,17 @@ func main() {
 	// We respond by writing JSON to stdout (one line per response).
 	go runIPCLoop(h, srv)
 
+	// Announce ourselves once the listeners are up; see daemonInfo.
+	if err := writeDaemonInfo(*dataDir, info); err != nil {
+		log.Printf("archd: could not write daemon.json: %v", err)
+	}
+	defer removeDaemonInfo(*dataDir, info.PID)
+	if *headless {
+		log.Printf("archd: headless; exits after %s unused", *idleExit)
+		go watchIdle(activity, h.ClientCount, *idleExit, quit)
+	}
+
 	// ── Signals ───────────────────────────────────────────────────────────────
-	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("archd: shutting down")

@@ -9,7 +9,7 @@
 // Keeping that choice here means package.json stays free of absolute paths,
 // so the same `npm run` commands work on every platform.
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -35,6 +35,8 @@ function resolveBash() {
 // scripts/archd.sh calls to detect the platform.
 const bash = resolveBash()
 const env = { ...process.env }
+// Stamped into the daemon so the app can tell whether a running archd is its own.
+env.AXIOM_VERSION ??= JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 if (process.platform === 'win32') {
   const msysRoot = bash.replace(/[\\/]usr[\\/]bin[\\/]bash\.exe$/i, '')
   // Windows spells it "Path". process.env lookups are case-insensitive there,
