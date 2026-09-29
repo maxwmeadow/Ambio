@@ -86,6 +86,15 @@ contextBridge.exposeInMainWorld('axiom', {
     }
   },
 
+  // Canvas commands from the View menu: fit, zoom-in, zoom-out, tidy, infra.
+  onCanvasCommand: (callback: (command: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, command: string) => callback(command)
+    ipcRenderer.on('canvas:command', handler)
+    return () => {
+      ipcRenderer.removeListener('canvas:command', handler)
+    }
+  },
+
   // Listen for messages from archd (forwarded by main process)
   onArchdMessage: (callback: (msg: WsMessage) => void) => {
     ipcRenderer.on('archd:message', (_event, msg) => callback(msg))

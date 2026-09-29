@@ -2,7 +2,7 @@ import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { LivingInspectionWindow, SystemNodeData } from '../sceneTypes'
 import { EditableNodeTitle } from './EditableNodeTitle'
-import { useInfraService, useRegistryStore } from '../../store/registryStore'
+import { useInfraService } from '../../store/registryStore'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
@@ -12,7 +12,6 @@ import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
-import type { InfraRimItem } from '../infraRoles'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 
 // Drop-target feedback: renders the cell grid only while a node is being
@@ -659,9 +658,6 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
           </>
         )
       })()}
-      {containerAlpha < 0.5 && (d.infraRim?.length ?? 0) > 0 && (
-        <InfraRim items={d.infraRim!} inset={Math.max(10, 12 * presentationScale)} />
-      )}
       {surfacedFx && (
         <div
           key={`surface-fx-${surfacedFx.key}`}
@@ -730,35 +726,3 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
   )
 })
 
-/**
- * The infrastructure a collapsed system's files touch, along its lower-left
- * edge: the map says "Bookings uses Postgres, Stripe and the queue" without a
- * permanent edge. Selecting the system draws the actual relationships.
- */
-function InfraRim({ items, inset }: { items: InfraRimItem[]; inset: number }) {
-  const services = useRegistryStore(state => state.byId)
-  const shown = items.slice(0, 5)
-  return (
-    <div className="axiom-infra-rim" style={{ left: inset, bottom: inset }} data-infra-rim>
-      {shown.map(item => {
-        const service = services.get(item.service)
-        const official = service ? officialServiceIcon(service.id) : undefined
-        const icon = service ? brandIcon(service.brand.icon) : null
-        const color = service?.brand.color ?? 'var(--text-secondary)'
-        return (
-          <span key={item.infraId} className="axiom-infra-rim__chip" data-implements={item.implements || undefined}
-            title={`${item.name}: ${item.count} file${item.count === 1 ? '' : 's'}${item.implements ? ' (implements it)' : ''}`}>
-            {official
-              ? <img src={official} width={12} height={12} alt="" />
-              : <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden="true">
-                  <path d={icon?.path ?? CATEGORY_GLYPHS[item.category] ?? CATEGORY_GLYPHS.api} fill={icon ? color : 'currentColor'} />
-                </svg>}
-            <span className="axiom-infra-rim__name">{item.name}</span>
-            <span className="axiom-infra-rim__count">{item.count}</span>
-          </span>
-        )
-      })}
-      {items.length > shown.length && <span className="axiom-infra-rim__more">+{items.length - shown.length}</span>}
-    </div>
-  )
-}

@@ -76,6 +76,8 @@ export const RELATIONSHIP_ORDER = [
 export interface DetectedBy {
   evidence?: Array<{ signal: string; ref: string; detail?: string }>
   declaredOnly?: boolean
+  /** Which of several nodes of one service this is (one per Dockerfile). */
+  instance?: string
 }
 
 export function readDetectedBy(raw: unknown): DetectedBy {
@@ -94,15 +96,3 @@ export function fileName(relPath: string): string {
 export const INFRA_CARD_SIZE = { width: 260, height: 160 }
 /** A platform frame's authored size: roomy enough to drop a system into. */
 export const PLATFORM_FRAME_SIZE = { width: 480, height: 300 }
-
-/** One infra node a system touches, for the system's rim. */
-export interface InfraRimItem {
-  infraId: string
-  name: string
-  service: string
-  category: string
-  /** Files in the system that touch it. */
-  count: number
-  /** The system is (part of) what implements it. */
-  implements: boolean
-}

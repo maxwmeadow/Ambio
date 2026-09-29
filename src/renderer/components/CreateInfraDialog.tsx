@@ -29,7 +29,19 @@ export function CreateInfraDialog({ isOpen, onClose }: CreateInfraDialogProps) {
       }),
     })
     if (!response.ok) throw new Error(await response.text())
-    // Canvas updates via the infra:upserted WebSocket patch.
+    // The node arrives through the infra:upserted patch. Hosting becomes a
+    // frame on the canvas; everything else lives in the infrastructure
+    // sidebar, so open it on what was just added rather than leave the
+    // person wondering where it went.
+    const created = await response.json().catch(() => null) as { id?: string } | null
+    if (service.category !== 'platform') {
+      const store = useGraphStore.getState()
+      store.setInfraSidebarOpen(true)
+      if (created?.id) {
+        store.setSelectedInfra(created.id)
+        store.setInspectedNode(created.id)
+      }
+    }
   }
 
   return (

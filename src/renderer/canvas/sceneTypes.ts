@@ -1,4 +1,3 @@
-import type { InfraRimItem } from './infraRoles.ts'
 import type { DbSystem } from '../../shared/types'
 import type { PlannedNodeKind, PlannedNodeMetadata } from '../store/sheetStore'
 import type { NodeResizeParams } from './resizeGeometry'
@@ -102,8 +101,6 @@ export interface SystemNodeData {
   presentationScale?: number
   fx?: NodeFx | null
   livingWindows?: LivingInspectionWindow[]
-  /** The infrastructure this system's files touch (INFRA_LAYER_PLAN.md L3). */
-  infraRim?: InfraRimItem[]
   /** Active agents that declared this boundary in their work scope. */
   agentPresence?: AgentPresence[]
 }

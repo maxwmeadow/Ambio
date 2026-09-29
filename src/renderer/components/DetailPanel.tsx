@@ -14,6 +14,12 @@ import {
   type PlannedNodeMetadata,
 } from '../store/sheetStore'
 
+const CONTENT_TITLE: Record<string, string> = {
+  hosts: 'Folders it runs',
+  schedule: 'Schedules',
+  key_pattern: 'Key patterns',
+}
+
 export function DetailPanel() {
   const { inspectedNodeId, files, systems, infraNodes, dependencies, setSelectedNode, setInspectedNode } = useGraphStore(
     useShallow(s => ({
@@ -771,7 +777,7 @@ function InfraDetail({
       })}
 
       {itemKinds.map(kind => (
-        <Section key={`contents-${kind}`} title={`${kind.replace('_', ' ')}s`}>
+        <Section key={`contents-${kind}`} title={CONTENT_TITLE[kind] ?? `${kind.replace('_', ' ')}s`}>
           <ul className="axiom-inspector-list">
             {items.filter(item => item.kind === kind).map(item => (
               <li key={item.id} title={item.evidence ?? undefined}>

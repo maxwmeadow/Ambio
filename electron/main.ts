@@ -657,6 +657,38 @@ until they do.
 
 // ─── App lifecycle ──────────────────────────────────────────────────────────
 
+// The View menu carries the canvas commands that used to be on-canvas buttons
+// (fit, zoom, tidy). Accelerators are shown but not registered: the renderer
+// handles the keys itself, so they work the same on Windows and Linux, where
+// the frameless window shows no menu bar, and do not zoom the whole UI the
+// way Electron's default zoom roles do.
+function installAppMenu(): void {
+  const canvas = (command: string) => () => mainWindow?.webContents.send('canvas:command', command)
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Fit Canvas', accelerator: 'CmdOrCtrl+0', registerAccelerator: false, click: canvas('fit') },
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', registerAccelerator: false, click: canvas('zoom-in') },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', registerAccelerator: false, click: canvas('zoom-out') },
+        { type: 'separator' },
+        { label: 'Tidy Layout', accelerator: 'CmdOrCtrl+Shift+L', registerAccelerator: false, click: canvas('tidy') },
+        { label: 'Infrastructure', accelerator: 'CmdOrCtrl+Shift+E', registerAccelerator: false, click: canvas('infra') },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(() => {
   // The capability stays in main; only requests to our fixed loopback daemon
   // receive it. Page scripts never receive the token through IPC or URLs.
@@ -675,6 +707,7 @@ app.whenReady().then(() => {
       callback({ requestHeaders: details.requestHeaders })
     },
   )
+  installAppMenu()
   createWindow()
   setupIPC()
   if (!IS_E2E) startArchd()

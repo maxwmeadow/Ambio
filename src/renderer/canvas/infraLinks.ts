@@ -1,16 +1,18 @@
 import type { DbDependency } from '../../shared/types.ts'
 
 /**
- * The relationships a selection reveals between code and infrastructure
- * (INFRA_LAYER_PLAN.md L3). The Floor draws no permanent wiring; selecting an
- * infra node shows who touches it, and selecting a system or file shows what
- * it touches. Pure, so the merging and wording are tested without a canvas.
+ * The relationships the infrastructure sidebar draws onto the canvas
+ * (INFRA_LAYER_PLAN.md, "Canvas placement"). Infra code talks to is not on the
+ * canvas; it is a row in the sidebar. Selecting a row draws a line from it to
+ * every visible box that touches it; selecting a system or file while the
+ * sidebar is open draws a line from that box back to each row it touches.
+ * Pure, so the merging and wording are tested without a canvas.
  */
 export interface InfraLink {
   key: string
-  /** Visible node ids the line runs between. */
-  source: string
-  target: string
+  /** The visible canvas box the line meets. */
+  nodeId: string
+  /** The sidebar row the line meets. */
   infraId: string
   kinds: string[]
   /** Distinct files behind the line. */
@@ -37,9 +39,12 @@ const SPECIFIC_FIRST = [
 ]
 
 export interface InfraLinkInput {
-  selectedId: string
+  /** A sidebar row is selected: draw who touches it. */
+  selectedInfraId: string | null
+  /** Otherwise a canvas box is selected: draw what it touches. */
+  selectedNodeId: string | null
   dependencies: readonly DbDependency[]
-  /** Infra nodes on the Floor (confirmed). */
+  /** Rows the sidebar lists (anything not dismissed). */
   infraIds: ReadonlySet<string>
   /** file id → its system, and system id → its parent. */
   fileSystem: ReadonlyMap<string, string | null>
@@ -61,23 +66,22 @@ function withinSelection(srcId: string, srcType: string, selectedId: string, inp
 }
 
 export function infraLinks(input: InfraLinkInput): InfraLink[] {
-  const { selectedId } = input
-  const selectedIsInfra = input.infraIds.has(selectedId)
-  const groups = new Map<string, { source: string; target: string; infraId: string; kinds: Set<string>; files: Set<string> }>()
+  const { selectedInfraId, selectedNodeId } = input
+  if (!selectedInfraId && !selectedNodeId) return []
+  const groups = new Map<string, { nodeId: string; infraId: string; kinds: Set<string>; files: Set<string> }>()
   for (const dep of input.dependencies) {
     if (dep.dstType !== 'infra' || dep.status === 'dismissed' || !input.infraIds.has(dep.dst)) continue
-    let source: string | null
-    if (selectedIsInfra) {
-      if (dep.dst !== selectedId) continue
-      source = input.visibleNodeId(dep.src)
+    let nodeId: string | null
+    if (selectedInfraId) {
+      if (dep.dst !== selectedInfraId) continue
+      nodeId = input.visibleNodeId(dep.src)
     } else {
-      if (!withinSelection(dep.src, dep.srcType, selectedId, input)) continue
-      source = input.visibleNodeId(selectedId)
+      if (!withinSelection(dep.src, dep.srcType, selectedNodeId!, input)) continue
+      nodeId = input.visibleNodeId(selectedNodeId!)
     }
-    const target = input.visibleNodeId(dep.dst)
-    if (!source || !target || source === target) continue
-    const key = `${source}>${target}`
-    const group = groups.get(key) ?? { source, target, infraId: dep.dst, kinds: new Set<string>(), files: new Set<string>() }
+    if (!nodeId) continue
+    const key = `${nodeId}>${dep.dst}`
+    const group = groups.get(key) ?? { nodeId, infraId: dep.dst, kinds: new Set<string>(), files: new Set<string>() }
     group.kinds.add(dep.dependencyType)
     group.files.add(dep.src)
     groups.set(key, group)
@@ -90,8 +94,7 @@ export function infraLinks(input: InfraLinkInput): InfraLink[] {
     const count = group.files.size
     return {
       key,
-      source: group.source,
-      target: group.target,
+      nodeId: group.nodeId,
       infraId: group.infraId,
       kinds: [...group.kinds],
       files: count,

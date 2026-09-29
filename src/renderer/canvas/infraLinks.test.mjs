@@ -7,6 +7,8 @@ import { infraLinks } from './infraLinks.ts'
 const dep = (src, dst, kind, status = 'confirmed', srcType = 'file') =>
   ({ id: `${src}-${dst}-${kind}`, src, dst, srcType, dstType: 'infra', dependencyType: kind, status })
 const base = {
+  selectedInfraId: null,
+  selectedNodeId: null,
   infraIds: new Set(['pg', 'stripe']),
   fileSystem: new Map([['bookings.ts', 'sys_bookings'], ['availability.ts', 'sys_bookings'], ['postgres.ts', 'sys_adapters']]),
   systemParent: new Map([['sys_bookings', null], ['sys_adapters', null]]),
@@ -21,25 +23,33 @@ const base = {
   ],
 }
 
-test('selecting an infra node shows who touches it, one line per visible box', () => {
-  const lines = infraLinks({ ...base, selectedId: 'pg' })
-  const bookings = lines.find(line => line.source === 'sys_bookings')
+test('selecting a sidebar row shows who touches it, one line per visible box', () => {
+  const lines = infraLinks({ ...base, selectedInfraId: 'pg' })
+  const bookings = lines.find(line => line.nodeId === 'sys_bookings')
   assert.equal(lines.length, 2)
+  assert.ok(lines.every(line => line.infraId === 'pg'))
   assert.equal(bookings.label, 'writes · reads · 2 files', 'specific kinds first, and how many files are behind the line')
   assert.equal(bookings.generic, false)
-  const adapters = lines.find(line => line.source === 'sys_adapters')
+  const adapters = lines.find(line => line.nodeId === 'sys_adapters')
   assert.equal(adapters.label, 'implements')
   assert.equal(adapters.generic, true, 'only implementation is known: a quieter line')
 })
 
-test('selecting a system shows what it touches; dismissed relationships are not drawn', () => {
-  const lines = infraLinks({ ...base, selectedId: 'sys_bookings' })
-  assert.deepEqual(lines.map(line => line.target).sort(), ['pg', 'stripe'])
-  const stripe = lines.find(line => line.target === 'stripe')
+test('selecting a system shows the rows it touches; dismissed relationships are not drawn', () => {
+  const lines = infraLinks({ ...base, selectedNodeId: 'sys_bookings' })
+  assert.deepEqual(lines.map(line => line.infraId).sort(), ['pg', 'stripe'])
+  assert.ok(lines.every(line => line.nodeId === 'sys_bookings'))
+  const stripe = lines.find(line => line.infraId === 'stripe')
   assert.equal(stripe.files, 1, 'the dismissed use from availability.ts is not counted')
   assert.equal(stripe.label, 'uses')
 })
 
-test('infra that is not on the Floor draws nothing', () => {
-  assert.deepEqual(infraLinks({ ...base, infraIds: new Set(), selectedId: 'sys_bookings' }), [])
+test('a sidebar selection wins over a canvas selection, and nothing selected draws nothing', () => {
+  const lines = infraLinks({ ...base, selectedInfraId: 'stripe', selectedNodeId: 'sys_adapters' })
+  assert.deepEqual(lines.map(line => line.nodeId), ['sys_bookings'])
+  assert.deepEqual(infraLinks(base), [])
+})
+
+test('rows the sidebar does not list draw nothing', () => {
+  assert.deepEqual(infraLinks({ ...base, infraIds: new Set(), selectedNodeId: 'sys_bookings' }), [])
 })

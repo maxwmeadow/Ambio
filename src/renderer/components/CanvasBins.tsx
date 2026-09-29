@@ -3,7 +3,6 @@ import type { DbFile } from '../../shared/types'
 import { sortForBin } from '../canvas/binModel'
 import { BinCanvasWindow } from './BinCanvasWindow'
 import { useGraphStore } from '../store/graphStore'
-import { InfraTray } from './InfraTray'
 
 /** Matches the pulse keyframes in bins.css. */
 const ARRIVAL_PULSE_MS = 1400
@@ -44,7 +43,7 @@ export function CanvasBins({
   dragActive = false,
   readOnly = false,
 }: CanvasBinsProps) {
-  const [openBin, setOpenBin] = useState<'unclassified' | 'infra' | null>(null)
+  const [openBin, setOpenBin] = useState<'unclassified' | null>(null)
   const sorted = useMemo(() => sortForBin(unclassified), [unclassified])
 
   // A file that lands unsorted no longer materialises on the Floor, so the
@@ -72,21 +71,6 @@ export function CanvasBins({
     if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
   }, [])
 
-  // Infrastructure detection proposed and nobody has decided about. The bin
-  // only exists while something is waiting, like the documents bin.
-  const infraProposals = useGraphStore(state =>
-    state.infraNodes.reduce((count, node) => count + (node.status === 'proposed' ? 1 : 0), 0))
-  const infraProposalKey = useGraphStore(state => state.infraProposalKey)
-  const [infraPulse, setInfraPulse] = useState(0)
-  const seenInfraProposal = useRef(infraProposalKey)
-  useEffect(() => {
-    if (infraProposalKey === seenInfraProposal.current) return
-    seenInfraProposal.current = infraProposalKey
-    setInfraPulse(infraProposalKey)
-    const timer = window.setTimeout(() => setInfraPulse(0), ARRIVAL_PULSE_MS)
-    return () => window.clearTimeout(timer)
-  }, [infraProposalKey])
-
   // The unclassified bin is always visible, empty or not. It is a place you
   // put things, and a target you cannot see is a target you cannot aim at -
   // the desktop recycle bin does not vanish when you empty it either. Only the
@@ -106,27 +90,7 @@ export function CanvasBins({
         />
       )}
 
-      {openBin === 'infra' && <InfraTray onClose={() => setOpenBin(null)} />}
-
       <div className="axiom-bins__row">
-        {(infraProposals > 0 || openBin === 'infra') && !readOnly && (
-          <button
-            key={`infra-${infraPulse}`}
-            type="button"
-            className="axiom-bin axiom-bin--infra"
-            data-arriving={infraPulse > 0 || undefined}
-            data-open={openBin === 'infra' || undefined}
-            data-bin="infra"
-            onClick={() => setOpenBin(current => current === 'infra' ? null : 'infra')}
-            aria-label="Infrastructure to confirm"
-            aria-expanded={openBin === 'infra'}
-            title="Databases, APIs and services Axiom found in the code, waiting for you to confirm"
-          >
-            <InfraGlyph />
-            <span className="axiom-bin__count">{infraProposals}</span>
-            <span className="axiom-bin__label">Infra found</span>
-          </button>
-        )}
         {showUnclassified && (
           <button
             key={pulseKey}
@@ -167,17 +131,6 @@ export function CanvasBins({
         )}
       </div>
     </div>
-  )
-}
-
-function InfraGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <ellipse cx="12" cy="6" rx="7" ry="2.6" />
-      <path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6" />
-      <path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6" />
-    </svg>
   )
 }
 

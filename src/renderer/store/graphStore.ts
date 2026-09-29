@@ -352,6 +352,12 @@ interface GraphState {
    */
   documentsOpen: boolean
   setDocumentsOpen: (open: boolean) => void
+  /** The infrastructure sidebar on the canvas's left edge (INFRA_LAYER_PLAN.md). */
+  infraSidebarOpen: boolean
+  setInfraSidebarOpen: (open: boolean) => void
+  /** A sidebar item whose relationships are drawn out onto the canvas. */
+  selectedInfraId: string | null
+  setSelectedInfra: (id: string | null) => void
   /**
    * Bumped whenever an unplaced file arrives. A counter rather than a flag so
    * a second arrival during the first animation restarts it instead of being
@@ -805,6 +811,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         selectedNodeId: null,
         inspectedNodeId: null,
         infraPickerNodeId: null,
+        selectedInfraId: null,
       }
     }
     deltaRefreshPending = false
@@ -822,6 +829,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       selectedNodeId: null,
       inspectedNodeId: null,
       infraPickerNodeId: null,
+      selectedInfraId: null,
       nodeFx: {},
       relationshipFx: [],
       pendingFileDeletions: {},
@@ -1272,7 +1280,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     state.expandedSystemIds.size === 0 ? state : { expandedSystemIds: new Set() }
   ),
 
-  setSelectedNode: (id) => set({ selectedNodeId: id }),
+  // Selecting on the canvas replaces a sidebar selection: one thing's lines at a time.
+  setSelectedNode: (id) => set(state => ({
+    selectedNodeId: id,
+    selectedInfraId: id ? null : state.selectedInfraId,
+  })),
   setInspectedNode: (id) => set({ inspectedNodeId: id }),
   setInfraPickerNode: (id) => set({ infraPickerNodeId: id }),
 
@@ -1293,6 +1305,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setSelectionMode: (active) => set({ selectionMode: active }),
   documentsOpen: false,
   setDocumentsOpen: (open) => set({ documentsOpen: open }),
+  infraSidebarOpen: false,
+  setInfraSidebarOpen: (open) => set(state => ({
+    infraSidebarOpen: open,
+    selectedInfraId: open ? state.selectedInfraId : null,
+  })),
+  selectedInfraId: null,
+  setSelectedInfra: (id) => set({ selectedInfraId: id }),
   unsortedArrivalKey: 0,
 
   getFile: (id) => get().files.find(f => f.id === id),

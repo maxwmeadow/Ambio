@@ -23,7 +23,6 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  Controls,
   MiniMap,
   useReactFlow,
   useStoreApi,
@@ -77,7 +76,7 @@ import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
 import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
 import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from './incrementalFrameLayout'
-import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE, type InfraRimItem } from './infraRoles'
+import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
   emptySelection,
@@ -90,14 +89,17 @@ import {
 import { planCanvasDrop } from './dropPersistence'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
 import { surfaceLivingNodeFx } from './livingVisibility'
-import { withFacingHandles } from './folderAnchors'
+import { absoluteRects, withFacingHandles } from './folderAnchors'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
 import { stampAgentPresence } from './agentPresence'
 import { LivingFlowOverlay } from './LivingFlowOverlay'
 import { RunTraceOverlay } from './RunTraceOverlay'
-import { InfraLinksOverlay } from './InfraLinksOverlay'
+import { InfraSidebarLinks } from './InfraSidebarLinks'
+import { arrangeHosting, planHosting, type HostedChild } from './hostingPlan'
+import { readDetectedBy } from './infraRoles'
+import { InfraSidebar } from '../components/InfraSidebar'
 import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
@@ -1341,16 +1343,6 @@ function buildFloorFrameLayout(
   return { rfNodes, rfEdges: [], generatedLayoutNodeIds, resizedContainerIds }
 }
 
-function ZoomIndicator() {
-  const { zoom } = useViewport()
-  return (
-    <div className="axiom-zoom-indicator" aria-label={`Zoom ${zoom.toFixed(2)}x`}>
-      <span>Zoom:</span>
-      <strong>{zoom.toFixed(2)}x</strong>
-    </div>
-  )
-}
-
 // ─── Main component ────────────────────────────────────────────────────────
 
 interface AxiomCanvasProps {
@@ -1529,14 +1521,17 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       : sceneFiles.filter(isCanvasSourceFile),
     [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
   )
-  // Infra reaches the Floor once it is confirmed; proposals wait in the
-  // infrastructure tray and dismissals never draw.
-  const confirmedInfraNodes = useMemo(
-    () => liveInfraNodes.filter(node => (node.status ?? 'confirmed') === 'confirmed'),
+  // Only infra that runs code is on the canvas: confirmed platforms, as frames
+  // that hold the systems they host. Everything code talks to (databases,
+  // queues, APIs...) lives in the infrastructure sidebar, which draws its
+  // relationships onto the canvas on demand (INFRA_LAYER_PLAN.md, "Canvas
+  // placement"). There is no good automatic place for a database on a map of
+  // code.
+  const hostingInfraNodes = useMemo(
+    () => liveInfraNodes.filter(node => (node.status ?? 'confirmed') === 'confirmed' && node.category === 'platform'),
     [liveInfraNodes],
   )
-  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : confirmedInfraNodes
-  const floorInfraIds = useMemo(() => new Set(confirmedInfraNodes.map(node => node.id)), [confirmedInfraNodes])
+  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : hostingInfraNodes
   const dependencies = isolatedScene ? emptyReviewLiveState.dependencies : liveDependencies
   const selectedNodeId = reviewScene?.selectedNodeId ?? liveSelectedNodeId
   const activeTrace = isolatedScene ? emptyReviewLiveState.activeTrace : liveActiveTrace
@@ -1561,7 +1556,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   )
   const setSelectedNode = reviewScene?.onSelectNode ?? setLiveSelectedNode
   const currentProject = useGraphStore(s => s.currentProject)
-  const { fitView, getViewport, setViewport, getInternalNode, screenToFlowPosition } = useReactFlow()
+  const { fitView, getViewport, setViewport, getInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
   const reactFlowStore = useStoreApi()
   // Subscribed rather than read once: the bin button shows whether the reader
   // is open, and a stale read would leave it stuck looking closed.
@@ -3433,56 +3428,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }))
   }, [runtimeNodes, layoutVersion])
 
-  // ── Infra rim ────────────────────────────────────────────────────────────
-  // Each system carries the infrastructure its files touch, so a collapsed
-  // map still says "Bookings writes Postgres and calls Stripe" without drawing
-  // a single permanent edge (INFRA_LAYER_PLAN.md L3). Rolled up to every
-  // ancestor, so a parent shows what its children depend on.
-  const infraRim = useMemo(() => {
-    const shown = new Map(infraNodes.map(node => [node.id, node]))
-    const fileSystem = new Map(files.map(file => [file.id, file.systemId ?? null]))
-    const parentOf = new Map(systems.map(system => [system.id, system.parentId ?? null]))
-    const bySystem = new Map<string, Map<string, { files: Set<string>; implements: boolean }>>()
-    for (const dep of dependencies) {
-      if (dep.dstType !== 'infra' || dep.status === 'dismissed' || !shown.has(dep.dst)) continue
-      let systemId = dep.srcType === 'system' ? dep.src : fileSystem.get(dep.src) ?? null
-      const seen = new Set<string>()
-      while (systemId && !seen.has(systemId)) {
-        seen.add(systemId)
-        const touches = bySystem.get(systemId) ?? new Map()
-        const entry = touches.get(dep.dst) ?? { files: new Set<string>(), implements: false }
-        entry.files.add(dep.src)
-        if (dep.dependencyType === 'IMPLEMENTS') entry.implements = true
-        touches.set(dep.dst, entry)
-        bySystem.set(systemId, touches)
-        systemId = parentOf.get(systemId) ?? null
-      }
-    }
-    const out = new Map<string, InfraRimItem[]>()
-    for (const [systemId, touches] of bySystem) {
-      out.set(systemId, [...touches.entries()]
-        .map(([infraId, entry]) => {
-          const node = shown.get(infraId)!
-          return { infraId, name: node.name, service: node.service, category: node.category,
-            count: entry.files.size, implements: entry.implements }
-        })
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)))
-    }
-    return out
-  }, [dependencies, infraNodes, files, systems])
-
-  useEffect(() => {
-    setRfNodes(curr => curr.map(n => {
-      if (n.type !== 'system') return n
-      const rim = infraRim.get(n.id)
-      const had = (n.data as any).infraRim as InfraRimItem[] | undefined
-      if (!rim && !had) return n
-      if (rim && had && rim.length === had.length && rim.every((item, index) =>
-        item.infraId === had[index].infraId && item.count === had[index].count && item.name === had[index].name)) return n
-      return { ...n, data: { ...n.data, infraRim: rim } }
-    }))
-  }, [infraRim, layoutVersion])
-
   // ── Data-flow slice (purple overlay) ───────────────────────────────────────
   // Stamp `sliced` on file nodes in the current variable-reference slice.
   useEffect(() => {
@@ -4622,6 +4567,146 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }, 100)
   }, [getViewport])
 
+  // Canvas commands (INFRA_LAYER_PLAN.md, "Canvas chrome"): fit, zoom, tidy and
+  // the infrastructure sidebar live in the View menu and on the keyboard
+  // rather than as buttons on the canvas. Only the main canvas answers them.
+  const tidyFrameRef = useRef(tidyFrame)
+  tidyFrameRef.current = tidyFrame
+  useEffect(() => {
+    if (binMode) return
+    const run = (command: string) => {
+      if (command === 'fit') void fitView({ padding: 0.15, duration: 600 })
+      else if (command === 'zoom-in') void zoomIn({ duration: 180 })
+      else if (command === 'zoom-out') void zoomOut({ duration: 180 })
+      else if (command === 'tidy' && !readOnly) void tidyFrameRef.current()
+      else if (command === 'infra' && !reviewMode) {
+        const store = useGraphStore.getState()
+        store.setInfraSidebarOpen(!store.infraSidebarOpen)
+      }
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
+      const key = event.key.toLowerCase()
+      const command = !event.shiftKey && key === '0' ? 'fit'
+        : !event.shiftKey && (key === '=' || key === '+') ? 'zoom-in'
+          : !event.shiftKey && key === '-' ? 'zoom-out'
+            : event.shiftKey && key === 'l' ? 'tidy'
+              : event.shiftKey && key === 'e' ? 'infra'
+                : null
+      if (!command) return
+      event.preventDefault()
+      run(command)
+    }
+    window.addEventListener('keydown', onKey)
+    const unsubscribe = (window as unknown as {
+      axiom?: { onCanvasCommand?: (callback: (command: string) => void) => () => void }
+    }).axiom?.onCanvasCommand?.(run)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      unsubscribe?.()
+    }
+  }, [binMode, fitView, zoomIn, zoomOut, readOnly, reviewMode])
+
+  // ── Hosting frames ────────────────────────────────────────────────────────
+  // A confirmed platform wraps the code it runs, nested the way it really is
+  // (INFRA_LAYER_PLAN.md, "Canvas placement"). Arranged once per platform:
+  // afterwards the frame is the person's to rearrange, and emptying it on
+  // purpose must not make it grab the code back.
+  const infraContents = useGraphStore(s => s.infraContents)
+  const hostingArrangedRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (isolatedScene || readOnly || !currentProject || hostingInfraNodes.length === 0) return
+    const workspaceId = currentProject.id
+    const platforms = hostingInfraNodes.map(node => {
+      const instance = readDetectedBy(node.detectedBy).instance
+      return {
+        id: node.id,
+        key: instance ? `${node.service}#${instance}` : node.service,
+        name: node.name,
+        hosts: infraContents
+          .filter(item => item.infraId === node.id && item.kind === 'hosts')
+          .map(item => ({
+            dir: typeof item.detail?.dir === 'string' ? item.detail.dir : '.',
+            via: typeof item.detail?.via === 'string' ? item.detail.via : undefined,
+          })),
+      }
+    })
+    const runsOn = dependencies.filter(dep => dep.dstType === 'infra' && dep.status !== 'dismissed'
+      && (dep.dependencyType === 'RUNS_ON' || dep.dependencyType === 'DEPLOYS_TO'))
+    const plan = planHosting({ platforms, systems, files, runsOn })
+    if (plan.parentOf.size === 0) return
+    const layoutById = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
+    const frameIds = new Set(platforms.map(platform => platform.id))
+    const parents = new Set(plan.parentOf.values())
+    const outermost = [...parents].filter(id => !plan.parentOf.has(id))
+    const storageKey = (id: string) => `axiom:hosting-arranged:${workspaceId}:${id}`
+    const remembered = (id: string) => {
+      try { return window.localStorage.getItem(storageKey(id)) === '1' } catch { return false }
+    }
+    const remember = (id: string) => {
+      hostingArrangedRef.current.add(`${workspaceId}:${id}`)
+      try { window.localStorage.setItem(storageKey(id), '1') } catch { /* per-session only */ }
+    }
+    for (const rootFrame of outermost) {
+      if (hostingArrangedRef.current.has(`${workspaceId}:${rootFrame}`) || remembered(rootFrame)) continue
+      const members: string[] = []
+      const collect = (frame: string) => {
+        for (const [child, parent] of plan.parentOf) if (parent === frame) { members.push(child); collect(child) }
+      }
+      collect(rootFrame)
+      if (members.every(member => layoutById.get(member)?.parentNodeId === plan.parentOf.get(member))) {
+        remember(rootFrame)
+        continue
+      }
+      // Code someone already put in a frame of their own stays there.
+      const claimed = members.filter(member => {
+        const parent = layoutById.get(member)?.parentNodeId ?? null
+        return parent !== null && !frameIds.has(parent)
+      })
+      if (claimed.length > 0) { remember(rootFrame); continue }
+      const rendered = displayNodesRef.current
+      const rects = absoluteRects(rendered)
+      const current = new Map<string, HostedChild>()
+      for (const member of members) {
+        const rect = rects.get(member)
+        const layout = layoutById.get(member)
+        if (!rect) continue
+        current.set(member, {
+          id: member,
+          nodeType: frameIds.has(member) ? 'infra' : 'system',
+          worldX: rect.x,
+          worldY: rect.y,
+          width: layout?.width ?? rect.width,
+          height: layout?.height ?? rect.height,
+          scale: layout?.scale ?? 1,
+          interiorScale: layout?.interiorScale ?? 1,
+        })
+      }
+      if (current.size === 0) continue
+      const moving = new Set([rootFrame, ...members])
+      const occupied = rendered
+        .filter(node => !node.parentId && !moving.has(node.id) && !node.hidden)
+        .map(node => rects.get(node.id))
+        .filter((rect): rect is NonNullable<typeof rect> => Boolean(rect))
+      const rows = arrangeHosting(rootFrame, plan, current, occupied)
+      remember(rootFrame)
+      const changedKeys = new Set(rows.map(row => `${row.nodeType}:${row.nodeId}`))
+      const previousLayouts = floorLayouts.filter(item => changedKeys.has(`${item.nodeType}:${item.nodeId}`))
+      useGraphStore.setState(state => ({
+        floorLayouts: replaceFloorLayouts(state.floorLayouts,
+          rows.map(row => ({ ...row, workspaceId, updatedAt: Date.now() })), changedKeys),
+      }))
+      void apiSaveFloorLayouts(workspaceId, rows).catch(error => {
+        console.error('[AxiomCanvas] hosting arrangement failed', error)
+        useGraphStore.setState(state => ({
+          floorLayouts: replaceFloorLayouts(state.floorLayouts, previousLayouts, changedKeys),
+        }))
+      })
+    }
+  }, [isolatedScene, readOnly, currentProject, hostingInfraNodes, infraContents, dependencies, systems, files, floorLayouts])
+
   return (
     <div
       ref={canvasRootRef}
@@ -4687,7 +4772,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
-        <Controls className="axiom-canvas-controls" showInteractive={false} />
         <MiniMap
           className="axiom-canvas-minimap"
           position="top-right"
@@ -4715,17 +4799,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           nodes={livingDisplayNodes}
           visibilityOptions={livingVisibilityOptions}
         />
-        {!isolatedScene && (
-          <InfraLinksOverlay
-            selectedId={selectedNodeId ?? null}
-            nodes={livingDisplayNodes}
-            dependencies={dependencies}
-            infraIds={floorInfraIds}
-            files={files}
-            systems={systems}
-            visibilityOptions={livingVisibilityOptions}
-          />
-        )}
         {deferCanvasMaterialization && (
           <Panel position="top-center" className="axiom-canvas-materializing">
             <div role="status" aria-live="polite">
@@ -4738,46 +4811,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           </Panel>
         )}
         <Panel position="top-left" className="axiom-canvas-toolbar">
-          <button
-            type="button"
-            onClick={tidyFrame}
-            disabled={isTidying || readOnly}
-            aria-busy={isTidying}
-            className="axiom-canvas-command"
-          >
-            {isTidying ? (
-              <>
-                <svg
-                  style={{ animation: 'spin 1s linear infinite', width: '14px', height: '14px' }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <circle cx="12" cy="12" r="10" stroke="rgba(49, 94, 88, 0.24)" />
-                  <path d="M12 2a10 10 0 0 1 10 10" />
-                </svg>
-                Tidying...
-              </>
-            ) : (
-              <>
-                <svg
-                  style={{ width: '14px', height: '14px' }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-                Tidy Layout
-              </>
-            )}
-          </button>
           {focusFileIds.size > 0 && (
             <button
               type="button"
@@ -4814,10 +4847,21 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             />
           </Panel>
         )}
-        <Panel position="bottom-left" className="axiom-canvas-zoom-panel">
-          <ZoomIndicator />
-        </Panel>
       </ReactFlow>
+      {!isolatedScene && (
+        <>
+          <InfraSidebarLinks
+            nodes={livingDisplayNodes}
+            dependencies={dependencies}
+            files={files}
+            systems={systems}
+            selectedNodeId={selectedNodeId ?? null}
+            visibilityOptions={livingVisibilityOptions}
+            containerRef={canvasRootRef}
+          />
+          <InfraSidebar />
+        </>
+      )}
 
       {!reviewMode && selectedIdsRef.current.size > 1 && (
         <div className="axiom-selection-actions">
