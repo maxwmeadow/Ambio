@@ -131,3 +131,19 @@ export function infraSummary(input: SummaryInput): string {
   }
   return lines.join('\n')
 }
+
+/**
+ * Contract gaps detection found (a topic published with nobody consuming it),
+ * as lines to put in front of an agent that has just started debugging. They
+ * are often the bug itself, and cost nothing to mention.
+ */
+export function infraGaps(input: Pick<SummaryInput, 'nodes' | 'contents'>, max = 5): string[] {
+  const nameOf = new Map(input.nodes.filter(node => node.status !== 'dismissed').map(node => [node.id, node.name]))
+  const gaps = input.contents.filter(item => nameOf.has(item.infraId) && typeof item.detail?.warning === 'string')
+  const lines = gaps.slice(0, max).map(item => {
+    const who = [...asStrings(item.detail?.publishers), ...asStrings(item.detail?.consumers)]
+    return `${nameOf.get(item.infraId)} ${item.kind} ${item.name}: ${item.detail!.warning}${who.length ? ` (${list(who, 3)})` : ''}`
+  })
+  if (gaps.length > max) lines.push(`+${gaps.length - max} more: get_architecture scope "infra"`)
+  return lines
+}

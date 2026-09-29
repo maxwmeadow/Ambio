@@ -91,3 +91,33 @@ func TestLocalEnvValuesAreNeverRead(t *testing.T) {
 		}
 	}
 }
+
+func TestSQLItemEdges(t *testing.T) {
+	d := &detection{in: Inputs{
+		Config: map[string][]byte{"db/001.sql": []byte("CREATE TABLE bookings (\n  id text primary key,\n  status text\n);\nCREATE TABLE slips (\n  id text\n);\n")},
+		ReadSource: func(string) []byte {
+			return []byte("await db.query('DELETE FROM bookings WHERE id = $1')\nawait db.query('select * from slips join bookings on 1=1')\n")
+		},
+	}, files: map[string]File{"f": {ID: "f", RelPath: "src/repo.ts"}}}
+	p := &Proposal{Service: "postgresql/postgres", Category: "database", Subtype: "sql", Edges: []Edge{{FileID: "f", Kind: "USES"}}}
+	d.proposals = map[string]*Proposal{p.Service: p}
+	d.extractTables()
+	got := map[string]bool{}
+	for _, e := range p.Edges {
+		if e.Item != "" {
+			got[e.Kind+" "+e.Item] = true
+		}
+	}
+	want := map[string]bool{"WRITES bookings": true, "READS slips": true, "READS bookings": true}
+	for k := range want {
+		if !got[k] {
+			t.Errorf("missing %s in %v", k, got)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("unexpected edges %v", got)
+	}
+	if len(p.Contents) != 2 {
+		t.Errorf("two tables: %+v", p.Contents)
+	}
+}

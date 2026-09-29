@@ -20,10 +20,11 @@ func (d *detection) extractContracts() {
 }
 
 var (
-	createTable = regexp.MustCompile(`(?is)create\s+table\s+(?:if\s+not\s+exists\s+)?["` + "`" + `]?([a-z_][a-z0-9_]*)["` + "`" + `]?\s*\((.*?)\n\s*\)\s*;`)
+	createTable = regexp.MustCompile(`(?is)create\s+table\s+(?:if\s+not\s+exists\s+)?["` + "`" + `]?([a-z_][a-z0-9_]*)["` + "`" + `]?\s*\((.*?)\n\s*\)`)
 	prismaModel = regexp.MustCompile(`(?m)^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{`)
 	sqlWrite    = regexp.MustCompile(`(?i)\b(?:insert\s+into|update|delete\s+from)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
-	sqlRead     = regexp.MustCompile(`(?i)\b(?:from|join)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
+	// The optional "delete" consumes DELETE FROM, which is a write, not a read.
+	sqlRead     = regexp.MustCompile(`(?i)(?:\bdelete\s+)?\b(?:from|join)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
 	columnName  = regexp.MustCompile(`(?m)^\s*["` + "`" + `]?([a-z_][a-z0-9_]*)["` + "`" + `]?\s+[a-z]`)
 )
 
@@ -55,8 +56,27 @@ func (d *detection) extractTables() {
 		}
 	}
 	sort.Strings(files)
+	// Schema kept in code (a CREATE TABLE string in the adapter, or in a file
+	// that opens the driver directly) counts too.
+	sources := map[string][]byte{}
+	var adapters []string
+	for _, edge := range db.Edges {
+		if edge.Kind != "IMPLEMENTS" && edge.Kind != "USES" {
+			continue
+		}
+		rel := d.files[edge.FileID].RelPath
+		if _, seen := sources[rel]; !seen {
+			sources[rel] = d.in.ReadSource(rel)
+			adapters = append(adapters, rel)
+		}
+	}
+	sort.Strings(adapters)
+	files = append(files, adapters...)
 	for _, file := range files {
-		body := d.in.Config[file]
+		body, ok := d.in.Config[file]
+		if !ok {
+			body = sources[file]
+		}
 		if path.Base(file) == "schema.prisma" {
 			for _, m := range prismaModel.FindAllSubmatchIndex(body, -1) {
 				name := strings.ToLower(string(body[m[2]:m[3]]))
@@ -103,6 +123,9 @@ func (d *detection) extractTables() {
 		}
 		record := func(pattern *regexp.Regexp, kind string) {
 			for _, m := range pattern.FindAllSubmatchIndex(source, -1) {
+				if kind == "READS" && strings.HasPrefix(strings.ToLower(string(source[m[0]:m[1]])), "delete") {
+					continue
+				}
 				table := strings.ToLower(string(source[m[2]:m[3]]))
 				k := key{edge.FileID, kind, table}
 				if !tables[table] || seen[k] {

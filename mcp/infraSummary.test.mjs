@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { infraSummary } from './infraSummary.ts'
+import { infraGaps, infraSummary } from './infraSummary.ts'
 
 const names = { f1: 'src/infra/db/postgres.ts', f2: 'src/repos/bookings.ts', f3: 'src/repos/marinas.ts', sys: 'Bookings' }
 const input = {
@@ -45,4 +45,9 @@ test('the agent reads infra as paths, roles and next steps, not ids and joins', 
 test('an empty map says how it fills', () => {
   assert.match(infraSummary({ ...input, nodes: [], unresolved: [] }), /Detection runs as files are saved/)
   assert.equal(infraSummary({ ...input, status: 'proposed', nodes: [input.nodes[0]], unresolved: [] }), 'No proposed infrastructure.')
+})
+
+test('contract gaps are offered to an agent that starts debugging', () => {
+  assert.deepEqual(infraGaps(input), ['PostgreSQL topic booking.reminder: published, but nothing consumes it (src/jobs/sendReminders.ts)'])
+  assert.deepEqual(infraGaps({ ...input, nodes: [] }), [], 'gaps on unknown or dismissed nodes are not mentioned')
 })

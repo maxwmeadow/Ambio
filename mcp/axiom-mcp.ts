@@ -21,7 +21,7 @@ import { routeTool } from './toolRouting.ts'
 import { findWorktreeForCwd, type WorktreeContext, type WorktreeRow } from './worktreeContext.ts'
 import fs from 'fs'
 import { daemonFetch as fetch } from '../electron/daemonAuth.ts'
-import { infraSummary } from './infraSummary.ts'
+import { infraGaps, infraSummary } from './infraSummary.ts'
 
 // Helper: UUID generator for system nodes
 function generateUUID(): string {
@@ -277,7 +277,7 @@ When you are asked to find the cause of a bug, a wrong value, a crash, a flaky t
 
 Keep reading and searching files the way you normally do. What you do through \`investigation\` appears on the person's map next to the code it concerns, and anything they say back to you arrives in your tool results.
 
-The map also records what the code depends on - databases, caches, queues, external APIs, LLMs, storage, email, schedulers, feature flags - including in-process stand-ins such as an event bus or an in-memory cache. Axiom proposes these from imports and config; \`get_architecture\` scope "infra" lists each one with the files that implement and use it and what it needs to run. When you add a dependency, or learn how code uses one (which table it writes, which topic it publishes, which env var it reads), record it with \`edit_infra\`, and confirm or dismiss proposals once you have read the code.`
+The map also records what the code depends on - databases, caches, queues, external APIs, LLMs, storage, email, schedulers, feature flags - including in-process stand-ins such as an event bus or an in-memory cache. Axiom proposes these from imports and config; \`get_architecture\` scope "infra" lists each one with the files that implement and use it, what it needs to run, and contract gaps such as a topic published with nobody consuming it - worth checking when a message, job or email silently never happens. When you add a dependency, or learn how code uses one (which table it writes, which topic it publishes, which env var it reads), record it with \`edit_infra\`, and confirm or dismiss proposals once you have read the code.`
 
 const server = new Server(
   { name: 'axiom', version: '0.3.0' },
@@ -1900,8 +1900,17 @@ Steps to execute:
         const name = ((args.name as string) ?? (args.symptom as string) ?? '').trim()
         const data = await investigationPost(project.workspaceId, 'start', { name, symptom: args.symptom })
         const commands = reproCommands(project.rootPath)
+        let gaps: string[] = []
+        try {
+          const infra = await fetch(`${API_BASE}/api/infra?workspace=${encodeURIComponent(project.workspaceId)}`)
+          if (infra.ok) {
+            const data = await infra.json() as { nodes: any[] | null; contents: any[] | null }
+            gaps = infraGaps({ nodes: data.nodes ?? [], contents: data.contents ?? [] })
+          }
+        } catch { /* the case opens either way */ }
         result = [
           `Case open: "${data.name}"${data.commit ? ` (pinned to ${String(data.commit).slice(0, 8)})` : ''}. The person watching sees it on their map.`,
+          gaps.length ? `\nAxiom's infra map flags these contract gaps; check whether one is the cause:\n${gaps.map(line => `  ! ${line}`).join('\n')}` : '',
           '',
           'Next: state what you suspect with op "hypothesis", then test it with op "run" - the command that reproduces the problem, plus `watch` on the functions you suspect.',
           commands.length ? `Commands in this project: ${commands.join(' · ')}` : '',
