@@ -34,7 +34,7 @@ test('the agent reads infra as paths, roles and next steps, not ids and joins', 
   assert.match(text, /Implemented by: src\/infra\/db\/postgres\.ts/)
   assert.match(text, /Writes bookings: src\/repos\/bookings\.ts/)
   assert.match(text, /Uses \(from imports\): src\/repos\/marinas\.ts/)
-  assert.match(text, /tables: bookings/)
+  assert.match(text, /Tables: bookings/)
   assert.match(text, /Record as: READS, WRITES, MIGRATES\n/)
   assert.match(text, /! topic booking\.reminder: published, but nothing consumes it \(src\/jobs\/sendReminders\.ts\)/)
   assert.match(text, /Stripe - api \(stripe\/api\) - PROPOSED/)

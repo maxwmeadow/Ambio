@@ -41,6 +41,17 @@ export interface SummaryInput {
   status?: string
 }
 
+const CONTENT_LABEL: Record<string, string> = {
+  hosts: 'Runs the folders',
+  key_pattern: 'Cache keys',
+  topic: 'Topics',
+  table: 'Tables',
+  collection: 'Collections',
+  flag: 'Flag keys',
+  model: 'Models',
+  schedule: 'Schedules',
+}
+
 const KIND_LABEL: Record<string, string> = {
   'in-process': 'in-process stand-in',
   'local-service': 'local service',
@@ -106,7 +117,7 @@ export function infraSummary(input: SummaryInput): string {
     const items = input.contents.filter(item => item.infraId === node.id)
     const itemKinds = [...new Set(items.map(item => item.kind))]
     for (const kind of itemKinds) {
-      lines.push(`  ${kind.replace('_', ' ')}s: ${list(items.filter(item => item.kind === kind).map(item =>
+      lines.push(`  ${CONTENT_LABEL[kind] ?? `${kind.replace('_', ' ')}s`}: ${list(items.filter(item => item.kind === kind).map(item =>
         typeof item.detail?.cron === 'string' ? `${item.name} (${item.detail.cron})` : item.name), 12)}`)
     }
     // A contract gap is often the bug itself: a topic sent with nobody listening.
@@ -144,6 +155,7 @@ export function infraSummary(input: SummaryInput): string {
 export function infraGaps(input: Pick<SummaryInput, 'nodes' | 'contents'>, max = 5): string[] {
   const nameOf = new Map(input.nodes.filter(node => node.status !== 'dismissed').map(node => [node.id, node.name]))
   const gaps = input.contents.filter(item => nameOf.has(item.infraId) && typeof item.detail?.warning === 'string')
+    .sort((a, b) => (b.detail?.similar ? 1 : 0) - (a.detail?.similar ? 1 : 0))
   const lines = gaps.slice(0, max).map(item => {
     const who = [...asStrings(item.detail?.publishers), ...asStrings(item.detail?.consumers)]
     return `${nameOf.get(item.infraId)} ${item.kind} ${item.name}: ${item.detail!.warning}${who.length ? ` (${list(who, 3)})` : ''}`

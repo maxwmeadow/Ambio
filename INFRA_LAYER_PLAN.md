@@ -255,6 +255,37 @@ dismisses each (dismissals stick by service id). Re-indexing reconciles.
 MCP: proposals in `get_architecture`, confirm/dismiss through `edit_infra`, and
 server instructions that tell the agent when infra matters.
 
+> **Accuracy, measured 2026-09-29.** `pantry` (TypeScript API, Python worker,
+> Go service; written without looking at the detector; answer key in
+> `~/dev/axiom-lab/.answers/pantry.md`, test `pantry_test.go`):
+>
+> | | first run | now |
+> |---|---|---|
+> | services | 19 of 21 | 22 of 22, no false proposals |
+> | file → infra relationships | 40 of 62 (TS 34/34, Go 4/7, Python 2/20) | about 61 of 62 |
+> | seeded bugs caught with no agent | 0 of 5 | 3 of 5 (Kafka and RabbitMQ name typos, stale cache key) |
+>
+> What moved it: Python imports resolved from a monorepo folder's source root
+> and Go imports to the package folder via go.mod; full Python module names
+> with import-name aliases; ambiguous packages settled by the file's
+> connection URL or client name (`boto3.client("s3")`); env readers linked to
+> the service owning the variable; env ownership by strongest claim; config
+> and manifests read in any folder. The other three labs produce no false
+> proposals.
+>
+> **Coverage.** Imports and env reads: TypeScript/JavaScript, Python and Go
+> (tree-sitter), Java, C#, Ruby and Rust (text). Manifests: package.json,
+> requirements.txt, go.mod, pom.xml, build.gradle, .csproj, Gemfile,
+> Cargo.toml. Config: docker-compose, Dockerfiles, fly.toml, railway, render,
+> netlify, vercel.json, GitHub workflows, Rails database.yml, Spring
+> application properties, .NET appsettings. Contracts: SQL and Prisma tables
+> with reads/writes (SQL text, Prisma calls); topics from .publish/.consume,
+> kafkajs, kafka-go, amqplib, kombu, BullMQ and adapter wrappers; cache keys
+> (get/set/del on a cache-named receiver); Mongo collections; flag keys; LLM
+> model names. Not yet: PHP, Kotlin-specific, Terraform, Kubernetes manifests,
+> ORMs beyond Prisma (SQLAlchemy models, ActiveRecord, GORM), SQS/SNS/Pub/Sub
+> topic names.
+
 ### L3 - Visibility
 
 > Built 2026-09-29: the "Infra found" tray (confirm / dismiss / confirm all),

@@ -17,7 +17,12 @@ import {
 const CONTENT_TITLE: Record<string, string> = {
   hosts: 'Folders it runs',
   schedule: 'Schedules',
-  key_pattern: 'Key patterns',
+  key_pattern: 'Cache keys',
+  topic: 'Topics',
+  table: 'Tables',
+  collection: 'Collections',
+  flag: 'Flag keys',
+  model: 'Models',
 }
 
 export function DetailPanel() {
@@ -652,7 +657,10 @@ function InfraDetail({
   }
   const kinds = [...byKind.keys()].sort((a, b) => RELATIONSHIP_ORDER.indexOf(a) - RELATIONSHIP_ORDER.indexOf(b))
   const items = contents.filter(item => item.infraId === infra.id)
+  // A near-identical name on the other side (a likely typo) is the gap most
+  // often behind a bug; it leads.
   const gaps = items.filter(item => typeof item.detail?.warning === 'string')
+    .sort((a, b) => (b.detail?.similar ? 1 : 0) - (a.detail?.similar ? 1 : 0))
   const itemUse = (name: string) => {
     const kindsFor = new Map<string, number>()
     for (const dep of touching) {
