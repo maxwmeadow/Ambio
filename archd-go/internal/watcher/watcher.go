@@ -76,9 +76,28 @@ func New(sqlDB *sql.DB, h *hub.Hub, roots []db.Root) (*Watcher, error) {
 	for _, root := range roots {
 		if err := addRecursive(fw, root.Path, root.IgnoredPaths); err != nil {
 			log.Printf("watcher: add %s: %v", root.Path, err)
+			if IsWatchLimit(err) {
+				// Live updates would silently stop for part of the tree. Say so,
+				// with the fix, instead of leaving a map that quietly goes stale.
+				h.Broadcast("watcher:limited", map[string]any{
+					"workspaceId": root.WorkspaceID,
+					"rootPath":    root.Path,
+					"reason":      err.Error(),
+				})
+			}
 		}
 	}
 	return w, nil
+}
+
+// IsWatchLimit reports the OS refusing more watches: Linux's inotify
+// max_user_watches ("no space left on device") or the open-file limit.
+func IsWatchLimit(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "no space left on device") || strings.Contains(message, "too many open files")
 }
 
 // Run starts the event loop. Call in a goroutine; returns when Close() is called.

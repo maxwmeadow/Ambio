@@ -2,6 +2,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useOnboardingStore } from '../store/onboardingStore'
 import { ProposalDraftProgress } from './ProposalDraftProgress'
+import { archdApi } from '../archdEndpoint.ts'
 
 const CONNECTION_LABELS = {
   connected: 'connected',
@@ -114,6 +115,20 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
             max={Math.max(indexingTotal, 1)}
           />
           <strong>{indexingProgress.indexed}/{indexingProgress.total}</strong>
+          <button
+            type="button"
+            className="axiom-status-bar__stop"
+            title="Stop indexing, then exclude large folders in Project Settings"
+            onClick={() => {
+              void fetch(`${archdApi()}/api/workspace-index-cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId }),
+              })
+            }}
+          >
+            Stop
+          </button>
         </div>
       ) : null}
     </footer>

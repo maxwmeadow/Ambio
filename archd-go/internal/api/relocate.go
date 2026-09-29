@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"axiom.local/archd/internal/db"
+	"axiom.local/archd/internal/indexer"
 )
 
 type relocateWorkspaceReq struct {
@@ -115,4 +116,29 @@ func (s *Server) handleWorkspaceReindex(w http.ResponseWriter, r *http.Request) 
 		s.launchRootSync(sqlDB, root, false)
 	}
 	jsonOK(w, map[string]any{"reindexing": len(roots)})
+}
+
+// handleWorkspaceIndexCancel handles POST /api/workspace-index-cancel: stop a
+// running full index, typically because the user saw it was reading far more
+// than they meant to. See indexer.CancelIndexing.
+func (s *Server) handleWorkspaceIndexCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var req reindexWorkspaceReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !validWorkspaceID(req.WorkspaceID) {
+		jsonError(w, "workspaceId is required", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	cancelled := 0
+	for _, root := range s.roots {
+		if root.WorkspaceID == req.WorkspaceID {
+			indexer.CancelIndexing(root.ID)
+			cancelled++
+		}
+	}
+	s.mu.Unlock()
+	jsonOK(w, map[string]any{"cancelled": cancelled})
 }

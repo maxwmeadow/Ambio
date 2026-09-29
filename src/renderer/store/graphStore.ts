@@ -1609,6 +1609,15 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
     case 'indexing:complete':
       store.setIndexingComplete()
       break
+    // The user stopped a full index, or the OS refused to watch more folders.
+    // App turns both into something the user can act on.
+    case 'indexing:cancelled':
+      store.setIndexingComplete()
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('axiom:indexing-cancelled', { detail: msg.payload }))
+      break
+    case 'watcher:limited':
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('axiom:watcher-limited', { detail: msg.payload }))
+      break
     // archd has finished baseline/reconciliation, so the journal is settled
     // and the Morning Delta can be read without racing the catch-up pass.
     case 'delta:ready':

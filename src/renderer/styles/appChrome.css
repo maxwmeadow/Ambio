@@ -507,3 +507,24 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+.axiom-source-setup__notice--large {
+  border-color: #b99a55 !important;
+  background: #f6efd9 !important;
+  color: #4d3f1f !important;
+  line-height: 1.5;
+}
+
+.axiom-status-bar__stop {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  color: inherit;
+  font-size: 10px;
+  line-height: 16px;
+  opacity: 0.8;
+}
+
+.axiom-status-bar__stop:hover {
+  opacity: 1;
+}

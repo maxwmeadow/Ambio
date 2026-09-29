@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('axiom', {
     ipcRenderer.invoke('shell:show-item', filePath),
 
   listEditors: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke('editors:list'),
+  estimateScope: (rootPath: string, ignored: string[]): Promise<ScopeEstimate | null> =>
+    ipcRenderer.invoke('fs:estimate-scope', rootPath, ignored),
 
   openFile: (filePath: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('shell:open-file', filePath),
@@ -229,6 +231,12 @@ export interface AgentConnection {
   config: string
 }
 
+export interface ScopeEstimate {
+  sourceFiles: number
+  truncated: boolean
+  largest: Array<{ path: string; name: string; sourceFiles: number }>
+}
+
 export type UpdateCheckResult = 'up-to-date' | 'available' | 'unavailable' | 'failed'
 
 export type UpdateStatus =
@@ -263,6 +271,7 @@ declare global {
       showInFolder: (filePath: string) => void
       openFile: (filePath: string) => Promise<{ ok: boolean; detail: string }>
       listEditors: () => Promise<Array<{ id: string; label: string }>>
+      estimateScope: (rootPath: string, ignored: string[]) => Promise<ScopeEstimate | null>
       getAppInfo: () => Promise<{ version: string; dataDir: string; platform: string; mcpPath: string; archdApiUrl: string; archdWsUrl: string; isPackaged: boolean }>
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>

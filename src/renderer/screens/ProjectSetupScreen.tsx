@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import { completeSourceBoundaries } from '../../shared/projectLifecycle'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
+import type { ScopeEstimate } from '../../../electron/preload'
 import {
   type DirEntry,
   type TreeNode,
@@ -89,6 +90,23 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
   const explored = useMemo(() => countExploredKinds(tree), [tree])
   const scopeSummary = useMemo(() => formatExploredScopeSummary(explored), [explored])
 
+  // How big this scope really is, recounted as folders are toggled. Big
+  // trees are usually big because of generated or third-party code.
+  const effectiveExclusions = useMemo(
+    () => (editing ? mergeExclusions(tree, baseConfig.ignoredPaths) : excludedPaths),
+    [editing, tree, baseConfig.ignoredPaths, excludedPaths],
+  )
+  const [estimate, setEstimate] = useState<ScopeEstimate | null>(null)
+  useEffect(() => {
+    if (!window.axiom?.estimateScope || loading) return
+    let active = true
+    const timer = setTimeout(() => {
+      void window.axiom.estimateScope(rootPath, effectiveExclusions).then(result => { if (active) setEstimate(result) })
+    }, 400)
+    return () => { active = false; clearTimeout(timer) }
+  }, [rootPath, effectiveExclusions, loading])
+  const largeScope = estimate && (estimate.truncated || estimate.sourceFiles > LARGE_SCOPE_FILES)
+
   const trimmedName = name.trim()
   const handleConfirm = () => {
     if (editing) {
@@ -167,6 +185,19 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
           </header>
 
           {loadError && <div className="axiom-source-setup__notice" role="alert">{loadError}</div>}
+          {largeScope && estimate && (
+            <div className="axiom-source-setup__notice axiom-source-setup__notice--large" role="status">
+              <strong>
+                This will index {estimate.truncated ? 'more than ' : 'about '}
+                {estimate.sourceFiles.toLocaleString()} source files.
+              </strong>{' '}
+              Large projects map best when generated, vendored and third-party code is excluded; indexing is faster
+              and the systems describe your code rather than your dependencies.
+              {estimate.largest.length > 0 && (
+                <> Largest folders: {estimate.largest.map(folder => `${folder.name} (${folder.sourceFiles.toLocaleString()})`).join(', ')}.</>
+              )}
+            </div>
+          )}
 
           <div className="axiom-setup-tree axiom-source-browser__tree" role="tree" aria-label="Project files and folders">
             {loading ? (
@@ -219,6 +250,9 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     </main>
   )
 }
+
+/** Above this many source files the setup screen suggests trimming the scope. */
+const LARGE_SCOPE_FILES = 15_000
 
 interface TreeRowProps {
   node: TreeNode

@@ -36,6 +36,7 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 	}
 
 	var paths []string
+	skipped := 0
 	err := filepath.WalkDir(root.Path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable dirs
@@ -47,10 +48,17 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 			return nil
 		}
 		if IsSupportedSourceFile(path) {
+			if tooLargeOrGenerated(path, d) {
+				skipped++
+				return nil
+			}
 			paths = append(paths, path)
 		}
 		return nil
 	})
+	if skipped > 0 {
+		log.Printf("[indexer] root %s - skipped %d generated or oversized (>%d KB) files", root.Path, skipped, MaxSourceFileBytes/1024)
+	}
 	return paths, err
 }
 

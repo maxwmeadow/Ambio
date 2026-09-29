@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, se
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
+import { estimateScope } from './scopeEstimate'
 import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
 import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSettings } from '../src/shared/appSettings'
 import type { SystemRole } from '../src/shared/appMenu'
@@ -886,6 +887,11 @@ function setupIPC(): void {
   })
 
   // Show item in Finder/Explorer
+  ipcMain.handle('fs:estimate-scope', (_event, rootPath: string, ignored: string[]) => {
+    if (typeof rootPath !== 'string' || !isInside(rootPath, projectRoots())) return null
+    return estimateScope(rootPath, Array.isArray(ignored) ? ignored.filter(item => typeof item === 'string') : [])
+  })
+
   ipcMain.handle('shell:show-item', (_event, filePath: string) => {
     if (typeof filePath !== 'string' || !isInside(filePath, [...projectRoots(), CONFIG_DIR])) return
     shell.showItemInFolder(filePath)

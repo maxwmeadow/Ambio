@@ -220,6 +220,38 @@ export default function App() {
     })
   }, [])
 
+  // A stopped index and an exhausted file-watch limit each get an explanation
+  // and a way forward, instead of a map that is quietly partial or stale.
+  useEffect(() => {
+    const onCancelled = (event: Event) => {
+      const detail = (event as CustomEvent<{ indexed?: number; total?: number }>).detail ?? {}
+      raiseInvitation('indexing-cancelled', 'Indexing stopped',
+        `Read ${detail.indexed ?? 0} of ${detail.total ?? 0} files. Exclude generated or third-party folders, then re-index.`,
+        [{ label: 'Project Settings', primary: true, run: () => emitCommand('project.settings') }])
+    }
+    const onLimited = () => {
+      const linux = window.axiom?.platform === 'linux'
+      raiseFailure('watcher-limited', 'Live updates are off for part of this project',
+        linux
+          ? 'Linux limits how many folders one user can watch, and this project needs more. Raise the limit (copy the command and run it in a terminal), or exclude large folders in Project Settings, then reopen the project.'
+          : 'The system refused to watch more folders. Exclude large folders in Project Settings, then reopen the project.',
+        [
+          ...(linux ? [{
+            label: 'Copy command',
+            primary: true,
+            run: () => { void window.axiom?.copyText('echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/60-axiom-watches.conf && sudo sysctl --system') },
+          }] : []),
+          { label: 'Project Settings', run: () => emitCommand('project.settings') },
+        ])
+    }
+    window.addEventListener('axiom:indexing-cancelled', onCancelled)
+    window.addEventListener('axiom:watcher-limited', onLimited)
+    return () => {
+      window.removeEventListener('axiom:indexing-cancelled', onCancelled)
+      window.removeEventListener('axiom:watcher-limited', onLimited)
+    }
+  }, [])
+
   // An update never interrupts work: it waits in the lane until chosen.
   const updateStatus = useUpdateStatus()
   const workbenchOpen = currentProject !== null

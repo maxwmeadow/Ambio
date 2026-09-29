@@ -83,6 +83,8 @@ const ClassifierVersion = 4
 // ignoredPaths is a list of absolute path globs (e.g. "C:\proj\Library\**") to skip.
 func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) error {
 	log.Printf("[indexer] IndexRoot called: root=%s ignoredPaths=%v", root.Path, ignoredPaths)
+	clearCancel(root.ID)
+	defer clearCancel(root.ID)
 
 	paths, err := collectSourcePaths(root, ignoredPaths)
 	if err != nil {
@@ -124,11 +126,21 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 		}()
 	}
 
+	cancelled := false
 	for _, p := range paths {
+		if indexingCancelled(root.ID) {
+			cancelled = true
+			break
+		}
 		jobs <- p
 	}
 	close(jobs)
 	wg.Wait()
+	if cancelled {
+		log.Printf("[indexer] root %s - indexing cancelled after %d of %d files", root.Path, indexed.Load(), total)
+		h.Broadcast("indexing:cancelled", map[string]any{"workspaceId": root.WorkspaceID, "indexed": indexed.Load(), "total": total})
+		return ErrIndexCancelled
+	}
 
 	// Build import dependencies after all file IDs are known.
 	if err := buildImportDependencies(sqlDB, root); err != nil {
@@ -276,6 +288,11 @@ func changedSymbolTouches(fileID string, before, after []db.Symbol, contentChang
 // ReindexFile re-parses a single file and updates its symbols and edges.
 // Called by the watcher on file change events.
 func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
+	// A file that grew past the size limit (a regenerated bundle) keeps its
+	// last parse rather than stalling the watcher on it.
+	if fileTooLarge(absPath) || strings.Contains(strings.ToLower(filepath.Base(absPath)), ".min.") {
+		return nil
+	}
 	traceID := nextLivingTraceID()
 	relPath, _ := filepath.Rel(root.Path, absPath)
 	relPath = filepath.ToSlash(relPath)

@@ -312,6 +312,13 @@ Keyboard accelerators then work everywhere.
 - ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
 - ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
+### Large projects (2026-09-30)
+- ✅ Files over 1 MB and `*.min.*` files are skipped (generated code); a file that grows past the limit keeps its last parse
+- ✅ Setup and Project Settings estimate the scope as you toggle folders and warn above ~15,000 source files, naming the largest folders
+- ✅ Stop button while indexing; a stopped index explains itself and links to Project Settings
+- ✅ Linux inotify / open-file limits no longer fail silently: the app says live updates are off and offers the exact command to raise the limit
+- ✅ Measured idle cost: archd uses no CPU and ~6 MB when idle; Git is watched by events with a 5-minute safety poll
+
 ### Security and privacy (2026-09-30)
 - ✅ Renderer sandboxed; production Content Security Policy (own scripts + WebAssembly, loopback connections only); no new windows, navigation, web views or device permissions; links open in the browser (http/https only)
 - ✅ Fonts bundled: Axiom no longer requests Google Fonts on every launch (a privacy leak and an offline failure)
