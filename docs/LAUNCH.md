@@ -364,7 +364,7 @@ Keyboard accelerators then work everywhere.
 ### Staying current
 - ✅ Auto-update via electron-updater + GitHub Releases: Windows and AppImage download and install on restart; macOS and non-AppImage Linux are told a version is available and linked to it
 - ⬜ Turn on macOS auto-install once signed
-- ⬜ What's New after update
+- ✅ CHANGELOG.md (Keep a Changelog) ships with the app; after an update Axiom shows that version's section once as What's New (Help → What's New any time); contributors add a line per user-visible change
 - ✅ Database downgrade guard: `PRAGMA user_version` stamped with `db.SchemaVersion`; a newer database is refused with a clear message. **Bump `SchemaVersion` whenever `migrate` changes.**
 
 ### When it breaks
@@ -374,10 +374,12 @@ Keyboard accelerators then work everywhere.
 - ✅ Log files (main, archd, renderer warnings/errors) in `~/.axiom/logs`, 2 MB × 3 each
 - ✅ Report a Bug / Copy Diagnostics / Open Logs on the launcher, the archd failure notice and the crash screen (Help menu later)
 - ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
-- ⬜ Opt-in crash reporting
+- ✅ Crashes captured locally (Electron minidumps, never uploaded) and counted in diagnostics; uncaught errors in the main process and the window are logged
+- ⬜ Opt-in crash upload, when there is a destination (Sentry/GlitchTip project). Design: a first-run choice with nothing pre-selected, the exact fields listed, never code, file names, paths or project names; PRIVACY.md updated before it ships
 - ✅ Daemon discovery and graceful agent behaviour when the app is closed (§4)
 - ✅ Ports: archd prefers 7743-7745 and, when another program holds one, binds a free port and publishes it in `daemon.json`; the app, renderer and MCP server follow it. archd also takes an OS lock on its data folder, so two daemons can never share the databases
 
 ### Leaving
 - ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
-- ⬜ "Clear all Axiom data" in Settings; document uninstall per OS
+- ✅ Settings → Privacy & Data → Delete all Axiom data (native confirmation, stops archd, restarts fresh)
+- ⬜ Document uninstall per OS in the README

@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter } from 'electron'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
 import { estimateScope } from './scopeEstimate'
 import { parseAxiomUrl, parseLaunchArgs, type LaunchRequest } from './launchRequests'
 import { installCliLauncher } from './cliLauncher'
+import { changelogSection, shouldShowWhatsNew } from './whatsNew'
 import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
 import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSettings } from '../src/shared/appSettings'
 import type { SystemRole } from '../src/shared/appMenu'
@@ -73,6 +74,13 @@ for (const level of ['log', 'info', 'warn', 'error'] as const) {
     logs.main.write(timestamped(level === 'log' ? 'info' : level, format(...args)))
   }
 }
+
+// Crashes are kept on this machine (Electron minidumps) and counted in
+// diagnostics. Nothing is uploaded: an opt-in upload needs a destination
+// Axiom does not have yet (see docs/LAUNCH.md).
+crashReporter.start({ uploadToServer: false })
+process.on('uncaughtException', error => console.error('[main] uncaught exception:', error))
+process.on('unhandledRejection', reason => console.error('[main] unhandled rejection:', reason))
 
 let mainWindow: BrowserWindow | null = null
 let archdProcess: ChildProcess | null = null
@@ -296,6 +304,36 @@ function writeAppSettings(patch: Partial<AppSettings>): AppSettings {
 // takes effect on the next start. The CSS already honours the OS setting.
 if (readAppSettings().reduceMotion === 'always') {
   app.commandLine.appendSwitch('force-prefers-reduced-motion')
+}
+
+function writeSettingsKey(key: string, value: unknown): void {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true })
+  const temp = `${SETTINGS_FILE}.tmp`
+  fs.writeFileSync(temp, JSON.stringify({ ...readSettingsFile(), [key]: value }, null, 2))
+  fs.renameSync(temp, SETTINGS_FILE)
+}
+
+function changelogPath(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'CHANGELOG.md') : join(__dirname, '..', '..', 'CHANGELOG.md')
+}
+
+function releaseNotes(version: string): string | null {
+  try { return changelogSection(fs.readFileSync(changelogPath(), 'utf8'), version) } catch { return null }
+}
+
+// Decided once per launch: an update since the last run shows its notes.
+let pendingWhatsNew: { version: string; notes: string } | null = null
+function checkWhatsNew(): void {
+  const current = app.getVersion()
+  const raw = readSettingsFile().lastSeenVersion
+  const lastSeen = typeof raw === 'string' ? raw : null
+  if (shouldShowWhatsNew(current, lastSeen)) {
+    const notes = releaseNotes(current)
+    if (notes) pendingWhatsNew = { version: current, notes }
+  }
+  if (lastSeen !== current) {
+    try { writeSettingsKey('lastSeenVersion', current) } catch { /* shown again next time */ }
+  }
 }
 
 const menuState: MenuState = { projectOpen: false, developer: !app.isPackaged || readAppSettings().developerMenu }
@@ -910,6 +948,51 @@ function setupIPC(): void {
     pendingOpen = null
     return config
   })
+  ipcMain.handle('app:take-whats-new', () => {
+    const notes = pendingWhatsNew
+    pendingWhatsNew = null
+    return notes
+  })
+  // Help → What's New, any time.
+  ipcMain.handle('app:whats-new', () => {
+    const version = app.getVersion()
+    const notes = releaseNotes(version) ?? (app.isPackaged ? null : releaseNotes('Unreleased'))
+    return notes ? { version: releaseNotes(version) ? version : 'Unreleased', notes } : null
+  })
+
+  // Settings → Privacy & Data → Delete all Axiom data. Confirmed natively,
+  // because it cannot be undone; the app restarts as if freshly installed.
+  ipcMain.handle('app:clear-all-data', async () => {
+    if (!mainWindow) return false
+    const answer = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Delete Everything', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Delete all Axiom data?',
+      detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Axiom restarts. Your code is not touched. Agent connections stay until you remove them in Settings → Agents.',
+    })
+    if (answer.response !== 0) return false
+    quitting = true
+    if (attachedDaemon) {
+      try {
+        await fetch(`http://127.0.0.1:${archdPorts.api}/api/daemon/shutdown`, {
+          method: 'POST', headers: { Authorization: `Bearer ${readDaemonToken()}` }, signal: AbortSignal.timeout(2000),
+        })
+      } catch { /* already gone */ }
+      const deadline = Date.now() + 5000
+      while (processAlive(attachedDaemon.pid) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    stopArchd()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin')]) {
+      try { fs.rmSync(target, { recursive: true, force: true }) } catch (error) { console.error('[main] could not delete', target, error) }
+    }
+    app.relaunch()
+    app.exit(0)
+    return true
+  })
+
   // Settings → Advanced → Install the axiom command.
   ipcMain.handle('cli:install', () => {
     if (!app.isPackaged) {
@@ -1315,6 +1398,21 @@ function setupIPC(): void {
 }
 
 
+function countCrashReports(): number {
+  const count = (dir: string): number => {
+    let total = 0
+    try {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) total += count(path)
+        else if (entry.name.endsWith('.dmp')) total++
+      }
+    } catch { /* none */ }
+    return total
+  }
+  return count(app.getPath('crashDumps'))
+}
+
 function buildDiagnostics(logLines: number): string {
   const now = Date.now()
   return formatDiagnostics({
@@ -1330,6 +1428,7 @@ function buildDiagnostics(logLines: number): string {
     archdRunning: archdProcess !== null || attachedDaemon !== null,
     archdRestartsLastMinute: archdRestarts.filter(at => now - at < 60_000).length,
     projectCount: loadRecentProjects().length,
+    crashReports: countCrashReports(),
     logs: logLines > 0
       ? { main: logs.main.tail(logLines), archd: logs.archd.tail(logLines), renderer: logs.renderer.tail(logLines) }
       : {},
@@ -1441,6 +1540,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
 
+  checkWhatsNew()
   createWindow()
   setupIPC()
   refreshApplicationMenu()

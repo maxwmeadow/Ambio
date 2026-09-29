@@ -38,6 +38,8 @@ npm run test:e2e        # packaged Electron UI
   alter observable behaviour should update it.
 - Match the surrounding code: its naming, comment density and idiom.
 - Add or update tests for behaviour you change.
+- Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for
+  anything a user would notice. It becomes the in-app "What's New".
 
 ## License and contributor agreement
 

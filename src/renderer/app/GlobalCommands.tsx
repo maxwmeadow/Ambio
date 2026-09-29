@@ -3,8 +3,9 @@ import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands,
 import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '../../shared/appSettings'
 import { useGraphStore } from '../store/graphStore'
 import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
+import { MarkdownView } from '../components/MarkdownView'
 
-type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | null
+type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
 
 function isEditable(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
@@ -20,6 +21,16 @@ export function GlobalCommands() {
   const projectOpen = useGraphStore(state => state.currentProject !== null)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string } | null>(null)
+
+  // After an update, the release notes for the new version, once.
+  useEffect(() => {
+    void window.axiom?.takeWhatsNew?.().then(notes => {
+      if (!notes) return
+      setWhatsNew(notes)
+      setDialog('whatsNew')
+    })
+  }, [])
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const platform = currentPlatform()
 
@@ -78,6 +89,13 @@ export function GlobalCommands() {
     'help.privacy': () => { void window.axiom?.openHelp('privacy') },
     'help.license': () => { void window.axiom?.openHelp('license') },
     'help.acknowledgements': () => setDialog('acknowledgements'),
+    'help.whatsNew': () => {
+      void window.axiom?.whatsNew?.().then(notes => {
+        if (!notes) { say('Release notes are not available for this build.'); return }
+        setWhatsNew(notes)
+        setDialog('whatsNew')
+      })
+    },
     'help.reportBug': () => { void window.axiom?.reportBug() },
     'help.copyDiagnostics': () => { void window.axiom?.copyDiagnostics().then(() => say('Diagnostics copied to the clipboard.')) },
     'help.openLogs': () => { void window.axiom?.openLogsFolder() },
@@ -90,6 +108,11 @@ export function GlobalCommands() {
       {dialog === 'shortcuts' && <ShortcutsDialog platform={platform} onClose={() => setDialog(null)} />}
       {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
       {dialog === 'acknowledgements' && <AcknowledgementsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'whatsNew' && whatsNew && (
+        <Modal title={whatsNew.version === 'Unreleased' ? "What's New (unreleased)" : `What's New in ${whatsNew.version}`} width={620} onClose={() => setDialog(null)}>
+          <div className="axiom-whats-new"><MarkdownView source={whatsNew.notes} /></div>
+        </Modal>
+      )}
       {toast && <div className="axiom-app-toast" role="status">{toast}</div>}
     </>
   )
@@ -480,6 +503,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 <div><strong>Diagnostics</strong><small>Version, OS and recent log lines, with your home folder replaced by ~.</small></div>
                 <button type="button" className="axiom-settings__button" onClick={() => emitCommand('help.copyDiagnostics')}>Copy</button>
               </div>
+              <DeleteAllData />
               <div className="axiom-settings__row">
                 <div><strong>Privacy policy</strong><small>Exactly what stays local and what does not.</small></div>
                 <button type="button" className="axiom-settings__button" onClick={() => void window.axiom?.openHelp('privacy')}>Read</button>
@@ -502,6 +526,24 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+function DeleteAllData() {
+  return (
+    <div className="axiom-settings__row">
+      <div>
+        <strong>Delete all Axiom data</strong>
+        <small>Every project map, your settings and the logs on this computer. Your code is not touched. Axiom restarts afterwards.</small>
+      </div>
+      <button
+        type="button"
+        className="axiom-settings__button axiom-settings__button--danger"
+        onClick={() => { void window.axiom?.clearAllData() }}
+      >
+        Delete…
+      </button>
+    </div>
   )
 }
 

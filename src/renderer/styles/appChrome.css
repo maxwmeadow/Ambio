@@ -528,3 +528,11 @@
 .axiom-status-bar__stop:hover {
   opacity: 1;
 }
+
+.axiom-whats-new {
+  max-height: 60vh;
+  padding: 8px 22px 20px;
+  overflow-y: auto;
+  background: #f1efe8;
+  color: #1f2a26;
+}

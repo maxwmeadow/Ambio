@@ -143,6 +143,9 @@ contextBridge.exposeInMainWorld('axiom', {
   /** The filesystem path of a dropped File (Electron no longer puts it on File). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   installCli: (): Promise<{ ok: boolean; path?: string; manual?: string; detail: string }> => ipcRenderer.invoke('cli:install'),
+  takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
+  whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
+  clearAllData: (): Promise<boolean> => ipcRenderer.invoke('app:clear-all-data'),
 
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
@@ -318,6 +321,9 @@ declare global {
       openPath: (path: string) => Promise<void>
       pathForFile: (file: File) => string
       installCli: () => Promise<{ ok: boolean; path?: string; manual?: string; detail: string }>
+      takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
+      whatsNew: () => Promise<{ version: string; notes: string } | null>
+      clearAllData: () => Promise<boolean>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>

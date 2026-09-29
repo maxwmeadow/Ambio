@@ -112,6 +112,10 @@
         {
           "from": "out/licenses",
           "to": "licenses"
+        },
+        {
+          "from": "CHANGELOG.md",
+          "to": "CHANGELOG.md"
         }
       ],
       "extendInfo": {
@@ -148,6 +152,10 @@
         {
           "from": "out/licenses",
           "to": "licenses"
+        },
+        {
+          "from": "CHANGELOG.md",
+          "to": "CHANGELOG.md"
         }
       ]
     },
@@ -171,6 +179,10 @@
         {
           "from": "out/licenses",
           "to": "licenses"
+        },
+        {
+          "from": "CHANGELOG.md",
+          "to": "CHANGELOG.md"
         }
       ]
     }

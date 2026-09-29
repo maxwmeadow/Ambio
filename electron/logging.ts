@@ -86,6 +86,8 @@ export interface DiagnosticsInput {
   archdRunning: boolean
   archdRestartsLastMinute: number
   projectCount: number
+  /** Crash dumps kept locally (never uploaded). */
+  crashReports?: number
   logs: Partial<Record<LogChannel, string[]>>
 }
 
@@ -99,6 +101,7 @@ export function formatDiagnostics(input: DiagnosticsInput): string {
     `- Background service: ${input.archdRunning ? 'running' : 'not running'}` +
       (input.archdRestartsLastMinute > 0 ? `, ${input.archdRestartsLastMinute} restart(s) in the last minute` : ''),
     `- Projects: ${input.projectCount}`,
+    ...(input.crashReports ? [`- Local crash reports: ${input.crashReports}`] : []),
   ]
   for (const channel of ['main', 'archd', 'renderer'] as const) {
     const log = input.logs[channel]

@@ -35,6 +35,7 @@ export type CommandId =
   | 'agent.message'
   | 'agent.connect'
   | 'help.shortcuts'
+  | 'help.whatsNew'
   | 'help.guide'
   | 'help.docs'
   | 'help.reportBug'
@@ -92,6 +93,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'agent.message': { id: 'agent.message', label: 'Message Agent…', accelerator: 'CmdOrCtrl+Enter', needsProject: true },
   'agent.connect': { id: 'agent.connect', label: 'Connect an Agent…', needsProject: true },
   'help.shortcuts': { id: 'help.shortcuts', label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/' },
+  'help.whatsNew': { id: 'help.whatsNew', label: "What's New" },
   'help.guide': { id: 'help.guide', label: 'Setup Guide', needsProject: true },
   'help.docs': { id: 'help.docs', label: 'Documentation' },
   'help.reportBug': { id: 'help.reportBug', label: 'Report a Bug…' },
@@ -202,7 +204,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'help', label: 'Help', entries: [
-      command('help.shortcuts'), command('help.guide'), command('help.docs'), separator,
+      command('help.shortcuts'), command('help.guide'), command('help.docs'), command('help.whatsNew'), separator,
       command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
       command('help.privacy'), command('help.license'), command('help.acknowledgements'),
       ...(mac ? [] : [separator, command('app.checkUpdates'), command('app.about')]),
