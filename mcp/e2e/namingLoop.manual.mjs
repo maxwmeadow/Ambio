@@ -4,6 +4,7 @@
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const API = 'http://127.0.0.1:7743'
 const WS = process.env.LOOP_WS ?? 'efddf5c5f623397c'
@@ -35,10 +36,14 @@ check('scratch project indexed', snap.files.length >= 10, `${snap.files.length} 
 const liveSystemsBefore = snap.systems.length
 
 // ── 2. the agent proposes, over real MCP stdio ────────────────────────────
+// Runs the MCP server from this checkout. LOOP_ACTIVE_PROJECT points it at an
+// active-project file for the scratch workspace when one is needed.
 const child = spawn('node', ['mcp/axiom-mcp.ts'], {
-  cwd: 'C:/Users/maxst/VSCodeProjects/Axiom-workbench-spine',
+  cwd: fileURLToPath(new URL('../..', import.meta.url)),
   stdio: ['pipe', 'pipe', 'pipe'],
-  env: { ...process.env, AXIOM_ACTIVE_PROJECT: 'C:/Users/maxst/AppData/Local/Temp/claude/c--Users-maxst-VSCodeProjects-Axiom/31b95f1a-4820-43da-b8cc-41a865c1fa5e/scratchpad/active-loop-test.json' },
+  env: process.env.LOOP_ACTIVE_PROJECT
+    ? { ...process.env, AXIOM_ACTIVE_PROJECT: process.env.LOOP_ACTIVE_PROJECT }
+    : process.env,
 })
 let buf = ''
 const pending = new Map()

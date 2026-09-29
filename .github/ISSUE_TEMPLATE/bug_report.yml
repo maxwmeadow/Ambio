@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in Axiom does not work the way it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a project with …
+        2. …
+    validations:
+      required: false
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >
+        Use "Copy diagnostics" on the launcher and
+        paste it here. It includes your Axiom version, OS and recent log lines
+        with your home directory replaced by ~. Read it before pasting and
+        remove anything you would rather not share.
+      render: markdown
+    validations:
+      required: false
+  - type: input
+    id: agent
+    attributes:
+      label: Coding agent (if involved)
+      placeholder: Claude Code, Cursor, Codex, …

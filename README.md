@@ -16,6 +16,31 @@ Humans and agents work against the same model: an agent can propose systems and 
 - Keeps readable project documentation searchable in a separate Documents panel.
 - Stores workspace and architecture state locally in SQLite.
 
+## Install
+
+Download the installer for your platform from the
+[latest release](https://github.com/maxwmeadow/Axiom/releases/latest). Axiom is
+a single application: it brings its own runtime, so there is nothing else to
+install before connecting your coding agent.
+
+Early builds are not yet code-signed, so your operating system will warn you
+the first time you open Axiom:
+
+- **macOS** - open the `.dmg`, drag Axiom to Applications and open it. When
+  macOS says it cannot verify the developer, open **System Settings → Privacy &
+  Security**, scroll to the message about Axiom and choose **Open Anyway**.
+- **Windows** - run the installer. If SmartScreen shows "Windows protected your
+  PC", choose **More info → Run anyway**.
+- **Linux** - make the AppImage executable (`chmod +x Axiom-*.AppImage`) and
+  run it.
+
+Axiom checks GitHub Releases for new versions. On Windows and Linux (AppImage)
+updates download in the background and install when you restart; on macOS
+Axiom tells you when a new version is available.
+
+Everything Axiom knows about your code stays on your machine - see
+[PRIVACY.md](PRIVACY.md).
+
 ## Project workflow
 
 1. Open a codebase in Axiom.

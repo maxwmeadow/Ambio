@@ -227,7 +227,7 @@ function reportArchdLaunchError(binary: string, error: unknown): void {
   dialog.showErrorBox(
     'Axiom could not start its background service',
     app.isPackaged
-      ? `${message}\n\nYour code is untouched. Reinstalling Axiom usually fixes this; if it keeps happening, please report it from Help → Report a Bug.`
+      ? `${message}\n\nYour code is untouched. Reinstalling Axiom usually fixes this; if it keeps happening, please report it with "Report a bug" at the bottom of the Axiom launcher.`
       : `${message}\n\nBuild the daemon with:\nnpm run build:archd`,
   )
 }

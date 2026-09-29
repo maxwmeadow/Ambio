@@ -258,17 +258,20 @@ Keyboard accelerators then work everywhere.
 - ⬜ Rename (§3)
 - ⬜ LICENSE + CLA bot (§2)
 - ⬜ Clean the repo root: move internal notes (`CODEX_BRIEF.md`, `CANVAS_BUG_HUNT.md`, `PARALLEL_AGENTS_BRIEF.md`, …) into `docs/` or remove
-- ⬜ `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `PRIVACY.md`, issue and PR templates
-- ⬜ Secret scan of full git history before going public
-- ⬜ README for users: GIF/video first, install per OS, unsigned-app instructions
-- ⬜ Release workflow publishes a GitHub Release (plus `latest*.yml` for the updater)
+- ✅ `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, issue and PR templates
+- ⬜ `CODE_OF_CONDUCT.md` (needs a contact address for reports)
+- ✅ Secret scan of full git history (124 commits, 2026-09-29): no keys, tokens, private keys, env files or databases found. One manual test script hard-coded a personal Windows path; it now uses env vars / the checkout path. Re-run before flipping the repo public.
+- ✅ README install section: per-OS steps including unsigned-app warnings, updates, privacy link
+- ⬜ README hero: GIF/video first
+- ✅ Release workflow publishes tagged builds to a draft GitHub Release with `latest*.yml`; fails fast if the tag and `package.json` version differ
+- ⬜ The two macOS jobs (arm64, x64) each write `latest-mac.yml`; merge them (or build universal) before macOS auto-install is switched on
 - ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
-- ⬜ MCP server runs on Electron's bundled Node (no system Node needed)
+- ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
 ### First launch
 - ✅ Single-instance lock; launching again focuses the existing window
 - ⬜ Real application menu (§5) and Windows/Linux title-bar menu button
-- ⬜ Remember window size and position
+- ✅ Remember window size, position and maximized state (never onto a disconnected monitor)
 - ⬜ First-run crash-report opt-in
 
 ### Project setup and management
@@ -278,6 +281,10 @@ Keyboard accelerators then work everywhere.
 - ✅ Row actions menu; Hide from recents separate from Delete project map
 - ✅ Resume skips a project whose folder is missing
 - ⬜ Project Settings screen (rename, exclusions after setup, re-index, add folder)
+  - ⚠️ Changing exclusions must not journal as file deletions. Today a re-scope
+    reconciles through `RemoveFile`/`ReindexFile`, which record drift, so the
+    Morning Delta would claim excluded files were deleted. Needs a quiet
+    reconcile mode (like the baseline/migration passes) before this ships.
 - ⬜ Multi-root projects in the UI (backend already supports roots)
 - ⬜ Worktrees of one repo: one project or two - decide and make it explicit
 
@@ -287,16 +294,18 @@ Keyboard accelerators then work everywhere.
 - ⬜ Canvas undo/redo
 
 ### Staying current
-- ⬜ Auto-update via electron-updater + GitHub Releases (Windows/Linux now; macOS once signed; notify-and-download meanwhile)
+- ✅ Auto-update via electron-updater + GitHub Releases: Windows and AppImage download and install on restart; macOS and non-AppImage Linux are told a version is available and linked to it
+- ⬜ Turn on macOS auto-install once signed
 - ⬜ What's New after update
-- ⬜ Database downgrade guard (refuse to open a DB written by a newer schema)
+- ✅ Database downgrade guard: `PRAGMA user_version` stamped with `db.SchemaVersion`; a newer database is refused with a clear message. **Bump `SchemaVersion` whenever `migrate` changes.**
 
 ### When it breaks
 - ✅ archd auto-restarts with backoff (5 in 60s), the open project is re-registered, and the UI says what is happening; gives up loudly with "Try again"
 - ✅ Port-in-use and repeated crashes explained in plain language
 - ✅ Launch-failure dialog written for users (build instructions only in dev)
-- ⬜ Log files (main, renderer, archd) with rotation
-- ⬜ Report a Bug / Copy Diagnostics
+- ✅ Log files (main, archd, renderer warnings/errors) in `~/.axiom/logs`, 2 MB × 3 each
+- ✅ Report a Bug / Copy Diagnostics / Open Logs on the launcher, the archd failure notice and the crash screen (Help menu later)
+- ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
 - ⬜ Opt-in crash reporting
 - ⬜ Daemon discovery and graceful agent behaviour when the app is closed (§4)
 
