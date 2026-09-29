@@ -96,7 +96,7 @@ function projectPathVariants(projectRoot: string): string[] {
 }
 
 /** Read JSON that may be absent or damaged without destroying it. */
-function readJson(path: string): Record<string, any> | null {
+export function readJson(path: string): Record<string, any> | null {
   try {
     if (!fs.existsSync(path)) return {}
     const raw = fs.readFileSync(path, 'utf8').trim()
@@ -107,7 +107,7 @@ function readJson(path: string): Record<string, any> | null {
   }
 }
 
-function writeJson(path: string, value: unknown): void {
+export function writeJson(path: string, value: unknown): void {
   fs.mkdirSync(join(path, '..'), { recursive: true })
   fs.writeFileSync(path, JSON.stringify(value, null, 2), 'utf8')
 }
@@ -155,7 +155,7 @@ function removeGeneratedFile(path: string, expectedContents: string): boolean {
   }
 }
 
-function inboxSkillPath(mapSkillPath: string): string {
+export function inboxSkillPath(mapSkillPath: string): string {
   return join(mapSkillPath, '..', '..', 'axiom-inbox', 'SKILL.md')
 }
 

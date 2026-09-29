@@ -346,5 +346,5 @@ Keyboard accelerators then work everywhere.
 - ⬜ Dynamic ports via `daemon.json`
 
 ### Leaving
-- ⬜ "Remove Axiom from agents" (undo every installer write)
+- ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
 - ⬜ "Clear all Axiom data" in Settings; document uninstall per OS

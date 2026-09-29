@@ -423,6 +423,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                   Connect…
                 </button>
               </div>
+              <RemoveFromAgents />
             </>
           )}
 
@@ -459,6 +460,35 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+/** Undo every agent install. Two clicks, because it reaches into other tools' settings. */
+function RemoveFromAgents() {
+  const [armed, setArmed] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const projectRoot = useGraphStore(state => state.currentProject?.rootPath)
+  return (
+    <div className="axiom-settings__row">
+      <div>
+        <strong>Remove Axiom from all agents</strong>
+        <small>
+          {result ?? 'Deletes the "axiom" connection and the axiom-map and axiom-inbox workflows Axiom added to your agents. Nothing else in their settings changes.'}
+        </small>
+      </div>
+      <button
+        type="button"
+        className={armed ? 'axiom-settings__button axiom-settings__button--danger' : 'axiom-settings__button'}
+        onClick={() => {
+          if (!armed) { setArmed(true); return }
+          setArmed(false)
+          void window.axiom?.uninstallAllAgents(projectRoot).then(outcome => setResult(outcome.detail))
+        }}
+        onBlur={() => setArmed(false)}
+      >
+        {armed ? 'Click again to remove' : 'Remove…'}
+      </button>
+    </div>
   )
 }
 

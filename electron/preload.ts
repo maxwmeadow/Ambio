@@ -101,6 +101,11 @@ contextBridge.exposeInMainWorld('axiom', {
   // Listen for messages from archd (forwarded by main process)
   restartArchd: (): Promise<void> => ipcRenderer.invoke('archd:restart'),
 
+  uninstallAgent: (hostId: string, projectRoot?: string): Promise<AgentInstallResult> =>
+    ipcRenderer.invoke('agent:uninstall', hostId, projectRoot),
+  uninstallAllAgents: (projectRoot?: string): Promise<AgentInstallResult> =>
+    ipcRenderer.invoke('agent:uninstall-all', projectRoot),
+
   // Updates from GitHub Releases.
   getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:get-status'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('update:install'),
@@ -254,6 +259,8 @@ declare global {
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
       onArchdStatus: (callback: (status: ArchdStatus) => void) => () => void
       restartArchd: () => Promise<void>
+      uninstallAgent: (hostId: string, projectRoot?: string) => Promise<AgentInstallResult>
+      uninstallAllAgents: (projectRoot?: string) => Promise<AgentInstallResult>
       getUpdateStatus: () => Promise<UpdateStatus>
       installUpdate: () => Promise<void>
       checkForUpdates: () => Promise<UpdateCheckResult>

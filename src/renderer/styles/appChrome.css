@@ -252,6 +252,12 @@
   border-color: #2f5f56;
 }
 
+.axiom-settings__button--danger {
+  border-color: #a05b52;
+  background: #f4e4df;
+  color: #824139;
+}
+
 .axiom-settings__button:disabled {
   opacity: 0.5;
 }

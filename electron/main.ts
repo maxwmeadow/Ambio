@@ -14,6 +14,7 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
+import { uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import {
@@ -899,6 +900,17 @@ function setupIPC(): void {
     }
     return setOverride(CONFIG_DIR, hostId, result.filePaths[0])
   })
+
+  // Undo the installers: remove Axiom's MCP entry and workflow files from one
+  // agent, or from every agent Axiom knows about.
+  ipcMain.handle('agent:uninstall', (_event, hostId: string, projectRoot?: string) => {
+    const hosts = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
+    const host = hosts.find(candidate => candidate.id === hostId)
+    if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
+    return uninstallHost(host, projectRoot, hosts)
+  })
+  ipcMain.handle('agent:uninstall-all', (_event, projectRoot?: string) =>
+    uninstallAll(buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR)), projectRoot))
 
   ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, hostId))
 

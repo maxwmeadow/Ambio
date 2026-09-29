@@ -275,6 +275,17 @@ export function ConnectAgentScreen({
     }
   }
 
+  const removeHost = async (candidate: AgentHostInfo) => {
+    setInstalling(candidate.id)
+    try {
+      const outcome = await window.axiom.uninstallAgent(candidate.id, project.rootPath)
+      setResults(current => ({ ...current, [candidate.id]: outcome }))
+      showHosts(await window.axiom.listAgentHosts(project.rootPath))
+    } finally {
+      setInstalling(null)
+    }
+  }
+
   const installFamily = async (family: AgentFamilyGroup) => {
     setInstalling(family.id)
     try {
@@ -502,6 +513,18 @@ export function ConnectAgentScreen({
                                             : pres.action === 'repair'
                                               ? 'Repair'
                                               : 'Reinstall'}
+                                      </button>
+                                    )}
+
+                                    {(pres.state === 'live' || pres.state === 'installed' || pres.state === 'repair') && (
+                                      <button
+                                        type="button"
+                                        className="axiom-connect__surface-locate"
+                                        disabled={busy}
+                                        title={`Remove Axiom's connection and workflow from ${modality.modalityLabel || modality.label}`}
+                                        onClick={() => void removeHost(modality)}
+                                      >
+                                        Remove
                                       </button>
                                     )}
 
