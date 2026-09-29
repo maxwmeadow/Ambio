@@ -125,6 +125,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Live filesystem edits always ping the affected file regardless of writer.
   Updates use teal, creation uses green, and deletion performs a red exit
   before semantic removal.
+- A new file with no home (including one only a clusterer has guessed a
+  system for) waits in the Unsorted bin and does not appear on the Floor. The
+  bin pulses once for the first arrival of a burst and stays lit until the
+  burst goes quiet. Assignment to a system is when the file arrives on the
+  canvas, shown as `ADDED`; moving between systems shows as `MOVED`.
 - The header shelf is the strip at the top of a pad and the body below it is
   the page, so the shelf carries the warmth and the body stays plain. On a
   sheet the shelf deepens to pad yellow; on the Floor it stays quiet.
@@ -139,6 +144,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Activity on a hidden descendant surfaces on the nearest visible semantic
   ancestor as a lower-right structural rail. The rail must remain clear of
   both the collapsed centered identity and the expanded title/tab band.
+- The ancestor marks where the hidden file sits with an outline window at its
+  authored rectangle, and its rail names what happened (`EDITED · rates.ts`).
+  The hidden file card is not popped out over the collapsed system, and the
+  system keeps its centered identity while the window is open. Three or more
+  windows share one rail summary (`ADDED · 5 files`).
+- Activity labels and badges are counter-scaled against the zoom so they are
+  never smaller on screen than their natural size.
 - Dimmed systems render at opacity `0.3`.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
@@ -340,7 +352,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   current zoom. An internal flow whose endpoints resolve to the same visible
   container becomes one surfaced container signal instead of a self-loop.
 - Animated motion communicates direction; living and trace flows have no
-  arrowheads.
+  arrowheads. While a pulse travels, its whole route is drawn faintly and
+  leaves with it, so a pulse never crosses empty canvas unexplained.
 - When an import and a resolved call change between the same files, both
   semantic updates are retained but only the higher-value function-call pulse
   renders, preventing coincident duplicate animation.

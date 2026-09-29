@@ -48,19 +48,28 @@ export function CanvasBins({
 
   // A file that lands unsorted no longer materialises on the Floor, so the
   // arrival is announced here instead - on the thing it actually landed in.
-  // Keyed so a second arrival mid-animation restarts the pulse rather than
-  // being swallowed by the one already running.
+  // An agent building a feature can write dozens of files in a few seconds
+  // before it assigns any of them. The first arrival pulses once; the rest of
+  // the burst only keeps the bin lit, and it settles after a quiet spell.
+  // Restarting the pulse per file made the tile strobe for the whole burst.
   const workspaceId = useGraphStore(state => state.currentProject?.id ?? '')
   const arrivalKey = useGraphStore(state => state.unsortedArrivalKey)
   const [pulseKey, setPulseKey] = useState(0)
   const seenArrival = useRef(arrivalKey)
+  const quietTimer = useRef<number | null>(null)
   useEffect(() => {
     if (arrivalKey === seenArrival.current) return
     seenArrival.current = arrivalKey
-    setPulseKey(arrivalKey)
-    const timer = window.setTimeout(() => setPulseKey(0), ARRIVAL_PULSE_MS)
-    return () => window.clearTimeout(timer)
+    setPulseKey(current => current || arrivalKey)
+    if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
+    quietTimer.current = window.setTimeout(() => {
+      quietTimer.current = null
+      setPulseKey(0)
+    }, ARRIVAL_PULSE_MS)
   }, [arrivalKey])
+  useEffect(() => () => {
+    if (quietTimer.current !== null) window.clearTimeout(quietTimer.current)
+  }, [])
 
   // The unclassified bin is always visible, empty or not. It is a place you
   // put things, and a target you cannot see is a target you cannot aim at -
@@ -129,9 +138,11 @@ function BinGlyph() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 7h16" />
-      <path d="M9 7V5h6v2" />
-      <path d="M6 7l1 12h10l1-12" />
+      {/* An inbox tray: files wait here to be placed. A trash can read as
+          "deleted" for files that had only just been created. */}
+      <path d="M4 13l2-8h12l2 8" />
+      <path d="M4 13v6h16v-6" />
+      <path d="M4 13h4l1.5 2.5h5L16 13h4" />
     </svg>
   )
 }

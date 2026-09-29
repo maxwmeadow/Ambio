@@ -76,7 +76,7 @@ import { packFrame, placeIncoming } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
 import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
-import { canPersistGeneratedFrame, growFrameToContainChildren, orderFramePlacementCandidates } from './incrementalFrameLayout'
+import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates } from './incrementalFrameLayout'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
   emptySelection,
@@ -1196,9 +1196,26 @@ function buildFloorFrameLayout(
       const child = geometryById.get(childId)
       return child ? [child] : []
     })
-    const fitted = growFrameToContainChildren(container, childFrames, insetsOf(containerId).right)
+    // A persisted frame hemmed in by neighbours compresses its interior
+    // rather than growing over them - an agent assigning a batch of files to
+    // a system used to push that system on top of the next one.
+    const containerParent = parentById.get(containerId) ?? null
+    const siblingRects = layoutsById.has(containerId)
+      ? (siblingsByParent.get(containerParent) ?? []).flatMap(siblingId => {
+          if (siblingId === containerId) return []
+          const sibling = geometryById.get(siblingId)
+          return sibling
+            ? [{ x: sibling.x, y: sibling.y, width: sibling.width * sibling.scale, height: sibling.height * sibling.scale }]
+            : []
+        })
+      : []
+    const fitted = fitFrameAmongSiblings(
+      container, childFrames, insetsOf(containerId).right, siblingRects,
+      containerParent ? FRAME_ITEM_GAP : FRAME_ROOT_GAP,
+    )
     geometryById.set(containerId, fitted)
-    if (fitted.width !== container.width || fitted.height !== container.height) {
+    if (fitted.width !== container.width || fitted.height !== container.height ||
+        fitted.interiorScale !== container.interiorScale) {
       resizedContainerIds.add(containerId)
     }
   }

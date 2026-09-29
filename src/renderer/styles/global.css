@@ -1441,6 +1441,28 @@ a { color: var(--accent); text-decoration: none; }
   pointer-events: none;
 }
 
+.axiom-living-flow__track {
+  fill: none;
+  stroke: var(--living-flow-color);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 5 5;
+  opacity: 0;
+  animation: axiomLivingFlowTrack var(--living-flow-travel) linear both;
+  animation-delay: var(--living-flow-delay);
+}
+
+@keyframes axiomLivingFlowTrack {
+  0%   { opacity: 0; }
+  12%  { opacity: 0.55; }
+  82%  { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .axiom-living-flow__track { animation: none; opacity: 0.55; }
+}
+
 .axiom-living-flow__pulse {
   fill: none;
   stroke: var(--living-flow-color);
@@ -1583,6 +1605,68 @@ a { color: var(--accent); text-decoration: none; }
    timer. The fallback only covers a missing custom property. */
 .axiom-living-inspection-layer--closing {
   animation: axiomLivingInspectionClose var(--living-window-close, 440ms) cubic-bezier(0.4,0,0.2,1) both;
+}
+
+/* Names what changed inside a collapsed system: the lower-right rail of the
+   canvas contract, clear of the centred identity and the tab band. Counter-
+   scaled like the file badge so it reads at every zoom; it grows up and to
+   the left from the system's lower-right corner. */
+.axiom-living-window-rail {
+  position: absolute;
+  z-index: 36;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+  transform-origin: 100% 100%;
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+}
+.axiom-living-window-rail--closing {
+  animation: axiomLivingInspectionClose var(--living-window-close, 440ms) cubic-bezier(0.4,0,0.2,1) both;
+}
+.axiom-living-window-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--living-label-color) 55%, var(--border));
+  border-top: 2px solid var(--living-label-color);
+  border-radius: 3px;
+  background: var(--bg-raised);
+  box-shadow: 0 3px 10px rgba(40, 51, 47, 0.2);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  line-height: 1;
+  animation: axiomLivingWindowLabelIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.axiom-living-window-label__dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--living-label-color);
+}
+.axiom-living-window-label__verb {
+  color: var(--living-label-color);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.axiom-living-window-label__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+@keyframes axiomLivingWindowLabelIn {
+  from { opacity: 0; translate: 0 4px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .axiom-living-window-label { animation: none; }
 }
 
 .axiom-living-inspection-window {
@@ -7989,12 +8073,9 @@ select.axiom-inspector-input {
 .axiom-run-trace__line--focus .axiom-run-trace__stroke {
   stroke: var(--run-ink-focus);
   stroke-width: 2.6;
-  stroke-dasharray: none;
-  animation: none;
+  stroke-dasharray: 12 5;
+  animation-duration: 0.7s;
 }
-
-.axiom-run-trace__arrow { fill: var(--run-ink); }
-.axiom-run-trace__arrow--focus { fill: var(--run-ink-focus); }
 
 @keyframes axiomRunTraceFlow {
   from { stroke-dashoffset: 24; }

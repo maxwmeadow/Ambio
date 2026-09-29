@@ -125,6 +125,14 @@ export function LivingFlowOverlay({
                 '--living-flow-dash-end': flow.pulse.dashEnd,
               } as React.CSSProperties}
             >
+              {/* The whole route, faintly, for as long as the pulse travels
+                  it: a lone dash crossing empty canvas never said where it
+                  came from or where it was going. */}
+              <path
+                d={flow.path}
+                className="axiom-living-flow__track"
+                vectorEffect="non-scaling-stroke"
+              />
               <path
                 d={flow.path}
                 className="axiom-living-flow__pulse"

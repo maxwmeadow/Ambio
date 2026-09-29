@@ -404,13 +404,17 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
     await expect(flow).toHaveAttribute('data-living-flow-source', 'file_systemnode')
     await expect(flow).toHaveAttribute('data-living-flow-target', 'file_filenode')
     await expect(page.locator('.react-flow')).toBeVisible()
-    await expect(page.locator('.react-flow__node[data-id="file_systemnode"]')).toBeVisible()
+    // The edited file sits inside a collapsed system: the system names it on
+    // its lower-right rail instead of popping the card out over its title.
+    await expect(page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')).toContainText('EDITED')
     await expect(
       page.locator('.react-flow__node[data-id="file_systemnode"] .axiom-living-file-signal'),
-    ).toContainText('EDITED')
+    ).toHaveCount(0)
     await expect.poll(() => overlay.evaluate(element => getComputedStyle(element).zIndex))
       .toBe('2147483000')
-    await expect(flow.locator('.axiom-living-flow__track')).toHaveCount(0)
+    // The route is drawn faintly while the pulse travels it; it leaves with
+    // the flow (the flow count returns to zero below), never as wiring.
+    await expect(flow.locator('.axiom-living-flow__track')).toHaveCount(1)
     await expect.poll(() => flow.locator('.axiom-living-flow__pulse').evaluate(
       path => (path as SVGGeometryElement).getTotalLength(),
     )).toBeGreaterThan(0)
@@ -481,15 +485,13 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
     element.setAttribute('data-choreography-instance', 'origin-window')
   })
   await expect(
-    page.locator('.react-flow__node[data-id="file_filenode"] .axiom-living-file-signal'),
+    page.locator('.axiom-living-window-label[data-living-window-label="file_filenode"]'),
   ).toContainText('IMPACT', { timeout: 2_500 })
   await expect(continuousInspectionLayer).toHaveAttribute(
     'data-choreography-instance',
     'origin-window',
   )
-  await expect(
-    page.locator('.react-flow__node[data-id="file_systemnode"] .axiom-living-file-signal'),
-  ).toHaveCount(0)
+  await expect(page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')).toHaveCount(0)
   await expect(continuousInspectionLayer).toHaveAttribute(
     'data-choreography-instance',
     'origin-window',
@@ -500,16 +502,16 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
   await emitUpdate('E2E-LIVING-2', 155)
   await assertTopFlow('E2E-LIVING-2')
   await expect(
-    page.locator('.react-flow__node[data-id="file_filenode"] .axiom-living-file-signal'),
+    page.locator('.axiom-living-window-label[data-living-window-label="file_filenode"]'),
   ).toContainText('IMPACT', { timeout: 2_500 })
   await expect(page.locator('.axiom-living-flow')).toHaveCount(0, { timeout: 4_000 })
   await expect(page.locator('.react-flow')).toBeVisible()
   await expect.poll(() => page.locator('.react-flow__node').count()).toBe(baselineNodeCount)
 
   // Simulate a delayed JavaScript expiry timer. CSS animations may finish
-  // independently, but an active signal must never become a blank node or
-  // leave its inspection system visually empty while state is still active.
-  await expect(page.locator('.axiom-living-file-signal')).toHaveCount(0, { timeout: 3_000 })
+  // independently, but an active signal must never go blank or leave its
+  // inspection system visually empty while state is still active.
+  await expect(page.locator('.axiom-living-window-label')).toHaveCount(0, { timeout: 3_000 })
   await page.evaluate(() => {
     const graphStore = (window as unknown as {
       __axiomGraphStore: {
@@ -526,21 +528,13 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
       },
     })
   })
-  const delayedSignal = page.locator(
-    '.react-flow__node[data-id="file_systemnode"] .axiom-living-file-signal',
-  )
+  const delayedSignal = page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')
   await expect(delayedSignal).toContainText('EDITED')
   await page.waitForTimeout(1_700)
   await expect(delayedSignal).toBeVisible()
   await expect.poll(() => delayedSignal.evaluate(element =>
-    Number(getComputedStyle(element).opacity)
+    Number(getComputedStyle(element.parentElement!).opacity) * Number(getComputedStyle(element).opacity)
   )).toBeGreaterThan(0.9)
-  await expect.poll(() => delayedSignal.evaluate(element =>
-    getComputedStyle(element).filter
-  )).toBe('none')
-  await expect.poll(() => page.locator(
-    '.react-flow__node[data-id="file_systemnode"] .axiom-file-node__normal',
-  ).evaluate(element => Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.9)
   await expect.poll(visibleNodeCount).toBeGreaterThanOrEqual(baselineVisibleNodeCount)
   for (const layer of await page.locator('.axiom-living-inspection-layer').all()) {
     await expect.poll(() => layer.evaluate(element =>

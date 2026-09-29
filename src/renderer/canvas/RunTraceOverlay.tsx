@@ -34,7 +34,9 @@ const CALLOUT_GAP = 10
  * A call path or an investigation run, drawn over the Floor.
  *
  * Lines are ink curves between the boxes you can actually see, one per pair,
- * meeting each system on its folder body rather than its tab. Labels and
+ * meeting each system on its folder body rather than its tab. Direction is
+ * carried by the dash flowing caller to callee: the canvas contract gives
+ * living and trace flows no arrowheads. Labels and
  * callouts are sized in screen pixels (counter-scaled against the zoom) so
  * they read the same at every zoom instead of shrinking to specks the moment
  * the camera pulls back to show the whole path.
@@ -92,7 +94,7 @@ export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: R
         const rect = rects.get(node.id)
         return rect ? [{ id: node.id, rect }] : []
       })
-    // Where lines meet boxes: a callout over an arrowhead hides which box
+    // Where lines meet boxes: a callout over a line's end hides which box
     // the path reached, so those spots weigh like another callout.
     const reach = 18 / safeZoom
     const taken: Box[] = lines.flatMap(line => [line.from, line.to]).map(point => ({
@@ -124,23 +126,12 @@ export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: R
   return (
     <ViewportPortal>
       <svg className="axiom-run-trace" width="1" height="1" aria-hidden="true">
-        <defs>
-          <marker id="axiom-run-trace-arrow" viewBox="0 0 10 10" refX="9" refY="5"
-            markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-            <path d="M 0 1 L 9 5 L 0 9 z" className="axiom-run-trace__arrow" />
-          </marker>
-          <marker id="axiom-run-trace-arrow-focus" viewBox="0 0 10 10" refX="9" refY="5"
-            markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-            <path d="M 0 1 L 9 5 L 0 9 z" className="axiom-run-trace__arrow axiom-run-trace__arrow--focus" />
-          </marker>
-        </defs>
         {scene.lines.map(line => (
           <g key={line.key} className={`axiom-run-trace__line${line.focus ? ' axiom-run-trace__line--focus' : ''}`}
             data-run-trace-source={line.source} data-run-trace-target={line.target}>
             <title>{line.pairs.join('\n')}</title>
             <path d={line.path} className="axiom-run-trace__casing" vectorEffect="non-scaling-stroke" />
-            <path d={line.path} className="axiom-run-trace__stroke" vectorEffect="non-scaling-stroke"
-              markerEnd={`url(#axiom-run-trace-arrow${line.focus ? '-focus' : ''})`} />
+            <path d={line.path} className="axiom-run-trace__stroke" vectorEffect="non-scaling-stroke" />
           </g>
         ))}
       </svg>

@@ -28,6 +28,8 @@ export interface LivingInspectionWindow {
   key: number
   kind: NodeFx['kind']
   originId: string
+  /** The hidden origin's display name, for the window's label. */
+  label?: string
   /** Rectangle of the hidden origin in this system's local flow coordinates. */
   x: number
   y: number

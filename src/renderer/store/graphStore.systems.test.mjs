@@ -29,3 +29,40 @@ test('a live session shows the same systems a reload would', () => {
     globalThis.setTimeout = originalSetTimeout
   }
 })
+
+function withTimersOff(fn) {
+  const original = globalThis.setTimeout
+  globalThis.setTimeout = () => 0
+  try { return fn() } finally { globalThis.setTimeout = original }
+}
+
+test('files an agent builds wait in Unsorted, even when the clusterer guessed a system', () => {
+  useGraphStore.getState().applySnapshot({ workspaceId: 'ws', systems: [authored, inferred], files: [], infraNodes: [], dependencies: [], floorLayouts: [] })
+  withTimersOff(() => {
+    const before = useGraphStore.getState().unsortedArrivalKey
+    const patch = file => useGraphStore.getState().applyDbPatch({ type: 'file:updated', payload: file })
+    patch({ id: 'new-a', relPath: 'src/refunds/refund.ts', systemId: null })
+    patch({ id: 'new-b', relPath: 'src/refunds/policy.ts', systemId: 'cluster_refund' })
+    const state = useGraphStore.getState()
+    assert.equal(state.unsortedArrivalKey, before + 2, 'both went to the bin')
+    assert.equal(state.nodeFx['new-a'], undefined, 'no arrival plays on the canvas')
+    assert.equal(state.nodeFx['new-b'], undefined, 'a guessed system is not a place on the canvas')
+  })
+})
+
+test('assignment is when a new file arrives on the canvas', () => {
+  useGraphStore.getState().applySnapshot({
+    workspaceId: 'ws', systems: [authored, { ...authored, id: 'sys-other', name: 'Other' }],
+    files: [{ id: 'waiting', systemId: null }, { id: 'placed', systemId: 'sys-tax' }],
+    infraNodes: [], dependencies: [], floorLayouts: [],
+  })
+  withTimersOff(() => {
+    const assign = (fileId, systemId) => useGraphStore.getState().applyDbPatch({ type: 'file:assigned', payload: { fileId, systemId } })
+    assign('waiting', 'sys-tax')
+    assert.equal(useGraphStore.getState().nodeFx.waiting.kind, 'enter', 'leaving the bin plays the arrival')
+    assign('placed', 'sys-other')
+    assert.equal(useGraphStore.getState().nodeFx.placed.kind, 'classify', 'moving between systems is a quieter re-file')
+    assign('placed', 'cluster_hidden')
+    assert.equal(useGraphStore.getState().files.find(f => f.id === 'placed').systemId, 'cluster_hidden')
+  })
+})

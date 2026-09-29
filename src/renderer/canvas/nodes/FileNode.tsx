@@ -1,3 +1,4 @@
+import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FileNodeData, NodeFx } from '../sceneTypes'
@@ -185,27 +186,13 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     : runtime?.lastKind === 'exception' ? '#ef4444'
     : runtime?.rateLimited ? '#f59e0b'
     : 'var(--run-ink-focus)'
-  const livingRevealColor = livingSignal.fx?.kind === 'enter' || livingSignal.fx?.kind === 'flow-add'
-    ? '#2fa35d'
-    : livingSignal.fx?.kind === 'exit' || livingSignal.fx?.kind === 'flow-remove'
-      ? '#b6534b'
-      : '#3c8f92'
+  const livingRevealColor = livingActivityColor(livingSignal.fx?.kind)
 
   // Content renders at base (depth-0) pixel sizes inside a div that is
   // 1/s times the node's box, then uniformly scaled down by s. Every file
   // node is therefore pixel-identical in its own frame at any depth.
   const s = fitPresentationScale(width, height, 220, 110, d.worldScale ?? 1)
-  const livingSignalLabel = livingSignal.fx?.kind === 'edit'
-    ? 'EDITED'
-    : livingSignal.fx?.kind === 'enter'
-      ? 'CREATED'
-    : livingSignal.fx?.kind === 'exit'
-      ? 'DELETED'
-    : livingSignal.fx?.kind === 'flow-add'
-      ? 'LINK ADDED'
-      : livingSignal.fx?.kind === 'flow-remove'
-        ? 'LINK REMOVED'
-        : 'IMPACT'
+  const livingSignalLabel = livingActivityLabel(livingSignal.fx?.kind)
   // Apparent zoom of this node on screen - a depth-2 node at viewport zoom 2
   // looks like a depth-0 node at zoom 0.5. Detail states gate on this.
   // Resolved by the semantic-zoom pass. Reading the raw zoom here would make

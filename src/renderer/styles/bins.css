@@ -109,8 +109,8 @@
 
 /* A file that lands unsorted never materialises on the Floor, so the green
    arrival signal is spent here instead - same vocabulary as the canvas create,
-   on the thing the file actually landed in. Remounted by key on every arrival
-   so a burst pulses once per file rather than once per burst. */
+   on the thing the file actually landed in. The first arrival of a burst
+   pulses; the rest keep the steady border below until the burst goes quiet. */
 @keyframes axiom-bin-arrival {
   0%   { border-color: #61c2a4; box-shadow: 0 0 0 0 rgba(97, 194, 164, 0.6), 0 3px 10px rgba(12, 18, 16, 0.38); }
   45%  { border-color: #61c2a4; box-shadow: 0 0 0 8px rgba(97, 194, 164, 0), 0 3px 10px rgba(12, 18, 16, 0.38); }
@@ -119,6 +119,7 @@
 
 .axiom-bin[data-arriving] {
   animation: axiom-bin-arrival 1400ms ease-out;
+  border-color: #61c2a4;
 }
 
 .axiom-bin[data-arriving] .axiom-bin__count,

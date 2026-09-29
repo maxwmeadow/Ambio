@@ -374,6 +374,10 @@ function keepAuthoredSystems<T extends { source?: string | null }>(systems: T[])
   return systems.filter(isAuthoredSystem)
 }
 
+function hasShownSystem(systems: ReadonlyArray<{ id: string }>, systemId: string | null | undefined): boolean {
+  return !!systemId && systems.some(system => system.id === systemId)
+}
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   currentProject: null,
   recentProjects: [],
@@ -810,7 +814,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }, 0)
     const animateIndividualFiles = shouldAnimateIndividualClassification(classificationMoveCount)
 
-    for (const system of snap.systems ?? []) {
+    // The same authored-only rule as applySnapshot and system:upserted, or a
+    // re-classification would put the clusterer's guesses back on the canvas.
+    const shownSystems = keepAuthoredSystems(snap.systems ?? [])
+    for (const system of shownSystems) {
       if (previousSystems.has(system.id)) continue
       const key = nextFxKey()
       nextFx[system.id] = { kind: 'enter', key }
@@ -820,6 +827,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     for (const file of nextFiles) {
       const previous = previousFiles.get(file.id)
       if (!previous || previous.systemId === file.systemId) continue
+      // Moved into a withheld system: it went to Unsorted, not onto the canvas.
+      if (!hasShownSystem(shownSystems, file.systemId)) continue
       // A baseline reconciliation can move hundreds of files at once. Their
       // new systems still receive the enter choreography above, but revealing
       // every hidden file for its own settle animation defeats semantic-zoom
@@ -833,9 +842,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       scheduleFxExpiry(file.id, key)
     }
 
-    const nextSystemIds = new Set((snap.systems ?? []).map(system => system.id))
+    const nextSystemIds = new Set(shownSystems.map(system => system.id))
     return {
-      systems: snap.systems ?? [],
+      systems: shownSystems,
       files: nextFiles,
       infraNodes: snap.infraNodes ?? state.infraNodes,
       dependencies: nextDependencies,
@@ -942,7 +951,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           // drawing spends the signal on nothing, so the bin gets it instead.
           // The bin is where the file actually went, and that is what the
           // animation is for: telling you where to look.
-          if (fxKind === 'enter' && !file.systemId && state.systems.length > 0) {
+          // "Nobody placed it" includes a clusterer's guess: a system_id that
+          // points at a withheld inferred system is not a place on the canvas.
+          if (fxKind === 'enter' && !hasShownSystem(state.systems, file.systemId) && state.systems.length > 0) {
             return { files, unsortedArrivalKey: state.unsortedArrivalKey + 1 }
           }
           const key = nextFxKey()
@@ -1097,8 +1108,20 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         }
         case 'file:assigned': {
           const { fileId, systemId } = patch.payload as { fileId: string; systemId: string }
+          const previous = state.files.find(f => f.id === fileId)
+          const files = state.files.map(f => f.id === fileId ? { ...f, systemId } : f)
+          if (!previous || previous.systemId === systemId || !hasShownSystem(state.systems, systemId)) {
+            return { files }
+          }
+          // Assignment is when a new file reaches the canvas: it waited in
+          // Unsorted until an agent (or you) gave it a home. Leaving the bin
+          // plays the arrival; moving between systems is a quieter re-file.
+          const fromBin = !hasShownSystem(state.systems, previous.systemId)
+          const key = nextFxKey()
+          scheduleFxExpiry(fileId, key)
           return {
-            files: state.files.map(f => f.id === fileId ? { ...f, systemId } : f),
+            files,
+            nodeFx: { ...state.nodeFx, [fileId]: { kind: fromBin ? 'enter' : 'classify', key } },
           }
         }
         case 'infra:upserted': {

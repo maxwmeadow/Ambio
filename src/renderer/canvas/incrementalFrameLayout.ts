@@ -62,3 +62,64 @@ export function growFrameToContainChildren(
     height: Math.max(frame.height, bottom + padding),
   }
 }
+
+export interface SiblingRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Below this a frame's contents stop being worth compressing: growing into a
+ * neighbour is the lesser harm than files too small to read.
+ */
+export const LIVE_FIT_MIN_INTERIOR_SCALE = 0.4
+
+/**
+ * Make room for children that arrived live - an agent assigning a batch of
+ * files to a system - without landing on the frame's neighbours.
+ *
+ * Growth is tried first, and kept when the grown frame still clears every
+ * sibling. When it would not, the frame keeps its size and compresses its
+ * interior instead, which the canvas contract defines as touching nothing
+ * outside the frame. Siblings are never moved: their positions are authored.
+ * Only when compression would pass the legibility floor does the frame grow
+ * anyway.
+ */
+export function fitFrameAmongSiblings(
+  frame: FrameGeometry,
+  children: readonly FrameGeometry[],
+  padding: number,
+  siblings: readonly SiblingRect[],
+  gap = 0,
+): FrameGeometry {
+  const grown = growFrameToContainChildren(frame, children, padding)
+  if (grown.width === frame.width && grown.height === frame.height) return grown
+  const scale = frame.scale > 0 ? frame.scale : 1
+  const footprint = {
+    x: grown.x - gap,
+    y: grown.y - gap,
+    width: grown.width * scale + gap * 2,
+    height: grown.height * scale + gap * 2,
+  }
+  const collides = siblings.some(sibling =>
+    footprint.x < sibling.x + sibling.width && sibling.x < footprint.x + footprint.width &&
+    footprint.y < sibling.y + sibling.height && sibling.y < footprint.y + footprint.height)
+  if (!collides) return grown
+
+  // Children in content units; the frame shows them at interiorScale.
+  let right = 0
+  let bottom = 0
+  for (const child of children) {
+    right = Math.max(right, child.x + child.width * child.scale)
+    bottom = Math.max(bottom, child.y + child.height * child.scale)
+  }
+  const fit = Math.min(
+    frame.interiorScale > 0 ? frame.interiorScale : 1,
+    right > 0 ? (frame.width - padding) / right : 1,
+    bottom > 0 ? (frame.height - padding) / bottom : 1,
+  )
+  if (!(fit >= LIVE_FIT_MIN_INTERIOR_SCALE)) return grown
+  return { ...frame, interiorScale: fit }
+}

@@ -12,6 +12,7 @@ import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
+import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 
 // Drop-target feedback: renders the cell grid only while a node is being
 // dragged over this container (green = free, amber = displaced, red = occupied).
@@ -314,7 +315,9 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       gap: bigTitleFont * 0.25,
       zIndex: 15,
       pointerEvents: 'none',
-      opacity: livingWindowActive ? 0.08 : 1 - containerAlpha,
+      // A window into the system marks where a hidden file changed; the
+      // system keeps its name while it does.
+      opacity: 1 - containerAlpha,
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
       padding: `0 ${padX}px`,
     }}>
@@ -363,7 +366,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       zIndex: 20,
       overflow: 'hidden',
       // crossfade partner of the big centered title
-      opacity: livingWindowActive ? 1 : containerAlpha,
+      opacity: containerAlpha,
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
     }}>
       {infraIdentityIcon(Math.max(12, titleFont * 1.05))}
@@ -551,80 +554,103 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
             height: Math.max(1, Math.min(shellSize.h - y - 2, window.height + pad * 2)),
           }
         })
-        const primaryColor = windows[0]
-          ? (windows[0].kind === 'enter' || windows[0].kind === 'flow-add'
-              ? '#2fa35d'
-              : windows[0].kind === 'exit' || windows[0].kind === 'flow-remove'
-                ? '#b6534b'
-                : '#3c8f92')
-          : color
+        const primaryColor = livingActivityColor(windows[0]?.kind)
+        // A batch - an agent assigning a feature's files at once - gets one
+        // summary instead of a label per file stacked over the system.
+        const summarise = windows.length > 2
+        const kinds = new Set(windows.map(window => livingActivityLabel(window.kind)))
+        const summary = kinds.size === 1
+          ? `${[...kinds][0]} · ${windows.length} files`
+          : `${windows.length} files changed`
+        const closing = livingWindowsClosing ? ' axiom-living-inspection-layer--closing' : ''
         return (
-          <svg
-            className={
-              `axiom-living-inspection-layer${livingWindowsClosing
-                ? ' axiom-living-inspection-layer--closing'
-                : ''}`
-            }
-            width={shellSize.w}
-            height={shellSize.h}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 28,
-              overflow: 'visible',
-              pointerEvents: 'none',
-              '--living-window-close': `${LIVING_WINDOW_CLOSE_MS}ms`,
-            } as React.CSSProperties}
-          >
-            {/* Architectural contour aura along the system silhouette */}
-            <path
-              d={shellPath}
-              fill="none"
-              stroke={primaryColor}
-              strokeWidth={Math.max(1.5, 2 * presentationScale)}
-              className="axiom-system-telemetry-glow"
-              // The glow's drop-shadow uses currentColor; without this it
-              // inherited the dark ink and cast a grey shadow.
-              style={{ color: primaryColor }}
-            />
-            {windows.map(window => {
-              const windowColor = window.kind === 'enter' || window.kind === 'flow-add'
-                ? '#2fa35d'
-                : window.kind === 'exit' || window.kind === 'flow-remove'
-                  ? '#b6534b'
-                  : '#3c8f92'
-              const tick = Math.min(8, Math.min(window.width, window.height) * 0.25)
-              return (
-                <g key={`${window.originId}-${window.key}`}>
-                  {/* Subtle luminous blueprint wash */}
-                  <rect
-                    x={window.x}
-                    y={window.y}
-                    width={window.width}
-                    height={window.height}
-                    fill={windowColor}
-                    fillOpacity={0.06}
-                    stroke={windowColor}
-                    strokeOpacity={0.25}
-                    strokeWidth={1}
-                    className="axiom-living-inspection-window"
-                  />
-                  {/* Precision corner registration ticks */}
-                  <path
-                    d={`M ${window.x} ${window.y + tick} L ${window.x} ${window.y} L ${window.x + tick} ${window.y} ` +
-                      `M ${window.x + window.width - tick} ${window.y} L ${window.x + window.width} ${window.y} L ${window.x + window.width} ${window.y + tick} ` +
-                      `M ${window.x + window.width} ${window.y + window.height - tick} L ${window.x + window.width} ${window.y + window.height} L ${window.x + window.width - tick} ${window.y + window.height} ` +
-                      `M ${window.x + tick} ${window.y + window.height} L ${window.x} ${window.y + window.height} L ${window.x} ${window.y + window.height - tick}`}
-                    fill="none"
-                    stroke={windowColor}
-                    strokeWidth={Math.max(1.5, 2 * presentationScale)}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </g>
-              )
-            })}
-          </svg>
+          <>
+            <svg
+              className={`axiom-living-inspection-layer${closing}`}
+              width={shellSize.w}
+              height={shellSize.h}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 28,
+                overflow: 'visible',
+                pointerEvents: 'none',
+                '--living-window-close': `${LIVING_WINDOW_CLOSE_MS}ms`,
+              } as React.CSSProperties}
+            >
+              {/* Architectural contour aura along the system silhouette */}
+              <path
+                d={shellPath}
+                fill="none"
+                stroke={primaryColor}
+                strokeWidth={Math.max(1.5, 2 * presentationScale)}
+                className="axiom-system-telemetry-glow"
+                // The glow's drop-shadow uses currentColor; without this it
+                // inherited the dark ink and cast a grey shadow.
+                style={{ color: primaryColor }}
+              />
+              {windows.map(window => {
+                const windowColor = livingActivityColor(window.kind)
+                const tick = Math.min(8, Math.min(window.width, window.height) * 0.25)
+                return (
+                  <g key={`${window.originId}-${window.key}`}>
+                    {/* Outline only: the system's title stays readable
+                        through the place the hidden file occupies. */}
+                    <rect
+                      x={window.x}
+                      y={window.y}
+                      width={window.width}
+                      height={window.height}
+                      fill="none"
+                      stroke={windowColor}
+                      strokeOpacity={0.35}
+                      strokeWidth={1}
+                      className="axiom-living-inspection-window"
+                    />
+                    {/* Precision corner registration ticks */}
+                    <path
+                      d={`M ${window.x} ${window.y + tick} L ${window.x} ${window.y} L ${window.x + tick} ${window.y} ` +
+                        `M ${window.x + window.width - tick} ${window.y} L ${window.x + window.width} ${window.y} L ${window.x + window.width} ${window.y + tick} ` +
+                        `M ${window.x + window.width} ${window.y + window.height - tick} L ${window.x + window.width} ${window.y + window.height} L ${window.x + window.width - tick} ${window.y + window.height} ` +
+                        `M ${window.x + tick} ${window.y + window.height} L ${window.x} ${window.y + window.height} L ${window.x} ${window.y + window.height - tick}`}
+                      fill="none"
+                      stroke={windowColor}
+                      strokeWidth={Math.max(1.5, 2 * presentationScale)}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </g>
+                )
+              })}
+            </svg>
+            {/* The contract's lower-right rail: what changed, named, clear
+                of the centred identity and the tab band. The outlines above
+                mark where; this says what. */}
+            <div
+              className={`axiom-living-window-rail${closing ? ' axiom-living-window-rail--closing' : ''}`}
+              style={{
+                right: Math.max(10, 12 * presentationScale),
+                bottom: Math.max(8, 10 * presentationScale),
+              }}
+            >
+              {(summarise ? [{ ...windows[0], originId: 'summary', label: undefined }] : windows).map(window => (
+                <div
+                  key={`label-${window.originId}-${window.key}`}
+                  className="axiom-living-window-label"
+                  data-living-window-label={window.originId}
+                  style={{ '--living-label-color': livingActivityColor(window.kind) } as React.CSSProperties}
+                >
+                  <span className="axiom-living-window-label__dot" />
+                  <span className="axiom-living-window-label__verb">
+                    {summarise ? summary : livingActivityLabel(window.kind)}
+                  </span>
+                  {!summarise && window.label && (
+                    <span className="axiom-living-window-label__name">{window.label}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )
       })()}
       {surfacedFx && (
