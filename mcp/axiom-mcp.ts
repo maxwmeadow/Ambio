@@ -21,6 +21,7 @@ import { routeTool } from './toolRouting.ts'
 import { findWorktreeForCwd, type WorktreeContext, type WorktreeRow } from './worktreeContext.ts'
 import fs from 'fs'
 import { daemonFetch as fetch } from '../electron/daemonAuth.ts'
+import { infraSummary } from './infraSummary.ts'
 
 // Helper: UUID generator for system nodes
 function generateUUID(): string {
@@ -274,7 +275,9 @@ When you are asked to find the cause of a bug, a wrong value, a crash, a flaky t
 4. op "verdict" on the hypothesis (confirmed, refuted or inconclusive), then op "conclude" with the root cause.
 5. Fix it, op "run" the repro again to verify, and op "stop" to save the case.
 
-Keep reading and searching files the way you normally do. What you do through \`investigation\` appears on the person's map next to the code it concerns, and anything they say back to you arrives in your tool results.`
+Keep reading and searching files the way you normally do. What you do through \`investigation\` appears on the person's map next to the code it concerns, and anything they say back to you arrives in your tool results.
+
+The map also records what the code depends on - databases, caches, queues, external APIs, LLMs, storage, email, schedulers, feature flags - including in-process stand-ins such as an event bus or an in-memory cache. Axiom proposes these from imports and config; \`get_architecture\` scope "infra" lists each one with the files that implement and use it and what it needs to run. When you add a dependency, or learn how code uses one (which table it writes, which topic it publishes, which env var it reads), record it with \`edit_infra\`, and confirm or dismiss proposals once you have read the code.`
 
 const server = new Server(
   { name: 'axiom', version: '0.3.0' },
@@ -2087,11 +2090,24 @@ Steps to execute:
         await postAgentActivity(project.workspaceId, 'Agent listed infra nodes', 'info')
         const res = await fetch(`${API_BASE}/api/infra?workspace=${encodeURIComponent(project.workspaceId)}`)
         if (!res.ok) throw new Error(`infra list failed: ${await res.text()}`)
-        const data = await res.json() as { nodes: any[]; edges: any[] }
-        if (args.status) {
-          data.nodes = (data.nodes ?? []).filter((n) => n.status === args.status)
+        const data = await res.json() as {
+          nodes: any[] | null; edges: any[] | null; contents: any[] | null; requirements: any[] | null; unresolved: any[] | null
         }
-        result = data
+        const names = new Map<string, string>()
+        for (const row of await queryDb(project.workspaceId,
+          'SELECT f.id, f.rel_path AS name FROM files f JOIN roots r ON r.id = f.root_id WHERE r.workspace_id = ? UNION ALL SELECT id, name FROM systems WHERE workspace_id = ?',
+          [project.workspaceId, project.workspaceId])) {
+          names.set(row.id, row.name)
+        }
+        result = infraSummary({
+          nodes: data.nodes ?? [],
+          edges: data.edges ?? [],
+          contents: data.contents ?? [],
+          requirements: data.requirements ?? [],
+          unresolved: data.unresolved ?? [],
+          nameOf: id => names.get(id) ?? id,
+          status: args.status as string | undefined,
+        })
         break
       }
 

@@ -189,6 +189,13 @@ relationships with status, requirements, policies, the `DEPLOYS_TO` /
 
 ### L2 - Detection: propose, then confirm
 
+> Built 2026-09-29. `internal/infradetect`: `Analyze` is pure over index
+> evidence (`file_packages`, `file_env_reads`) and config; `Apply` persists per
+> root. It runs when the watcher settles, when a worktree indexes, and on
+> `POST /api/infra/detect`. On harbor: 12 proposals and 70 relationships in
+> about 15 ms, with adapters, stand-ins, compose services, emulators, schedules
+> and env ownership right. Env values are never read.
+
 Channels, cheapest first, all at index time and incremental on change:
 
 1. **Manifests** (`package.json`, `go.mod`, `requirements.txt`,
@@ -209,12 +216,28 @@ server instructions that tell the agent when infra matters.
 
 ### L3 - Visibility
 
+> Built 2026-09-29: the "Infra found" tray (confirm / dismiss / confirm all),
+> an ordered band below the systems for unplaced infra, the rim on collapsed
+> systems, selection-revealed labelled links (`InfraLinksOverlay`), and an
+> inspector that groups relationships by file and item. The agent reads the
+> same picture as text (`get_architecture` scope `infra`).
+
 Legible role cards counter-scaled like activity badges; the system rim;
 selection-revealed relationships through the existing overlay; the inspector's
 "who touches it"; placement bands. The Floor still draws no permanent
 dependency wiring.
 
 ### L4 - Contracts
+
+> Started 2026-09-29: tables and columns from `.sql` migrations and
+> `schema.prisma`, with READS / WRITES per table from SQL in the files that
+> touch the database; topics from `publish` / `consume` / `subscribe` call
+> sites, with named constants resolved one import away, and a warning when a
+> topic has publishers but no consumers or the reverse. On harbor this finds
+> the seeded `booking.reminder` / `booking.reminders` mismatch with no agent
+> involved. Warnings show on the card, first in the inspector ("Looks wrong"),
+> and in the agent's summary. Still to do: cache key patterns, SDK methods,
+> webhook routes, model names, flag keys.
 
 Contents extraction: SQL migrations and ORM schemas → tables and columns;
 literal event names at publish/subscribe call sites → topics; literal key
