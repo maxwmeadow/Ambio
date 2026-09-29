@@ -3161,6 +3161,9 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 }
 
 .axiom-sheet-palette__item {
+  width: 100%;
+  border: 0;
+  font: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3176,6 +3179,16 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 .axiom-sheet-palette__item:hover {
   background: #f5f2e9;
   color: #225c54;
+}
+
+.axiom-sheet-palette__item:focus-visible {
+  outline: 2px solid #225c54;
+  outline-offset: -2px;
+}
+
+.axiom-sheet-palette__item:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .axiom-sheet-palette__item:active {
