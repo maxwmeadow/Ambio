@@ -661,7 +661,10 @@ app.whenReady().then(() => {
   // The capability stays in main; only requests to our fixed loopback daemon
   // receive it. Page scripts never receive the token through IPC or URLs.
   if (!IS_E2E) session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: ['http://127.0.0.1:7743/*', 'ws://127.0.0.1:7744/*'] },
+    // archd answers HTTP on both ports: the renderer's symbol and agent-lane
+    // requests go to the WebSocket port (arcdApi.ts, symbolCache.ts), and
+    // without the token there they fail as 401 and files show "No symbols".
+    { urls: ['http://127.0.0.1:7743/*', 'http://127.0.0.1:7744/*', 'ws://127.0.0.1:7744/*'] },
     (details, callback) => {
       if (details.webContentsId !== mainWindow?.webContents.id) { callback({ requestHeaders: details.requestHeaders }); return }
       const frameUrl = details.frame?.url

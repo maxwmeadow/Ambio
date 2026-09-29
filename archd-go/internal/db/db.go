@@ -4,6 +4,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -409,7 +410,9 @@ func migrate(db *sql.DB) error {
 		rationale TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY(proposal_id, revision) REFERENCES architecture_proposal_rounds(proposal_id, revision) ON DELETE CASCADE,
 		UNIQUE(proposal_id, revision, file_path),
-		CHECK(disposition != 'assign' OR (file_id IS NOT NULL AND length(target_system_key) > 0))
+		-- file_id may become NULL: deleting a file keeps the proposal's record
+		-- of it by path. See migrateProposalMembershipDeletes.
+		CHECK(disposition != 'assign' OR length(target_system_key) > 0)
 	);
 	CREATE INDEX IF NOT EXISTS architecture_proposal_memberships_target
 		ON architecture_proposal_memberships(proposal_id, revision, target_system_key, disposition);
@@ -768,6 +771,9 @@ func migrate(db *sql.DB) error {
 	if err := migrateSheetWork(db); err != nil {
 		return err
 	}
+	if err := migrateProposalMembershipDeletes(db); err != nil {
+		return fmt.Errorf("migrate proposal memberships: %w", err)
+	}
 	if err := BackfillSheetLayouts(db); err != nil {
 		return err
 	}
@@ -832,4 +838,74 @@ func migrate(db *sql.DB) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS systems_unique_name
 			ON systems(workspace_id, COALESCE(parent_id, ''), name)`)
 	return err
+}
+
+// migrateProposalMembershipDeletes lets a file that a proposal assigned be
+// deleted.
+//
+// A membership's file_id is ON DELETE SET NULL, so the proposal keeps its
+// record of the file by path once the file is gone. The original CHECK
+// forbade exactly that on 'assign' rows, so deleting any file placed during
+// onboarding failed inside the watcher and the file stayed on the map for
+// good. SQLite cannot alter a CHECK, so the table is rebuilt once, on one
+// connection with foreign keys off: with them on, dropping the old table
+// would run its ON DELETE actions.
+func migrateProposalMembershipDeletes(db *sql.DB) error {
+	var ddl string
+	err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='architecture_proposal_memberships'`).Scan(&ddl)
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(ddl, "file_id IS NOT NULL AND") {
+		return nil
+	}
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys=OFF`); err != nil {
+		return err
+	}
+	defer conn.ExecContext(ctx, `PRAGMA foreign_keys=ON`) //nolint:errcheck // best effort; the pool reopens connections with the DSN's foreign_keys=on
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	for _, stmt := range []string{
+		`CREATE TABLE architecture_proposal_memberships_next (
+			id TEXT PRIMARY KEY,
+			proposal_id TEXT NOT NULL,
+			revision INTEGER NOT NULL,
+			file_id TEXT REFERENCES files(id) ON DELETE SET NULL,
+			root_id TEXT NOT NULL DEFAULT '',
+			file_path TEXT NOT NULL,
+			target_system_key TEXT NOT NULL DEFAULT '',
+			disposition TEXT NOT NULL CHECK(disposition IN ('assign','retain','unassigned','excluded')),
+			rationale TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY(proposal_id, revision) REFERENCES architecture_proposal_rounds(proposal_id, revision) ON DELETE CASCADE,
+			UNIQUE(proposal_id, revision, file_path),
+			CHECK(disposition != 'assign' OR length(target_system_key) > 0)
+		)`,
+		`INSERT INTO architecture_proposal_memberships_next(id,proposal_id,revision,file_id,root_id,file_path,target_system_key,disposition,rationale)
+			SELECT id,proposal_id,revision,file_id,root_id,file_path,target_system_key,disposition,rationale FROM architecture_proposal_memberships`,
+		`DROP TABLE architecture_proposal_memberships`,
+		`ALTER TABLE architecture_proposal_memberships_next RENAME TO architecture_proposal_memberships`,
+		`CREATE INDEX IF NOT EXISTS architecture_proposal_memberships_target
+			ON architecture_proposal_memberships(proposal_id, revision, target_system_key, disposition)`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	var violations int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM pragma_foreign_key_check('architecture_proposal_memberships')`).Scan(&violations); err != nil {
+		return err
+	}
+	if violations > 0 {
+		return fmt.Errorf("%d proposal memberships reference missing rows", violations)
+	}
+	return tx.Commit()
 }

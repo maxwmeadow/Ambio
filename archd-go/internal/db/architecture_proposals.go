@@ -578,8 +578,9 @@ func approveArchitectureProposalSystemTx(tx *sql.Tx, proposalID, workspaceID str
 			return false, err
 		}
 		if fileID == nil {
-			rows.Close()
-			return false, fmt.Errorf("membership %s no longer resolves to a file", path)
+			// The file was deleted after it was proposed; there is nothing
+			// left to place. The round keeps its record of it by path.
+			continue
 		}
 		result, err := tx.Exec(`UPDATE files SET system_id=? WHERE id=? AND root_id=?`, materializedID, *fileID, rootID)
 		if err != nil {
