@@ -314,6 +314,37 @@ export interface InfraImplementation {
   evidence?: string
 }
 
+/** An item of an infra node's contract: a table, topic, cache key, schedule... */
+export interface InfraContent {
+  id: string
+  workspaceId: string
+  infraId: string
+  kind: string
+  name: string
+  detail?: Record<string, unknown>
+  evidence?: string
+  source: 'parser' | 'agent' | 'user' | 'runtime'
+}
+
+/** Something running the code needs; env vars by name only. */
+export interface InfraRequirement {
+  id: string
+  workspaceId: string
+  kind: 'env'
+  name: string
+  infraId?: string
+  evidence?: string
+  present: boolean
+  source: string
+}
+
+/** A package detection saw but could not attribute to one service. */
+export interface InfraUnresolved {
+  Package: string
+  Candidates: string[]
+  Evidence: string
+}
+
 export interface InfraPolicies {
   costs_money?: boolean
   external_side_effects?: boolean
@@ -584,6 +615,8 @@ export interface DbGraphPatch {
     | 'relationship:changed'
     | 'infra:upserted'  | 'infra:deleted'
     | 'infra:connected' | 'infra:disconnected'
+    | 'infra:refreshed' | 'infra:edge_status'
+    | 'infra:contents'  | 'infra:requirements'
     | 'floor:layouts'
   payload:
     | DbSystem | DbFile | FileUpdatePatch | FileDeletePatch
@@ -591,6 +624,9 @@ export interface DbGraphPatch {
     | DbInfraNode | DbDependency | { id: string }
     | { fileId: string; systemId: string }
     | { revision: number; layouts: FloorLayout[] }
+    | { nodes: DbInfraNode[] | null; edges: DbDependency[] | null }
+    | { id: string; status: DbDependency['status'] }
+    | Record<string, unknown>
 }
 
 // ─── Trustworthy realization ────────────────────────────────────────────────

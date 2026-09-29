@@ -76,7 +76,8 @@ import { packFrame, placeIncoming } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
 import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
-import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates } from './incrementalFrameLayout'
+import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from './incrementalFrameLayout'
+import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE, type InfraRimItem } from './infraRoles'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
   emptySelection,
@@ -96,6 +97,7 @@ import { useSheetPhase } from './sheetPhase'
 import { stampAgentPresence } from './agentPresence'
 import { LivingFlowOverlay } from './LivingFlowOverlay'
 import { RunTraceOverlay } from './RunTraceOverlay'
+import { InfraLinksOverlay } from './InfraLinksOverlay'
 import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
@@ -1036,7 +1038,7 @@ function buildFloorFrameLayout(
     const file = filesById.get(id)
     if (file) return { width: file.width ?? BASE_FILE_W, height: file.height ?? BASE_FILE_H }
     const infra = infraById.get(id)
-    return infra?.category === 'platform' ? { width: 760, height: 520 } : { width: 260, height: 160 }
+    return infra?.category === 'platform' ? PLATFORM_FRAME_SIZE : INFRA_CARD_SIZE
   }
 
   const depthCache = new Map<string, number>()
@@ -1131,8 +1133,19 @@ function buildFloorFrameLayout(
   // Database/API order is not spatial order. Register every persisted sibling
   // first so an incoming system/file cannot be placed underneath a persisted
   // node that happens to appear later in the snapshot.
+  // Infrastructure nobody has placed goes in a band below the map rather than
+  // wherever the packer finds a gap; it is placed after everything else so
+  // the band knows where the map ends.
+  const bandedInfra: typeof placementCandidates = []
   for (const candidate of orderFramePlacementCandidates(placementCandidates)) {
     const { id, parentId, layout, fallback } = candidate
+    if (!layout && parentId === null && infraById.has(id)) {
+      const remembered = generatedPlacements.get(id)
+      if (!remembered || remembered.parentId !== null) {
+        bandedInfra.push(candidate)
+        continue
+      }
+    }
     let { x, y } = candidate
     const occupied = occupiedByParent.get(parentId) ?? []
     if (candidate.placementPriority === 2) {
@@ -1178,6 +1191,31 @@ function buildFloorFrameLayout(
     geometryById.set(id, geometry)
     occupied.push({ x: geometry.x, y: geometry.y, width: geometry.width * geometry.scale, height: geometry.height * geometry.scale })
     occupiedByParent.set(parentId, occupied)
+  }
+
+  if (bandedInfra.length > 0) {
+    const roots = occupiedByParent.get(null) ?? []
+    const band = placeInfraBand(
+      bandedInfra.map(candidate => ({
+        id: candidate.id,
+        category: infraById.get(candidate.id)?.category ?? 'api',
+        ...candidate.fallback,
+      })),
+      roots,
+      FRAME_ROOT_GAP,
+    )
+    for (const candidate of bandedInfra) {
+      const spot = band.get(candidate.id)!
+      generatedPlacements.set(candidate.id, { parentId: null, x: spot.x, y: spot.y })
+      const geometry = normalizeGeometry({
+        x: spot.x, y: spot.y,
+        width: candidate.fallback.width, height: candidate.fallback.height,
+        scale: 1, interiorScale: 1,
+      }, candidate.fallback)
+      geometryById.set(candidate.id, geometry)
+      roots.push({ x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height })
+    }
+    occupiedByParent.set(null, roots)
   }
 
   const resizedContainerIds = new Set<string>()
@@ -1491,7 +1529,14 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       : sceneFiles.filter(isCanvasSourceFile),
     [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
   )
-  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : liveInfraNodes
+  // Infra reaches the Floor once it is confirmed; proposals wait in the
+  // infrastructure tray and dismissals never draw.
+  const confirmedInfraNodes = useMemo(
+    () => liveInfraNodes.filter(node => (node.status ?? 'confirmed') === 'confirmed'),
+    [liveInfraNodes],
+  )
+  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : confirmedInfraNodes
+  const floorInfraIds = useMemo(() => new Set(confirmedInfraNodes.map(node => node.id)), [confirmedInfraNodes])
   const dependencies = isolatedScene ? emptyReviewLiveState.dependencies : liveDependencies
   const selectedNodeId = reviewScene?.selectedNodeId ?? liveSelectedNodeId
   const activeTrace = isolatedScene ? emptyReviewLiveState.activeTrace : liveActiveTrace
@@ -1830,10 +1875,10 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           positionY: element.positionY,
           width: element.width ?? previous?.width
             ?? liveSystems.get(nodeId)?.width ?? liveFiles.get(nodeId)?.width
-            ?? (infra?.category === 'platform' ? 760 : infra ? 260 : BASE_FILE_W),
+            ?? (infra?.category === 'platform' ? PLATFORM_FRAME_SIZE.width : infra ? INFRA_CARD_SIZE.width : BASE_FILE_W),
           height: element.height ?? previous?.height
             ?? liveSystems.get(nodeId)?.height ?? liveFiles.get(nodeId)?.height
-            ?? (infra?.category === 'platform' ? 520 : infra ? 160 : BASE_FILE_H),
+            ?? (infra?.category === 'platform' ? PLATFORM_FRAME_SIZE.height : infra ? INFRA_CARD_SIZE.height : BASE_FILE_H),
           scale: element.scale ?? previous?.scale ?? 1,
           interiorScale: previous?.interiorScale ?? 1,
           updatedAt: 0,
@@ -1856,9 +1901,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           positionX: planned.positionX,
           positionY: planned.positionY,
           width: planned.width ?? (nodeType === 'system'
-            ? 620 : nodeType === 'infra' ? (metadata.category === 'platform' ? 760 : 260) : BASE_FILE_W),
+            ? 620 : nodeType === 'infra' ? (metadata.category === 'platform' ? PLATFORM_FRAME_SIZE.width : INFRA_CARD_SIZE.width) : BASE_FILE_W),
           height: planned.height ?? (nodeType === 'system'
-            ? 420 : nodeType === 'infra' ? (metadata.category === 'platform' ? 520 : 160) : BASE_FILE_H),
+            ? 420 : nodeType === 'infra' ? (metadata.category === 'platform' ? PLATFORM_FRAME_SIZE.height : INFRA_CARD_SIZE.height) : BASE_FILE_H),
           scale: planned.scale ?? 1,
           interiorScale: 1,
           updatedAt: 0,
@@ -3388,6 +3433,56 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }))
   }, [runtimeNodes, layoutVersion])
 
+  // ── Infra rim ────────────────────────────────────────────────────────────
+  // Each system carries the infrastructure its files touch, so a collapsed
+  // map still says "Bookings writes Postgres and calls Stripe" without drawing
+  // a single permanent edge (INFRA_LAYER_PLAN.md L3). Rolled up to every
+  // ancestor, so a parent shows what its children depend on.
+  const infraRim = useMemo(() => {
+    const shown = new Map(infraNodes.map(node => [node.id, node]))
+    const fileSystem = new Map(files.map(file => [file.id, file.systemId ?? null]))
+    const parentOf = new Map(systems.map(system => [system.id, system.parentId ?? null]))
+    const bySystem = new Map<string, Map<string, { files: Set<string>; implements: boolean }>>()
+    for (const dep of dependencies) {
+      if (dep.dstType !== 'infra' || dep.status === 'dismissed' || !shown.has(dep.dst)) continue
+      let systemId = dep.srcType === 'system' ? dep.src : fileSystem.get(dep.src) ?? null
+      const seen = new Set<string>()
+      while (systemId && !seen.has(systemId)) {
+        seen.add(systemId)
+        const touches = bySystem.get(systemId) ?? new Map()
+        const entry = touches.get(dep.dst) ?? { files: new Set<string>(), implements: false }
+        entry.files.add(dep.src)
+        if (dep.dependencyType === 'IMPLEMENTS') entry.implements = true
+        touches.set(dep.dst, entry)
+        bySystem.set(systemId, touches)
+        systemId = parentOf.get(systemId) ?? null
+      }
+    }
+    const out = new Map<string, InfraRimItem[]>()
+    for (const [systemId, touches] of bySystem) {
+      out.set(systemId, [...touches.entries()]
+        .map(([infraId, entry]) => {
+          const node = shown.get(infraId)!
+          return { infraId, name: node.name, service: node.service, category: node.category,
+            count: entry.files.size, implements: entry.implements }
+        })
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)))
+    }
+    return out
+  }, [dependencies, infraNodes, files, systems])
+
+  useEffect(() => {
+    setRfNodes(curr => curr.map(n => {
+      if (n.type !== 'system') return n
+      const rim = infraRim.get(n.id)
+      const had = (n.data as any).infraRim as InfraRimItem[] | undefined
+      if (!rim && !had) return n
+      if (rim && had && rim.length === had.length && rim.every((item, index) =>
+        item.infraId === had[index].infraId && item.count === had[index].count && item.name === had[index].name)) return n
+      return { ...n, data: { ...n.data, infraRim: rim } }
+    }))
+  }, [infraRim, layoutVersion])
+
   // ── Data-flow slice (purple overlay) ───────────────────────────────────────
   // Stamp `sliced` on file nodes in the current variable-reference slice.
   useEffect(() => {
@@ -4620,6 +4715,17 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           nodes={livingDisplayNodes}
           visibilityOptions={livingVisibilityOptions}
         />
+        {!isolatedScene && (
+          <InfraLinksOverlay
+            selectedId={selectedNodeId ?? null}
+            nodes={livingDisplayNodes}
+            dependencies={dependencies}
+            infraIds={floorInfraIds}
+            files={files}
+            systems={systems}
+            visibilityOptions={livingVisibilityOptions}
+          />
+        )}
         {deferCanvasMaterialization && (
           <Panel position="top-center" className="axiom-canvas-materializing">
             <div role="status" aria-live="polite">

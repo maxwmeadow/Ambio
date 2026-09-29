@@ -1,3 +1,4 @@
+import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles.ts'
 import type { Node } from '@xyflow/react'
 import type { DbFile, DbInfraNode, DbSystem, FloorNodeType } from '../../shared/types'
 import { countDirectChildren } from './directChildCounts.ts'
@@ -83,7 +84,7 @@ export function projectFloorNodes({
     const file = filesById.get(id)
     if (file) return { width: file.width ?? BASE_FILE_WIDTH, height: file.height ?? BASE_FILE_HEIGHT }
     const infra = infraById.get(id)
-    return infra?.category === 'platform' ? { width: 760, height: 520 } : { width: 260, height: 160 }
+    return infra?.category === 'platform' ? PLATFORM_FRAME_SIZE : INFRA_CARD_SIZE
   }
 
   const resizeMinimumFor = (id: string, geometry: FrameGeometry, worldScale: number, descriptorDepth: number) => {

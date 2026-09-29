@@ -6,6 +6,9 @@ import type {
   DbSystem,
   DbFile,
   DbInfraNode,
+  InfraContent,
+  InfraRequirement,
+  InfraUnresolved,
   DbDependency,
   CanvasSnapshot,
   FloorLayout,
@@ -201,6 +204,13 @@ interface GraphState {
   systems: DbSystem[]
   files: DbFile[]
   infraNodes: DbInfraNode[]
+  /** Contract items, requirements and unattributed evidence (GET /api/infra). */
+  infraContents: InfraContent[]
+  infraRequirements: InfraRequirement[]
+  infraUnresolved: InfraUnresolved[]
+  /** Bumped when detection proposes infrastructure, so the tray can say so. */
+  infraProposalKey: number
+  loadInfraDetails: (workspaceId: string) => Promise<void>
   dependencies: DbDependency[]
   floorLayouts: FloorLayout[]
 
@@ -374,6 +384,36 @@ function keepAuthoredSystems<T extends { source?: string | null }>(systems: T[])
   return systems.filter(isAuthoredSystem)
 }
 
+/**
+ * Infra reaches the Floor when it is confirmed, the way a file reaches it when
+ * it is assigned. A confirmation (or a node created confirmed, by an agent or
+ * a person) plays the arrival; a new proposal only bumps the tray, since
+ * detection can propose a dozen services at once.
+ */
+function infraArrival(
+  state: { nodeFx: Record<string, NodeFx>; infraProposalKey: number },
+  before: readonly DbInfraNode[],
+  after: readonly DbInfraNode[],
+): { nodeFx?: Record<string, NodeFx>; infraProposalKey?: number } {
+  const previous = new Map(before.map(node => [node.id, node]))
+  let nodeFx: Record<string, NodeFx> | undefined
+  let proposals = 0
+  for (const node of after) {
+    const was = previous.get(node.id)
+    if (node.status === 'confirmed' && was?.status !== 'confirmed') {
+      const key = nextFxKey()
+      scheduleFxExpiry(node.id, key)
+      nodeFx = { ...(nodeFx ?? state.nodeFx), [node.id]: { kind: 'enter', key } }
+    } else if (node.status === 'proposed' && !was) {
+      proposals++
+    }
+  }
+  return {
+    ...(nodeFx ? { nodeFx } : {}),
+    ...(proposals > 0 ? { infraProposalKey: state.infraProposalKey + 1 } : {}),
+  }
+}
+
 function hasShownSystem(systems: ReadonlyArray<{ id: string }>, systemId: string | null | undefined): boolean {
   return !!systemId && systems.some(system => system.id === systemId)
 }
@@ -384,6 +424,27 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   systems: [],
   files: [],
   infraNodes: [],
+  infraContents: [],
+  infraRequirements: [],
+  infraUnresolved: [],
+  infraProposalKey: 0,
+  loadInfraDetails: async (workspaceId) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:7743/api/infra?workspace=${encodeURIComponent(workspaceId)}`)
+      if (!response.ok) return
+      const body = await response.json() as {
+        contents?: InfraContent[]; requirements?: InfraRequirement[]; unresolved?: InfraUnresolved[]
+      }
+      if (get().currentProject?.id !== workspaceId) return
+      set({
+        infraContents: body.contents ?? [],
+        infraRequirements: body.requirements ?? [],
+        infraUnresolved: body.unresolved ?? [],
+      })
+    } catch {
+      // archd unreachable - the inspector shows what it has
+    }
+  },
   dependencies: [],
   floorLayouts: [],
   expandedSystemIds: new Set(),
@@ -1126,14 +1187,27 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         }
         case 'infra:upserted': {
           const node = patch.payload as DbInfraNode
-          const exists = state.infraNodes.some(n => n.id === node.id)
-          const infraNodes = exists
+          const previous = state.infraNodes.find(n => n.id === node.id)
+          const infraNodes = previous
             ? state.infraNodes.map(n => n.id === node.id ? node : n)
             : [...state.infraNodes, node]
-          if (exists) return { infraNodes }
-          const key = nextFxKey()
-          scheduleFxExpiry(node.id, key)
-          return { infraNodes, nodeFx: { ...state.nodeFx, [node.id]: { kind: 'enter', key } } }
+          return { infraNodes, ...infraArrival(state, previous ? [previous] : [], [node]) }
+        }
+        case 'infra:refreshed': {
+          const { nodes, edges } = patch.payload as { nodes: DbInfraNode[] | null; edges: DbDependency[] | null }
+          const next = nodes ?? []
+          return {
+            infraNodes: next,
+            dependencies: [
+              ...state.dependencies.filter(d => d.dstType !== 'infra' && d.srcType !== 'infra'),
+              ...(edges ?? []),
+            ],
+            ...infraArrival(state, state.infraNodes, next),
+          }
+        }
+        case 'infra:edge_status': {
+          const { id, status } = patch.payload as { id: string; status: DbDependency['status'] }
+          return { dependencies: state.dependencies.map(d => d.id === id ? { ...d, status } : d) }
         }
         case 'infra:deleted': {
           const { id } = patch.payload as { id: string }
@@ -1452,6 +1526,7 @@ export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
         const snapshot = await response.json() as CanvasSnapshot
         if (generation !== wsGeneration || useGraphStore.getState().currentProject?.id !== workspaceId) return
         useGraphStore.getState().applySnapshot(snapshot)
+        scheduleInfraDetails()
         void refreshInbox(workspaceId)
         const pending = buffered
         buffered = []
@@ -1578,6 +1653,18 @@ function applyRunVisuals(run: CaseRun): void {
   useGraphStore.setState({ runtimeNodes: nodes })
 }
 
+let infraDetailsTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Refetch contracts and requirements once a burst of infra changes settles. */
+export function scheduleInfraDetails(): void {
+  if (infraDetailsTimer) clearTimeout(infraDetailsTimer)
+  infraDetailsTimer = setTimeout(() => {
+    infraDetailsTimer = null
+    const workspaceId = useGraphStore.getState().currentProject?.id
+    if (workspaceId) void useGraphStore.getState().loadInfraDetails(workspaceId)
+  }, 250)
+}
+
 export function handleWsMessage(msg: { type: string; payload: unknown; at?: number }): void {
   const store = useGraphStore.getState()
   const envelope = msg.payload as { workspaceId?: string; payload?: { workspaceId?: string } } | null
@@ -1595,12 +1682,14 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
   switch (msg.type) {
     case 'graph:snapshot':
       store.applySnapshot(msg.payload as CanvasSnapshot)
+      scheduleInfraDetails()
       break
     case 'classification:updated':
       store.applyClassification(msg.payload as CanvasSnapshot)
       break
     case 'graph:patch':
       store.applyDbPatch(msg.payload as DbGraphPatch)
+      if (String((msg.payload as DbGraphPatch).type).startsWith('infra:')) scheduleInfraDetails()
       break
     case 'indexing:progress':
       store.setIndexingProgress(msg.payload as { indexed: number; total: number })

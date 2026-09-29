@@ -50,7 +50,7 @@ const QUICK_FILTERS: Array<{ id: QuickFilter; label: string; categories: string[
   { id: 'app', label: 'Jobs, flags & realtime', categories: ['scheduler', 'flags', 'realtime'] },
 ]
 
-function ServiceIcon({ service, size = 26 }: { service: InfraService; size?: number }) {
+export function ServiceIcon({ service, size = 26 }: { service: InfraService; size?: number }) {
   const official = officialServiceIcon(service.id)
   if (official) return <img className="axiom-infra-picker__service-icon" src={official} width={size} height={size} alt="" />
 

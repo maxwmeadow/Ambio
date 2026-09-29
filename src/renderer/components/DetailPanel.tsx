@@ -1,6 +1,7 @@
 import React from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { DbDependency, DbFile, DbSystem } from '../../shared/types'
+import type { DbDependency, DbFile, DbInfraNode, DbSystem } from '../../shared/types'
+import { IMPLEMENTATION_LABEL, ITEM_ROLE, RELATIONSHIP_LABEL, RELATIONSHIP_ORDER, ROLE_LABEL, readDetectedBy } from '../canvas/infraRoles'
 import { apiUpdateSystem } from '../canvas/arcdApi'
 import { filenameForLanguage, LanguagePicker } from '../canvas/languages'
 import { UmlMetadataPanel } from '../canvas/nodes/UmlMetadataPanel'
@@ -80,21 +81,14 @@ export function DetailPanel() {
         )}
         {system && <SystemDetail system={system} files={files} systems={systems} />}
         {infra && (
-          <>
-            <InspectorIdentity
-              kicker="Selected infrastructure"
-              name={infra.name}
-              detail={[infra.provider, infra.category].filter(Boolean).join(' · ')}
-            />
-            <Section title="General">
-              <div className="axiom-inspector-properties">
-                <Stat label="Role" value={infra.category} />
-                {infra.service && <Stat label="Service" value={infra.service} />}
-                {infra.subtype && <Stat label="Subtype" value={infra.subtype} />}
-                {infra.status && <Stat label="Status" value={infra.status} />}
-              </div>
-            </Section>
-          </>
+          <InfraDetail
+            infra={infra}
+            dependencies={dependencies}
+            onOpen={id => {
+              setSelectedNode(id)
+              setInspectedNode(id)
+            }}
+          />
         )}
       </div>
     </aside>
@@ -554,6 +548,7 @@ function DependencySection({
   direction: 'in' | 'out'
   onClick: (id: string) => void
 }) {
+  const nameOf = useNodeName()
   const shown = dependencies.slice(0, 10)
   return (
     <Section title={title}>
@@ -566,10 +561,10 @@ function DependencySection({
               key={dependency.id}
               className="axiom-inspector-dependency"
               onClick={() => onClick(target)}
-              title={target}
+              title={nameOf(target)}
             >
               <span>{direction === 'out' ? '→' : '←'} {dependency.dependencyType}</span>
-              <strong>{target}</strong>
+              <strong>{nameOf(target)}</strong>
             </button>
           )
         })}
@@ -596,5 +591,213 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3>{title}</h3>
       <div className="axiom-inspector-section__body">{children}</div>
     </section>
+  )
+}
+
+/** Resolves a node id to what a person calls it: a path, a system or infra name. */
+function useNodeName(): (id: string) => string {
+  const files = useGraphStore(state => state.files)
+  const systems = useGraphStore(state => state.systems)
+  const infraNodes = useGraphStore(state => state.infraNodes)
+  return React.useMemo(() => {
+    const names = new Map<string, string>()
+    for (const file of files) names.set(file.id, file.relPath)
+    for (const system of systems) names.set(system.id, system.name)
+    for (const node of infraNodes) names.set(node.id, node.name)
+    return (id: string) => names.get(id) ?? id
+  }, [files, systems, infraNodes])
+}
+
+/**
+ * An infra node as the plan says it must read (INFRA_LAYER_PLAN.md "Why this
+ * exists"): what role it plays and what fills it here, who touches it and
+ * how, what code depends on inside it, and what running it locally needs.
+ */
+function InfraDetail({
+  infra,
+  dependencies,
+  onOpen,
+}: {
+  infra: DbInfraNode
+  dependencies: DbDependency[]
+  onOpen: (id: string) => void
+}) {
+  const service = useRegistryStore(state => state.byId.get(infra.service))
+  const contents = useGraphStore(state => state.infraContents)
+  const requirements = useGraphStore(state => state.infraRequirements)
+  const workspaceId = useGraphStore(state => state.currentProject?.id ?? '')
+  const nameOf = useNodeName()
+  const [error, setError] = React.useState<string | null>(null)
+
+  const touching = dependencies.filter(d => d.dst === infra.id && d.dstType === 'infra' && d.status !== 'dismissed')
+  // One row per file and kind, with the items it touches: "bookings.ts -
+  // bookings, slips" rather than a row per table. A file already listed with
+  // a specific relationship is not repeated under the generic "uses".
+  const specificSources = new Set(touching.filter(d => d.dependencyType !== 'USES').map(d => d.src))
+  const byKind = new Map<string, Map<string, { dep: DbDependency; items: string[]; proposed: boolean }>>()
+  for (const dep of touching) {
+    if (dep.dependencyType === 'USES' && specificSources.has(dep.src)) continue
+    const rows = byKind.get(dep.dependencyType) ?? new Map()
+    const row = rows.get(dep.src) ?? { dep, items: [], proposed: false }
+    if (dep.targetItem) row.items.push(dep.targetItem)
+    row.proposed ||= dep.status === 'proposed'
+    rows.set(dep.src, row)
+    byKind.set(dep.dependencyType, rows)
+  }
+  const kinds = [...byKind.keys()].sort((a, b) => RELATIONSHIP_ORDER.indexOf(a) - RELATIONSHIP_ORDER.indexOf(b))
+  const items = contents.filter(item => item.infraId === infra.id)
+  const gaps = items.filter(item => typeof item.detail?.warning === 'string')
+  const itemUse = (name: string) => {
+    const kindsFor = new Map<string, number>()
+    for (const dep of touching) {
+      if (dep.targetItem === name) kindsFor.set(dep.dependencyType, (kindsFor.get(dep.dependencyType) ?? 0) + 1)
+    }
+    return [...kindsFor.entries()]
+      .sort((a, b) => RELATIONSHIP_ORDER.indexOf(a[0]) - RELATIONSHIP_ORDER.indexOf(b[0]))
+      .map(([kind, count]) => {
+        const [one, many] = ITEM_ROLE[kind] ?? [kind.toLowerCase(), kind.toLowerCase()]
+        return `${count} ${count === 1 ? one : many}`
+      })
+      .join(' · ')
+  }
+  const itemKinds = [...new Set(items.map(item => item.kind))]
+  const needs = requirements.filter(req => req.infraId === infra.id)
+  const detected = readDetectedBy(infra.detectedBy)
+  const implementations = infra.implementations ?? []
+
+  const decide = async (status: 'confirmed' | 'dismissed') => {
+    setError(null)
+    const response = await fetch(`http://127.0.0.1:7743/api/infra/${encodeURIComponent(infra.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, status }),
+    })
+    if (!response.ok) setError(`Could not save: ${await response.text()}`)
+  }
+
+  return (
+    <>
+      <InspectorIdentity
+        kicker={infra.status === 'proposed' ? 'Found by Axiom, not confirmed' : ROLE_LABEL[infra.category] ?? 'Infrastructure'}
+        name={infra.name}
+        detail={[service?.name !== infra.name ? service?.name : '', ROLE_LABEL[infra.category] ?? infra.category, infra.subtype]
+          .filter(Boolean).join(' · ')}
+      />
+      {infra.status === 'proposed' && (
+        <Section title="Decide">
+          <div className="axiom-inspector-decide">
+            <button type="button" className="axiom-inspector-decide__confirm" onClick={() => void decide('confirmed')}>Confirm</button>
+            <button type="button" className="axiom-inspector-decide__dismiss" onClick={() => void decide('dismissed')}>Dismiss</button>
+          </div>
+          {error && <p className="axiom-inspector-error" role="alert">{error}</p>}
+        </Section>
+      )}
+
+      {gaps.length > 0 && (
+        <Section title="Looks wrong">
+          <ul className="axiom-inspector-list axiom-inspector-list--gaps">
+            {gaps.map(item => {
+              const who = [item.detail?.publishers, item.detail?.consumers]
+                .flatMap(value => Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [])
+              const fileId = who.length > 0 ? useGraphStore.getState().files.find(file => file.relPath === who[0])?.id : undefined
+              return (
+                <li key={item.id} title={item.evidence ?? undefined}>
+                  <span><code>{item.name}</code> is {String(item.detail!.warning)}.</span>
+                  {fileId && (
+                    <button type="button" className="axiom-inspector-link" onClick={() => onOpen(fileId)}>{who[0]}</button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </Section>
+      )}
+
+      {implementations.length > 0 && (
+        <Section title="How it runs">
+          <ul className="axiom-inspector-list">
+            {implementations.map((impl, index) => {
+              const fileId = impl.kind === 'in-process' || impl.kind === 'vendor'
+                ? useGraphStore.getState().files.find(file => file.relPath === impl.ref)?.id
+                : undefined
+              return (
+                <li key={`${impl.kind}-${impl.ref}-${index}`}>
+                  <span className="axiom-inspector-list__kind">{impl.environment} · {IMPLEMENTATION_LABEL[impl.kind] ?? impl.kind}</span>
+                  {fileId
+                    ? <button type="button" className="axiom-inspector-link" onClick={() => onOpen(fileId)}>{impl.ref}</button>
+                    : <code>{impl.ref.startsWith('compose:') ? `${impl.ref.slice(8)} (docker compose)` : impl.ref}</code>}
+                </li>
+              )
+            })}
+          </ul>
+        </Section>
+      )}
+
+      {needs.length > 0 && (
+        <Section title="Needs to run">
+          <ul className="axiom-inspector-list">
+            {needs.map(req => (
+              <li key={req.id} title={req.evidence ?? undefined}>
+                <code>{req.name}</code>
+                <span className={req.present ? 'axiom-inspector-list__ok' : 'axiom-inspector-list__missing'}>
+                  {req.present ? 'set in .env' : 'not set locally'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {kinds.length === 0 ? (
+        <Section title="Who touches it">
+          <p className="axiom-inspector-note">No file is connected to it yet. Ask your agent to record who uses it, or save a file that imports it.</p>
+        </Section>
+      ) : kinds.map(kind => {
+        const rows = [...(byKind.get(kind)?.values() ?? [])]
+        return (
+          <Section key={kind} title={`${RELATIONSHIP_LABEL[kind] ?? kind} (${rows.length})`}>
+            <ul className="axiom-inspector-list">
+              {rows.slice(0, 12).map(({ dep, items: touched, proposed }) => (
+                <li key={dep.id}>
+                  <button type="button" className="axiom-inspector-link" onClick={() => onOpen(dep.src)}>{nameOf(dep.src)}</button>
+                  {touched.length > 0 && <code>{touched.sort().join(', ')}</code>}
+                  {proposed && <span className="axiom-inspector-list__proposed">proposed</span>}
+                </li>
+              ))}
+              {rows.length > 12 && <li className="axiom-inspector-more">+{rows.length - 12} more</li>}
+            </ul>
+          </Section>
+        )
+      })}
+
+      {itemKinds.map(kind => (
+        <Section key={`contents-${kind}`} title={`${kind.replace('_', ' ')}s`}>
+          <ul className="axiom-inspector-list">
+            {items.filter(item => item.kind === kind).map(item => (
+              <li key={item.id} title={item.evidence ?? undefined}>
+                <code>{item.name}</code>
+                {typeof item.detail?.cron === 'string' && <span className="axiom-inspector-list__kind">{item.detail.cron}</span>}
+                {itemUse(item.name) && <span className="axiom-inspector-list__kind">{itemUse(item.name)}</span>}
+                {typeof item.detail?.warning === 'string' && <span className="axiom-inspector-list__missing">{item.detail.warning}</span>}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ))}
+
+      {(detected.evidence?.length ?? 0) > 0 && (
+        <Section title="Why Axiom thinks it's here">
+          <ul className="axiom-inspector-list axiom-inspector-list--quiet">
+            {detected.evidence!.slice(0, 8).map((evidence, index) => (
+              <li key={`${evidence.ref}-${index}`}>
+                <span className="axiom-inspector-list__kind">{evidence.signal}</span>
+                <code>{evidence.ref}</code>
+                {evidence.detail && <span>{evidence.detail}</span>}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+    </>
   )
 }

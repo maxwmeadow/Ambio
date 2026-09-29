@@ -100,3 +100,24 @@ test('past the legibility floor the frame grows rather than shrink files to spec
   assert.equal(fitted.interiorScale, 1)
   assert.ok(fitted.height > 200)
 })
+
+test('unplaced infrastructure forms a band below the map, stores first', async () => {
+  const { placeInfraBand } = await import('./incrementalFrameLayout.ts')
+  const systems = [{ x: 100, y: 100, width: 600, height: 400 }, { x: 740, y: 100, width: 600, height: 400 }]
+  const band = placeInfraBand([
+    { id: 'stripe', category: 'api', width: 260, height: 160 },
+    { id: 'vercel', category: 'platform', width: 480, height: 300 },
+    { id: 'pg', category: 'database', width: 260, height: 160 },
+    { id: 'redis', category: 'cache', width: 260, height: 160 },
+  ], systems, 40)
+  const order = [...band.entries()].sort((a, b) => a[1].y - b[1].y || a[1].x - b[1].x).map(([id]) => id)
+  assert.deepEqual(order, ['pg', 'redis', 'stripe', 'vercel'])
+  for (const position of band.values()) assert.ok(position.y >= 500 + 80, 'below every system')
+  assert.equal(band.get('pg').x, 100, 'aligned with the map')
+})
+
+test('with nothing else on the Floor the band starts at the origin', async () => {
+  const { placeInfraBand } = await import('./incrementalFrameLayout.ts')
+  const band = placeInfraBand([{ id: 'pg', category: 'database', width: 260, height: 160 }], [], 40)
+  assert.deepEqual(band.get('pg'), { x: 80, y: 80 })
+})
