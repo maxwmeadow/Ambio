@@ -158,7 +158,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           void refreshInbox(graph.workspaceId, sheet.next).finally(() => { olderAnchor.current = null; setLoadingEarlier(false) })
         }}>{loadingEarlier ? 'Loading…' : 'Load earlier messages'}</button>}
         {sheet.messages.length === 0 && <div className="axiom-inbox__empty"><h3>No work orders yet</h3><p>Write a request below. Add a sheet or select canvas items for context.</p></div>}
-        {sheet.messages.map(message => <article key={message.id} className="axiom-inbox__message">
+        {sheet.messages.map(message => <article key={`${graph.workspaceId}:${message.id}`} className="axiom-inbox__message">
           <div className="axiom-inbox__user"><span className="axiom-inbox__entry-label">YOU</span><p>{message.note}</p>{chips(messageReferences(message.selection))}
             {message.sheetId && <button type="button" className="axiom-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
             <div className="axiom-inbox__work-order">WORK ORDER <code>{message.id}</code></div>

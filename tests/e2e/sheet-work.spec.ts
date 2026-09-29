@@ -6,6 +6,7 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
   try {
     const page = await app.firstWindow()
     const sheet = { id: 'sheet_design', workspaceId: 'demo', name: 'Checkout revised', purpose: 'New scope', kind: 'structure', folder: '', createdBy: 'user', revision: 5, createdAt: 1, updatedAt: 2 }
+    let sheetAvailable = true
     const message = {
       id: 'order-with-sheet', workspaceId: 'demo', deliveryMode: 'addressed', sheetId: sheet.id,
       sentSheetName: 'Checkout original', sentSheetRevision: 4,
@@ -16,7 +17,7 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
       const url = new URL(route.request().url())
       let body: unknown = []
-      if (url.pathname === '/api/sheets') body = [sheet]
+      if (url.pathname === '/api/sheets') body = sheetAvailable ? [sheet] : []
       if (url.pathname === '/api/canvas/history') body = { messages: [message], nextCursor: '', availableCount: 0 }
       if (url.pathname === '/api/canvas/snapshot') body = {
         sheetContext: JSON.stringify({ sheet: { name: 'Checkout original', purpose: 'Original checkout scope', revision: 4 }, nodes: [{ id: 'planned:checkout', name: 'Checkout service', type: 'system', planned: true }], edges: [], notes: [] }),
@@ -43,6 +44,14 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
     await panel.getByText('Nodes sent (1)').click()
     await expect(panel.getByText('Checkout service · system · planned')).toBeVisible()
     await page.screenshot({ path: 'test-results/sheet-review-revision.png' })
+    sheetAvailable = false
+    await page.reload()
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    await panel.getByRole('button', { name: /Review result/ }).click()
+    await expect(panel.getByText('The current sheet is unavailable. The agent received its frozen context when this order was sent.')).toBeVisible()
+    await panel.getByRole('button', { name: 'View sent plan' }).click()
+    await expect(panel.getByText('Build the original checkout service.')).toBeVisible()
+    await expect(panel.getByText('Current sheet structure')).toHaveCount(0)
   } finally { await app.close() }
 })
 
