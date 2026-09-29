@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
-import { CreateInfraDialog } from './CreateInfraDialog'
 import { SendToAgentDialog } from './SendToAgentDialog'
 import { useSheetStore, refreshInbox } from '../store/sheetStore'
 import { ChromeButton } from './ui/ChromeButton'
@@ -27,7 +26,6 @@ export function Toolbar({
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
-  const [infraOpen, setInfraOpen] = useState(false)
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
   const queuedMsgs = useSheetStore(s => s.inboxAvailableCount)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
@@ -95,13 +93,6 @@ export function Toolbar({
         <div className="axiom-command-separator" />
 
         <div className="axiom-command-group">
-          <ChromeButton onClick={() => setInfraOpen(true)} label="Add infra">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <ellipse cx="12" cy="6" rx="8" ry="3"/>
-              <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/>
-              <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
-            </svg>
-          </ChromeButton>
           <RecordingControl workspaceId={workspaceId} />
           <InvestigationsMenu workspaceId={workspaceId} />
           <ChromeButton
@@ -165,7 +156,6 @@ export function Toolbar({
 
       </header>
       <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
-      <CreateInfraDialog isOpen={infraOpen} onClose={() => setInfraOpen(false)} />
     </>
   )
 }

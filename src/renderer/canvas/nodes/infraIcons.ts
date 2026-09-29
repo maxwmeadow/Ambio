@@ -90,4 +90,10 @@ export const CATEGORY_GLYPHS: Record<string, string> = {
   observability: 'M2 12h4l2-6 4 12 2-6h8v2h-6.6L13 20 9 8l-1.6 6H2v-2z',
   // envelope (email)
   email: 'M2 5h20v14H2V5zm2 2.4V17h16V7.4l-8 5-8-5zM19.2 7H4.8L12 11.5 19.2 7z',
+  // clock (scheduler)
+  scheduler: 'M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm-1 3v5.4l4.3 2.6 1-1.7-3.3-2V7h-2z',
+  // pennant (flags)
+  flags: 'M5 2h2v1h12l-3 5 3 5H7v9H5V2zm2 3v6h8.5l-1.8-3 1.8-3H7z',
+  // broadcast waves (realtime)
+  realtime: 'M12 10a2 2 0 110 4 2 2 0 010-4zM7.8 7.8l1.4 1.4a4 4 0 000 5.6l-1.4 1.4a6 6 0 010-8.4zm8.4 0a6 6 0 010 8.4l-1.4-1.4a4 4 0 000-5.6l1.4-1.4zM5 5l1.4 1.4a8 8 0 000 11.2L5 19A10 10 0 015 5zm14 0a10 10 0 010 14l-1.4-1.4a8 8 0 000-11.2L19 5z',
 }

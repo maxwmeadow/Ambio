@@ -23,7 +23,7 @@
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["issuer"] },
   { "id": "generic/platform", "name": "App Platform", "category": "platform", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["environment"] },
-  { "id": "generic/cdn", "name": "CDN", "category": "cdn", "provider": "generic",
+  { "id": "generic/cdn", "name": "CDN", "category": "platform", "subtype": "cdn", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["domain"] },
   { "id": "generic/observability", "name": "Monitoring", "category": "observability", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["endpoint"] },

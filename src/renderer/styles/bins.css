@@ -100,10 +100,8 @@
 /* The bin canvas is a waiting room, not the Floor: no minimap, no zoom
    readout, no toolbar. Those belong to the surface that owns the workspace. */
 .axiom-bin-window .axiom-canvas-toolbar,
-.axiom-bin-window .axiom-canvas-zoom-panel,
 .axiom-bin-window .axiom-canvas-bins-panel,
-.axiom-bin-window .react-flow__minimap,
-.axiom-bin-window .react-flow__controls { display: none !important; }
+.axiom-bin-window .react-flow__minimap { display: none !important; }
 
 .axiom-bin-window .axiom-window__body > div { width: 100%; height: 100%; }
 

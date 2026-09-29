@@ -162,6 +162,28 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Proposed infrastructure is dashed and renders at opacity `0.65`.
 - Missing registry entries retain an editable fallback node rather than
   disappearing.
+- Only hosting infrastructure (platforms, containers) is on the Floor, as
+  frames that hold the systems they run. Everything code talks to lives in
+  the infrastructure sidebar on the canvas's left edge.
+- The sidebar opens and closes from one thin tab at mid-height that rides its
+  edge. Adding infrastructure starts from the sidebar's "+ Add"; the toolbar
+  has no infra button.
+- Detected infrastructure is proposed and waits at the top of the sidebar
+  until it is confirmed or dismissed. Dismissal is sticky.
+- A confirmed platform arranges its hosted systems once (containers inside
+  platforms, systems inside containers) without covering other nodes; after
+  that its contents are only moved by the person.
+- Selecting a sidebar row draws its relationships onto the canvas: lines to
+  visible boxes, outlines, a label on each box, and edge markers for boxes out
+  of view. Selecting a system or file while the sidebar is open lights the rows
+  it touches and draws lines back to them. Lines exist only while the
+  selection holds, have no arrowheads, and are dashed when only an import is
+  known.
+- Systems carry no infrastructure chips.
+- A contract gap (a topic published with no consumer, or the reverse) marks
+  the sidebar row and heads the inspector.
+- Fit, zoom and Tidy Layout are View-menu and keyboard commands; the canvas
+  shows no zoom buttons or zoom readout.
 
 ### Planned UML elements
 

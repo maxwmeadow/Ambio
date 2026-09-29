@@ -149,6 +149,9 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 	if err := db.MarkRootIndexed(sqlDB, root.ID, ClassifierVersion); err != nil {
 		log.Printf("indexer: mark indexed: %v", err)
 	}
+	if err := db.SetDetectionEvidenceVersion(sqlDB, root.ID, DetectionEvidenceVersion); err != nil {
+		log.Printf("indexer: mark detection evidence: %v", err)
+	}
 
 	h.BroadcastIndexingComplete(root.WorkspaceID)
 	return nil
@@ -665,6 +668,10 @@ func indexOneFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, existing
 	}
 
 	if err := db.UpsertVarRefs(sqlDB, fileID, aggregateVarRefs(fileID, result.VarRefs)); err != nil {
+		return err
+	}
+
+	if err := db.ReplaceFileEvidence(sqlDB, fileID, packageUses(result), envReads(result)); err != nil {
 		return err
 	}
 
@@ -1412,6 +1419,12 @@ func rebuildDependenciesForFile(sqlDB *sql.DB, root db.Root, relPath string) err
 
 func buildImportPathIndex(files []db.File) map[string]string {
 	index := make(map[string]string, len(files)*4)
+	relPaths := make(map[string]bool, len(files))
+	for _, file := range files {
+		relPaths[filepath.ToSlash(filepath.Clean(file.RelPath))] = true
+	}
+	goPackages := map[string][]string{}
+	goModules := map[string]string{} // directory → module path of the go.mod governing it
 	for _, file := range files {
 		relPath := filepath.ToSlash(filepath.Clean(file.RelPath))
 		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
@@ -1430,9 +1443,106 @@ func buildImportPathIndex(files []db.File) map[string]string {
 				index[modulePath] = file.ID
 				index[strings.ReplaceAll(modulePath, "/", ".")] = file.ID
 			}
+			// Imports are relative to the source root, not the repo root: in
+			// worker/pantry_worker/db.py, "pantry_worker.db" is the module.
+			// The source root is the first folder up that is not a package.
+			if rooted := pythonModuleFromSourceRoot(modulePath, relPaths); rooted != "" && rooted != modulePath {
+				if _, taken := index[rooted]; !taken {
+					index[rooted] = file.ID
+					index[strings.ReplaceAll(rooted, "/", ".")] = file.ID
+				}
+			}
+		}
+		// A Go import names a package - a folder - through its module path.
+		if strings.EqualFold(filepath.Ext(relPath), ".go") && !strings.HasSuffix(relPath, "_test.go") {
+			dir := filepath.ToSlash(filepath.Dir(relPath))
+			if importPath := goImportPath(file, dir, goModules); importPath != "" {
+				goPackages[importPath] = append(goPackages[importPath], file.ID)
+			}
 		}
 	}
+	for importPath, ids := range goPackages {
+		index[goPackagePrefix+importPath] = strings.Join(ids, ",")
+	}
 	return index
+}
+
+const goPackagePrefix = "go:"
+
+// pythonModuleFromSourceRoot strips the folders above a module's top-level
+// package: worker/pantry_worker/db → pantry_worker/db when pantry_worker has an
+// __init__.py and worker does not.
+func pythonModuleFromSourceRoot(modulePath string, relPaths map[string]bool) string {
+	if modulePath == "" {
+		return ""
+	}
+	parts := strings.Split(modulePath, "/")
+	// Walk up from the module's folder while each folder is a package.
+	start := len(parts) - 1
+	for start > 0 && relPaths[strings.Join(parts[:start], "/")+"/__init__.py"] {
+		start--
+	}
+	if start == 0 {
+		return modulePath
+	}
+	return strings.Join(parts[start:], "/")
+}
+
+// goImportPath is the import path of a Go file's package: the governing
+// go.mod's module path joined with the folder below it. Module lookups are
+// cached per folder.
+func goImportPath(file db.File, dir string, modules map[string]string) string {
+	absDir := filepath.Dir(file.Path)
+	relDir := dir
+	var walked []string
+	for {
+		if module, ok := modules[relDir]; ok {
+			return joinModule(module, walked)
+		}
+		body, err := os.ReadFile(filepath.Join(absDir, "go.mod"))
+		if err == nil {
+			module := ""
+			for _, line := range strings.Split(string(body), "\n") {
+				if fields := strings.Fields(line); len(fields) >= 2 && fields[0] == "module" {
+					module = strings.Trim(fields[1], `"`)
+					break
+				}
+			}
+			modules[relDir] = module
+			return joinModule(module, walked)
+		}
+		if relDir == "." || relDir == "" || relDir == "/" {
+			modules[dir] = ""
+			return ""
+		}
+		walked = append([]string{filepath.Base(relDir)}, walked...)
+		relDir = filepath.ToSlash(filepath.Dir(relDir))
+		absDir = filepath.Dir(absDir)
+	}
+}
+
+func joinModule(module string, below []string) string {
+	if module == "" {
+		return ""
+	}
+	if len(below) == 0 {
+		return module
+	}
+	return module + "/" + strings.Join(below, "/")
+}
+
+// resolveImportFileIDs is resolveImportFileID for imports that name several
+// files: a Go package is every file in its folder.
+func resolveImportFileIDs(file db.File, imported string, index map[string]string) []string {
+	if strings.EqualFold(filepath.Ext(file.RelPath), ".go") {
+		if joined, ok := index[goPackagePrefix+strings.TrimSpace(imported)]; ok {
+			return strings.Split(joined, ",")
+		}
+	}
+	if id, ok := resolveImportFileID(file, imported, index); ok {
+		return []string{id}
+	}
+	return nil
 }
 
 func resolveImportFileID(file db.File, imported string, index map[string]string) (string, bool) {
@@ -1480,21 +1590,22 @@ func rebuildDependenciesForFileWithIndex(sqlDB *sql.DB, root db.Root, f db.File,
 		return err
 	}
 	for _, imp := range result.Imports {
-		dstID, ok := resolveImportFileID(f, imp, relToID)
-		if !ok || dstID == f.ID {
-			continue // external module - skip
-		}
-		d := db.Dependency{
-			WorkspaceID:    root.WorkspaceID,
-			Src:            f.ID,
-			Dst:            dstID,
-			SrcType:        "file",
-			DstType:        "file",
-			DependencyType: "IMPORTS",
-			CreatedBy:      "parser",
-		}
-		if err := db.UpsertDependency(sqlDB, d); err != nil {
-			log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, imp, err)
+		for _, dstID := range resolveImportFileIDs(f, imp, relToID) {
+			if dstID == f.ID {
+				continue
+			}
+			d := db.Dependency{
+				WorkspaceID:    root.WorkspaceID,
+				Src:            f.ID,
+				Dst:            dstID,
+				SrcType:        "file",
+				DstType:        "file",
+				DependencyType: "IMPORTS",
+				CreatedBy:      "parser",
+			}
+			if err := db.UpsertDependency(sqlDB, d); err != nil {
+				log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, imp, err)
+			}
 		}
 	}
 	return nil

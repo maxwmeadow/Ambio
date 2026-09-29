@@ -160,13 +160,16 @@ func migrate(db *sql.DB) error {
 		dst              TEXT NOT NULL,
 		src_type         TEXT NOT NULL,   -- 'file'|'system'|'infra'
 		dst_type         TEXT NOT NULL,
-		dependency_type  TEXT NOT NULL,   -- 'IMPORTS'|'CALLS'|'DEPENDS_ON'|'READS_DB'|'CONTAINS'
+		dependency_type  TEXT NOT NULL,   -- 'IMPORTS'|'CALLS'|'DEPENDS_ON'|... + infra kinds (registry.Categories)
 		weight           INTEGER NOT NULL DEFAULT 1,
-		created_by       TEXT NOT NULL DEFAULT 'parser'  -- 'parser'|'agent'|'user'
+		created_by       TEXT NOT NULL DEFAULT 'parser',  -- 'parser'|'agent'|'user'|'runtime'
+		target_item      TEXT NOT NULL DEFAULT '',        -- infra edges: the contents item (table, topic, ...) or ''
+		status           TEXT NOT NULL DEFAULT 'confirmed' -- 'proposed'|'confirmed'|'dismissed'
 	);
 	CREATE INDEX IF NOT EXISTS dependencies_src ON dependencies(src);
 	CREATE INDEX IF NOT EXISTS dependencies_dst ON dependencies(dst);
-	CREATE UNIQUE INDEX IF NOT EXISTS dependencies_unique ON dependencies(src, dst, dependency_type);
+	-- The unique key includes target_item and is created after the column
+	-- migrations below, so an older database gains the column first.
 
 	-- ─── Call graph ───────────────────────────────────────────────────────────
 	-- Symbol-level call graph. Separate table because it can have millions of rows.
@@ -476,7 +479,61 @@ func migrate(db *sql.DB) error {
 		detected_by   TEXT,                            -- json evidence [{signal, file, evidence, confidence}]
 		config        TEXT,                             -- json blob (registry configFields values)
 		position_x    REAL NOT NULL DEFAULT 0,
-		position_y    REAL NOT NULL DEFAULT 0
+		position_y    REAL NOT NULL DEFAULT 0,
+		implementations TEXT,                           -- json [{environment, kind, ref, evidence}]
+		policies        TEXT                            -- json {costs_money, external_side_effects, never_in_tests, confirm_before_running}
+	);
+
+	-- Detection evidence, rebuilt with every parse of a file: the external
+	-- packages it loads and the environment variables it reads, with lines.
+	CREATE TABLE IF NOT EXISTS file_packages (
+		file_id  TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+		package  TEXT NOT NULL,
+		line     INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS file_packages_file ON file_packages(file_id);
+	CREATE INDEX IF NOT EXISTS file_packages_package ON file_packages(package);
+	CREATE TABLE IF NOT EXISTS file_env_reads (
+		file_id  TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+		name     TEXT NOT NULL,
+		line     INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS file_env_reads_file ON file_env_reads(file_id);
+
+	-- Which version of detection evidence each root's index carries, so an
+	-- index built before the evidence existed is backfilled exactly once.
+	CREATE TABLE IF NOT EXISTS detection_state (
+		root_id           TEXT PRIMARY KEY,
+		evidence_version  INTEGER NOT NULL DEFAULT 0
+	);
+
+	-- What code depends on inside an infra node: tables, topics, cache keys,
+	-- methods, webhooks, models, prompts, flags, schedules, channels, routes.
+	CREATE TABLE IF NOT EXISTS infra_contents (
+		id            TEXT PRIMARY KEY,
+		workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		infra_id      TEXT NOT NULL REFERENCES infra_nodes(id) ON DELETE CASCADE,
+		kind          TEXT NOT NULL,
+		name          TEXT NOT NULL,
+		detail        TEXT,                              -- json: columns, payload shape, ttl, cron expression, ...
+		evidence      TEXT,                              -- file:line
+		source        TEXT NOT NULL DEFAULT 'agent',     -- 'parser'|'agent'|'user'|'runtime'
+		UNIQUE(infra_id, kind, name)
+	);
+
+	-- What running this code needs. kind 'env': an environment variable, read
+	-- by name only; present says whether it is defined for local runs. Values
+	-- are never stored.
+	CREATE TABLE IF NOT EXISTS infra_requirements (
+		id            TEXT PRIMARY KEY,
+		workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		kind          TEXT NOT NULL DEFAULT 'env',
+		name          TEXT NOT NULL,
+		infra_id      TEXT REFERENCES infra_nodes(id) ON DELETE SET NULL,
+		evidence      TEXT,
+		present       INTEGER NOT NULL DEFAULT 0,
+		source        TEXT NOT NULL DEFAULT 'parser',
+		UNIQUE(workspace_id, kind, name)
 	);
 
 	-- ─── Structural journal (Morning Delta) ──────────────────────────────────
@@ -754,6 +811,11 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE infra_nodes  ADD COLUMN status      TEXT NOT NULL DEFAULT 'confirmed'`,
 		`ALTER TABLE infra_nodes  ADD COLUMN detected_by TEXT`,
 		`ALTER TABLE dependencies ADD COLUMN evidence    TEXT`,
+		// Infra layer, local-development plan (INFRA_LAYER_PLAN.md L1).
+		`ALTER TABLE dependencies ADD COLUMN target_item TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE dependencies ADD COLUMN status      TEXT NOT NULL DEFAULT 'confirmed'`,
+		`ALTER TABLE infra_nodes  ADD COLUMN implementations TEXT`,
+		`ALTER TABLE infra_nodes  ADD COLUMN policies        TEXT`,
 		// Interior compression is a distinct property from a frame's own scale.
 		// Existing rows default to 1, which is exactly "does not compress".
 		`ALTER TABLE floor_layouts ADD COLUMN interior_scale REAL NOT NULL DEFAULT 1`,
@@ -770,6 +832,15 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateSheetWork(db); err != nil {
 		return err
+	}
+	// Item-level infra edges: "writes orders" and "writes customers" are two
+	// relationships, so the unique key includes target_item.
+	if _, err := db.Exec(`
+		DROP INDEX IF EXISTS dependencies_unique;
+		CREATE UNIQUE INDEX IF NOT EXISTS dependencies_unique_item
+			ON dependencies(src, dst, dependency_type, target_item);
+		UPDATE infra_nodes SET category = 'platform', subtype = 'cdn' WHERE category = 'cdn';`); err != nil {
+		return fmt.Errorf("infra roles migration: %w", err)
 	}
 	if err := migrateProposalMembershipDeletes(db); err != nil {
 		return fmt.Errorf("migrate proposal memberships: %w", err)

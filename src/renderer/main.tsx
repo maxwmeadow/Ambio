@@ -10,6 +10,7 @@ import './styles/proposal.css'
 import './styles/connectAgent.css'
 import './styles/windows.css'
 import './styles/bins.css'
+import './styles/infraSidebar.css'
 import './styles/drafts.css'
 
 class ErrorBoundary extends React.Component<

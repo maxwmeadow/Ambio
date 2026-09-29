@@ -30,7 +30,7 @@ import {
   migrateLegacyProjectLifecycle,
 } from './projectLocalState'
 
-import { useGraphStore, connectToArchd } from './store/graphStore'
+import { useGraphStore, connectToArchd, scheduleInfraDetails } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, useInterruptionStore } from './store/interruptionStore.ts'
 import { resumeDecision } from '../shared/sessionResume.ts'
@@ -341,6 +341,7 @@ export default function App() {
                   return
                 }
                 applySnapshot(snap)
+                scheduleInfraDetails()
                 return
               }
             }

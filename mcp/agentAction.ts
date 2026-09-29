@@ -28,6 +28,7 @@ const WRITE_TOOLS = new Set([
   'create_system', 'update_system', 'delete_system', 'assign_files_to_system',
   'merge_systems', 'update_systems_bulk', 'edit_systems',
   'create_infra_node', 'update_infra_node', 'delete_infra_node', 'connect_infra',
+  'record_infra_contents', 'record_infra_requirements', 'decide_infra',
   'edit_infra',
   'create_sheet', 'add_to_sheet', 'annotate_sheet', 'edit_sheet',
 ])
