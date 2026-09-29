@@ -22,55 +22,65 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     const { error, componentStack } = this.state
     if (!error) return this.props.children
 
+    const button: React.CSSProperties = {
+      background: 'transparent', border: '1px solid #52615c', borderRadius: 0,
+      color: '#e6e3d8', padding: '8px 14px', fontSize: 13, cursor: 'pointer',
+    }
     return (
-      <div style={{
+      <div role="alert" style={{
         position: 'fixed', inset: 0,
-        background: '#0f0a0a',
-        color: '#fca5a5',
-        padding: 32,
-        fontFamily: 'monospace',
-        fontSize: 13,
+        background: '#1b2421',
+        color: '#e6e3d8',
+        padding: 40,
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: 14,
         overflowY: 'auto',
         zIndex: 99999,
       }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#f87171', marginBottom: 16 }}>
-          Render Error
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>Error:</div>
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#fca5a5', margin: 0 }}>
-            {error.message}
-          </pre>
-        </div>
-
-        {error.stack && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>Stack:</div>
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#94a3b8', margin: 0, fontSize: 11 }}>
-              {error.stack}
-            </pre>
+        <div style={{ maxWidth: 720 }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.08em', color: '#9fb3ab', marginBottom: 8, fontFamily: 'monospace' }}>
+            SOMETHING WENT WRONG
           </div>
-        )}
-
-        {componentStack && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>Component tree:</div>
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#94a3b8', margin: 0, fontSize: 11 }}>
-              {componentStack}
-            </pre>
+          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
+            This view hit an error and stopped drawing.
           </div>
-        )}
+          <p style={{ lineHeight: 1.55, color: '#c3cbc6', margin: '0 0 20px' }}>
+            Your code and your project map are safe - nothing was changed. Try again to redraw it. If this keeps
+            happening, reporting it helps get it fixed.
+          </p>
 
-        <button
-          onClick={() => this.setState({ error: null, componentStack: null })}
-          style={{
-            background: '#7f1d1d', border: '1px solid #f87171', borderRadius: 0,
-            color: '#fca5a5', padding: '8px 16px', fontSize: 13, cursor: 'pointer',
-          }}
-        >
-          Dismiss
-        </button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
+            <button
+              onClick={() => this.setState({ error: null, componentStack: null })}
+              style={{ ...button, background: '#2f5f56', borderColor: '#4f8279' }}
+            >
+              Try again
+            </button>
+            {window.axiom?.reportBug && (
+              <button onClick={() => void window.axiom.reportBug()} style={button}>Report a bug</button>
+            )}
+            {window.axiom?.copyDiagnostics && (
+              <button onClick={() => void window.axiom.copyDiagnostics()} style={button}>Copy diagnostics</button>
+            )}
+          </div>
+
+          <details style={{ fontFamily: 'monospace', fontSize: 12 }}>
+            <summary style={{ cursor: 'pointer', color: '#9fb3ab', marginBottom: 10 }}>Technical details</summary>
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#f2b8ae', margin: '0 0 16px' }}>
+              {error.message}
+            </pre>
+            {error.stack && (
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#94a39d', margin: '0 0 16px', fontSize: 11 }}>
+                {error.stack}
+              </pre>
+            )}
+            {componentStack && (
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#94a39d', margin: 0, fontSize: 11 }}>
+                {componentStack}
+              </pre>
+            )}
+          </details>
+        </div>
       </div>
     )
   }

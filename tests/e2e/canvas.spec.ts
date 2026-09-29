@@ -473,7 +473,7 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
       attempts: [1],
     })
     await expect.poll(() => page.locator('.react-flow__node').count()).toBeGreaterThanOrEqual(baselineNodeCount)
-    await expect(page.getByText('Render Error')).toHaveCount(0)
+    await expect(page.getByText('This view hit an error and stopped drawing.')).toHaveCount(0)
     expect(pageErrors, `page errors after ${traceId}`).toEqual([])
   }
 

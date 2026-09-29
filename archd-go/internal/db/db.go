@@ -6,6 +6,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,17 @@ const (
 	maxOpenConnections = 8
 	busyTimeoutMillis  = 5000
 )
+
+// SchemaVersion identifies what this build's migrations produce. It is
+// stamped into every database (PRAGMA user_version) once migration succeeds.
+// Bump it whenever migrate gains a table, column, index or data rewrite, so an
+// older Axiom can recognise a database written by a newer one.
+const SchemaVersion = 1
+
+// ErrNewerSchema reports a database written by a newer Axiom. Opening it
+// with this build could silently drop what the newer schema added, so it is
+// refused rather than migrated.
+var ErrNewerSchema = errors.New("this project was last opened by a newer version of Axiom; update Axiom to open it")
 
 // Open creates (or opens) the SQLite database at the given path and runs
 // all schema migrations. Returns a ready-to-use *sql.DB.
@@ -43,9 +55,25 @@ func Open(dataDir string) (*sql.DB, error) {
 	db.SetMaxOpenConns(maxOpenConnections)
 	db.SetMaxIdleConns(maxOpenConnections)
 
+	var stamped int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&stamped); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("read schema version: %w", err)
+	}
+	if stamped > SchemaVersion {
+		db.Close()
+		return nil, fmt.Errorf("%w (database schema %d, this build understands %d)", ErrNewerSchema, stamped, SchemaVersion)
+	}
+
 	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	if stamped < SchemaVersion {
+		if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("stamp schema version: %w", err)
+		}
 	}
 
 	return db, nil

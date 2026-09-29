@@ -1,4 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen } from 'electron'
+import { readWindowState, restorableBounds, writeWindowState } from './windowState'
+import { initUpdates } from './updates'
+import { format } from 'util'
+import { createLogs, formatDiagnostics, timestamped } from './logging'
 import { readDaemonToken } from './daemonAuth'
 import { join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
@@ -34,8 +38,23 @@ const CONFIG_DIR = join(os.homedir(), '.axiom')
 const PROJECTS_FILE = join(CONFIG_DIR, 'projects.json')
 const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
 const DATA_DIR = join(os.homedir(), '.axiom', 'data')
+const LOG_DIR = join(CONFIG_DIR, 'logs')
+const WINDOW_STATE_FILE = join(CONFIG_DIR, 'window-state.json')
+// Where "Report a Bug" leads. Update alongside the repository if it moves.
+const ISSUES_URL = 'https://github.com/maxwmeadow/Axiom/issues/new'
 const ARCHD_API_PORT = 7743
 const ARCHD_WS_PORT = 7744
+
+// Everything the main process says also lands in ~/.axiom/logs, so a user
+// who hits a problem has something to look at, or to attach to a report.
+const logs = createLogs(LOG_DIR)
+for (const level of ['log', 'info', 'warn', 'error'] as const) {
+  const original = console[level].bind(console)
+  console[level] = (...args: unknown[]) => {
+    original(...args)
+    logs.main.write(timestamped(level === 'log' ? 'info' : level, format(...args)))
+  }
+}
 
 let mainWindow: BrowserWindow | null = null
 let archdProcess: ChildProcess | null = null
@@ -115,6 +134,25 @@ function archdBinaryPath(): string {
   return join(__dirname, '..', '..', 'archd-go', 'archd' + ext)
 }
 
+function mcpServerPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
+    : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
+}
+
+/**
+ * How an agent starts Axiom's MCP server. A packaged install runs it on
+ * Axiom's own bundled runtime through `archd mcp-run`, so nobody has to
+ * install Node. A development checkout keeps using the developer's Node,
+ * which runs the TypeScript source directly.
+ */
+function mcpLaunchSpec(): { command: string; args: string[] } {
+  if (app.isPackaged) {
+    return { command: archdBinaryPath(), args: ['mcp-run', process.execPath, mcpServerPath()] }
+  }
+  return { command: resolveNodeCommand(), args: [mcpServerPath()] }
+}
+
 function startArchd(): void {
   if (archdProcess) return
 
@@ -146,7 +184,9 @@ function startArchd(): void {
   archdProcess.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString()
     process.stderr.write('[archd] ' + text)
-    archdRecentStderr = [...archdRecentStderr, ...text.split('\n').filter(Boolean)].slice(-40)
+    const lines = text.split('\n').filter(Boolean)
+    for (const line of lines) logs.archd.write(line)
+    archdRecentStderr = [...archdRecentStderr, ...lines].slice(-40)
   })
 
   // Read newline-delimited JSON responses from archd stdout
@@ -302,9 +342,20 @@ function createWindow(): void {
   const isMac = process.platform === 'darwin'
   const isWin = process.platform === 'win32'
 
+  // Reopen where the user left the window. First launch (or a monitor that
+  // is gone) falls back to a maximized window, as before.
+  const savedState = IS_E2E ? null : readWindowState(WINDOW_STATE_FILE)
+  const savedBounds = restorableBounds(
+    savedState,
+    screen.getAllDisplays().map(display => display.workArea),
+    { width: 900, height: 600 },
+  )
+  const startMaximized = !savedBounds || Boolean(savedState?.maximized)
+
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: savedBounds?.width ?? 1400,
+    height: savedBounds?.height ?? 900,
+    ...(savedBounds ? { x: savedBounds.x, y: savedBounds.y } : {}),
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
@@ -332,6 +383,27 @@ function createWindow(): void {
     // geometrically stable while a BrowserWindow remains fully hidden.
     skipTaskbar: IS_E2E,
   })
+
+  if (!IS_E2E) {
+    const window = mainWindow
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+    const saveState = () => {
+      if (window.isDestroyed() || window.isMinimized()) return
+      writeWindowState(WINDOW_STATE_FILE, {
+        // Normal bounds, so un-maximizing next time restores a real size.
+        ...window.getNormalBounds(),
+        maximized: window.isMaximized(),
+        fullScreen: window.isFullScreen(),
+      })
+    }
+    const scheduleSave = () => {
+      if (saveTimer) clearTimeout(saveTimer)
+      saveTimer = setTimeout(saveState, 500)
+    }
+    window.on('resize', scheduleSave)
+    window.on('move', scheduleSave)
+    window.on('close', () => { if (saveTimer) clearTimeout(saveTimer); saveState() })
+  }
 
   mainWindow.on('maximize', () => {
     mainWindow?.webContents.send('window:maximized-change', true)
@@ -373,7 +445,7 @@ function createWindow(): void {
     const showOnce = (source: string) => {
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
         console.log(`[main] showing window (${source})`)
-        mainWindow.maximize()
+        if (startMaximized) mainWindow.maximize()
         mainWindow.show()
       }
     }
@@ -381,6 +453,13 @@ function createWindow(): void {
     mainWindow.webContents.once('did-finish-load', () => showOnce('did-finish-load'))
     setTimeout(() => showOnce('fallback-timer'), 5000)
   }
+
+  // Renderer warnings and errors are kept; routine console chatter is not.
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level < 2) return
+    const source = sourceId ? ` (${sourceId.split('/').pop()}:${line})` : ''
+    logs.renderer.write(timestamped(level === 2 ? 'warn' : 'error', `${message}${source}`))
+  })
 
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
     console.error(`[main] renderer failed to load: ${code} ${desc} url=${url}`)
@@ -588,9 +667,7 @@ function setupIPC(): void {
   // Get app info (includes archd ports so renderer can connect)
   ipcMain.handle('app:info', () => {
     const isPackaged = app.isPackaged
-    const mcpPath = isPackaged
-      ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
-      : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
+    const mcpPath = mcpServerPath()
     return {
       version: app.getVersion(),
       dataDir: join(os.homedir(), '.axiom'),
@@ -634,15 +711,13 @@ function setupIPC(): void {
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
-    const mcpPath = app.isPackaged
-      ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
-      : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
+    const mcpPath = mcpServerPath()
     if (!fs.existsSync(mcpPath)) {
       return { ok: false, detail: `This Axiom install has no MCP server at ${mcpPath}.`, paths: [] }
     }
-    const nodeCmd = resolveNodeCommand()
+    const launch = mcpLaunchSpec()
     try {
-      return host.install(nodeCmd, [mcpPath], NAME_ARCHITECTURE_COMMAND, projectRoot)
+      return host.install(launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
     } catch (error) {
       return {
         ok: false,
@@ -654,15 +729,13 @@ function setupIPC(): void {
 
   // Install Axiom into all detected modalities for an agent family in one action.
   ipcMain.handle('agent:install-family', (_event, familyId: string, projectRoot?: string) => {
-    const mcpPath = app.isPackaged
-      ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
-      : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
+    const mcpPath = mcpServerPath()
     if (!fs.existsSync(mcpPath)) {
       return { ok: false, detail: `This Axiom install has no MCP server at ${mcpPath}.`, paths: [] }
     }
-    const nodeCmd = resolveNodeCommand()
+    const launch = mcpLaunchSpec()
     try {
-      return installFamily(familyId, nodeCmd, [mcpPath], NAME_ARCHITECTURE_COMMAND, projectRoot)
+      return installFamily(familyId, launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
     } catch (error) {
       return {
         ok: false,
@@ -701,12 +774,10 @@ function setupIPC(): void {
   ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, hostId))
 
   ipcMain.handle('agent:connection', () => {
-    const mcpPath = app.isPackaged
-      ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
-      : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
-    const args = [mcpPath]
+    const mcpPath = mcpServerPath()
+    const { command, args } = mcpLaunchSpec()
     return {
-      command: 'node',
+      command,
       args,
       // Reported rather than assumed: a missing entry point is the difference
       // between "paste this" and "your install is incomplete", and the user
@@ -714,7 +785,7 @@ function setupIPC(): void {
       available: fs.existsSync(mcpPath),
       path: mcpPath,
       config: JSON.stringify(
-        { mcpServers: { axiom: { command: 'node', args } } },
+        { mcpServers: { axiom: { command, args } } },
         null,
         2,
       ),
@@ -727,6 +798,27 @@ function setupIPC(): void {
     archdRestarts.length = 0
     if (!archdProcess) startArchd()
     await reattachActiveProject()
+  })
+
+  // Diagnostics are always user-initiated: copied to the clipboard for the
+  // user to read and paste, never sent anywhere by Axiom.
+  ipcMain.handle('diagnostics:copy', () => {
+    const text = buildDiagnostics(200)
+    clipboard.writeText(text)
+    return text
+  })
+  ipcMain.handle('diagnostics:open-logs', () => shell.openPath(LOG_DIR))
+  ipcMain.handle('diagnostics:report-bug', async () => {
+    // The issue carries the environment summary only; logs are too long for
+    // a URL, so they go on the clipboard for the user to paste if they wish.
+    const summary = buildDiagnostics(0)
+    clipboard.writeText(buildDiagnostics(200))
+    const body = [
+      '**What happened?**', '', '', '**What did you expect?**', '', '', '**Steps to reproduce**', '1. ', '',
+      summary, '',
+      '_Axiom copied fuller diagnostics, including recent log lines, to your clipboard. Paste them here if you are comfortable sharing them - check them first._',
+    ].join('\n')
+    await shell.openExternal(`${ISSUES_URL}?${new URLSearchParams({ body }).toString()}`)
   })
 
   // Window controls
@@ -766,6 +858,27 @@ function setupIPC(): void {
   })
 }
 
+
+function buildDiagnostics(logLines: number): string {
+  const now = Date.now()
+  return formatDiagnostics({
+    appVersion: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: os.release(),
+    locale: app.getLocale(),
+    packaged: app.isPackaged,
+    archdRunning: archdProcess !== null,
+    archdRestartsLastMinute: archdRestarts.filter(at => now - at < 60_000).length,
+    projectCount: loadRecentProjects().length,
+    logs: logLines > 0
+      ? { main: logs.main.tail(logLines), archd: logs.archd.tail(logLines), renderer: logs.renderer.tail(logLines) }
+      : {},
+  })
+}
 
 // The body of Axiom's architecture-mapping workflow. Kept beside the installer
 // so the workflow a user invokes and the instructions Axiom means to give are
@@ -852,6 +965,7 @@ app.whenReady().then(() => {
   )
   createWindow()
   setupIPC()
+  initUpdates(() => mainWindow, app.isPackaged && !IS_E2E)
   if (!IS_E2E) startArchd()
 
   app.on('activate', () => {

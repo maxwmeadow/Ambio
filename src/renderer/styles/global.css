@@ -4766,6 +4766,38 @@ select.axiom-inspector-input {
   outline-offset: -3px;
 }
 
+.axiom-launcher__support {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: #69746f;
+  font-size: 12px;
+}
+
+.axiom-launcher__support button {
+  padding: 2px 0;
+  color: #46534f;
+  text-decoration: underline;
+  text-decoration-color: rgba(70, 83, 79, 0.35);
+  text-underline-offset: 3px;
+}
+
+.axiom-launcher__support .axiom-launcher__update {
+  color: #2f5f56;
+  font-weight: 600;
+}
+
+.axiom-launcher__support button:hover {
+  color: var(--launcher-ink);
+  text-decoration-color: currentColor;
+}
+
+.axiom-launcher__support button:focus-visible {
+  outline: 1px dotted #214a43;
+  outline-offset: 2px;
+}
+
 .axiom-launcher__local-note {
   display: flex;
   align-items: center;

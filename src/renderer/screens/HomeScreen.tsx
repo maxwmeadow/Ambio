@@ -3,6 +3,7 @@ import type { ProjectConfig } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
 import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { handleLauncherKey, launcherProjects } from './homeScreenModel'
+import { useUpdateStatus } from '../useUpdateStatus'
 
 interface HomeScreenProps {
   onOpenProject: (config: ProjectConfig) => void
@@ -503,6 +504,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
             <span aria-hidden="true" />
             <p><strong>LOCAL WORKSPACE</strong> Project indexes and layout state remain on this machine.</p>
           </footer>
+          {window.axiom && <SupportLinks />}
         </section>
       </div>
 
@@ -669,6 +671,40 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
         </div>
       )}
     </main>
+  )
+}
+
+function SupportLinks() {
+  const [copied, setCopied] = useState(false)
+  const update = useUpdateStatus()
+  return (
+    <nav className="axiom-launcher__support" aria-label="Help and support">
+      {update.state !== 'idle' && (
+        <>
+          <button type="button" className="axiom-launcher__update" onClick={() => void window.axiom.installUpdate()}>
+            {update.state === 'ready'
+              ? `Restart to update to ${update.version}`
+              : `Download Axiom ${update.version}`}
+          </button>
+          <span aria-hidden="true">·</span>
+        </>
+      )}
+      <button type="button" onClick={() => void window.axiom.reportBug()}>Report a bug</button>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        onClick={() => {
+          void window.axiom.copyDiagnostics().then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          })
+        }}
+      >
+        {copied ? 'Diagnostics copied' : 'Copy diagnostics'}
+      </button>
+      <span aria-hidden="true">·</span>
+      <button type="button" onClick={() => void window.axiom.openLogsFolder()}>Open logs</button>
+    </nav>
   )
 }
 

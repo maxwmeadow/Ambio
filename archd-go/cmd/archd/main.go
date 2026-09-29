@@ -28,6 +28,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == mcpRunCommand {
+		runMCP(os.Args[2:])
+		return
+	}
 	dataDir := flag.String("data", "", "directory for axiom.db (required)")
 	wsPort := flag.Int("ws-port", 7744, "WebSocket port")
 	apiPort := flag.Int("api-port", 7743, "HTTP API port")

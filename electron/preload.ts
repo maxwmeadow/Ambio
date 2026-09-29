@@ -96,6 +96,21 @@ contextBridge.exposeInMainWorld('axiom', {
   // Listen for messages from archd (forwarded by main process)
   restartArchd: (): Promise<void> => ipcRenderer.invoke('archd:restart'),
 
+  // Updates from GitHub Releases.
+  getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:get-status'),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('update:install'),
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('update:check'),
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
+    ipcRenderer.on('update:status', handler)
+    return () => { ipcRenderer.removeListener('update:status', handler) }
+  },
+
+  // Diagnostics: always user-initiated, never sent automatically.
+  copyDiagnostics: (): Promise<string> => ipcRenderer.invoke('diagnostics:copy'),
+  openLogsFolder: (): Promise<string> => ipcRenderer.invoke('diagnostics:open-logs'),
+  reportBug: (): Promise<void> => ipcRenderer.invoke('diagnostics:report-bug'),
+
   /** archd restarts, recovery, and giving up. Returns an unsubscribe. */
   onArchdStatus: (callback: (status: ArchdStatus) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: ArchdStatus) => callback(status)
@@ -161,6 +176,11 @@ export interface AgentConnection {
   config: string
 }
 
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'available'; version: string; manual: boolean }
+  | { state: 'ready'; version: string }
+
 export type ArchdStatus =
   | { state: 'restarting'; attempt: number }
   | { state: 'running' }
@@ -202,6 +222,13 @@ declare global {
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
       onArchdStatus: (callback: (status: ArchdStatus) => void) => () => void
       restartArchd: () => Promise<void>
+      getUpdateStatus: () => Promise<UpdateStatus>
+      installUpdate: () => Promise<void>
+      checkForUpdates: () => Promise<void>
+      onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
+      copyDiagnostics: () => Promise<string>
+      openLogsFolder: () => Promise<string>
+      reportBug: () => Promise<void>
       onArchdMessage: (callback: (msg: WsMessage) => void) => void
       removeArchdListener: (callback: (msg: WsMessage) => void) => void
     }

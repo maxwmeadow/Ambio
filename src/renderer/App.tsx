@@ -32,7 +32,8 @@ import {
 
 import { useGraphStore, connectToArchd } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
-import { raiseFailure, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
+import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
+import { useUpdateStatus } from './useUpdateStatus'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
@@ -208,10 +209,30 @@ export default function App() {
             resolveInterruption('archd-failed')
             void window.axiom.restartArchd()
           },
+        }, {
+          label: 'Report a bug',
+          run: () => { void window.axiom.reportBug() },
         }])
       }
     })
   }, [])
+
+  // An update never interrupts work: it waits in the lane until chosen.
+  const updateStatus = useUpdateStatus()
+  const workbenchOpen = currentProject !== null
+  useEffect(() => {
+    if (!workbenchOpen || updateStatus.state === 'idle') return
+    if (updateStatus.state === 'ready') {
+      raiseInvitation('app-update', `Axiom ${updateStatus.version} is ready`,
+        'It installs when you restart Axiom. Your projects reopen where you left them.',
+        [{ label: 'Restart to update', primary: true, run: () => { void window.axiom.installUpdate() } }],
+        undefined, 'It will also install the next time you quit Axiom.')
+    } else {
+      raiseInvitation('app-update', `Axiom ${updateStatus.version} is available`,
+        'Download it from the release page and replace this copy.',
+        [{ label: 'Download', primary: true, run: () => { void window.axiom.installUpdate() } }])
+    }
+  }, [workbenchOpen, updateStatus])
 
   // A delta:ready event covers project open. Focus refresh covers the other
   // daily path: Axiom stayed open while an agent changed the architecture.
@@ -342,7 +363,20 @@ export default function App() {
         }
         throw lastError
       }
-      registerWorkspace().then(() => {
+      registerWorkspace().then(async response => {
+        // archd answered but refused the project - for instance a database
+        // written by a newer Axiom. Say exactly that, not "unreachable".
+        if (!response.ok) {
+          setIndexingComplete()
+          let detail = `archd answered ${response.status}.`
+          try {
+            const body = await response.json() as { error?: string }
+            if (body.error) detail = body.error
+          } catch { /* keep the status line */ }
+          raiseFailure('workspace-register', `Could not open ${config.name}`,
+            `${detail} Your code is untouched.`)
+          return
+        }
         // Snapshot is pushed over WS on open, but if the socket connects a
         // beat late the broadcast is missed and the canvas stays empty - pull
         // it explicitly, retrying while indexing warms up.
