@@ -13,6 +13,7 @@ export type CommandId =
   | 'project.open'
   | 'project.reveal'
   | 'project.settings'
+  | 'project.reindex'
   | 'project.close'
   | 'view.commandPalette'
   | 'view.search'
@@ -61,6 +62,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'project.open': { id: 'project.open', label: 'Open Folder…', accelerator: 'CmdOrCtrl+O' },
   'project.reveal': { id: 'project.reveal', label: 'Reveal Project Folder', needsProject: true },
   'project.settings': { id: 'project.settings', label: 'Project Settings…', needsProject: true },
+  'project.reindex': { id: 'project.reindex', label: 'Re-index Project', needsProject: true },
   'project.close': { id: 'project.close', label: 'Close Project', accelerator: 'CmdOrCtrl+Shift+W', needsProject: true },
   'view.commandPalette': { id: 'view.commandPalette', label: 'Command Palette…', accelerator: 'CmdOrCtrl+Shift+P', paletteHidden: true },
   'view.search': { id: 'view.search', label: 'Search Files…', accelerator: 'CmdOrCtrl+K', needsProject: true },
@@ -126,7 +128,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'file', label: 'File', entries: [
       command('project.new'), command('project.open'), separator,
-      command('project.settings'), command('project.reveal'), command('project.close'),
+      command('project.settings'), command('project.reindex'), command('project.reveal'), command('project.close'),
       ...(mac ? [] : [separator, command('app.settings'), separator, role('quit', 'Exit', 'Alt+F4')]),
     ],
   })

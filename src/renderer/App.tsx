@@ -34,7 +34,7 @@ import { useGraphStore, connectToArchd } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
-import { useCommandHandlers } from './app/commands'
+import { emitCommand, useCommandHandlers } from './app/commands'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
@@ -587,6 +587,21 @@ export default function App() {
     },
     'project.open': () => { void openProjectDialog() },
     'project.settings': () => { if (currentProject) setProjectSettingsFor(currentProject) },
+    'project.reindex': () => {
+      if (!currentProject) return
+      void fetch(`${archdApi()}/api/workspace-reindex`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: currentProject.id }),
+      }).then(async response => {
+        if (response.ok) {
+          raiseNotice('reindex', 'Re-reading every file', 'Systems and layout stay as they are. Anything that really changed shows up in your review.')
+        } else {
+          const body = await response.json().catch(() => ({})) as { error?: string }
+          raiseFailure('reindex', 'Could not re-index this project', body.error ?? `archd answered ${response.status}.`)
+        }
+      }).catch(error => raiseFailure('reindex', 'Could not re-index this project', String(error)))
+    },
     'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
@@ -610,6 +625,7 @@ export default function App() {
         mode="edit"
         baseConfig={projectSettingsFor}
         backLabel={editingOpenProject ? 'Canvas' : 'Projects'}
+        onReindex={editingOpenProject ? () => { setProjectSettingsFor(null); emitCommand('project.reindex') } : undefined}
         onCancel={() => setProjectSettingsFor(null)}
         onConfirm={updated => {
           setProjectSettingsFor(null)

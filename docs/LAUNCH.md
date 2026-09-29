@@ -317,7 +317,7 @@ Keyboard accelerators then work everywhere.
 - ✅ Resume skips a project whose folder is missing
 - ✅ Project Settings (File → Project Settings…, the palette, or the launcher's project menu): rename, and change included folders starting from the project's saved choices; exclusions inside unexpanded folders are kept
 - ✅ Quiet re-scope: files moving in or out of scope (and relationships touching them, and system births/deaths during the re-scan) are not journaled, so the Morning Delta never reports an exclusion as deleted code; concurrent real edits still are
-- ⬜ Force a full re-index from Project Settings
+- ✅ Re-index Project (File menu, palette, Project Settings): re-reads every file regardless of timestamps, keeping systems, layout and history; real content changes are journaled, unchanged files are not, and files indexed before content hashes existed are refreshed quietly
 - ⬜ Add a second folder/repo to a project (backend supports roots)
 - ⬜ Multi-root projects in the UI (backend already supports roots)
 - ⬜ Worktrees of one repo: one project or two - decide and make it explicit

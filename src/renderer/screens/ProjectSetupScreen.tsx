@@ -23,9 +23,11 @@ interface ProjectSetupScreenProps {
   onConfirm: (config: ProjectConfig) => void
   onCancel: () => void
   backLabel?: string
+  /** Edit mode for an open project: re-read every file without changing scope. */
+  onReindex?: () => void
 }
 
-export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCancel, backLabel = 'Projects' }: ProjectSetupScreenProps) {
+export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCancel, backLabel = 'Projects', onReindex }: ProjectSetupScreenProps) {
   const { rootPath, name: projectName } = baseConfig
   const editing = mode === 'edit'
   const [name, setName] = useState(projectName)
@@ -129,6 +131,12 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
                   Choose which folders Axiom reads. Changing them updates the map, and is not reported as a code
                   change in your review of what agents did.
                 </p>
+                {onReindex && (
+                  <p className="axiom-project-settings__reindex">
+                    <button type="button" onClick={onReindex}>Re-index project</button>
+                    <span>Re-reads every file if the map seems out of date. Systems and layout are kept.</span>
+                  </p>
+                )}
               </div>
             ) : (
               <div>

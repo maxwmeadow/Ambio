@@ -320,9 +320,13 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			s.mu.Lock()
 			scopeFrom, rescope := s.rootScopeFrom[root.ID]
 			delete(s.rootScopeFrom, root.ID)
+			force := s.rootForceReindex[root.ID]
+			delete(s.rootForceReindex, root.ID)
 			s.mu.Unlock()
 			var err error
-			if rescope {
+			if force {
+				_, err = indexer.ReindexRootInPlace(sqlDB, s.hub, root, root.IgnoredPaths)
+			} else if rescope {
 				_, err = indexer.ReconcileScope(sqlDB, s.hub, root, scopeFrom, root.IgnoredPaths)
 			} else {
 				_, err = indexer.ReconcileRoot(sqlDB, s.hub, root, root.IgnoredPaths)

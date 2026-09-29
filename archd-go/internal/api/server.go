@@ -76,6 +76,7 @@ type Server struct {
 	// Exclusions a root had before the user changed them; the next reconcile
 	// of that root runs as a quiet re-scope. See indexer.ReconcileScope.
 	rootScopeFrom     map[string][]string
+	rootForceReindex  map[string]bool
 	collisionCache    map[string]collisionCacheEntry
 	collisionCacheTTL time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
@@ -113,6 +114,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		rootSyncing:         make(map[string]bool),
 		rootSyncPending:     make(map[string]pendingRootSync),
 		rootScopeFrom:       make(map[string][]string),
+		rootForceReindex:    make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),
@@ -344,6 +346,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/snapshot/", s.handleSnapshot)
 	mux.HandleFunc("/api/workspace-scope/", s.handleWorkspaceScope)
 	mux.HandleFunc("/api/workspace-relocate", s.handleWorkspaceRelocate)
+	mux.HandleFunc("/api/workspace-reindex", s.handleWorkspaceReindex)
 	mux.HandleFunc("/api/workspace/", s.handleWorkspaceByID)
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)

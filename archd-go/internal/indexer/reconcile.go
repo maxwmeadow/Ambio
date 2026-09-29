@@ -69,6 +69,33 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 // unclassified files have enough semantic evidence to form a useful group; its
 // reconciliation preserves authored systems and existing Floor layouts.
 func ReconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) (changed int, err error) {
+	return reconcileRoot(sqlDB, h, root, ignoredPaths, false)
+}
+
+// ReindexRootInPlace re-reads every in-scope file, whatever its timestamp,
+// while keeping systems, placement, layout and history. It is the user's
+// "re-index" when they suspect the map missed something: content that really
+// changed is journaled like any edit, and an unchanged file changes nothing.
+func ReindexRootInPlace(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) (int, error) {
+	// A file indexed before content hashes were recorded cannot say whether it
+	// changed; re-reading it would otherwise report every such file as edited.
+	// Those are refreshed quietly, and gain a hash for next time.
+	files, err := db.GetFilesByRoot(sqlDB, root.ID)
+	if err != nil {
+		return 0, err
+	}
+	var unknown []string
+	for _, file := range files {
+		if file.ContentHash == "" {
+			unknown = append(unknown, file.RelPath)
+		}
+	}
+	done := beginQuiet(root.ID, unknown)
+	defer done()
+	return reconcileRoot(sqlDB, h, root, ignoredPaths, true)
+}
+
+func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string, force bool) (changed int, err error) {
 	paths, err := collectSourcePaths(root, ignoredPaths)
 	if err != nil {
 		return 0, err
@@ -88,7 +115,7 @@ func ReconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 		seen[relPath] = struct{}{}
 
 		prev, known := existing[relPath]
-		if known && !fileLooksModified(absPath, prev) {
+		if known && !force && !fileLooksModified(absPath, prev) {
 			continue
 		}
 		if reindexErr := ReindexFile(sqlDB, h, root, absPath); reindexErr != nil {

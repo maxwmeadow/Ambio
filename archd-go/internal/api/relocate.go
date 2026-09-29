@@ -75,3 +75,44 @@ func (s *Server) handleWorkspaceRelocate(w http.ResponseWriter, r *http.Request)
 	}
 	jsonOK(w, map[string]any{"relocated": true, "rootId": target.ID})
 }
+
+type reindexWorkspaceReq struct {
+	WorkspaceID string `json:"workspaceId"`
+}
+
+// handleWorkspaceReindex handles POST /api/workspace-reindex: re-read every
+// file of the workspace's live roots in place. See indexer.ReindexRootInPlace.
+func (s *Server) handleWorkspaceReindex(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var req reindexWorkspaceReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !validWorkspaceID(req.WorkspaceID) {
+		jsonError(w, "workspaceId is required", http.StatusBadRequest)
+		return
+	}
+	sqlDB, err := s.dbFor(req.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	// Only roots with a live watcher own the graph; linked worktrees do not.
+	s.mu.Lock()
+	var roots []db.Root
+	for _, root := range s.roots {
+		if root.WorkspaceID == req.WorkspaceID {
+			roots = append(roots, root)
+			s.rootForceReindex[root.ID] = true
+		}
+	}
+	s.mu.Unlock()
+	if len(roots) == 0 {
+		jsonError(w, "open the project in Axiom first", http.StatusConflict)
+		return
+	}
+	for _, root := range roots {
+		s.launchRootSync(sqlDB, root, false)
+	}
+	jsonOK(w, map[string]any{"reindexing": len(roots)})
+}
