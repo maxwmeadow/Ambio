@@ -3060,6 +3060,9 @@ select.axiom-inspector-input {
   box-shadow: 4px 4px 0 rgba(29, 35, 32, 0.42), inset 0 1px #fff;
 }
 
+/* Keep the selection for the draft, but leave the inbox composer unobstructed. */
+body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
+
 .axiom-selection-actions__summary {
   display: flex;
   align-items: center;

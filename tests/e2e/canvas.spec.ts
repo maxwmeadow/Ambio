@@ -1889,7 +1889,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
   // Addressed inbox routing: a send creates a work order the user hands to a
   // chat of their choosing, instead of asking any agent to drain the queue.
-  await expect(agentDialog).toContainText('Send here, then hand the request')
+  await expect(agentDialog).toContainText('No work orders yet')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
   await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()

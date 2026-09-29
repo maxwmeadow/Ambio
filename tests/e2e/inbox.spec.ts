@@ -64,7 +64,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await expect(panel.locator('.axiom-inbox__compose .axiom-inbox__targets button')).toHaveCount(2)
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
-    await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toContainText('1 queued. Saved in Axiom')
+    await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
     await expect(panel.locator('.axiom-inbox__work-order code')).toHaveText(sends[0].id)
     await expect(panel.getByRole('button', { name: 'Connections' })).toBeVisible()
@@ -82,9 +82,10 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     messages[0].reply = { body: 'They communicate through the project API.', agent: 'Test agent', createdAt: Date.now(), result: { changedFiles: ['src/project-api.ts'], checks: [{ command: 'npm test', outcome: 'passed' }], remaining: ['Confirm timeout behavior'] } }
     messages[0].changes = [{ kind: 'file.updated', subjectLabel: 'project-api.ts', count: 1, at: Date.now() }]
     await expect(panel.getByText('They communicate through the project API.')).toBeVisible({ timeout: 10000 })
+    await panel.getByRole('button', { name: /Review result/ }).click()
     await expect(panel.getByText('Explained the API boundary.')).toBeVisible()
-    await expect(panel.getByText('AXIOM OBSERVED · LINKED ARCHITECTURE CHANGES')).toBeVisible()
-    await expect(panel.getByText('AGENT REPORTED · NOT INDEPENDENTLY VERIFIED')).toBeVisible()
+    await expect(panel.getByText('Indexed changes')).toBeVisible()
+    await expect(panel.getByText('Agent report')).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Accept result' })).toBeVisible()
     await panel.getByRole('button', { name: 'Request changes' }).click()
     await panel.getByLabel('What needs to change?').fill('Include the timeout path.')
@@ -95,6 +96,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     messages[0].status = 'answered'
     messages[0].reply = { body: 'The timeout path also uses the project API.', agent: 'Test agent', createdAt: Date.now() }
     await expect(panel.getByText('The timeout path also uses the project API.')).toBeVisible({ timeout: 10000 })
+    await panel.getByRole('button', { name: /Review result/ }).click()
     await panel.getByRole('button', { name: 'Accept result' }).click()
     await expect(panel.getByText('Accepted', { exact: true }).first()).toBeVisible()
     await page.reload()

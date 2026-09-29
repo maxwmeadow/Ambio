@@ -3,10 +3,9 @@ import type { AgentHostInfo } from '../../../electron/preload'
 
 type Connection = 'checking' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
 
-export function AgentHandoff({ workspaceId, projectRoot, queued, onManageConnections }: {
+export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: {
   workspaceId: string
   projectRoot: string
-  queued: number
   onManageConnections?: () => void
 }) {
   const [connection, setConnection] = useState<Connection>('checking')
@@ -59,8 +58,5 @@ export function AgentHandoff({ workspaceId, projectRoot, queued, onManageConnect
       <span>{status}</span>
       {onManageConnections && <button type="button" onClick={onManageConnections}>Connections</button>}
     </div>
-    {queued > 0 && <div className="axiom-inbox__handoff-next">
-      <span><strong>{queued} queued.</strong> Saved in Axiom. Use <strong>Copy handoff</strong> on the request you want a particular agent chat to handle.</span>
-    </div>}
   </section>
 }

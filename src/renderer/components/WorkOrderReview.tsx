@@ -5,9 +5,9 @@ import { AgentMessageContent } from './AgentMessageContent'
 
 function ReportedResult({ reply }: { reply: WorkOrderReply }) {
   const result = reply.result
-  if (!result) return <p className="axiom-inbox__evidence-empty">No structured result was attached. Review the agent’s reply and any live sheet comparison.</p>
+  if (!result || (!result.commit && !result.changedFiles?.length && !result.checks?.length && !result.remaining?.length)) return null
   return <div className="axiom-inbox__reported">
-    <div className="axiom-inbox__evidence-label">AGENT REPORTED · NOT INDEPENDENTLY VERIFIED</div>
+    <div className="axiom-inbox__evidence-label">Agent report <span>· checks supplied by agent</span></div>
     {result.commit && <p><strong>Commit</strong> <code>{result.commit}</code></p>}
     {!!result.changedFiles?.length && <div><strong>Changed files</strong><ul>{result.changedFiles.map((file, index) => <li key={`${file}:${index}`}><code>{file}</code></li>)}</ul></div>}
     {!!result.checks?.length && <div><strong>Checks</strong><ul>{result.checks.map((check, index) => <li key={index}><code>{check.command}</code> — {check.outcome}</li>)}</ul></div>}
@@ -16,14 +16,17 @@ function ReportedResult({ reply }: { reply: WorkOrderReply }) {
 }
 
 export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { message: CanvasMessage; workspaceId: string; sheetAvailable: boolean }) {
-  const [expanded, setExpanded] = useState(!!message.reply)
+  const [expanded, setExpanded] = useState(message.status !== 'answered' && message.review?.decision === 'reopened')
   const [reopening, setReopening] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const pending = useRef<{ id: string; decision: 'accepted' | 'reopened'; note: string } | null>(null)
-  useEffect(() => { if (message.reply) setExpanded(true) }, [message.reply?.createdAt])
+  useEffect(() => {
+    if (message.status === 'answered') setExpanded(false)
+    else if (message.review?.decision === 'reopened') setExpanded(true)
+  }, [message.review?.id, message.status])
   const accepted = message.status === 'answered' && message.review?.decision === 'accepted'
   const decide = async (decision: 'accepted' | 'reopened') => {
     const note = decision === 'reopened' ? feedback.trim() : ''
@@ -36,27 +39,27 @@ export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { mess
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save review. Retry the same decision.') }
     finally { setBusy(false) }
   }
+  const hasDetails = !!(message.sessions?.length || message.changes?.length || message.reply?.result || message.sheetId || message.priorReplies?.length || message.review?.decision === 'reopened' || message.status === 'answered' && !accepted && message.reply)
+  if (!hasDetails) return null
   return <section className="axiom-inbox__review" aria-label={`Work order details ${message.id}`}>
     <button type="button" className="axiom-inbox__review-toggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-      <span>{expanded ? '▾' : '▸'} WORK ORDER DETAILS</span><span>{message.status === 'cancelled' ? 'Cancelled' : accepted ? 'Accepted' : message.reply ? 'Ready for review' : message.review?.decision === 'reopened' ? 'Changes requested' : 'Tracking'}</span>
+      <span>{expanded ? '▾' : '▸'} {message.status === 'answered' && !accepted ? 'Review result' : 'Details'}</span><span>{message.sessions?.length ? `${message.sessions.length} work ${message.sessions.length === 1 ? 'session' : 'sessions'}` : message.reply?.result ? 'Agent report' : message.sheetId ? 'Sheet' : ''}</span>
     </button>
     {expanded && <div className="axiom-inbox__review-body">
-      <p className="axiom-inbox__review-intent"><strong>Requested outcome</strong>{message.note}</p>
-      {message.sessions?.length ? <div className="axiom-inbox__review-sessions"><strong>Linked work</strong><ul>{message.sessions.map(session => <li key={session.id}>{session.agent || 'Agent'} · {session.goal}{session.branch ? ` · ${session.branch}` : ''}{session.endedAt ? ' · ended' : ' · open'}</li>)}</ul></div> : <p className="axiom-inbox__evidence-empty">No work session has been declared for this order.</p>}
-      {!!message.changes?.length && <div className="axiom-inbox__review-changes"><div className="axiom-inbox__evidence-label">AXIOM OBSERVED · LINKED ARCHITECTURE CHANGES</div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind} · {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul><small>Shows indexed changes attributed to a linked session. Unattributed changes may appear only in Morning Delta.</small></div>}
-      {message.reply && <ReportedResult reply={message.reply} />}
-      {message.sheetId && sheetAvailable && <div className="axiom-inbox__review-sheet"><div className="axiom-inbox__evidence-label">AXIOM CHECK · CURRENT LIVE STRUCTURE</div><p>This comparison reflects the sheet and canvas now; it does not prove runtime behavior or the state at submission.</p><button type="button" className="axiom-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide live comparison' : 'Check live comparison'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
-      {message.sheetId && !sheetAvailable && <p className="axiom-inbox__evidence-empty">The attached sheet is unavailable for a current comparison.</p>}
-      {!!message.priorReplies?.length && <div className="axiom-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><summary>{reply.agent} · {new Date(reply.createdAt).toLocaleString()}</summary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
-      {(message.reviews?.length ?? 0) > 1 && <div className="axiom-inbox__review-history"><strong>Earlier reviews</strong><ol>{message.reviews!.slice(0, -1).map(review => <li key={review.id}>{review.decision === 'accepted' ? 'Accepted' : 'Changes requested'} · {new Date(review.createdAt).toLocaleString()}{review.note && <p>{review.note}</p>}</li>)}</ol></div>}
-      {message.review?.decision === 'reopened' && <div className="axiom-inbox__review-feedback"><strong>Changes requested</strong><p>{message.review.note}</p></div>}
-      {accepted && <p className="axiom-inbox__review-accepted">Accepted by you · {new Date(message.review!.createdAt).toLocaleString()}</p>}
       {message.status === 'answered' && message.reply && !accepted && <div className="axiom-inbox__review-actions">
-        <p>The agent submitted an answer. Check the result before accepting it.</p>
         <button type="button" disabled={busy} onClick={() => { void decide('accepted') }}>Accept result</button>
         <button type="button" disabled={busy} onClick={() => setReopening(!reopening)}>Request changes</button>
         {reopening && <div className="axiom-inbox__review-reopen"><label htmlFor={`review-feedback-${message.id}`}>What needs to change?</label><textarea id={`review-feedback-${message.id}`} value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={4000} rows={3} /><button type="button" disabled={busy || !feedback.trim()} onClick={() => { void decide('reopened') }}>Reopen work order</button></div>}
       </div>}
+      {!!message.sessions?.length && <div className="axiom-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'} · {session.goal}{session.branch ? ` · ${session.branch}` : ''}{session.endedAt ? ' · ended' : ' · open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
+      {!!message.changes?.length && <div className="axiom-inbox__review-changes"><div className="axiom-inbox__evidence-label">Indexed changes <span>· linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind} · {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
+      {message.reply && <ReportedResult reply={message.reply} />}
+      {message.sheetId && sheetAvailable && <div className="axiom-inbox__review-sheet"><div className="axiom-inbox__evidence-label">Sheet structure <span>· current canvas</span></div><button type="button" className="axiom-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare now'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
+      {message.sheetId && !sheetAvailable && <p className="axiom-inbox__evidence-empty">The attached sheet is unavailable for a current comparison.</p>}
+      {!!message.priorReplies?.length && <div className="axiom-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><summary>{reply.agent} · {new Date(reply.createdAt).toLocaleString()}</summary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
+      {(message.reviews?.length ?? 0) > 1 && <div className="axiom-inbox__review-history"><strong>Earlier reviews</strong><ol>{message.reviews!.slice(0, -1).map(review => <li key={review.id}>{review.decision === 'accepted' ? 'Accepted' : 'Changes requested'} · {new Date(review.createdAt).toLocaleString()}{review.note && <p>{review.note}</p>}</li>)}</ol></div>}
+      {message.review?.decision === 'reopened' && <div className="axiom-inbox__review-feedback"><strong>{message.status === 'answered' ? 'Previous feedback' : 'Changes requested'}</strong><p>{message.review.note}</p></div>}
+      {accepted && <p className="axiom-inbox__review-accepted">Accepted by you · {new Date(message.review!.createdAt).toLocaleString()}</p>}
       {error && <p role="alert" className="axiom-inbox__review-error">{error}</p>}
     </div>}
   </section>
