@@ -672,6 +672,12 @@ func indexOneFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, existing
 	if err := db.UpsertFile(sqlDB, f); err != nil {
 		return err
 	}
+	if raw, err := os.ReadFile(absPath); err == nil {
+		sum := sha256.Sum256(raw)
+		if err := db.SetFileContentHash(sqlDB, fileID, hex.EncodeToString(sum[:])); err != nil {
+			return err
+		}
+	}
 
 	syms := result.Symbols
 	for i := range syms {

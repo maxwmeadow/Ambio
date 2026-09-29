@@ -544,6 +544,13 @@ func UpsertFile(db *sql.DB, f File) error {
 }
 
 // UpdateFileActivity persists the raw decayed-score anchor + content hash.
+// SetFileContentHash records what a file held when it was indexed, so a later
+// re-read can tell a real edit from a file that was only touched.
+func SetFileContentHash(db *sql.DB, fileID, contentHash string) error {
+	_, err := db.Exec(`UPDATE files SET content_hash=? WHERE id=?`, contentHash, fileID)
+	return err
+}
+
 func UpdateFileActivity(db *sql.DB, fileID string, score float64, atMs int64, contentHash string) error {
 	_, err := db.Exec(`UPDATE files SET activity_score=?, activity_at=?, content_hash=? WHERE id=?`,
 		score, atMs, contentHash, fileID)

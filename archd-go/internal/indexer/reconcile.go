@@ -1,7 +1,9 @@
 package indexer
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"io/fs"
 	"log"
 	"os"
@@ -126,6 +128,11 @@ func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 		if known && !force && !fileLooksModified(absPath, prev) {
 			continue
 		}
+		// Re-read only because its timestamp was close: the same bytes are not
+		// a change.
+		if known && !force && prev.ContentHash != "" && contentHash(absPath) == prev.ContentHash {
+			continue
+		}
 		if reindexErr := ReindexFile(sqlDB, h, root, absPath); reindexErr != nil {
 			log.Printf("[reconcile] reindex %s: %v", relPath, reindexErr)
 			continue
@@ -166,5 +173,20 @@ func fileLooksModified(absPath string, prev db.File) bool {
 	if err != nil {
 		return false
 	}
-	return info.ModTime().UnixMilli() > prev.IndexedAt
+	// Timestamps are coarse: a save in the same millisecond as the index, or
+	// on a filesystem that keeps 1-2 second times (FAT, many network drives),
+	// can carry a time at or before IndexedAt. Anything that close is
+	// re-read; the content hash keeps an unchanged file out of the delta.
+	return info.ModTime().UnixMilli() >= prev.IndexedAt-mtimeSlackMillis
+}
+
+const mtimeSlackMillis = 2000
+
+func contentHash(absPath string) string {
+	raw, err := os.ReadFile(absPath)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
