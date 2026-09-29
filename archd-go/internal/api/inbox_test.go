@@ -68,6 +68,67 @@ func inboxHTTP(t *testing.T, handler http.Handler, method, path string, body any
 	return response
 }
 
+func TestInboxSnapshotRetainsSentPlanAfterSheetChanges(t *testing.T) {
+	s, mux, _ := inboxServer(t)
+	d, _ := s.dbFor("ws")
+	sheet := db.Sheet{ID: "sent-sheet", WorkspaceID: "ws", Name: "Original plan"}
+	if err := db.CreateSheet(d, &sheet); err != nil {
+		t.Fatal(err)
+	}
+	sent := inboxHTTP(t, mux, "POST", "/api/canvas/send", map[string]any{
+		"workspaceId": "ws", "id": "snapshot-order", "sheetId": sheet.ID, "note": "Build this plan",
+	})
+	if sent.Code != http.StatusOK {
+		t.Fatal(sent.Code, sent.Body.String())
+	}
+	if _, err := d.Exec(`UPDATE sheets SET name='Revised plan',revision=revision+1 WHERE id=?`, sheet.ID); err != nil {
+		t.Fatal(err)
+	}
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	var listed struct {
+		Messages []db.InboxItem `json:"messages"`
+	}
+	if history.Code != http.StatusOK || json.Unmarshal(history.Body.Bytes(), &listed) != nil || len(listed.Messages) != 1 || listed.Messages[0].SentSheetName != "Original plan" || listed.Messages[0].SentSheetRevision != 1 {
+		t.Fatalf("history did not preserve the sent sheet revision: %d %s", history.Code, history.Body.String())
+	}
+	response := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=ws&messageId=snapshot-order", nil)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Code, response.Body.String())
+	}
+	var snapshot struct {
+		SheetContext string `json:"sheetContext"`
+		BuildSpec    string `json:"buildSpec"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	var context struct {
+		Sheet struct {
+			Name     string `json:"name"`
+			Revision int    `json:"revision"`
+		} `json:"sheet"`
+	}
+	if err := json.Unmarshal([]byte(snapshot.SheetContext), &context); err != nil {
+		t.Fatal(err)
+	}
+	if context.Sheet.Name != "Original plan" || context.Sheet.Revision != 1 || strings.Contains(snapshot.SheetContext, "Revised plan") {
+		t.Fatalf("snapshot followed a later sheet edit: %s", snapshot.SheetContext)
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("snapshot should not be cached")
+	}
+	if _, err := d.Exec(`DELETE FROM sheets WHERE id=?`, sheet.ID); err != nil {
+		t.Fatal(err)
+	}
+	afterDelete := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=ws&messageId=snapshot-order", nil)
+	if afterDelete.Code != http.StatusOK || !strings.Contains(afterDelete.Body.String(), "Original plan") {
+		t.Fatalf("sent plan disappeared with its sheet: %d %s", afterDelete.Code, afterDelete.Body.String())
+	}
+	if other := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=other&messageId=snapshot-order", nil); other.Code != http.StatusNotFound {
+		t.Fatalf("cross-workspace snapshot status %d", other.Code)
+	}
+}
+
 func TestWorkOrderReviewReopensWithHistoryAndFeedback(t *testing.T) {
 	s, mux, _ := inboxServer(t)
 	send := map[string]any{"id": "review-order", "workspaceId": "ws", "note": "Fix checkout", "deliveryMode": "addressed"}

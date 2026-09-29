@@ -49,15 +49,17 @@ type WorkOrderChange struct {
 }
 type InboxItem struct {
 	CanvasMessage
-	LeaseToken     string            `json:"leaseToken,omitempty"`
-	LeaseExpiresAt int64             `json:"leaseExpiresAt,omitempty"`
-	Agent          string            `json:"agent,omitempty"`
-	Reply          *InboxReply       `json:"reply,omitempty"`
-	PriorReplies   []InboxReply      `json:"priorReplies,omitempty"`
-	Review         *InboxReview      `json:"review,omitempty"`
-	Reviews        []InboxReview     `json:"reviews,omitempty"`
-	Sessions       []WorkSession     `json:"sessions,omitempty"`
-	Changes        []WorkOrderChange `json:"changes,omitempty"`
+	SentSheetName     string            `json:"sentSheetName,omitempty"`
+	SentSheetRevision int               `json:"sentSheetRevision,omitempty"`
+	LeaseToken        string            `json:"leaseToken,omitempty"`
+	LeaseExpiresAt    int64             `json:"leaseExpiresAt,omitempty"`
+	Agent             string            `json:"agent,omitempty"`
+	Reply             *InboxReply       `json:"reply,omitempty"`
+	PriorReplies      []InboxReply      `json:"priorReplies,omitempty"`
+	Review            *InboxReview      `json:"review,omitempty"`
+	Reviews           []InboxReview     `json:"reviews,omitempty"`
+	Sessions          []WorkSession     `json:"sessions,omitempty"`
+	Changes           []WorkOrderChange `json:"changes,omitempty"`
 }
 
 func migrateInbox(d *sql.DB) error {
@@ -108,6 +110,8 @@ func migrateInbox(d *sql.DB) error {
 }
 
 const inboxColumns = `m.id,m.workspace_id,m.delivery_mode,m.sheet_id,m.note,m.selection,m.change_summary,
+ CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.name'),'') AS TEXT) ELSE '' END,
+ CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.revision'),0) AS INTEGER) ELSE 0 END,
  m.status,m.delivered_to,m.answer_annotation_id,m.created_at,m.delivered_at,m.answered_at,
  COALESCE(c.token,''),COALESCE(c.expires_at,0),COALESCE(c.agent,''),
  r.body,COALESCE(r.agent,''),COALESCE(r.created_at,0),COALESCE(r.result_json,''),
@@ -125,6 +129,7 @@ func scanInbox(row inboxScanner, now int64) (*InboxItem, error) {
 	var review InboxReview
 	reply := &InboxReply{}
 	err := row.Scan(&item.ID, &item.WorkspaceID, &item.DeliveryMode, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
+		&item.SentSheetName, &item.SentSheetRevision,
 		&item.Status, &item.DeliveredTo, &item.AnswerAnnotationID, &item.CreatedAt, &item.DeliveredAt, &item.AnsweredAt,
 		&item.LeaseToken, &item.LeaseExpiresAt, &item.Agent, &body, &reply.Agent, &reply.CreatedAt, &resultJSON,
 		&reviewID, &review.Decision, &review.Note, &review.CreatedAt)

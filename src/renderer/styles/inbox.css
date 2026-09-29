@@ -61,6 +61,18 @@
 .axiom-inbox__review-toggle span:last-child { color: #5a7064; letter-spacing: 0; text-transform: none; }
 .axiom-inbox__review-body { padding: 9px; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
 .axiom-inbox__review-body > * + * { margin-top: 11px; }
+.axiom-inbox__sent-sheet { display: grid; gap: 2px; padding: 7px 9px; border: 1px solid #b5c9b8; background: #e8eee7; color: #375d50; }
+.axiom-inbox__sent-sheet strong { font: 700 9px var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .04em; }
+.axiom-inbox__sent-sheet span { font-size: 11px; }
+.axiom-inbox__sent-sheet[data-changed] { border-color: #ceb98b; background: #f5eee0; color: #72522d; }
+.axiom-inbox__sent-sheet p { margin: 3px 0 0; line-height: 1.4; }
+.axiom-inbox .axiom-inbox__sent-plan > button { margin-top: 4px; padding: 3px 0; color: #356f63; font: 700 10px var(--font-mono, monospace); text-decoration: underline; text-underline-offset: 2px; }
+.axiom-inbox__sent-plan-body { margin-top: 5px; padding: 7px; border: 1px solid #c8d0bf; background: #fbfaf5; color: #465c4d; }
+.axiom-inbox__sent-plan-body p { margin: 0 0 6px; }
+.axiom-inbox__sent-plan-body details { margin-top: 5px; }
+.axiom-inbox__sent-plan-body summary { cursor: pointer; font-weight: 700; }
+.axiom-inbox__sent-plan-body ul { margin: 4px 0; padding-left: 18px; }
+.axiom-inbox__sent-plan-body pre { max-height: 220px; margin: 6px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 var(--font-mono, monospace); }
 .axiom-inbox__review-body p { margin-bottom: 0; }
 .axiom-inbox__review-sessions ul, .axiom-inbox__reported ul { margin: 4px 0 0; padding-left: 18px; }
 .axiom-inbox__review-sessions li + li, .axiom-inbox__reported li + li { margin-top: 3px; }

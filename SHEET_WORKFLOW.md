@@ -16,6 +16,12 @@ Sending freezes the sheet context, approved build specification, and structural
 comparison together from one SQLite transaction. Pending/rejected proposals are
 visible in discussion context with approval labels, but excluded from executable
 build specifications. The snapshot does not silently change when the sheet changes.
+The inbox keeps the sent sheet name and revision on the work order. During result
+review it shows that frozen identity before the current live comparison, and warns
+when the sheet has a newer revision. The current comparison always checks the
+current sheet; it must not be mistaken for proof against an older sent snapshot.
+**View sent plan** loads the immutable snapshot and approved build specification
+on demand, including after later sheet edits. History stays lightweight.
 
 The attached sheet's difference panel refreshes every three seconds and on sheet
 revision changes. Live graph mutations continue through the existing workspace-scoped
@@ -99,7 +105,10 @@ resolution events; stale same-revision events cannot resurrect a resolved overla
 
 HTTP routes under `/api/sheets/:id`: `GET compare`, `GET context`, and `POST bind`,
 `POST apply_nesting`, `POST resolve`, `POST reopen`. Reads use `?workspace=…`; writes
-use `{workspaceId,…}` and retain the local bearer-token requirement.
+use `{workspaceId,…}` and retain the local bearer-token requirement. The inbox
+loads a work order's frozen plan only when requested through
+`GET /api/canvas/snapshot?workspace=…&messageId=…`; that read checks workspace
+ownership and does not claim or change the order.
 
 ## Verification
 

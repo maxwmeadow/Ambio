@@ -72,6 +72,33 @@ func (s *Server) handleInboxHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOK(w, map[string]any{"messages": items, "nextCursor": next, "availableCount": available})
 }
+func (s *Server) handleInboxSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	workspace, messageID := r.URL.Query().Get("workspace"), r.URL.Query().Get("messageId")
+	if workspace == "" || messageID == "" {
+		jsonError(w, "workspace and messageId are required", http.StatusBadRequest)
+		return
+	}
+	d, err := s.dbFor(workspace)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	message, err := db.GetCanvasMessage(d, messageID)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	if message == nil || message.WorkspaceID != workspace {
+		inboxError(w, sql.ErrNoRows)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	jsonOK(w, map[string]string{"sheetContext": message.SheetContext, "buildSpec": message.BuildSpec})
+}
 func (s *Server) handleInboxClaim(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.NotFound(w, r)

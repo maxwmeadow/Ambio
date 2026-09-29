@@ -82,6 +82,8 @@ export interface CanvasMessage {
   workspaceId: string
   deliveryMode?: 'open' | 'addressed'
   sheetId: string | null
+  sentSheetName?: string
+  sentSheetRevision?: number
   note: string
   selection: string
   changeSummary: string

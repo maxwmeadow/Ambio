@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { reviewInboxMessage, type CanvasMessage, type WorkOrderReply } from '../store/sheetStore'
+import { reviewInboxMessage, type CanvasMessage, type Sheet, type WorkOrderReply } from '../store/sheetStore'
 import { SheetComparison } from './SheetComparison'
 import { AgentMessageContent } from './AgentMessageContent'
+import { SentSheetSnapshot } from './SentSheetSnapshot'
 
 function ReportedResult({ reply }: { reply: WorkOrderReply }) {
   const result = reply.result
@@ -15,7 +16,7 @@ function ReportedResult({ reply }: { reply: WorkOrderReply }) {
   </div>
 }
 
-export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { message: CanvasMessage; workspaceId: string; sheetAvailable: boolean }) {
+export function WorkOrderReview({ message, workspaceId, currentSheet }: { message: CanvasMessage; workspaceId: string; currentSheet?: Sheet }) {
   const [expanded, setExpanded] = useState(message.status !== 'answered' && message.review?.decision === 'reopened')
   const [reopening, setReopening] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
@@ -28,6 +29,8 @@ export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { mess
     else if (message.review?.decision === 'reopened') setExpanded(true)
   }, [message.review?.id, message.status])
   const accepted = message.status === 'answered' && message.review?.decision === 'accepted'
+  const sentRevision = message.sentSheetRevision ?? 0
+  const sheetChanged = !!currentSheet && sentRevision > 0 && currentSheet.revision !== sentRevision
   const decide = async (decision: 'accepted' | 'reopened') => {
     const note = decision === 'reopened' ? feedback.trim() : ''
     if (decision === 'reopened' && !note) { setError('Tell the agent what needs to change.'); return }
@@ -42,10 +45,17 @@ export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { mess
   const hasDetails = !!(message.sessions?.length || message.changes?.length || message.reply?.result || message.sheetId || message.priorReplies?.length || message.review?.decision === 'reopened' || message.status === 'answered' && !accepted && message.reply)
   if (!hasDetails) return null
   return <section className="axiom-inbox__review" aria-label={`Work order details ${message.id}`}>
-    <button type="button" className="axiom-inbox__review-toggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+    <button type="button" className="axiom-inbox__review-toggle" aria-expanded={expanded} onClick={() => { if (!expanded && message.status === 'answered' && currentSheet) setCompareOpen(true); setExpanded(!expanded) }}>
       <span>{expanded ? '▾' : '▸'} {message.status === 'answered' && !accepted ? 'Review result' : 'Details'}</span><span>{message.sessions?.length ? `${message.sessions.length} work ${message.sessions.length === 1 ? 'session' : 'sessions'}` : message.reply?.result ? 'Agent report' : message.sheetId ? 'Sheet' : ''}</span>
     </button>
     {expanded && <div className="axiom-inbox__review-body">
+      {message.sheetId && <div className="axiom-inbox__sent-sheet" data-changed={sheetChanged || undefined}>
+        <strong>Sheet sent to agent</strong>
+        <span>{message.sentSheetName || currentSheet?.name || 'Attached sheet'}{sentRevision > 0 ? ` · revision ${sentRevision}` : ''}</span>
+        {sheetChanged && <p>Current sheet is revision {currentSheet.revision}. The live comparison below checks the current version, not the version sent with this order.</p>}
+        {!currentSheet && <p>The current sheet is unavailable. The agent received its frozen context when this order was sent.</p>}
+        <SentSheetSnapshot workspaceId={workspaceId} messageId={message.id} />
+      </div>}
       {message.status === 'answered' && message.reply && !accepted && <div className="axiom-inbox__review-actions">
         <button type="button" disabled={busy} onClick={() => { void decide('accepted') }}>Accept result</button>
         <button type="button" disabled={busy} onClick={() => setReopening(!reopening)}>Request changes</button>
@@ -54,8 +64,7 @@ export function WorkOrderReview({ message, workspaceId, sheetAvailable }: { mess
       {!!message.sessions?.length && <div className="axiom-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'} · {session.goal}{session.branch ? ` · ${session.branch}` : ''}{session.endedAt ? ' · ended' : ' · open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
       {!!message.changes?.length && <div className="axiom-inbox__review-changes"><div className="axiom-inbox__evidence-label">Indexed changes <span>· linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind} · {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
       {message.reply && <ReportedResult reply={message.reply} />}
-      {message.sheetId && sheetAvailable && <div className="axiom-inbox__review-sheet"><div className="axiom-inbox__evidence-label">Sheet structure <span>· current canvas</span></div><button type="button" className="axiom-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare now'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
-      {message.sheetId && !sheetAvailable && <p className="axiom-inbox__evidence-empty">The attached sheet is unavailable for a current comparison.</p>}
+      {message.sheetId && currentSheet && <div className="axiom-inbox__review-sheet"><div className="axiom-inbox__evidence-label">Current sheet structure <span>· live canvas</span></div><button type="button" className="axiom-inbox__review-compare" onClick={() => setCompareOpen(!compareOpen)}>{compareOpen ? 'Hide comparison' : 'Compare current sheet'}</button>{compareOpen && <SheetComparison workspaceId={workspaceId} sheetId={message.sheetId} />}</div>}
       {!!message.priorReplies?.length && <div className="axiom-inbox__review-prior"><strong>Earlier submissions</strong>{message.priorReplies.map((reply, index) => <details key={`${reply.createdAt}:${index}`}><summary>{reply.agent} · {new Date(reply.createdAt).toLocaleString()}</summary><AgentMessageContent text={reply.body} /><ReportedResult reply={reply} /></details>)}</div>}
       {(message.reviews?.length ?? 0) > 1 && <div className="axiom-inbox__review-history"><strong>Earlier reviews</strong><ol>{message.reviews!.slice(0, -1).map(review => <li key={review.id}>{review.decision === 'accepted' ? 'Accepted' : 'Changes requested'} · {new Date(review.createdAt).toLocaleString()}{review.note && <p>{review.note}</p>}</li>)}</ol></div>}
       {message.review?.decision === 'reopened' && <div className="axiom-inbox__review-feedback"><strong>{message.status === 'answered' ? 'Previous feedback' : 'Changes requested'}</strong><p>{message.review.note}</p></div>}

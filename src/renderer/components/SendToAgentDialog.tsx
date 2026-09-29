@@ -160,7 +160,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
         {sheet.messages.length === 0 && <div className="axiom-inbox__empty"><h3>No work orders yet</h3><p>Write a request below. Add a sheet or select canvas items for context.</p></div>}
         {sheet.messages.map(message => <article key={message.id} className="axiom-inbox__message">
           <div className="axiom-inbox__user"><span className="axiom-inbox__entry-label">YOU</span><p>{message.note}</p>{chips(messageReferences(message.selection))}
-            {message.sheetId && <button type="button" className="axiom-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach this sheet and compare its current structure"><InboxIcon name="sheet" size={14} /><span>{sheet.sheets.find(item => item.id === message.sheetId)?.name ?? 'Attached sheet'}</span><InboxIcon name="chevron" size={12} /></button>}
+            {message.sheetId && <button type="button" className="axiom-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
             <div className="axiom-inbox__work-order">WORK ORDER <code>{message.id}</code></div>
           </div>
           <div className="axiom-inbox__meta"><span className={`axiom-inbox__status axiom-inbox__status--${message.status}`}>{inboxStatus(message)}</span><time title={new Date(message.createdAt).toLocaleString()} dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
@@ -171,7 +171,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           {message.reply && <div className="axiom-inbox__reply"><div className="axiom-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{message.reply.agent}</strong></div><AgentMessageContent text={message.reply.body} /><button type="button" className="axiom-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div>}
           {message.status === 'answered' && !message.reply && <p className="axiom-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="axiom-inbox__notice">Cancelled. Ask the agent to stop if work began.</p>}
-          <WorkOrderReview message={message} workspaceId={graph.workspaceId} sheetAvailable={!!sheet.sheets.find(item => item.id === message.sheetId)} />
+          <WorkOrderReview message={message} workspaceId={graph.workspaceId} currentSheet={sheet.sheets.find(item => item.id === message.sheetId)} />
         </article>)}
       </div>
       {unseen && <button className="axiom-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}

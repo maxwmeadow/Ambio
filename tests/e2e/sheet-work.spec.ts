@@ -1,5 +1,51 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 
+test('work-order review distinguishes the sent sheet from a later revision', async () => {
+  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+  try {
+    const page = await app.firstWindow()
+    const sheet = { id: 'sheet_design', workspaceId: 'demo', name: 'Checkout revised', purpose: 'New scope', kind: 'structure', folder: '', createdBy: 'user', revision: 5, createdAt: 1, updatedAt: 2 }
+    const message = {
+      id: 'order-with-sheet', workspaceId: 'demo', deliveryMode: 'addressed', sheetId: sheet.id,
+      sentSheetName: 'Checkout original', sentSheetRevision: 4,
+      note: 'Implement the original checkout plan.', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+      status: 'answered', deliveredTo: 'codex', answerAnnotationId: null, createdAt: Date.now(),
+      reply: { body: 'Ready for review.', agent: 'codex', createdAt: Date.now() },
+    }
+    await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
+      const url = new URL(route.request().url())
+      let body: unknown = []
+      if (url.pathname === '/api/sheets') body = [sheet]
+      if (url.pathname === '/api/canvas/history') body = { messages: [message], nextCursor: '', availableCount: 0 }
+      if (url.pathname === '/api/canvas/snapshot') body = {
+        sheetContext: JSON.stringify({ sheet: { name: 'Checkout original', purpose: 'Original checkout scope', revision: 4 }, nodes: [{ id: 'planned:checkout', name: 'Checkout service', type: 'system', planned: true }], edges: [], notes: [] }),
+        buildSpec: 'Build the original checkout service.',
+      }
+      if (url.pathname === '/api/sheets/sheet_design/compare') body = {
+        sheetId: sheet.id, name: sheet.name, revision: sheet.revision, token: 'current', equivalent: false,
+        checked: 1, differences: [{ kind: 'nesting', nodeId: 'child', name: 'Checkout', detail: 'Current revision differs' }], nodes: [], mappings: {},
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    })
+    await page.reload()
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const panel = page.getByRole('complementary', { name: 'Agent inbox' })
+    await expect(panel.getByText('Checkout original · sent r4')).toBeVisible()
+    await panel.getByRole('button', { name: /Review result/ }).click()
+    await expect(panel.getByText('Checkout original · revision 4')).toBeVisible()
+    await expect(panel.getByText(/Current sheet is revision 5/)).toBeVisible()
+    await expect(panel.getByText('Current sheet structure')).toBeVisible()
+    await expect(panel.getByText('1 structural difference')).toBeVisible()
+    await panel.getByRole('button', { name: 'View sent plan' }).click()
+    await expect(panel.getByText('Build the original checkout service.')).toBeVisible()
+    await expect(panel.getByText('Checkout service · system · planned')).not.toBeVisible()
+    await panel.getByText('Nodes sent (1)').click()
+    await expect(panel.getByText('Checkout service · system · planned')).toBeVisible()
+    await page.screenshot({ path: 'test-results/sheet-review-revision.png' })
+  } finally { await app.close() }
+})
+
 test('sheet attachment follows live differences, survives Floor navigation, and archives/restores', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
