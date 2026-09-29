@@ -62,6 +62,9 @@ test('desktop send reaches a live agent and returns for review', async () => {
     const exit = await new Promise((resolve, reject) => { agent.on('error', reject); agent.on('close', resolve) })
     clearTimeout(timeout)
     expect(exit, agentOutput.slice(-3000)).toBe(0)
+    const presenceResponse = await harnessFetch(`${harness.apiBase}/api/agent/presence?workspace=${harness.workspaceId}`)
+    const presence = await presenceResponse.json()
+    expect(presence.connections.some(connection => connection.hostId === 'codex' && connection.lastToolAt > 0)).toBe(true)
 
     await expect(inbox.locator('.axiom-inbox__reply').getByText(/health_status/)).toBeVisible({ timeout: 15_000 })
     expect(readFileSync(`${harness.projectDir}/api/handlers.py`, 'utf8')).toContain('def health_status(')

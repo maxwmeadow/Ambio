@@ -141,6 +141,7 @@ test('the inbox stays nonblocking and forwards bounded context requests', () => 
   assert.deepEqual(routeTool('get_inbox', { messageHandle: 'handle', contextOffset: 12000 }).args, { messageHandle: 'handle', contextOffset: 12000 })
   assert.deepEqual(routeTool('get_inbox', { messageId: 'work-order-1' }).args, { messageId: 'work-order-1' })
   assert.deepEqual(routeTool('get_inbox', { messageId: 'work-order-1', expectedWorkspaceId: 'ws' }).args, { messageId: 'work-order-1', expectedWorkspaceId: 'ws' })
+  assert.deepEqual(routeTool('get_inbox', { verifyOnly: true, expectedWorkspaceId: 'ws' }).args, { verifyOnly: true, expectedWorkspaceId: 'ws' })
   assert.equal(routeTool('get_inbox', { waitSeconds: 0 }).tool, 'get_canvas_updates')
 })
 

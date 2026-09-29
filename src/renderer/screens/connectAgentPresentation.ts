@@ -20,6 +20,10 @@ export interface AgentFamilyPresentation {
   batchAction: 'install' | 'reinstall' | 'none'
 }
 
+export function connectionCheckPrompt(project: { id: string; name: string; rootPath: string }): string {
+  return `Check Axiom access for project "${project.name}" (${project.rootPath}). Call get_inbox with verifyOnly true and expectedWorkspaceId "${project.id}". Do not claim or work on any request. Tell me whether inboxReady is true and the returned workspace ID matches.`
+}
+
 /**
  * Intelligent light signal for an individual modality.
  */
@@ -31,7 +35,7 @@ export function presentAgentHost(
   if (connectedNow) {
     return {
       state: 'live',
-      detail: `${host.modalityLabel || host.label} is connected to this Axiom project right now.`,
+      detail: `${host.modalityLabel || host.label} has an MCP process online for this project. Tool access is checked separately.`,
       action: 'reinstall',
     }
   }

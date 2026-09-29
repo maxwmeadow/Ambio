@@ -606,12 +606,13 @@ const CORE_TOOLS = [
   },
   {
     name: 'get_inbox',
-    description: 'Claim the exact canvas request using messageId from the user handoff. Without messageId, checks only legacy/open instructions, never work addressed to another chat. Claims last 15 minutes; pass messageHandle and contextOffset to read original context.',
+    description: 'Claim the exact canvas request using messageId from the user handoff. Use verifyOnly with expectedWorkspaceId to check this connection without claiming work. Without messageId, checks only legacy/open instructions. Claims last 15 minutes; pass messageHandle and contextOffset to read original context.',
     inputSchema: {
       type: 'object',
       properties: {
         messageId: { type: 'string', description: 'Full work-order ID from the user handoff; routes this request to this chat' },
         expectedWorkspaceId: { type: 'string', description: 'Workspace ID from the handoff; fail before claiming if this MCP connection is bound elsewhere' },
+        verifyOnly: { type: 'boolean', description: 'Check inbox access for expectedWorkspaceId without claiming any request' },
         messageHandle: { type: 'string', description: 'Handle from a previously claimed message; fetch its original attached context' },
         contextOffset: { type: 'integer', minimum: 0, description: 'Context character offset, initially 0' },
       },
@@ -2432,7 +2433,10 @@ Steps to execute:
       case 'get_canvas_updates':
       case 'await_canvas': {
         if (args.expectedWorkspaceId && args.expectedWorkspaceId !== project.workspaceId) throw new Error(`This MCP connection is bound to workspace ${project.workspaceId}, not the requested workspace ${args.expectedWorkspaceId}. Reconnect from the correct project before claiming work.`)
-        if (args.messageHandle) {
+        if (args.verifyOnly) {
+          if (!args.expectedWorkspaceId || args.messageId || args.messageHandle) throw new Error('Connection check requires expectedWorkspaceId and cannot include a work-order ID or handle.')
+          result = { inboxReady: true, workspace: project, connectionId, hostId: agentHostId, note: 'Connection verified. No work order was claimed.' }
+        } else if (args.messageHandle) {
           const handle = readMessageHandle(args.messageHandle)
           if (handle.workspaceId !== project.workspaceId) throw new Error('This message belongs to another workspace')
           result = await inboxRequest('context', { ...handle, offset: args.contextOffset ?? 0 })
@@ -2477,8 +2481,10 @@ Steps to execute:
       project.workspaceId, name, callerArgs, result, startedAt, undefined, loggedWorkSession,
     )
 
-    const human = [...(pendingFromResult ?? []), ...(await takeHumanMessages(project.workspaceId))]
-    const trailer = await canvasTrailer(project.workspaceId, call) + humanMessagesText(human)
+    await markToolPresence(project.workspaceId)
+    const connectionCheck = (call === 'await_canvas' || call === 'get_canvas_updates') && args.verifyOnly === true
+    const human = connectionCheck ? [] : [...(pendingFromResult ?? []), ...(await takeHumanMessages(project.workspaceId))]
+    const trailer = connectionCheck ? '' : await canvasTrailer(project.workspaceId, call) + humanMessagesText(human)
     return {
       ...(result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result as Record<string, unknown> } : {}),
       content: [{
@@ -2516,6 +2522,17 @@ Steps to execute:
 // not fill history, and they recover automatically after an Axiom/archd restart
 // or workspace database reset while this same agent process stays alive.
 let announcedWorkspace: string | null = null
+
+async function markToolPresence(workspaceId: string) {
+  try {
+    await fetch(`${API_BASE}/api/agent/presence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, connectionId, hostId: agentHostId, verifiedTool: true }),
+      signal: AbortSignal.timeout(2000),
+    })
+  } catch { /* the tool result still matters if the status indicator cannot update */ }
+}
 
 async function renewPresence() {
   let workspaceId: string

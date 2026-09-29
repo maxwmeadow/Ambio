@@ -110,6 +110,7 @@
 .axiom-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .axiom-inbox__signal { width: 6px; height: 6px; flex: none; border: 1px solid #8b9b8b; background: #aeb8a9; }
 .axiom-inbox__signal--live { border-color: #316f56; background: #5ca877; }
+.axiom-inbox__signal--online { border-color: #8d753c; background: #d1b56a; }
 .axiom-inbox__signal--configured { border-color: #8d753c; background: #d1b56a; }
 .axiom-inbox__signal--repair, .axiom-inbox__signal--unconfigured { border-color: #9c6b4e; background: #cf9275; }
 .axiom-inbox .axiom-inbox__handoff-status button { flex: none; color: #326a5c; text-decoration: underline; text-underline-offset: 2px; font: 700 9px var(--font-mono, monospace); }

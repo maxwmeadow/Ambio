@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AgentHostInfo } from '../../../electron/preload'
 
-type Connection = 'checking' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
+type Connection = 'checking' | 'online' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
 
 export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: {
   workspaceId: string
@@ -21,7 +21,7 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
         if (!response.ok) throw new Error('Presence unavailable')
         const presence = await response.json() as {
           connected?: boolean
-          connections?: Array<{ hostId: string }>
+          connections?: Array<{ hostId: string; lastToolAt?: number }>
         }
         if (!active) return
         const liveId = presence.connections?.find(item => item.hostId !== 'unknown')?.hostId
@@ -35,8 +35,12 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
           counts.set(label, (counts.get(label) ?? 0) + 1)
         }
         const hostSummary = [...counts].map(([label, count]) => count > 1 ? `${label} ×${count}` : label).join(', ')
-        setLiveDescription(`${presence.connections?.length ?? 0} MCP process${presence.connections?.length === 1 ? '' : 'es'} connected${hostSummary ? ` · ${hostSummary}` : ''}`)
-        setConnection(presence.connected ? 'live' : installedHost ? 'configured' : configuredHost ? 'repair' : 'unconfigured')
+        const verified = (presence.connections ?? []).filter(item => (item.lastToolAt ?? 0) > 0).length
+        const total = presence.connections?.length ?? 0
+        setLiveDescription(verified
+          ? `Axiom tool access verified · ${verified}/${total} connections${hostSummary ? ` · ${hostSummary}` : ''}`
+          : `${total} MCP process${total === 1 ? '' : 'es'} online · Run tool check${hostSummary ? ` · ${hostSummary}` : ''}`)
+        setConnection(presence.connected ? (verified ? 'live' : 'online') : installedHost ? 'configured' : configuredHost ? 'repair' : 'unconfigured')
       } catch {
         if (active) setConnection('unavailable')
       }
@@ -46,7 +50,7 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
     return () => { active = false; clearInterval(timer) }
   }, [workspaceId, projectRoot])
 
-  const status = connection === 'live' ? liveDescription
+  const status = connection === 'live' || connection === 'online' ? liveDescription
     : connection === 'configured' ? `${hostLabel || 'Agent'} configured · not connected`
       : connection === 'repair' ? `${hostLabel || 'Agent'} setup needs repair`
         : connection === 'unconfigured' ? 'No known local agent setup'

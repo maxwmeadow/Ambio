@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { commandKind, presentAgentHost } from './connectAgentPresentation.ts'
+import { commandKind, connectionCheckPrompt, presentAgentHost } from './connectAgentPresentation.ts'
 
 const host = overrides => ({
   id: 'codex',
@@ -37,4 +37,11 @@ test('each harness invocation is described by its actual syntax', () => {
   assert.equal(commandKind('/axiom-map'), 'slash command')
   assert.equal(commandKind('$axiom-map'), 'skill command')
   assert.equal(commandKind('Use the axiom-map skill'), 'instruction')
+})
+
+test('connection check names the exact project and avoids claiming work', () => {
+  const prompt = connectionCheckPrompt({ id: 'workspace-42', name: 'Draft', rootPath: '/tmp/draft' })
+  assert.match(prompt, /get_inbox with verifyOnly true and expectedWorkspaceId "workspace-42"/)
+  assert.match(prompt, /Do not claim or work on any request/)
+  assert.match(prompt, /\/tmp\/draft/)
 })

@@ -45,9 +45,15 @@ connected agent. No hook, slash-command convention, or permanent polling loop is
 
 After a send, the request card exposes its ID and a copyable project-named prompt
 to paste into the agent's own chat. **Connections** reopens setup without leaving the
-project. The signal distinguishes an MCP process currently connected, a configuration
-found on disk but not connected, an incomplete installer workflow, and unavailable
-status. A live MCP connection is not evidence that the model has read a message; only
+project. The signal distinguishes an MCP process currently online from one that has
+successfully called an Axiom tool in this workspace. A configuration found on disk,
+an incomplete installer workflow, and unavailable status have separate states.
+Blank-project setup provides a copyable `get_inbox({verifyOnly: true,
+expectedWorkspaceId: "…"})` check and opens the canvas after the selected host
+completes it. The check returns `inboxReady` without claiming a work order or
+consuming queued human messages. Verification lasts only for that process's live
+presence lease; a new process must make its own tool call. A verified MCP connection
+is not evidence that the model has read a message; only
 the message's **Picked up** state indicates a claim. Neither state proves ongoing code
 work. Agents can use `start_work`/`update_work` to make substantial work visible in
 Morning Delta and on the original request card, while normal indexing updates
@@ -99,6 +105,9 @@ every requirement. Reopening does not stop an external agent already editing fil
   bound workspace. `get_inbox()` claims at most one legacy/open instruction. The same
   connector gets its existing live claim back and renews it. Other connectors cannot
   claim that instruction until its lease expires. An empty open queue returns immediately.
+- `get_inbox({verifyOnly: true, expectedWorkspaceId})` checks the bound workspace and
+  returns `inboxReady`, workspace identity, connection ID, and host ID without claiming
+  work. A check cannot include a `messageId` or `messageHandle`.
 - Responses include `protocolVersion`, explicit workspace identity/root, selected targets
   (type, ID, original label), claim expiry, and an opaque `messageHandle`.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
