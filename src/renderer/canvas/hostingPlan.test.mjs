@@ -54,7 +54,7 @@ test('frames open around their contents, inside out, and move aside rather than 
   assert.equal(byId.get('fly').parentNodeId, null)
   assert.ok(byId.get('docker_api').width > 600, 'the container is sized to hold the system')
   assert.ok(byId.get('fly').width > byId.get('docker_api').width, 'the platform is sized to hold the container')
-  assert.ok(Math.abs(byId.get('fly').positionX - 1000) < 80, 'the frame opens where the code already was')
+  assert.ok(Math.abs(byId.get('fly').positionX - 1000) < 160, 'the frame opens where the code already was, less its two layers of margin')
 
   const blocked = arrangeHosting('fly', plan, current, [{ x: 900, y: 300, width: 900, height: 700 }])
   const fly = blocked.find(row => row.nodeId === 'fly')

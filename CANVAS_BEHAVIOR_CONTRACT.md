@@ -165,6 +165,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Only hosting infrastructure (platforms, containers) is on the Floor, as
   frames that hold the systems they run. Everything code talks to lives in
   the infrastructure sidebar on the canvas's left edge.
+- The sidebar opens and closes from one thin tab at mid-height that rides its
+  edge. Adding infrastructure starts from the sidebar's "+ Add"; the toolbar
+  has no infra button.
 - Detected infrastructure is proposed and waits at the top of the sidebar
   until it is confirmed or dismissed. Dismissal is sticky.
 - A confirmed platform arranges its hosted systems once (containers inside

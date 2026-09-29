@@ -170,8 +170,10 @@ good automatic place for a database on a map of code, so it is not on the map.
 
 - **The rule.** Infra that runs your code is a frame on the canvas. Infra your
   code talks to lives in the sidebar.
-- **Sidebar.** Collapsed, a tab at mid-height on the canvas's left edge with the
-  count, "N new" for proposals and a mark when a contract looks wrong.
+- **Sidebar.** One thin tab at mid-height opens and closes it: on the canvas's
+  left edge when closed (with a single dot - amber when something looks
+  wrong, green for new finds), on the sidebar's edge when open. "+ Add" in the
+  sidebar header opens the catalogue; the toolbar's Add infra button is gone.
   Expanded, rows grouped by role (Data, Messaging and jobs, Services,
   Observability, Hosting) with users and gaps; proposals sit at the top under
   "Found in your code" with Confirm / Dismiss / Confirm all. It replaced the

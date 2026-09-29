@@ -7,6 +7,7 @@ import { useRegistryStore } from '../store/registryStore'
 import { CATEGORY_GLYPHS } from '../canvas/nodes/infraIcons'
 import { ROLE_LABEL, fileName, readDetectedBy } from '../canvas/infraRoles'
 import { infraLinks } from '../canvas/infraLinks'
+import { CreateInfraDialog } from './CreateInfraDialog'
 
 /**
  * The infrastructure sidebar (INFRA_LAYER_PLAN.md, "Canvas placement").
@@ -46,6 +47,7 @@ export function InfraSidebar() {
   const services = useRegistryStore(s => s.byId)
   const { fitView } = useReactFlow()
   const [busy, setBusy] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const listed = useMemo(() => infraNodes.filter(node => node.status !== 'dismissed'), [infraNodes])
@@ -194,33 +196,37 @@ export function InfraSidebar() {
     )
   }
 
+  // One thin tab on the sidebar's edge opens and closes it, and stays at the
+  // same height either way. Collapsed, a single dot says there is something
+  // to look at: amber when something looks wrong, green for new finds.
+  const alert = [...facts.gaps.keys()].some(id => confirmed.some(node => node.id === id))
+  const tab = (
+    <button
+      key={`tab-${pulse}`}
+      type="button"
+      className="axiom-infra-sidebar-tab"
+      data-open={open || undefined}
+      data-arriving={pulse > 0 || undefined}
+      onClick={() => setOpen(!open)}
+      aria-label={open ? 'Close infrastructure' : 'Open infrastructure'}
+      aria-expanded={open}
+      title={open ? 'Close infrastructure (Shift+Cmd+E)'
+        : `Infrastructure${proposals.length ? ` · ${proposals.length} new` : ''}${alert ? ' · something looks wrong' : ''} (Shift+Cmd+E)`}
+    >
+      <span className="axiom-infra-sidebar-tab__chevron" aria-hidden="true">{open ? '‹' : '›'}</span>
+      {!open && <span className="axiom-infra-sidebar-tab__label">Infrastructure</span>}
+      {!open && (alert || proposals.length > 0) && (
+        <span className="axiom-infra-sidebar-tab__dot" data-kind={alert ? 'alert' : 'new'} aria-hidden="true" />
+      )}
+    </button>
+  )
+
   if (!open) {
-    const alert = [...facts.gaps.keys()].some(id => confirmed.some(node => node.id === id))
     return (
-      <button
-        key={`tab-${pulse}`}
-        type="button"
-        className="axiom-infra-sidebar-tab"
-        data-arriving={pulse > 0 || undefined}
-        onClick={() => setOpen(true)}
-        aria-label="Open infrastructure"
-        aria-expanded={false}
-        title="Infrastructure (Shift+Cmd+E)"
-      >
-        <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth="1.8"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <ellipse cx="12" cy="6" rx="7" ry="2.6" />
-          <path d="M5 6v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6" />
-          <path d="M5 12v6c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-6" />
-        </svg>
-        <span className="axiom-infra-sidebar-tab__label">Infrastructure</span>
-        <span className="axiom-infra-sidebar-tab__count">{confirmed.length}</span>
-        {proposals.length > 0 && (
-          <span className="axiom-infra-sidebar-tab__new" title={`${proposals.length} found, not confirmed`}>{proposals.length} new</span>
-        )}
-        {alert && <span className="axiom-infra-sidebar-tab__alert" title="Something in the infrastructure looks wrong">!</span>}
-        <span className="axiom-infra-sidebar-tab__arrow" aria-hidden="true">›</span>
-      </button>
+      <>
+        {tab}
+        <CreateInfraDialog isOpen={adding} onClose={() => setAdding(false)} />
+      </>
     )
   }
 
@@ -234,6 +240,7 @@ export function InfraSidebar() {
   const selected = selectedInfraId ? listed.find(node => node.id === selectedInfraId) : undefined
 
   return (
+    <>
     <aside className="axiom-infra-sidebar" aria-label="Infrastructure">
       <header className="axiom-infra-sidebar__header">
         <div>
@@ -243,8 +250,8 @@ export function InfraSidebar() {
             {proposals.length > 0 ? ` · ${proposals.length} to confirm` : ''}
           </p>
         </div>
-        <button type="button" className="axiom-infra-sidebar__close" onClick={() => setOpen(false)}
-          aria-label="Close infrastructure" title="Close (Shift+Cmd+E)">‹</button>
+        <button type="button" className="axiom-infra-sidebar__add" onClick={() => setAdding(true)}
+          title="Add a database, queue, API or host">+ Add</button>
       </header>
       <div className="axiom-infra-sidebar__list">
         {error && <p className="axiom-infra-sidebar__error" role="alert">{error}</p>}
@@ -295,6 +302,9 @@ export function InfraSidebar() {
             : 'Select one to see what uses it, or select a system to see what it uses.'}
       </footer>
     </aside>
+    {tab}
+    <CreateInfraDialog isOpen={adding} onClose={() => setAdding(false)} />
+    </>
   )
 }
 

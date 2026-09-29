@@ -1893,8 +1893,10 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(agentDialog).toHaveCount(0)
 })
 
-test('opens the categorized infrastructure browser from the toolbar', async () => {
-  await page.getByRole('button', { name: 'Add infra' }).click()
+test('opens the categorized infrastructure browser from the infrastructure sidebar', async () => {
+  await expect(page.getByRole('button', { name: 'Add infra' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Open infrastructure' }).click()
+  await page.getByRole('complementary', { name: 'Infrastructure' }).getByRole('button', { name: '+ Add' }).click()
 
   const picker = page.getByRole('dialog', { name: 'Choose infrastructure' })
   await expect(picker).toBeVisible()
@@ -1946,6 +1948,8 @@ test('opens the categorized infrastructure browser from the toolbar', async () =
 
   await picker.getByRole('button', { name: 'Close infrastructure picker' }).click()
   await expect(picker).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close infrastructure' }).click()
+  await expect(page.getByRole('complementary', { name: 'Infrastructure' })).toHaveCount(0)
 })
 
 test('opens the workbench properties inspector without changing canvas selection behavior', async () => {

@@ -33,7 +33,7 @@ export interface HostingPlan {
 }
 
 /** Extra room inside a hosting frame, so nested frames read as layers. */
-const HOST_MARGIN = 20
+const HOST_MARGIN = 40
 
 /** Share of a system's files that must sit in a host's folder for it to be hosted there. */
 const MAJORITY = 0.6
@@ -174,7 +174,14 @@ export function arrangeHosting(
     }
     // Hosting frames get a margin beyond a system's packing so each layer of
     // nesting reads as its own boundary.
-    insets = { ...insets, left: insets.left + HOST_MARGIN, right: insets.right + HOST_MARGIN, bottom: insets.bottom + HOST_MARGIN }
+    // The frame's cut top-left corner and coloured edge need clearance too, or
+    // a nested frame's corner and tab crowd into them.
+    insets = {
+      left: insets.left + HOST_MARGIN,
+      right: insets.right + HOST_MARGIN,
+      bottom: insets.bottom + HOST_MARGIN,
+      top: insets.top + HOST_MARGIN / 2,
+    }
     const width = Math.max(320, packed.width + insets.left + insets.right)
     const height = Math.max(220, packed.height + insets.top + insets.bottom)
     sizes.set(frameId, { width, height })

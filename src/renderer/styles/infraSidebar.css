@@ -3,74 +3,57 @@
    map (INFRA_LAYER_PLAN.md, "Canvas placement"). Same drafting-board chrome
    as the Drawings rail: it is part of the workbench, not a sheet on it. */
 
+/* One thin tab on the sidebar's edge, at mid-height in both states: on the
+   canvas edge when closed, on the sidebar's edge when open. */
 .axiom-infra-sidebar-tab {
   position: absolute;
   left: 0;
   top: 50%;
-  z-index: 20;
+  z-index: 21;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px 6px 10px;
-  border: 1px solid #737d78;
+  width: 18px;
+  padding: 10px 0;
+  border: 1px solid #8d9690;
   border-left: 0;
   border-radius: 0 3px 3px 0;
-  background: linear-gradient(90deg, #e3e1d9, #efede5);
-  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.32), inset 0 1px #fff;
-  color: #2f5a53;
+  background: #ebe9e2;
+  box-shadow: 2px 2px 0 rgba(29, 35, 32, 0.22);
+  color: #3f5a54;
   font-family: var(--font-mono);
   cursor: pointer;
 }
-.axiom-infra-sidebar-tab:hover { background: #f4f2eb; color: #1d5048; }
+.axiom-infra-sidebar-tab[data-open] {
+  left: min(300px, 80%);
+  padding: 22px 0;
+}
+.axiom-infra-sidebar-tab:hover { background: #f6f4ee; color: #1d5048; }
 .axiom-infra-sidebar-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.axiom-infra-sidebar-tab__chevron { font-size: 13px; line-height: 1; }
 .axiom-infra-sidebar-tab__label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.axiom-infra-sidebar-tab__count {
-  min-width: 18px;
-  padding: 1px 4px;
-  border: 1px solid #a9b1ac;
-  background: #f7f6f1;
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-  color: #28332f;
-}
-.axiom-infra-sidebar-tab__new {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  padding: 4px 1px;
-  background: #2d625c;
-  color: #f2f7f4;
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: #66716c;
 }
-.axiom-infra-sidebar-tab__alert {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
+.axiom-infra-sidebar-tab__dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #c98a1a;
-  color: #fffaf0;
-  font-size: 10px;
-  font-weight: 800;
+  background: #3f8a6f;
 }
-.axiom-infra-sidebar-tab__arrow { font-size: 14px; line-height: 1; }
+.axiom-infra-sidebar-tab__dot[data-kind="alert"] { background: #c98a1a; }
 .axiom-infra-sidebar-tab[data-arriving] { animation: axiom-infra-tab-pulse 1.4s ease-out 1; }
 @keyframes axiom-infra-tab-pulse {
-  0% { box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.32), 0 0 0 0 rgba(45, 98, 92, 0.55); }
-  60% { box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.32), 0 0 0 10px rgba(45, 98, 92, 0); }
-  100% { box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.32), 0 0 0 0 rgba(45, 98, 92, 0); }
+  0% { box-shadow: 2px 2px 0 rgba(29, 35, 32, 0.22), 0 0 0 0 rgba(45, 98, 92, 0.55); }
+  60% { box-shadow: 2px 2px 0 rgba(29, 35, 32, 0.22), 0 0 0 8px rgba(45, 98, 92, 0); }
+  100% { box-shadow: 2px 2px 0 rgba(29, 35, 32, 0.22), 0 0 0 0 rgba(45, 98, 92, 0); }
 }
 
 .axiom-infra-sidebar {
@@ -96,7 +79,7 @@
 
 .axiom-infra-sidebar__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 12px 12px 10px 14px;
@@ -111,18 +94,20 @@
   text-transform: uppercase;
 }
 .axiom-infra-sidebar__header p { margin: 3px 0 0; font-size: 10px; color: #5f6b66; }
-.axiom-infra-sidebar__close {
-  width: 26px;
-  height: 26px;
-  border: 1px solid #989f9b;
+.axiom-infra-sidebar__add {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid #2d625c;
   border-radius: 2px;
-  background: linear-gradient(#f5f3ec, #d8d7cf);
-  color: #344b46;
-  font-size: 16px;
-  line-height: 1;
+  background: #2d625c;
+  color: #f2f7f4;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
 }
-.axiom-infra-sidebar__close:hover { background: #edf2ec; }
+.axiom-infra-sidebar__add:hover { background: #1d5048; }
+.axiom-infra-sidebar__add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .axiom-infra-sidebar__list {
   flex: 1;
