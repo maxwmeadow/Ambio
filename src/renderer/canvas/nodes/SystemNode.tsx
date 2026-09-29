@@ -6,6 +6,7 @@ import { useInfraService } from '../../store/registryStore'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
+import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
 import { AxiomNodeResizer } from './AxiomNodeResizer'
 import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
@@ -210,18 +211,6 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
   // and the cell tops; the title centers vertically inside the shorter band.
   const reservedGap = d.gridGap ?? Math.round(padY * 2 + titlePx * 1.25)
 
-  const handles = (
-    <>
-      <Handle id="source-top" type="source" position={Position.Top} {...connectionHandleProps(isConnectable, presentationScale, { top: -6 })} />
-      <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
-      <Handle id="source-bottom" type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale, { bottom: -6 })} />
-      <Handle id="source-left" type="source" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale, { left: -6 })} />
-      <Handle id="target-top" type="target" position={Position.Top} {...connectionHandleProps(isConnectable, presentationScale, { top: -6 })} />
-      <Handle id="target-right" type="target" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
-      <Handle id="target-bottom" type="target" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale, { bottom: -6 })} />
-      <Handle id="target-left" type="target" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale, { left: -6 })} />
-    </>
-  )
 
   // Folder silhouette (Rev 2b): the node outline IS the UML package shape -
   // tab across the top-left holding the title, body below. Proportional to
@@ -267,6 +256,33 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
   const chipXTopRight = chrome.chipTopRight
   const chipXBottomRight = chrome.chipBottomRight
   const tabGap = Math.max(1.5, tabH * 0.14)
+
+  // Lines meet the folder body, not the box: the top handles sit on the
+  // body's top edge, centred on the stretch the tab leaves exposed. On a box
+  // top they ended in the air beside the tab. Deployment boundaries have no
+  // tab and keep the plain box edge.
+  const folderTab = isDeploymentBoundary ? null : folderTabFromChrome(tabH, tabW, tabSlant, shellSize.w)
+  const topHandle = (type: 'source' | 'target') => {
+    const props = connectionHandleProps(isConnectable, presentationScale, { top: -6 })
+    return (
+      <Handle id={`${type}-top`} type={type} position={Position.Top} {...props}
+        style={folderTab
+          ? { ...props.style, top: folderTab.height - 1, left: folderTopAnchorX(folderTab, shellSize.w) }
+          : props.style} />
+    )
+  }
+  const handles = (
+    <>
+      {topHandle('source')}
+      <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
+      <Handle id="source-bottom" type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale, { bottom: -6 })} />
+      <Handle id="source-left" type="source" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale, { left: -6 })} />
+      {topHandle('target')}
+      <Handle id="target-right" type="target" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
+      <Handle id="target-bottom" type="target" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale, { bottom: -6 })} />
+      <Handle id="target-left" type="target" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale, { left: -6 })} />
+    </>
+  )
 
   const infraIdentityIcon = (size: number) => {
     if (!isDeploymentBoundary) return null

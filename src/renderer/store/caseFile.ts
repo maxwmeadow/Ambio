@@ -288,15 +288,73 @@ export function caseFromState(c: any): CaseFile | null {
   return base
 }
 
-/** Steps for the canvas's trace animation: the calls that crossed files. */
-export function traceStepsForRun(run: CaseRun, limit = 24) {
-  return run.calls.slice(0, limit).map(c => ({
+export interface RunTraceStep {
+  callerFile: string
+  callerSymbol: string
+  calleeFile: string
+  calleeSymbol: string
+  callCount: number
+  /** The callee is a function the run watched or a finding is about. */
+  focus?: boolean
+}
+
+const fnKey = (fileId: string, symbol: string) => `${fileId}\u0000${symbol}`
+
+/**
+ * The calls worth drawing for a run: how execution reached the functions the
+ * run was about, and what those functions called.
+ *
+ * A busy program crosses files hundreds of times, and the busiest crossings
+ * are plumbing (rounding, config lookups). Drawing the top N by count showed
+ * exactly those and buried the path to the watched function. The focus is
+ * every watched function plus every function a finding points at; the path
+ * walks back from it through callers, then one hop forward. A run with no
+ * focus, or one whose focus the recorded calls never reach, falls back to the
+ * busiest crossings.
+ */
+export function traceStepsForRun(run: Pick<CaseRun, 'calls'> & Partial<Pick<CaseRun, 'watched' | 'findings'>>, limit = 10): RunTraceStep[] {
+  const focus = new Set<string>()
+  for (const w of run.watched ?? []) {
+    if (w.anchor?.fileId && w.anchor.symbol) focus.add(fnKey(w.anchor.fileId, w.anchor.symbol))
+  }
+  for (const f of run.findings ?? []) {
+    if (f.severity !== 'info' && f.anchor?.fileId && f.anchor.symbol) focus.add(fnKey(f.anchor.fileId, f.anchor.symbol))
+  }
+  const toStep = (c: CaseCall): RunTraceStep => ({
     callerFile: c.fromFileId,
     callerSymbol: c.fromSymbol,
     calleeFile: c.toFileId,
     calleeSymbol: c.toSymbol,
     callCount: c.calls,
-  }))
+    ...(focus.has(fnKey(c.toFileId, c.toSymbol)) ? { focus: true } : {}),
+  })
+
+  const chosen: CaseCall[] = []
+  const taken = new Set<CaseCall>()
+  const reached = new Set(focus)
+  let frontier = new Set(focus)
+  for (let depth = 0; depth < 8 && frontier.size > 0; depth++) {
+    const next = new Set<string>()
+    for (const c of run.calls) {
+      if (taken.has(c) || !frontier.has(fnKey(c.toFileId, c.toSymbol))) continue
+      chosen.push(c)
+      taken.add(c)
+      const caller = fnKey(c.fromFileId, c.fromSymbol)
+      if (!reached.has(caller)) {
+        reached.add(caller)
+        next.add(caller)
+      }
+    }
+    frontier = next
+  }
+  for (const c of run.calls) {
+    if (!taken.has(c) && focus.has(fnKey(c.fromFileId, c.fromSymbol))) {
+      chosen.push(c)
+      taken.add(c)
+    }
+  }
+  if (chosen.length > 0) return chosen.slice(0, limit).map(toStep)
+  return [...run.calls].sort((a, b) => b.calls - a.calls).slice(0, limit).map(toStep)
 }
 
 /** One line a person can read: what the case has established so far. */

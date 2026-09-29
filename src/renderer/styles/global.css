@@ -1324,6 +1324,16 @@ a { color: var(--accent); text-decoration: none; }
   --accent-dim:  #2d625c;
   --accent-glow: rgba(60, 125, 118, 0.22);
 
+  /* Runtime ink: call paths and investigation runs. Blueprint blue, so a
+     run reads as annotation drawn onto the plan rather than as the plan's
+     own olive-teal structure; red and amber inks carry a finding's severity. */
+  --run-ink:       #2f5f8f;
+  --run-ink-focus: #1d4670;
+  --run-alert:     #b0412c;
+  --run-warn:      #9a6a12;
+  --trace-color:   var(--run-ink);
+  --trace-glow:    rgba(47, 95, 143, 0.28);
+
   --file-accent:  #6b736e;
   --infra-accent: #a06a34;
 
@@ -7932,4 +7942,124 @@ select.axiom-inspector-input {
   .axiom-case__live-dot,
   .axiom-case-chip__dot,
   .axiom-case__entry[data-kind="running"] .axiom-case__entry-label::after { animation: none; }
+}
+
+/* ─── Run trace overlay ───────────────────────────────────────────────────── */
+/* Lines are world-space curves with a constant screen stroke; labels and
+   callouts are counter-scaled so they stay the same screen size at every
+   zoom. See RunTraceOverlay.tsx. */
+.axiom-run-trace {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2147482000;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.axiom-run-trace__casing {
+  fill: none;
+  stroke: var(--bg-surface);
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.axiom-run-trace__stroke {
+  fill: none;
+  stroke: var(--run-ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 7 5;
+  animation: axiomRunTraceFlow 0.9s linear infinite;
+}
+
+.axiom-run-trace__line--focus .axiom-run-trace__casing { stroke-width: 7; }
+.axiom-run-trace__line--focus .axiom-run-trace__stroke {
+  stroke: var(--run-ink-focus);
+  stroke-width: 2.6;
+  stroke-dasharray: none;
+  animation: none;
+}
+
+.axiom-run-trace__arrow { fill: var(--run-ink); }
+.axiom-run-trace__arrow--focus { fill: var(--run-ink-focus); }
+
+@keyframes axiomRunTraceFlow {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.axiom-run-trace__label,
+.axiom-run-callout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  z-index: 2147482001;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--run-ink-focus);
+  box-shadow: 0 1px 0 rgba(40, 51, 47, 0.12), 0 4px 14px rgba(40, 51, 47, 0.16);
+}
+
+.axiom-run-trace__label {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--run-ink-focus);
+}
+
+.axiom-run-callout {
+  box-sizing: border-box;
+  padding: 6px 9px 7px 11px;
+  border-left-width: 3px;
+  border-color: color-mix(in srgb, var(--run-ink-focus) 45%, var(--border-dim));
+  border-left-color: var(--run-ink-focus);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.axiom-run-callout--alert { border-left-color: var(--run-alert); }
+.axiom-run-callout--warn  { border-left-color: var(--run-warn); }
+
+.axiom-run-callout__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.axiom-run-callout__symbol {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.axiom-run-callout__file {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.axiom-run-callout__count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.axiom-run-callout--alert .axiom-run-callout__file {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.axiom-run-callout__count { color: var(--run-alert); }
+
+.axiom-run-callout__text {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .axiom-run-trace__stroke { animation: none; }
 }

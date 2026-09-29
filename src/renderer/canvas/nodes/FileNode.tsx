@@ -184,7 +184,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     : verdict === 'pass' ? '#22c55e'
     : runtime?.lastKind === 'exception' ? '#ef4444'
     : runtime?.rateLimited ? '#f59e0b'
-    : '#22d3ee'
+    : 'var(--run-ink-focus)'
   const livingRevealColor = livingSignal.fx?.kind === 'enter' || livingSignal.fx?.kind === 'flow-add'
     ? '#2fa35d'
     : livingSignal.fx?.kind === 'exit' || livingSignal.fx?.kind === 'flow-remove'
@@ -606,7 +606,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               filteredSymbols.map((sym, idx) => {
                 const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
                 const isSymPerturbed = perturbedSymbols.has(sym.name)
-                const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? '#22d3ee' : 'var(--text-primary)'
+                const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? 'var(--run-ink-focus)' : 'var(--text-primary)'
 
                 return (
                   <div
@@ -908,14 +908,13 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             padding: '0 4px',
             borderRadius: 0,
             background: runtimeColor,
-            color: '#0a0d14',
+            color: '#fff',
             fontSize: 9,
             fontWeight: 800,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontFamily: 'var(--font-mono)',
-            boxShadow: '0 0 8px rgba(34,211,238,0.5)',
             zIndex: 10,
           }}
         >

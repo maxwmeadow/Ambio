@@ -58,6 +58,8 @@ export interface CallTraceStep {
   calleeFile: string
   calleeSymbol: string
   callCount: number
+  /** The callee is what the query or run is about; drawn with emphasis. */
+  focus?: boolean
 }
 
 export type LivingRelationshipFx = LivingRelationshipChange & {

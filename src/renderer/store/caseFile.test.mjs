@@ -85,9 +85,55 @@ test('a window opening mid-investigation rebuilds the story in time order', () =
   assert.equal(caseFromState(null), null)
 })
 
-test('a run animates the calls that crossed files', () => {
+test('with nothing in focus, a run draws its busiest crossings', () => {
   const steps = traceStepsForRun({
-    calls: [{ fromFileId: 'a', fromSymbol: 'checkout', toFileId: 'b', toSymbol: 'quote', calls: 48 }],
+    calls: [
+      { fromFileId: 'a', fromSymbol: 'checkout', toFileId: 'b', toSymbol: 'quote', calls: 48 },
+      { fromFileId: 'a', fromSymbol: 'checkout', toFileId: 'c', toSymbol: 'log', calls: 900 },
+    ],
+  }, 1)
+  assert.deepEqual(steps, [{ callerFile: 'a', callerSymbol: 'checkout', calleeFile: 'c', calleeSymbol: 'log', callCount: 900 }])
+})
+
+// The shape of the ledgerly run: plumbing dominates the counts, and the
+// watched function sits two callers below the entry point.
+const call = (from, fromSymbol, to, toSymbol, calls) => ({ fromFileId: from, fromSymbol, toFileId: to, toSymbol, calls })
+const ledgerly = {
+  calls: [
+    call('pipeline', 'runPipeline', 'registry', 'ruleById', 410),
+    call('issue', 'issueInvoice', 'money', 'roundCents', 328),
+    call('price', 'priceUsage', 'rating', 'rateLine', 292),
+    call('price', 'priceUsage', 'terms', 'effectivePricing', 82),
+    call('issue', 'issueInvoice', 'price', 'priceUsage', 82),
+    call('batch', 'main', 'issue', 'issueInvoice', 1),
+    call('terms', 'effectivePricing', 'config', 'pricingConfig', 82),
+  ],
+  watched: [{ anchor: { fileId: 'terms', symbol: 'effectivePricing' }, calls: 82, errors: 0 }],
+  findings: [],
+}
+
+test('a run draws how execution reached the watched function, not the busiest calls', () => {
+  const steps = traceStepsForRun(ledgerly)
+  const drawn = steps.map(s => `${s.callerSymbol}>${s.calleeSymbol}`)
+  assert.deepEqual(drawn, [
+    'priceUsage>effectivePricing',
+    'issueInvoice>priceUsage',
+    'main>issueInvoice',
+    'effectivePricing>pricingConfig',
+  ])
+  assert.deepEqual(steps.filter(s => s.focus).map(s => s.calleeSymbol), ['effectivePricing'])
+})
+
+test('a finding puts its function in focus even when nothing was watched', () => {
+  const steps = traceStepsForRun({
+    ...ledgerly,
+    watched: [],
+    findings: [{ kind: 'drift', severity: 'high', text: 'x', anchor: { fileId: 'rating', symbol: 'rateLine' } }],
   })
-  assert.deepEqual(steps, [{ callerFile: 'a', callerSymbol: 'checkout', calleeFile: 'b', calleeSymbol: 'quote', callCount: 48 }])
+  assert.deepEqual(steps.map(s => s.calleeSymbol), ['rateLine', 'priceUsage', 'issueInvoice'])
+})
+
+test('a focus the recorded calls never reach falls back to the busiest crossings', () => {
+  const steps = traceStepsForRun({ ...ledgerly, watched: [{ anchor: { fileId: 'x', symbol: 'nowhere' }, calls: 0, errors: 0 }] }, 2)
+  assert.deepEqual(steps.map(s => s.calleeSymbol), ['ruleById', 'roundCents'])
 })
