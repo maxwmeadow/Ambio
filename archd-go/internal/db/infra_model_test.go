@@ -206,3 +206,29 @@ func TestHostingASystemInAPlatformIsADeployment(t *testing.T) {
 		t.Fatalf("the agent's record is never withdrawn by the canvas: %v", got)
 	}
 }
+
+func TestReindexingAFileKeepsItsInfraRelationships(t *testing.T) {
+	database, node := infraWorkspace(t)
+	agentEdge := edge(node, "repo", "WRITES", "bookings", "confirmed")
+	agentEdge.CreatedBy = "agent"
+	importEdge := Dependency{WorkspaceID: "ws", Src: "repo", Dst: "adapter", SrcType: "file", DstType: "file", DependencyType: "IMPORTS", CreatedBy: "parser"}
+	for _, dep := range []Dependency{agentEdge, importEdge} {
+		if err := UpsertDependency(database, dep); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// What the indexer does before rebuilding a saved file's imports.
+	if err := DeleteOutgoingDependenciesByFile(database, "repo"); err != nil {
+		t.Fatal(err)
+	}
+	edges, _ := GetInfraEdges(database, "ws")
+	if len(edges) != 1 {
+		t.Fatalf("saving repo.ts must not erase what it writes: %+v", edges)
+	}
+	all, _ := GetDependencies(database, "ws")
+	for _, d := range all {
+		if d.DependencyType == "IMPORTS" {
+			t.Fatalf("the parser's import is rebuilt from the parse, so it is cleared: %+v", d)
+		}
+	}
+}

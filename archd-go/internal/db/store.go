@@ -1139,7 +1139,10 @@ func DeleteDependency(db *sql.DB, id string) error {
 // file being reparsed. Inbound edges belong to their own source files and must
 // survive a target-file edit.
 func DeleteOutgoingDependenciesByFile(db *sql.DB, fileID string) error {
-	_, err := db.Exec(`DELETE FROM dependencies WHERE src=?`, fileID)
+	// Only the parser's own file-to-file imports are rebuilt from a parse.
+	// Relationships to infra, and anything an agent or person recorded, are
+	// not derived from this file's text and must survive every save.
+	_, err := db.Exec(`DELETE FROM dependencies WHERE src=? AND dst_type='file' AND created_by='parser'`, fileID)
 	return err
 }
 
