@@ -1,20 +1,44 @@
 # Axiom
 
-Axiom is a local-first architecture workbench for understanding and shaping codebases with AI agents. It indexes source code into a structured graph, displays that graph on an interactive canvas, and exposes the same architecture to coding agents through MCP.
+**See your entire codebase. Steer what your agents build.**
 
-Humans and agents work against the same model: an agent can propose systems and file placement, while the user reviews, rearranges, resizes, renests, approves, or sends branches back before the proposal becomes canonical.
+Axiom is a local-first architecture workbench for developers working with AI
+coding agents. It reads your code into a live map of systems, files and the
+relationships between them, and gives your agents the same map through MCP.
+You and your agents look at, and change, one shared picture of the project.
 
-> Axiom is currently under active development. Expect product and setup details to change.
+<!-- Hero: a short GIF or video of the Floor, a sheet sent to an agent, and
+     the review of what it built goes here, before anything else. -->
+
+> Axiom is in active development and has not had a stable release yet. Expect
+> things to change, and please [report what breaks](https://github.com/maxwmeadow/Axiom/issues).
+
+[Install](#install) · [How it works](#how-it-works) · [Your data](#your-data) ·
+[Uninstall](#uninstall) · [Development](#development-setup) ·
+[Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md)
 
 ## What it does
 
-- Indexes supported source files and extracts structural relationships.
-- Organizes files into nested semantic systems rather than treating folders as architecture.
-- Provides an interactive canvas with selection, movement, resize, nesting, collision handling, semantic zoom, and tidy layout.
-- Lets connected agents inspect and propose architecture through MCP.
-- Presents architecture proposals on the same canvas behavior used by the live workbench.
-- Keeps readable project documentation searchable in a separate Documents panel.
-- Stores workspace and architecture state locally in SQLite.
+- **A live map of your code.** Files are grouped into nested systems by what
+  they do, not by folder, and the map updates as files change, whether you or
+  an agent changed them.
+- **Your agents see the same map.** Claude Code, Codex, Copilot, Cursor and
+  other MCP agents can ask Axiom where things are and what depends on what,
+  and propose how the code should be organised. You review a proposal on the
+  canvas and approve it, rearrange it or send parts back.
+- **Plan on the canvas, then hand it off.** Sketch a feature on a sheet laid
+  over the map and send it to an agent as a work order. Axiom checks what the
+  agent built against the plan and shows you the differences.
+- **Review what changed.** Review Changes shows what moved in the
+  architecture since you last looked, instead of a forty-file diff.
+- **Infrastructure in view.** Databases, queues, caches, external APIs and
+  hosting are detected from code and config. They sit in a sidebar and draw
+  their connections onto the map when selected; what runs your code is shown
+  as frames around the systems it hosts.
+- **Keyboard first.** A command palette (`⇧⌘P` / `Ctrl+Shift+P`) reaches every
+  command; `⌘/` / `Ctrl+/` lists the shortcuts.
+- **Local.** Maps, layouts and history live on your computer. There is no
+  account, no analytics, and your code is never uploaded.
 
 ## Install
 
@@ -45,7 +69,7 @@ an `axiom://open?path=/absolute/path` link.
 Everything Axiom knows about your code stays on your machine - see
 [PRIVACY.md](PRIVACY.md).
 
-## Project workflow
+## How it works
 
 1. Open a codebase in Axiom.
 2. Review which folders and files belong in the index.
@@ -68,6 +92,28 @@ The currently supported installers are:
 
 The mapping command is harness-dependent. For example, Codex uses `$axiom-map`, Claude Code uses `/axiom-map`, and Antigravity uses its installed `axiom-map` skill. The setup screen always shows the correct instruction for the selected harness.
 
+Agents keep working when the Axiom window is closed: Axiom's background
+service starts when an agent needs it and stops again when it has been idle.
+
+## Your data
+
+Everything lives in `~/.axiom` (`%USERPROFILE%\.axiom` on Windows):
+project maps and their history in `data/`, logs in `logs/`, settings in
+`settings.json`. Axiom never changes your code unless an agent you connected
+does.
+
+- **Backups.** Axiom keeps a daily copy of each project's map for a week.
+  Restore one from Project Settings → Map backups.
+- **Recently Deleted.** A deleted map can be restored from the launcher for
+  30 days.
+- **Moving computers.** File → Export Map saves a project's map to a
+  `.axiommap` file; File → Import Map opens it on another computer and asks
+  where the code lives there. Backups sit next to the map, so exporting is
+  also the way to keep a copy somewhere else.
+- **Moved a folder?** Axiom notices and asks where it went; the map follows.
+- **Something wrong?** Report a bug and Copy diagnostics are on the launcher
+  and in the Help menu. Diagnostics list versions and settings, never code.
+
 ## File policy
 
 Architecture indexing currently supports:
@@ -87,6 +133,22 @@ Readable documentation is indexed separately from the architecture canvas:
 
 Binary media, PDFs, images, generated output, dependencies, and unknown formats are skipped. PDFs will remain unsupported until Axiom has a real text-extraction pipeline.
 
+## Uninstall
+
+1. **Disconnect your agents** - Settings → Agents → Remove Axiom from all
+   agents. This removes only Axiom's entry and the workflow files it added.
+2. **Delete Axiom's data** (optional) - Settings → Privacy & Data → Delete all
+   Axiom data, or delete `~/.axiom` yourself while Axiom is closed.
+3. **Remove the app:**
+   - **macOS** - quit Axiom and drag it from Applications to the Trash.
+   - **Windows** - Settings → Apps → Installed apps → Axiom → Uninstall.
+   - **Linux** - delete the AppImage.
+4. If you installed the `axiom` command, delete the `axiom` link it made (in
+   `~/.local/bin`, `~/bin`, `/opt/homebrew/bin` or `/usr/local/bin`), or on
+   Windows remove `%USERPROFILE%\.axiom\bin` from your PATH.
+
+Your code is not touched by any of these steps.
+
 ## Architecture
 
 Axiom has three main runtime pieces:
@@ -95,9 +157,9 @@ Axiom has three main runtime pieces:
 - `archd-go` - Go daemon responsible for indexing, parsing, persistence, HTTP APIs, and WebSocket updates.
 - `mcp` - MCP server that translates agent requests into operations against the local daemon.
 
-The Electron main process starts the desktop application and bundled daemon. By default, archd exposes its local HTTP API on port `7743` and WebSocket updates on port `7744`. Application data is stored beneath `~/.axiom`, with the primary database under `~/.axiom/data`.
+The Electron main process starts the desktop application and bundled daemon. archd prefers port `7743` for its local HTTP API and `7744` for WebSocket updates, and moves to free ports when another program holds them; the ports in use are published in `~/.axiom/data/daemon.json`. Every request needs the token in `~/.axiom/data/api-token`, and archd only answers on loopback - see [SECURITY.md](SECURITY.md). Each project's map is its own SQLite database under `~/.axiom/data/<project id>/`.
 
-More detailed references are available in [ARCHITECTURE.md](ARCHITECTURE.md), [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md), and [MCP_SURFACE.md](MCP_SURFACE.md).
+More detailed references are available in [ARCHITECTURE.md](ARCHITECTURE.md), [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md), [MCP_SURFACE.md](MCP_SURFACE.md) and [INFRA_LAYER_PLAN.md](INFRA_LAYER_PLAN.md). Launch readiness and product decisions are tracked in [docs/LAUNCH.md](docs/LAUNCH.md).
 
 ## Development setup
 
@@ -149,6 +211,9 @@ npm run test:renderer
 
 # Go daemon tests
 npm run test:archd
+
+# Third-party license check (AGPL compatibility)
+npm run notices -- --check
 
 # MCP end-to-end tests
 npm run test:mcp

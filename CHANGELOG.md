@@ -31,12 +31,20 @@ in the app as "What's New" after updating, so write it for users.
 - Automatic daily backups of every map, with Restore in Project Settings.
 - Export a project's map to a file and import it on another computer
   (File → Export Map, Import Map).
+- Infrastructure (databases, queues, caches, external APIs, hosting) is
+  detected from code and config and shown in a sidebar; hosting appears as
+  frames around the systems it runs.
+- Send a sheet to an agent as a work order, and review what it built
+  against the plan.
 
 ### Changed
 - Axiom runs its agent connection on its own bundled runtime; Node.js no
   longer needs to be installed.
 - Unlimited projects, with a short recent list and "Show all".
 - Files over 1 MB and minified files are no longer indexed.
+- Map shortcuts: Fit `⌘0`, Zoom `⌘=` / `⌘-`, Tidy Layout `⇧⌘L`,
+  Infrastructure `⇧⌘E` (Ctrl on Windows and Linux). Interface zoom moved to
+  `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
 - Edits made while Axiom was closed could be missed when a file's timestamp

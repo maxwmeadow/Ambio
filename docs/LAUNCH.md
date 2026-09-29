@@ -309,7 +309,7 @@ Keyboard accelerators then work everywhere.
 - ⬜ `CODE_OF_CONDUCT.md` (needs a contact address for reports)
 - ✅ Secret scan of full git history (124 commits, 2026-09-29): no keys, tokens, private keys, env files or databases found. One manual test script hard-coded a personal Windows path; it now uses env vars / the checkout path. Re-run before flipping the repo public.
 - ✅ README install section: per-OS steps including unsigned-app warnings, updates, privacy link
-- ⬜ README hero: GIF/video first
+- ✅ README rewritten for users (what it does, your data, uninstall, docs links); ⬜ hero GIF/video still to record (placeholder comment at the top)
 - ✅ Release workflow publishes tagged builds to a draft GitHub Release with `latest*.yml`; fails fast if the tag and `package.json` version differ
 - ⬜ The two macOS jobs (arm64, x64) each write `latest-mac.yml`; merge them (or build universal) before macOS auto-install is switched on
 - ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
@@ -392,7 +392,7 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 ### Leaving
 - ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
 - ✅ Settings → Privacy & Data → Delete all Axiom data (native confirmation, stops archd, restarts fresh)
-- ⬜ Document uninstall per OS in the README
+- ✅ Uninstall per OS documented in the README
 
 ## 7. Design notes (not built)
 
