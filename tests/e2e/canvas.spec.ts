@@ -196,7 +196,7 @@ test.beforeEach(async () => {
   await page.reload()
   await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
-  await expect(page.locator('.axiom-zoom-indicator')).toBeVisible()
+  await expect(page.locator('.axiom-canvas-minimap')).toBeVisible()
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
   // Measure interactions only after both have reached their authored frame.
   await expect(page.locator('.layout-transition')).toHaveCount(0)
@@ -206,6 +206,10 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await app?.close()
 })
+
+/** The canvas zoom, read from React Flow's viewport transform. */
+const canvasZoom = () => page.locator('.react-flow__viewport')
+  .evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
 
 test('renders the deterministic Floor baseline', async () => {
   await expect(page.locator('.react-flow')).toHaveScreenshot('floor-baseline.png')
@@ -310,10 +314,7 @@ test('defers and virtualizes an 805-file fresh-project overview', async () => {
     return state.files.length
   })).toBe(805)
   await expect.poll(() => page.locator('.react-flow__node').count()).toBeLessThanOrEqual(24)
-  await expect.poll(async () => {
-    const label = await page.locator('.axiom-zoom-indicator').getAttribute('aria-label')
-    return Number(label?.match(/[\d.]+/)?.[0] ?? Number.POSITIVE_INFINITY)
-  }).toBeLessThanOrEqual(0.12)
+  await expect.poll(canvasZoom).toBeLessThanOrEqual(0.12)
 })
 
 test('keeps repeated hidden-node flows above every canvas node without clearing the scene', async () => {
@@ -869,13 +870,14 @@ test('keeps documentation in its library and off the architecture canvas', async
 
 test('uses two-step agent setup for blank projects without changing codebase setup', async () => {
   let agentConnected = true
+  let agentVerified = false
   await page.route(/\/api\/agent\/presence\?/, route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
       connected: agentConnected,
       connections: agentConnected
-        ? [{ connectionId: 'connection-e2e', hostId: 'codex', lastSeenAt: Date.now() }]
+        ? [{ connectionId: 'connection-e2e', hostId: 'codex', lastSeenAt: Date.now(), lastToolAt: agentVerified ? Date.now() : 0 }]
         : [],
     }),
   }))
@@ -921,11 +923,17 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await steps.getByText('Connect').click()
   await expect(page.getByRole('heading', { name: /Connect/ })).toBeVisible()
   expect(await readStableFrame()).toEqual(firstFrame)
-  await expect(page.getByText('Live connection confirmed')).toBeVisible()
+  await expect(page.getByText('Waiting for the agent to verify Axiom tools')).toBeVisible()
   const openCanvas = page.getByRole('button', { name: /Open canvas/ })
+  await expect(openCanvas).toBeDisabled()
+  await page.getByRole('button', { name: 'Copy check' }).click()
+  const checkPrompt = await page.evaluate(() => navigator.clipboard.readText())
+  expect(checkPrompt).toContain('verifyOnly true')
+  expect(checkPrompt).toContain('expectedWorkspaceId "demo"')
+  agentVerified = true
+  await expect(page.getByText('Inbox access verified')).toBeVisible({ timeout: 5_000 })
   await expect(openCanvas).toBeEnabled()
   await openCanvas.click()
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('agent_setup_completed_demo'))).toBe('true')
   await expect(page.locator('button button')).toHaveCount(0)
 
   const cardBox = await card.boundingBox()
@@ -1719,37 +1727,39 @@ test('opens saved investigations and controls replay through the workbench trans
 })
 
 test('keeps canvas utility chrome screen-sized, legible, and interactive', async () => {
-  const tidy = page.getByRole('button', { name: 'Tidy Layout' })
-  const controls = page.locator('.axiom-canvas-controls')
-  const controlButtons = controls.locator('.react-flow__controls-button')
   const minimap = page.locator('.axiom-canvas-minimap')
-  const zoom = page.locator('.axiom-zoom-indicator')
+  const infraTab = page.getByRole('button', { name: 'Open infrastructure' })
+  const viewport = page.locator('.react-flow__viewport')
+  const zoomOf = () => viewport.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
 
-  await expect(tidy).toBeVisible()
-  await expect(controls).toBeVisible()
-  await expect(controlButtons).toHaveCount(3)
+  // Fit, zoom and tidy moved to the View menu and the keyboard; the canvas
+  // keeps only what you act on (INFRA_LAYER_PLAN.md, "Canvas chrome").
+  await expect(page.locator('.react-flow__controls')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Tidy Layout' })).toHaveCount(0)
   await expect(minimap).toBeVisible()
-  await expect(zoom).toBeVisible()
+  await expect(infraTab).toBeVisible()
 
-  const [minimapBox, zoomBox] = await Promise.all([minimap.boundingBox(), zoom.boundingBox()])
+  const minimapBox = await minimap.boundingBox()
   expect(minimapBox?.width).toBeCloseTo(160, 0)
   expect(minimapBox?.height).toBeCloseTo(100, 0)
-  expect(zoomBox?.height).toBeGreaterThanOrEqual(26)
-
-  await expect.poll(() => tidy.evaluate(element => {
-    const style = getComputedStyle(element)
-    return { border: style.borderColor, color: style.color }
-  })).toEqual({ border: 'rgb(115, 125, 120)', color: 'rgb(49, 94, 88)' })
   await expect.poll(() => minimap.evaluate(element => getComputedStyle(element).backgroundColor))
     .toBe('rgb(203, 201, 191)')
 
-  const initialZoom = await zoom.getAttribute('aria-label')
-  await controlButtons.first().click()
-  await expect.poll(() => zoom.getAttribute('aria-label')).not.toBe(initialZoom)
+  await page.locator('.react-flow__pane').click({ position: { x: 400, y: 300 } })
+  const initialZoom = await zoomOf()
+  await page.keyboard.press('ControlOrMeta+=')
+  await expect.poll(zoomOf).toBeGreaterThan(initialZoom)
+  await page.keyboard.press('ControlOrMeta+-')
+  await page.keyboard.press('ControlOrMeta+-')
+  await expect.poll(zoomOf).toBeLessThan(initialZoom)
 
-  await tidy.click()
+  await page.keyboard.press('ControlOrMeta+Shift+L')
   await expect(page.locator('.layout-transition')).toHaveCount(0, { timeout: 5_000 })
-  await expect(page.getByRole('button', { name: 'Tidy Layout' })).toBeEnabled()
+
+  await infraTab.click()
+  await expect(page.getByRole('complementary', { name: 'Infrastructure' })).toBeVisible()
+  await page.getByRole('button', { name: 'Close infrastructure' }).click()
+  await expect(infraTab).toBeVisible()
 })
 
 test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', async () => {
@@ -1883,15 +1893,17 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
   // Addressed inbox routing: a send creates a work order the user hands to a
   // chat of their choosing, instead of asking any agent to drain the queue.
-  await expect(agentDialog).toContainText('Send here, then hand the request')
+  await expect(agentDialog).toContainText('No work orders yet')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
   await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()
   await expect(agentDialog).toHaveCount(0)
 })
 
-test('opens the categorized infrastructure browser from the toolbar', async () => {
-  await page.getByRole('button', { name: 'Add infra' }).click()
+test('opens the categorized infrastructure browser from the infrastructure sidebar', async () => {
+  await expect(page.getByRole('button', { name: 'Add infra' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Open infrastructure' }).click()
+  await page.getByRole('complementary', { name: 'Infrastructure' }).getByRole('button', { name: '+ Add' }).click()
 
   const picker = page.getByRole('dialog', { name: 'Choose infrastructure' })
   await expect(picker).toBeVisible()
@@ -1943,6 +1955,8 @@ test('opens the categorized infrastructure browser from the toolbar', async () =
 
   await picker.getByRole('button', { name: 'Close infrastructure picker' }).click()
   await expect(picker).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close infrastructure' }).click()
+  await expect(page.getByRole('complementary', { name: 'Infrastructure' })).toHaveCount(0)
 })
 
 test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
@@ -2054,7 +2068,7 @@ test('keeps resize chrome screen-sized and attached while resizing', async () =>
 })
 
 test('supports click, pane deselection, and partial lasso selection', async () => {
-  const node = page.locator('.react-flow__node[data-id="infra_mcp_proto"]')
+  const node = page.locator('.react-flow__node[data-id="sys_shared"]')
   await node.click()
   await expect(node).toHaveClass(/selected/)
 
@@ -2075,7 +2089,7 @@ test('supports click, pane deselection, and partial lasso selection', async () =
 })
 
 test('drags a root node fluidly and keeps its persisted final frame', async () => {
-  const node = page.locator('.react-flow__node[data-id="infra_mcp_proto"]')
+  const node = page.locator('.react-flow__node[data-id="sys_shared"]')
   const before = await node.boundingBox()
   expect(before).not.toBeNull()
   if (!before) return
@@ -2098,11 +2112,11 @@ test('persists a container reparenting drop as one layout batch', async () => {
   page.on('request', request => {
     if (!request.url().includes('/api/layout/batch') || request.method() !== 'POST') return
     const payload = request.postDataJSON() as { layouts?: Array<{ nodeId: string; parentNodeId: string | null }> }
-    const moved = payload.layouts?.find(layout => layout.nodeId === 'infra_mcp_proto')
+    const moved = payload.layouts?.find(layout => layout.nodeId === 'sys_shared')
     if (moved) persistedParent = moved.parentNodeId
   })
 
-  const source = page.locator('.react-flow__node[data-id="infra_mcp_proto"]')
+  const source = page.locator('.react-flow__node[data-id="sys_shared"]')
   const target = page.locator('.react-flow__node[data-id="sys_canvas"]')
   const sourceBox = await source.boundingBox()
   const targetBox = await target.boundingBox()
@@ -2135,7 +2149,7 @@ test('wheel zoom continues over revealed file content through 100x', async () =>
     await page.mouse.wheel(0, -100)
   }
 
-  await expect(page.locator('.axiom-zoom-indicator')).toHaveAttribute('aria-label', 'Zoom 100.00x', { timeout: 15_000 })
+  await expect.poll(canvasZoom, { timeout: 15_000 }).toBeGreaterThan(99.99)
   await expect(node).toBeVisible()
   await expectResizeChrome('file_canvas')
 

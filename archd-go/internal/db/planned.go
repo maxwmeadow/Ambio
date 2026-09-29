@@ -1085,10 +1085,134 @@ func setMetadataRealization(raw json.RawMessage, realization plannedRealization)
 	return json.Marshal(object)
 }
 
-// ReconcilePlanned treats indexed symbols as corroboration and source text at
+// evaluatePlannedNode treats indexed symbols as corroboration and source text at
 // those exact ranges as contract evidence. Agent-provided paths or mappings are
 // search hints only: without an indexed file and symbol the result cannot be
-// MATCHED. Returns nodes whose persisted realization projection changed.
+// MATCHED. It evaluates the supplied contract without changing persisted state.
+func evaluatePlannedNode(r Reader, files []File, node PlannedNode) (PlannedNode, error) {
+	var metadata plannedMetadata
+	_ = json.Unmarshal(node.Metadata, &metadata)
+	declaredPath := node.DeclaredPath
+	if strings.TrimSpace(declaredPath) == "" {
+		declaredPath = metadata.Path
+	}
+	path := matchPlannedPath(files, declaredPath)
+
+	var existingMembers []PlannedMember
+	_ = json.Unmarshal(node.Members, &existingMembers)
+	assertions, structured := structuredAssertions(metadata)
+	if !structured {
+		assertions = legacyAssertions(existingMembers)
+	}
+	intents := map[string]string{}
+	for _, member := range existingMembers {
+		intents[memberName(member.Signature)] = member.Intent
+	}
+
+	nextMembers := make([]PlannedMember, 0, len(assertions))
+	nodeState := RealizationUnknown
+	nodeEvidence := []RealizationEvidence{{Kind: "path." + path.Quality, Detail: path.Detail}}
+	qualifiedNode := node.Name
+	var realizedFileID *string
+	if path.File == nil {
+		if path.Quality == "missing" {
+			nodeState = RealizationMissing
+		}
+		for _, assertion := range assertions {
+			nextMembers = append(nextMembers, PlannedMember{
+				Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
+				QualifiedSymbol:  node.Name + "." + assertion.Name,
+				RealizationState: nodeState, RealizationEvidence: nodeEvidence,
+			})
+		}
+	} else {
+		realizedFileID = &path.File.ID
+		symbols, symbolsErr := GetSymbolsByFile(r, path.File.ID)
+		source, sourceErr := os.ReadFile(path.File.Path)
+		if symbolsErr != nil || sourceErr != nil {
+			nodeState = RealizationUnknown
+			detail := "indexed evidence could not be loaded"
+			if symbolsErr != nil {
+				detail = symbolsErr.Error()
+			} else if sourceErr != nil {
+				detail = sourceErr.Error()
+			}
+			nodeEvidence = append(nodeEvidence, RealizationEvidence{Kind: "evidence.unavailable", Detail: detail})
+			for _, assertion := range assertions {
+				nextMembers = append(nextMembers, PlannedMember{
+					Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
+					QualifiedSymbol:  node.Name + "." + assertion.Name,
+					RealizationState: RealizationUnknown, RealizationEvidence: nodeEvidence,
+				})
+			}
+		} else {
+			sourceLines := strings.Split(string(source), "\n")
+			container, containerOK := enclosingContainer(symbols, node)
+			if !containerOK {
+				nodeState = RealizationMissing
+				nodeEvidence = append(nodeEvidence, RealizationEvidence{
+					Kind:   "symbol.missing",
+					Detail: fmt.Sprintf("indexed container %s was not found uniquely in %s", node.Name, path.File.RelPath),
+				})
+				for _, assertion := range assertions {
+					nextMembers = append(nextMembers, PlannedMember{
+						Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
+						QualifiedSymbol:  node.Name + "." + assertion.Name,
+						RealizationState: RealizationMissing, RealizationEvidence: nodeEvidence,
+					})
+				}
+			} else {
+				if container != nil {
+					qualifiedNode = container.Name
+				}
+				for _, assertion := range assertions {
+					member := reconcileMember(assertion, symbols, container, sourceLines, path.File.Language, path)
+					member.Intent = intents[assertion.Name]
+					nextMembers = append(nextMembers, member)
+				}
+				fallback := RealizationMatched
+				if path.Quality == "unique-suffix" {
+					fallback = RealizationFlexed
+				}
+				nodeState = stateForMembers(nextMembers, fallback)
+			}
+		}
+	}
+
+	allRealized := true
+	for _, member := range nextMembers {
+		if !member.Realized {
+			allRealized = false
+			break
+		}
+	}
+	newStatus := "planned"
+	if path.File != nil {
+		newStatus = "partial"
+		if allRealized && (nodeState == RealizationMatched || nodeState == RealizationFlexed) {
+			newStatus = "realized"
+		}
+	}
+	realization := plannedRealization{
+		State: nodeState, PathMatchQuality: path.Quality,
+		QualifiedSymbol: qualifiedNode, Evidence: nodeEvidence,
+	}
+	nextMetadata, err := setMetadataRealization(node.Metadata, realization)
+	if err != nil {
+		return node, err
+	}
+	nextMembersJSON, err := json.Marshal(nextMembers)
+	if err != nil {
+		return node, err
+	}
+	node.Members = nextMembersJSON
+	node.Metadata = nextMetadata
+	node.Status = newStatus
+	node.RealizedFileID = realizedFileID
+	return node, nil
+}
+
+// ReconcilePlanned persists changed realization projections for active plans.
 func ReconcilePlanned(sqlDB *sql.DB, workspaceID string) ([]PlannedNode, error) {
 	open, err := GetOpenPlannedNodes(sqlDB, workspaceID)
 	if err != nil || len(open) == 0 {
@@ -1101,134 +1225,22 @@ func ReconcilePlanned(sqlDB *sql.DB, workspaceID string) ([]PlannedNode, error) 
 
 	var changed []PlannedNode
 	for _, node := range open {
-		var metadata plannedMetadata
-		_ = json.Unmarshal(node.Metadata, &metadata)
-		declaredPath := node.DeclaredPath
-		if strings.TrimSpace(declaredPath) == "" {
-			declaredPath = metadata.Path
-		}
-		path := matchPlannedPath(files, declaredPath)
-
-		var existingMembers []PlannedMember
-		_ = json.Unmarshal(node.Members, &existingMembers)
-		assertions, structured := structuredAssertions(metadata)
-		if !structured {
-			assertions = legacyAssertions(existingMembers)
-		}
-		intents := map[string]string{}
-		for _, member := range existingMembers {
-			intents[memberName(member.Signature)] = member.Intent
-		}
-
-		nextMembers := make([]PlannedMember, 0, len(assertions))
-		nodeState := RealizationUnknown
-		nodeEvidence := []RealizationEvidence{{Kind: "path." + path.Quality, Detail: path.Detail}}
-		qualifiedNode := node.Name
-		var realizedFileID *string
-		if path.File == nil {
-			if path.Quality == "missing" {
-				nodeState = RealizationMissing
-			}
-			for _, assertion := range assertions {
-				nextMembers = append(nextMembers, PlannedMember{
-					Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
-					QualifiedSymbol:  node.Name + "." + assertion.Name,
-					RealizationState: nodeState, RealizationEvidence: nodeEvidence,
-				})
-			}
-		} else {
-			realizedFileID = &path.File.ID
-			symbols, symbolsErr := GetSymbolsByFile(sqlDB, path.File.ID)
-			source, sourceErr := os.ReadFile(path.File.Path)
-			if symbolsErr != nil || sourceErr != nil {
-				nodeState = RealizationUnknown
-				detail := "indexed evidence could not be loaded"
-				if symbolsErr != nil {
-					detail = symbolsErr.Error()
-				} else if sourceErr != nil {
-					detail = sourceErr.Error()
-				}
-				nodeEvidence = append(nodeEvidence, RealizationEvidence{Kind: "evidence.unavailable", Detail: detail})
-				for _, assertion := range assertions {
-					nextMembers = append(nextMembers, PlannedMember{
-						Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
-						QualifiedSymbol:  node.Name + "." + assertion.Name,
-						RealizationState: RealizationUnknown, RealizationEvidence: nodeEvidence,
-					})
-				}
-			} else {
-				sourceLines := strings.Split(string(source), "\n")
-				container, containerOK := enclosingContainer(symbols, node)
-				if !containerOK {
-					nodeState = RealizationMissing
-					nodeEvidence = append(nodeEvidence, RealizationEvidence{
-						Kind:   "symbol.missing",
-						Detail: fmt.Sprintf("indexed container %s was not found uniquely in %s", node.Name, path.File.RelPath),
-					})
-					for _, assertion := range assertions {
-						nextMembers = append(nextMembers, PlannedMember{
-							Signature: assertionSignature(assertion), Intent: intents[assertion.Name],
-							QualifiedSymbol:  node.Name + "." + assertion.Name,
-							RealizationState: RealizationMissing, RealizationEvidence: nodeEvidence,
-						})
-					}
-				} else {
-					if container != nil {
-						qualifiedNode = container.Name
-					}
-					for _, assertion := range assertions {
-						member := reconcileMember(assertion, symbols, container, sourceLines, path.File.Language, path)
-						member.Intent = intents[assertion.Name]
-						nextMembers = append(nextMembers, member)
-					}
-					fallback := RealizationMatched
-					if path.Quality == "unique-suffix" {
-						fallback = RealizationFlexed
-					}
-					nodeState = stateForMembers(nextMembers, fallback)
-				}
-			}
-		}
-
-		allRealized := true
-		for _, member := range nextMembers {
-			if !member.Realized {
-				allRealized = false
-				break
-			}
-		}
-		newStatus := "planned"
-		if path.File != nil {
-			newStatus = "partial"
-			if allRealized && (nodeState == RealizationMatched || nodeState == RealizationFlexed) {
-				newStatus = "realized"
-			}
-		}
-		realization := plannedRealization{
-			State: nodeState, PathMatchQuality: path.Quality,
-			QualifiedSymbol: qualifiedNode, Evidence: nodeEvidence,
-		}
-		nextMetadata, metadataErr := setMetadataRealization(node.Metadata, realization)
-		if metadataErr != nil {
+		next, evalErr := evaluatePlannedNode(sqlDB, files, node)
+		if evalErr != nil {
 			continue
 		}
-		nextMembersJSON, _ := json.Marshal(nextMembers)
-		dirty := string(nextMembersJSON) != string(node.Members) ||
-			string(nextMetadata) != string(node.Metadata) ||
-			node.Status != newStatus ||
-			(node.RealizedFileID == nil) != (realizedFileID == nil) ||
-			(node.RealizedFileID != nil && realizedFileID != nil && *node.RealizedFileID != *realizedFileID)
+		dirty := string(next.Members) != string(node.Members) ||
+			string(next.Metadata) != string(node.Metadata) ||
+			node.Status != next.Status ||
+			(node.RealizedFileID == nil) != (next.RealizedFileID == nil) ||
+			(node.RealizedFileID != nil && next.RealizedFileID != nil && *node.RealizedFileID != *next.RealizedFileID)
 		if !dirty {
 			continue
 		}
-		node.Members = nextMembersJSON
-		node.Metadata = nextMetadata
-		node.Status = newStatus
-		node.RealizedFileID = realizedFileID
-		if err := UpsertPlannedNode(sqlDB, &node); err != nil {
+		if err := UpsertPlannedNode(sqlDB, &next); err != nil {
 			return changed, err
 		}
-		changed = append(changed, node)
+		changed = append(changed, next)
 	}
 	return changed, nil
 }

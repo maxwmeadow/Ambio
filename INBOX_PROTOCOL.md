@@ -1,7 +1,7 @@
 # Canvas inbox protocol
 
 Canvas instructions and replies are durable project records. Reading never resolves work.
-An atomic claim grants one agent temporary ownership. Explicit replies resolve messages;
+An atomic claim grants one agent temporary ownership. Explicit replies submit for review;
 expired claims make unfinished work available again. Retries must not duplicate sends or replies.
 
 The agent binds to a workspace once, using an explicit workspace or its working directory.
@@ -45,12 +45,24 @@ connected agent. No hook, slash-command convention, or permanent polling loop is
 
 After a send, the request card exposes its ID and a copyable project-named prompt
 to paste into the agent's own chat. **Connections** reopens setup without leaving the
-project. The signal distinguishes an MCP process currently connected, a configuration
-found on disk but not connected, an incomplete installer workflow, and unavailable
-status. A live MCP connection is not evidence that the model has read a message; only
+project. The signal distinguishes an MCP process currently online from one that has
+successfully called an Axiom tool in this workspace. A configuration found on disk,
+an incomplete installer workflow, and unavailable status have separate states.
+Blank-project setup provides a copyable `get_inbox({verifyOnly: true,
+expectedWorkspaceId: "…"})` check and opens the canvas after the selected host
+completes it. The check returns `inboxReady` without claiming a work order or
+consuming queued human messages. Verification lasts only for that process's live
+presence lease; a new process must make its own tool call. A verified MCP connection
+is not evidence that the model has read a message; only
 the message's **Picked up** state indicates a claim. Neither state proves ongoing code
 work. Agents can use `start_work`/`update_work` to make substantial work visible in
-Morning Delta, while normal indexing updates the live canvas as files change.
+Morning Delta and on the original request card, while normal indexing updates
+the live canvas as files change. For addressed work, `start_work` takes the
+`messageHandle` from `get_inbox` and returns a session ID. `update_work` takes
+that session ID so two chats sharing one MCP process cannot overwrite each
+other's progress. An omitted session ID works only if that process has one
+active session in this workspace. The session link, notes, and summary survive
+restarts and remain visible with the request history.
 
 The same `get_inbox` and `reply_to_canvas` tools are exposed to every configured MCP
 host. Claude Code, Copilot VS Code/CLI, Codex, Cursor, Windsurf, and Antigravity
@@ -61,11 +73,30 @@ matrix verifies generated configuration and workflow files; it does not prove th
 every installed vendor version has loaded or enabled its MCP tools. A live presence
 signal and a successful claim/reply are the stronger end-to-end checks.
 
-The panel distinguishes waiting, picked up, answered, cancelled, and expired claims.
+The panel distinguishes waiting, picked up, submitted for review, accepted,
+changes requested, cancelled, and expired claims.
 Picked up means the connector claimed the instruction, not proof of ongoing model work.
 Replies remain visible after restarting Axiom or deleting the originating canvas objects.
 Cancellation prevents acceptance of a later reply; it cannot stop an external coding
 process. The panel tells the user to stop that agent separately if necessary.
+
+## Work-order review
+
+`reply_to_canvas` submits the agent's answer for user review. Its optional `result`
+lists a commit, changed files, checks with outcomes, and remaining gaps. These are
+**agent-reported claims**, not independently verified test results. The work-order
+details show linked sessions and the current live sheet comparison separately;
+the comparison is an Axiom structural check of the current graph, not proof of
+runtime behavior or the graph at the moment of submission.
+
+The user can **Accept result** or **Request changes** with feedback. Acceptance is a
+durable review event. Requesting changes archives the previous submission, ends
+any open work sessions for that order, clears its claim, and queues the same order
+for another explicit handoff. The next claimant receives the latest review feedback;
+prior submissions and their reported results remain visible in history. A later
+submission is again ready for review. Review calls carry a client-generated review
+ID so retries do not duplicate a decision. Acceptance does not merge code or prove
+every requirement. Reopening does not stop an external agent already editing files.
 
 ## MCP contract, version 1
 
@@ -74,14 +105,26 @@ process. The panel tells the user to stop that agent separately if necessary.
   bound workspace. `get_inbox()` claims at most one legacy/open instruction. The same
   connector gets its existing live claim back and renews it. Other connectors cannot
   claim that instruction until its lease expires. An empty open queue returns immediately.
+- `get_inbox({verifyOnly: true, expectedWorkspaceId})` checks the bound workspace and
+  returns `inboxReady`, workspace identity, connection ID, and host ID without claiming
+  work. A check cannot include a `messageId` or `messageHandle`.
 - Responses include `protocolVersion`, explicit workspace identity/root, selected targets
   (type, ID, original label), claim expiry, and an opaque `messageHandle`.
 - `get_inbox({messageHandle, contextOffset: 0})` fetches original context in pages of at most
   12,000 Unicode characters. Continue from `nextOffset`; `-1` means complete. Fetching
   context does not claim another instruction. The handle must still own the message.
-- `reply_to_canvas({messageHandle, body})` writes one final reply and resolves its message
+- `reply_to_canvas({messageHandle, body})` writes one submission and closes the active claim
   in one transaction. Identical retries return the original reply, including after expiry.
   A different body, wrong token, cancellation, or reassignment returns a conflict.
+- `reply_to_canvas({messageHandle, body, result?})` may attach structured agent-reported
+  evidence to the submission. The report is preserved if the order is reopened.
+- `start_work({goal, messageHandle})` validates the live claim and links a
+  durable work session to that request. A retry by the same MCP process resumes
+  its open session. A new connector taking over the request ends the previous
+  session and starts its own; prior notes remain in the request history.
+- `update_work({sessionId, note})` and `update_work({sessionId, done: true,
+  summary})` address one session. Calls without `sessionId` fail if several
+  sessions are active in the same MCP process.
 - Text content and structured MCP content carry the same result. Tool errors stay errors;
   a daemon outage never means an empty inbox.
 - `review-canvas` is a reusable MCP prompt that describes this workflow. Retrieving a
@@ -120,6 +163,7 @@ Endpoints (all require the local bearer token):
 | `POST /api/canvas/context` | Read a context page using `{workspaceId, msgId, leaseToken, offset}` |
 | `POST /api/canvas/reply` | Resolve using `{workspaceId, msgId, leaseToken, body}` |
 | `POST /api/canvas/cancel` | Cancel unresolved work using `{workspaceId, msgId}` |
+| `POST /api/canvas/review` | Accept or reopen a submission using `{workspaceId, msgId, reviewId, decision, note?}` |
 | `GET /api/canvas/history?workspace=…&before=…&limit=…` | Newest-first history; stable `(createdAt,id)` pagination |
 | `GET /api/canvas/outbox?workspace=…&peek=1` | `queued` total and `open` count; only `open` drives generic discovery hints |
 | `GET /api/agent/workspace?cwd=…&workspace=…` | Resolve persisted project/root identity |
@@ -198,3 +242,16 @@ then restores the final answer from history.
 Run `npm run test:renderer`, `npm run test:mcp`, `npm run build`, and
 `npx playwright test tests/e2e/inbox.spec.ts`. In `archd-go`, run `go test ./...` and
 `go test -race ./internal/db ./internal/api ./internal/hub`.
+
+An opt-in live-host smoke test runs the complete desktop → copied handoff →
+Codex CLI → desktop review → acceptance path against an isolated archd and
+throwaway indexed project. The canvas drawing is a deterministic E2E fixture;
+the inbox requests, daemon, MCP calls, agent edit, and review are live. It
+requires an authenticated Codex CLI and invokes
+that CLI with automatic approval review and a workspace-write sandbox for the
+disposable project; it does not change the user's Codex settings. After building Axiom and
+archd, run:
+
+```sh
+AXIOM_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
+```

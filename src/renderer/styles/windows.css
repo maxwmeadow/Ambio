@@ -4,7 +4,10 @@
 
 .axiom-window {
   position: fixed;
-  z-index: 60;
+  /* Above the docked case and delta panels (1150): a window was just opened on
+     purpose and must not land behind a panel that happens to be open. Below
+     replay, proposal review and modal dialogs. */
+  z-index: 1160;
   display: flex;
   flex-direction: column;
   background: #1e2926;

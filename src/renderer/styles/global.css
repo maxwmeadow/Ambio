@@ -95,7 +95,9 @@
   /* Clear of the Unsorted and Documents bins in the same corner: covering
      them hid where new files land and blocked dropping onto them. */
   bottom: 72px;
-  z-index: 850;
+  /* Below floating windows (60): a tray or bin the person opened is what
+     they are working in, and the guide must not sit on its buttons. */
+  z-index: 50;
   width: min(370px, calc(100% - 36px));
   padding: 18px 20px 16px 30px;
   background: color-mix(in srgb, var(--bg-raised) 96%, transparent);
@@ -1362,23 +1364,6 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.42), inset 0 0 0 3px #e6e3d9;
 }
 .react-flow__minimap-mask { fill: rgba(49, 62, 58, 0.38) !important; }
-.react-flow__controls.axiom-canvas-controls {
-  overflow: hidden;
-  border: 1px solid #737d78 !important;
-  border-radius: 2px !important;
-  background: linear-gradient(#efede5, #d3d3ca) !important;
-  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.38), inset 0 1px #fff;
-}
-.react-flow__controls.axiom-canvas-controls .react-flow__controls-button {
-  border-color: #989f9b !important;
-  background: linear-gradient(#f5f3ec, #d8d7cf) !important;
-  color: #344b46 !important;
-  box-shadow: inset 0 1px #fff;
-}
-.react-flow__controls.axiom-canvas-controls .react-flow__controls-button:hover {
-  background: #edf2ec !important;
-  color: #1d5048 !important;
-}
 .react-flow__edge-path { stroke: var(--border); }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent) !important; }
 
@@ -3119,36 +3104,6 @@ select.axiom-inspector-input {
   color: #1d5d54;
 }
 
-.axiom-canvas-zoom-panel {
-  margin: 0 0 12px 48px !important;
-}
-
-.axiom-zoom-indicator {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border: 1px solid #737d78;
-  border-radius: 2px;
-  background: linear-gradient(#efede5, #d3d3ca);
-  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.38), inset 0 1px #fff;
-  color: #5f6b66;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  pointer-events: none;
-  user-select: none;
-}
-
-.axiom-zoom-indicator strong {
-  color: #285f57;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .axiom-selection-actions {
   position: absolute;
   bottom: 24px;
@@ -3164,6 +3119,9 @@ select.axiom-inspector-input {
   background: linear-gradient(#eeece4, #d3d3ca);
   box-shadow: 4px 4px 0 rgba(29, 35, 32, 0.42), inset 0 1px #fff;
 }
+
+/* Keep the selection for the draft, but leave the inbox composer unobstructed. */
+body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 
 .axiom-selection-actions__summary {
   display: flex;
@@ -3263,6 +3221,9 @@ select.axiom-inspector-input {
 }
 
 .axiom-sheet-palette__item {
+  width: 100%;
+  border: 0;
+  font: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3278,6 +3239,16 @@ select.axiom-inspector-input {
 .axiom-sheet-palette__item:hover {
   background: #f5f2e9;
   color: #225c54;
+}
+
+.axiom-sheet-palette__item:focus-visible {
+  outline: 2px solid #225c54;
+  outline-offset: -2px;
+}
+
+.axiom-sheet-palette__item:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .axiom-sheet-palette__item:active {
@@ -8325,4 +8296,152 @@ select.axiom-inspector-input {
 
 @media (prefers-reduced-motion: reduce) {
   .axiom-run-trace__stroke { animation: none; }
+}
+
+/* ─── Infra card ──────────────────────────────────────────────────────────── */
+/* A role on the Floor: what it is, how much code depends on it, and what
+   fills it when you run the code on this machine. Sized in the card's own
+   coordinates, so it reads like a system title at every zoom. */
+.axiom-infra-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  box-sizing: border-box;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.axiom-infra-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.axiom-infra-card__icon { flex-shrink: 0; }
+.axiom-infra-card__role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.axiom-infra-card__proposed {
+  margin-left: auto;
+  padding: 1px 4px;
+  color: var(--warn, #9a6a12);
+  border: 1px dashed currentColor;
+  font-size: 9px;
+}
+.axiom-infra-card__use {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.axiom-infra-card__local {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.axiom-infra-card__gap {
+  align-self: flex-start;
+  max-width: 100%;
+  font-size: 10px;
+  color: #6b4a0e;
+  background: #f3e3bd;
+  border: 1px solid #d9b56a;
+  padding: 1px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Infra inspector ─────────────────────────────────────────────────────── */
+.axiom-inspector-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #c5c8c4;
+  background: #ebe9e3;
+}
+.axiom-inspector-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 6px 9px;
+  border-bottom: 1px solid #d6d6cf;
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 0;
+}
+.axiom-inspector-list li:last-child { border-bottom: 0; }
+.axiom-inspector-list code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #28332f;
+  overflow-wrap: anywhere;
+}
+.axiom-inspector-list__kind {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b736e;
+}
+.axiom-inspector-list__ok { margin-left: auto; font-size: 10px; color: #2f7a4e; }
+.axiom-inspector-list__missing { margin-left: auto; font-size: 10px; color: #9a6a12; }
+.axiom-inspector-list__proposed {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: #9a6a12;
+  border: 1px dashed currentColor;
+  padding: 0 4px;
+}
+.axiom-inspector-list--quiet li { color: #59635f; }
+.axiom-inspector-list--gaps {
+  border-color: #d9b56a;
+  background: #f6ecd5;
+}
+.axiom-inspector-list--gaps li { color: #5c4210; border-bottom-color: #e6d2a4; }
+.axiom-inspector-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #2d625c;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.axiom-inspector-link:hover { text-decoration: underline; }
+.axiom-inspector-link:focus-visible { outline: 2px solid #3c7d76; outline-offset: 1px; }
+.axiom-inspector-note { margin: 0; font-size: 11px; line-height: 1.5; color: #59635f; }
+.axiom-inspector-error { margin: 6px 0 0; font-size: 11px; color: #b0412c; }
+.axiom-inspector-decide { display: flex; gap: 8px; }
+.axiom-inspector-decide__confirm,
+.axiom-inspector-decide__dismiss {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 11px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.axiom-inspector-decide__confirm { background: #3c7d76; color: #fff; border: 1px solid #2d625c; }
+.axiom-inspector-decide__dismiss { background: transparent; color: #28332f; border: 1px solid #9aa39e; }
+.axiom-platform-hint {
+  max-width: 80%;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.35;
 }

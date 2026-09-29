@@ -3,7 +3,6 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { LivingInspectionWindow, SystemNodeData } from '../sceneTypes'
 import { EditableNodeTitle } from './EditableNodeTitle'
 import { useInfraService } from '../../store/registryStore'
-import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
@@ -13,6 +12,7 @@ import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
+import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 
 // Drop-target feedback: renders the cell grid only while a node is being
 // dragged over this container (green = free, amber = displaced, red = occupied).
@@ -166,7 +166,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
   const livingWindows = renderedLivingWindows
   const livingWindowActive = livingWindows.length > 0
   const color = isDeploymentBoundary
-    ? (infraService?.brand.darkColor ?? infraService?.brand.color ?? authoredColor)
+    ? (infraService?.brand.color ?? authoredColor)
     : authoredColor
 
   // 0..1 reveal of inner contents (zoom-gated). Drives the title crossfade:
@@ -344,9 +344,16 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
           padding: `${bigTitleFont * 0.08}px ${bigTitleFont * 0.25}px`,
         }}>{totalCount}</span>
       )}
+      {isDeploymentBoundary && totalCount === 0 && (
+        <span className="axiom-platform-hint" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>
+          Drop a system here to show it runs on {name}
+        </span>
+      )}
     </div>
   )
 
+  const headerCorner = Math.max(7, Math.min(18, shellSize.w * 0.035, shellSize.h * 0.09))
+  const headerLeft = isDeploymentBoundary ? Math.max(chrome.titleLeft, headerCorner + 6) : chrome.titleLeft
   const header = (
     <div style={{
       position: 'absolute',
@@ -355,8 +362,10 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       // Must be the model's inset, not `padX`. padX is derived from titlePx,
       // which rides presentationScale = min(w/designW, h/designH) - so using
       // it here moved the title sideways whenever the frame's HEIGHT changed.
-      left: chrome.titleLeft,
-      width: chrome.titleWidth,
+      // A hosting frame's cut corner and rails sit where a folder's tab
+      // starts; its title and icon begin after them.
+      left: headerLeft,
+      width: Math.max(0, chrome.titleWidth - (headerLeft - chrome.titleLeft)),
       height: tabBandH,
       display: 'flex',
       alignItems: 'center',
@@ -369,7 +378,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       opacity: containerAlpha,
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
     }}>
-      {infraIdentityIcon(Math.max(12, titleFont * 1.05))}
+      {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
       <EditableNodeTitle value={name} onRename={d.onRename} style={{
         fontSize: titleFont,
         fontWeight: 600,
@@ -410,7 +419,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
 
   const strokeColor = isDropTarget ? color : 'var(--border)'
   const strokeW = isDropTarget ? 2.5 : 1
-  const deploymentCorner = Math.max(7, Math.min(18, shellSize.w * 0.035, shellSize.h * 0.09))
+  const deploymentCorner = headerCorner
   const shellPath = isDeploymentBoundary
     // Hosting is a deployment chassis, not a UML package. It deliberately
     // shares containment mechanics without implying semantic system ownership.
@@ -720,3 +729,4 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
     </div>
   )
 })
+

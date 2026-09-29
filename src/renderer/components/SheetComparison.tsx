@@ -47,6 +47,7 @@ export function SheetComparison({ workspaceId, sheetId }: { workspaceId: string;
       if (!response.ok) throw new Error(await response.text())
       const sheet = await response.json()
       setComparison(current => current ? { ...current, resolvedAt: sheet.resolvedAt } : current)
+      setExpanded(false)
       await useSheetStore.getState().fetchSheets(workspaceId)
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
     finally { setBusy(false) }

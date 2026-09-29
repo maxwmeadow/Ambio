@@ -79,13 +79,23 @@ func main() {
 		log.Println("archd: AXIOM_AUTO_CONFIRM_INJECT=1 - injections skip user confirmation")
 		rt.SetAutoConfirm(true)
 	}
-	if err := rt.Listen(*runtimePort); err != nil {
-		if !*autoPorts {
-			log.Fatalf("archd: runtime: %v", err)
+	// The port is often still held for a moment by the archd this one
+	// replaces. Wait briefly; with -auto-ports take any free port instead.
+	// Failing that, run without live run tracing rather than take the whole
+	// map down with it.
+	var runtimeErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		if runtimeErr = rt.Listen(*runtimePort); runtimeErr == nil {
+			break
 		}
-		if err := rt.Listen(0); err != nil {
-			log.Fatalf("archd: runtime: %v", err)
+		if *autoPorts {
+			runtimeErr = rt.Listen(0)
+			break
 		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if runtimeErr != nil {
+		log.Printf("archd: runtime: %v - investigations cannot capture runs until archd restarts", runtimeErr)
 	}
 
 	apiListener, actualAPIPort, err := listenPreferred(*apiPort, *autoPorts)

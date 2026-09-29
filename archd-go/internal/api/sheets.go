@@ -64,9 +64,12 @@ func (s *Server) registerSheetRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/canvas/outbox", s.handleCanvasOutbox)
 	mux.HandleFunc("/api/canvas/reply", s.handleCanvasReply)
 	mux.HandleFunc("/api/canvas/history", s.handleInboxHistory)
+	mux.HandleFunc("/api/canvas/snapshot", s.handleInboxSnapshot)
+	mux.HandleFunc("/api/canvas/snapshot-comparison", s.handleInboxSnapshotComparison)
 	mux.HandleFunc("/api/canvas/claim", s.handleInboxClaim)
 	mux.HandleFunc("/api/canvas/context", s.handleInboxContext)
 	mux.HandleFunc("/api/canvas/cancel", s.handleInboxCancel)
+	mux.HandleFunc("/api/canvas/review", s.handleInboxReview)
 }
 
 // ─── Sheets ───────────────────────────────────────────────────────────────────
@@ -1051,10 +1054,11 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		WorkspaceID string `json:"workspaceId"`
-		MsgID       string `json:"msgId"`
-		Body        string `json:"body"`
-		LeaseToken  string `json:"leaseToken"`
+		WorkspaceID string         `json:"workspaceId"`
+		MsgID       string         `json:"msgId"`
+		Body        string         `json:"body"`
+		LeaseToken  string         `json:"leaseToken"`
+		Result      *db.WorkResult `json:"result"`
 	}
 	if !decodeInbox(w, r, &body) {
 		return
@@ -1064,12 +1068,36 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "msgId, leaseToken and reply (maximum 64 KB) required", 400)
 		return
 	}
+	if body.Result != nil {
+		if len(body.Result.Commit) > 128 || len(body.Result.ChangedFiles) > 100 || len(body.Result.Checks) > 30 || len(body.Result.Remaining) > 30 {
+			jsonError(w, "work result exceeds limits", 400)
+			return
+		}
+		for _, file := range body.Result.ChangedFiles {
+			if !validInboxText(file, 1024) {
+				jsonError(w, "invalid changed file", 400)
+				return
+			}
+		}
+		for _, check := range body.Result.Checks {
+			if !validInboxText(check.Command, 1024) || !validInboxText(check.Outcome, 1024) {
+				jsonError(w, "invalid check", 400)
+				return
+			}
+		}
+		for _, remaining := range body.Result.Remaining {
+			if !validInboxText(remaining, 2048) {
+				jsonError(w, "invalid remaining item", 400)
+				return
+			}
+		}
+	}
 	d, err := s.dbFor(body.WorkspaceID)
 	if err != nil {
 		jsonError(w, err.Error(), 404)
 		return
 	}
-	item, err := db.ReplyInbox(d, body.WorkspaceID, body.MsgID, body.LeaseToken, body.Body, time.Now().UnixMilli())
+	item, err := db.ReplyInbox(d, body.WorkspaceID, body.MsgID, body.LeaseToken, body.Body, time.Now().UnixMilli(), body.Result)
 	if err != nil {
 		inboxError(w, err)
 		return

@@ -289,15 +289,20 @@ export interface DbDependency {
   /** Structural kinds plus category-typed infra kinds (READS, WRITES, PUBLISHES, ...). */
   dependencyType: string
   weight: number
-  createdBy: 'parser' | 'agent' | 'user'
+  createdBy: 'parser' | 'agent' | 'user' | 'runtime'
   /** file:line justifying an infra edge. */
   evidence?: string | null
+  /** Infra edges: the contents item it is about (table, topic, key pattern...). */
+  targetItem?: string
+  /** Infra edges: detected relationships stay proposed until someone decides. */
+  status?: 'proposed' | 'confirmed' | 'dismissed'
 }
 
 /** Infra category - the semantic role that defines edge kinds and silhouette. */
 export type InfraCategory =
   | 'database' | 'cache' | 'queue' | 'storage' | 'search' | 'llm'
-  | 'api' | 'auth' | 'platform' | 'cdn' | 'observability' | 'email'
+  | 'api' | 'auth' | 'platform' | 'observability' | 'email'
+  | 'scheduler' | 'flags' | 'realtime'
 
 export interface DbInfraNode {
   id: string
@@ -315,6 +320,55 @@ export interface DbInfraNode {
   config?: Record<string, unknown>
   positionX: number
   positionY: number
+  /** What fills the role in each environment (INFRA_LAYER_PLAN.md "Model"). */
+  implementations?: InfraImplementation[]
+  policies?: InfraPolicies
+}
+
+export interface InfraImplementation {
+  environment: string
+  kind: 'in-process' | 'local-service' | 'emulator' | 'vendor'
+  /** A file id or path, a compose service, an emulator name, or a host. */
+  ref: string
+  evidence?: string
+}
+
+/** An item of an infra node's contract: a table, topic, cache key, schedule... */
+export interface InfraContent {
+  id: string
+  workspaceId: string
+  infraId: string
+  kind: string
+  name: string
+  detail?: Record<string, unknown>
+  evidence?: string
+  source: 'parser' | 'agent' | 'user' | 'runtime'
+}
+
+/** Something running the code needs; env vars by name only. */
+export interface InfraRequirement {
+  id: string
+  workspaceId: string
+  kind: 'env'
+  name: string
+  infraId?: string
+  evidence?: string
+  present: boolean
+  source: string
+}
+
+/** A package detection saw but could not attribute to one service. */
+export interface InfraUnresolved {
+  Package: string
+  Candidates: string[]
+  Evidence: string
+}
+
+export interface InfraPolicies {
+  costs_money?: boolean
+  external_side_effects?: boolean
+  never_in_tests?: boolean
+  confirm_before_running?: boolean
 }
 
 export type FloorNodeType = 'system' | 'file' | 'infra'
@@ -526,6 +580,7 @@ export interface DeltaSessionNote {
 export interface DeltaWorkSession {
   id: string
   workspaceId: string
+  messageId?: string
   agent?: string
   goal: string
   summary?: string
@@ -580,6 +635,8 @@ export interface DbGraphPatch {
     | 'relationship:changed'
     | 'infra:upserted'  | 'infra:deleted'
     | 'infra:connected' | 'infra:disconnected'
+    | 'infra:refreshed' | 'infra:edge_status'
+    | 'infra:contents'  | 'infra:requirements'
     | 'floor:layouts'
   payload:
     | DbSystem | DbFile | FileUpdatePatch | FileDeletePatch
@@ -587,6 +644,9 @@ export interface DbGraphPatch {
     | DbInfraNode | DbDependency | { id: string }
     | { fileId: string; systemId: string }
     | { revision: number; layouts: FloorLayout[] }
+    | { nodes: DbInfraNode[] | null; edges: DbDependency[] | null }
+    | { id: string; status: DbDependency['status'] }
+    | Record<string, unknown>
 }
 
 // ─── Trustworthy realization ────────────────────────────────────────────────

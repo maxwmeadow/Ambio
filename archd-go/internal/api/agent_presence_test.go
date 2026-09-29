@@ -48,6 +48,13 @@ func TestAgentPresenceIsALiveLeaseNotPermanentHistory(t *testing.T) {
 	if renewedLease.NewLease {
 		t.Fatal("renewing an active heartbeat should not create a new lease")
 	}
+	verified := httptest.NewRecorder()
+	server.handleAgentPresence(verified, httptest.NewRequest(http.MethodPost, "/api/agent/presence", bytes.NewReader(
+		[]byte(`{"workspaceId":"ws","connectionId":"process-1","hostId":"codex","verifiedTool":true}`),
+	)))
+	if verified.Code != http.StatusOK {
+		t.Fatalf("verification status %d: %s", verified.Code, verified.Body.String())
+	}
 
 	read := func() struct {
 		Connected   bool            `json:"connected"`
@@ -72,10 +79,26 @@ func TestAgentPresenceIsALiveLeaseNotPermanentHistory(t *testing.T) {
 	}
 
 	active := read()
-	if !active.Connected || len(active.Connections) != 1 || active.Connections[0].HostID != "codex" {
+	if !active.Connected || len(active.Connections) != 1 || active.Connections[0].HostID != "codex" || active.Connections[0].LastToolAt != now.UnixMilli() {
 		t.Fatalf("active lease = %#v", active)
 	}
+	server.handleAgentPresence(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/agent/presence", bytes.NewReader(body)))
+	if retained := read().Connections[0].LastToolAt; retained != now.UnixMilli() {
+		t.Fatalf("heartbeat lost tool verification: %d", retained)
+	}
 
+	now = now.Add(16 * time.Second)
+	rejoined := httptest.NewRecorder()
+	server.handleAgentPresence(rejoined, httptest.NewRequest(http.MethodPost, "/api/agent/presence", bytes.NewReader(body)))
+	var fresh struct {
+		NewLease bool `json:"newLease"`
+	}
+	if err := json.Unmarshal(rejoined.Body.Bytes(), &fresh); err != nil {
+		t.Fatal(err)
+	}
+	if !fresh.NewLease || read().Connections[0].LastToolAt != 0 {
+		t.Fatal("an expired process must reconnect without inheriting old tool verification")
+	}
 	now = now.Add(16 * time.Second)
 	expired := read()
 	if expired.Connected || len(expired.Connections) != 0 {

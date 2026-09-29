@@ -21,6 +21,10 @@ export type CommandId =
   | 'map.newSheet'
   | 'map.addInfra'
   | 'map.lasso'
+  | 'map.tidy'
+  | 'view.zoomMapIn'
+  | 'view.zoomMapOut'
+  | 'view.infrastructure'
   | 'project.settings'
   | 'project.reindex'
   | 'project.close'
@@ -83,16 +87,21 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'map.newSheet': { id: 'map.newSheet', label: 'New Sheet…', accelerator: 'CmdOrCtrl+T', needsProject: true },
   'map.addInfra': { id: 'map.addInfra', label: 'Add Infrastructure…', needsProject: true },
   'map.lasso': { id: 'map.lasso', label: 'Lasso Select', needsProject: true },
+  'map.tidy': { id: 'map.tidy', label: 'Tidy Layout', accelerator: 'CmdOrCtrl+Shift+L', needsProject: true },
   'project.close': { id: 'project.close', label: 'Close Project', accelerator: 'CmdOrCtrl+Shift+W', needsProject: true },
   'view.commandPalette': { id: 'view.commandPalette', label: 'Command Palette…', accelerator: 'CmdOrCtrl+Shift+P', paletteHidden: true },
   'view.search': { id: 'view.search', label: 'Search Files…', accelerator: 'CmdOrCtrl+K', needsProject: true },
-  'view.fitView': { id: 'view.fitView', label: 'Fit Map to Window', accelerator: 'Shift+1', needsProject: true },
-  'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+L', needsProject: true },
+  // The map owns the plain zoom keys; the whole interface zooms with Alt added.
+  'view.fitView': { id: 'view.fitView', label: 'Fit Map to Window', accelerator: 'CmdOrCtrl+0', needsProject: true },
+  'view.zoomMapIn': { id: 'view.zoomMapIn', label: 'Zoom In Map', accelerator: 'CmdOrCtrl+=', needsProject: true },
+  'view.zoomMapOut': { id: 'view.zoomMapOut', label: 'Zoom Out Map', accelerator: 'CmdOrCtrl+-', needsProject: true },
+  'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
+  'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+A', needsProject: true },
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
   'view.reviewChanges': { id: 'view.reviewChanges', label: 'Review Changes', needsProject: true },
-  'view.zoomIn': { id: 'view.zoomIn', label: 'Zoom In Interface', accelerator: 'CmdOrCtrl+=' },
-  'view.zoomOut': { id: 'view.zoomOut', label: 'Zoom Out Interface', accelerator: 'CmdOrCtrl+-' },
-  'view.resetZoom': { id: 'view.resetZoom', label: 'Actual Size', accelerator: 'CmdOrCtrl+0' },
+  'view.zoomIn': { id: 'view.zoomIn', label: 'Zoom In Interface', accelerator: 'CmdOrCtrl+Alt+=' },
+  'view.zoomOut': { id: 'view.zoomOut', label: 'Zoom Out Interface', accelerator: 'CmdOrCtrl+Alt+-' },
+  'view.resetZoom': { id: 'view.resetZoom', label: 'Actual Size Interface', accelerator: 'CmdOrCtrl+Alt+0' },
   'view.fullScreen': { id: 'view.fullScreen', label: 'Toggle Full Screen', accelerator: 'F11' },
   'agent.message': { id: 'agent.message', label: 'Message Agent…', accelerator: 'CmdOrCtrl+Enter', needsProject: true },
   'agent.connect': { id: 'agent.connect', label: 'Connect an Agent…', needsProject: true },
@@ -169,7 +178,8 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
-      command('view.agentLog'), command('view.documents'), separator,
+      command('view.agentLog'), command('view.documents'), command('view.infrastructure'), separator,
+      command('view.fitView'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),
       ...(options.developer
@@ -187,8 +197,8 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'map', label: 'Map', entries: [
-      command('map.newSheet'), command('map.addInfra'), command('map.lasso'), separator,
-      command('view.fitView'), command('view.reviewChanges'),
+      command('map.newSheet'), command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
+      command('view.reviewChanges'),
     ],
   })
 

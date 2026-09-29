@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -14,16 +16,50 @@ var ErrInboxConflict = errors.New("message changed, claim expired, or another ag
 
 // Replies belong to messages, never to ephemeral canvas objects.
 type InboxReply struct {
-	Body      string `json:"body"`
-	Agent     string `json:"agent"`
+	Body      string      `json:"body"`
+	Agent     string      `json:"agent"`
+	CreatedAt int64       `json:"createdAt"`
+	Result    *WorkResult `json:"result,omitempty"`
+}
+type WorkCheck struct {
+	Command string `json:"command"`
+	Outcome string `json:"outcome"`
+}
+
+// Result fields are reported by the agent. Axiom's independent checks are
+// displayed separately, rather than silently promoting these claims to proof.
+type WorkResult struct {
+	Commit       string      `json:"commit,omitempty"`
+	ChangedFiles []string    `json:"changedFiles,omitempty"`
+	Checks       []WorkCheck `json:"checks,omitempty"`
+	Remaining    []string    `json:"remaining,omitempty"`
+}
+type InboxReview struct {
+	ID        string `json:"id"`
+	Decision  string `json:"decision"`
+	Note      string `json:"note"`
 	CreatedAt int64  `json:"createdAt"`
+}
+type WorkOrderChange struct {
+	Kind         string `json:"kind"`
+	SubjectLabel string `json:"subjectLabel"`
+	ObjectLabel  string `json:"objectLabel,omitempty"`
+	Count        int    `json:"count"`
+	At           int64  `json:"at"`
 }
 type InboxItem struct {
 	CanvasMessage
-	LeaseToken     string      `json:"leaseToken,omitempty"`
-	LeaseExpiresAt int64       `json:"leaseExpiresAt,omitempty"`
-	Agent          string      `json:"agent,omitempty"`
-	Reply          *InboxReply `json:"reply,omitempty"`
+	SentSheetName     string            `json:"sentSheetName,omitempty"`
+	SentSheetRevision int               `json:"sentSheetRevision,omitempty"`
+	LeaseToken        string            `json:"leaseToken,omitempty"`
+	LeaseExpiresAt    int64             `json:"leaseExpiresAt,omitempty"`
+	Agent             string            `json:"agent,omitempty"`
+	Reply             *InboxReply       `json:"reply,omitempty"`
+	PriorReplies      []InboxReply      `json:"priorReplies,omitempty"`
+	Review            *InboxReview      `json:"review,omitempty"`
+	Reviews           []InboxReview     `json:"reviews,omitempty"`
+	Sessions          []WorkSession     `json:"sessions,omitempty"`
+	Changes           []WorkOrderChange `json:"changes,omitempty"`
 }
 
 func migrateInbox(d *sql.DB) error {
@@ -39,6 +75,19 @@ func migrateInbox(d *sql.DB) error {
  body TEXT NOT NULL CHECK(length(trim(body))>0), agent TEXT NOT NULL,
  token TEXT NOT NULL, created_at INTEGER NOT NULL
  );
+ CREATE TABLE IF NOT EXISTS canvas_reply_history (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ message_id TEXT NOT NULL REFERENCES canvas_outbox(id) ON DELETE CASCADE,
+ body TEXT NOT NULL, agent TEXT NOT NULL, result_json TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
+ );
+ CREATE INDEX IF NOT EXISTS canvas_reply_history_message ON canvas_reply_history(message_id,id);
+ CREATE TABLE IF NOT EXISTS canvas_review_events (
+ id TEXT PRIMARY KEY,
+ message_id TEXT NOT NULL REFERENCES canvas_outbox(id) ON DELETE CASCADE,
+ decision TEXT NOT NULL CHECK(decision IN ('accepted','reopened')),
+ note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL
+ );
+ CREATE INDEX IF NOT EXISTS canvas_review_events_message ON canvas_review_events(message_id,created_at,id);
  INSERT OR IGNORE INTO canvas_replies(message_id,body,agent,token,created_at)
  SELECT m.id,a.body,a.author,'legacy',COALESCE(m.answered_at,a.created_at)
  FROM canvas_outbox m JOIN annotations a ON a.id=m.answer_annotation_id
@@ -49,31 +98,56 @@ func migrateInbox(d *sql.DB) error {
  WHEN NEW.status NOT IN ('queued','delivered','answered','cancelled') BEGIN SELECT RAISE(ABORT,'invalid canvas status'); END;
  CREATE TRIGGER IF NOT EXISTS canvas_status_update BEFORE UPDATE OF status ON canvas_outbox
  WHEN NEW.status NOT IN ('queued','delivered','answered','cancelled') BEGIN SELECT RAISE(ABORT,'invalid canvas status'); END;
- `)
-	return err
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(`ALTER TABLE canvas_replies ADD COLUMN result_json TEXT NOT NULL DEFAULT ''`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return err
+	}
+	return nil
 }
 
 const inboxColumns = `m.id,m.workspace_id,m.delivery_mode,m.sheet_id,m.note,m.selection,m.change_summary,
+ CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.name'),'') AS TEXT) ELSE '' END,
+ CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.revision'),0) AS INTEGER) ELSE 0 END,
  m.status,m.delivered_to,m.answer_annotation_id,m.created_at,m.delivered_at,m.answered_at,
  COALESCE(c.token,''),COALESCE(c.expires_at,0),COALESCE(c.agent,''),
- r.body,COALESCE(r.agent,''),COALESCE(r.created_at,0)`
-const inboxJoins = ` FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id LEFT JOIN canvas_replies r ON r.message_id=m.id `
+ r.body,COALESCE(r.agent,''),COALESCE(r.created_at,0),COALESCE(r.result_json,''),
+ v.id,COALESCE(v.decision,''),COALESCE(v.note,''),COALESCE(v.created_at,0)`
+const inboxJoins = ` FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id LEFT JOIN canvas_replies r ON r.message_id=m.id
+ LEFT JOIN canvas_review_events v ON v.id=(SELECT id FROM canvas_review_events WHERE message_id=m.id ORDER BY rowid DESC LIMIT 1) `
 
 type inboxScanner interface{ Scan(...any) error }
 
 func scanInbox(row inboxScanner, now int64) (*InboxItem, error) {
 	item := &InboxItem{}
 	var body sql.NullString
+	var resultJSON string
+	var reviewID sql.NullString
+	var review InboxReview
 	reply := &InboxReply{}
 	err := row.Scan(&item.ID, &item.WorkspaceID, &item.DeliveryMode, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
+		&item.SentSheetName, &item.SentSheetRevision,
 		&item.Status, &item.DeliveredTo, &item.AnswerAnnotationID, &item.CreatedAt, &item.DeliveredAt, &item.AnsweredAt,
-		&item.LeaseToken, &item.LeaseExpiresAt, &item.Agent, &body, &reply.Agent, &reply.CreatedAt)
+		&item.LeaseToken, &item.LeaseExpiresAt, &item.Agent, &body, &reply.Agent, &reply.CreatedAt, &resultJSON,
+		&reviewID, &review.Decision, &review.Note, &review.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	if body.Valid {
 		reply.Body = body.String
+		if resultJSON != "" {
+			if err := json.Unmarshal([]byte(resultJSON), &reply.Result); err != nil {
+				return nil, err
+			}
+		}
 		item.Reply = reply
+	}
+	if reviewID.Valid {
+		review.ID = reviewID.String
+		item.Review = &review
 	}
 	if item.Status == "delivered" && item.LeaseExpiresAt <= now {
 		item.Status = "queued"
@@ -96,6 +170,7 @@ func InboxHistory(d *sql.DB, workspace, before string, limit int, now int64) ([]
 	}
 	defer rows.Close()
 	items := []InboxItem{}
+	messageIDs := []string{}
 	for rows.Next() {
 		item, err := scanInbox(rows, now)
 		if err != nil {
@@ -103,11 +178,100 @@ func InboxHistory(d *sql.DB, workspace, before string, limit int, now int64) ([]
 		}
 		item.LeaseToken = ""
 		items = append(items, *item)
+		messageIDs = append(messageIDs, item.ID)
 	}
-	return items, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	sessions, err := InboxWorkSessions(d, workspace, messageIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Sessions = sessions[items[i].ID]
+		if err := loadPriorReplies(d, &items[i]); err != nil {
+			return nil, err
+		}
+		if err := loadReviews(d, &items[i]); err != nil {
+			return nil, err
+		}
+		if err := loadWorkOrderChanges(d, &items[i]); err != nil {
+			return nil, err
+		}
+	}
+	return items, nil
 }
 func ReadInboxItem(d *sql.DB, id string, now int64) (*InboxItem, error) {
-	return scanInbox(d.QueryRow("SELECT "+inboxColumns+inboxJoins+" WHERE m.id=?", id), now)
+	item, err := scanInbox(d.QueryRow("SELECT "+inboxColumns+inboxJoins+" WHERE m.id=?", id), now)
+	if err != nil {
+		return nil, err
+	}
+	if err := loadPriorReplies(d, item); err != nil {
+		return nil, err
+	}
+	if err := loadReviews(d, item); err != nil {
+		return nil, err
+	}
+	return item, loadWorkOrderChanges(d, item)
+}
+
+func loadReviews(d *sql.DB, item *InboxItem) error {
+	rows, err := d.Query(`SELECT id,decision,note,created_at FROM canvas_review_events WHERE message_id=? ORDER BY rowid`, item.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var review InboxReview
+		if err := rows.Scan(&review.ID, &review.Decision, &review.Note, &review.CreatedAt); err != nil {
+			return err
+		}
+		item.Reviews = append(item.Reviews, review)
+	}
+	return rows.Err()
+}
+
+func loadWorkOrderChanges(d *sql.DB, item *InboxItem) error {
+	rows, err := d.Query(`SELECT se.kind,se.subject_label,se.object_label,se.count,se.ts
+ FROM structural_events se JOIN work_sessions ws ON ws.id=se.session_id AND ws.workspace_id=se.workspace_id
+ WHERE se.workspace_id=? AND ws.message_id=? ORDER BY se.ts DESC,se.id DESC LIMIT 50`, item.WorkspaceID, item.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var change WorkOrderChange
+		if err := rows.Scan(&change.Kind, &change.SubjectLabel, &change.ObjectLabel, &change.Count, &change.At); err != nil {
+			return err
+		}
+		item.Changes = append(item.Changes, change)
+	}
+	return rows.Err()
+}
+
+func loadPriorReplies(d *sql.DB, item *InboxItem) error {
+	rows, err := d.Query(`SELECT body,agent,result_json,created_at FROM canvas_reply_history WHERE message_id=? ORDER BY id`, item.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var reply InboxReply
+		var resultJSON string
+		if err := rows.Scan(&reply.Body, &reply.Agent, &resultJSON, &reply.CreatedAt); err != nil {
+			return err
+		}
+		if resultJSON != "" {
+			if err := json.Unmarshal([]byte(resultJSON), &reply.Result); err != nil {
+				return err
+			}
+		}
+		item.PriorReplies = append(item.PriorReplies, reply)
+	}
+	return rows.Err()
 }
 
 // SQLite's BEGIN IMMEDIATE serializes selection and ownership assignment.
@@ -184,7 +348,19 @@ func claimInbox(d *sql.DB, workspace, owner, agent, messageID string, now int64)
 	return []InboxItem{*item}, nil
 }
 
-func ReplyInbox(d *sql.DB, workspace, id, token, body string, now int64) (*InboxItem, error) {
+func ReplyInbox(d *sql.DB, workspace, id, token, body string, now int64, reported ...*WorkResult) (*InboxItem, error) {
+	var result *WorkResult
+	if len(reported) > 0 {
+		result = reported[0]
+	}
+	resultJSON := ""
+	if result != nil {
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			return nil, err
+		}
+		resultJSON = string(encoded)
+	}
 	tx, err := d.Begin()
 	if err != nil {
 		return nil, err
@@ -194,10 +370,10 @@ func ReplyInbox(d *sql.DB, workspace, id, token, body string, now int64) (*Inbox
 	if err = tx.QueryRow(`SELECT status FROM canvas_outbox WHERE id=? AND workspace_id=?`, id, workspace).Scan(&status); err != nil {
 		return nil, err
 	}
-	var priorBody, priorToken string
-	err = tx.QueryRow(`SELECT body,token FROM canvas_replies WHERE message_id=?`, id).Scan(&priorBody, &priorToken)
+	var priorBody, priorToken, priorResult string
+	err = tx.QueryRow(`SELECT body,token,result_json FROM canvas_replies WHERE message_id=?`, id).Scan(&priorBody, &priorToken, &priorResult)
 	if err == nil {
-		if priorToken != token || priorBody != body {
+		if priorToken != token || priorBody != body || priorResult != resultJSON {
 			return nil, ErrInboxConflict
 		}
 		tx.Rollback()
@@ -214,13 +390,76 @@ func ReplyInbox(d *sql.DB, workspace, id, token, body string, now int64) (*Inbox
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(`INSERT INTO canvas_replies(message_id,body,agent,token,created_at) VALUES(?,?,?,?,?)`, id, body, agent, token, now)
+	_, err = tx.Exec(`INSERT INTO canvas_replies(message_id,body,agent,token,created_at,result_json) VALUES(?,?,?,?,?,?)`, id, body, agent, token, now, resultJSON)
 	if err != nil {
 		return nil, err
 	}
 	_, err = tx.Exec(`UPDATE canvas_outbox SET status='answered',answered_at=? WHERE id=?`, now, id)
 	if err != nil {
 		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ReadInboxItem(d, id, now)
+}
+
+// ReviewInbox records the user's decision. Reopening preserves the previous
+// submission and feedback, then releases the order for another explicit claim.
+// The review ID makes an uncertain HTTP retry safe.
+func ReviewInbox(d *sql.DB, workspace, id, reviewID, decision, note string, now int64) (*InboxItem, error) {
+	tx, err := d.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var previousMessage, previousDecision, previousNote string
+	err = tx.QueryRow(`SELECT message_id,decision,note FROM canvas_review_events WHERE id=?`, reviewID).Scan(&previousMessage, &previousDecision, &previousNote)
+	if err == nil {
+		if previousMessage != id || previousDecision != decision || previousNote != note {
+			return nil, ErrInboxConflict
+		}
+		tx.Rollback()
+		item, err := ReadInboxItem(d, id, now)
+		if err != nil || item.WorkspaceID != workspace {
+			return nil, ErrInboxConflict
+		}
+		return item, nil
+	}
+	if err != sql.ErrNoRows {
+		return nil, err
+	}
+	var status string
+	if err = tx.QueryRow(`SELECT status FROM canvas_outbox WHERE id=? AND workspace_id=?`, id, workspace).Scan(&status); err != nil {
+		return nil, err
+	}
+	if status != "answered" {
+		return nil, ErrInboxConflict
+	}
+	var body, agent, resultJSON string
+	var repliedAt int64
+	if err = tx.QueryRow(`SELECT body,agent,result_json,created_at FROM canvas_replies WHERE message_id=?`, id).Scan(&body, &agent, &resultJSON, &repliedAt); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(`INSERT INTO canvas_review_events(id,message_id,decision,note,created_at) VALUES(?,?,?,?,?)`, reviewID, id, decision, note, now); err != nil {
+		return nil, err
+	}
+	if decision == "reopened" {
+		if _, err = tx.Exec(`INSERT INTO canvas_reply_history(message_id,body,agent,result_json,created_at) VALUES(?,?,?,?,?)`, id, body, agent, resultJSON, repliedAt); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(`DELETE FROM canvas_replies WHERE message_id=?`, id); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(`DELETE FROM canvas_claims WHERE message_id=?`, id); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(`UPDATE canvas_outbox SET status='queued',delivered_to=NULL,delivered_at=NULL,answered_at=NULL WHERE id=?`, id); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(`UPDATE work_sessions SET ended_at=? WHERE workspace_id=? AND message_id=? AND ended_at=0`, now, workspace, id); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err

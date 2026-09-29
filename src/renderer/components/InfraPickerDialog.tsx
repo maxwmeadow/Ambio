@@ -6,7 +6,7 @@ import { useRegistryStore } from '../store/registryStore'
 import { DialogButton, DialogError } from './ui/DialogPrimitives'
 
 type GroupMode = 'type' | 'provider'
-type QuickFilter = 'all' | 'hosting' | 'database' | 'storage' | 'messaging' | 'data' | 'integrations' | 'security' | 'observability'
+type QuickFilter = 'all' | 'hosting' | 'database' | 'storage' | 'messaging' | 'data' | 'integrations' | 'security' | 'observability' | 'app'
 
 type InfraPickerDialogProps =
   | {
@@ -30,14 +30,16 @@ const TYPE_NAMES: Record<string, string> = {
   api: 'External APIs',
   auth: 'Authentication',
   llm: 'AI & language models',
-  cdn: 'CDN & delivery',
   observability: 'Observability',
   email: 'Email',
+  scheduler: 'Scheduled jobs',
+  flags: 'Feature flags',
+  realtime: 'Realtime',
 }
 
 const QUICK_FILTERS: Array<{ id: QuickFilter; label: string; categories: string[] }> = [
   { id: 'all', label: 'All', categories: [] },
-  { id: 'hosting', label: 'Hosting', categories: ['platform', 'cdn'] },
+  { id: 'hosting', label: 'Hosting', categories: ['platform'] },
   { id: 'database', label: 'Database', categories: ['database'] },
   { id: 'storage', label: 'Storage', categories: ['storage'] },
   { id: 'messaging', label: 'Messaging', categories: ['queue', 'email'] },
@@ -45,9 +47,10 @@ const QUICK_FILTERS: Array<{ id: QuickFilter; label: string; categories: string[
   { id: 'integrations', label: 'API & AI', categories: ['api', 'llm'] },
   { id: 'security', label: 'Auth', categories: ['auth'] },
   { id: 'observability', label: 'Observability', categories: ['observability'] },
+  { id: 'app', label: 'Jobs, flags & realtime', categories: ['scheduler', 'flags', 'realtime'] },
 ]
 
-function ServiceIcon({ service, size = 26 }: { service: InfraService; size?: number }) {
+export function ServiceIcon({ service, size = 26 }: { service: InfraService; size?: number }) {
   const official = officialServiceIcon(service.id)
   if (official) return <img className="axiom-infra-picker__service-icon" src={official} width={size} height={size} alt="" />
 

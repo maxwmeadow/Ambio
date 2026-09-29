@@ -52,7 +52,7 @@ in the surface for exactly that reason.
 | `trace_calls` | `get_call_path`, `get_call_graph`, `get_call_graph_for_files` |
 | `get_data_flow` | - |
 | `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
-| `edit_infra` | create, update, delete, connect |
+| `edit_infra` | create, update, delete, connect, contents, require, decide |
 | `edit_sheet` | list, get, create, add, annotate, compare, bind, apply_nesting, resolve, reopen |
 | `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |

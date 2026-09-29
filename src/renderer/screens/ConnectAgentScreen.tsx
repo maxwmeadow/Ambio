@@ -6,6 +6,7 @@ import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
   commandKind,
+  connectionCheckPrompt,
   presentAgentHost,
   presentAgentFamily,
   type AgentHostState,
@@ -34,7 +35,7 @@ function surfaceTooltip(host: AgentHostInfo, state: AgentHostState): string {
 }
 
 const SURFACE_STATE_LABEL: Record<AgentHostState, string> = {
-  live: 'Connected',
+  live: 'Process online',
   installed: 'Installed',
   repair: 'Needs repair',
   available: 'Ready to install',
@@ -48,7 +49,7 @@ type SetupStep = 1 | 2 | 3 | 4
 
 interface AgentPresenceResponse {
   connected: boolean
-  connections: Array<{ connectionId: string; hostId: string; lastSeenAt: number }>
+  connections: Array<{ connectionId: string; hostId: string; lastSeenAt: number; lastToolAt?: number }>
 }
 
 interface Props {
@@ -99,6 +100,7 @@ export function ConnectAgentScreen({
   const [locateNotices, setLocateNotices] = useState<Record<string, string>>({})
   const [hasLivePresence, setHasLivePresence] = useState(false)
   const [liveHostIds, setLiveHostIds] = useState<Set<string>>(() => new Set())
+  const [verifiedHostIds, setVerifiedHostIds] = useState<Set<string>>(() => new Set())
   const [phase, setPhaseState] = useState<Phase>(() => progress.get(project.id) ?? 'waiting')
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userSelectedHost = useRef(false)
@@ -172,6 +174,9 @@ export function ConnectAgentScreen({
           setLiveHostIds(new Set(
             (body.connections ?? []).map(item => item.hostId).filter(id => id !== 'unknown'),
           ))
+          setVerifiedHostIds(new Set(
+            (body.connections ?? []).filter(item => (item.lastToolAt ?? 0) > 0).map(item => item.hostId),
+          ))
           if (!blankProject && body.connected) setPhase('connected')
         }
       } catch { /* the next poll retries */ }
@@ -213,6 +218,8 @@ export function ConnectAgentScreen({
     : null
 
   const selectedReady = selectedPresentation?.state === 'installed' || selectedPresentation?.state === 'live'
+  const selectedOnline = !!selectedHost && liveHostIds.has(selectedHost.id)
+  const selectedVerified = !!selectedHost && verifiedHostIds.has(selectedHost.id)
 
   const rescan = useCallback(async () => {
     setRescanning(true)
@@ -332,7 +339,7 @@ export function ConnectAgentScreen({
         return state === 'installed' || state === 'live'
       })
     }
-    if (step === 2) return blankProject ? hasLivePresence : phase !== 'waiting'
+    if (step === 2) return blankProject ? selectedVerified : phase !== 'waiting'
     if (step === 3) return phase === 'proposed'
     return false
   }
@@ -630,13 +637,26 @@ export function ConnectAgentScreen({
               <div className="axiom-connect__step-panel">
                 <p className="axiom-connect__step-kicker">Step 2 of 2</p>
                 <h2>Connect {selectedHost?.modalityLabel || selectedHost?.label || 'your agent'}</h2>
-                {hasLivePresence ? (
+                {selectedVerified ? (
                   <>
                     <p className="axiom-connect__step-copy">
-                      {selectedHost?.modalityLabel || selectedHost?.label} is connected and Axiom is ready.
+                      {selectedHost?.modalityLabel || selectedHost?.label} called Axiom from this project. The inbox connection is verified.
                     </p>
                     <div className="axiom-connect__waiting-line" data-state="connected" aria-live="polite">
-                      <span aria-hidden="true" /> Live connection confirmed
+                      <span aria-hidden="true" /> Inbox access verified
+                    </div>
+                  </>
+                ) : selectedOnline ? (
+                  <>
+                    <p className="axiom-connect__step-copy">
+                      The MCP process is online. Ask the agent to check inbox access before opening the canvas.
+                    </p>
+                    <div className="axiom-connect__command" data-kind="connection check">
+                      <span>{connectionCheckPrompt(project)}</span>
+                      <button type="button" onClick={() => void copyText(connectionCheckPrompt(project))}>{copied ? 'Copied ✓' : 'Copy check'}</button>
+                    </div>
+                    <div className="axiom-connect__waiting-line" aria-live="polite">
+                      <span aria-hidden="true" /> Waiting for the agent to verify Axiom tools
                     </div>
                   </>
                 ) : selectedReady ? (
@@ -662,7 +682,7 @@ export function ConnectAgentScreen({
                   onBack={() => setActiveStep(1)}
                   nextLabel="Open canvas"
                   onNext={onComplete}
-                  nextDisabled={!hasLivePresence}
+                  nextDisabled={!selectedVerified}
                 />
               </div>
             )}

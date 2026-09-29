@@ -12,8 +12,11 @@ test('CmdOrCtrl means Command on macOS and Control elsewhere', () => {
 })
 
 test('shifted digits and symbols match by physical key', () => {
-  assert.equal(commandForKey(key({ key: '!', code: 'Digit1', shiftKey: true }), 'linux'), 'view.fitView')
-  assert.equal(commandForKey(key({ key: '+', code: 'Equal', ctrlKey: true }), 'win32'), 'view.zoomIn')
+  assert.equal(commandForKey(key({ key: '0', code: 'Digit0', ctrlKey: true }), 'linux'), 'view.fitView')
+  assert.equal(commandForKey(key({ key: '+', code: 'Equal', ctrlKey: true }), 'win32'), 'view.zoomMapIn')
+  // Option changes the character on macOS; the physical key still matches.
+  assert.equal(commandForKey(key({ key: '≠', code: 'Equal', metaKey: true, altKey: true }), 'darwin'), 'view.zoomIn')
+  assert.equal(commandForKey(key({ key: 'L', ctrlKey: true, shiftKey: true }), 'linux'), 'map.tidy')
   assert.equal(commandForKey(key({ key: 'k' }), 'linux'), null)
 })
 

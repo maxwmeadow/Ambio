@@ -344,6 +344,11 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			}
 		}
 
+		if err := indexer.EnsureDetectionEvidence(sqlDB, root); err != nil {
+			log.Printf("api: detection evidence %s: %v", root.Path, err)
+		}
+		s.detectInfra(sqlDB, root)
+
 		snapshot, _ := db.GetCanvasSnapshot(sqlDB, root.WorkspaceID)
 		if snapshot != nil {
 			s.hub.BroadcastSnapshot(snapshot)

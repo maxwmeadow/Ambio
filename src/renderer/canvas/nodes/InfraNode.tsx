@@ -2,6 +2,9 @@ import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { InfraNodeData } from '../sceneTypes'
 import { useInfraService } from '../../store/registryStore'
+import { useGraphStore } from '../../store/graphStore'
+import { monoFontFittingWidth } from '../systemChrome'
+import { ROLE_LABEL, IMPLEMENTATION_LABEL, fileName } from '../infraRoles'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { EditableNodeTitle } from './EditableNodeTitle'
 import { ShapeBackdrop } from './NodeShell'
@@ -16,14 +19,47 @@ import { AxiomNodeResizer } from './AxiomNodeResizer'
 // monochrome single-path brand icons tinted with the brand accent, hairline
 // borders, no glows.
 
-// Short provider tag fallback when a brand icon is unavailable.
-function providerTag(provider: string): string {
-  return (provider || 'EXT').replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase()
+interface InfraFacts { users: number; implementers: number; local: string | null; gaps: string[] }
+
+/**
+ * What the card says about its node: how many files use it and what fills it
+ * locally. Read from the store rather than stamped into node data: infra nodes
+ * are few, and this keeps the Floor projection free of per-edge bookkeeping.
+ */
+function useInfraFacts(id: string): InfraFacts {
+  const counts = useGraphStore(state => {
+    // Distinct files: one file writing three tables is one user.
+    const users = new Set<string>()
+    const implementers = new Set<string>()
+    for (const dep of state.dependencies) {
+      if (dep.dst !== id || dep.dstType !== 'infra' || dep.status === 'dismissed') continue
+      if (dep.dependencyType === 'IMPLEMENTS') implementers.add(dep.src)
+      else users.add(dep.src)
+    }
+    for (const src of implementers) users.delete(src)
+    return `${users.size}:${implementers.size}`
+  })
+  const gapKey = useGraphStore(state => state.infraContents
+    .filter(item => item.infraId === id && typeof item.detail?.warning === 'string')
+    .map(item => `${item.name} is ${String(item.detail!.warning)}`)
+    .join('\n'))
+  const implementations = useGraphStore(state => state.infraNodes.find(node => node.id === id)?.implementations)
+  return React.useMemo(() => {
+    const [users, implementers] = counts.split(':').map(Number)
+    const local = (implementations ?? [])
+      .filter(impl => impl.kind !== 'vendor' && impl.environment === 'local')
+      .map(impl => impl.ref.startsWith('compose:')
+        ? `${impl.ref.slice(8)} (compose)`
+        : `${fileName(impl.ref).replace(/\.[a-z]+$/, '')} ${impl.kind === 'in-process' ? 'stand-in' : IMPLEMENTATION_LABEL[impl.kind] ?? ''}`.trim())
+      .join(' · ')
+    return { users, implementers, local: local || null, gaps: gapKey ? gapKey.split('\n') : [] }
+  }, [counts, implementations, gapKey])
 }
 
 export const InfraNode = React.memo(function InfraNode({ data, selected, width, height, isConnectable }: NodeProps) {
   const d = data as unknown as InfraNodeData
   const svc = useInfraService(d.service)
+  const facts = useInfraFacts(d.id)
   const presentationScale = fitPresentationScale(width, height, 260, 160, d.worldScale ?? 1)
   const contentW = (typeof width === 'number' && width > 0 ? width : 260) / presentationScale
   const contentH = (typeof height === 'number' && height > 0 ? height : 160) / presentationScale
@@ -58,13 +94,19 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
     <Handle type="target" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale)} />
   </div>
 
-  const accent = svc?.brand.darkColor ?? svc?.brand.color ?? 'var(--infra-accent)'
+  const accent = svc?.brand.color ?? 'var(--infra-accent)'
   const officialIcon = svc ? officialServiceIcon(svc.id) : undefined
   const icon = svc ? brandIcon(svc.brand.icon) : null
   const glyph = CATEGORY_GLYPHS[d.category] ?? CATEGORY_GLYPHS.api
   const proposed = d.status === 'proposed'
   const shape = d.category === 'database' ? 'cylinder' as const : d.category === 'queue' ? 'hexagon' as const : 'box' as const
-  const legend = [d.category?.toUpperCase(), d.subtype?.toUpperCase()].filter(Boolean).join(' · ')
+  const legend = [ROLE_LABEL[d.category] ?? d.category, d.subtype].filter(Boolean).join(' · ').toUpperCase()
+  const padX = shape === 'hexagon' ? 30 : 18
+  const nameFont = monoFontFittingWidth(d.name, contentW - padX * 2 - 40, 24)
+  const users = facts.users
+  const useLine = users > 0
+    ? `${users} file${users === 1 ? '' : 's'} use${users === 1 ? 's' : ''} it`
+    : facts.implementers > 0 ? `implemented in ${facts.implementers} file${facts.implementers === 1 ? '' : 's'}` : 'not connected yet'
 
   return (
     <div style={{
@@ -80,89 +122,56 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
           minWidth={1} minHeight={1} color={accent}
           onResizeStart={d.onResizeStart} onResizeEnd={d.onResizeEnd} />
       )}
-      <div style={{
-      width: `${100 / presentationScale}%`,
-      height: `${100 / presentationScale}%`,
-      transform: `scale(${presentationScale})`,
-      transformOrigin: 'top left',
-      background: 'transparent',
-      border: 'none',
-      opacity: proposed ? 0.65 : 1,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      gap: 4,
-      padding: shape === 'cylinder' ? '13px 12px 11px' : shape === 'hexagon' ? '7px 17px' : '6px 10px',
-      position: 'relative',
-      transition: 'border-color 0.15s ease, opacity 0.15s ease',
-      boxShadow: 'none',
-    }}>
-      <ShapeBackdrop stock="blueprint" shape={shape} stroke="var(--infra-border)" strokeWidth={1} dashed={proposed} fill="var(--infra-surface)" width={contentW} height={contentH} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        {officialIcon ? (
-          <img src={officialIcon} width={14} height={14} alt="" style={{ flexShrink: 0 }} />
-        ) : icon ? (
-          <svg viewBox="0 0 24 24" width={14} height={14} style={{ flexShrink: 0 }} aria-label={icon.title}>
-            <path d={icon.path} fill={accent} />
-          </svg>
-        ) : (
-          <span style={{
-            fontSize: 8,
-            fontWeight: 700,
+      <div
+        className="axiom-infra-card"
+        data-infra-card={d.service || d.category}
+        style={{
+          width: `${100 / presentationScale}%`,
+          height: `${100 / presentationScale}%`,
+          transform: `scale(${presentationScale})`,
+          transformOrigin: 'top left',
+          opacity: proposed ? 0.65 : 1,
+          padding: shape === 'cylinder' ? `26px ${padX}px 14px` : `14px ${padX}px`,
+          '--infra-accent-color': accent,
+        } as React.CSSProperties}
+      >
+        <ShapeBackdrop stock="blueprint" shape={shape} stroke="var(--infra-border)" strokeWidth={1} dashed={proposed} fill="var(--infra-surface)" width={contentW} height={contentH} />
+        <div className="axiom-infra-card__head">
+          {officialIcon ? (
+            <img src={officialIcon} width={30} height={30} alt="" className="axiom-infra-card__icon" />
+          ) : icon ? (
+            <svg viewBox="0 0 24 24" width={30} height={30} className="axiom-infra-card__icon" aria-label={icon.title}>
+              <path d={icon.path} fill={accent} />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width={30} height={30} className="axiom-infra-card__icon" aria-hidden="true">
+              <path d={glyph} fill="var(--text-secondary)" />
+            </svg>
+          )}
+          <EditableNodeTitle value={d.name} onRename={d.onRename} style={{
+            fontSize: nameFont,
             fontFamily: 'var(--font-mono)',
-            color: accent,
-            border: `1px solid ${accent}`,
-            padding: '2px 4px',
-            lineHeight: 1,
-            flexShrink: 0,
-          }}>{providerTag(d.provider)}</span>
-        )}
-        <EditableNodeTitle value={d.name} onRename={d.onRename} style={{
-          fontSize: 11,
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--text-primary)',
-          fontWeight: 600,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          minWidth: 0,
-        }} />
-      </div>
-
-
-      {/* Category legend strip - the drafting-table "what kind of thing is this" line */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <svg viewBox="0 0 24 24" width={9} height={9} style={{ flexShrink: 0, opacity: 0.75 }}>
-          <path d={glyph} fill="var(--text-dim)" />
-        </svg>
-        <span style={{
-          fontSize: 7.5,
-          fontFamily: 'var(--font-mono)',
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          color: 'var(--text-dim)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {legend || 'EXTERNAL'}
-        </span>
-        {proposed && (
-          <span style={{
-            fontSize: 7.5,
-            fontFamily: 'var(--font-mono)',
+            color: 'var(--text-primary)',
             fontWeight: 700,
-            letterSpacing: '0.08em',
-            color: 'var(--warn)',
-            border: '1px dashed var(--warn)',
-            padding: '1px 3px',
-            lineHeight: 1,
-            flexShrink: 0,
-            marginLeft: 'auto',
-          }}>PROPOSED</span>
+            lineHeight: 1.15,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+          }} />
+        </div>
+        <div className="axiom-infra-card__role">
+          <svg viewBox="0 0 24 24" width={11} height={11} aria-hidden="true"><path d={glyph} fill="currentColor" /></svg>
+          <span>{legend}</span>
+          {proposed && <span className="axiom-infra-card__proposed">PROPOSED</span>}
+        </div>
+        <div className="axiom-infra-card__use">{useLine}</div>
+        {facts.local && <div className="axiom-infra-card__local" title="What fills this role when you run the code locally">Locally: {facts.local}</div>}
+        {facts.gaps.length > 0 && (
+          <div className="axiom-infra-card__gap" title={facts.gaps.join('\n')}>
+            {facts.gaps.length === 1 ? facts.gaps[0] : `${facts.gaps.length} things look wrong`}
+          </div>
         )}
-      </div>
-
       </div>
 
       <Handle type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale)} />

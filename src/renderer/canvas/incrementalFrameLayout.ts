@@ -123,3 +123,52 @@ export function fitFrameAmongSiblings(
   if (!(fit >= LIVE_FIT_MIN_INTERIOR_SCALE)) return grown
   return { ...frame, interiorScale: fit }
 }
+
+/**
+ * Where infrastructure goes when nobody has placed it: a band below
+ * everything else on the Floor, stores first, then messaging, external
+ * services, and hosting last (INFRA_LAYER_PLAN.md L3). Code in the middle,
+ * what it depends on underneath - the order is stable, so the band reads the
+ * same in every project.
+ */
+export const INFRA_BAND_ORDER = [
+  'database', 'cache', 'search', 'storage', 'queue', 'realtime', 'llm', 'api',
+  'email', 'auth', 'flags', 'observability', 'scheduler', 'platform',
+]
+
+export function placeInfraBand(
+  items: ReadonlyArray<{ id: string; category: string; width: number; height: number }>,
+  occupied: readonly SiblingRect[],
+  gap: number,
+): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>()
+  if (items.length === 0) return out
+  let left = 80
+  let bottom = 80 - gap * 2
+  let right = left
+  if (occupied.length > 0) {
+    left = Math.min(...occupied.map(rect => rect.x))
+    bottom = Math.max(...occupied.map(rect => rect.y + rect.height))
+    right = Math.max(...occupied.map(rect => rect.x + rect.width))
+  }
+  const rank = (category: string) => {
+    const index = INFRA_BAND_ORDER.indexOf(category)
+    return index < 0 ? INFRA_BAND_ORDER.length : index
+  }
+  const ordered = [...items].sort((a, b) => rank(a.category) - rank(b.category) || a.id.localeCompare(b.id))
+  const rowWidth = Math.max(right - left, 4 * (260 + gap))
+  let x = left
+  let y = bottom + gap * 2
+  let rowHeight = 0
+  for (const item of ordered) {
+    if (x > left && x + item.width > left + rowWidth) {
+      x = left
+      y += rowHeight + gap
+      rowHeight = 0
+    }
+    out.set(item.id, { x, y })
+    x += item.width + gap
+    rowHeight = Math.max(rowHeight, item.height)
+  }
+  return out
+}

@@ -22,6 +22,7 @@ import './styles/proposal.css'
 import './styles/connectAgent.css'
 import './styles/windows.css'
 import './styles/bins.css'
+import './styles/infraSidebar.css'
 import './styles/drafts.css'
 import './styles/appChrome.css'
 

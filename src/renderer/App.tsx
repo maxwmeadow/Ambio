@@ -30,7 +30,7 @@ import {
   migrateLegacyProjectLifecycle,
 } from './projectLocalState'
 
-import { useGraphStore, connectToArchd } from './store/graphStore'
+import { useGraphStore, connectToArchd, scheduleInfraDetails } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
@@ -61,7 +61,7 @@ const E2E_SETUP = E2E_MODE && APP_PARAMS.get('setup') === '1'
 const E2E_CONNECT = E2E_MODE && APP_PARAMS.get('connect') === '1'
 const E2E_REVIEW = E2E_MODE && APP_PARAMS.get('review') === '1'
 const E2E_BLANK_PROJECT = E2E_MODE && APP_PARAMS.get('blank') === '1'
-const E2E_PROJECT: ProjectConfig = {
+const E2E_PROJECT_BASE: ProjectConfig = {
   id: 'demo',
   name: 'Axiom Canvas Fixture',
   rootPath: '/axiom-e2e',
@@ -70,13 +70,37 @@ const E2E_PROJECT: ProjectConfig = {
   layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
   openedAt: 0,
 }
+const E2E_PROJECTS: Record<string, ProjectConfig> = {
+  commerce: { ...E2E_PROJECT_BASE, id: 'fixture-commerce', name: 'Harbor Checkout', rootPath: '/fixtures/harbor-checkout' },
+  service: { ...E2E_PROJECT_BASE, id: 'fixture-service', name: 'Northstar API', rootPath: '/fixtures/northstar-api' },
+  operations: { ...E2E_PROJECT_BASE, id: 'fixture-operations', name: 'Relay Operations', rootPath: '/fixtures/relay-operations' },
+}
+const E2E_FIXTURE = APP_PARAMS.get('fixture') ?? ''
+const E2E_PROJECT = E2E_PROJECTS[E2E_FIXTURE] ?? E2E_PROJECT_BASE
+const E2E_FIXTURE_SYSTEMS: Record<string, Record<string, string>> = {
+  commerce: { sys_canvas: 'Checkout', sys_daemon: 'Payments API', sys_mcp: 'Retry Worker', sys_shared: 'Shared Contracts', sys_nodes: 'Cart UI', sys_db: 'Payment Store' },
+  service: { sys_canvas: 'Public API', sys_daemon: 'Request Handler', sys_mcp: 'Job Queue', sys_shared: 'API Contracts', sys_nodes: 'Auth Middleware', sys_db: 'Event Store' },
+  operations: { sys_canvas: 'Incident Console', sys_daemon: 'Routing API', sys_mcp: 'Job Queue', sys_shared: 'Event Contracts', sys_nodes: 'Alert Views', sys_db: 'Audit Store' },
+}
+const E2E_FIXTURE_FILES: Record<string, string[]> = {
+  commerce: ['src/checkout/Checkout.tsx', 'src/checkout/cart.ts', 'src/checkout/retry.ts', 'src/cart/Cart.tsx', 'src/cart/Item.tsx', 'src/cart/Price.tsx', 'api/payments/main.go', 'api/payments/charge.go', 'api/payments/retry.go', 'api/payments/watch.go', 'api/store/db.go', 'api/store/payments.go', 'workers/retry.ts', 'src/shared/contracts.ts'],
+  service: ['src/api/PublicApi.ts', 'src/api/routes.ts', 'src/api/timeout.ts', 'src/auth/Auth.ts', 'src/auth/token.ts', 'src/auth/policy.ts', 'api/handler/main.go', 'api/handler/request.go', 'api/handler/response.go', 'api/handler/watch.go', 'api/events/db.go', 'api/events/store.go', 'jobs/worker.ts', 'src/shared/contracts.ts'],
+  operations: ['src/incidents/Console.tsx', 'src/incidents/routes.ts', 'src/incidents/alerts.ts', 'src/alerts/Alert.tsx', 'src/alerts/Status.tsx', 'src/alerts/Timeline.tsx', 'api/routing/main.go', 'api/routing/incident.go', 'api/routing/escalation.go', 'api/routing/watch.go', 'api/audit/db.go', 'api/audit/store.go', 'jobs/queue.ts', 'src/shared/events.ts'],
+}
 // The deterministic canvas fixture predates inferred-system filtering. Its
 // six named systems are authored test data, not classifier guesses; stamp that
 // explicitly so E2E continues to exercise the full Floor rather than silently
 // turning into a one-system fixture.
 const E2E_SNAPSHOT = {
   ...demoSnapshot,
-  systems: demoSnapshot.systems.map(system => ({ ...system, source: 'user' as const })),
+  workspaceId: E2E_PROJECT.id,
+  systems: demoSnapshot.systems.map(system => ({ ...system, workspaceId: E2E_PROJECT.id, name: E2E_FIXTURE_SYSTEMS[E2E_FIXTURE]?.[system.id] ?? system.name, source: 'user' as const })),
+  files: demoSnapshot.files.map((file, index) => {
+    const relPath = E2E_FIXTURE_FILES[E2E_FIXTURE]?.[index] ?? file.relPath
+    return { ...file, rootId: E2E_FIXTURE_FILES[E2E_FIXTURE] ? `root-${E2E_FIXTURE}` : file.rootId, relPath, path: E2E_FIXTURE_FILES[E2E_FIXTURE] ? `${E2E_PROJECT.rootPath}/${relPath}` : file.path }
+  }),
+  infraNodes: demoSnapshot.infraNodes.map(infra => ({ ...infra, workspaceId: E2E_PROJECT.id, name: E2E_FIXTURE === 'commerce' && infra.id === 'infra_sqlite' ? 'Payments DB' : E2E_FIXTURE === 'service' && infra.id === 'infra_sqlite' ? 'Events DB' : E2E_FIXTURE === 'operations' && infra.id === 'infra_sqlite' ? 'Audit DB' : infra.name })),
+  dependencies: demoSnapshot.dependencies.map(dependency => ({ ...dependency, workspaceId: E2E_PROJECT.id })),
 }
 
 // Which project was open when we last closed. Absent means the user backed out
@@ -433,6 +457,7 @@ export default function App() {
                   return
                 }
                 applySnapshot(snap)
+                scheduleInfraDetails()
                 return
               }
             }

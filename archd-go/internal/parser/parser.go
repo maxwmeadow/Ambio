@@ -45,6 +45,11 @@ type Result struct {
 	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration;
 	// other entries are internal using directives (namespace strings, not file paths).
 	Imports []string
+	// Packages holds every external package the file loads, with its line:
+	// the evidence infra detection matches against the service registry.
+	Packages []PackageRef
+	// EnvReads holds environment variables the file reads, by name.
+	EnvReads []EnvRef
 	// Calls holds raw (unresolved) function calls extracted by tree-sitter.
 	// The indexer resolves CalleeName → callee file ID using the symbols table.
 	Calls []RawCall
@@ -73,6 +78,8 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 	// but we still use tree-sitter for symbols and call extraction.
 	if lang == "csharp" {
 		result.Imports = extractCSharpImports(src)
+		result.Packages = extractTextPackages(src, lang)
+		result.EnvReads = extractEnvReads(src, lang)
 		if grammar := grammarFor(lang); grammar != nil {
 			p := sitter.NewParser()
 			p.SetLanguage(grammar)
@@ -104,6 +111,21 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 	rootNode := tree.RootNode()
 	result.Symbols = extractSymbols(rootNode, src, lang)
 	result.Imports = extractImports(rootNode, src, lang, relPath)
+	switch lang {
+	case "typescript", "tsx", "javascript", "jsx":
+		packages, dynamicRelative := extractJSModuleRefs(rootNode, src, relPath)
+		result.Packages = packages
+		// require() and import() of project files are imports too: an
+		// adapter loaded lazily by its facade is still part of the graph.
+		result.Imports = append(result.Imports, dynamicRelative...)
+	case "python":
+		result.Packages = extractPythonPackages(rootNode, src)
+	case "go":
+		result.Packages = extractGoPackages(rootNode, src)
+	default:
+		result.Packages = extractTextPackages(src, lang)
+	}
+	result.EnvReads = extractEnvReads(src, lang)
 	result.Calls = extractCalls(rootNode, src, lang)
 	result.VarRefs = extractVarRefs(rootNode, src, lang)
 	return result, nil
@@ -357,14 +379,53 @@ func extractJSImports(root *sitter.Node, src []byte, relPath string) []string {
 
 func extractPythonImports(root *sitter.Node, src []byte) []string {
 	var imports []string
+	seen := map[string]bool{}
+	add := func(spec string) {
+		if spec != "" && !seen[spec] {
+			seen[spec] = true
+			imports = append(imports, spec)
+		}
+	}
+	moduleOf := func(node *sitter.Node) string {
+		switch node.Type() {
+		case "dotted_name", "relative_import":
+			return node.Content(src)
+		case "aliased_import":
+			if name := node.ChildByFieldName("name"); name != nil {
+				return name.Content(src)
+			}
+		}
+		return ""
+	}
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
-		if node.Type() == "import_statement" || node.Type() == "import_from_statement" {
+		switch node.Type() {
+		case "import_statement":
+			// import a.b, c as d
+			for i := 0; i < int(node.NamedChildCount()); i++ {
+				add(moduleOf(node.NamedChild(i)))
+			}
+		case "import_from_statement":
+			// from pkg import mod, fn: the module, and each name as a possible
+			// submodule (pkg.mod). Names that are functions resolve to no file.
+			module := node.ChildByFieldName("module_name")
+			if module == nil {
+				break
+			}
+			base := module.Content(src)
+			add(base)
 			for i := 0; i < int(node.ChildCount()); i++ {
-				child := node.Child(i)
-				if child.Type() == "dotted_name" || child.Type() == "relative_import" {
-					imports = append(imports, child.Content(src))
-					break
+				if node.FieldNameForChild(i) != "name" {
+					continue
+				}
+				name := moduleOf(node.Child(i))
+				if name == "" {
+					continue
+				}
+				if strings.HasSuffix(base, ".") {
+					add(base + name)
+				} else {
+					add(base + "." + name)
 				}
 			}
 		}

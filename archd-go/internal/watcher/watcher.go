@@ -17,6 +17,7 @@ import (
 	"axiom.local/archd/internal/db"
 	"axiom.local/archd/internal/hub"
 	"axiom.local/archd/internal/indexer"
+	"axiom.local/archd/internal/infradetect"
 )
 
 var skipDirs = map[string]bool{
@@ -43,6 +44,17 @@ type Watcher struct {
 	classifications  map[string]*time.Timer
 	reclusterMu      sync.Mutex
 	closed           atomic.Bool
+	// onSettled runs after a burst of changes has been indexed and classified
+	// - the moment derived views (infra detection) should catch up.
+	settledMu sync.RWMutex
+	onSettled func(db.Root)
+}
+
+// OnSettled registers what runs once a burst of changes has settled.
+func (w *Watcher) OnSettled(fn func(db.Root)) {
+	w.settledMu.Lock()
+	w.onSettled = fn
+	w.settledMu.Unlock()
 }
 
 // UpdateRoot refreshes branch/HEAD metadata without tearing down filesystem
@@ -119,6 +131,13 @@ func (w *Watcher) Run() {
 				}
 			}
 			if !isSourceFile(event.Name) {
+				// Manifests, env examples, compose and platform files are not
+				// source, but infra detection reads them.
+				if root := w.rootFor(event.Name); root != nil {
+					if rel, err := filepath.Rel(root.Path, event.Name); err == nil && infradetect.WantsConfig(filepath.ToSlash(rel)) {
+						w.scheduleClassification(*root)
+					}
+				}
 				continue
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
@@ -241,6 +260,12 @@ func (w *Watcher) runClassification(root db.Root) {
 	defer w.reclusterMu.Unlock()
 
 	changed, err := indexer.ClusterLive(w.sqlDB, root)
+	w.settledMu.RLock()
+	settled := w.onSettled
+	w.settledMu.RUnlock()
+	if settled != nil {
+		defer settled(root)
+	}
 	if err != nil {
 		log.Printf("watcher: live classification %s: %v", root.Path, err)
 		return

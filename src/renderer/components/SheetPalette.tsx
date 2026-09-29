@@ -1,6 +1,5 @@
 // SheetPalette - the UML stencil sidebar, shown when a sheet layer is active.
-// Drag a stencil onto the canvas to place it; the new element opens straight
-// into its inline name editor. Small semantic shape set by design.
+// Click to add to the selected system, or drag onto a specific frame.
 export interface StencilDef {
   id: string
   label: string
@@ -40,15 +39,19 @@ function StencilGlyph({ shape }: { shape: StencilDef['shape'] }) {
   }
 }
 
-export function SheetPalette() {
+export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stencil: StencilDef) => void; disabled?: boolean }) {
   return (
     <div className="axiom-sheet-palette" aria-label="Sheet stencils" data-onboarding-target="stencils">
       <div className="axiom-sheet-palette__title">Stencils</div>
       {STENCILS.map(stencil => (
-        <div
+        <button
+          type="button"
           key={stencil.id}
-          title={`${stencil.hint} - drag onto the canvas`}
-          draggable
+          aria-label={`Add ${stencil.label}`}
+          disabled={disabled}
+          onClick={() => onCreate(stencil)}
+          title={`${stencil.hint} · click to add to the selected system, or drag to place`}
+          draggable={!disabled}
           onDragStart={event => {
             event.dataTransfer.setData('application/axiom-stencil', JSON.stringify(stencil))
             event.dataTransfer.effectAllowed = 'copy'
@@ -57,10 +60,10 @@ export function SheetPalette() {
         >
           <StencilGlyph shape={stencil.shape} />
           <span>{stencil.label}</span>
-        </div>
+        </button>
       ))}
       <div className="axiom-sheet-palette__hint">
-        drag to place · type name · double-click fields to edit
+        click to add · drag to place · double-click to rename
       </div>
     </div>
   )

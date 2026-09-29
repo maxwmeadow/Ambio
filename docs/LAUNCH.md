@@ -168,8 +168,8 @@ motion), Agents, Privacy & Data (data/log folders, diagnostics), Advanced
 Reload/DevTools unless the developer menu is on.
 
 **Added 2026-09-30:** Go menu (The Floor `⌘1`, next/previous sheet
-`⌘]`/`⌘[`), Map menu (New Sheet `⌘T`, Add Infrastructure, Lasso Select, Fit
-`⇧1`, Review Changes), File → Open Recent (native submenu on macOS, inline
+`⌘]`/`⌘[`), Map menu (New Sheet `⌘T`, Add Infrastructure, Lasso Select, Tidy
+Layout `⇧⌘L`, Review Changes), File → Open Recent (native submenu on macOS, inline
 list on Windows/Linux, Clear Recently Opened), Re-index Project, and
 right-click menus on the live canvas: files (Open in Editor, Reveal, Copy
 Path, Copy Relative Path, Show Details, Message Agent), systems (Show Details,
@@ -224,7 +224,9 @@ Keyboard accelerators then work everywhere.
   single biggest discoverability win)*
 - Search Files… `⌘K` (today's search)
 - ---
-- Zoom In `⌘=`, Zoom Out `⌘-`, Fit to Screen `⌘0`, Zoom to Selection
+- Map: Fit `⌘0`, Zoom In `⌘=`, Zoom Out `⌘-`, Infrastructure Sidebar `⇧⌘E` (Zoom to Selection later)
+- Interface zoom: `⌥⌘=`, `⌥⌘-`, Actual Size `⌥⌘0` (the map owns the plain zoom keys; decided when merging the infrastructure work)
+- Agent Log `⇧⌘A` (moved from `⇧⌘L`, which is Tidy Layout)
 - ---
 - Panels ▸ Sheet Rail, Detail Panel, Documents, Agent Log, Status Bar
 - Review Changes (Morning Delta)

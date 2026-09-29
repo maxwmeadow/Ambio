@@ -23,7 +23,6 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  Controls,
   MiniMap,
   useReactFlow,
   useStoreApi,
@@ -78,7 +77,8 @@ import { packFrame, placeIncoming } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
 import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
-import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates } from './incrementalFrameLayout'
+import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from './incrementalFrameLayout'
+import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
   emptySelection,
@@ -89,15 +89,21 @@ import {
   stampSelection,
 } from './selectionController'
 import { planCanvasDrop } from './dropPersistence'
+import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
+import { raiseFailure } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
 import { surfaceLivingNodeFx } from './livingVisibility'
-import { withFacingHandles } from './folderAnchors'
+import { absoluteRects, withFacingHandles } from './folderAnchors'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
 import { stampAgentPresence } from './agentPresence'
 import { LivingFlowOverlay } from './LivingFlowOverlay'
 import { RunTraceOverlay } from './RunTraceOverlay'
+import { InfraSidebarLinks } from './InfraSidebarLinks'
+import { arrangeHosting, planHosting, type HostedChild } from './hostingPlan'
+import { readDetectedBy } from './infraRoles'
+import { InfraSidebar } from '../components/InfraSidebar'
 import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
@@ -1038,7 +1044,7 @@ function buildFloorFrameLayout(
     const file = filesById.get(id)
     if (file) return { width: file.width ?? BASE_FILE_W, height: file.height ?? BASE_FILE_H }
     const infra = infraById.get(id)
-    return infra?.category === 'platform' ? { width: 760, height: 520 } : { width: 260, height: 160 }
+    return infra?.category === 'platform' ? PLATFORM_FRAME_SIZE : INFRA_CARD_SIZE
   }
 
   const depthCache = new Map<string, number>()
@@ -1133,8 +1139,19 @@ function buildFloorFrameLayout(
   // Database/API order is not spatial order. Register every persisted sibling
   // first so an incoming system/file cannot be placed underneath a persisted
   // node that happens to appear later in the snapshot.
+  // Infrastructure nobody has placed goes in a band below the map rather than
+  // wherever the packer finds a gap; it is placed after everything else so
+  // the band knows where the map ends.
+  const bandedInfra: typeof placementCandidates = []
   for (const candidate of orderFramePlacementCandidates(placementCandidates)) {
     const { id, parentId, layout, fallback } = candidate
+    if (!layout && parentId === null && infraById.has(id)) {
+      const remembered = generatedPlacements.get(id)
+      if (!remembered || remembered.parentId !== null) {
+        bandedInfra.push(candidate)
+        continue
+      }
+    }
     let { x, y } = candidate
     const occupied = occupiedByParent.get(parentId) ?? []
     if (candidate.placementPriority === 2) {
@@ -1180,6 +1197,31 @@ function buildFloorFrameLayout(
     geometryById.set(id, geometry)
     occupied.push({ x: geometry.x, y: geometry.y, width: geometry.width * geometry.scale, height: geometry.height * geometry.scale })
     occupiedByParent.set(parentId, occupied)
+  }
+
+  if (bandedInfra.length > 0) {
+    const roots = occupiedByParent.get(null) ?? []
+    const band = placeInfraBand(
+      bandedInfra.map(candidate => ({
+        id: candidate.id,
+        category: infraById.get(candidate.id)?.category ?? 'api',
+        ...candidate.fallback,
+      })),
+      roots,
+      FRAME_ROOT_GAP,
+    )
+    for (const candidate of bandedInfra) {
+      const spot = band.get(candidate.id)!
+      generatedPlacements.set(candidate.id, { parentId: null, x: spot.x, y: spot.y })
+      const geometry = normalizeGeometry({
+        x: spot.x, y: spot.y,
+        width: candidate.fallback.width, height: candidate.fallback.height,
+        scale: 1, interiorScale: 1,
+      }, candidate.fallback)
+      geometryById.set(candidate.id, geometry)
+      roots.push({ x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height })
+    }
+    occupiedByParent.set(null, roots)
   }
 
   const resizedContainerIds = new Set<string>()
@@ -1303,16 +1345,6 @@ function buildFloorFrameLayout(
     currentZoom,
   })
   return { rfNodes, rfEdges: [], generatedLayoutNodeIds, resizedContainerIds }
-}
-
-function ZoomIndicator() {
-  const { zoom } = useViewport()
-  return (
-    <div className="axiom-zoom-indicator" aria-label={`Zoom ${zoom.toFixed(2)}x`}>
-      <span>Zoom:</span>
-      <strong>{zoom.toFixed(2)}x</strong>
-    </div>
-  )
 }
 
 // ─── Main component ────────────────────────────────────────────────────────
@@ -1493,7 +1525,17 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       : sceneFiles.filter(isCanvasSourceFile),
     [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
   )
-  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : liveInfraNodes
+  // Only infra that runs code is on the canvas: confirmed platforms, as frames
+  // that hold the systems they host. Everything code talks to (databases,
+  // queues, APIs...) lives in the infrastructure sidebar, which draws its
+  // relationships onto the canvas on demand (INFRA_LAYER_PLAN.md, "Canvas
+  // placement"). There is no good automatic place for a database on a map of
+  // code.
+  const hostingInfraNodes = useMemo(
+    () => liveInfraNodes.filter(node => (node.status ?? 'confirmed') === 'confirmed' && node.category === 'platform'),
+    [liveInfraNodes],
+  )
+  const infraNodes = isolatedScene ? emptyReviewLiveState.infraNodes : hostingInfraNodes
   const dependencies = isolatedScene ? emptyReviewLiveState.dependencies : liveDependencies
   const selectedNodeId = reviewScene?.selectedNodeId ?? liveSelectedNodeId
   const activeTrace = isolatedScene ? emptyReviewLiveState.activeTrace : liveActiveTrace
@@ -1518,7 +1560,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   )
   const setSelectedNode = reviewScene?.onSelectNode ?? setLiveSelectedNode
   const currentProject = useGraphStore(s => s.currentProject)
-  const { fitView, getViewport, setViewport, getInternalNode, screenToFlowPosition } = useReactFlow()
+  const { fitView, getViewport, setViewport, getInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
   const reactFlowStore = useStoreApi()
   // Subscribed rather than read once: the bin button shows whether the reader
   // is open, and a stale read would leave it stuck looking closed.
@@ -1834,10 +1876,10 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           positionY: element.positionY,
           width: element.width ?? previous?.width
             ?? liveSystems.get(nodeId)?.width ?? liveFiles.get(nodeId)?.width
-            ?? (infra?.category === 'platform' ? 760 : infra ? 260 : BASE_FILE_W),
+            ?? (infra?.category === 'platform' ? PLATFORM_FRAME_SIZE.width : infra ? INFRA_CARD_SIZE.width : BASE_FILE_W),
           height: element.height ?? previous?.height
             ?? liveSystems.get(nodeId)?.height ?? liveFiles.get(nodeId)?.height
-            ?? (infra?.category === 'platform' ? 520 : infra ? 160 : BASE_FILE_H),
+            ?? (infra?.category === 'platform' ? PLATFORM_FRAME_SIZE.height : infra ? INFRA_CARD_SIZE.height : BASE_FILE_H),
           scale: element.scale ?? previous?.scale ?? 1,
           interiorScale: previous?.interiorScale ?? 1,
           updatedAt: 0,
@@ -1860,9 +1902,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           positionX: planned.positionX,
           positionY: planned.positionY,
           width: planned.width ?? (nodeType === 'system'
-            ? 620 : nodeType === 'infra' ? (metadata.category === 'platform' ? 760 : 260) : BASE_FILE_W),
+            ? 620 : nodeType === 'infra' ? (metadata.category === 'platform' ? PLATFORM_FRAME_SIZE.width : INFRA_CARD_SIZE.width) : BASE_FILE_W),
           height: planned.height ?? (nodeType === 'system'
-            ? 420 : nodeType === 'infra' ? (metadata.category === 'platform' ? 520 : 160) : BASE_FILE_H),
+            ? 420 : nodeType === 'infra' ? (metadata.category === 'platform' ? PLATFORM_FRAME_SIZE.height : INFRA_CARD_SIZE.height) : BASE_FILE_H),
           scale: planned.scale ?? 1,
           interiorScale: 1,
           updatedAt: 0,
@@ -2564,7 +2606,74 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
    * whichever container the hit test happens to reach first.
    */
 
-  // Stencil drop: palette → canvas → planned element born in name-edit mode.
+  const stencilCreationPending = useRef(false)
+  const [creatingStencil, setCreatingStencil] = useState(false)
+  const [stencilFocusId, setStencilFocusId] = useState<string | null>(null)
+  const stencilScene = useCallback(() => {
+    const nodes = displayNodesRef.current
+    const positions = new Map(nodes.map(node => [node.id,
+      getInternalNode(node.id)?.internals.positionAbsolute ?? node.position]))
+    return { nodes, positions }
+  }, [getInternalNode])
+
+  const createStencil = useCallback(async (stencil: StencilDef, point: { x: number; y: number }, target: Node | null, focusCreated = false) => {
+    if (readOnly || reviewMode || !overlaySheetId || stencilCreationPending.current) return
+    stencilCreationPending.current = true
+    setCreatingStencil(true)
+    let createdId: string | null = null
+    try {
+      const store = useSheetStore.getState()
+      if (stencil.shape === 'note') {
+        await store.createFloatingNote(workspaceIdForOverlay, overlaySheetId, 'New note - double-click to edit', point.x, point.y)
+        return
+      }
+      const id = crypto.randomUUID()
+      const { nodes, positions } = stencilScene()
+      const { plan, layout } = planStencilPlacement({
+        id: `planned:${id}`, stencil, point, target, nodes, positions,
+        editableIds: activeNodeIds, workspaceId: workspaceIdForOverlay, layouts: sheetEffectiveLayouts,
+        systemIds: sheetSystemIds, fileIds: sheetFileIds, infraIds: sheetInfraIds,
+      })
+      const created = await store.createPlanned(workspaceIdForOverlay, overlaySheetId, {
+        id, name: `New${stencil.label.replace(/\s/g, '')}`, kind: stencil.kind,
+        shape: stencil.shape as 'box' | 'folder' | 'cylinder' | 'hexagon',
+        parentSystemId: layout.parentNodeId,
+        positionX: layout.positionX, positionY: layout.positionY,
+        width: layout.width, height: layout.height, scale: layout.scale,
+      })
+      if (!created) throw new Error('The new node was not returned by the server.')
+      createdId = created.id
+      await store.updateLayoutsBatch(workspaceIdForOverlay, overlaySheetId, plan.updates)
+      if (useSheetStore.getState().activeSheetId === overlaySheetId) {
+        setSelectedNode(`planned:${created.id}`)
+        if (focusCreated) setStencilFocusId(`planned:${created.id}`)
+        if (stencil.kind === 'infra') setInfraPickerNode(created.id)
+      }
+    } catch (error) {
+      console.error('[sheets] stencil creation failed:', error)
+      raiseFailure(`sheet-create:${overlaySheetId}`, createdId ? 'Node created, but its placement could not be saved' : 'Could not create the node',
+        error instanceof Error ? error.message : String(error))
+    } finally {
+      stencilCreationPending.current = false
+      setCreatingStencil(false)
+    }
+  }, [readOnly, reviewMode, overlaySheetId, workspaceIdForOverlay, stencilScene, activeNodeIds,
+    sheetEffectiveLayouts, sheetSystemIds, sheetFileIds, sheetInfraIds, setSelectedNode, setInfraPickerNode])
+
+  const onPaletteCreate = useCallback((stencil: StencilDef) => {
+    const { nodes, positions } = stencilScene()
+    const selected = selectedIdsRef.current.size === 1 ? nodes.find(node => selectedIdsRef.current.has(node.id)) : null
+    const target = selected?.type === 'system' ? selected : nodes.find(node => node.id === selected?.parentId && node.type === 'system')
+    const eligibleTarget = target && activeNodeIds.has(target.id) ? target : null
+    const canvas = canvasRootRef.current?.getBoundingClientRect()
+    if (!canvas) return
+    const point = eligibleTarget
+      ? stencilStartInFrame(eligibleTarget, positions.get(eligibleTarget.id)!)
+      : screenToFlowPosition({ x: canvas.left + canvas.width / 2, y: canvas.top + canvas.height / 2 })
+    void createStencil(stencil, point, eligibleTarget, !eligibleTarget)
+  }, [stencilScene, activeNodeIds, screenToFlowPosition, createStencil])
+
+  // Stencil creation and existing-node moves share one placement engine.
   const onOverlayDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/axiom-stencil')) {
       e.preventDefault()
@@ -2617,23 +2726,10 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       return
     }
     const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-    const store = useSheetStore.getState()
-    if (stencil.shape === 'note') {
-      void store.createFloatingNote(workspaceIdForOverlay, overlaySheetId, 'New note - double-click to edit', pos.x, pos.y)
-      return
-    }
-    void store.createPlanned(workspaceIdForOverlay, overlaySheetId, {
-      name: `New${stencil.label.replace(/\s/g, '')}`,
-      kind: stencil.kind,
-      shape: stencil.shape as 'box' | 'folder' | 'cylinder' | 'hexagon',
-      positionX: pos.x, positionY: pos.y,
-    }).then(created => {
-      if (created && stencil.kind === 'infra') {
-        setSelectedNode(`planned:${created.id}`)
-        setInfraPickerNode(created.id)
-      }
-    }).catch(err => console.error('[sheets] stencil creation failed:', err))
-  }, [readOnly, overlaySheetId, workspaceIdForOverlay, screenToFlowPosition, setSelectedNode, setInfraPickerNode])
+    const { nodes, positions } = stencilScene()
+    const target = stencilTargetAt(pos, nodes, positions, activeNodeIds)
+    void createStencil(stencil, pos, target)
+  }, [readOnly, overlaySheetId, screenToFlowPosition, onBinnedFileDrop, stencilScene, activeNodeIds, createStencil])
 
   const onConnectPlanned = useCallback((conn: Connection) => {
     if (!overlaySheetId || !conn.source || !conn.target) return
@@ -4377,6 +4473,16 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     })
   }, [attentionNodes, overlaySheetId, activeNodeIds, readOnly, getResizeHandlers])
 
+  // A palette click can find a free root slot beyond the viewport. Reveal it
+  // after React Flow measures it, so the new node never feels lost.
+  useEffect(() => {
+    if (!stencilFocusId || !nodesInitialized) return
+    if (!overlaySheetId) { setStencilFocusId(null); return }
+    if (!getInternalNode(stencilFocusId)?.measured?.width) return
+    setStencilFocusId(null)
+    void fitView({ nodes: [{ id: stencilFocusId }], padding: 0.25, duration: 350, maxZoom: 1.2 })
+  }, [stencilFocusId, nodesInitialized, renderedNodes, overlaySheetId, getInternalNode, fitView])
+
   // Identity of renderedNodes churns every render while a sheet overlay is
   // open, so the recovery below keys off this value-stable signature instead.
   const renderedSceneSignature = useMemo(
@@ -4557,6 +4663,121 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }, 100)
   }, [getViewport])
 
+  // Canvas commands (INFRA_LAYER_PLAN.md, "Canvas chrome"): zoom, tidy and
+  // the infrastructure sidebar live in the View and Map menus, the palette
+  // and the keyboard (src/shared/appMenu.ts) rather than as buttons on the
+  // canvas. Fit is the toolbar's. Only the main canvas answers them.
+  const tidyFrameRef = useRef(tidyFrame)
+  tidyFrameRef.current = tidyFrame
+  useCommandHandlers({
+    'view.zoomMapIn': () => { if (!binMode) void zoomIn({ duration: 180 }) },
+    'view.zoomMapOut': () => { if (!binMode) void zoomOut({ duration: 180 }) },
+    'map.tidy': () => { if (!binMode && !readOnly) void tidyFrameRef.current() },
+    'view.infrastructure': () => {
+      if (binMode || reviewMode) return
+      const store = useGraphStore.getState()
+      store.setInfraSidebarOpen(!store.infraSidebarOpen)
+    },
+  })
+
+  // ── Hosting frames ────────────────────────────────────────────────────────
+  // A confirmed platform wraps the code it runs, nested the way it really is
+  // (INFRA_LAYER_PLAN.md, "Canvas placement"). Arranged once per platform:
+  // afterwards the frame is the person's to rearrange, and emptying it on
+  // purpose must not make it grab the code back.
+  const infraContents = useGraphStore(s => s.infraContents)
+  const hostingArrangedRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (isolatedScene || readOnly || !currentProject || hostingInfraNodes.length === 0) return
+    const workspaceId = currentProject.id
+    const platforms = hostingInfraNodes.map(node => {
+      const instance = readDetectedBy(node.detectedBy).instance
+      return {
+        id: node.id,
+        key: instance ? `${node.service}#${instance}` : node.service,
+        name: node.name,
+        hosts: infraContents
+          .filter(item => item.infraId === node.id && item.kind === 'hosts')
+          .map(item => ({
+            dir: typeof item.detail?.dir === 'string' ? item.detail.dir : '.',
+            via: typeof item.detail?.via === 'string' ? item.detail.via : undefined,
+          })),
+      }
+    })
+    const runsOn = dependencies.filter(dep => dep.dstType === 'infra' && dep.status !== 'dismissed'
+      && (dep.dependencyType === 'RUNS_ON' || dep.dependencyType === 'DEPLOYS_TO'))
+    const plan = planHosting({ platforms, systems, files, runsOn })
+    if (plan.parentOf.size === 0) return
+    const layoutById = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
+    const frameIds = new Set(platforms.map(platform => platform.id))
+    const parents = new Set(plan.parentOf.values())
+    const outermost = [...parents].filter(id => !plan.parentOf.has(id))
+    const storageKey = (id: string) => `axiom:hosting-arranged:${workspaceId}:${id}`
+    const remembered = (id: string) => {
+      try { return window.localStorage.getItem(storageKey(id)) === '1' } catch { return false }
+    }
+    const remember = (id: string) => {
+      hostingArrangedRef.current.add(`${workspaceId}:${id}`)
+      try { window.localStorage.setItem(storageKey(id), '1') } catch { /* per-session only */ }
+    }
+    for (const rootFrame of outermost) {
+      if (hostingArrangedRef.current.has(`${workspaceId}:${rootFrame}`) || remembered(rootFrame)) continue
+      const members: string[] = []
+      const collect = (frame: string) => {
+        for (const [child, parent] of plan.parentOf) if (parent === frame) { members.push(child); collect(child) }
+      }
+      collect(rootFrame)
+      if (members.every(member => layoutById.get(member)?.parentNodeId === plan.parentOf.get(member))) {
+        remember(rootFrame)
+        continue
+      }
+      // Code someone already put in a frame of their own stays there.
+      const claimed = members.filter(member => {
+        const parent = layoutById.get(member)?.parentNodeId ?? null
+        return parent !== null && !frameIds.has(parent)
+      })
+      if (claimed.length > 0) { remember(rootFrame); continue }
+      const rendered = displayNodesRef.current
+      const rects = absoluteRects(rendered)
+      const current = new Map<string, HostedChild>()
+      for (const member of members) {
+        const rect = rects.get(member)
+        const layout = layoutById.get(member)
+        if (!rect) continue
+        current.set(member, {
+          id: member,
+          nodeType: frameIds.has(member) ? 'infra' : 'system',
+          worldX: rect.x,
+          worldY: rect.y,
+          width: layout?.width ?? rect.width,
+          height: layout?.height ?? rect.height,
+          scale: layout?.scale ?? 1,
+          interiorScale: layout?.interiorScale ?? 1,
+        })
+      }
+      if (current.size === 0) continue
+      const moving = new Set([rootFrame, ...members])
+      const occupied = rendered
+        .filter(node => !node.parentId && !moving.has(node.id) && !node.hidden)
+        .map(node => rects.get(node.id))
+        .filter((rect): rect is NonNullable<typeof rect> => Boolean(rect))
+      const rows = arrangeHosting(rootFrame, plan, current, occupied)
+      remember(rootFrame)
+      const changedKeys = new Set(rows.map(row => `${row.nodeType}:${row.nodeId}`))
+      const previousLayouts = floorLayouts.filter(item => changedKeys.has(`${item.nodeType}:${item.nodeId}`))
+      useGraphStore.setState(state => ({
+        floorLayouts: replaceFloorLayouts(state.floorLayouts,
+          rows.map(row => ({ ...row, workspaceId, updatedAt: Date.now() })), changedKeys),
+      }))
+      void apiSaveFloorLayouts(workspaceId, rows).catch(error => {
+        console.error('[AxiomCanvas] hosting arrangement failed', error)
+        useGraphStore.setState(state => ({
+          floorLayouts: replaceFloorLayouts(state.floorLayouts, previousLayouts, changedKeys),
+        }))
+      })
+    }
+  }, [isolatedScene, readOnly, currentProject, hostingInfraNodes, infraContents, dependencies, systems, files, floorLayouts])
+
   return (
     <div
       ref={canvasRootRef}
@@ -4624,7 +4845,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
-        <Controls className="axiom-canvas-controls" showInteractive={false} />
         <MiniMap
           className="axiom-canvas-minimap"
           position="top-right"
@@ -4664,46 +4884,6 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           </Panel>
         )}
         <Panel position="top-left" className="axiom-canvas-toolbar">
-          <button
-            type="button"
-            onClick={tidyFrame}
-            disabled={isTidying || readOnly}
-            aria-busy={isTidying}
-            className="axiom-canvas-command"
-          >
-            {isTidying ? (
-              <>
-                <svg
-                  style={{ animation: 'spin 1s linear infinite', width: '14px', height: '14px' }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <circle cx="12" cy="12" r="10" stroke="rgba(49, 94, 88, 0.24)" />
-                  <path d="M12 2a10 10 0 0 1 10 10" />
-                </svg>
-                Tidying...
-              </>
-            ) : (
-              <>
-                <svg
-                  style={{ width: '14px', height: '14px' }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-                Tidy Layout
-              </>
-            )}
-          </button>
           {focusFileIds.size > 0 && (
             <button
               type="button"
@@ -4740,10 +4920,21 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             />
           </Panel>
         )}
-        <Panel position="bottom-left" className="axiom-canvas-zoom-panel">
-          <ZoomIndicator />
-        </Panel>
       </ReactFlow>
+      {!isolatedScene && (
+        <>
+          <InfraSidebarLinks
+            nodes={livingDisplayNodes}
+            dependencies={dependencies}
+            files={files}
+            systems={systems}
+            selectedNodeId={selectedNodeId ?? null}
+            visibilityOptions={livingVisibilityOptions}
+            containerRef={canvasRootRef}
+          />
+          <InfraSidebar />
+        </>
+      )}
 
       {!reviewMode && selectedIdsRef.current.size > 1 && (
         <div className="axiom-selection-actions">
@@ -4796,7 +4987,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       {/* Sheet layer active: stencil palette + slim indicator */}
       {overlaySheetId && (
         <>
-          <SheetPalette />
+          <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
           <div className="axiom-sheet-layer-indicator">
             <span aria-hidden="true" />
             Sheet Layer Active

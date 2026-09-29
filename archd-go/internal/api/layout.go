@@ -1,7 +1,9 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"axiom.local/archd/internal/db"
@@ -33,6 +35,7 @@ func (s *Server) handleFloorLayoutBatch(w http.ResponseWriter, r *http.Request) 
 	// A batch that only withdraws geometry is a legitimate request; requiring an
 	// update alongside it would force callers to invent one.
 	if len(body.Layouts) == 0 {
+		s.reconcileHosting(sqlDB, body.WorkspaceID)
 		layouts, err := db.GetFloorLayouts(sqlDB, body.WorkspaceID)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -49,5 +52,22 @@ func (s *Server) handleFloorLayoutBatch(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.broadcastPatch("floor:layouts", result, body.WorkspaceID)
+	s.reconcileHosting(sqlDB, body.WorkspaceID)
 	jsonOK(w, result)
+}
+
+// reconcileHosting keeps DEPLOYS_TO in step with which platform a system sits
+// in on the canvas. A failure is logged, never surfaced: the layout itself saved.
+func (s *Server) reconcileHosting(sqlDB *sql.DB, workspaceID string) {
+	added, removed, err := db.ReconcileHostingEdges(sqlDB, workspaceID)
+	if err != nil {
+		log.Printf("[infra] hosting reconciliation for %s: %v", workspaceID, err)
+		return
+	}
+	for _, dep := range added {
+		s.broadcastPatch("infra:connected", dep)
+	}
+	for _, id := range removed {
+		s.broadcastPatch("infra:disconnected", map[string]string{"id": id, "workspaceId": workspaceID})
+	}
 }

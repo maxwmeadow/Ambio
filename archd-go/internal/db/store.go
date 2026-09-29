@@ -106,6 +106,11 @@ type Dependency struct {
 	Weight         int     `json:"weight"`
 	CreatedBy      string  `json:"createdBy"`
 	Evidence       *string `json:"evidence,omitempty"` // file:line justifying the edge (infra edges)
+	// TargetItem names the infra contents item an edge is about ("orders",
+	// "booking.confirmed"); empty for node-level relationships.
+	TargetItem string `json:"targetItem,omitempty"`
+	// Status is 'proposed' for detected edges nobody has confirmed yet.
+	Status string `json:"status,omitempty"`
 }
 
 type InfraNode struct {
@@ -122,6 +127,12 @@ type InfraNode struct {
 	Config      json.RawMessage `json:"config,omitempty"`
 	PositionX   float64         `json:"positionX"`
 	PositionY   float64         `json:"positionY"`
+	// Implementations: what fills the role in each environment,
+	// [{environment, kind: in-process|local-service|emulator|vendor, ref, evidence}].
+	Implementations json.RawMessage `json:"implementations,omitempty"`
+	// Policies the agent reads before acting:
+	// {costs_money, external_side_effects, never_in_tests, confirm_before_running}.
+	Policies json.RawMessage `json:"policies,omitempty"`
 }
 
 type CanvasSnapshot struct {
@@ -977,7 +988,7 @@ func DeleteInvestigation(db *sql.DB, id string) error {
 	return err
 }
 
-func GetSymbolsByFile(db *sql.DB, fileID string) ([]Symbol, error) {
+func GetSymbolsByFile(db Reader, fileID string) ([]Symbol, error) {
 	rows, err := db.Query(`
 		SELECT id, file_id, name, kind, line_start, line_end, body_hash
 		FROM symbols WHERE file_id=? ORDER BY line_start`, fileID)
@@ -1031,18 +1042,26 @@ func UpsertDependency(db *sql.DB, d Dependency) error {
 	if d.CreatedBy == "" {
 		d.CreatedBy = "parser"
 	}
+	if d.Status == "" {
+		d.Status = "confirmed"
+	}
+	// A proposal never overrides a decision: re-detecting an edge someone
+	// already confirmed or dismissed keeps their decision.
 	_, err := db.Exec(`
-		INSERT INTO dependencies (id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence)
-		VALUES (?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(src, dst, dependency_type) DO UPDATE SET
-			weight=weight+1, evidence=COALESCE(excluded.evidence, evidence)`,
-		d.ID, d.WorkspaceID, d.Src, d.Dst, d.SrcType, d.DstType, d.DependencyType, d.Weight, d.CreatedBy, d.Evidence)
+		INSERT INTO dependencies (id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence, target_item, status)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(src, dst, dependency_type, target_item) DO UPDATE SET
+			weight=weight+1, evidence=COALESCE(excluded.evidence, evidence),
+			status=CASE WHEN excluded.status = 'proposed' AND status IN ('confirmed', 'dismissed')
+				THEN status ELSE excluded.status END`,
+		d.ID, d.WorkspaceID, d.Src, d.Dst, d.SrcType, d.DstType, d.DependencyType, d.Weight, d.CreatedBy, d.Evidence,
+		d.TargetItem, d.Status)
 	return err
 }
 
 func GetDependencies(db Reader, workspaceID string) ([]Dependency, error) {
 	rows, err := db.Query(`
-		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence
+		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence, target_item, status
 		FROM dependencies WHERE workspace_id=?`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -1054,6 +1073,7 @@ func GetDependencies(db Reader, workspaceID string) ([]Dependency, error) {
 		if err := rows.Scan(
 			&d.ID, &d.WorkspaceID, &d.Src, &d.Dst,
 			&d.SrcType, &d.DstType, &d.DependencyType, &d.Weight, &d.CreatedBy, &d.Evidence,
+			&d.TargetItem, &d.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -1126,7 +1146,10 @@ func DeleteDependency(db *sql.DB, id string) error {
 // file being reparsed. Inbound edges belong to their own source files and must
 // survive a target-file edit.
 func DeleteOutgoingDependenciesByFile(db *sql.DB, fileID string) error {
-	_, err := db.Exec(`DELETE FROM dependencies WHERE src=?`, fileID)
+	// Only the parser's own file-to-file imports are rebuilt from a parse.
+	// Relationships to infra, and anything an agent or person recorded, are
+	// not derived from this file's text and must survive every save.
+	_, err := db.Exec(`DELETE FROM dependencies WHERE src=? AND dst_type='file' AND created_by='parser'`, fileID)
 	return err
 }
 
@@ -1138,14 +1161,21 @@ func DeleteDependenciesByFile(db *sql.DB, fileID string) error {
 // ─── Infra ────────────────────────────────────────────────────────────────────
 
 const infraCols = `id, workspace_id, name, infra_type, category, provider, service,
-       subtype, status, detected_by, config, position_x, position_y`
+       subtype, status, detected_by, config, position_x, position_y, implementations, policies`
 
 func scanInfraNode(row interface{ Scan(...any) error }) (InfraNode, error) {
 	var n InfraNode
-	var detected, config sql.NullString
+	var detected, config, implementations, policies sql.NullString
 	err := row.Scan(
 		&n.ID, &n.WorkspaceID, &n.Name, &n.InfraType, &n.Category, &n.Provider,
-		&n.Service, &n.Subtype, &n.Status, &detected, &config, &n.PositionX, &n.PositionY)
+		&n.Service, &n.Subtype, &n.Status, &detected, &config, &n.PositionX, &n.PositionY,
+		&implementations, &policies)
+	if implementations.Valid {
+		n.Implementations = json.RawMessage(implementations.String)
+	}
+	if policies.Valid {
+		n.Policies = json.RawMessage(policies.String)
+	}
 	if detected.Valid {
 		n.DetectedBy = json.RawMessage(detected.String)
 	}
@@ -1173,16 +1203,18 @@ func UpsertInfraNode(db *sql.DB, n *InfraNode) error {
 	_, err := db.Exec(`
 		INSERT INTO infra_nodes
 			(id, workspace_id, name, infra_type, category, provider, service,
-			 subtype, status, detected_by, config, position_x, position_y)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+			 subtype, status, detected_by, config, position_x, position_y, implementations, policies)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, infra_type=excluded.infra_type,
 			category=excluded.category, provider=excluded.provider,
 			service=excluded.service, subtype=excluded.subtype,
 			status=excluded.status, detected_by=excluded.detected_by,
-			config=excluded.config, position_x=excluded.position_x, position_y=excluded.position_y`,
+			config=excluded.config, position_x=excluded.position_x, position_y=excluded.position_y,
+			implementations=excluded.implementations, policies=excluded.policies`,
 		n.ID, n.WorkspaceID, n.Name, n.InfraType, n.Category, n.Provider, n.Service,
-		n.Subtype, n.Status, nullableJSON(n.DetectedBy), nullableJSON(n.Config), n.PositionX, n.PositionY)
+		n.Subtype, n.Status, nullableJSON(n.DetectedBy), nullableJSON(n.Config), n.PositionX, n.PositionY,
+		nullableJSON(n.Implementations), nullableJSON(n.Policies))
 	return err
 }
 
@@ -1243,7 +1275,7 @@ func UpdateInfraStatus(db *sql.DB, id, status string) error {
 // GetInfraEdges returns all dependencies touching infra nodes in a workspace.
 func GetInfraEdges(db *sql.DB, workspaceID string) ([]Dependency, error) {
 	rows, err := db.Query(`
-		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence
+		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence, target_item, status
 		FROM dependencies
 		WHERE workspace_id=? AND (src_type='infra' OR dst_type='infra')`, workspaceID)
 	if err != nil {
@@ -1256,6 +1288,7 @@ func GetInfraEdges(db *sql.DB, workspaceID string) ([]Dependency, error) {
 		if err := rows.Scan(
 			&d.ID, &d.WorkspaceID, &d.Src, &d.Dst,
 			&d.SrcType, &d.DstType, &d.DependencyType, &d.Weight, &d.CreatedBy, &d.Evidence,
+			&d.TargetItem, &d.Status,
 		); err != nil {
 			return nil, err
 		}
