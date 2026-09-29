@@ -49,6 +49,8 @@ export function Toolbar({
 
   useCommandHandlers({
     'view.fitView': () => fitView({ padding: 0.15, duration: 850 }),
+    'map.addInfra': () => setInfraOpen(true),
+    'map.lasso': () => setSelectionMode(!useGraphStore.getState().selectionMode),
   })
 
   useEffect(() => {

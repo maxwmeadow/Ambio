@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COMMANDS, buildMenu, formatAccelerator, type MenuSection } from '../../shared/appMenu'
 import { useGraphStore } from '../store/graphStore'
-import { currentPlatform, emitCommand } from './commands'
+import { currentPlatform, emitCommand, requestOpenRecent } from './commands'
+import type { ProjectConfig } from '../../shared/types'
 
 /**
  * The menu bar on Windows and Linux, drawn inside Axiom's custom title bar.
@@ -15,6 +16,18 @@ export function AppMenuBar() {
   const [open, setOpen] = useState<MenuSection['id'] | null>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const bar = useRef<HTMLDivElement>(null)
+  const [recent, setRecent] = useState<ProjectConfig[]>([])
+
+  // Open Recent is read fresh each time the File menu opens.
+  useEffect(() => {
+    if (open !== 'file' || !window.axiom) return
+    void window.axiom.listRecentProjects().then(projects => setRecent(
+      projects
+        .filter(project => !project.hiddenFromRecents && !project.rootMissing)
+        .sort((left, right) => (right.openedAt ?? 0) - (left.openedAt ?? 0))
+        .slice(0, 6),
+    ))
+  }, [open])
 
   useEffect(() => {
     if (!window.axiom) return
@@ -89,6 +102,37 @@ export function AppMenuBar() {
         >
           {section.entries.map((entry, index) => {
             if (entry.kind === 'separator') return <hr key={`separator-${index}`} />
+            if (entry.kind === 'recent') {
+              return (
+                <div key="recent" className="axiom-menubar__recent" role="group" aria-label="Open Recent">
+                  <span className="axiom-menubar__group-label">Open Recent</span>
+                  {recent.length === 0 && <span className="axiom-menubar__empty">No recent projects</span>}
+                  {recent.map(project => (
+                    <button
+                      key={project.id}
+                      type="button"
+                      role="menuitem"
+                      title={project.rootPath}
+                      onMouseDown={event => event.preventDefault()}
+                      onClick={() => { setOpen(null); requestOpenRecent(project.id) }}
+                    >
+                      <span>{project.name}</span>
+                    </button>
+                  ))}
+                  {recent.length > 0 && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="axiom-menubar__subtle"
+                      onMouseDown={event => event.preventDefault()}
+                      onClick={() => { setOpen(null); emitCommand('project.clearRecent') }}
+                    >
+                      <span>{COMMANDS['project.clearRecent'].label}</span>
+                    </button>
+                  )}
+                </div>
+              )
+            }
             if (entry.kind === 'role') {
               return (
                 <button

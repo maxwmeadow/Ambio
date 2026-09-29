@@ -6,6 +6,8 @@ export interface MenuState {
   developer: boolean
 }
 
+export interface RecentProject { id: string; name: string; rootPath: string }
+
 // Electron role names for the shared SystemRole vocabulary.
 const ELECTRON_ROLE: Record<SystemRole, NonNullable<MenuItemConstructorOptions['role']>> = {
   undo: 'undo', redo: 'redo', cut: 'cut', copy: 'copy', paste: 'paste', selectAll: 'selectAll',
@@ -20,7 +22,7 @@ const ELECTRON_ROLE: Record<SystemRole, NonNullable<MenuItemConstructorOptions['
  * displayed but not registered here - the renderer owns every command key, so
  * one key press can never run a command twice.
  */
-export function applyApplicationMenu(window: BrowserWindow | null, state: MenuState): void {
+export function applyApplicationMenu(getWindow: () => BrowserWindow | null, state: MenuState, recent: RecentProject[] = []): void {
   const platform = process.platform as MenuPlatform
   if (platform !== 'darwin') {
     Menu.setApplicationMenu(null)
@@ -32,6 +34,26 @@ export function applyApplicationMenu(window: BrowserWindow | null, state: MenuSt
     ...(section.id === 'help' ? { role: 'help' as const } : {}),
     submenu: section.entries.map((entry): MenuItemConstructorOptions => {
       if (entry.kind === 'separator') return { type: 'separator' }
+      if (entry.kind === 'recent') {
+        return {
+          label: 'Open Recent',
+          submenu: [
+            ...(recent.length > 0
+              ? recent.map(project => ({
+                label: project.name,
+                sublabel: project.rootPath,
+                click: () => getWindow()?.webContents.send('menu:open-recent', project.id),
+              }))
+              : [{ label: 'No Recent Projects', enabled: false }]),
+            { type: 'separator' },
+            {
+              label: COMMANDS['project.clearRecent'].label,
+              enabled: recent.length > 0,
+              click: () => getWindow()?.webContents.send('menu:command', 'project.clearRecent'),
+            },
+          ],
+        }
+      }
       if (entry.kind === 'role') return { role: ELECTRON_ROLE[entry.role], label: entry.label }
       const spec = COMMANDS[entry.id]
       return {
@@ -39,7 +61,7 @@ export function applyApplicationMenu(window: BrowserWindow | null, state: MenuSt
         accelerator: spec.accelerator,
         registerAccelerator: false,
         enabled: !spec.needsProject || state.projectOpen,
-        click: () => window?.webContents.send('menu:command', spec.id),
+        click: () => getWindow()?.webContents.send('menu:command', spec.id),
       }
     }),
   }))

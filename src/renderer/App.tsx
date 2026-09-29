@@ -34,7 +34,8 @@ import { useGraphStore, connectToArchd } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
-import { emitCommand, useCommandHandlers } from './app/commands'
+import { emitCommand, useCommandHandlers, useOpenRecent } from './app/commands'
+import { useSheetStore } from './store/sheetStore'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
@@ -615,6 +616,35 @@ export default function App() {
     'agent.message': () => { window.dispatchEvent(new Event('axiom:open-agent-dispatch')) },
     'agent.connect': () => { if (currentProject) setAgentSetupOpen(true) },
     'help.guide': () => { useOnboardingStore.getState().reveal() },
+    'project.clearRecent': () => {
+      void window.axiom?.clearRecentProjects()
+        .then(() => raiseNotice('recent-cleared', 'Recent list cleared', 'Every project is still under Show all on the project list.'))
+    },
+    'go.floor': () => { if (currentProject) void useSheetStore.getState().openSheet(currentProject.id, null) },
+    'go.nextSheet': () => stepSheet(1),
+    'go.previousSheet': () => stepSheet(-1),
+  })
+
+  // Next/previous walk the Floor followed by each sheet, wrapping around.
+  function stepSheet(direction: 1 | -1) {
+    if (!currentProject) return
+    const { sheets, activeSheetId, openSheet } = useSheetStore.getState()
+    const order: Array<string | null> = [null, ...sheets.map(sheet => sheet.id)]
+    if (order.length < 2) return
+    const index = Math.max(0, order.indexOf(activeSheetId))
+    void openSheet(currentProject.id, order[(index + direction + order.length) % order.length])
+  }
+
+  // File → Open Recent, from the native menu or the title-bar menu.
+  useOpenRecent(projectId => {
+    void (async () => {
+      const project = (await window.axiom?.listRecentProjects())?.find(candidate => candidate.id === projectId)
+      if (!project) return
+      if (currentProject?.id === project.id) return
+      if (currentProject) await closeProject()
+      setProjectSettingsFor(null)
+      await routeProjectBySourceBoundaryState(project)
+    })()
   })
 
   if (projectSettingsFor) {

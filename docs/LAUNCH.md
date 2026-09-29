@@ -167,8 +167,16 @@ motion), Agents, Privacy & Data (data/log folders, diagnostics), Advanced
 (developer menu). About dialog. Production builds no longer show Electron's
 Reload/DevTools unless the developer menu is on.
 
-**Not yet:** Go and Map menus, Open Recent, Export, canvas undo/redo,
-right-click menus, light theme, rebindable shortcuts. The list below is the
+**Added 2026-09-30:** Go menu (The Floor `⌘1`, next/previous sheet
+`⌘]`/`⌘[`), Map menu (New Sheet `⌘T`, Add Infrastructure, Lasso Select, Fit
+`⇧1`, Review Changes), File → Open Recent (native submenu on macOS, inline
+list on Windows/Linux, Clear Recently Opened), Re-index Project, and
+right-click menus on the live canvas: files (Open in Editor, Reveal, Copy
+Path, Copy Relative Path, Show Details, Message Agent), systems (Show Details,
+Zoom to System, Copy Name, Message Agent), infrastructure, and empty canvas
+(New Sheet, Add Infrastructure, Lasso, Fit).
+
+**Not yet:** Export, canvas undo/redo, light theme, rebindable shortcuts. The list below is the
 original brainstorm those will come from.
 
 Desktop apps share a grammar. Users expect standard items in standard places;
@@ -318,7 +326,11 @@ Keyboard accelerators then work everywhere.
 - ✅ Project Settings (File → Project Settings…, the palette, or the launcher's project menu): rename, and change included folders starting from the project's saved choices; exclusions inside unexpanded folders are kept
 - ✅ Quiet re-scope: files moving in or out of scope (and relationships touching them, and system births/deaths during the re-scan) are not journaled, so the Morning Delta never reports an exclusion as deleted code; concurrent real edits still are
 - ✅ Re-index Project (File menu, palette, Project Settings): re-reads every file regardless of timestamps, keeping systems, layout and history; real content changes are journaled, unchanged files are not, and files indexed before content hashes existed are refreshed quietly
-- ⬜ Add a second folder/repo to a project (backend supports roots)
+- ⏸ Add a second folder/repo to a project - **held: needs a core design pass, not launch plumbing.** What works today: open the *parent* folder that holds several repos; it is indexed as one project. Separate folders in unrelated locations need:
+  - root sync that adds a root instead of deactivating every root it did not just discover (`syncWorkspaceWorktrees` treats the requested path as the only graph root);
+  - clustering that only removes stale systems belonging to its own root (`clusterAndAssign` runs per root, systems are workspace-wide);
+  - Morning Delta, history identity and work sessions that span roots (all resolve to one primary root today);
+  - a decision on cross-root edges (imports between repos) and how roots appear on the Floor.
 - ⬜ Multi-root projects in the UI (backend already supports roots)
 - ⬜ Worktrees of one repo: one project or two - decide and make it explicit
 

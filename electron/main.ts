@@ -104,6 +104,20 @@ function saveRecentProjects(projects: ProjectConfig[]): void {
   const temp = `${PROJECTS_FILE}.tmp`
   fs.writeFileSync(temp, JSON.stringify(projects, null, 2))
   fs.renameSync(temp, PROJECTS_FILE)
+  // File → Open Recent mirrors the registry.
+  if (app.isReady()) refreshApplicationMenu()
+}
+
+function recentForMenu(): Array<{ id: string; name: string; rootPath: string }> {
+  return loadRecentProjects()
+    .filter(project => !project.hiddenFromRecents)
+    .sort((left, right) => (right.openedAt ?? 0) - (left.openedAt ?? 0))
+    .slice(0, 10)
+    .map(project => ({ id: project.id, name: project.name, rootPath: project.rootPath }))
+}
+
+function refreshApplicationMenu(): void {
+  applyApplicationMenu(() => mainWindow, menuState, recentForMenu())
 }
 
 function upsertRecentProject(config: ProjectConfig): void {
@@ -776,6 +790,12 @@ function setupIPC(): void {
       ...(typeof patch?.sourceBoundariesReviewedAt === 'number' ? { sourceBoundariesReviewedAt: patch.sourceBoundariesReviewedAt } : {}),
     })))
 
+  // File → Open Recent → Clear Recently Opened: hides every project from the
+  // recent list. Nothing is deleted; "Show all" on the launcher still has them.
+  ipcMain.handle('project:clear-recent', () => {
+    saveRecentProjects(loadRecentProjects().map(project => ({ ...project, hiddenFromRecents: true })))
+  })
+
   // Hiding is not deleting: the project and its map stay, it just leaves the
   // launcher's recent list until it is opened again.
   ipcMain.handle('project:set-hidden', (_event, projectId: string, hidden: boolean) =>
@@ -1001,6 +1021,7 @@ function setupIPC(): void {
     clipboard.writeText(text)
     return text
   })
+  ipcMain.handle('clipboard:write', (_event, text: string) => { clipboard.writeText(String(text ?? '')) })
   ipcMain.handle('diagnostics:open-logs', () => shell.openPath(LOG_DIR))
   ipcMain.handle('diagnostics:report-bug', async () => {
     // The issue carries the environment summary only; logs are too long for
@@ -1024,7 +1045,7 @@ function setupIPC(): void {
     const developer = !app.isPackaged || next.developerMenu
     if (developer !== menuState.developer) {
       menuState.developer = developer
-      applyApplicationMenu(mainWindow, menuState)
+      refreshApplicationMenu()
     }
     mainWindow?.webContents.send('settings:changed', next)
     return next
@@ -1036,7 +1057,7 @@ function setupIPC(): void {
   ipcMain.handle('menu:state', (_event, state: { projectOpen: boolean }) => {
     if (menuState.projectOpen === Boolean(state?.projectOpen)) return
     menuState.projectOpen = Boolean(state?.projectOpen)
-    applyApplicationMenu(mainWindow, menuState)
+    refreshApplicationMenu()
   })
   ipcMain.handle('menu:role', (_event, role: SystemRole) => runMenuRole(mainWindow, role, menuState.developer))
   ipcMain.handle('menu:developer', () => menuState.developer)
@@ -1223,7 +1244,7 @@ app.whenReady().then(() => {
   )
   createWindow()
   setupIPC()
-  applyApplicationMenu(mainWindow, menuState)
+  refreshApplicationMenu()
   initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
   if (!IS_E2E) void startOrAttachArchd()
 

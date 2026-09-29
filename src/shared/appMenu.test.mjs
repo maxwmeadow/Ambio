@@ -37,9 +37,9 @@ test('shortcuts are written the way each platform writes them', () => {
 
 test('macOS keeps app items in the app menu; other platforms use File and Help', () => {
   const mac = buildMenu('darwin').map(section => section.id)
-  assert.deepEqual(mac, ['app', 'file', 'edit', 'view', 'agent', 'window', 'help'])
+  assert.deepEqual(mac, ['app', 'file', 'edit', 'view', 'go', 'map', 'agent', 'window', 'help'])
   const windows = buildMenu('win32')
-  assert.deepEqual(windows.map(section => section.id), ['file', 'edit', 'view', 'agent', 'help'])
+  assert.deepEqual(windows.map(section => section.id), ['file', 'edit', 'view', 'go', 'map', 'agent', 'help'])
   const help = windows.find(section => section.id === 'help').entries
   assert.ok(help.some(entry => entry.kind === 'command' && entry.id === 'app.about'))
   const developer = buildMenu('linux', { developer: true }).find(section => section.id === 'view').entries
@@ -50,8 +50,10 @@ test('macOS keeps app items in the app menu; other platforms use File and Help',
 
 test('every command is reachable from the menu bar on every platform', () => {
   for (const platform of ['darwin', 'win32', 'linux']) {
-    const inMenu = new Set(buildMenu(platform).flatMap(section => section.entries)
-      .filter(entry => entry.kind === 'command').map(entry => entry.id))
+    const entries = buildMenu(platform).flatMap(section => section.entries)
+    const inMenu = new Set(entries.filter(entry => entry.kind === 'command').map(entry => entry.id))
+    // Open Recent always ends with Clear Recently Opened.
+    if (entries.some(entry => entry.kind === 'recent')) inMenu.add('project.clearRecent')
     for (const id of Object.keys(COMMANDS)) assert.ok(inMenu.has(id), `${id} missing from the ${platform} menu`)
   }
 })

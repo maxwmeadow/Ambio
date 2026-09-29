@@ -120,6 +120,14 @@ contextBridge.exposeInMainWorld('axiom', {
     return () => { ipcRenderer.removeListener('settings:changed', handler) }
   },
 
+  clearRecentProjects: (): Promise<void> => ipcRenderer.invoke('project:clear-recent'),
+  onOpenRecent: (callback: (projectId: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, projectId: string) => callback(projectId)
+    ipcRenderer.on('menu:open-recent', handler)
+    return () => { ipcRenderer.removeListener('menu:open-recent', handler) }
+  },
+  copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
+
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
   runMenuRole: (role: SystemRole): Promise<void> => ipcRenderer.invoke('menu:role', role),
@@ -277,6 +285,9 @@ declare global {
       getSettings: () => Promise<AppSettings>
       setSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>
       onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
+      clearRecentProjects: () => Promise<void>
+      onOpenRecent: (callback: (projectId: string) => void) => () => void
+      copyText: (text: string) => Promise<void>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>

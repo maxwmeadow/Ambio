@@ -12,6 +12,13 @@ export type CommandId =
   | 'project.new'
   | 'project.open'
   | 'project.reveal'
+  | 'project.clearRecent'
+  | 'go.floor'
+  | 'go.nextSheet'
+  | 'go.previousSheet'
+  | 'map.newSheet'
+  | 'map.addInfra'
+  | 'map.lasso'
   | 'project.settings'
   | 'project.reindex'
   | 'project.close'
@@ -63,6 +70,13 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'project.reveal': { id: 'project.reveal', label: 'Reveal Project Folder', needsProject: true },
   'project.settings': { id: 'project.settings', label: 'Project Settings…', needsProject: true },
   'project.reindex': { id: 'project.reindex', label: 'Re-index Project', needsProject: true },
+  'project.clearRecent': { id: 'project.clearRecent', label: 'Clear Recently Opened' },
+  'go.floor': { id: 'go.floor', label: 'The Floor', accelerator: 'CmdOrCtrl+1', needsProject: true },
+  'go.nextSheet': { id: 'go.nextSheet', label: 'Next Sheet', accelerator: 'CmdOrCtrl+]', needsProject: true },
+  'go.previousSheet': { id: 'go.previousSheet', label: 'Previous Sheet', accelerator: 'CmdOrCtrl+[', needsProject: true },
+  'map.newSheet': { id: 'map.newSheet', label: 'New Sheet…', accelerator: 'CmdOrCtrl+T', needsProject: true },
+  'map.addInfra': { id: 'map.addInfra', label: 'Add Infrastructure…', needsProject: true },
+  'map.lasso': { id: 'map.lasso', label: 'Lasso Select', needsProject: true },
   'project.close': { id: 'project.close', label: 'Close Project', accelerator: 'CmdOrCtrl+Shift+W', needsProject: true },
   'view.commandPalette': { id: 'view.commandPalette', label: 'Command Palette…', accelerator: 'CmdOrCtrl+Shift+P', paletteHidden: true },
   'view.search': { id: 'view.search', label: 'Search Files…', accelerator: 'CmdOrCtrl+K', needsProject: true },
@@ -88,11 +102,13 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
 
 export type MenuEntry =
   | { kind: 'command'; id: CommandId }
+  /** The recently opened projects, filled in by whoever draws the menu. */
+  | { kind: 'recent' }
   | { kind: 'role'; role: SystemRole; label: string; accelerator?: string }
   | { kind: 'separator' }
 
 export interface MenuSection {
-  id: 'app' | 'file' | 'edit' | 'view' | 'agent' | 'window' | 'help'
+  id: 'app' | 'file' | 'edit' | 'view' | 'go' | 'map' | 'agent' | 'window' | 'help'
   label: string
   entries: MenuEntry[]
 }
@@ -127,7 +143,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'file', label: 'File', entries: [
-      command('project.new'), command('project.open'), separator,
+      command('project.new'), command('project.open'), { kind: 'recent' }, separator,
       command('project.settings'), command('project.reindex'), command('project.reveal'), command('project.close'),
       ...(mac ? [] : [separator, command('app.settings'), separator, role('quit', 'Exit', 'Alt+F4')]),
     ],
@@ -144,13 +160,26 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
-      command('view.fitView'), command('view.reviewChanges'), separator,
       command('view.agentLog'), command('view.documents'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),
       ...(options.developer
         ? [separator, role('reload', 'Reload Window', 'CmdOrCtrl+R'), role('toggleDevTools', 'Toggle Developer Tools', mac ? 'Cmd+Alt+I' : 'Ctrl+Shift+I')]
         : []),
+    ],
+  })
+
+  sections.push({
+    id: 'go', label: 'Go', entries: [
+      command('go.floor'), command('go.nextSheet'), command('go.previousSheet'), separator,
+      command('view.search'),
+    ],
+  })
+
+  sections.push({
+    id: 'map', label: 'Map', entries: [
+      command('map.newSheet'), command('map.addInfra'), command('map.lasso'), separator,
+      command('view.fitView'), command('view.reviewChanges'),
     ],
   })
 

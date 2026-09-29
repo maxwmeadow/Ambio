@@ -59,6 +59,8 @@ import { dropOnFloorAt, registerFloorDropTarget, systemAtFloorPoint } from './bi
 import { hideBinGhost, hideRealNode, moveBinGhost, showBinGhost } from './binDragGhost'
 import { GroupDialog } from '../components/GroupDialog'
 import { NewSheetDialog } from '../components/NewSheetDialog'
+import { useCommandHandlers } from '../app/commands'
+import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
 import { SheetPalette, type StencilDef } from '../components/SheetPalette'
 import { InfraPickerDialog } from '../components/InfraPickerDialog'
 import { plannedMembers, plannedMetadata, sheetElementMetadata, useSheetStore } from '../store/sheetStore'
@@ -1718,6 +1720,8 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }, [])
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [sheetDialogOpen, setSheetDialogOpen] = useState(false)
+  // Review and bin canvases reuse this component; only the live Floor answers.
+  useCommandHandlers({ 'map.newSheet': () => { if (!isolatedScene) setSheetDialogOpen(true) } })
   // ── Sheet overlay (REVISION 2: sheets are layers over the Floor) ─────────
   // The live canvas is the base layer. When a sheet is active: dim non-member
   // live nodes in place (stencil highlight), draw planned UML elements and
@@ -3793,6 +3797,32 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     setInspectedNode(node.id)
   }, [setSelectedNode, setInspectedNode])
 
+  // Right-click menus on the live Floor. Right-clicking a node outside the
+  // current selection selects it first, as file managers do.
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: CanvasContextTarget } | null>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    if (isolatedScene) return
+    const { files, systems, infraNodes } = useGraphStore.getState()
+    const kind = files.some(file => file.id === node.id)
+      ? 'file'
+      : systems.some(system => system.id === node.id)
+        ? 'system'
+        : infraNodes.some(infra => infra.id === node.id) ? 'infra' : null
+    if (!kind) return
+    event.preventDefault()
+    if (!selectedIdsRef.current.has(node.id)) {
+      applySelection(new Set([node.id]))
+      setSelectedNode(node.id)
+    }
+    setContextMenu({ x: event.clientX, y: event.clientY, target: { kind, id: node.id } })
+  }, [isolatedScene, applySelection, setSelectedNode])
+  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+    if (isolatedScene) return
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, target: { kind: 'pane' } })
+  }, [isolatedScene])
+
   const onPaneClick = useCallback(() => {
     applySelection(emptySelection())
     setSelectedNode(null)
@@ -4562,6 +4592,8 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onPaneClick={onPaneClick}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
         onSelectionDragStart={readOnly ? undefined : () => setIsDraggingScene(true)}
         onSelectionDragStop={readOnly ? undefined : () => setIsDraggingScene(false)}
         onNodeDragStart={readOnly ? undefined : onNodeDragStart}
@@ -4770,6 +4802,17 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             Sheet Layer Active
           </div>
         </>
+      )}
+
+      {contextMenu && (
+        <CanvasContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          target={contextMenu.target}
+          onClose={closeContextMenu}
+          onShowDetails={id => { setSelectedNode(id); setInspectedNode(id) }}
+          onZoomTo={id => { void fitView({ nodes: [{ id }], padding: 0.2, duration: 600 }) }}
+        />
       )}
 
       {!reviewMode && <NewSheetDialog

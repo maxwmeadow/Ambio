@@ -68,6 +68,34 @@
   font-size: 11px;
 }
 
+.axiom-menubar__recent {
+  display: flex;
+  flex-direction: column;
+}
+
+.axiom-menubar__group-label {
+  padding: 6px 10px 2px;
+  color: #69746f;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.axiom-menubar__recent button {
+  padding-left: 18px !important;
+}
+
+.axiom-menubar__empty {
+  padding: 4px 18px 6px;
+  color: #9aa19c;
+  font-size: 12px;
+}
+
+.axiom-menubar__dropdown .axiom-menubar__subtle {
+  color: #5f6b66;
+}
+
 .axiom-menubar__dropdown hr {
   margin: 4px 0;
   border: 0;
@@ -416,4 +444,41 @@
 
 .axiom-project-settings__reindex button:hover {
   border-color: #2f5f56;
+}
+
+/* ── Canvas right-click menu ──────────────────────────────────────────────── */
+
+.axiom-context-menu {
+  position: fixed;
+  z-index: 10020;
+  display: flex;
+  min-width: 220px;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid #56635f;
+  background: #f1efe8;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.axiom-context-menu button {
+  padding: 6px 10px;
+  color: #1f2a26;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.axiom-context-menu button:hover,
+.axiom-context-menu button:focus-visible {
+  background: #dcd9ce;
+  outline: none;
+}
+
+.axiom-context-menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid #cfccc0;
+}
+
+.axiom-context-menu__danger {
+  color: #824139 !important;
 }
