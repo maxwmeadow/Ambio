@@ -32,7 +32,7 @@ import {
 
 import { useGraphStore, connectToArchd } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
-import { raiseFailure, useInterruptionStore } from './store/interruptionStore.ts'
+import { raiseFailure, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
@@ -104,6 +104,8 @@ async function forgetOpenProject() {
 
 /** Setup finished according to the journey that created this project. */
 function projectIsReady(config: ProjectConfig): boolean {
+  // A moved folder cannot resume; the launcher asks where it went.
+  if (config.rootMissing) return false
   config = migrateLegacyProjectLifecycle(config)
   return sourceBoundariesAreComplete(config) && projectHasEnteredWorkbench(config)
 }
@@ -185,6 +187,31 @@ export default function App() {
     // Infra service registry - one fetch, shared by canvas nodes and dialogs
     void useRegistryStore.getState().fetchRegistry()
   }, [applySnapshot, setConnectionStatus, setStoreProject])
+
+  // archd is restarted by the main process when it dies. Say so while it
+  // happens, and say plainly when it will not come back.
+  useEffect(() => {
+    if (E2E_MODE || !window.axiom?.onArchdStatus) return
+    return window.axiom.onArchdStatus(status => {
+      if (status.state === 'restarting') {
+        raiseNotice('archd-status', 'Reconnecting to Axiom\'s background service…',
+          'It stopped unexpectedly and is restarting. The map resumes updating on its own.')
+      } else if (status.state === 'running') {
+        resolveInterruption('archd-status')
+        resolveInterruption('archd-failed')
+      } else {
+        resolveInterruption('archd-status')
+        raiseFailure('archd-failed', 'Axiom\'s background service is not running', status.detail, [{
+          label: 'Try again',
+          primary: true,
+          run: () => {
+            resolveInterruption('archd-failed')
+            void window.axiom.restartArchd()
+          },
+        }])
+      }
+    })
+  }, [])
 
   // A delta:ready event covers project open. Focus refresh covers the other
   // daily path: Axiom stayed open while an agent changed the architecture.

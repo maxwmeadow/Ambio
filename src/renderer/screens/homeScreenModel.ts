@@ -14,6 +14,37 @@ export function filterRecentProjects(projects: ProjectConfig[], query: string): 
   })
 }
 
+/** How many projects the launcher lists before "Show all". */
+export const RECENT_PROJECT_LIMIT = 8
+
+export interface LauncherProjectList {
+  /** Rows to render, most recently opened first. */
+  visible: ProjectConfig[]
+  /** Projects not listed right now; "Show all" reveals them. */
+  notShown: number
+  mode: 'recent' | 'all' | 'search'
+}
+
+/**
+ * The launcher shows a short recent list; the registry itself is unlimited.
+ * Search always covers every project, hidden ones included, so nothing the
+ * user has ever opened is unreachable from here.
+ */
+export function launcherProjects(
+  projects: ProjectConfig[],
+  query: string,
+  showAll: boolean,
+  limit = RECENT_PROJECT_LIMIT,
+): LauncherProjectList {
+  const byRecency = [...projects].sort((left, right) => (right.openedAt ?? 0) - (left.openedAt ?? 0))
+  if (query.trim()) {
+    return { visible: filterRecentProjects(byRecency, query), notShown: 0, mode: 'search' }
+  }
+  if (showAll) return { visible: byRecency, notShown: 0, mode: 'all' }
+  const recent = byRecency.filter(project => !project.hiddenFromRecents).slice(0, limit)
+  return { visible: recent, notShown: projects.length - recent.length, mode: 'recent' }
+}
+
 export function navigateProjects(
   direction: 'up' | 'down',
   total: number,

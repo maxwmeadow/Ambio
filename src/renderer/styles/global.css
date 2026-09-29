@@ -4683,8 +4683,87 @@ select.axiom-inspector-input {
 }
 
 .axiom-launcher__recent-remove:hover {
-  background: #d8c8c1;
-  color: #7a3028;
+  background: #dcd8cb;
+  color: var(--launcher-ink);
+}
+
+.axiom-launcher__row-menu {
+  position: relative;
+  display: grid;
+}
+
+.axiom-launcher__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% - 8px);
+  right: 6px;
+  display: flex;
+  min-width: 210px;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid #a4aaa5;
+  background: #f6f4ee;
+  box-shadow: 0 10px 28px rgba(31, 42, 38, 0.18);
+}
+
+.axiom-launcher__menu button {
+  padding: 7px 10px;
+  color: var(--launcher-ink);
+  font-size: 13px;
+  text-align: left;
+}
+
+.axiom-launcher__menu button:hover,
+.axiom-launcher__menu button:focus-visible {
+  background: #e4e1d6;
+  outline: none;
+}
+
+.axiom-launcher__menu hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--launcher-rule);
+}
+
+.axiom-launcher__menu .axiom-launcher__menu-danger {
+  color: #824139;
+}
+
+.axiom-launcher__menu .axiom-launcher__menu-danger:hover,
+.axiom-launcher__menu .axiom-launcher__menu-danger:focus-visible {
+  background: #ecd9d3;
+}
+
+.axiom-launcher__recent-item--missing .axiom-launcher__project-copy strong,
+.axiom-launcher__recent-item--missing .axiom-launcher__project-copy small {
+  opacity: 0.62;
+}
+
+.axiom-launcher__recent-item--missing .axiom-launcher__project-copy small {
+  text-decoration: line-through;
+}
+
+.axiom-launcher__show-all {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--launcher-rule);
+  border-top: 0;
+  background: rgba(238, 235, 226, 0.4);
+  color: #46534f;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.axiom-launcher__show-all:hover {
+  background: #eeece4;
+}
+
+.axiom-launcher__show-all:focus-visible {
+  outline: 1px dotted #214a43;
+  outline-offset: -3px;
 }
 
 .axiom-launcher__local-note {

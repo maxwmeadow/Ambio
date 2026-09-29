@@ -339,6 +339,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/api/snapshot/", s.handleSnapshot)
 	mux.HandleFunc("/api/workspace-scope/", s.handleWorkspaceScope)
+	mux.HandleFunc("/api/workspace-relocate", s.handleWorkspaceRelocate)
 	mux.HandleFunc("/api/workspace/", s.handleWorkspaceByID)
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)

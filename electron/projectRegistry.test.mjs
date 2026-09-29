@@ -8,7 +8,9 @@ import {
   createProjectId,
   findProjectByRoot,
   migrateIndexedProjectLifecycle,
+  rebasePath,
   refreshProjectDiskState,
+  relocateProjectConfig,
   readResumeProjectId,
   removeProjectData,
   writeResumeProjectId,
@@ -60,9 +62,9 @@ test('project disk state follows the current folder contents without losing its 
     creationSource: 'new-project',
   }
   try {
-    assert.deepEqual(refreshProjectDiskState(project), { ...project, rootIsEmpty: true })
+    assert.deepEqual(refreshProjectDiskState(project), { ...project, rootIsEmpty: true, rootMissing: false })
     fs.writeFileSync(path.join(rootPath, 'main.ts'), 'export {}')
-    assert.deepEqual(refreshProjectDiskState(project), { ...project, rootIsEmpty: false })
+    assert.deepEqual(refreshProjectDiskState(project), { ...project, rootIsEmpty: false, rootMissing: false })
   } finally {
     fs.rmSync(rootPath, { recursive: true, force: true })
   }
@@ -110,4 +112,28 @@ test('a daemon refusal is surfaced and never pretends the project was removed', 
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true })
   }
+})
+
+test('a moved folder is reported missing, an existing one is not', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-missing-'))
+  try {
+    assert.equal(refreshProjectDiskState({ rootPath: dir }).rootMissing, false)
+    assert.equal(refreshProjectDiskState({ rootPath: path.join(dir, 'gone') }).rootMissing, true)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('relocating a project rebases its exclusions and keeps its identity', () => {
+  const moved = relocateProjectConfig({
+    id: 'p1', name: 'app', rootPath: '/old/app', rootMissing: true,
+    ignoredPaths: ['/old/app/vendor/**', '/old/application/x', '/elsewhere/**'],
+    workbenchOpenedAt: 5,
+  }, '/new/app')
+  assert.equal(moved.id, 'p1')
+  assert.equal(moved.rootPath, '/new/app')
+  assert.equal(moved.rootMissing, false)
+  assert.equal(moved.workbenchOpenedAt, 5)
+  assert.deepEqual(moved.ignoredPaths, ['/new/app/vendor/**', '/old/application/x', '/elsewhere/**'])
+  assert.equal(rebasePath('C:\\old\\app\\vendor/**', 'C:\\old\\app', 'D:\\app'), 'D:\\app\\vendor/**')
 })

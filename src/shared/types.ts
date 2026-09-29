@@ -172,6 +172,10 @@ export interface ProjectConfig {
   creationSource?: 'new-project' | 'open-codebase'
   /** Refreshed from disk when the project is created, opened, or listed. */
   rootIsEmpty?: boolean
+  /** Refreshed from disk: the folder was moved, renamed, or deleted. */
+  rootMissing?: boolean
+  /** Hidden from the launcher's recents. The project and its map remain. */
+  hiddenFromRecents?: boolean
   ignoredPaths: string[]
   // Explicitly distinguishes "reviewed and include everything" (an empty
   // ignoredPaths array) from "the source-boundary decision has never run".

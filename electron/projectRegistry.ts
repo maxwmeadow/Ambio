@@ -58,12 +58,43 @@ export function createProjectId(): string {
  */
 export function refreshProjectDiskState(config: ProjectConfig): ProjectConfig {
   let rootIsEmpty = false
+  let rootMissing = false
   try {
-    rootIsEmpty = fs.statSync(config.rootPath).isDirectory() && fs.readdirSync(config.rootPath).length === 0
-  } catch {
-    // A missing or unreadable folder is not an empty blank project.
+    const isDirectory = fs.statSync(config.rootPath).isDirectory()
+    rootMissing = !isDirectory
+    rootIsEmpty = isDirectory && fs.readdirSync(config.rootPath).length === 0
+  } catch (error) {
+    // A missing folder is not an empty blank project. An unreadable one
+    // (permissions) still exists, so it is not reported as moved.
+    rootMissing = (error as NodeJS.ErrnoException)?.code === 'ENOENT' ||
+      (error as NodeJS.ErrnoException)?.code === 'ENOTDIR'
   }
-  return { ...config, rootIsEmpty }
+  return { ...config, rootIsEmpty, rootMissing }
+}
+
+/** Rebase one absolute path from under oldRoot to under newRoot. */
+export function rebasePath(path: string, oldRoot: string, newRoot: string): string {
+  // Compared in slash form so either separator style matches; the suffix is
+  // kept verbatim because exclusion globs mix "\\" and "/**" on Windows.
+  const slash = (value: string) => value.replace(/\\/g, '/')
+  const oldSlash = slash(oldRoot).replace(/\/+$/, '')
+  const pathSlash = slash(path)
+  if (pathSlash === oldSlash) return newRoot
+  if (!pathSlash.startsWith(`${oldSlash}/`)) return path
+  return `${newRoot.replace(/[\\/]+$/, '')}${path.slice(oldSlash.length)}`
+}
+
+/**
+ * The same project, now living at newRoot. Identity, lifecycle milestones and
+ * exclusions carry over, so a moved folder reopens straight into its map.
+ */
+export function relocateProjectConfig(config: ProjectConfig, newRoot: string): ProjectConfig {
+  return {
+    ...config,
+    rootPath: newRoot,
+    ignoredPaths: config.ignoredPaths.map(pattern => rebasePath(pattern, config.rootPath, newRoot)),
+    rootMissing: false,
+  }
 }
 
 function validatedProjectDataDir(dataDir: string, projectId: string): string {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
 import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
-import { filterRecentProjects, handleLauncherKey } from './homeScreenModel'
+import { handleLauncherKey, launcherProjects } from './homeScreenModel'
 
 interface HomeScreenProps {
   onOpenProject: (config: ProjectConfig) => void
@@ -44,6 +44,12 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
   const [projectToDelete, setProjectToDelete] = useState<ProjectConfig | null>(null)
   const [removingProjectId, setRemovingProjectId] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
+  // The project whose actions menu is open, and a moved project awaiting a
+  // decision about where its folder went.
+  const [menuProjectId, setMenuProjectId] = useState<string | null>(null)
+  const [missingProject, setMissingProject] = useState<ProjectConfig | null>(null)
+  const [locating, setLocating] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   // New Project flow
   const [creating, setCreating] = useState(false)
@@ -59,10 +65,22 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
   const searchInputRef = useRef<HTMLInputElement>(null)
   const recentListRef = useRef<HTMLUListElement>(null)
 
-  const filteredProjects = useMemo(
-    () => filterRecentProjects(recentProjects, searchQuery),
-    [recentProjects, searchQuery],
+  const projectList = useMemo(
+    () => launcherProjects(recentProjects, searchQuery, showAll),
+    [recentProjects, searchQuery, showAll],
   )
+  const filteredProjects = projectList.visible
+
+  // A moved folder cannot be opened; ask where it went instead of failing
+  // inside the workbench with an empty map.
+  const openOrLocate = (project: ProjectConfig) => {
+    if (project.rootMissing) {
+      setRemoveError(null)
+      setMissingProject(project)
+      return
+    }
+    onOpenProject(project)
+  }
 
   useEffect(() => {
     if (activeIndex !== null && (activeIndex >= filteredProjects.length || activeIndex < 0)) {
@@ -78,7 +96,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Do not intercept if a modal dialog is active
-      if (projectToDelete || creating) return
+      if (projectToDelete || creating || missingProject || menuProjectId) return
 
       const action = handleLauncherKey(event, {
         isSearchFocused,
@@ -97,7 +115,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
           break
         case 'OPEN':
           if (action.nextIndex !== undefined && action.nextIndex !== null && filteredProjects[action.nextIndex]) {
-            onOpenProject(filteredProjects[action.nextIndex])
+            openOrLocate(filteredProjects[action.nextIndex])
           }
           break
         case 'CLEAR_SEARCH':
@@ -112,36 +130,99 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [projectToDelete, creating, isSearchFocused, searchQuery, filteredProjects, activeIndex, onOpenProject])
+  }, [projectToDelete, creating, missingProject, menuProjectId, isSearchFocused, searchQuery, filteredProjects, activeIndex, onOpenProject])
 
   useEffect(() => {
     let active = true
     if (window.axiom) {
       void window.axiom.listRecentProjects()
-        .then(async projects => {
-          if (!active) return
-          setRecentProjects(projects)
-          const statuses = await Promise.all(projects.slice(0, 6).map(async project => {
-            try {
-              const response = await fetch(
-                `http://127.0.0.1:7743/api/command-deck?workspace=${encodeURIComponent(project.id)}`,
-              )
-              if (!response.ok) return null
-              return await response.json() as CommandDeckStatus
-            } catch {
-              return null
-            }
-          }))
-          if (!active) return
-          setDeckStatus(Object.fromEntries(
-            statuses.filter((status): status is CommandDeckStatus => Boolean(status))
-              .map(status => [status.workspaceId, status]),
-          ))
-        })
+        .then(projects => { if (active) setRecentProjects(projects) })
         .catch(() => { if (active) setRecentProjects([]) })
     }
     return () => { active = false }
   }, [])
+
+  // Status follows whatever rows are on screen. Fetching a fixed first few
+  // left every later row reading "READING MAP…" forever.
+  const requestedStatus = useRef(new Set<string>())
+  useEffect(() => {
+    if (!window.axiom) return
+    const pending = filteredProjects.filter(project =>
+      !project.rootMissing && !requestedStatus.current.has(project.id))
+    if (pending.length === 0) return
+    pending.forEach(project => requestedStatus.current.add(project.id))
+    let active = true
+    void Promise.all(pending.map(async project => {
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:7743/api/command-deck?workspace=${encodeURIComponent(project.id)}`,
+        )
+        if (!response.ok) return null
+        return await response.json() as CommandDeckStatus
+      } catch {
+        return null
+      }
+    })).then(statuses => {
+      if (!active) return
+      const found = statuses.filter((status): status is CommandDeckStatus => Boolean(status))
+      if (found.length === 0) return
+      setDeckStatus(previous => ({
+        ...previous,
+        ...Object.fromEntries(found.map(status => [status.workspaceId, status])),
+      }))
+    })
+    return () => { active = false }
+  }, [filteredProjects])
+
+  // Close the row menu on any click elsewhere or Escape.
+  useEffect(() => {
+    if (!menuProjectId) return
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return
+      if (event instanceof MouseEvent && (event.target as HTMLElement | null)?.closest('.axiom-launcher__row-menu')) return
+      setMenuProjectId(null)
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [menuProjectId])
+
+  const replaceProject = (updated: ProjectConfig) =>
+    setRecentProjects(previous => previous.map(project => project.id === updated.id ? updated : project))
+
+  const locateProject = async (project: ProjectConfig) => {
+    if (!window.axiom) return
+    setLocating(true)
+    setRemoveError(null)
+    try {
+      const updated = await window.axiom.relocateProject(project.id)
+      if (!updated) return
+      replaceProject(updated)
+      setMissingProject(null)
+      onOpenProject(updated)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Axiom could not use that folder.')
+    } finally {
+      setLocating(false)
+    }
+  }
+
+  const setHidden = async (project: ProjectConfig, hidden: boolean) => {
+    setMenuProjectId(null)
+    if (!window.axiom) return
+    try {
+      replaceProject(await window.axiom.setProjectHidden(project.id, hidden))
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Axiom could not update the project list.')
+    }
+  }
+
+  const revealLabel = window.axiom?.platform === 'darwin'
+    ? 'Reveal in Finder'
+    : window.axiom?.platform === 'win32' ? 'Show in Explorer' : 'Open containing folder'
 
   const confirmDelete = async () => {
     if (!projectToDelete) return
@@ -274,7 +355,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
           {recentProjects.length > 0 && (
             <div className="axiom-launcher__recent">
               <div className="axiom-launcher__section-label">
-                <span>RECENTLY OPENED</span>
+                <span>{projectList.mode === 'search' ? 'MATCHING PROJECTS' : projectList.mode === 'all' ? 'ALL PROJECTS' : 'RECENTLY OPENED'}</span>
                 <small>{filteredProjects.length} OF {recentProjects.length} PROJECTS</small>
               </div>
 
@@ -290,8 +371,8 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                   }}
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={() => setIsSearchFocused(false)}
-                  placeholder="Search recent projects (/ to focus, ↑↓ to navigate)…"
-                  aria-label="Search recent projects"
+                  placeholder="Search all projects (/ to focus, ↑↓ to navigate)…"
+                  aria-label="Search all projects"
                   spellCheck={false}
                 />
                 {searchQuery ? (
@@ -324,42 +405,96 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                 <ul ref={recentListRef} aria-label="Recent projects">
                   {filteredProjects.map((project, index) => {
                     const isActive = index === activeIndex
+                    const menuOpen = menuProjectId === project.id
                     return (
                       <li
                         key={project.id}
                         data-project-index={index}
-                        className={`axiom-launcher__recent-item${isActive ? ' axiom-launcher__recent-item--active' : ''}`}
+                        className={[
+                          'axiom-launcher__recent-item',
+                          isActive ? 'axiom-launcher__recent-item--active' : '',
+                          project.rootMissing ? 'axiom-launcher__recent-item--missing' : '',
+                        ].filter(Boolean).join(' ')}
                         onMouseEnter={() => setActiveIndex(index)}
                       >
                         <button
                           className={`axiom-launcher__recent-open${isActive ? ' axiom-launcher__recent-open--active' : ''}`}
-                          onClick={() => onOpenProject(project)}
-                          aria-label={`Open ${project.name}`}
+                          onClick={() => openOrLocate(project)}
+                          aria-label={project.rootMissing ? `Locate the folder for ${project.name}` : `Open ${project.name}`}
                         >
                           <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
                           <span className="axiom-launcher__project-copy">
                             <strong>{project.name}</strong>
                             <small title={project.rootPath}>{project.rootPath}</small>
-                            <ProjectDeckSignals status={deckStatus[project.id]} />
+                            {project.rootMissing
+                              ? (
+                                <span className="axiom-launcher__deck-signals">
+                                  <span className="axiom-launcher__deck-signal axiom-launcher__deck-signal--attention">FOLDER NOT FOUND · LOCATE</span>
+                                </span>
+                              )
+                              : <ProjectDeckSignals status={deckStatus[project.id]} />}
                           </span>
                           <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
                         </button>
-                        <button
-                          className="axiom-launcher__recent-remove"
-                          onClick={() => {
-                            setRemoveError(null)
-                            setProjectToDelete(project)
-                          }}
-                          disabled={removingProjectId !== null}
-                          aria-label={`Remove ${project.name} from recent projects`}
-                          title="Remove from recents and delete the cached index"
-                        >
-                          {removingProjectId === project.id ? '…' : '×'}
-                        </button>
+                        <div className="axiom-launcher__row-menu">
+                          <button
+                            className="axiom-launcher__recent-remove"
+                            onClick={() => setMenuProjectId(menuOpen ? null : project.id)}
+                            disabled={removingProjectId !== null}
+                            aria-haspopup="menu"
+                            aria-expanded={menuOpen}
+                            aria-label={`Actions for ${project.name}`}
+                            title="Project actions"
+                          >
+                            {removingProjectId === project.id ? '…' : '⋯'}
+                          </button>
+                          {menuOpen && (
+                            <div className="axiom-launcher__menu" role="menu" aria-label={`${project.name} actions`}>
+                              <button role="menuitem" autoFocus onClick={() => { setMenuProjectId(null); openOrLocate(project) }}>
+                                {project.rootMissing ? 'Locate folder…' : 'Open'}
+                              </button>
+                              {!project.rootMissing && (
+                                <button role="menuitem" onClick={() => { setMenuProjectId(null); window.axiom?.showInFolder(project.rootPath) }}>
+                                  {revealLabel}
+                                </button>
+                              )}
+                              {!project.rootMissing && (
+                                <button role="menuitem" onClick={() => { setMenuProjectId(null); void locateProject(project) }}>
+                                  Change folder location…
+                                </button>
+                              )}
+                              {project.hiddenFromRecents
+                                ? <button role="menuitem" onClick={() => void setHidden(project, false)}>Show in recents</button>
+                                : <button role="menuitem" onClick={() => void setHidden(project, true)}>Hide from recents</button>}
+                              <hr />
+                              <button
+                                role="menuitem"
+                                className="axiom-launcher__menu-danger"
+                                onClick={() => {
+                                  setMenuProjectId(null)
+                                  setRemoveError(null)
+                                  setProjectToDelete(project)
+                                }}
+                              >
+                                Delete project map…
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </li>
                     )
                   })}
                 </ul>
+              )}
+
+              {!searchQuery && (projectList.notShown > 0 || showAll) && (
+                <button
+                  type="button"
+                  className="axiom-launcher__show-all"
+                  onClick={() => { setShowAll(value => !value); setActiveIndex(null) }}
+                >
+                  {showAll ? 'Show recent projects only' : `Show all ${recentProjects.length} projects`}
+                </button>
               )}
             </div>
           )}
@@ -385,15 +520,13 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
             onKeyDown={event => {
               if (event.key === 'Escape' && removingProjectId === null) {
                 setProjectToDelete(null)
-              } else if (event.key === 'Enter' && removingProjectId === null) {
-                void confirmDelete()
               }
             }}
             tabIndex={-1}
           >
             <div className="axiom-remove-modal__head">
-              <span className="axiom-remove-modal__kicker">REMOVE FROM AXIOM</span>
-              <h3 id="axiom-remove-title">Remove &ldquo;{projectToDelete.name}&rdquo;?</h3>
+              <span className="axiom-remove-modal__kicker">DELETE PROJECT MAP</span>
+              <h3 id="axiom-remove-title">Delete the map for &ldquo;{projectToDelete.name}&rdquo;?</h3>
               <button
                 className="axiom-remove-modal__close"
                 onClick={() => setProjectToDelete(null)}
@@ -405,7 +538,8 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
             </div>
 
             <p className="axiom-remove-modal__body">
-              This will remove the project and its cached index from Axiom. Your source files on disk will not be affected.
+              Axiom will forget this project: its systems, layout, sheets, and change history are deleted and cannot be
+              recovered. Your code on disk is not touched. To only tidy this list, use Hide from recents instead.
             </p>
 
             {removeError && <div className="axiom-create__error" role="alert">{removeError}</div>}
@@ -415,6 +549,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                 className="axiom-remove-modal__cancel"
                 onClick={() => setProjectToDelete(null)}
                 disabled={removingProjectId !== null}
+                autoFocus
               >
                 Cancel
               </button>
@@ -422,9 +557,57 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
                 className="axiom-remove-modal__danger"
                 onClick={() => void confirmDelete()}
                 disabled={removingProjectId !== null}
+              >
+                {removingProjectId !== null ? 'Deleting…' : 'Delete Map'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {missingProject && (
+        <div className="axiom-create__scrim" onClick={() => !locating && setMissingProject(null)}>
+          <div
+            className="axiom-remove-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="axiom-missing-title"
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => { if (event.key === 'Escape' && !locating) setMissingProject(null) }}
+            tabIndex={-1}
+          >
+            <div className="axiom-remove-modal__head">
+              <span className="axiom-remove-modal__kicker">FOLDER NOT FOUND</span>
+              <h3 id="axiom-missing-title">Where did &ldquo;{missingProject.name}&rdquo; go?</h3>
+              <button
+                className="axiom-remove-modal__close"
+                onClick={() => setMissingProject(null)}
+                aria-label="Cancel"
+                disabled={locating}
+              >
+                ×
+              </button>
+            </div>
+            <p className="axiom-remove-modal__body">
+              Axiom can&rsquo;t find <code>{missingProject.rootPath}</code>. If you moved or renamed the folder, point
+              Axiom at its new location and the map, layout, and history come with it. Your files stay where they are.
+            </p>
+            {removeError && <div className="axiom-create__error" role="alert">{removeError}</div>}
+            <div className="axiom-remove-modal__actions">
+              <button
+                className="axiom-remove-modal__cancel"
+                onClick={() => { const project = missingProject; setMissingProject(null); setProjectToDelete(project) }}
+                disabled={locating}
+              >
+                Delete Map
+              </button>
+              <button
+                className="axiom-create__go"
+                onClick={() => void locateProject(missingProject)}
+                disabled={locating}
                 autoFocus
               >
-                {removingProjectId !== null ? 'Removing…' : 'Remove Project'}
+                {locating ? 'Moving map…' : 'Locate Folder…'}
               </button>
             </div>
           </div>

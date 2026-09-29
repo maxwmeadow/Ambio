@@ -22,6 +22,13 @@ contextBridge.exposeInMainWorld('axiom', {
   removeProject: (projectId: string): Promise<void> =>
     ipcRenderer.invoke('project:remove', projectId),
 
+  /** Ask for a moved project's new folder; null when the user cancels. */
+  relocateProject: (projectId: string): Promise<ProjectConfig | null> =>
+    ipcRenderer.invoke('project:relocate', projectId),
+
+  setProjectHidden: (projectId: string, hidden: boolean): Promise<ProjectConfig> =>
+    ipcRenderer.invoke('project:set-hidden', projectId, hidden),
+
   getResumeProjectId: (): Promise<string | null> => ipcRenderer.invoke('project:get-resume-id'),
   setResumeProjectId: (projectId: string | null): Promise<void> => ipcRenderer.invoke('project:set-resume-id', projectId),
   completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt'): Promise<ProjectConfig> =>
@@ -87,6 +94,15 @@ contextBridge.exposeInMainWorld('axiom', {
   },
 
   // Listen for messages from archd (forwarded by main process)
+  restartArchd: (): Promise<void> => ipcRenderer.invoke('archd:restart'),
+
+  /** archd restarts, recovery, and giving up. Returns an unsubscribe. */
+  onArchdStatus: (callback: (status: ArchdStatus) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: ArchdStatus) => callback(status)
+    ipcRenderer.on('archd:status', handler)
+    return () => { ipcRenderer.removeListener('archd:status', handler) }
+  },
+
   onArchdMessage: (callback: (msg: WsMessage) => void) => {
     ipcRenderer.on('archd:message', (_event, msg) => callback(msg))
   },
@@ -145,6 +161,11 @@ export interface AgentConnection {
   config: string
 }
 
+export type ArchdStatus =
+  | { state: 'restarting'; attempt: number }
+  | { state: 'running' }
+  | { state: 'failed'; reason: string; detail: string }
+
 // Type declaration for the renderer
 declare global {
   interface Window {
@@ -155,6 +176,8 @@ declare global {
       createProject: (parentDir: string, name: string) => Promise<ProjectConfig>
       listRecentProjects: () => Promise<ProjectConfig[]>
       removeProject: (projectId: string) => Promise<void>
+      relocateProject: (projectId: string) => Promise<ProjectConfig | null>
+      setProjectHidden: (projectId: string, hidden: boolean) => Promise<ProjectConfig>
       getResumeProjectId: () => Promise<string | null>
       setResumeProjectId: (projectId: string | null) => Promise<void>
       completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt') => Promise<ProjectConfig>
@@ -177,6 +200,8 @@ declare global {
       isMaximized: () => Promise<boolean>
       setTitleBarHeight: (height: number) => Promise<void>
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
+      onArchdStatus: (callback: (status: ArchdStatus) => void) => () => void
+      restartArchd: () => Promise<void>
       onArchdMessage: (callback: (msg: WsMessage) => void) => void
       removeArchdListener: (callback: (msg: WsMessage) => void) => void
     }

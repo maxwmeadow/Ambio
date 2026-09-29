@@ -4,6 +4,7 @@ import {
   filterRecentProjects,
   navigateProjects,
   handleLauncherKey,
+  launcherProjects,
 } from './homeScreenModel.ts'
 
 const FIXTURE_PROJECTS = [
@@ -239,4 +240,24 @@ test('screen-level keyboard interaction flow: search, arrow navigation, and ente
   // Enter -> opens project 1 (Beta)
   session2.sendKey('Enter')
   assert.equal(session2.openedProject.id, 'p2')
+})
+
+test('launcherProjects lists recent projects newest first and hides the rest behind show all', () => {
+  const projects = Array.from({ length: 12 }, (_, index) => ({
+    id: `p${index}`, name: `Project ${index}`, rootPath: `/r/${index}`, openedAt: index,
+  }))
+  projects[11] = { ...projects[11], hiddenFromRecents: true }
+
+  const recent = launcherProjects(projects, '', false, 8)
+  assert.equal(recent.mode, 'recent')
+  assert.deepEqual(recent.visible.map(project => project.id), ['p10', 'p9', 'p8', 'p7', 'p6', 'p5', 'p4', 'p3'])
+  assert.equal(recent.notShown, 4)
+
+  const all = launcherProjects(projects, '', true, 8)
+  assert.equal(all.visible.length, 12)
+  assert.equal(all.visible[0].id, 'p11')
+
+  const search = launcherProjects(projects, 'project 11', false, 8)
+  assert.equal(search.mode, 'search')
+  assert.deepEqual(search.visible.map(project => project.id), ['p11'])
 })

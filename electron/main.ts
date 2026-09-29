@@ -14,6 +14,7 @@ import {
   findProjectByRoot,
   migrateIndexedProjectLifecycle,
   refreshProjectDiskState,
+  relocateProjectConfig,
   readResumeProjectId,
   removeProjectData,
   writeResumeProjectId,
@@ -39,6 +40,15 @@ const ARCHD_WS_PORT = 7744
 let mainWindow: BrowserWindow | null = null
 let archdProcess: ChildProcess | null = null
 let tray: Tray | null = null
+// Set once the app is really leaving, so archd exiting then is expected.
+let quitting = false
+// The project the window has open, re-registered with archd after a restart
+// so its file watchers come back without the user doing anything.
+let activeProject: ProjectConfig | null = null
+const archdRestarts: number[] = []
+const ARCHD_RESTART_LIMIT = 5
+const ARCHD_RESTART_WINDOW_MS = 60_000
+let archdRecentStderr: string[] = []
 
 // ─── Load/save recent projects ─────────────────────────────────────────────
 
@@ -68,7 +78,19 @@ function upsertRecentProject(config: ProjectConfig): void {
   const idx = projects.findIndex(p => p.id === config.id)
   if (idx >= 0) projects[idx] = mergePersistedProjectConfig(projects[idx], config)
   else projects.unshift(config)
-  saveRecentProjects(projects.slice(0, 20))
+  // No cap: every project is local, and dropping one from this registry used
+  // to orphan its index in DATA_DIR with no way back to it. How many appear
+  // as "recent" is the launcher's decision, not the registry's.
+  saveRecentProjects(projects)
+}
+
+function updateRegistryProject(projectId: string, update: (project: ProjectConfig) => ProjectConfig): ProjectConfig {
+  const projects = loadRecentProjects()
+  const index = projects.findIndex(project => project.id === projectId)
+  if (index < 0) throw new Error('Project is missing from the project registry.')
+  projects[index] = update(projects[index])
+  saveRecentProjects(projects)
+  return projects[index]
 }
 
 // Turn a user-typed project name into a safe folder name: drop path-invalid
@@ -120,8 +142,11 @@ function startArchd(): void {
     return
   }
 
+  archdRecentStderr = []
   archdProcess.stderr?.on('data', (chunk: Buffer) => {
-    process.stderr.write('[archd] ' + chunk.toString())
+    const text = chunk.toString()
+    process.stderr.write('[archd] ' + text)
+    archdRecentStderr = [...archdRecentStderr, ...text.split('\n').filter(Boolean)].slice(-40)
   })
 
   // Read newline-delimited JSON responses from archd stdout
@@ -145,9 +170,10 @@ function startArchd(): void {
     reportArchdLaunchError(binary, error)
     archdProcess = null
   })
-  archdProcess.on('exit', (code) => {
-    console.log(`[main] archd exited with code ${code}`)
+  archdProcess.on('exit', (code, signal) => {
+    console.log(`[main] archd exited with code ${code}${signal ? ` (${signal})` : ''}`)
     archdProcess = null
+    if (!quitting) handleArchdCrash(code)
   })
 
   console.log('[main] archd started, pid:', archdProcess.pid)
@@ -156,10 +182,101 @@ function startArchd(): void {
 function reportArchdLaunchError(binary: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`[main] archd launch failed at ${binary}:`, error)
+  // Written for the person using Axiom. Only a development checkout gets the
+  // build instruction, because only there is it something they can do.
   dialog.showErrorBox(
-    'Axiom backend failed to start',
-    `${message}\n\nRebuild the Windows daemon with:\nnpm run build:archd`,
+    'Axiom could not start its background service',
+    app.isPackaged
+      ? `${message}\n\nYour code is untouched. Reinstalling Axiom usually fixes this; if it keeps happening, please report it from Help → Report a Bug.`
+      : `${message}\n\nBuild the daemon with:\nnpm run build:archd`,
   )
+}
+
+type ArchdStatus =
+  | { state: 'restarting'; attempt: number }
+  | { state: 'running' }
+  | { state: 'failed'; reason: string; detail: string }
+
+function sendArchdStatus(status: ArchdStatus): void {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('archd:status', status)
+}
+
+function archdFailureReason(): { reason: string; detail: string } {
+  const log = archdRecentStderr.join('\n')
+  if (/address already in use|only one usage of each socket address/i.test(log)) {
+    return {
+      reason: 'port-in-use',
+      detail: `Another program is using Axiom's local ports (${ARCHD_API_PORT}/${ARCHD_WS_PORT}). ` +
+        'Quit any other copy of Axiom, or the program holding those ports, then restart Axiom.',
+    }
+  }
+  return {
+    reason: 'crashed',
+    detail: 'Axiom\'s background service stopped repeatedly. Your code is untouched. ' +
+      'Restart Axiom; if it keeps happening, please report it with the diagnostics attached.',
+  }
+}
+
+// archd owns indexing, watching and the MCP-facing API. When it dies the
+// window used to keep showing a map that silently stopped updating. Restart it
+// with backoff, and only give up - loudly - when it will not stay up.
+function handleArchdCrash(code: number | null): void {
+  if (IS_E2E) return
+  const now = Date.now()
+  while (archdRestarts.length > 0 && now - archdRestarts[0] > ARCHD_RESTART_WINDOW_MS) archdRestarts.shift()
+  if (archdRestarts.length >= ARCHD_RESTART_LIMIT) {
+    const failure = archdFailureReason()
+    console.error(`[main] archd will not stay up (last exit ${code}); giving up: ${failure.reason}`)
+    sendArchdStatus({ state: 'failed', ...failure })
+    return
+  }
+  archdRestarts.push(now)
+  const attempt = archdRestarts.length
+  const delay = Math.min(500 * 2 ** (attempt - 1), 8000)
+  sendArchdStatus({ state: 'restarting', attempt })
+  setTimeout(() => {
+    if (quitting) return
+    startArchd()
+    void reattachActiveProject()
+  }, delay)
+}
+
+/** Resolves once archd answers HTTP at all; a 401 still proves it is listening. */
+async function waitForArchd(timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!archdProcess) return false
+    try {
+      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace-scope/health`, { signal: AbortSignal.timeout(1000) })
+      return true
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 250))
+    }
+  }
+  return false
+}
+
+async function reattachActiveProject(): Promise<void> {
+  if (!(await waitForArchd())) return
+  const project = activeProject
+  if (project) {
+    try {
+      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${readDaemonToken()}` },
+        body: JSON.stringify({
+          workspaceId: project.id,
+          name: project.name,
+          rootPath: project.rootPath,
+          ignoredPaths: project.ignoredPaths,
+          sourceBoundariesReviewedAt: project.sourceBoundariesReviewedAt,
+        }),
+      })
+    } catch (error) {
+      console.error('[main] could not reattach the open project after restarting archd:', error)
+    }
+  }
+  sendArchdStatus({ state: 'running' })
 }
 
 function stopArchd(): void {
@@ -317,7 +434,8 @@ function setupIPC(): void {
 
   // Open a specific project path directly
   ipcMain.handle('project:open', async (_event, config: ProjectConfig) => {
-    const currentConfig = refreshProjectDiskState({ ...config, openedAt: Date.now() })
+    // Opening a project is the clearest signal it is recent again.
+    const currentConfig = refreshProjectDiskState({ ...config, openedAt: Date.now(), hiddenFromRecents: false })
     upsertRecentProject(currentConfig)
     fs.mkdirSync(DATA_DIR, { recursive: true })
     fs.writeFileSync(
@@ -325,6 +443,7 @@ function setupIPC(): void {
       JSON.stringify({ workspaceId: currentConfig.id, name: currentConfig.name, rootPath: currentConfig.rootPath }, null, 2)
     )
     sendToArchd({ type: 'open:project', payload: currentConfig })
+    activeProject = currentConfig
     return currentConfig
   })
 
@@ -366,11 +485,48 @@ function setupIPC(): void {
     return config
   })
 
+  // A project folder was moved or renamed. Repoint the project at its new
+  // location so its map, layout and history come along, rather than making
+  // the user start over. Axiom never moves the user's files.
+  ipcMain.handle('project:relocate', async (_event, projectId: string) => {
+    const project = loadRecentProjects().find(candidate => candidate.id === projectId)
+    if (!project) throw new Error('Project is missing from the project registry.')
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openDirectory'],
+      title: `Locate the folder for ${project.name}`,
+      buttonLabel: 'Use This Folder',
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    const newRoot = result.filePaths[0]
+    const owner = findProjectByRoot(loadRecentProjects(), newRoot)
+    if (owner && owner.id !== projectId) {
+      throw new Error(`That folder already belongs to the project "${owner.name}".`)
+    }
+    const token = readDaemonToken()
+    const response = await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace-relocate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ workspaceId: projectId, fromPath: project.rootPath, toPath: newRoot }),
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(`Axiom could not move the project map to the new folder${detail ? `: ${detail}` : '.'}`)
+    }
+    return refreshProjectDiskState(updateRegistryProject(projectId, current => relocateProjectConfig(current, newRoot)))
+  })
+
+  // Hiding is not deleting: the project and its map stay, it just leaves the
+  // launcher's recent list until it is opened again.
+  ipcMain.handle('project:set-hidden', (_event, projectId: string, hidden: boolean) =>
+    updateRegistryProject(projectId, project => ({ ...project, hiddenFromRecents: Boolean(hidden) })))
+
   // Get recent projects
   ipcMain.handle('project:list-recent', () => loadRecentProjects().map(refreshProjectDiskState))
 
   ipcMain.handle('project:get-resume-id', () => readResumeProjectId(SETTINGS_FILE))
   ipcMain.handle('project:set-resume-id', (_event, projectId: string | null) => {
+    // Clearing the resume marker is how the renderer leaves a project.
+    if (projectId === null) activeProject = null
     if (projectId !== null && !loadRecentProjects().some(project => project.id === projectId)) {
       throw new Error('Cannot resume a project outside the recent-project registry.')
     }
@@ -380,12 +536,7 @@ function setupIPC(): void {
     if (milestone !== 'agentSetupCompletedAt' && milestone !== 'reviewCompletedAt') {
       throw new Error('Invalid project lifecycle milestone.')
     }
-    const projects = loadRecentProjects()
-    const index = projects.findIndex(project => project.id === projectId)
-    if (index < 0) throw new Error('Project is missing from the recent-project registry.')
-    projects[index] = { ...projects[index], [milestone]: Date.now() }
-    saveRecentProjects(projects)
-    return projects[index]
+    return updateRegistryProject(projectId, project => ({ ...project, [milestone]: Date.now() }))
   })
 
   // Deleting is a verified lifecycle boundary. Keep the recent entry if any
@@ -570,6 +721,14 @@ function setupIPC(): void {
     }
   })
 
+  // The user asked to try again after archd gave up: start with a clean
+  // backoff budget.
+  ipcMain.handle('archd:restart', async () => {
+    archdRestarts.length = 0
+    if (!archdProcess) startArchd()
+    await reattachActiveProject()
+  })
+
   // Window controls
   ipcMain.handle('window:minimize', () => {
     mainWindow?.minimize()
@@ -657,7 +816,23 @@ until they do.
 
 // ─── App lifecycle ──────────────────────────────────────────────────────────
 
+// One Axiom per machine. A second copy would start a second archd that loses
+// the race for the local ports and leaves one window silently disconnected.
+// Launching again instead brings the existing window forward.
+const hasInstanceLock = IS_E2E || app.requestSingleInstanceLock()
+if (!hasInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
+
 app.whenReady().then(() => {
+  if (!hasInstanceLock) return
   // The capability stays in main; only requests to our fixed loopback daemon
   // receive it. Page scripts never receive the token through IPC or URLs.
   if (!IS_E2E) session.defaultSession.webRequest.onBeforeSendHeaders(
@@ -686,18 +861,20 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    quitting = true
     stopArchd()
     app.quit()
   }
 })
 
 app.on('before-quit', () => {
+  quitting = true
   stopArchd()
 })
 
 // Ensure archd is killed if the process is terminated via Ctrl+C or signal
-process.on('SIGINT', () => { stopArchd(); process.exit(0) })
-process.on('SIGTERM', () => { stopArchd(); process.exit(0) })
+process.on('SIGINT', () => { quitting = true; stopArchd(); process.exit(0) })
+process.on('SIGTERM', () => { quitting = true; stopArchd(); process.exit(0) })
 
 // Security: prevent navigation to external URLs
 app.on('web-contents-created', (_event, contents) => {
