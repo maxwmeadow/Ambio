@@ -199,3 +199,11 @@ Electron start as a plain Node process, leaving the `electron` module without
 its APIs. VS Code's extension host sets it, so terminals and coding agents
 launched from an extension can inherit it. Launch with `env -u
 ELECTRON_RUN_AS_NODE npm run dev`, or use a terminal outside the editor.
+
+## License
+
+Axiom is free software under the [GNU Affero General Public License v3.0](LICENSE).
+You can use it, study it, change it and share it. If you distribute a modified
+version, or run one as a network service, you must publish its source under
+the same license. Contributions are welcome under the [CLA](CLA.md); see
+[CONTRIBUTING.md](CONTRIBUTING.md).

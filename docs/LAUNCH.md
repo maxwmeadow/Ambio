@@ -24,11 +24,13 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 | 2026-09-29 | **One install, nothing else to set up.** The MCP server should run on Electron's bundled Node; investigations' toolchain needs (MSYS2 etc.) become a separate track. |
 | 2026-09-29 | **Accessibility and light theme:** wanted, end of the list. |
 | 2026-09-29 | **Sample/demo project:** not now. |
-| ❓ | **License** - see §2. |
+| 2026-09-30 | **License: AGPL-3.0-only + CLA** (CLA Assistant bot, signatures on the `cla-signatures` branch). The paid collaboration service stays in a separate private repository. |
+| 2026-09-30 | **Menus and Settings:** build the standard basics now; specifics later. |
+| 2026-09-30 | **Name:** on hold. |
 
 ---
 
-## 2. License ❓
+## 2. License ✅ AGPL-3.0 + CLA (decided 2026-09-30)
 
 The goal pulls two ways: *loved open-source tool* (stars, job offers) and
 *a business that can't be taken* (paid collaboration later).
@@ -256,7 +258,9 @@ Keyboard accelerators then work everywhere.
 
 ### Get it and trust it
 - ⬜ Rename (§3)
-- ⬜ LICENSE + CLA bot (§2)
+- ✅ LICENSE (AGPL-3.0, official text), `CLA.md`, CLA Assistant workflow, `license` in package.json
+- ⬜ Have a lawyer glance at `CLA.md` before charging money (it grants relicensing rights, modelled on the Apache ICLA)
+- ⬜ Enable GitHub private vulnerability reporting (repo Settings → Security) when the repo goes public
 - ⬜ Clean the repo root: move internal notes (`CODEX_BRIEF.md`, `CANVAS_BUG_HUNT.md`, `PARALLEL_AGENTS_BRIEF.md`, …) into `docs/` or remove
 - ✅ `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, issue and PR templates
 - ⬜ `CODE_OF_CONDUCT.md` (needs a contact address for reports)

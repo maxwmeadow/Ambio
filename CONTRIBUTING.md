@@ -39,8 +39,11 @@ npm run test:e2e        # packaged Electron UI
 - Match the surrounding code: its naming, comment density and idiom.
 - Add or update tests for behaviour you change.
 
-## Contributor agreement
+## License and contributor agreement
 
-Before your first contribution is merged you will be asked to sign a
-Contributor License Agreement. A bot will prompt you on the pull request. It
-keeps the project's licensing clear so Axiom can stay open and sustainable.
+Axiom is licensed under the [GNU AGPL v3.0](LICENSE). Before your first
+contribution is merged, a bot will ask you on the pull request to accept the
+[Contributor License Agreement](CLA.md) by posting one comment. You keep the
+copyright in your work; the agreement lets the project also offer Axiom under
+other terms (for example to organizations that cannot use the AGPL), which is
+how it stays open and sustainable.
