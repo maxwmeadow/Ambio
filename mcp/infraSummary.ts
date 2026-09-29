@@ -156,10 +156,20 @@ export function infraGaps(input: Pick<SummaryInput, 'nodes' | 'contents'>, max =
   const nameOf = new Map(input.nodes.filter(node => node.status !== 'dismissed').map(node => [node.id, node.name]))
   const gaps = input.contents.filter(item => nameOf.has(item.infraId) && typeof item.detail?.warning === 'string')
     .sort((a, b) => (b.detail?.similar ? 1 : 0) - (a.detail?.similar ? 1 : 0))
-  const lines = gaps.slice(0, max).map(item => {
-    const who = [...asStrings(item.detail?.publishers), ...asStrings(item.detail?.consumers)]
-    return `${nameOf.get(item.infraId)} ${item.kind} ${item.name}: ${item.detail!.warning}${who.length ? ` (${list(who, 3)})` : ''}`
-  })
-  if (gaps.length > max) lines.push(`+${gaps.length - max} more: get_architecture scope "infra"`)
-  return lines
+  // A typo shows up on both sides (receipts published, receipt consumed);
+  // say it once.
+  const said = new Set<string>()
+  const lines: string[] = []
+  for (const item of gaps) {
+    const similar = typeof item.detail?.similar === 'string' ? item.detail.similar : null
+    if (similar && said.has(`${item.infraId}:${similar}`)) continue
+    said.add(`${item.infraId}:${item.name}`)
+    const who = [...asStrings(item.detail?.publishers), ...asStrings(item.detail?.consumers),
+      ...asStrings(item.detail?.readers), ...asStrings(item.detail?.invalidators)]
+    const label = (CONTENT_LABEL[item.kind] ?? item.kind).toLowerCase().replace(/s$/, '')
+    lines.push(`${nameOf.get(item.infraId)} ${label} "${item.name}": ${item.detail!.warning}${who.length ? ` (${list(who, 3)})` : ''}`)
+  }
+  const shown = lines.slice(0, max)
+  if (lines.length > max) shown.push(`+${lines.length - max} more: get_architecture scope "infra"`)
+  return shown
 }

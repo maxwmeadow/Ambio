@@ -659,8 +659,16 @@ function InfraDetail({
   const items = contents.filter(item => item.infraId === infra.id)
   // A near-identical name on the other side (a likely typo) is the gap most
   // often behind a bug; it leads.
+  const gapsSeen = new Set<string>()
   const gaps = items.filter(item => typeof item.detail?.warning === 'string')
     .sort((a, b) => (b.detail?.similar ? 1 : 0) - (a.detail?.similar ? 1 : 0))
+    // A typo shows on both sides (receipts published, receipt consumed): once.
+    .filter(item => {
+      const similar = typeof item.detail?.similar === 'string' ? item.detail.similar : null
+      if (similar && gapsSeen.has(similar)) return false
+      gapsSeen.add(item.name)
+      return true
+    })
   const itemUse = (name: string) => {
     const kindsFor = new Map<string, number>()
     for (const dep of touching) {

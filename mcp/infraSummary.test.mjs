@@ -50,6 +50,11 @@ test('an empty map says how it fills', () => {
 })
 
 test('contract gaps are offered to an agent that starts debugging', () => {
-  assert.deepEqual(infraGaps(input), ['PostgreSQL topic booking.reminder: published, but nothing consumes it (src/jobs/sendReminders.ts)'])
+  assert.deepEqual(infraGaps(input), ['PostgreSQL topic "booking.reminder": published, but nothing consumes it (src/jobs/sendReminders.ts)'])
+  const typo = infraGaps({ nodes: input.nodes, contents: [
+    { infraId: 'pg', kind: 'topic', name: 'receipts', detail: { publishers: ['a.ts'], consumers: [], warning: 'published, but only "receipt" is consumed - a typo?', similar: 'receipt' } },
+    { infraId: 'pg', kind: 'topic', name: 'receipt', detail: { publishers: [], consumers: ['b.py'], warning: 'consumed, but only "receipts" is published - a typo?', similar: 'receipts' } },
+  ] })
+  assert.equal(typo.length, 1, 'a typo is one gap, not two')
   assert.deepEqual(infraGaps({ ...input, nodes: [] }), [], 'gaps on unknown or dismissed nodes are not mentioned')
 })
