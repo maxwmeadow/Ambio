@@ -4,6 +4,7 @@
 // the renderer only ever sees the resolved result.
 import { create } from 'zustand'
 import type { InfraRegistry, InfraService, InfraCategory } from '../../shared/types'
+import { archdApi } from '../archdEndpoint.ts'
 
 interface RegistryState {
   categories: { id: InfraCategory; edgeKinds: string[] }[]
@@ -22,7 +23,7 @@ export const useRegistryStore = create<RegistryState>((set, get) => ({
   fetchRegistry: async () => {
     if (get().loaded) return
     try {
-      const res = await fetch('http://127.0.0.1:7743/api/registry/services')
+      const res = await fetch(`${archdApi()}/api/registry/services`)
       if (!res.ok) throw new Error(await res.text())
       const reg = await res.json() as InfraRegistry
       set({

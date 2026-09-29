@@ -4,8 +4,8 @@
 import { create } from 'zustand'
 import type { FloorLayout } from '../../shared/types'
 import { raiseFailure } from './interruptionStore.ts'
+import { archdApi } from '../archdEndpoint.ts'
 
-const API = 'http://127.0.0.1:7743'
 let openSheetRequest = 0
 let fetchSheetsRequest = 0
 let sheetLayoutWriteSequence = 0
@@ -262,7 +262,7 @@ function withValidScale<T extends { scale?: number }>(item: T): T {
 }
 
 async function fetchSheetLayer(workspaceId: string, sheetId: string): Promise<SheetLayerData | null> {
-  const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}?workspace=${encodeURIComponent(workspaceId)}`)
+  const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) return null
   const data = await res.json() as SheetLayerData
   return {
@@ -377,7 +377,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     void refreshInbox(workspaceId)
     const request = ++fetchSheetsRequest
     try {
-      const res = await fetch(`${API}/api/sheets?workspace=${encodeURIComponent(workspaceId)}`)
+      const res = await fetch(`${archdApi()}/api/sheets?workspace=${encodeURIComponent(workspaceId)}`)
       if (!res.ok || request !== fetchSheetsRequest) return
       const sheets = (await res.json()) ?? []
       if (request !== fetchSheetsRequest) return
@@ -462,7 +462,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 
   createPlanned: async (workspaceId, sheetId, n) => {
     const kind = n.kind ?? 'class'
-    const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}/planned`, {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/planned`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -495,7 +495,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       return commitSheetLayer(s, n.sheetId, { ...layer, planned })
     })
     try {
-      const res = await fetch(`${API}/api/planned/${encodeURIComponent(n.id)}`, {
+      const res = await fetch(`${archdApi()}/api/planned/${encodeURIComponent(n.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -534,7 +534,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       .flatMap(layer => layer.planned)
       .find(node => node.id === id)
     if (!planned) throw new Error('Planned node is not loaded')
-    const res = await fetch(`${API}/api/planned/${encodeURIComponent(id)}/approval`, {
+    const res = await fetch(`${archdApi()}/api/planned/${encodeURIComponent(id)}/approval`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, decision }),
@@ -550,7 +550,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 
   createFloatingNote: async (workspaceId, sheetId, body, x, y) => {
-    await fetch(`${API}/api/annotations`, {
+    await fetch(`${archdApi()}/api/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, sheetId, body, author: 'user', positionX: x, positionY: y }),
@@ -586,7 +586,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
     void (async () => {
       try {
-        const res = await fetch(`${API}/api/planned/${encodeURIComponent(id)}/layout`, {
+        const res = await fetch(`${archdApi()}/api/planned/${encodeURIComponent(id)}/layout`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workspaceId, x, y, parentSystemId, width, height, scale }),
         })
@@ -648,7 +648,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     sheetLayoutSaveQueues.set(sheetId, queueTail)
     await predecessor.catch(() => {})
     try {
-      const response = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}/layouts/batch`, {
+      const response = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/layouts/batch`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, layouts }),
       })
@@ -699,7 +699,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 
   deletePlanned: async (workspaceId, id) => {
     const response = await fetch(
-      `${API}/api/planned/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`,
+      `${archdApi()}/api/planned/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`,
       { method: 'DELETE' },
     )
     if (!response.ok) throw new Error(await response.text())
@@ -716,7 +716,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 
   createPlannedEdge: async (workspaceId, sheetId, e) => {
-    const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}/planned-edges`, {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/planned-edges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, ...e }),
@@ -735,7 +735,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   // already exists" is the only useful thing to say at that moment - swallowing
   // it into a null would leave the caller guessing that archd was down.
   createSheet: async (workspaceId, name, purpose, fileIds) => {
-    const res = await fetch(`${API}/api/sheets`, {
+    const res = await fetch(`${archdApi()}/api/sheets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -757,7 +757,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 
   deleteSheet: async (workspaceId, sheetId) => {
     try {
-      const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}?workspace=${encodeURIComponent(workspaceId)}`, { method: 'DELETE' })
+      const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}?workspace=${encodeURIComponent(workspaceId)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       set(s => {
         const layersById = { ...s.layersById }
@@ -805,7 +805,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
     void (async () => {
       try {
-        const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/layout`, {
+        const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/layout`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workspaceId, x, y, parentSystemId, width, height, scale }),
         })
@@ -830,7 +830,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       return commitSheetLayer(s, sheetId, { ...layer, elements })
     })
     try {
-      const res = await fetch(`${API}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/metadata`, {
+      const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/metadata`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, metadata }),
       })
       if (!res.ok) throw new Error(await res.text())
@@ -849,7 +849,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 
   removeElement: async (workspaceId, sheetId, elementId) => {
     const response = await fetch(
-      `${API}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}?workspace=${encodeURIComponent(workspaceId)}`,
+      `${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}?workspace=${encodeURIComponent(workspaceId)}`,
       { method: 'DELETE' },
     )
     if (!response.ok) throw new Error(await response.text())
@@ -867,7 +867,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 
   sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID()) => {
-    const res = await fetch(`${API}/api/canvas/send`, {
+    const res = await fetch(`${archdApi()}/api/canvas/send`, {
       method: 'POST',
       signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
@@ -1072,7 +1072,7 @@ async function loadInbox(workspaceId: string, before: string): Promise<void> {
     let cursor = before
     let data: { messages: CanvasMessage[]; nextCursor: string; availableCount: number }
     do {
-      const response = await fetch(`${API}/api/canvas/history?workspace=${encodeURIComponent(workspaceId)}&before=${encodeURIComponent(cursor)}`, { signal })
+      const response = await fetch(`${archdApi()}/api/canvas/history?workspace=${encodeURIComponent(workspaceId)}&before=${encodeURIComponent(cursor)}`, { signal })
       if (!response.ok) throw new Error(await response.text())
       data = await response.json()
       if (request !== inboxRequest || useSheetStore.getState().workspaceId !== workspaceId) return
@@ -1099,7 +1099,7 @@ async function loadInbox(workspaceId: string, before: string): Promise<void> {
 }
 
 export async function cancelInboxMessage(workspaceId: string, msgId: string): Promise<void> {
-  const response = await fetch(`${API}/api/canvas/cancel`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, msgId }) })
+  const response = await fetch(`${archdApi()}/api/canvas/cancel`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, msgId }) })
   if (!response.ok) throw new Error(await response.text())
   await refreshInbox(workspaceId)
 }

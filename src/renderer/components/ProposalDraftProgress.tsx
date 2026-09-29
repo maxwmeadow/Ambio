@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { archdApi } from '../archdEndpoint.ts'
 
 interface DraftSummary {
   sessionId: string
@@ -20,7 +21,7 @@ export function ProposalDraftProgress({ workspaceId, inline = false }: { workspa
     setError('')
     const refresh = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:7743/api/architecture-proposal-drafts?workspace=${encodeURIComponent(workspaceId)}`)
+        const response = await fetch(`${archdApi()}/api/architecture-proposal-drafts?workspace=${encodeURIComponent(workspaceId)}`)
         if (!response.ok) return
         const next = await response.json() as DraftSummary[]
         if (active) setDrafts(next)
@@ -47,7 +48,7 @@ export function ProposalDraftProgress({ workspaceId, inline = false }: { workspa
     setDiscarding(true)
     setError('')
     try {
-      const response = await fetch(`http://127.0.0.1:7743/api/architecture-proposal-drafts/${encodeURIComponent(newest.sessionId)}/abort`, {
+      const response = await fetch(`${archdApi()}/api/architecture-proposal-drafts/${encodeURIComponent(newest.sessionId)}/abort`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId }),

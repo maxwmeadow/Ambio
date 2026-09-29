@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { untakenSheetName } from '../../shared/sheetNames'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, type Sheet } from '../store/sheetStore'
+import { archdApi } from '../archdEndpoint.ts'
 
 const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
   structure: 'STR',
@@ -55,7 +56,7 @@ export function SheetRail() {
   const restore = async (sheet: Sheet) => {
     setRestoreError('')
     try {
-      const response = await fetch(`http://127.0.0.1:7743/api/sheets/${encodeURIComponent(sheet.id)}/reopen`, {
+      const response = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheet.id)}/reopen`, {
         method: 'POST', headers: { 'Content-Type':'application/json' }, signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ workspaceId, revision: sheet.revision }),
       })

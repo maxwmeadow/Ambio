@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSheetStore } from '../store/sheetStore'
 import { InboxIcon } from './InboxIcon'
+import { archdApi } from '../archdEndpoint.ts'
 
 export interface SheetComparisonResult {
   sheetId: string; name: string; revision: number; token: string
@@ -9,7 +10,6 @@ export interface SheetComparisonResult {
   nodes: Array<{ id: string; name: string }>
   mappings: Record<string, string>
 }
-const api = 'http://127.0.0.1:7743'
 
 export function SheetComparison({ workspaceId, sheetId }: { workspaceId: string; sheetId: string }) {
   const sheetRevision = useSheetStore(state => state.sheets.find(sheet => sheet.id === sheetId)?.revision)
@@ -24,7 +24,7 @@ export function SheetComparison({ workspaceId, sheetId }: { workspaceId: string;
       if (loading) return
       loading = true
       try {
-        const response = await fetch(`${api}/api/sheets/${encodeURIComponent(sheetId)}/compare?workspace=${encodeURIComponent(workspaceId)}`, { signal: AbortSignal.timeout(15000) })
+        const response = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/compare?workspace=${encodeURIComponent(workspaceId)}`, { signal: AbortSignal.timeout(15000) })
         if (!response.ok) throw new Error(await response.text())
         const result = await response.json() as SheetComparisonResult
         if (!Array.isArray(result.differences)) throw new Error('Sheet comparison is unavailable; update the Axiom daemon.')
@@ -40,7 +40,7 @@ export function SheetComparison({ workspaceId, sheetId }: { workspaceId: string;
     if (!comparison || busy) return
     setBusy(true)
     try {
-      const response = await fetch(`${api}/api/sheets/${encodeURIComponent(sheetId)}/resolve`, {
+      const response = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/resolve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
         body: JSON.stringify({ workspaceId, revision: comparison.revision, token: comparison.token }),
       })

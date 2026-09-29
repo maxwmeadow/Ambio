@@ -1,6 +1,7 @@
 import { useGraphStore } from '../store/graphStore'
 import type { InfraService } from '../../shared/types'
 import { InfraPickerDialog } from './InfraPickerDialog'
+import { archdApi } from '../archdEndpoint.ts'
 
 interface CreateInfraDialogProps {
   isOpen: boolean
@@ -18,7 +19,7 @@ export function CreateInfraDialog({ isOpen, onClose }: CreateInfraDialogProps) {
   if (!isOpen) return null
 
   const createInfra = async (service: InfraService, name: string) => {
-    const response = await fetch('http://127.0.0.1:7743/api/infra', {
+    const response = await fetch(`${archdApi()}/api/infra`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

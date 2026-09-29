@@ -3,6 +3,7 @@ import type { CanvasSnapshot } from '../../shared/types.ts'
 import type { Decision, ProposedSystem } from '../canvas/architectureProposal.ts'
 import { checkDecision } from '../canvas/architectureProposal.ts'
 import { useGraphStore } from './graphStore.ts'
+import { archdApi } from '../archdEndpoint.ts'
 
 /**
  * The architecture an agent proposed, and the decisions taken on it.
@@ -14,7 +15,6 @@ import { useGraphStore } from './graphStore.ts'
  * daemon materialised it and broadcast the change.
  */
 
-const API = 'http://127.0.0.1:7743'
 let proposalLayoutSaveQueue: Promise<void> = Promise.resolve()
 let proposalLayoutGeneration = 0
 let proposalLayoutBlockedThrough = 0
@@ -200,7 +200,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
     })
     try {
       const listed = await fetch(
-        `${API}/api/architecture-proposals?workspace=${encodeURIComponent(workspaceId)}`,
+        `${archdApi()}/api/architecture-proposals?workspace=${encodeURIComponent(workspaceId)}`,
       )
       if (!listed.ok) throw new Error(`proposals unavailable (${listed.status})`)
       // The daemon returns a bare array; accept the wrapped form too so a
@@ -215,7 +215,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
         return
       }
       const detailed = await fetch(
-        `${API}/api/architecture-proposals/${head.id}?workspace=${encodeURIComponent(workspaceId)}`,
+        `${archdApi()}/api/architecture-proposals/${head.id}?workspace=${encodeURIComponent(workspaceId)}`,
       )
       if (!detailed.ok) throw new Error(`proposal unavailable (${detailed.status})`)
       const detailBody = await detailed.json() as DaemonProposal
@@ -252,7 +252,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
     }))
     try {
       const res = await fetch(
-        `${API}/api/architecture-proposals/${proposal.id}/systems/${encodeURIComponent(systemKey)}/decision`,
+        `${archdApi()}/api/architecture-proposals/${proposal.id}/systems/${encodeURIComponent(systemKey)}/decision`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -303,7 +303,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
       await proposalLayoutSaveQueue
       const proposal = get().proposal
       if (!proposal) throw new Error('There is no architecture proposal to finish.')
-      const response = await fetch(`${API}/api/architecture-proposals/${proposal.id}/finalize`, {
+      const response = await fetch(`${archdApi()}/api/architecture-proposals/${proposal.id}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -379,7 +379,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
       if (generation <= proposalLayoutBlockedThrough) return
       const current = get().proposal
       if (!current || current.id !== target.id || current.currentRevision !== target.revision) return
-      const response = await fetch(`${API}/api/architecture-proposals/${target.id}/layouts`, {
+      const response = await fetch(`${archdApi()}/api/architecture-proposals/${target.id}/layouts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

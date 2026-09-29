@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { DaemonUnavailableError, daemonFetch } from './daemonAuth.ts'
+import { DaemonUnavailableError, daemonFetch, resolveDaemonUrl } from './daemonAuth.ts'
 
 const TOKEN = 'x'.repeat(40)
 
@@ -61,7 +61,23 @@ test('an unreachable daemon is started headless and the request retried', { skip
     const body = await response.json()
     assert.equal(body.url, '/api/snapshot/x')
     assert.equal(body.auth, `Bearer ${TOKEN}`)
-    assert.equal(fs.readFileSync(path.join(dir, 'args'), 'utf8'), `-data ${dir} -headless`)
+    assert.equal(fs.readFileSync(path.join(dir, 'args'), 'utf8'), `-data ${dir} -headless -auto-ports`)
+  } finally {
+    process.env = saved
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('requests to the default port follow archd to the port it published', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-daemon-'))
+  const saved = { ...process.env }
+  try {
+    process.env.AXIOM_ACTIVE_PROJECT = path.join(dir, 'active_project.json')
+    assert.equal(resolveDaemonUrl('http://127.0.0.1:7743/api/x').port, '7743')
+    fs.writeFileSync(path.join(dir, 'daemon.json'), JSON.stringify({ pid: 1, apiPort: 51234 }))
+    assert.equal(resolveDaemonUrl('http://127.0.0.1:7743/api/x').href, 'http://127.0.0.1:51234/api/x')
+    // An explicitly configured address is never rewritten.
+    assert.equal(resolveDaemonUrl('http://127.0.0.1:9999/api/x').port, '9999')
   } finally {
     process.env = saved
     fs.rmSync(dir, { recursive: true, force: true })

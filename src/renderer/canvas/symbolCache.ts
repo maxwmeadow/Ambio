@@ -3,6 +3,7 @@ import {
   recordSymbolDeduplication,
   recordSymbolFetch,
 } from './perfMetrics.ts'
+import { archdWsHttp } from '../archdEndpoint.ts'
 
 /** In-memory cache for file symbols keyed by `${workspaceId}:${fileId}` */
 const symbolCache = new Map<string, any[]>()
@@ -48,7 +49,7 @@ export async function fetchFileSymbols(
   workspaceId: string,
   fileId: string,
   signal?: AbortSignal,
-  baseUrl = 'http://127.0.0.1:7744',
+  baseUrl = `${archdWsHttp()}`,
 ): Promise<any[]> {
   const key = cacheKey(workspaceId, fileId)
 

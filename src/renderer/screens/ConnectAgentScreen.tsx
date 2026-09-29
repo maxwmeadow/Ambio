@@ -10,6 +10,7 @@ import {
   presentAgentFamily,
   type AgentHostState,
 } from './connectAgentPresentation'
+import { archdApi } from '../archdEndpoint.ts'
 
 // Each surface states its own condition in two or three words. The full
 // sentence stays on the dot's tooltip, where it does not crowd the row.
@@ -154,7 +155,7 @@ export function ConnectAgentScreen({
       const workspace = encodeURIComponent(project.id)
       if (!blankProject && phase !== 'proposed') {
         try {
-          const res = await fetch(`http://127.0.0.1:7743/api/architecture-proposals?workspace=${workspace}`)
+          const res = await fetch(`${archdApi()}/api/architecture-proposals?workspace=${workspace}`)
           if (res.ok) {
             const body = await res.json() as unknown
             const list = Array.isArray(body) ? body : (body as { proposals?: unknown[] })?.proposals ?? []
@@ -164,7 +165,7 @@ export function ConnectAgentScreen({
       }
 
       try {
-        const res = await fetch(`http://127.0.0.1:7743/api/agent/presence?workspace=${workspace}`)
+        const res = await fetch(`${archdApi()}/api/agent/presence?workspace=${workspace}`)
         if (res.ok) {
           const body = await res.json() as AgentPresenceResponse
           setHasLivePresence(body.connected)
@@ -177,7 +178,7 @@ export function ConnectAgentScreen({
 
       if (!blankProject) {
         try {
-          const res = await fetch(`http://127.0.0.1:7743/api/agent/actions?workspace=${workspace}&limit=200`)
+          const res = await fetch(`${archdApi()}/api/agent/actions?workspace=${workspace}&limit=200`)
           if (!res.ok) return
           const body = await res.json() as unknown
           const list = (Array.isArray(body) ? body : (body as { actions?: unknown[] })?.actions ?? []) as unknown[]

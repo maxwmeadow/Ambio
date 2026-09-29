@@ -8,6 +8,7 @@ import {
   resolveInterruption,
   useInterruptionStore,
 } from '../store/interruptionStore.ts'
+import { archdApi } from '../archdEndpoint.ts'
 
 /**
  * "Your map is named by guesswork - let an agent name it properly."
@@ -25,7 +26,7 @@ import {
  * now authorship (see `architectureAuthorship.ts`): a map made of guesses is
  * the state worth offering to fix, however complete it is.
  *
- * And its one action copied `http://127.0.0.1:7743/mcp`, which archd does not
+ * And its one action copied `${archdApi()}/mcp`, which archd does not
  * serve and never has - the daemon registers no such route. Axiom speaks MCP
  * over stdio, so following the app's own instruction could not possibly work.
  * It now offers the real server entry for this install.

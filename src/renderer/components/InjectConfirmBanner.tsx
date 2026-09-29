@@ -6,6 +6,7 @@ import {
   resolveInterruption,
   useInterruptionStore,
 } from '../store/interruptionStore.ts'
+import { archdApi } from '../archdEndpoint.ts'
 
 /**
  * The warn-and-confirm gate for perturbations.
@@ -36,7 +37,7 @@ export function InjectConfirmBanner() {
 
       const respond = async (approved: boolean) => {
         try {
-          const res = await fetch('http://127.0.0.1:7743/api/runtime/inject/confirm', {
+          const res = await fetch(`${archdApi()}/api/runtime/inject/confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

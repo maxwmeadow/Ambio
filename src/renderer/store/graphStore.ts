@@ -51,6 +51,7 @@ import {
   activeLivingFlowDiagnostics,
   recordLivingFlowDiagnostic,
 } from '../canvas/livingDiagnostics.ts'
+import { archdApi, archdWs } from '../archdEndpoint.ts'
 
 export interface CallTraceStep {
   callerFile: string
@@ -559,7 +560,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   loadCase: async (workspaceId) => {
     if (get().replay) return
     try {
-      const res = await fetch(`http://127.0.0.1:7743/api/investigation/case?workspace=${encodeURIComponent(workspaceId)}`)
+      const res = await fetch(`${archdApi()}/api/investigation/case?workspace=${encodeURIComponent(workspaceId)}`)
       if (!res.ok) return
       const body = await res.json() as { case?: unknown }
       const hydrated = caseFromState(body.case)
@@ -579,7 +580,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   sendCaseMessage: async (text, anchor) => {
     const workspaceId = get().currentProject?.id
     if (!workspaceId || !text.trim()) return
-    const res = await fetch('http://127.0.0.1:7743/api/investigation/message', {
+    const res = await fetch(`${archdApi()}/api/investigation/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, text, fileId: anchor?.fileId, symbol: anchor?.symbol }),
@@ -1420,7 +1421,7 @@ let ws: WebSocket | null = null
 // otherwise every remount would spawn another loop that reconnects forever.
 let wsGeneration = 0
 
-export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
+export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
   const generation = ++wsGeneration
   if (ws) {
     try { ws.close() } catch { /* already closed */ }
@@ -1447,7 +1448,7 @@ export function connectToArchd(wsUrl = 'ws://127.0.0.1:7744/ws'): void {
       if (!workspaceId) return
       resyncing = true
       try {
-        const response = await fetch(`http://127.0.0.1:7743/api/snapshot/${workspaceId}`)
+        const response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)
         if (!response.ok) throw new Error(`snapshot ${response.status}`)
         const snapshot = await response.json() as CanvasSnapshot
         if (generation !== wsGeneration || useGraphStore.getState().currentProject?.id !== workspaceId) return

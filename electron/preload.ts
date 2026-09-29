@@ -145,6 +145,14 @@ contextBridge.exposeInMainWorld('axiom', {
   openLogsFolder: (): Promise<string> => ipcRenderer.invoke('diagnostics:open-logs'),
   reportBug: (): Promise<void> => ipcRenderer.invoke('diagnostics:report-bug'),
 
+  // archd's ports: read once at startup, then pushed when they change.
+  archdPortsSync: (): { api: number; ws: number; runtime: number } => ipcRenderer.sendSync('archd:ports-sync'),
+  onArchdPorts: (callback: (ports: { api: number; ws: number; runtime: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, ports: { api: number; ws: number; runtime: number }) => callback(ports)
+    ipcRenderer.on('archd:ports', handler)
+    return () => { ipcRenderer.removeListener('archd:ports', handler) }
+  },
+
   /** archd restarts, recovery, and giving up. Returns an unsubscribe. */
   onArchdStatus: (callback: (status: ArchdStatus) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: ArchdStatus) => callback(status)
@@ -258,6 +266,8 @@ declare global {
       setTitleBarHeight: (height: number) => Promise<void>
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
       onArchdStatus: (callback: (status: ArchdStatus) => void) => () => void
+      archdPortsSync: () => { api: number; ws: number; runtime: number }
+      onArchdPorts: (callback: (ports: { api: number; ws: number; runtime: number }) => void) => () => void
       restartArchd: () => Promise<void>
       uninstallAgent: (hostId: string, projectRoot?: string) => Promise<AgentInstallResult>
       uninstallAllAgents: (projectRoot?: string) => Promise<AgentInstallResult>

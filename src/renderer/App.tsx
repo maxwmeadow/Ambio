@@ -51,6 +51,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { archdApi, archdWs } from './archdEndpoint.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -254,7 +255,7 @@ export default function App() {
     }
     const refreshProposal = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:7743/api/architecture-proposals?workspace=${encodeURIComponent(currentProject.id)}`)
+        const response = await fetch(`${archdApi()}/api/architecture-proposals?workspace=${encodeURIComponent(currentProject.id)}`)
         if (!response.ok) return
         const proposals = await response.json() as Array<{ id: string }>
         const head = proposals[0]
@@ -293,7 +294,7 @@ export default function App() {
     // durable evidence that opening should go straight to the workbench.
     if (!returning && window.axiom) {
       try {
-        const scope = await fetch(`http://127.0.0.1:7743/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`)
+        const scope = await fetch(`${archdApi()}/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`)
         if (scope.ok && ((await scope.json()) as { indexed?: boolean }).indexed) returning = true
       } catch { /* a genuinely new project still follows its initial journey */ }
     }
@@ -330,7 +331,7 @@ export default function App() {
       void rememberOpenProject(config.id).catch(error =>
         raiseFailure('resume-save', 'Could not save project resume state', String(error)))
       // Connect to archd WebSocket for real-time graph updates
-      connectToArchd('ws://127.0.0.1:7744/ws')
+      connectToArchd(`${archdWs()}/ws`)
       // Register workspace with archd and start indexing
       console.log('[openProject] posting workspace:', { workspaceId: config.id, rootPath: config.rootPath, ignoredPaths: config.ignoredPaths })
       // The app starts archd and can open the last project in the same
@@ -342,7 +343,7 @@ export default function App() {
         let lastError: unknown
         for (let attempt = 0; attempt < 12; attempt++) {
           try {
-            return await fetch('http://127.0.0.1:7743/api/workspace', {
+            return await fetch(`${archdApi()}/api/workspace`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -387,7 +388,7 @@ export default function App() {
             return
           }
           try {
-            const res = await fetch(`http://127.0.0.1:7743/api/snapshot/${config.id}`)
+            const res = await fetch(`${archdApi()}/api/snapshot/${config.id}`)
             if (res.ok) {
               const snap = await res.json()
               const hasGraph = (snap.systems?.length ?? 0) > 0 ||
@@ -471,7 +472,7 @@ export default function App() {
     // backend is authoritative because projects.json/localStorage can be
     // cleared independently from the per-project index.
     const scopeUrl =
-      `http://127.0.0.1:7743/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`
+      `${archdApi()}/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         const response = await fetch(scopeUrl)

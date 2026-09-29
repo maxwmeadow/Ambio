@@ -17,9 +17,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -40,6 +42,7 @@ func main() {
 	headless := flag.Bool("headless", false, "started for an agent without the app; exit when idle")
 	idleExit := flag.Duration("idle-exit", 15*time.Minute, "with -headless, exit after this long unused")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	autoPorts := flag.Bool("auto-ports", false, "if a port is taken by another program, use a free one (published in daemon.json)")
 	flag.Parse()
 
 	if *showVersion {
@@ -51,6 +54,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "archd: -data flag required")
 		os.Exit(1)
 	}
+
+	// One daemon per data folder. A second one - two agents starting archd at
+	// the same moment, or an app racing an agent - would share the databases
+	// and double every watcher, so it steps aside instead.
+	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
+		log.Fatalf("archd: data dir: %v", err)
+	}
+	lock, err := lockDataDir(filepath.Join(*dataDir, "archd.lock"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "archd: another archd is already running for %s\n", *dataDir)
+		os.Exit(3)
+	}
+	defer lock.Close()
 
 	// ── Hub ───────────────────────────────────────────────────────────────────
 	h := hub.New()
@@ -64,7 +80,25 @@ func main() {
 		rt.SetAutoConfirm(true)
 	}
 	if err := rt.Listen(*runtimePort); err != nil {
-		log.Fatalf("archd: runtime: %v", err)
+		if !*autoPorts {
+			log.Fatalf("archd: runtime: %v", err)
+		}
+		if err := rt.Listen(0); err != nil {
+			log.Fatalf("archd: runtime: %v", err)
+		}
+	}
+
+	apiListener, actualAPIPort, err := listenPreferred(*apiPort, *autoPorts)
+	if err != nil {
+		log.Fatalf("archd: http: %v", err)
+	}
+	actualWSPort := actualAPIPort
+	var wsListener net.Listener
+	if *wsPort != *apiPort {
+		wsListener, actualWSPort, err = listenPreferred(*wsPort, *autoPorts)
+		if err != nil {
+			log.Fatalf("archd: ws: %v", err)
+		}
 	}
 
 	// ── HTTP server ───────────────────────────────────────────────────────────
@@ -76,13 +110,12 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	info := daemonInfo{
-		PID: os.Getpid(), Version: version, APIPort: *apiPort, WSPort: *wsPort,
-		RuntimePort: *runtimePort, Headless: *headless, StartedAt: time.Now().UnixMilli(),
+		PID: os.Getpid(), Version: version, APIPort: actualAPIPort, WSPort: actualWSPort,
+		RuntimePort: rt.Port(), Headless: *headless, StartedAt: time.Now().UnixMilli(),
 	}
 	registerDaemonRoutes(mux, info, quit)
 	activity := newActivityTracker()
 
-	addr := fmt.Sprintf("127.0.0.1:%d", *apiPort)
 	// Loopback-origin CORS: the dev renderer is served from localhost:5173,
 	// a different origin from this port. See api.AllowLoopbackOrigins.
 	token, err := api.LocalAPIToken(*dataDir)
@@ -90,22 +123,21 @@ func main() {
 		log.Fatalf("archd: local authentication: %v", err)
 	}
 	handler := activity.wrap(api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux)))
-	httpServer := &http.Server{Addr: addr, Handler: handler}
+	httpServer := &http.Server{Handler: handler}
 	go func() {
-		log.Printf("archd: HTTP API listening on %s", addr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("archd: HTTP API listening on %s", apiListener.Addr())
+		if err := httpServer.Serve(apiListener); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("archd: http: %v", err)
 		}
 	}()
 
 	// WebSocket runs on the same mux (the /ws route), so we also listen on wsPort
 	// if it differs from apiPort. Electron may connect either port.
-	if *wsPort != *apiPort {
-		wsAddr := fmt.Sprintf("127.0.0.1:%d", *wsPort)
-		wsServer := &http.Server{Addr: wsAddr, Handler: handler}
+	if wsListener != nil {
+		wsServer := &http.Server{Handler: handler}
 		go func() {
-			log.Printf("archd: WebSocket listening on %s", wsAddr)
-			if err := wsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("archd: WebSocket listening on %s", wsListener.Addr())
+			if err := wsServer.Serve(wsListener); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("archd: ws: %v", err)
 			}
 		}()

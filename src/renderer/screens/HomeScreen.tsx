@@ -5,6 +5,7 @@ import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar
 import { handleLauncherKey, launcherProjects } from './homeScreenModel'
 import { useUpdateStatus } from '../useUpdateStatus'
 import { emitCommand } from '../app/commands'
+import { archdApi } from '../archdEndpoint.ts'
 
 interface HomeScreenProps {
   /** A command from the menu or palette, e.g. File → New Project. */
@@ -161,7 +162,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     void Promise.all(pending.map(async project => {
       try {
         const response = await fetch(
-          `http://127.0.0.1:7743/api/command-deck?workspace=${encodeURIComponent(project.id)}`,
+          `${archdApi()}/api/command-deck?workspace=${encodeURIComponent(project.id)}`,
         )
         if (!response.ok) return null
         return await response.json() as CommandDeckStatus

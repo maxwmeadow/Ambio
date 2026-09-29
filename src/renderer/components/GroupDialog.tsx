@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
+import { archdApi } from '../archdEndpoint.ts'
 
 interface GroupDialogProps {
   isOpen: boolean
@@ -65,7 +66,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
       } else {
         // Live: call Go REST API
         const workspaceId = currentProject?.id ?? ''
-        const sysRes = await fetch('http://127.0.0.1:7743/api/systems', {
+        const sysRes = await fetch(`${archdApi()}/api/systems`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -80,7 +81,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
 
         // Assign files one by one
         await Promise.all(selectedFileIds.map(fileId =>
-          fetch(`http://127.0.0.1:7743/api/files/${fileId}/assign`, {
+          fetch(`${archdApi()}/api/files/${fileId}/assign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ systemId: sys.id }),
@@ -88,7 +89,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
         ))
 
         // Re-fetch snapshot so canvas reflects the new assignments
-        const snapRes = await fetch(`http://127.0.0.1:7743/api/snapshot/${workspaceId}`)
+        const snapRes = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)
         if (snapRes.ok) {
           const snap = await snapRes.json()
           applySnapshot(snap)

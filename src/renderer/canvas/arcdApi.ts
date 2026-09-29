@@ -6,8 +6,8 @@ import type {
   ParallelAgentSnapshot,
   ParallelCommandDeckStatus,
 } from '../../shared/types'
+import { archdWsHttp } from '../archdEndpoint.ts'
 
-const BASE = 'http://127.0.0.1:7744'
 
 /**
  * Fetching a delta never acknowledges it. The watermark only moves on
@@ -26,7 +26,7 @@ export async function apiGetDeltaForRoot(
   const params = new URLSearchParams({ workspace: workspaceId })
   if (rootId) params.set('root', rootId)
   if (branch) params.set('branch', branch)
-  const res = await fetch(`${BASE}/api/delta?${params}`, { signal })
+  const res = await fetch(`${archdWsHttp()}/api/delta?${params}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load delta (${res.status})`)
   return res.json() as Promise<DeltaSummary>
 }
@@ -46,7 +46,7 @@ export async function apiAckDeltaForRoot(
   rootId?: string,
   branch?: string,
 ): Promise<void> {
-  const res = await fetch(`${BASE}/api/delta/ack`, {
+  const res = await fetch(`${archdWsHttp()}/api/delta/ack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspaceId, rootId, branch, until }),
@@ -59,7 +59,7 @@ export async function apiGetBranchCollisions(
   signal?: AbortSignal,
 ): Promise<ParallelAgentSnapshot> {
   const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${BASE}/api/collisions?${params}`, { signal })
+  const res = await fetch(`${archdWsHttp()}/api/collisions?${params}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load branch collisions (${res.status})`)
   return res.json() as Promise<ParallelAgentSnapshot>
 }
@@ -69,7 +69,7 @@ export async function apiGetParallelCommandDeck(
   signal?: AbortSignal,
 ): Promise<ParallelCommandDeckStatus> {
   const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${BASE}/api/command-deck?${params}`, { signal })
+  const res = await fetch(`${archdWsHttp()}/api/command-deck?${params}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load branch briefing (${res.status})`)
   return res.json() as Promise<ParallelCommandDeckStatus>
 }
@@ -83,13 +83,13 @@ export interface FileSource {
 }
 
 export async function apiGetFileSource(fileId: string, workspaceId: string, signal?: AbortSignal): Promise<FileSource> {
-  const res = await fetch(`${BASE}/api/files/${encodeURIComponent(fileId)}/source?workspace=${encodeURIComponent(workspaceId)}`, { signal })
+  const res = await fetch(`${archdWsHttp()}/api/files/${encodeURIComponent(fileId)}/source?workspace=${encodeURIComponent(workspaceId)}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load source (${res.status})`)
   return res.json() as Promise<FileSource>
 }
 
 export async function apiSaveFloorLayouts(workspaceId: string, layouts: Omit<FloorLayout, 'workspaceId' | 'updatedAt'>[]): Promise<FloorLayout[]> {
-  const res = await fetch(`${BASE}/api/layout/batch`, {
+  const res = await fetch(`${archdWsHttp()}/api/layout/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspaceId, layouts }),
@@ -100,7 +100,7 @@ export async function apiSaveFloorLayouts(workspaceId: string, layouts: Omit<Flo
 }
 
 export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/files/${fileId}/assign`, {
+  const res = await fetch(`${archdWsHttp()}/api/files/${fileId}/assign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ systemId, workspaceId }),
@@ -126,7 +126,7 @@ export async function apiRemoveFloorLayouts(
   remove: Array<{ nodeId: string; nodeType: 'system' | 'file' | 'infra' }>,
 ): Promise<void> {
   if (remove.length === 0) return
-  const res = await fetch(`${BASE}/api/layout/batch`, {
+  const res = await fetch(`${archdWsHttp()}/api/layout/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspaceId, layouts: [], remove }),
@@ -135,7 +135,7 @@ export async function apiRemoveFloorLayouts(
 }
 
 export async function apiUpdateFileSize(fileId: string, w: number, h: number, workspaceId: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/files/${fileId}/size`, {
+  const res = await fetch(`${archdWsHttp()}/api/files/${fileId}/size`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ w, h, workspaceId }),
@@ -144,7 +144,7 @@ export async function apiUpdateFileSize(fileId: string, w: number, h: number, wo
 }
 
 export async function apiUpdateSystem(system: DbSystem): Promise<void> {
-  const res = await fetch(`${BASE}/api/systems/${system.id}`, {
+  const res = await fetch(`${archdWsHttp()}/api/systems/${system.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(system),
@@ -160,8 +160,8 @@ export async function apiSaveNodePosition(
   nodeType: 'system' | 'file',
 ): Promise<void> {
   const path = nodeType === 'system'
-    ? `${BASE}/api/systems/${nodeId}/position?workspace=${encodeURIComponent(workspaceId)}`
-    : `${BASE}/api/files/${nodeId}/position`
+    ? `${archdWsHttp()}/api/systems/${nodeId}/position?workspace=${encodeURIComponent(workspaceId)}`
+    : `${archdWsHttp()}/api/files/${nodeId}/position`
 
   const body = nodeType === 'system'
     ? JSON.stringify({ x, y })
@@ -181,7 +181,7 @@ export async function apiSaveNodePosition(
  */
 export async function apiGetAgentActions(workspaceId: string, limit = 200): Promise<AgentAction[]> {
   const res = await fetch(
-    `${BASE}/api/agent/actions?workspace=${encodeURIComponent(workspaceId)}&limit=${limit}`,
+    `${archdWsHttp()}/api/agent/actions?workspace=${encodeURIComponent(workspaceId)}&limit=${limit}`,
   )
   if (!res.ok) throw new Error(await res.text() || `Unable to load agent log (${res.status})`)
   return res.json() as Promise<AgentAction[]>
@@ -219,20 +219,20 @@ export async function apiListInvestigations(workspaceId: string): Promise<{
   investigations: InvestigationMeta[]
   recording: ActiveInvestigation | null
 }> {
-  const res = await fetch(`${BASE}/api/investigation/list?workspace=${encodeURIComponent(workspaceId)}`)
+  const res = await fetch(`${archdWsHttp()}/api/investigation/list?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) throw new Error(await res.text() || `Unable to load captures (${res.status})`)
   const body = await res.json() as { investigations?: InvestigationMeta[]; recording?: ActiveInvestigation | null }
   return { investigations: body.investigations ?? [], recording: body.recording ?? null }
 }
 
 export async function apiGetInvestigation(workspaceId: string, id: string): Promise<unknown> {
-  const res = await fetch(`${BASE}/api/investigation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`)
+  const res = await fetch(`${archdWsHttp()}/api/investigation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) throw new Error(await res.text() || `Unable to open capture (${res.status})`)
   return res.json()
 }
 
 export async function apiStartInvestigation(workspaceId: string, name: string): Promise<{ id: string; name: string; commit: string; note?: string }> {
-  const res = await fetch(`${BASE}/api/investigation/start`, {
+  const res = await fetch(`${archdWsHttp()}/api/investigation/start`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     // Pressing record is the human path; an agent asking gets 'agent', and a
     // recording Axiom starts by noticing gets 'auto'.
@@ -243,7 +243,7 @@ export async function apiStartInvestigation(workspaceId: string, name: string): 
 }
 
 export async function apiStopInvestigation(workspaceId: string): Promise<{ id: string; eventCount: number }> {
-  const res = await fetch(`${BASE}/api/investigation/stop`, {
+  const res = await fetch(`${archdWsHttp()}/api/investigation/stop`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspaceId }),
   })
@@ -252,7 +252,7 @@ export async function apiStopInvestigation(workspaceId: string): Promise<{ id: s
 }
 
 export async function apiDeleteInvestigation(workspaceId: string, id: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/investigation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`, {
+  const res = await fetch(`${archdWsHttp()}/api/investigation/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`, {
     method: 'DELETE',
   })
   if (!res.ok) throw new Error(await res.text() || 'Unable to delete capture')

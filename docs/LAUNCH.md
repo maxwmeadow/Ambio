@@ -122,8 +122,7 @@ another version to stop (`POST /api/daemon/shutdown`), and polls an attached
 daemon so it can take over if it disappears. Quitting the app stops only the
 daemon the app started.
 
-**Still open:** ports are still fixed (7743-7745); the discovery file carries
-them, so moving to dynamic ports is now a small change. A headless daemon
+**Still open:** a headless daemon
 answers from the persisted map but does not watch files until the app opens
 the project, when reconcile catches up (the Morning Delta covers the gap).
 
@@ -343,7 +342,7 @@ Keyboard accelerators then work everywhere.
 - ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
 - ⬜ Opt-in crash reporting
 - ✅ Daemon discovery and graceful agent behaviour when the app is closed (§4)
-- ⬜ Dynamic ports via `daemon.json`
+- ✅ Ports: archd prefers 7743-7745 and, when another program holds one, binds a free port and publishes it in `daemon.json`; the app, renderer and MCP server follow it. archd also takes an OS lock on its data folder, so two daemons can never share the databases
 
 ### Leaving
 - ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares

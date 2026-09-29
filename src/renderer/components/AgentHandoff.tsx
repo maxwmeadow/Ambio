@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AgentHostInfo } from '../../../electron/preload'
+import { archdApi } from '../archdEndpoint.ts'
 
 type Connection = 'checking' | 'live' | 'configured' | 'repair' | 'unconfigured' | 'unavailable'
 
@@ -18,7 +19,7 @@ export function AgentHandoff({ workspaceId, projectRoot, queued, onManageConnect
     const check = async () => {
       try {
         const hosts = await window.axiom.listAgentHosts(projectRoot)
-        const response = await fetch(`http://127.0.0.1:7743/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
+        const response = await fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
         if (!response.ok) throw new Error('Presence unavailable')
         const presence = await response.json() as {
           connected?: boolean

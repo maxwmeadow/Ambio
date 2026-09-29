@@ -11,6 +11,29 @@ export function daemonTokenPath(): string {
   return process.env.AXIOM_API_TOKEN_FILE ?? join(daemonDataDir(), 'api-token')
 }
 
+const DEFAULT_API_PORT = '7743'
+
+/** The API port archd published in daemon.json, if it is running. */
+function publishedApiPort(): string | null {
+  try {
+    const info = JSON.parse(fs.readFileSync(join(daemonDataDir(), 'daemon.json'), 'utf8')) as { apiPort?: unknown }
+    return typeof info.apiPort === 'number' && info.apiPort > 0 ? String(info.apiPort) : null
+  } catch { return null }
+}
+
+/**
+ * archd falls back to another port when a different program holds 7743. A
+ * request aimed at the default port follows it there; an explicitly
+ * configured address (AXIOM_API_URL, test harnesses) is left alone.
+ */
+export function resolveDaemonUrl(input: string | URL): URL {
+  const url = new URL(input)
+  if (url.port !== DEFAULT_API_PORT) return url
+  const published = publishedApiPort()
+  if (published && published !== url.port) url.port = published
+  return url
+}
+
 const NOT_RUNNING = 'Axiom is not running. Open the Axiom app, then try again.'
 
 export function readDaemonToken(): string {
@@ -50,7 +73,7 @@ export function ensureDaemon(origin: string, timeoutMs = 10_000): Promise<void> 
   if (!archd || !fs.existsSync(archd)) return Promise.reject(new DaemonUnavailableError(NOT_RUNNING))
   starting ??= (async () => {
     try {
-      const child = spawn(archd, ['-data', daemonDataDir(), '-headless'], {
+      const child = spawn(archd, ['-data', daemonDataDir(), '-headless', '-auto-ports'], {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
@@ -61,7 +84,7 @@ export function ensureDaemon(origin: string, timeoutMs = 10_000): Promise<void> 
         await new Promise(resolve => setTimeout(resolve, 200))
         try {
           const token = readDaemonToken()
-          await globalThis.fetch(`${origin}/api/daemon/info`, {
+          await globalThis.fetch(resolveDaemonUrl(`${origin}/api/daemon/info`), {
             headers: { Authorization: `Bearer ${token}` },
             signal: AbortSignal.timeout(1000),
           })
@@ -82,7 +105,7 @@ export async function daemonFetch(input: string | URL, init: RequestInit = {}): 
   const attempt = () => {
     const headers = new Headers(init.headers)
     headers.set('Authorization', `Bearer ${readDaemonToken()}`)
-    return globalThis.fetch(input, { ...init, headers, signal: init.signal ?? AbortSignal.timeout(15000) })
+    return globalThis.fetch(resolveDaemonUrl(url), { ...init, headers, signal: init.signal ?? AbortSignal.timeout(15000) })
   }
   try {
     return await attempt()

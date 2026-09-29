@@ -46,8 +46,18 @@ const LOG_DIR = join(CONFIG_DIR, 'logs')
 const WINDOW_STATE_FILE = join(CONFIG_DIR, 'window-state.json')
 // Where "Report a Bug" leads. Update alongside the repository if it moves.
 const ISSUES_URL = 'https://github.com/maxwmeadow/Axiom/issues/new'
-const ARCHD_API_PORT = 7743
-const ARCHD_WS_PORT = 7744
+// archd prefers these ports and falls back to free ones if another program
+// holds them (-auto-ports). The ports actually in use come from daemon.json.
+interface ArchdPorts { api: number; ws: number; runtime: number }
+const PREFERRED_PORTS: ArchdPorts = { api: 7743, ws: 7744, runtime: 7745 }
+let archdPorts: ArchdPorts = { ...PREFERRED_PORTS }
+
+function setArchdPorts(next: ArchdPorts): void {
+  if (next.api === archdPorts.api && next.ws === archdPorts.ws && next.runtime === archdPorts.runtime) return
+  archdPorts = next
+  console.log(`[main] archd ports: api ${next.api}, ws ${next.ws}, runtime ${next.runtime}`)
+  mainWindow?.webContents.send('archd:ports', archdPorts)
+}
 
 // Everything the main process says also lands in ~/.axiom/logs, so a user
 // who hits a problem has something to look at, or to attach to a report.
@@ -203,8 +213,10 @@ function startArchd(): void {
   try {
     archdProcess = spawn(binary, [
       '-data', DATA_DIR,
-      '-api-port', String(ARCHD_API_PORT),
-      '-ws-port', String(ARCHD_WS_PORT),
+      '-api-port', String(PREFERRED_PORTS.api),
+      '-ws-port', String(PREFERRED_PORTS.ws),
+      '-runtime-port', String(PREFERRED_PORTS.runtime),
+      '-auto-ports',
     ], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
@@ -248,10 +260,22 @@ function startArchd(): void {
   archdProcess.on('exit', (code, signal) => {
     console.log(`[main] archd exited with code ${code}${signal ? ` (${signal})` : ''}`)
     archdProcess = null
-    if (!quitting) handleArchdCrash(code)
+    if (quitting) return
+    // Exit 3: another archd already holds this data folder (an agent started
+    // one a moment earlier). Use it rather than treating this as a crash.
+    const running = code === 3 ? readDaemonFile() : null
+    if (running && processAlive(running.pid)) {
+      console.log(`[main] archd pid ${running.pid} already owns the data folder; attaching`)
+      attachedDaemon = running
+      setArchdPorts(running.ports)
+      watchAttachedDaemon()
+      return
+    }
+    handleArchdCrash(code)
   })
 
   console.log('[main] archd started, pid:', archdProcess.pid)
+  void adoptSpawnedPorts(archdProcess.pid)
 }
 
 // ─── Attaching to a daemon that is already running ─────────────────────────
@@ -261,15 +285,29 @@ function startArchd(): void {
 // one that would lose the race for the ports. A daemon from another Axiom
 // version is asked to step aside first.
 
-interface RunningDaemon { pid: number; version: string; headless: boolean }
+interface RunningDaemon { pid: number; version: string; headless: boolean; ports: ArchdPorts }
 
 let attachedDaemon: RunningDaemon | null = null
 let attachedWatch: ReturnType<typeof setInterval> | null = null
 
 function readDaemonFile(): RunningDaemon | null {
   try {
-    const info = JSON.parse(fs.readFileSync(join(DATA_DIR, 'daemon.json'), 'utf8')) as Partial<RunningDaemon>
-    return typeof info.pid === 'number' ? { pid: info.pid, version: String(info.version ?? ''), headless: Boolean(info.headless) } : null
+    const info = JSON.parse(fs.readFileSync(join(DATA_DIR, 'daemon.json'), 'utf8')) as {
+      pid?: unknown; version?: unknown; headless?: unknown; apiPort?: unknown; wsPort?: unknown; runtimePort?: unknown
+    }
+    const port = (value: unknown, fallback: number) => (typeof value === 'number' && value > 0 ? value : fallback)
+    return typeof info.pid === 'number'
+      ? {
+        pid: info.pid,
+        version: String(info.version ?? ''),
+        headless: Boolean(info.headless),
+        ports: {
+          api: port(info.apiPort, PREFERRED_PORTS.api),
+          ws: port(info.wsPort, PREFERRED_PORTS.ws),
+          runtime: port(info.runtimePort, PREFERRED_PORTS.runtime),
+        },
+      }
+      : null
   } catch { return null }
 }
 
@@ -279,9 +317,9 @@ function processAlive(pid: number): boolean {
   }
 }
 
-async function daemonAnswers(): Promise<boolean> {
+async function daemonAnswers(ports: ArchdPorts = archdPorts): Promise<boolean> {
   try {
-    const response = await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/daemon/info`, {
+    const response = await fetch(`http://127.0.0.1:${ports.api}/api/daemon/info`, {
       headers: { Authorization: `Bearer ${readDaemonToken()}` },
       signal: AbortSignal.timeout(1500),
     })
@@ -291,16 +329,17 @@ async function daemonAnswers(): Promise<boolean> {
 
 async function startOrAttachArchd(): Promise<void> {
   const running = readDaemonFile()
-  if (running && processAlive(running.pid) && await daemonAnswers()) {
+  if (running && processAlive(running.pid) && await daemonAnswers(running.ports)) {
     if (running.version === app.getVersion()) {
       console.log(`[main] attaching to running archd pid ${running.pid}${running.headless ? ' (started by an agent)' : ''}`)
       attachedDaemon = running
+      setArchdPorts(running.ports)
       watchAttachedDaemon()
       return
     }
     console.log(`[main] archd ${running.version} is running; asking it to stop for ${app.getVersion()}`)
     try {
-      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/daemon/shutdown`, {
+      await fetch(`http://127.0.0.1:${running.ports.api}/api/daemon/shutdown`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${readDaemonToken()}` },
         signal: AbortSignal.timeout(2000),
@@ -334,6 +373,20 @@ function watchAttachedDaemon(): void {
   }, 5000)
 }
 
+// The daemon we just started publishes the ports it actually bound.
+async function adoptSpawnedPorts(pid: number | undefined): Promise<void> {
+  if (!pid) return
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    const running = readDaemonFile()
+    if (running?.pid === pid) {
+      setArchdPorts(running.ports)
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+}
+
 function reportArchdLaunchError(binary: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`[main] archd launch failed at ${binary}:`, error)
@@ -361,7 +414,7 @@ function archdFailureReason(): { reason: string; detail: string } {
   if (/address already in use|only one usage of each socket address/i.test(log)) {
     return {
       reason: 'port-in-use',
-      detail: `Another program is using Axiom's local ports (${ARCHD_API_PORT}/${ARCHD_WS_PORT}). ` +
+      detail: `Another program is using Axiom's local ports (${PREFERRED_PORTS.api}/${PREFERRED_PORTS.ws}). ` +
         'Quit any other copy of Axiom, or the program holding those ports, then restart Axiom.',
     }
   }
@@ -402,7 +455,7 @@ async function waitForArchd(timeoutMs = 10_000): Promise<boolean> {
   while (Date.now() < deadline) {
     if (!archdProcess && !attachedDaemon) return false
     try {
-      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace-scope/health`, { signal: AbortSignal.timeout(1000) })
+      await fetch(`http://127.0.0.1:${archdPorts.api}/api/workspace-scope/health`, { signal: AbortSignal.timeout(1000) })
       return true
     } catch {
       await new Promise(resolve => setTimeout(resolve, 250))
@@ -416,7 +469,7 @@ async function reattachActiveProject(): Promise<void> {
   const project = activeProject
   if (project) {
     try {
-      await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace`, {
+      await fetch(`http://127.0.0.1:${archdPorts.api}/api/workspace`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${readDaemonToken()}` },
         body: JSON.stringify({
@@ -701,7 +754,7 @@ function setupIPC(): void {
       throw new Error(`That folder already belongs to the project "${owner.name}".`)
     }
     const token = readDaemonToken()
-    const response = await fetch(`http://127.0.0.1:${ARCHD_API_PORT}/api/workspace-relocate`, {
+    const response = await fetch(`http://127.0.0.1:${archdPorts.api}/api/workspace-relocate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ workspaceId: projectId, fromPath: project.rootPath, toPath: newRoot }),
@@ -752,7 +805,7 @@ function setupIPC(): void {
   // daemon or filesystem step fails so the UI cannot claim data was removed.
   ipcMain.handle('project:remove', async (_event, projectId: string) => {
     const token = readDaemonToken()
-    await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: ARCHD_API_PORT,
+    await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: archdPorts.api,
       request: (input, init) => fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } }),
     })
     saveRecentProjects(loadRecentProjects().filter(project => project.id !== projectId))
@@ -802,8 +855,8 @@ function setupIPC(): void {
       version: app.getVersion(),
       dataDir: join(os.homedir(), '.axiom'),
       platform: process.platform,
-      archdApiUrl: `http://127.0.0.1:${ARCHD_API_PORT}`,
-      archdWsUrl: `ws://127.0.0.1:${ARCHD_WS_PORT}/ws`,
+      archdApiUrl: `http://127.0.0.1:${archdPorts.api}`,
+      archdWsUrl: `ws://127.0.0.1:${archdPorts.ws}/ws`,
       mcpPath,
       isPackaged,
     }
@@ -988,6 +1041,10 @@ function setupIPC(): void {
   ipcMain.handle('menu:role', (_event, role: SystemRole) => runMenuRole(mainWindow, role, menuState.developer))
   ipcMain.handle('menu:developer', () => menuState.developer)
 
+  // Where archd is listening, read synchronously once at renderer start and
+  // pushed as 'archd:ports' if it changes.
+  ipcMain.on('archd:ports-sync', event => { event.returnValue = archdPorts })
+
   ipcMain.handle('window:zoom', (_event, action: 'in' | 'out' | 'reset') => {
     const current = readAppSettings().uiZoom
     const target = action === 'reset' ? 1 : clampZoom(current + (action === 'in' ? UI_ZOOM_STEP : -UI_ZOOM_STEP))
@@ -1149,9 +1206,13 @@ app.whenReady().then(() => {
     // archd answers HTTP on both ports: the renderer's symbol and agent-lane
     // requests go to the WebSocket port (arcdApi.ts, symbolCache.ts), and
     // without the token there they fail as 401 and files show "No symbols".
-    { urls: ['http://127.0.0.1:7743/*', 'http://127.0.0.1:7744/*', 'ws://127.0.0.1:7744/*'] },
+    // The ports can move (see PREFERRED_PORTS), so match loopback broadly and
+    // hand the token only to archd's current ports.
+    { urls: ['http://127.0.0.1/*', 'ws://127.0.0.1/*'] },
     (details, callback) => {
       if (details.webContentsId !== mainWindow?.webContents.id) { callback({ requestHeaders: details.requestHeaders }); return }
+      const port = Number(new URL(details.url).port)
+      if (port !== archdPorts.api && port !== archdPorts.ws) { callback({ requestHeaders: details.requestHeaders }); return }
       const frameUrl = details.frame?.url
       if (frameUrl && !frameUrl.startsWith('file://') && !(DEV_SERVER_URL && new URL(frameUrl).origin === new URL(DEV_SERVER_URL).origin)) {
         callback({ requestHeaders: details.requestHeaders }); return
