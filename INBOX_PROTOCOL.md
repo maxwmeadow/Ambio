@@ -233,3 +233,16 @@ then restores the final answer from history.
 Run `npm run test:renderer`, `npm run test:mcp`, `npm run build`, and
 `npx playwright test tests/e2e/inbox.spec.ts`. In `archd-go`, run `go test ./...` and
 `go test -race ./internal/db ./internal/api ./internal/hub`.
+
+An opt-in live-host smoke test runs the complete desktop → copied handoff →
+Codex CLI → desktop review → acceptance path against an isolated archd and
+throwaway indexed project. The canvas drawing is a deterministic E2E fixture;
+the inbox requests, daemon, MCP calls, agent edit, and review are live. It
+requires an authenticated Codex CLI and invokes
+that CLI with automatic approval review and a workspace-write sandbox for the
+disposable project; it does not change the user's Codex settings. After building Axiom and
+archd, run:
+
+```sh
+AXIOM_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
+```
