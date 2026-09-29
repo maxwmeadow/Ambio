@@ -9,6 +9,7 @@ import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { AgentHandoff } from './AgentHandoff'
+import { WorkOrderReview } from './WorkOrderReview'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
@@ -88,7 +89,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     window.addEventListener('pointerdown', outside)
     return () => { window.removeEventListener('keydown', escape); window.removeEventListener('pointerdown', outside) }
   }, [isOpen, graph.workspaceId, onClose, pickerOpen, helpOpen])
-  const messageVersion = sheet.messages.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}:${message.sessions?.map(session => `${session.id}:${session.endedAt}:${session.notes.length}`).join(',') ?? ''}`).join('|')
+  const messageVersion = sheet.messages.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}:${message.review?.id ?? ''}:${message.sessions?.map(session => `${session.id}:${session.endedAt}:${session.notes.length}`).join(',') ?? ''}`).join('|')
   useLayoutEffect(() => {
     const el = history.current
     if (!el) return
@@ -166,7 +167,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
         {sheet.messages.map(message => <article key={message.id} className="axiom-inbox__message">
           <div className="axiom-inbox__user"><span className="axiom-inbox__entry-label">USER / INSTRUCTION</span><p>{message.note}</p>{chips(messageReferences(message.selection))}
             {message.sheetId && <button type="button" className="axiom-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach this sheet and compare its current structure"><InboxIcon name="sheet" size={14} /><span>{sheet.sheets.find(item => item.id === message.sheetId)?.name ?? 'Attached sheet'}</span><InboxIcon name="chevron" size={12} /></button>}
-            {(message.status === 'queued' || message.status === 'delivered') && <div className="axiom-inbox__work-order">WORK ORDER <code>{message.id}</code></div>}
+            <div className="axiom-inbox__work-order">WORK ORDER <code>{message.id}</code></div>
           </div>
           <div className="axiom-inbox__meta"><span className={`axiom-inbox__status axiom-inbox__status--${message.status}`}>{inboxStatus(message)}</span><time title={new Date(message.createdAt).toLocaleString()} dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
             {(message.status === 'queued' || message.status === 'delivered') && <button type="button" className="axiom-inbox__handoff-copy" onClick={() => copy(workOrderHandoff(graph.name ?? 'this project', graph.workspaceId, graph.rootPath, message.id), `handoff:${message.id}`)} title={`Copy handoff for work order ${message.id}`}><InboxIcon name={copied === `handoff:${message.id}` ? 'check' : 'copy'} size={12} />{copied === `handoff:${message.id}` ? 'Copied' : 'Copy handoff'}</button>}
@@ -182,6 +183,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           {message.reply && <div className="axiom-inbox__reply"><div className="axiom-inbox__reply-heading"><InboxIcon name="agent" size={16} /><span>AGENT /</span><strong>{message.reply.agent}</strong></div><AgentMessageContent text={message.reply.body} /><button type="button" className="axiom-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div>}
           {message.status === 'answered' && !message.reply && <p className="axiom-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="axiom-inbox__notice">Cancelled in Axiom. If your agent already started, ask it to stop.</p>}
+          <WorkOrderReview message={message} workspaceId={graph.workspaceId} sheetAvailable={!!sheet.sheets.find(item => item.id === message.sheetId)} />
         </article>)}
       </div>
       {unseen && <button className="axiom-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}

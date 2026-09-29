@@ -67,6 +67,90 @@ func inboxHTTP(t *testing.T, handler http.Handler, method, path string, body any
 	handler.ServeHTTP(response, request)
 	return response
 }
+
+func TestWorkOrderReviewReopensWithHistoryAndFeedback(t *testing.T) {
+	s, mux, _ := inboxServer(t)
+	send := map[string]any{"id": "review-order", "workspaceId": "ws", "note": "Fix checkout", "deliveryMode": "addressed"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/send", send); r.Code != 200 {
+		t.Fatal(r.Body.String())
+	}
+	claim := func(owner string) db.InboxItem {
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/claim", map[string]string{"workspaceId": "ws", "connectionId": owner, "agent": owner, "messageId": "review-order"})
+		if r.Code != 200 {
+			t.Fatal(r.Code, r.Body.String())
+		}
+		var response struct {
+			Messages []db.InboxItem `json:"messages"`
+		}
+		if err := json.Unmarshal(r.Body.Bytes(), &response); err != nil || len(response.Messages) != 1 {
+			t.Fatal(r.Body.String(), err)
+		}
+		return response.Messages[0]
+	}
+	first := claim("agent-a")
+	d, err := s.dbFor("ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.StartInboxWorkSession(d, db.WorkSession{ID: "session-1", WorkspaceID: "ws", MessageID: "review-order", OwnerKey: "agent-a", Agent: "agent-a", Goal: "Fix checkout"}, "agent-a", first.LeaseToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordStructuralEvent(d, db.StructuralEvent{WorkspaceID: "ws", SessionID: "session-1", Kind: db.EventFileUpdated, SubjectLabel: "checkout.go"}); err != nil {
+		t.Fatal(err)
+	}
+	result := db.WorkResult{ChangedFiles: []string{"checkout.go"}, Checks: []db.WorkCheck{{Command: "go test ./...", Outcome: "passed"}}}
+	submit := map[string]any{"workspaceId": "ws", "msgId": "review-order", "leaseToken": first.LeaseToken, "body": "First attempt", "result": result}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal("identical submission should retry", r.Body.String())
+	}
+	reopen := map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-1", "decision": "reopened", "note": "Handle timeouts too"}
+	for i := 0; i < 2; i++ {
+		if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", reopen); r.Code != 200 {
+			t.Fatal("reopen retry", r.Code, r.Body.String())
+		}
+	}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-1", "decision": "accepted"}); r.Code != 409 {
+		t.Fatal("changed review ID payload should conflict", r.Code)
+	}
+	second := claim("agent-b")
+	if second.Review == nil || second.Review.Note != "Handle timeouts too" || len(second.PriorReplies) != 1 {
+		t.Fatalf("reopened context missing: %#v", second)
+	}
+	if second.PriorReplies[0].Result == nil || second.PriorReplies[0].Result.Checks[0].Outcome != "passed" {
+		t.Fatalf("result history missing: %#v", second.PriorReplies)
+	}
+	submit = map[string]any{"workspaceId": "ws", "msgId": "review-order", "leaseToken": second.LeaseToken, "body": "Timeouts handled"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	accept := map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-2", "decision": "accepted"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", accept); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	var response struct {
+		Messages []db.InboxItem `json:"messages"`
+	}
+	if err := json.Unmarshal(history.Body.Bytes(), &response); err != nil || len(response.Messages) != 1 {
+		t.Fatal(history.Body.String(), err)
+	}
+	item := response.Messages[0]
+	if item.Status != "answered" || item.Review == nil || item.Review.Decision != "accepted" || item.Reply == nil || item.Reply.Body != "Timeouts handled" || len(item.PriorReplies) != 1 {
+		t.Fatalf("incorrect final review: %#v", item)
+	}
+	if len(item.Reviews) != 2 || item.Reviews[0].Note != "Handle timeouts too" {
+		t.Fatalf("review history missing: %#v", item.Reviews)
+	}
+	if len(item.Changes) != 1 || item.Changes[0].SubjectLabel != "checkout.go" {
+		t.Fatalf("linked architecture change missing: %#v", item.Changes)
+	}
+	if strings.Contains(history.Body.String(), second.LeaseToken) {
+		t.Fatal("history leaked claim token")
+	}
+}
 func TestInboxHTTPLifecycle(t *testing.T) {
 	s, mux, _ := inboxServer(t)
 	send := map[string]any{"id": "request", "workspaceId": "ws", "note": "Review file", "selection": "[\"axiom://file/file?label=hello.go\"]"}

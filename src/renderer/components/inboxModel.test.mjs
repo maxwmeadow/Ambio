@@ -12,7 +12,8 @@ test('a claim is never displayed as proof that the agent is actively working', (
   assert.equal(inboxStatus({ status: 'delivered', agent: 'Codex', leaseExpiresAt: 200 }, 100), 'Picked up by Codex')
   assert.equal(inboxStatus({ status: 'delivered', agent: 'Claude Code', deliveredTo: 'a1234567-1111', leaseExpiresAt: 200 }, 100), 'Picked up by Claude Code · connector a1234567')
   assert.match(inboxStatus({ status: 'delivered', leaseExpiresAt: 200 }, 201), /expired/)
-  assert.equal(inboxStatus({ status: 'answered' }), 'Answered')
+  assert.equal(inboxStatus({ status: 'answered' }), 'Ready for review')
+  assert.equal(inboxStatus({ status: 'answered', review: { decision: 'accepted' } }), 'Accepted')
 })
 test('a handoff names the exact work order and does not invite queue draining', () => {
   const id = 'e95d997b-a73a-4e4c-b0d7-42dfbd52ed9b'

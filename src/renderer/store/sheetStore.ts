@@ -90,11 +90,27 @@ export interface CanvasMessage {
   status: 'queued' | 'delivered' | 'answered' | 'cancelled'
   leaseExpiresAt?: number
   agent?: string
-  reply?: { body: string; agent: string; createdAt: number }
+  reply?: WorkOrderReply
+  priorReplies?: WorkOrderReply[]
+  review?: { id: string; decision: 'accepted' | 'reopened'; note: string; createdAt: number }
+  reviews?: { id: string; decision: 'accepted' | 'reopened'; note: string; createdAt: number }[]
+  changes?: { kind: string; subjectLabel: string; objectLabel?: string; count: number; at: number }[]
   sessions?: DeltaWorkSession[]
   deliveredTo: string | null
   answerAnnotationId: string | null
   createdAt: number
+}
+
+export interface WorkOrderReply {
+  body: string
+  agent: string
+  createdAt: number
+  result?: {
+    commit?: string
+    changedFiles?: string[]
+    checks?: { command: string; outcome: string }[]
+    remaining?: string[]
+  }
 }
 
 export type PlannedNodeKind = 'system' | 'class' | 'file' | 'service' | 'data_store' | 'infra'
@@ -1101,6 +1117,12 @@ async function loadInbox(workspaceId: string, before: string): Promise<void> {
 
 export async function cancelInboxMessage(workspaceId: string, msgId: string): Promise<void> {
   const response = await fetch(`${API}/api/canvas/cancel`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, msgId }) })
+  if (!response.ok) throw new Error(await response.text())
+  await refreshInbox(workspaceId)
+}
+
+export async function reviewInboxMessage(workspaceId: string, msgId: string, reviewId: string, decision: 'accepted' | 'reopened', note = ''): Promise<void> {
+  const response = await fetch(`${API}/api/canvas/review`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, msgId, reviewId, decision, note }) })
   if (!response.ok) throw new Error(await response.text())
   await refreshInbox(workspaceId)
 }

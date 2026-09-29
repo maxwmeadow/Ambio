@@ -202,6 +202,42 @@ func (s *Server) handleInboxCancel(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, item)
 }
 
+func (s *Server) handleInboxReview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		MsgID       string `json:"msgId"`
+		ReviewID    string `json:"reviewId"`
+		Decision    string `json:"decision"`
+		Note        string `json:"note"`
+	}
+	if !decodeInbox(w, r, &body) {
+		return
+	}
+	body.Note = strings.TrimSpace(body.Note)
+	if body.WorkspaceID == "" || body.MsgID == "" || len(body.MsgID) > 128 || body.ReviewID == "" || len(body.ReviewID) > 128 ||
+		(body.Decision != "accepted" && body.Decision != "reopened") || len(body.Note) > 4000 || (body.Decision == "reopened" && body.Note == "") {
+		jsonError(w, "valid workspaceId, msgId, reviewId, decision and reopen feedback required", 400)
+		return
+	}
+	d, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	item, err := db.ReviewInbox(d, body.WorkspaceID, body.MsgID, body.ReviewID, body.Decision, body.Note, time.Now().UnixMilli())
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	s.publishInbox(*item)
+	item.LeaseToken = ""
+	jsonOK(w, map[string]any{"message": item})
+}
+
 func validInboxText(text string, max int) bool {
 	return strings.TrimSpace(text) != "" && len(text) <= max
 }
