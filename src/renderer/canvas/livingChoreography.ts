@@ -38,3 +38,30 @@ export function livingFlowEndpoints(
   }
   return { source: event.src, target: event.dst }
 }
+
+/**
+ * The words and ink for a node's activity, shared by the badge on a visible
+ * file and the label a collapsed system shows for a file inside it, so the
+ * same event reads the same wherever it surfaces.
+ *
+ * `enter` reads ADDED rather than CREATED: a file an agent builds waits in
+ * Unsorted and only reaches the canvas when it is assigned, often well after
+ * it was created.
+ */
+export function livingActivityLabel(kind: NodeFx['kind'] | undefined): string {
+  switch (kind) {
+    case 'enter': return 'ADDED'
+    case 'edit': return 'EDITED'
+    case 'exit': return 'DELETED'
+    case 'classify': return 'MOVED'
+    case 'flow-add': return 'LINK ADDED'
+    case 'flow-remove': return 'LINK REMOVED'
+    default: return 'IMPACT'
+  }
+}
+
+export function livingActivityColor(kind: NodeFx['kind'] | undefined): string {
+  if (kind === 'enter' || kind === 'flow-add' || kind === 'surface-add') return '#2fa35d'
+  if (kind === 'exit' || kind === 'flow-remove' || kind === 'surface-remove') return '#b6534b'
+  return '#3c8f92'
+}

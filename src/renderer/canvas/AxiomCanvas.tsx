@@ -76,7 +76,7 @@ import { packFrame, placeIncoming } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
 import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
-import { canPersistGeneratedFrame, growFrameToContainChildren, orderFramePlacementCandidates } from './incrementalFrameLayout'
+import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates } from './incrementalFrameLayout'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
   emptySelection,
@@ -88,12 +88,15 @@ import {
 } from './selectionController'
 import { planCanvasDrop } from './dropPersistence'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
-import { livingVisibilityIndex, surfaceLivingNodeFx } from './livingVisibility'
+import { surfaceLivingNodeFx } from './livingVisibility'
+import { withFacingHandles } from './folderAnchors'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
 import { stampAgentPresence } from './agentPresence'
 import { LivingFlowOverlay } from './LivingFlowOverlay'
+import { RunTraceOverlay } from './RunTraceOverlay'
+import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
 import { routeWheelEvent, wheelScrollStep } from './wheelRouting'
@@ -1193,9 +1196,26 @@ function buildFloorFrameLayout(
       const child = geometryById.get(childId)
       return child ? [child] : []
     })
-    const fitted = growFrameToContainChildren(container, childFrames, insetsOf(containerId).right)
+    // A persisted frame hemmed in by neighbours compresses its interior
+    // rather than growing over them - an agent assigning a batch of files to
+    // a system used to push that system on top of the next one.
+    const containerParent = parentById.get(containerId) ?? null
+    const siblingRects = layoutsById.has(containerId)
+      ? (siblingsByParent.get(containerParent) ?? []).flatMap(siblingId => {
+          if (siblingId === containerId) return []
+          const sibling = geometryById.get(siblingId)
+          return sibling
+            ? [{ x: sibling.x, y: sibling.y, width: sibling.width * sibling.scale, height: sibling.height * sibling.scale }]
+            : []
+        })
+      : []
+    const fitted = fitFrameAmongSiblings(
+      container, childFrames, insetsOf(containerId).right, siblingRects,
+      containerParent ? FRAME_ITEM_GAP : FRAME_ROOT_GAP,
+    )
     geometryById.set(containerId, fitted)
-    if (fitted.width !== container.width || fitted.height !== container.height) {
+    if (fitted.width !== container.width || fitted.height !== container.height ||
+        fitted.interiorScale !== container.interiorScale) {
       resizedContainerIds.add(containerId)
     }
   }
@@ -1443,9 +1463,16 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       .filter(layout => layout.nodeType === 'file' && layout.containmentKind === 'root')
       .map(layout => layout.nodeId),
   ), [floorLayouts])
+  // A file has a home only in a system the canvas shows. A system_id that
+  // points at a withheld inferred grouping is not a home: without this the
+  // file floated loose on the Floor instead of waiting in the Unsorted bin.
+  // The scene's own systems (the proposal's, during review); bin mode empties
+  // its scene's systems on purpose, so it answers from the live Floor.
+  const homeSystems = binScene ? liveSystems : systems
+  const shownSystemIds = useMemo(() => new Set(homeSystems.map(system => system.id)), [homeSystems])
   const fileBelongsOnFloor = useCallback(
-    (file: DbFile) => !!file.systemId || looseFileIds.has(file.id),
-    [looseFileIds],
+    (file: DbFile) => (!!file.systemId && shownSystemIds.has(file.systemId)) || looseFileIds.has(file.id),
+    [looseFileIds, shownSystemIds],
   )
   const bins = useMemo(() => partitionCanvasFiles(binSourceFiles, {
     hasHome: reviewPlacedFileIds
@@ -2130,6 +2157,16 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     setRfNodes(current => stampSelection(current, next))
     setSheetInteractionNodes(current => current && stampSelection(current, next))
   }, [commitSelection])
+  // The investigation run on screen: its watched functions get callouts. A
+  // callout sits on the file once it is visible, and on its closed system,
+  // naming the file, before then. Revealing the file inside the closed system
+  // instead covered the system's own title.
+  const caseRun = useGraphStore(s =>
+    s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
+  const runCalloutList = useMemo(
+    () => (isolatedScene ? [] : runCallouts(caseRun)),
+    [caseRun, isolatedScene],
+  )
   const livingRevealIds = useMemo(() => {
     // A node appears only for its own stage: first the edited origin, then the
     // impact target. The top-layer flow can route to hidden authored geometry
@@ -2212,13 +2249,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }, [])
 
   const displayEdges = useMemo(() => {
-    const visibility = livingVisibilityIndex(displayNodes, livingVisibilityOptions)
-    const surfacedRfEdges = rfEdges.flatMap(edge => {
-      if (edge.className !== 'trace-edge') return [edge]
-      const source = visibility.visibleNodeId(edge.source)
-      const target = visibility.visibleNodeId(edge.target)
-      return source && target && source !== target ? [{ ...edge, source, target }] : []
-    })
+    const surfacedRfEdges = withFacingHandles(rfEdges, displayNodes)
     if (visibleLayers.length === 0) return surfacedRfEdges
     const visibleIds = new Set(displayNodes.filter(n => n.style?.opacity !== 0).map(n => n.id))
     const plannedRf: Edge[] = overlayPlannedEdges.map(e => ({
@@ -2237,7 +2268,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         : { ...e, style: { ...e.style, opacity: 0 }, selectable: false }),
       ...plannedRf,
     ]
-  }, [rfEdges, visibleLayers, overlayPlannedEdges, displayNodes, livingVisibilityOptions])
+  }, [rfEdges, visibleLayers, overlayPlannedEdges, displayNodes])
 
   /**
    * Was this gesture released over the unclassified bin?
@@ -3414,42 +3445,19 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }, [focusEnabled, focusFileIds, systems, files, layoutVersion])
 
   // ── Call trace ───────────────────────────────────────────────────────────
-  // When the agent queries a call path, stamp isTraced on the involved file nodes
-  // and inject glowing directed edges between consecutive steps.
+  // Stamp isTraced on the files a call path runs through. The path itself is
+  // drawn by RunTraceOverlay, merged per visible pair of nodes, rather than as
+  // one React Flow edge per call.
   useEffect(() => {
-    if (!activeTrace || activeTrace.length === 0) {
-      setRfNodes(curr => curr.map(n =>
-        (n.data as any).isTraced ? { ...n, data: { ...n.data, isTraced: false } } : n
-      ))
-      setRfEdges(curr => curr.filter(e => !e.id.startsWith('trace-')))
-      return
-    }
-
     const tracedIds = new Set<string>()
-    activeTrace.forEach(step => {
+    for (const step of activeTrace ?? []) {
       tracedIds.add(step.callerFile)
       tracedIds.add(step.calleeFile)
-    })
-
-    setRfNodes(curr => curr.map(n => ({
-      ...n,
-      data: { ...n.data, isTraced: tracedIds.has(n.id) },
-    })))
-
-    const traceEdges: Edge[] = activeTrace.map((step, i) => ({
-      id: `trace-${step.callerFile}-${step.calleeFile}-${i}`,
-      source: step.callerFile,
-      target: step.calleeFile,
-      className: 'trace-edge',
-      style: { stroke: '#22d3ee', strokeWidth: 2 },
-      label: step.callerSymbol && step.calleeSymbol
-        ? `${step.callerSymbol} · ${step.calleeSymbol}`
-        : undefined,
-      labelStyle: { fill: '#22d3ee', fontSize: 10, fontWeight: 600 },
-      labelBgStyle: { fill: 'rgba(10,13,20,0.85)', rx: 4 },
-      zIndex: 1000,
+    }
+    setRfNodes(curr => curr.map(n => {
+      const traced = tracedIds.has(n.id)
+      return Boolean((n.data as any).isTraced) === traced ? n : { ...n, data: { ...n.data, isTraced: traced } }
     }))
-    setRfEdges(curr => [...curr.filter(e => !e.id.startsWith('trace-')), ...traceEdges])
   }, [activeTrace, layoutVersion])
 
   // ── WASD pan ────────────────────────────────────────────────────────────
@@ -3619,6 +3627,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   const onMove: OnMove = useCallback((event, viewport) => {
     const zoom = viewport.zoom
     currentZoomRef.current = zoom
+    // Activity badges counter-scale against this so they stay readable when
+    // the camera pulls back. One style write per frame, no React render.
+    canvasRootRef.current?.style.setProperty('--axiom-zoom', String(zoom))
     // Keep the conservative overview tier throughout the entrance animation.
     // Once fitView settles, its completion handler applies the final zoom once.
     const visibilityZoom = pendingInitialFitProjectRef.current
@@ -4600,6 +4611,12 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         />
         <LivingFlowOverlay
           events={relationshipFx}
+          nodes={livingDisplayNodes}
+          visibilityOptions={livingVisibilityOptions}
+        />
+        <RunTraceOverlay
+          steps={activeTrace}
+          callouts={runCalloutList}
           nodes={livingDisplayNodes}
           visibilityOptions={livingVisibilityOptions}
         />

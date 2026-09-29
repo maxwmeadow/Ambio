@@ -14,7 +14,7 @@ const nodes = [
   { id: 'file-b', parentId: 'other', style: { opacity: 0 }, data: {} },
 ]
 
-test('hidden activity reveals the real node at its authored geometry', () => {
+test('hidden activity inside a visible system is windowed, not popped out over it', () => {
   const index = livingVisibilityIndex(nodes)
   assert.equal(index.visibleNodeId('file-a'), 'outer')
   assert.equal(index.visibleNodeId('file-b'), 'other')
@@ -23,15 +23,21 @@ test('hidden activity reveals the real node at its authored geometry', () => {
     'file-a': { kind: 'edit', key: 7 },
   })
   const file = projected.find(node => node.id === 'file-a')
-  assert.deepEqual(file.data.fx, {
-    kind: 'edit',
-    key: 7,
-  })
-  assert.equal(file.data.livingReveal, true)
-  assert.equal(file.hidden, false)
-  assert.equal(file.style.opacity, 1)
-  assert.equal(file.style.pointerEvents, 'none')
-  assert.equal(projected.find(node => node.id === 'outer').data.fx, null)
+  assert.deepEqual(file.data.fx, { kind: 'edit', key: 7 }, 'the file keeps its effect for when it is visible')
+  assert.equal(file.data.livingReveal, false, 'the card is not drawn over the collapsed system')
+  assert.equal(file.style.opacity, 0)
+  const outer = projected.find(node => node.id === 'outer')
+  assert.equal(outer.data.fx, null)
+  assert.deepEqual(outer.data.livingWindows.map(window => window.originId), ['file-a'], 'the system marks where it is')
+})
+
+test('with no visible system around it, hidden activity reveals the real node', () => {
+  const lone = [{ id: 'orphan', style: { opacity: 0 }, data: {} }]
+  const [orphan] = surfaceLivingNodeFx(lone, { orphan: { kind: 'edit', key: 3 } })
+  assert.equal(orphan.data.livingReveal, true)
+  assert.equal(orphan.hidden, false)
+  assert.equal(orphan.style.opacity, 1)
+  assert.equal(orphan.style.pointerEvents, 'none')
 })
 
 test('the visible containing system opens a window at the hidden file rectangle', () => {
@@ -61,6 +67,7 @@ test('the visible containing system opens a window at the hidden file rectangle'
       key: 11,
       kind: 'edit',
       originId: 'file',
+      label: 'task_store.py',
       x: 144,
     y: 176,
     width: 220,
@@ -83,7 +90,7 @@ test('canonical ancestry survives a flattened or missing display node', () => {
   assert.equal(index.visibleNodeId('inner'), 'outer')
 })
 
-test('concurrent hidden descendants each reveal their real scene node', () => {
+test('concurrent hidden descendants each get a window, and none covers the system', () => {
   const labelById = new Map([
     ['file-a', 'alpha.ts'],
     ['inner', 'inner'],
@@ -92,8 +99,10 @@ test('concurrent hidden descendants each reveal their real scene node', () => {
     'file-a': { kind: 'edit', key: 7 },
     inner: { kind: 'flow-add', key: 8 },
   }, { labelById })
-  assert.equal(projected.find(node => node.id === 'file-a').data.livingReveal, true)
-  assert.equal(projected.find(node => node.id === 'inner').data.livingReveal, true)
+  assert.equal(projected.find(node => node.id === 'file-a').data.livingReveal, false)
+  assert.equal(projected.find(node => node.id === 'inner').data.livingReveal, false)
+  const windows = projected.find(node => node.id === 'outer').data.livingWindows
+  assert.deepEqual(windows.map(window => [window.originId, window.label]), [['file-a', 'alpha.ts'], ['inner', 'inner']])
   assert.equal(projected.find(node => node.id === 'outer').data.fx, null)
 })
 

@@ -112,6 +112,7 @@ function sameWindows(
     const other = b[index]
     return window.key === other.key &&
       window.originId === other.originId &&
+      window.label === other.label &&
       window.x === other.x &&
       window.y === other.y &&
       window.width === other.width &&
@@ -134,11 +135,18 @@ export function surfaceLivingNodeFx(
   const resolved = new Map<string, NodeFx>()
   const byId = new Map(nodes.map(node => [node.id, node]))
   const windowsBySystem = new Map<string, LivingInspectionWindow[]>()
+  // Origins a visible system shows through a window. They stay hidden: the
+  // window marks where they are and names them, and the system keeps its own
+  // title. Popping the file card out over a collapsed system covered the name
+  // of the very system the activity was in.
+  const windowed = new Set<string>()
 
   for (const [originId, fx] of Object.entries(directFx)) {
-    // If the actual semantic node is still part of the scene, reveal that
-    // exact node at its authored position and size. Surfacing on an ancestor
-    // is only a fallback for sheet projections that genuinely omit the origin.
+    // If the actual semantic node is still part of the scene, it keeps the
+    // effect itself. Hidden inside a visible system, that system opens a
+    // window at its authored rectangle; with no visible system around it, the
+    // node itself is revealed. Surfacing on an ancestor is only a fallback for
+    // sheet projections that genuinely omit the origin.
     const originNode = byId.get(originId)
     if (originNode) {
       resolved.set(originId, fx)
@@ -155,8 +163,10 @@ export function surfaceLivingNodeFx(
             key: fx.key,
             kind: fx.kind,
             originId,
+            label: String(options.labelById?.get(originId) ?? originId),
           })
           windowsBySystem.set(ancestorId, windows)
+          windowed.add(originId)
         }
       }
       continue
@@ -189,7 +199,7 @@ export function surfaceLivingNodeFx(
     const previousWindows = (node.data as Record<string, unknown>).livingWindows as
       | LivingInspectionWindow[]
       | undefined
-    const reveal = revealIds.has(node.id) && !isVisible(node)
+    const reveal = revealIds.has(node.id) && !isVisible(node) && !windowed.has(node.id)
     const wasRevealed = Boolean((node.data as Record<string, unknown>).livingReveal)
     if (sameNodeFx(previous, fx) &&
         sameWindows(previousWindows, livingWindows) &&
@@ -199,9 +209,9 @@ export function surfaceLivingNodeFx(
     return {
       ...node,
       // Semantic zoom normally removes hidden descendants from React Flow's
-      // render set. A live edit intentionally reveals its exact authored node
-      // for the duration of the signal, then the base projection hides it
-      // again when the signal expires.
+      // render set. A live edit with no visible system to window it reveals
+      // its exact authored node for the duration of the signal, then the base
+      // projection hides it again when the signal expires.
       hidden: reveal ? false : node.hidden,
       zIndex: reveal ? Math.max(node.zIndex ?? 0, 9500) : node.zIndex,
       style: reveal

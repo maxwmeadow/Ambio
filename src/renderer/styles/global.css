@@ -92,7 +92,9 @@
   --workbench-accent: #4f8279;
   position: absolute;
   right: 18px;
-  bottom: 18px;
+  /* Clear of the Unsorted and Documents bins in the same corner: covering
+     them hid where new files land and blocked dropping onto them. */
+  bottom: 72px;
   z-index: 850;
   width: min(370px, calc(100% - 36px));
   padding: 18px 20px 16px 30px;
@@ -1324,6 +1326,16 @@ a { color: var(--accent); text-decoration: none; }
   --accent-dim:  #2d625c;
   --accent-glow: rgba(60, 125, 118, 0.22);
 
+  /* Runtime ink: call paths and investigation runs. Blueprint blue, so a
+     run reads as annotation drawn onto the plan rather than as the plan's
+     own olive-teal structure; red and amber inks carry a finding's severity. */
+  --run-ink:       #2f5f8f;
+  --run-ink-focus: #1d4670;
+  --run-alert:     #b0412c;
+  --run-warn:      #9a6a12;
+  --trace-color:   var(--run-ink);
+  --trace-glow:    rgba(47, 95, 143, 0.28);
+
   --file-accent:  #6b736e;
   --infra-accent: #a06a34;
 
@@ -1429,6 +1441,28 @@ a { color: var(--accent); text-decoration: none; }
   pointer-events: none;
 }
 
+.axiom-living-flow__track {
+  fill: none;
+  stroke: var(--living-flow-color);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 5 5;
+  opacity: 0;
+  animation: axiomLivingFlowTrack var(--living-flow-travel) linear both;
+  animation-delay: var(--living-flow-delay);
+}
+
+@keyframes axiomLivingFlowTrack {
+  0%   { opacity: 0; }
+  12%  { opacity: 0.55; }
+  82%  { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .axiom-living-flow__track { animation: none; opacity: 0.55; }
+}
+
 .axiom-living-flow__pulse {
   fill: none;
   stroke: var(--living-flow-color);
@@ -1477,6 +1511,8 @@ a { color: var(--accent); text-decoration: none; }
 .axiom-surface-activity-pill {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+  transform-origin: 100% 100%;
 }
 
 @keyframes axiomSystemTelemetryGlow {
@@ -1528,6 +1564,13 @@ a { color: var(--accent); text-decoration: none; }
 
 .axiom-living-file-telemetry__badge {
   animation: axiomLivingFileBadgeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Never smaller on screen than its natural size: when the camera pulls
+     back, the badge grows in world space instead of shrinking to a speck.
+     The origin is the untransformed left edge, which translateX(-50%)
+     places at the node's centre, so the badge grows up and outward from
+     the middle of the file's top edge. */
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+  transform-origin: 0 100%;
 }
 
 @keyframes axiomLivingFileBeacon {
@@ -1562,6 +1605,68 @@ a { color: var(--accent); text-decoration: none; }
    timer. The fallback only covers a missing custom property. */
 .axiom-living-inspection-layer--closing {
   animation: axiomLivingInspectionClose var(--living-window-close, 440ms) cubic-bezier(0.4,0,0.2,1) both;
+}
+
+/* Names what changed inside a collapsed system: the lower-right rail of the
+   canvas contract, clear of the centred identity and the tab band. Counter-
+   scaled like the file badge so it reads at every zoom; it grows up and to
+   the left from the system's lower-right corner. */
+.axiom-living-window-rail {
+  position: absolute;
+  z-index: 36;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+  transform-origin: 100% 100%;
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+}
+.axiom-living-window-rail--closing {
+  animation: axiomLivingInspectionClose var(--living-window-close, 440ms) cubic-bezier(0.4,0,0.2,1) both;
+}
+.axiom-living-window-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--living-label-color) 55%, var(--border));
+  border-top: 2px solid var(--living-label-color);
+  border-radius: 3px;
+  background: var(--bg-raised);
+  box-shadow: 0 3px 10px rgba(40, 51, 47, 0.2);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  line-height: 1;
+  animation: axiomLivingWindowLabelIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.axiom-living-window-label__dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--living-label-color);
+}
+.axiom-living-window-label__verb {
+  color: var(--living-label-color);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.axiom-living-window-label__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+@keyframes axiomLivingWindowLabelIn {
+  from { opacity: 0; translate: 0 4px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .axiom-living-window-label { animation: none; }
 }
 
 .axiom-living-inspection-window {
@@ -7932,4 +8037,121 @@ select.axiom-inspector-input {
   .axiom-case__live-dot,
   .axiom-case-chip__dot,
   .axiom-case__entry[data-kind="running"] .axiom-case__entry-label::after { animation: none; }
+}
+
+/* ─── Run trace overlay ───────────────────────────────────────────────────── */
+/* Lines are world-space curves with a constant screen stroke; labels and
+   callouts are counter-scaled so they stay the same screen size at every
+   zoom. See RunTraceOverlay.tsx. */
+.axiom-run-trace {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2147482000;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.axiom-run-trace__casing {
+  fill: none;
+  stroke: var(--bg-surface);
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.axiom-run-trace__stroke {
+  fill: none;
+  stroke: var(--run-ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 7 5;
+  animation: axiomRunTraceFlow 0.9s linear infinite;
+}
+
+.axiom-run-trace__line--focus .axiom-run-trace__casing { stroke-width: 7; }
+.axiom-run-trace__line--focus .axiom-run-trace__stroke {
+  stroke: var(--run-ink-focus);
+  stroke-width: 2.6;
+  stroke-dasharray: 12 5;
+  animation-duration: 0.7s;
+}
+
+@keyframes axiomRunTraceFlow {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.axiom-run-trace__label,
+.axiom-run-callout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  z-index: 2147482001;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--run-ink-focus);
+  box-shadow: 0 1px 0 rgba(40, 51, 47, 0.12), 0 4px 14px rgba(40, 51, 47, 0.16);
+}
+
+.axiom-run-trace__label {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--run-ink-focus);
+}
+
+.axiom-run-callout {
+  box-sizing: border-box;
+  padding: 6px 9px 7px 11px;
+  border-left-width: 3px;
+  border-color: color-mix(in srgb, var(--run-ink-focus) 45%, var(--border-dim));
+  border-left-color: var(--run-ink-focus);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.axiom-run-callout--alert { border-left-color: var(--run-alert); }
+.axiom-run-callout--warn  { border-left-color: var(--run-warn); }
+
+.axiom-run-callout__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.axiom-run-callout__symbol {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.axiom-run-callout__file {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.axiom-run-callout__count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.axiom-run-callout--alert .axiom-run-callout__file {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+.axiom-run-callout__count { color: var(--run-alert); }
+
+.axiom-run-callout__text {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .axiom-run-trace__stroke { animation: none; }
 }

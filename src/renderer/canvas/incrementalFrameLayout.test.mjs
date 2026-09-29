@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   canPersistGeneratedFrame,
+  fitFrameAmongSiblings,
   growFrameToContainChildren,
   orderFramePlacementCandidates,
 } from './incrementalFrameLayout.ts'
@@ -67,4 +68,35 @@ test('existing authored dimensions never shrink', () => {
   ], 32)
 
   assert.deepEqual(result, frame)
+})
+
+
+const frameAt = (x, y, width, height, interiorScale = 1) => ({ x, y, width, height, scale: 1, interiorScale })
+
+test('a frame with room grows to take new children', () => {
+  const frame = frameAt(0, 0, 300, 200)
+  const children = [frameAt(20, 40, 220, 110), frameAt(20, 170, 220, 110)]
+  const fitted = fitFrameAmongSiblings(frame, children, 20, [frameAt(800, 0, 300, 200)], 24)
+  assert.equal(fitted.height, 300)
+  assert.equal(fitted.interiorScale, 1)
+})
+
+test('a frame hemmed in by a neighbour compresses its interior instead of overlapping it', () => {
+  const frame = frameAt(0, 0, 300, 200)
+  const children = [frameAt(20, 40, 220, 110), frameAt(20, 170, 220, 110)]
+  const below = frameAt(0, 230, 300, 200)
+  const fitted = fitFrameAmongSiblings(frame, children, 20, [below], 24)
+  assert.equal(fitted.width, 300, 'the frame keeps its size')
+  assert.equal(fitted.height, 200)
+  assert.equal(fitted.x, 0)
+  assert.ok(fitted.interiorScale < 1)
+  assert.ok((170 + 110) * fitted.interiorScale + 20 <= 200 + 1e-9, 'every child fits inside the frame')
+})
+
+test('past the legibility floor the frame grows rather than shrink files to specks', () => {
+  const frame = frameAt(0, 0, 300, 200)
+  const children = Array.from({ length: 8 }, (_, i) => frameAt(20, 40 + i * 130, 220, 110))
+  const fitted = fitFrameAmongSiblings(frame, children, 20, [frameAt(0, 230, 300, 200)], 24)
+  assert.equal(fitted.interiorScale, 1)
+  assert.ok(fitted.height > 200)
 })

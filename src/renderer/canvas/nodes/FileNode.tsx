@@ -1,3 +1,4 @@
+import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FileNodeData, NodeFx } from '../sceneTypes'
@@ -184,28 +185,14 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     : verdict === 'pass' ? '#22c55e'
     : runtime?.lastKind === 'exception' ? '#ef4444'
     : runtime?.rateLimited ? '#f59e0b'
-    : '#22d3ee'
-  const livingRevealColor = livingSignal.fx?.kind === 'enter' || livingSignal.fx?.kind === 'flow-add'
-    ? '#2fa35d'
-    : livingSignal.fx?.kind === 'exit' || livingSignal.fx?.kind === 'flow-remove'
-      ? '#b6534b'
-      : '#3c8f92'
+    : 'var(--run-ink-focus)'
+  const livingRevealColor = livingActivityColor(livingSignal.fx?.kind)
 
   // Content renders at base (depth-0) pixel sizes inside a div that is
   // 1/s times the node's box, then uniformly scaled down by s. Every file
   // node is therefore pixel-identical in its own frame at any depth.
   const s = fitPresentationScale(width, height, 220, 110, d.worldScale ?? 1)
-  const livingSignalLabel = livingSignal.fx?.kind === 'edit'
-    ? 'EDITED'
-    : livingSignal.fx?.kind === 'enter'
-      ? 'CREATED'
-    : livingSignal.fx?.kind === 'exit'
-      ? 'DELETED'
-    : livingSignal.fx?.kind === 'flow-add'
-      ? 'LINK ADDED'
-      : livingSignal.fx?.kind === 'flow-remove'
-        ? 'LINK REMOVED'
-        : 'IMPACT'
+  const livingSignalLabel = livingActivityLabel(livingSignal.fx?.kind)
   // Apparent zoom of this node on screen - a depth-2 node at viewport zoom 2
   // looks like a depth-0 node at zoom 0.5. Detail states gate on this.
   // Resolved by the semantic-zoom pass. Reading the raw zoom here would make
@@ -606,7 +593,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               filteredSymbols.map((sym, idx) => {
                 const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
                 const isSymPerturbed = perturbedSymbols.has(sym.name)
-                const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? '#22d3ee' : 'var(--text-primary)'
+                const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? 'var(--run-ink-focus)' : 'var(--text-primary)'
 
                 return (
                   <div
@@ -796,7 +783,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             className="axiom-living-file-telemetry__badge"
             style={{
               position: 'absolute',
-              top: -26,
+              top: -30,
               left: '50%',
               transform: 'translateX(-50%)',
               display: 'flex',
@@ -826,7 +813,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               style={{
                 color: livingRevealColor,
                 fontFamily: 'var(--font-mono)',
-                fontSize: 8.5,
+                fontSize: 10,
                 fontWeight: 900,
                 letterSpacing: '0.12em',
                 lineHeight: 1,
@@ -839,10 +826,10 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               style={{
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: 700,
                 lineHeight: 1,
-                maxWidth: 140,
+                maxWidth: 200,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
               }}
@@ -908,14 +895,13 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             padding: '0 4px',
             borderRadius: 0,
             background: runtimeColor,
-            color: '#0a0d14',
+            color: '#fff',
             fontSize: 9,
             fontWeight: 800,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontFamily: 'var(--font-mono)',
-            boxShadow: '0 0 8px rgba(34,211,238,0.5)',
             zIndex: 10,
           }}
         >
