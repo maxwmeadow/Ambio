@@ -18,7 +18,7 @@ test('installs into a writable folder on PATH, or says exactly what to run', () 
     fs.mkdirSync(localBin, { recursive: true })
     const installed = installCliLauncher({
       executable: '/opt/Axiom/axiom', configDir: path.join(home, '.axiom'), home,
-      env: { PATH: `/usr/bin:${localBin}` }, platform: 'linux',
+      env: { PATH: ['/usr/bin', localBin].join(path.delimiter) }, platform: 'linux',
     })
     assert.ok(installed.ok, installed.detail)
     assert.equal(installed.path, path.join(localBin, 'axiom'))
@@ -29,7 +29,7 @@ test('installs into a writable folder on PATH, or says exactly what to run', () 
       env: { PATH: '/usr/bin' }, platform: 'linux',
     })
     assert.equal(manual.ok, false)
-    assert.match(manual.manual, /sudo ln -sf .*\.axiom\/bin\/axiom" \/usr\/local\/bin\/axiom/)
+    assert.match(manual.manual, /sudo ln -sf .*\.axiom[\\/]bin[\\/]axiom" \/usr\/local\/bin\/axiom/)
   } finally {
     fs.rmSync(home, { recursive: true, force: true })
   }

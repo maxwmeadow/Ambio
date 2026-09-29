@@ -518,6 +518,16 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A project in use is never more than a day behind its newest backup.
+	// Taken before this session changes anything, and before the request
+	// returns, so it never races a close or delete of the same map. At most
+	// once a day, and a VACUUM INTO of a map is quick.
+	if taken, err := backupIfDue(sqlDB, filepath.Join(s.dataDir, wsID), time.Now()); err != nil {
+		log.Printf("api: backup %s: %v", wsID, err)
+	} else if taken {
+		log.Printf("api: backed up workspace %s", wsID)
+	}
+
 	ws := db.Workspace{ID: wsID, Name: req.Name, OpenedAt: time.Now().UnixMilli()}
 	if err := db.UpsertWorkspace(sqlDB, ws); err != nil {
 		jsonError(w, err.Error(), 500)
@@ -544,15 +554,6 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		)
 		s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
 	}
-
-	// A project in use is never more than a day behind its newest backup.
-	go func() {
-		if taken, err := backupIfDue(sqlDB, filepath.Join(s.dataDir, wsID), time.Now()); err != nil {
-			log.Printf("api: backup %s: %v", wsID, err)
-		} else if taken {
-			log.Printf("api: backed up workspace %s", wsID)
-		}
-	}()
 
 	jsonOK(w, map[string]any{"workspaceId": wsID, "rootId": rootID})
 }
