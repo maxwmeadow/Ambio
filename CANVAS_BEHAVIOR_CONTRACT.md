@@ -162,21 +162,25 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Proposed infrastructure is dashed and renders at opacity `0.65`.
 - Missing registry entries retain an editable fallback node rather than
   disappearing.
-- Detected infrastructure is proposed and stays off the Floor, waiting in the
-  "Infra found" tray until it is confirmed or dismissed, the same way a new
-  file waits in Unsorted. Dismissal is sticky by service id.
-- Confirmed infrastructure with no saved position is placed in a band below
-  the systems, ordered by role (data, then messaging, then services, then
-  observability and platforms). A saved position always wins.
-- A collapsed system shows the infrastructure it touches as a rim of chips
-  along its lower edge. The rim is counter-scaled and never covers the title or
-  the folder tab.
-- Selecting an infra node draws labelled links to everything that touches it;
-  selecting a system or file draws links to the infra it touches. The links
-  exist only while the selection holds, have no arrowheads, and meet systems on
-  their folder body. Links that are only known from imports are dashed.
-- A contract gap (a topic published with no consumer, or the reverse) shows on
-  the card and heads the inspector.
+- Only hosting infrastructure (platforms, containers) is on the Floor, as
+  frames that hold the systems they run. Everything code talks to lives in
+  the infrastructure sidebar on the canvas's left edge.
+- Detected infrastructure is proposed and waits at the top of the sidebar
+  until it is confirmed or dismissed. Dismissal is sticky.
+- A confirmed platform arranges its hosted systems once (containers inside
+  platforms, systems inside containers) without covering other nodes; after
+  that its contents are only moved by the person.
+- Selecting a sidebar row draws its relationships onto the canvas: lines to
+  visible boxes, outlines, a label on each box, and edge markers for boxes out
+  of view. Selecting a system or file while the sidebar is open lights the rows
+  it touches and draws lines back to them. Lines exist only while the
+  selection holds, have no arrowheads, and are dashed when only an import is
+  known.
+- Systems carry no infrastructure chips.
+- A contract gap (a topic published with no consumer, or the reverse) marks
+  the sidebar row and heads the inspector.
+- Fit, zoom and Tidy Layout are View-menu and keyboard commands; the canvas
+  shows no zoom buttons or zoom readout.
 
 ### Planned UML elements
 

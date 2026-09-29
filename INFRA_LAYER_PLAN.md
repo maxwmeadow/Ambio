@@ -150,7 +150,8 @@ before inspection; evidence stores names and hosts, never values.
 
 | Surface | What infra adds |
 |---|---|
-| **Floor** | legible role cards; each system carries the infra it touches along its rim (brand glyphs with counts); selecting a system or node reveals its relationships as transient lines; peripheral placement (stores and services below, platforms around what they host) |
+| **Floor** | only infra that *runs code* is on the canvas, as frames: platforms (Railway, Vercel, Fly), containers (one per Dockerfile), nested as they really are ("backend, in a Docker image, on Fly"). See "Canvas placement" below |
+| **Infra sidebar** | everything code *talks to* (databases, caches, queues, APIs, email, auth, flags, observability, schedulers) lives in a sidebar on the canvas's left edge. Selecting an item draws its relationships out onto the canvas; selecting a file or system with the sidebar open draws lines back to the items it touches. Detection's proposals wait at the top |
 | **Inspector** | who touches it, grouped by relationship and contents item, with `file:line` evidence; the contract; implementations per environment; requirements; policies |
 | **Detection** | the map arrives populated: proposals from manifests, imports, env names and config files, confirmed by the person or the agent |
 | **Agent reads** | `get_architecture` answers "which files write orders", "what does this system talk to", "what does this need to run" |
@@ -159,6 +160,46 @@ before inspection; evidence stores names and hosts, never values.
 | **Sheets and build plans** | planned infra becomes a build plan (client setup, env vars, local service), and comparing the sheet confirms the relationships exist |
 | **Morning Delta** | infra changes as high-signal claims: a new vendor, a new table written, a new required env var |
 | **Living canvas** | infra arrival, and relationship changes to infra, use the same activity choreography as files |
+
+### Canvas placement (revised 2026-09-29)
+
+The first L3 build put every confirmed node in a band below the systems and a
+rim of chips on each system. On harbor at overview zoom the band became a
+column and the counter-scaled rims piled onto the shrunken systems. There is no
+good automatic place for a database on a map of code, so it is not on the map.
+
+- **The rule.** Infra that runs your code is a frame on the canvas. Infra your
+  code talks to lives in the sidebar.
+- **Sidebar.** Collapsed, a tab at mid-height on the canvas's left edge with the
+  count, "N new" for proposals and a mark when a contract looks wrong.
+  Expanded, rows grouped by role (Data, Messaging and jobs, Services,
+  Observability, Hosting) with users and gaps; proposals sit at the top under
+  "Found in your code" with Confirm / Dismiss / Confirm all. It replaced the
+  "Infra found" bin and tray. View > Infrastructure, Shift+Cmd+E.
+- **Lines.** Selecting a row draws lines from it to every visible box that
+  touches it, outlines those boxes and labels each on the box (a count when
+  the box is too small); boxes out of view get an edge marker that pans to
+  them. Selecting a system or file with the sidebar open lights the rows it
+  touches and labels each line beside its row. Lines last as long as the
+  selection.
+- **No rims, no band.** Removed.
+- **Hosting frames.** Detection records the folders each host runs ("hosts"
+  contents; "via" names the container a platform builds from) and every
+  Dockerfile is its own container. A confirmed platform then wraps the
+  top-level systems it runs, once: containers inside their platform, systems
+  inside their container, the frame opening where the code already was or
+  moving aside rather than covering the map. Afterwards the frame is the
+  person's to rearrange. A platform that names the files it runs (vercel.json
+  functions) does not also claim the whole project; code no host runs stays
+  outside every frame. The canvas shows the production nesting; local
+  implementations are in the inspector.
+- **Canvas chrome.** Fit (Cmd+0), zoom (Cmd+= / Cmd+-) and Tidy Layout
+  (Shift+Cmd+L) moved to the View menu and the keyboard; the zoom buttons and
+  zoom readout are gone. The toolbar's Fit stays.
+
+Still to do here: a Local / Production switch for hosting, and colouring
+systems by kind (backend, frontend, microservice), assigned by agents when
+they submit a map, so the Floor separates more than folders do.
 
 ---
 
