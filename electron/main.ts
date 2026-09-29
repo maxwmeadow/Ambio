@@ -24,8 +24,15 @@ import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import {
   createProjectId,
+  exportManifest,
   findProjectByRoot,
+  importedProjectConfig,
+  listTrash,
   migrateIndexedProjectLifecycle,
+  purgeExpiredTrash,
+  restoreTrash,
+  trashEntryPath,
+  writeTrashMeta,
   refreshProjectDiskState,
   relocateProjectConfig,
   readResumeProjectId,
@@ -1046,13 +1053,171 @@ function setupIPC(): void {
 
   // Deleting is a verified lifecycle boundary. Keep the recent entry if any
   // daemon or filesystem step fails so the UI cannot claim data was removed.
+  // The map goes to Recently Deleted for 30 days rather than away for good.
   ipcMain.handle('project:remove', async (_event, projectId: string) => {
     const token = readDaemonToken()
-    await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: archdPorts.api,
+    const project = loadRecentProjects().find(candidate => candidate.id === projectId)
+    const trashPath = await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: archdPorts.api, trash: true,
       request: (input, init) => fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } }),
     })
+    if (trashPath && project) {
+      try { writeTrashMeta(trashPath, project) } catch (error) { console.error('[main] could not label trashed map', error) }
+    }
     saveRecentProjects(loadRecentProjects().filter(project => project.id !== projectId))
     if (readResumeProjectId(SETTINGS_FILE) === projectId) writeResumeProjectId(SETTINGS_FILE, null)
+  })
+
+  // ─── Recently Deleted ────────────────────────────────────────────────────
+  ipcMain.handle('project:list-trash', () => listTrash(DATA_DIR))
+  ipcMain.handle('project:restore-trash', (_event, trashId: string) => {
+    const entry = listTrash(DATA_DIR).find(candidate => candidate.trashId === trashId)
+    if (!entry) throw new Error('That map is no longer in Recently Deleted.')
+    const owner = findProjectByRoot(loadRecentProjects(), entry.config.rootPath)
+    if (owner && owner.id !== entry.config.id) {
+      throw new Error(`Its folder now belongs to the project "${owner.name}". Delete that project first, then restore this one.`)
+    }
+    const config = restoreTrash(DATA_DIR, trashId)
+    upsertRecentProject({ ...config, openedAt: Date.now(), hiddenFromRecents: false })
+    return refreshProjectDiskState(loadRecentProjects().find(project => project.id === config.id)!)
+  })
+  ipcMain.handle('project:purge-trash', (_event, trashId: string) => {
+    fs.rmSync(trashEntryPath(DATA_DIR, trashId), { recursive: true, force: true })
+  })
+
+  // ─── Backups, export and import ──────────────────────────────────────────
+  const archdJson = async (path: string, init: RequestInit = {}): Promise<{ status: number; body: any }> => {
+    const response = await fetch(`http://127.0.0.1:${archdPorts.api}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${readDaemonToken()}` },
+    })
+    const text = await response.text()
+    let body: any = null
+    try { body = text ? JSON.parse(text) : null } catch { body = { error: text } }
+    return { status: response.status, body }
+  }
+  const failure = (what: string, body: any) =>
+    new Error(`${what}${typeof body?.error === 'string' && body.error ? `: ${body.error}` : '.'}`)
+
+  ipcMain.handle('project:list-backups', async (_event, projectId: string) => {
+    const { status, body } = await archdJson(`/api/workspace-backups?workspace=${encodeURIComponent(projectId)}`)
+    if (status !== 200) throw failure('Axiom could not list the backups', body)
+    return Array.isArray(body) ? body : []
+  })
+
+  ipcMain.handle('project:restore-backup', async (_event, projectId: string, name: string) => {
+    if (!mainWindow) return false
+    const answer = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Restore', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message: 'Restore this backup?',
+      detail: 'The map goes back to how it was when the backup was taken. The current map is kept as a backup first, so this can be undone. Your code is not touched.',
+    })
+    if (answer.response !== 0) return false
+    const { status, body } = await archdJson('/api/workspace-restore-backup', {
+      method: 'POST', body: JSON.stringify({ workspaceId: projectId, name }),
+    })
+    if (status !== 200) throw failure('Axiom could not restore the backup', body)
+    return true
+  })
+
+  ipcMain.handle('project:export', async (_event, projectId: string) => {
+    const project = loadRecentProjects().find(candidate => candidate.id === projectId)
+    if (!project || !mainWindow) return null
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: `Export the map for ${project.name}`,
+      defaultPath: join(app.getPath('documents'), `${sanitizeProjectName(project.name) || 'project'}.axiommap`),
+      filters: [{ name: 'Axiom map', extensions: ['axiommap'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    // Written beside the target and moved into place, so a failed export
+    // never leaves a half-written map where the user expects one.
+    const partial = `${result.filePath}.partial`
+    fs.rmSync(partial, { force: true })
+    const { status, body } = await archdJson('/api/workspace-export', {
+      method: 'POST', body: JSON.stringify({ workspaceId: projectId, path: partial, manifest: exportManifest(project, app.getVersion()) }),
+    })
+    if (status !== 200) {
+      fs.rmSync(partial, { force: true })
+      throw failure(status === 404 ? 'This project has no map to export yet' : 'Axiom could not export the map', status === 404 ? null : body)
+    }
+    fs.renameSync(partial, result.filePath)
+    return result.filePath
+  })
+
+  ipcMain.handle('project:import', async () => {
+    if (!mainWindow) return null
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: 'Import a map',
+      properties: ['openFile'],
+      filters: [{ name: 'Axiom map', extensions: ['axiommap'] }],
+    })
+    if (picked.canceled || !picked.filePaths[0]) return null
+    const path = picked.filePaths[0]
+    let { status, body } = await archdJson('/api/workspace-import', { method: 'POST', body: JSON.stringify({ path, replace: false }) })
+    if (status === 409 && body?.error === 'exists') {
+      const name = loadRecentProjects().find(project => project.id === body.manifest?.workspaceId)?.name ?? body.manifest?.name ?? 'this project'
+      const answer = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['Replace', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        message: `Replace the map for ${name}?`,
+        detail: 'This computer already has a map for this project. The current one moves to Recently Deleted, where it stays for 30 days.',
+      })
+      if (answer.response !== 0) return null
+      ;({ status, body } = await archdJson('/api/workspace-import', { method: 'POST', body: JSON.stringify({ path, replace: true }) }))
+    }
+    if (status === 409) throw new Error('This map was exported by a newer version of Axiom. Update Axiom, then import it again.')
+    if (status !== 200) throw failure('Axiom could not import the map', body)
+    const manifest = body.manifest as Record<string, string>
+    const id = manifest.workspaceId
+    // The replaced map went to Recently Deleted; label it so it is listed there.
+    const replaced = loadRecentProjects().find(project => project.id === id)
+    if (typeof body.replacedTrashPath === 'string' && body.replacedTrashPath && replaced) {
+      try { writeTrashMeta(body.replacedTrashPath, replaced) } catch (error) { console.error('[main] could not label replaced map', error) }
+    }
+
+    // Where does the code live on this computer? The exported location if it
+    // is here and free; otherwise ask. Without an answer the map is still
+    // imported and asks for its folder like a moved project.
+    const ownedByOther = (root: string) => {
+      const owner = findProjectByRoot(loadRecentProjects(), root)
+      return owner && owner.id !== id ? owner : null
+    }
+    const exportedRoot = manifest.rootPath ?? ''
+    let rootPath = exportedRoot
+    let located = Boolean(exportedRoot) && fs.existsSync(exportedRoot) && !ownedByOther(exportedRoot)
+    let prompt = `Where is the code for ${manifest.name || 'this project'}?`
+    while (!located) {
+      const chosen = await dialog.showOpenDialog(mainWindow, { title: prompt, properties: ['openDirectory'], buttonLabel: 'Use This Folder' })
+      const folder = chosen.filePaths[0]
+      if (chosen.canceled || !folder) break
+      const owner = ownedByOther(folder)
+      if (owner) { prompt = `That folder belongs to "${owner.name}". Choose the code for ${manifest.name || 'this project'}`; continue }
+      rootPath = folder
+      located = true
+    }
+    if (!located && (!exportedRoot || ownedByOther(exportedRoot))) {
+      // Nowhere to put it. Undo the import rather than orphan the map.
+      await removeProjectData({ projectId: id, dataDir: DATA_DIR, apiPort: archdPorts.api,
+        request: (input, init) => fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${readDaemonToken()}` } }),
+      })
+      return null
+    }
+    const config = importedProjectConfig(manifest, rootPath)
+    if (located && manifest.rootPath && config.rootPath !== manifest.rootPath) {
+      const moved = await archdJson('/api/workspace-relocate', {
+        method: 'POST', body: JSON.stringify({ workspaceId: id, fromPath: manifest.rootPath, toPath: config.rootPath }),
+      })
+      if (moved.status !== 200) throw failure('The map was imported, but Axiom could not point it at the new folder', moved.body)
+    }
+    const existing = loadRecentProjects().find(project => project.id === id)
+    const next = existing ? { ...existing, ...config } : config
+    if (existing) updateRegistryProject(id, () => next)
+    else upsertRecentProject(next)
+    return refreshProjectDiskState(next)
   })
 
   // Send a mutation intent to archd
@@ -1541,6 +1706,8 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false)
 
   checkWhatsNew()
+  // Recently Deleted keeps maps for 30 days.
+  try { purgeExpiredTrash(DATA_DIR) } catch (error) { console.error('[main] trash purge failed', error) }
   createWindow()
   setupIPC()
   refreshApplicationMenu()

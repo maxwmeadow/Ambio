@@ -207,6 +207,7 @@ Keyboard accelerators then work everywhere.
 - Reveal Project in Finder/Explorer
 - Re-index Project
 - ---
+- Export Map… / Import Map… (`.axiommap`, §6 Protecting maps)
 - Export ▸ Canvas as PNG / SVG, Architecture as Markdown / Mermaid *(later)*
 - ---
 - Close Project `⇧⌘W` (back to the launcher)
@@ -333,6 +334,13 @@ Keyboard accelerators then work everywhere.
 - ✅ archd rejects non-loopback Host headers (DNS rebinding); older token files tightened to 0600
 - ✅ SECURITY.md documents the security model and its one known boundary (the runtime-adapter port)
 
+### Protecting maps (2026-09-30)
+A map holds hours of human and agent work (systems, layout, sheets, history) that re-indexing cannot recreate.
+- ✅ Recently Deleted: deleting a project map moves it to `~/.axiom/data/.trash` for 30 days (archd `DELETE /api/workspace/:id?trash=1`, or a local move when archd is down). The launcher lists them (Import a map · Recently deleted (n)) with Restore and Delete Forever; expired entries are purged at startup. Restoring refuses to take over a folder another project now owns
+- ✅ Daily backups: when a project opens, archd takes a `VACUUM INTO` snapshot if the last one is over 24 h old, keeping 7 (`<project>/backups/`). Project Settings → Map backups lists them; Restore snapshots the current map first (`before-restore-*`), so a restore can be undone
+- ✅ Export / Import: File → Export Map… writes a `.axiommap` (a SQLite snapshot plus a manifest table: project id, name, folder, settings, app and schema version). Import refuses maps from a newer schema, asks before replacing an existing map (the old one goes to Recently Deleted), uses the exported folder when it exists here or asks where the code lives, and rebases exclusions. Moves a project to a new computer; also a manual backup
+- Not covered: backups live in the same data folder as the map, so a lost disk loses both. Export is the off-machine answer until sync exists
+
 ### First launch
 - ✅ Single-instance lock; launching again focuses the existing window
 - ✅ Application menu (§5): native on macOS, drawn in the title bar on Windows/Linux
@@ -383,3 +391,21 @@ Keyboard accelerators then work everywhere.
 - ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
 - ✅ Settings → Privacy & Data → Delete all Axiom data (native confirmation, stops archd, restarts fresh)
 - ⬜ Document uninstall per OS in the README
+
+## 7. Design notes (not built)
+
+### Maps committed to the repo (`.axiom/` in the project)
+The question: should a project's map live in the repository, so cloning a repo brings its architecture with it?
+
+- **For:** teams and open-source projects share one map; the map is versioned with the code it describes; agents on CI or another machine read the same systems; strong growth loop (a public repo's `.axiom/` advertises Axiom).
+- **Against:** SQLite does not merge. Two branches that both move a node conflict as a binary file. A text format (one JSON/YAML file per system and sheet, stable ordering, positions rounded) would merge, but it means a serialization layer and a merge story for every table. Index data (symbols, edges) is derived and must stay out of git; only human intent (systems, names, layout, sheets, decisions) belongs in the repo.
+- **Business overlap:** shared maps are the core of the paid collaboration tier. A committed `.axiom/` is free collaboration through git. That is fine and probably good for adoption (it is how people will first share maps), as long as the paid tier offers what git cannot: live presence, comments, review workflows, cross-repo maps, hosted agents, org history. Decide deliberately before building either.
+- **Suggested shape if pursued:** `.axiom/map/` text files for intent only, written on save and read on open; the local SQLite stays the working copy and index; a `.gitattributes` merge driver later. Opt-in per project ("Share this map with the repo"). Start read-only (import a committed map) before write-back.
+
+### Multiple windows
+Today one window shows one project; opening another replaces it.
+
+- **Needed for:** comparing two projects, a map on one monitor and review on another, two repos an agent works across.
+- **Cost:** main assumes one `mainWindow` and one `activeProject` (IPC handlers, menu state, the token-injection hook's `webContentsId` check, the MCP `active_project.json` pointer, dock/jump list, resume). Each becomes per-window state. archd already serves many workspaces at once, so the backend is ready.
+- **Open decisions:** which project agents act on when two are open (today `active_project.json` names one; agents could instead name the project, or follow the focused window); whether a second window of the *same* project is allowed (probably yes, read-only views like review); window restore on relaunch.
+- **Suggested order:** make agent project selection explicit first (it is also needed for multi-root), then per-window state in main, then File → New Window.

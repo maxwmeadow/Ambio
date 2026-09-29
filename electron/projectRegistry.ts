@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import fs from 'fs'
 import { dirname, join, relative, resolve, sep } from 'path'
-import type { ProjectConfig } from '../src/shared/types'
+import type { ProjectConfig, TrashedProject } from '../src/shared/types'
 
 export function readResumeProjectId(settingsFile: string): string | null {
   try {
@@ -127,6 +127,79 @@ export interface RemoveProjectDataOptions {
   dataDir: string
   apiPort: number
   request?: typeof fetch
+  /** Move the map to data/.trash instead of deleting it. */
+  trash?: boolean
+}
+
+export const TRASH_DIR = '.trash'
+export const TRASH_DAYS = 30
+
+export type TrashEntry = TrashedProject
+
+/** Maps in the trash, newest first; entries without metadata are skipped. */
+export function listTrash(dataDir: string): TrashEntry[] {
+  const root = join(dataDir, TRASH_DIR)
+  let names: string[] = []
+  try { names = fs.readdirSync(root) } catch { return [] }
+  const entries: TrashEntry[] = []
+  for (const trashId of names) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(join(root, trashId, 'trash.json'), 'utf8')) as { config: ProjectConfig; deletedAt: number }
+      if (!meta?.config?.id || typeof meta.deletedAt !== 'number') continue
+      entries.push({ trashId, config: meta.config, deletedAt: meta.deletedAt, expiresAt: meta.deletedAt + TRASH_DAYS * 86_400_000 })
+    } catch { /* not ours */ }
+  }
+  return entries.sort((left, right) => right.deletedAt - left.deletedAt)
+}
+
+export function trashEntryPath(dataDir: string, trashId: string): string {
+  if (!/^[A-Za-z0-9._-]{1,200}$/.test(trashId) || trashId.startsWith('.')) throw new Error('Invalid trash entry.')
+  return join(dataDir, TRASH_DIR, trashId)
+}
+
+/** Put a trashed map back. Fails if the project already has a map again. */
+export function restoreTrash(dataDir: string, trashId: string): ProjectConfig {
+  const source = trashEntryPath(dataDir, trashId)
+  const meta = JSON.parse(fs.readFileSync(join(source, 'trash.json'), 'utf8')) as { config: ProjectConfig }
+  const target = validatedProjectDataDir(dataDir, meta.config.id)
+  if (fs.existsSync(target)) throw new Error(`"${meta.config.name}" already has a map. Delete it before restoring this one.`)
+  fs.rmSync(join(source, 'trash.json'), { force: true })
+  fs.renameSync(source, target)
+  return meta.config
+}
+
+/** Record what a trashed map was so the launcher can list and restore it. */
+export function writeTrashMeta(trashPath: string, config: ProjectConfig, deletedAt = Date.now()): void {
+  fs.writeFileSync(join(trashPath, 'trash.json'), JSON.stringify({ config, deletedAt }, null, 2))
+}
+
+/**
+ * Delete trash entries older than TRASH_DAYS. Entries without metadata (the
+ * app quit between the move and writing trash.json) age by the time in their
+ * name, `<id>-<ms>`, which archd and the local fallback both write; anything
+ * else is left alone. Returns how many went.
+ */
+export function purgeExpiredTrash(dataDir: string, now = Date.now()): number {
+  const root = join(dataDir, TRASH_DIR)
+  let names: string[] = []
+  try { names = fs.readdirSync(root) } catch { return 0 }
+  const listed = new Map(listTrash(dataDir).map(entry => [entry.trashId, entry.expiresAt]))
+  const cutoff = TRASH_DAYS * 86_400_000
+  let purged = 0
+  for (const name of names) {
+    let expiresAt = listed.get(name)
+    if (expiresAt === undefined) {
+      const stamp = /-(\d{13})$/.exec(name)
+      if (!stamp) continue
+      expiresAt = Number(stamp[1]) + cutoff
+    }
+    if (expiresAt > now) continue
+    try {
+      fs.rmSync(trashEntryPath(dataDir, name), { recursive: true, force: true })
+      purged++
+    } catch { /* not a name we write */ }
+  }
+  return purged
 }
 
 /**
@@ -140,17 +213,24 @@ export async function removeProjectData({
   dataDir,
   apiPort,
   request = fetch,
-}: RemoveProjectDataOptions): Promise<void> {
+  trash = false,
+}: RemoveProjectDataOptions): Promise<string | null> {
   const projectDataDir = validatedProjectDataDir(dataDir, projectId)
   let daemonUnavailable = false
+  let trashPath: string | null = null
   try {
     const response = await request(
-      `http://127.0.0.1:${apiPort}/api/workspace/${encodeURIComponent(projectId)}`,
+      `http://127.0.0.1:${apiPort}/api/workspace/${encodeURIComponent(projectId)}${trash ? '?trash=1' : ''}`,
       { method: 'DELETE' },
     )
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
       throw new Error(`Axiom could not delete the project data (${response.status})${detail ? `: ${detail}` : '.'}`)
+    }
+    if (trash) {
+      // archd moved the folder into the trash and reports where.
+      const body = await response.json().catch(() => null) as { trashPath?: unknown } | null
+      if (typeof body?.trashPath === 'string' && body.trashPath) trashPath = body.trashPath
     }
   } catch (error) {
     // HTTP responses are authoritative failures. Connection failures mean the
@@ -159,13 +239,54 @@ export async function removeProjectData({
     daemonUnavailable = true
   }
 
-  // Current archd deletes the directory itself. This also supports users whose
-  // running daemon predates that contract and only closed its connection.
+  // Current archd deletes (or trashes) the directory itself. This also covers
+  // a stopped daemon, and one that predates that contract.
   if (daemonUnavailable || fs.existsSync(projectDataDir)) {
-    fs.rmSync(projectDataDir, { recursive: true, force: true })
+    if (trash && fs.existsSync(projectDataDir)) {
+      fs.mkdirSync(join(dataDir, TRASH_DIR), { recursive: true })
+      trashPath = join(dataDir, TRASH_DIR, `${projectId}-${Date.now()}`)
+      fs.renameSync(projectDataDir, trashPath)
+    } else {
+      fs.rmSync(projectDataDir, { recursive: true, force: true })
+    }
   }
   if (fs.existsSync(projectDataDir)) {
     throw new Error('Axiom could not verify that the project data was deleted.')
   }
   clearActiveProjectPointer(dataDir, projectId)
+  return trashPath
+}
+
+/** What an exported .axiommap carries besides the map itself. */
+export function exportManifest(config: ProjectConfig, appVersion: string): Record<string, string> {
+  const { id: _id, rootMissing: _missing, hiddenFromRecents: _hidden, ...portable } = config
+  return { name: config.name, rootPath: config.rootPath, appVersion, config: JSON.stringify(portable) }
+}
+
+/**
+ * The registry entry for an imported map. It keeps the exported project's id
+ * (the map's rows carry it) and settings, pointed at wherever the code lives
+ * on this computer.
+ */
+export function importedProjectConfig(manifest: Record<string, string>, rootPath: string, now = Date.now()): ProjectConfig {
+  let saved: Partial<ProjectConfig> = {}
+  try {
+    const parsed = JSON.parse(manifest.config ?? '{}') as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) saved = parsed as Partial<ProjectConfig>
+  } catch { /* an older or hand-made file: defaults below */ }
+  const exportedRoot = typeof manifest.rootPath === 'string' && manifest.rootPath ? manifest.rootPath : rootPath
+  const base: ProjectConfig = {
+    languageOverrides: {},
+    layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
+    ...saved,
+    id: manifest.workspaceId,
+    name: manifest.name || saved.name || rootPath.split(/[/\\]/).pop() || 'Project',
+    rootPath: exportedRoot,
+    ignoredPaths: Array.isArray(saved.ignoredPaths) ? saved.ignoredPaths.filter(path => typeof path === 'string') : [],
+    openedAt: now,
+    hiddenFromRecents: false,
+  }
+  // The map was indexed before it was exported, so it opens straight to the workbench.
+  if (!base.workbenchOpenedAt) base.workbenchOpenedAt = now
+  return sameProjectRoot(exportedRoot, rootPath) ? { ...base, rootMissing: false } : relocateProjectConfig(base, rootPath)
 }

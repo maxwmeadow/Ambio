@@ -643,6 +643,8 @@ export default function App() {
       }).catch(error => raiseFailure('reindex', 'Could not re-index this project', String(error)))
     },
     'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
+    'project.exportMap': () => { if (currentProject) void exportMap(currentProject) },
+    'project.importMap': () => { void importMap() },
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
     'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
@@ -672,6 +674,28 @@ export default function App() {
     if (order.length < 2) return
     const index = Math.max(0, order.indexOf(activeSheetId))
     void openSheet(currentProject.id, order[(index + direction + order.length) % order.length])
+  }
+
+  async function exportMap(project: ProjectConfig) {
+    try {
+      const path = await window.axiom.exportMap(project.id)
+      if (path) raiseNotice('map-exported', 'Map exported', `Saved to ${path}. Import it on any computer with File → Import Map.`)
+    } catch (error) {
+      raiseFailure('map-exported', 'Could not export the map', error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  // An imported map may replace the one that is open, so always reopen.
+  async function importMap() {
+    try {
+      const config = await window.axiom.importMap()
+      if (!config) return
+      if (currentProject) await closeProject()
+      setProjectSettingsFor(null)
+      await routeProjectBySourceBoundaryState(config)
+    } catch (error) {
+      raiseFailure('map-imported', 'Could not import the map', error instanceof Error ? error.message : String(error))
+    }
   }
 
   // Something asked Axiom to open a project while it was running.
@@ -732,6 +756,13 @@ export default function App() {
         baseConfig={projectSettingsFor}
         backLabel={editingOpenProject ? 'Canvas' : 'Projects'}
         onReindex={editingOpenProject ? () => { setProjectSettingsFor(null); emitCommand('project.reindex') } : undefined}
+        onBackupRestored={() => {
+          const restored = projectSettingsFor
+          setProjectSettingsFor(null)
+          // The open map was swapped underneath the canvas; reopen it.
+          if (editingOpenProject) void closeProject().then(() => routeProjectBySourceBoundaryState(restored))
+          else raiseNotice('backup-restored', 'Backup restored', `${restored.name} opens with the restored map.`)
+        }}
         onCancel={() => setProjectSettingsFor(null)}
         onConfirm={updated => {
           setProjectSettingsFor(null)

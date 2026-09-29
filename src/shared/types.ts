@@ -195,6 +195,21 @@ export interface ProjectConfig {
   agentReadyAt?: number       // timestamp when raw index finished and agent can start
 }
 
+/** A deleted project's map, kept in Recently Deleted for 30 days. */
+export interface TrashedProject {
+  trashId: string
+  config: ProjectConfig
+  deletedAt: number
+  expiresAt: number
+}
+
+/** One automatic daily backup of a project's map. */
+export interface MapBackup {
+  name: string
+  createdAt: number
+  bytes: number
+}
+
 // ─── Go archd backend types ─────────────────────────────────────────────────
 // These match the JSON structs in archd-go/internal/db/store.go exactly.
 

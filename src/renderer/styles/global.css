@@ -4768,8 +4768,9 @@ select.axiom-inspector-input {
 
 .axiom-launcher__support {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   margin-top: 10px;
   color: #69746f;
   font-size: 12px;
@@ -4777,6 +4778,7 @@ select.axiom-inspector-input {
 
 .axiom-launcher__support button {
   padding: 2px 0;
+  white-space: nowrap;
   color: #46534f;
   text-decoration: underline;
   text-decoration-color: rgba(70, 83, 79, 0.35);
@@ -6589,6 +6591,64 @@ select.axiom-inspector-input {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.axiom-launcher__map-notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--launcher-accent-dark, #32655d);
+  border-left-width: 3px;
+  background: #dfe6df;
+  color: var(--launcher-ink, #26332f);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Recently Deleted: one row per map, with Delete Forever and Restore. */
+.axiom-trash-modal {
+  width: min(560px, 100%);
+}
+
+.axiom-trash-modal__empty {
+  margin: 0;
+  color: #5a6661;
+  font-size: 13px;
+}
+
+.axiom-trash-modal__list {
+  margin: 0;
+  padding: 0;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--launcher-rule-soft, #d5d2c7);
+}
+
+.axiom-trash-modal__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--launcher-rule-soft, #d5d2c7);
+}
+
+.axiom-trash-modal__copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.axiom-trash-modal__copy small {
+  overflow: hidden;
+  color: #5a6661;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Proposal review is a decision surface, not the compact first-index status

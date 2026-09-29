@@ -175,7 +175,9 @@ func (s *Server) openDB(workspaceID string) (*sql.DB, error) {
 }
 
 func validWorkspaceID(workspaceID string) bool {
-	if workspaceID == "" || workspaceID == "." || workspaceID == ".." || len(workspaceID) > 128 {
+	// A leading dot is reserved for archd's own folders in the data directory
+	// (.trash), which must never be opened as a workspace.
+	if workspaceID == "" || strings.HasPrefix(workspaceID, ".") || len(workspaceID) > 128 {
 		return false
 	}
 	for _, char := range workspaceID {
@@ -348,6 +350,10 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace-relocate", s.handleWorkspaceRelocate)
 	mux.HandleFunc("/api/workspace-reindex", s.handleWorkspaceReindex)
 	mux.HandleFunc("/api/workspace-index-cancel", s.handleWorkspaceIndexCancel)
+	mux.HandleFunc("/api/workspace-backups", s.handleWorkspaceBackups)
+	mux.HandleFunc("/api/workspace-restore-backup", s.handleWorkspaceRestoreBackup)
+	mux.HandleFunc("/api/workspace-export", s.handleWorkspaceExport)
+	mux.HandleFunc("/api/workspace-import", s.handleWorkspaceImport)
 	mux.HandleFunc("/api/workspace/", s.handleWorkspaceByID)
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)
@@ -529,6 +535,15 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
 	}
 
+	// A project in use is never more than a day behind its newest backup.
+	go func() {
+		if taken, err := backupIfDue(sqlDB, filepath.Join(s.dataDir, wsID), time.Now()); err != nil {
+			log.Printf("api: backup %s: %v", wsID, err)
+		} else if taken {
+			log.Printf("api: backed up workspace %s", wsID)
+		}
+	}()
+
 	jsonOK(w, map[string]any{"workspaceId": wsID, "rootId": rootID})
 }
 
@@ -543,6 +558,17 @@ func (s *Server) handleWorkspaceByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != http.MethodDelete {
 		http.NotFound(w, r)
+		return
+	}
+	// ?trash=1 keeps the map recoverable; see trashWorkspace.
+	if r.URL.Query().Get("trash") == "1" {
+		trashPath, err := s.trashWorkspace(workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log.Printf("[api] workspace %s moved to trash", workspaceID)
+		jsonOK(w, map[string]string{"trashed": workspaceID, "trashPath": trashPath})
 		return
 	}
 	if err := s.deleteWorkspace(workspaceID); err != nil {

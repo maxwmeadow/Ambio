@@ -12,6 +12,8 @@ export type CommandId =
   | 'project.new'
   | 'project.open'
   | 'project.reveal'
+  | 'project.exportMap'
+  | 'project.importMap'
   | 'project.clearRecent'
   | 'go.floor'
   | 'go.nextSheet'
@@ -70,6 +72,8 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'project.new': { id: 'project.new', label: 'New Project…', accelerator: 'CmdOrCtrl+N' },
   'project.open': { id: 'project.open', label: 'Open Folder…', accelerator: 'CmdOrCtrl+O' },
   'project.reveal': { id: 'project.reveal', label: 'Reveal Project Folder', needsProject: true },
+  'project.exportMap': { id: 'project.exportMap', label: 'Export Map…', needsProject: true },
+  'project.importMap': { id: 'project.importMap', label: 'Import Map…' },
   'project.settings': { id: 'project.settings', label: 'Project Settings…', needsProject: true },
   'project.reindex': { id: 'project.reindex', label: 'Re-index Project', needsProject: true },
   'project.clearRecent': { id: 'project.clearRecent', label: 'Clear Recently Opened' },
@@ -148,7 +152,8 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'file', label: 'File', entries: [
       command('project.new'), command('project.open'), { kind: 'recent' }, separator,
-      command('project.settings'), command('project.reindex'), command('project.reveal'), command('project.close'),
+      command('project.settings'), command('project.reindex'), command('project.reveal'), separator,
+      command('project.exportMap'), command('project.importMap'), separator, command('project.close'),
       ...(mac ? [] : [separator, command('app.settings'), separator, role('quit', 'Exit', 'Alt+F4')]),
     ],
   })

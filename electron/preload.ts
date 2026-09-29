@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { ProjectConfig, WsMessage } from '../src/shared/types'
+import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
 
@@ -27,6 +27,13 @@ contextBridge.exposeInMainWorld('axiom', {
   /** Ask for a moved project's new folder; null when the user cancels. */
   relocateProject: (projectId: string): Promise<ProjectConfig | null> =>
     ipcRenderer.invoke('project:relocate', projectId),
+  listTrash: (): Promise<TrashedProject[]> => ipcRenderer.invoke('project:list-trash'),
+  restoreTrash: (trashId: string): Promise<ProjectConfig> => ipcRenderer.invoke('project:restore-trash', trashId),
+  purgeTrash: (trashId: string): Promise<void> => ipcRenderer.invoke('project:purge-trash', trashId),
+  listBackups: (projectId: string): Promise<MapBackup[]> => ipcRenderer.invoke('project:list-backups', projectId),
+  restoreBackup: (projectId: string, name: string): Promise<boolean> => ipcRenderer.invoke('project:restore-backup', projectId, name),
+  exportMap: (projectId: string): Promise<string | null> => ipcRenderer.invoke('project:export', projectId),
+  importMap: (): Promise<ProjectConfig | null> => ipcRenderer.invoke('project:import'),
 
   setProjectHidden: (projectId: string, hidden: boolean): Promise<ProjectConfig> =>
     ipcRenderer.invoke('project:set-hidden', projectId, hidden),
@@ -275,6 +282,13 @@ declare global {
       listRecentProjects: () => Promise<ProjectConfig[]>
       removeProject: (projectId: string) => Promise<void>
       relocateProject: (projectId: string) => Promise<ProjectConfig | null>
+      listTrash: () => Promise<TrashedProject[]>
+      restoreTrash: (trashId: string) => Promise<ProjectConfig>
+      purgeTrash: (trashId: string) => Promise<void>
+      listBackups: (projectId: string) => Promise<MapBackup[]>
+      restoreBackup: (projectId: string, name: string) => Promise<boolean>
+      exportMap: (projectId: string) => Promise<string | null>
+      importMap: () => Promise<ProjectConfig | null>
       setProjectHidden: (projectId: string, hidden: boolean) => Promise<ProjectConfig>
       updateProject: (projectId: string, patch: Partial<Pick<ProjectConfig, 'name' | 'ignoredPaths' | 'sourceBoundariesReviewedAt'>>) => Promise<ProjectConfig>
       getResumeProjectId: () => Promise<string | null>

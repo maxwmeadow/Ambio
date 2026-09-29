@@ -446,6 +446,50 @@
   border-color: #2f5f56;
 }
 
+.axiom-project-settings__backups {
+  margin: 12px 0 0;
+  color: #5f6b66;
+  font-size: 12.5px;
+}
+
+.axiom-project-settings__backups summary {
+  cursor: pointer;
+  color: #1f2a26;
+}
+
+.axiom-project-settings__backups p {
+  margin: 6px 0;
+}
+
+.axiom-project-settings__backups ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.axiom-project-settings__backups li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.axiom-project-settings__backups li span {
+  flex: 1;
+}
+
+.axiom-project-settings__backups button {
+  padding: 3px 10px;
+  border: 1px solid #8a948f;
+  background: #f7f6f1;
+  color: #1f2a26;
+  font-size: 12px;
+}
+
+.axiom-project-settings__backup-error {
+  color: #713c35;
+}
+
 /* ── Canvas right-click menu ──────────────────────────────────────────────── */
 
 .axiom-context-menu {

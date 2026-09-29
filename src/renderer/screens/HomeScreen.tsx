@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ProjectConfig } from '../../shared/types'
+import type { ProjectConfig, TrashedProject } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
 import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { handleLauncherKey, launcherProjects } from './homeScreenModel'
@@ -57,6 +57,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   const [missingProject, setMissingProject] = useState<ProjectConfig | null>(null)
   const [locating, setLocating] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  // Recently Deleted, and the outcome of an export shown in the list's notice slot.
+  const [trash, setTrash] = useState<TrashedProject[]>([])
+  const [trashOpen, setTrashOpen] = useState(false)
+  const [trashBusy, setTrashBusy] = useState<string | null>(null)
+  const [trashError, setTrashError] = useState<string | null>(null)
+  const [mapNotice, setMapNotice] = useState<string | null>(null)
 
   // New Project flow
   const [creating, setCreating] = useState(false)
@@ -217,6 +223,51 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     }
   }
 
+  const refreshTrash = () => {
+    void window.axiom?.listTrash?.().then(setTrash).catch(() => setTrash([]))
+  }
+  useEffect(refreshTrash, [])
+
+  const restoreFromTrash = async (entry: TrashedProject) => {
+    setTrashBusy(entry.trashId)
+    setTrashError(null)
+    try {
+      const restored = await window.axiom.restoreTrash(entry.trashId)
+      setRecentProjects(previous => [restored, ...previous.filter(project => project.id !== restored.id)])
+      setTrash(previous => previous.filter(item => item.trashId !== entry.trashId))
+      setShowAll(true)
+    } catch (error) {
+      setTrashError(error instanceof Error ? error.message : 'Axiom could not restore that map.')
+    } finally {
+      setTrashBusy(null)
+    }
+  }
+
+  const purgeFromTrash = async (entry: TrashedProject) => {
+    setTrashBusy(entry.trashId)
+    setTrashError(null)
+    try {
+      await window.axiom.purgeTrash(entry.trashId)
+      setTrash(previous => previous.filter(item => item.trashId !== entry.trashId))
+    } catch (error) {
+      setTrashError(error instanceof Error ? error.message : 'Axiom could not delete that map.')
+    } finally {
+      setTrashBusy(null)
+    }
+  }
+
+  const exportProjectMap = async (project: ProjectConfig) => {
+    setMenuProjectId(null)
+    setRemoveError(null)
+    setMapNotice(null)
+    try {
+      const path = await window.axiom.exportMap(project.id)
+      if (path) setMapNotice(`Exported the map for ${project.name} to ${path}`)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Axiom could not export that map.')
+    }
+  }
+
   const setHidden = async (project: ProjectConfig, hidden: boolean) => {
     setMenuProjectId(null)
     if (!window.axiom) return
@@ -248,6 +299,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
       clearProjectLocalState(projectToDelete.id)
       setRecentProjects(previous => previous.filter(project => project.id !== projectToDelete.id))
       setProjectToDelete(null)
+      refreshTrash()
     } catch (error) {
       setRemoveError(error instanceof Error
         ? error.message
@@ -410,6 +462,9 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
               {removeError && (
                 <div className="axiom-launcher__remove-error" role="alert">{removeError}</div>
               )}
+              {mapNotice && !removeError && (
+                <div className="axiom-launcher__map-notice" role="status">{mapNotice}</div>
+              )}
 
               {filteredProjects.length === 0 ? (
                 <div className="axiom-launcher__empty-search" role="status">
@@ -482,6 +537,9 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                                   Change folder location…
                                 </button>
                               )}
+                              <button role="menuitem" onClick={() => void exportProjectMap(project)}>
+                                Export map…
+                              </button>
                               {project.hiddenFromRecents
                                 ? <button role="menuitem" onClick={() => void setHidden(project, false)}>Show in recents</button>
                                 : <button role="menuitem" onClick={() => void setHidden(project, true)}>Hide from recents</button>}
@@ -522,7 +580,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             <span aria-hidden="true" />
             <p><strong>LOCAL WORKSPACE</strong> Project indexes and layout state remain on this machine.</p>
           </footer>
-          {window.axiom && <SupportLinks />}
+          {window.axiom && <SupportLinks trashCount={trash.length} onOpenTrash={() => { setTrashError(null); setTrashOpen(true) }} />}
         </section>
       </div>
 
@@ -558,8 +616,9 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             </div>
 
             <p className="axiom-remove-modal__body">
-              Axiom will forget this project: its systems, layout, sheets, and change history are deleted and cannot be
-              recovered. Your code on disk is not touched. To only tidy this list, use Hide from recents instead.
+              Axiom will forget this project: its systems, layout, sheets, and change history move to Recently Deleted,
+              where you can restore them for 30 days. Your code on disk is not touched. To only tidy this list, use
+              Hide from recents instead.
             </p>
 
             {removeError && <div className="axiom-create__error" role="alert">{removeError}</div>}
@@ -581,6 +640,59 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                 {removingProjectId !== null ? 'Deleting…' : 'Delete Map'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {trashOpen && (
+        <div className="axiom-create__scrim" onClick={() => !trashBusy && setTrashOpen(false)}>
+          <div
+            className="axiom-remove-modal axiom-trash-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="axiom-trash-title"
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => { if (event.key === 'Escape' && !trashBusy) setTrashOpen(false) }}
+            tabIndex={-1}
+          >
+            <div className="axiom-remove-modal__head">
+              <span className="axiom-remove-modal__kicker">RECENTLY DELETED</span>
+              <h3 id="axiom-trash-title">Deleted project maps</h3>
+              <button className="axiom-remove-modal__close" onClick={() => setTrashOpen(false)} aria-label="Close" disabled={trashBusy !== null}>×</button>
+            </div>
+            <p className="axiom-remove-modal__body">
+              Maps stay here for 30 days after you delete them, then Axiom removes them for good.
+            </p>
+            {trashError && <div className="axiom-create__error" role="alert">{trashError}</div>}
+            {trash.length === 0
+              ? <p className="axiom-trash-modal__empty">Nothing here.</p>
+              : (
+                <ul className="axiom-trash-modal__list" aria-label="Deleted project maps">
+                  {trash.map(entry => (
+                    <li key={entry.trashId}>
+                      <span className="axiom-trash-modal__copy">
+                        <strong>{entry.config.name}</strong>
+                        <small title={entry.config.rootPath}>{entry.config.rootPath}</small>
+                        <small>Deleted {timeAgo(entry.deletedAt)} · {daysLeft(entry.expiresAt)}</small>
+                      </span>
+                      <button
+                        className="axiom-remove-modal__cancel"
+                        onClick={() => void purgeFromTrash(entry)}
+                        disabled={trashBusy !== null}
+                      >
+                        Delete Forever
+                      </button>
+                      <button
+                        className="axiom-create__go"
+                        onClick={() => void restoreFromTrash(entry)}
+                        disabled={trashBusy !== null}
+                      >
+                        {trashBusy === entry.trashId ? 'Working…' : 'Restore'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
         </div>
       )}
@@ -692,7 +804,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   )
 }
 
-function SupportLinks() {
+function daysLeft(expiresAt: number): string {
+  const days = Math.max(0, Math.ceil((expiresAt - Date.now()) / 86_400_000))
+  return days <= 1 ? 'removed within a day' : `${days} days left`
+}
+
+function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenTrash: () => void }) {
   const [copied, setCopied] = useState(false)
   const update = useUpdateStatus()
   return (
@@ -704,6 +821,14 @@ function SupportLinks() {
               ? `Restart to update to ${update.version}`
               : `Download Axiom ${update.version}`}
           </button>
+          <span aria-hidden="true">·</span>
+        </>
+      )}
+      <button type="button" onClick={() => emitCommand('project.importMap')}>Import a map</button>
+      <span aria-hidden="true">·</span>
+      {trashCount > 0 && (
+        <>
+          <button type="button" onClick={onOpenTrash}>Recently deleted ({trashCount})</button>
           <span aria-hidden="true">·</span>
         </>
       )}

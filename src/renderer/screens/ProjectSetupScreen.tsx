@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ProjectConfig } from '../../shared/types'
+import type { MapBackup, ProjectConfig } from '../../shared/types'
 import { completeSourceBoundaries } from '../../shared/projectLifecycle'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import type { ScopeEstimate } from '../../../electron/preload'
@@ -26,9 +26,11 @@ interface ProjectSetupScreenProps {
   backLabel?: string
   /** Edit mode for an open project: re-read every file without changing scope. */
   onReindex?: () => void
+  /** Edit mode: a backup of the map was restored. */
+  onBackupRestored?: () => void
 }
 
-export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCancel, backLabel = 'Projects', onReindex }: ProjectSetupScreenProps) {
+export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCancel, backLabel = 'Projects', onReindex, onBackupRestored }: ProjectSetupScreenProps) {
   const { rootPath, name: projectName } = baseConfig
   const editing = mode === 'edit'
   const [name, setName] = useState(projectName)
@@ -155,6 +157,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
                     <span>Re-reads every file if the map seems out of date. Systems and layout are kept.</span>
                   </p>
                 )}
+                <MapBackups projectId={baseConfig.id} onRestored={onBackupRestored} />
               </div>
             ) : (
               <div>
@@ -334,3 +337,56 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
 }
 
 
+
+/**
+ * Axiom keeps a copy of each project's map once a day, seven deep. Restoring
+ * one keeps the current map as a backup first, so it can be undone.
+ */
+function MapBackups({ projectId, onRestored }: { projectId: string; onRestored?: () => void }) {
+  const [backups, setBackups] = useState<MapBackup[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const load = useCallback(() => {
+    if (!window.axiom?.listBackups) return
+    window.axiom.listBackups(projectId).then(setBackups).catch(() => setBackups([]))
+  }, [projectId])
+  useEffect(load, [load])
+  if (!backups || backups.length === 0) return null
+
+  const restore = async (backup: MapBackup) => {
+    setBusy(true)
+    setError(null)
+    try {
+      if (await window.axiom.restoreBackup(projectId, backup.name)) {
+        load()
+        onRestored?.()
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Axiom could not restore that backup.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="axiom-project-settings__backups">
+      <summary>Map backups ({backups.length})</summary>
+      <p>A copy of the map is kept once a day for the last seven days. Your code is never part of a backup.</p>
+      {error && <p className="axiom-project-settings__backup-error" role="alert">{error}</p>}
+      <ul>
+        {backups.map(backup => (
+          <li key={backup.name}>
+            <span>{new Date(backup.createdAt).toLocaleString()}{backup.name.startsWith('before-restore') ? ' · before a restore' : ''}</span>
+            <small>{formatBytes(backup.bytes)}</small>
+            <button type="button" onClick={() => void restore(backup)} disabled={busy}>Restore</button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}

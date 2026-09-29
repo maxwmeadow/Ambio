@@ -27,6 +27,10 @@ in the app as "What's New" after updating, so write it for users.
 - A warning before indexing a very large folder, and a Stop button while
   indexing.
 - Clear all Axiom data from Settings.
+- Recently Deleted: a deleted project map can be restored for 30 days.
+- Automatic daily backups of every map, with Restore in Project Settings.
+- Export a project's map to a file and import it on another computer
+  (File → Export Map, Import Map).
 
 ### Changed
 - Axiom runs its agent connection on its own bundled runtime; Node.js no
