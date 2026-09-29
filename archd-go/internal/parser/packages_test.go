@@ -119,3 +119,25 @@ func TestEnvReadsAreNamesWithTheirLines(t *testing.T) {
 		t.Errorf("go env reads: %+v", golang.EnvReads)
 	}
 }
+
+func TestJavaCSharpRubyRustPackagesAndEnv(t *testing.T) {
+	java := parseSource(t, "src/main/java/app/Billing.java", "package app;\nimport java.util.List;\nimport com.stripe.Stripe;\nimport static io.sentry.Sentry.captureException;\nclass Billing { String k = System.getenv(\"STRIPE_SECRET_KEY\"); }\n")
+	if got := packages(java); !reflect.DeepEqual(got, []string{"com.stripe.Stripe", "io.sentry.Sentry.captureException"}) {
+		t.Errorf("java packages: %v", got)
+	}
+	if len(java.EnvReads) != 1 || java.EnvReads[0].Name != "STRIPE_SECRET_KEY" {
+		t.Errorf("java env: %+v", java.EnvReads)
+	}
+	cs := parseSource(t, "Cache.cs", "using System;\nusing StackExchange.Redis;\nclass C { var u = Environment.GetEnvironmentVariable(\"REDIS_URL\"); }\n")
+	if got := packages(cs); !reflect.DeepEqual(got, []string{"StackExchange.Redis"}) {
+		t.Errorf("c# packages: %v", got)
+	}
+	rb := parseSource(t, "app/jobs/upload.rb", "require 'aws-sdk-s3'\nrequire \"json\"\nBUCKET = ENV.fetch('S3_BUCKET')\n")
+	if got := packages(rb); !reflect.DeepEqual(got, []string{"aws-sdk-s3", "json"}) {
+		t.Errorf("ruby packages: %v", got)
+	}
+	rs := parseSource(t, "src/cache.rs", "use std::env;\nuse redis::Commands;\nuse crate::config;\nfn url() -> String { env::var(\"REDIS_URL\").unwrap() }\n")
+	if got := packages(rs); !reflect.DeepEqual(got, []string{"redis"}) {
+		t.Errorf("rust packages: %v", got)
+	}
+}

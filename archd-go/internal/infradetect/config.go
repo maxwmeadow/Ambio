@@ -19,12 +19,15 @@ var ConfigNames = map[string]bool{
 	"docker-compose.yml": true, "docker-compose.yaml": true, "compose.yml": true, "compose.yaml": true,
 	"vercel.json": true, "fly.toml": true, "netlify.toml": true, "render.yaml": true, "railway.json": true, "railway.toml": true,
 	"Dockerfile": true, "Procfile": true,
+	"pom.xml": true, "build.gradle": true, "build.gradle.kts": true, "Gemfile": true, "Cargo.toml": true,
+	"database.yml": true, "application.properties": true, "application.yml": true, "application.yaml": true,
+	"appsettings.json": true, "appsettings.Development.json": true,
 }
 
 // WantsConfig reports whether detection reads a file at this relative path.
 func WantsConfig(relPath string) bool {
 	name := path.Base(relPath)
-	if ConfigNames[name] || strings.HasPrefix(name, "Dockerfile.") {
+	if ConfigNames[name] || strings.HasPrefix(name, "Dockerfile.") || strings.HasSuffix(name, ".csproj") {
 		return true
 	}
 	if strings.HasSuffix(name, ".sql") || name == "schema.prisma" {
@@ -123,6 +126,41 @@ func (d *detection) readManifests() {
 			}
 		}
 	}
+	for _, file := range d.configFiles("pom.xml") {
+		for _, m := range pomDependency.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["java"] = append(declared["java"], declaration{string(m[1]), file})
+		}
+	}
+	for _, file := range d.configFiles("build.gradle", "build.gradle.kts") {
+		for _, m := range gradleDependency.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["java"] = append(declared["java"], declaration{string(m[1]), file})
+		}
+	}
+	for file := range d.in.Config {
+		if strings.HasSuffix(file, ".csproj") {
+			for _, m := range nugetReference.FindAllSubmatch(d.in.Config[file], -1) {
+				declared["cs"] = append(declared["cs"], declaration{string(m[1]), file})
+			}
+		}
+	}
+	for _, file := range d.configFiles("Gemfile") {
+		for _, m := range gemLine.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["rb"] = append(declared["rb"], declaration{string(m[1]), file})
+		}
+	}
+	for _, file := range d.configFiles("Cargo.toml") {
+		inDeps := false
+		for _, raw := range strings.Split(string(d.in.Config[file]), "\n") {
+			line := strings.TrimSpace(raw)
+			if strings.HasPrefix(line, "[") {
+				inDeps = strings.Contains(line, "dependencies")
+				continue
+			}
+			if m := cargoDependency.FindStringSubmatch(line); inDeps && m != nil {
+				declared["rs"] = append(declared["rs"], declaration{strings.ReplaceAll(m[1], "-", "_"), file})
+			}
+		}
+	}
 	for family, packages := range declared {
 		sort.Slice(packages, func(i, j int) bool { return packages[i].pkg+packages[i].file < packages[j].pkg+packages[j].file })
 		for _, decl := range packages {
@@ -142,6 +180,14 @@ func (d *detection) readManifests() {
 		}
 	}
 }
+
+var (
+	pomDependency    = regexp.MustCompile(`(?s)<dependency>\s*<groupId>([^<]+)</groupId>`)
+	gradleDependency = regexp.MustCompile(`(?m)^\s*(?:implementation|api|compile|runtimeOnly)\s*\(?\s*['"]([\w.-]+):`)
+	nugetReference   = regexp.MustCompile(`<PackageReference\s+Include="([^"]+)"`)
+	gemLine          = regexp.MustCompile(`(?m)^\s*gem\s+['"]([\w.-]+)['"]`)
+	cargoDependency  = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=`)
+)
 
 var requirementName = regexp.MustCompile(`[<>=!~\[; ].*$`)
 
@@ -253,6 +299,7 @@ func (d *detection) readConfig() {
 	}
 	d.readVercel()
 	d.readWorkflows()
+	d.readAppConfig()
 	d.readHosting()
 }
 

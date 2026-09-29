@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -192,6 +193,59 @@ var envPatterns = map[string][]*regexp.Regexp{
 	"go": {
 		regexp.MustCompile(`os\.(?:Getenv|LookupEnv)\(\s*"([A-Z_][A-Z0-9_]*)"`),
 	},
+	"java": {
+		regexp.MustCompile(`System\.getenv\(\s*"([A-Z_][A-Z0-9_]*)"`),
+		regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)(?::[^}]*)?\}`),
+	},
+	"csharp": {
+		regexp.MustCompile(`Environment\.GetEnvironmentVariable\(\s*"([A-Z_][A-Z0-9_]*)"`),
+	},
+	"ruby": {
+		regexp.MustCompile(`ENV\[\s*['"]([A-Z_][A-Z0-9_]*)['"]\s*\]`),
+		regexp.MustCompile(`ENV\.fetch\(\s*['"]([A-Z_][A-Z0-9_]*)['"]`),
+	},
+	"rust": {
+		regexp.MustCompile(`env::var(?:_os)?\(\s*"([A-Z_][A-Z0-9_]*)"`),
+		regexp.MustCompile(`env!\(\s*"([A-Z_][A-Z0-9_]*)"`),
+	},
+}
+
+// Imports in languages detection reads as text: the package the line names.
+var textImports = map[string]*regexp.Regexp{
+	// import com.stripe.Stripe; / import static io.sentry.Sentry.captureException;
+	"java": regexp.MustCompile(`(?m)^\s*import\s+(?:static\s+)?([a-zA-Z_][\w.]*)`),
+	// using StackExchange.Redis; (not using var = ...; or using (...))
+	"csharp": regexp.MustCompile(`(?m)^\s*(?:global\s+)?using\s+(?:static\s+)?([A-Z][\w.]*)\s*;`),
+	// require "aws-sdk-s3" / require 'stripe'
+	"ruby": regexp.MustCompile(`(?m)^\s*require\s*\(?\s*['"]([\w/.-]+)['"]`),
+	// use redis::Commands; / extern crate diesel;
+	"rust": regexp.MustCompile(`(?m)^\s*(?:pub\s+)?(?:use|extern\s+crate)\s+(?:::)?([a-z_][a-z0-9_]*)`),
+}
+
+var rustLocal = map[string]bool{"crate": true, "self": true, "super": true, "std": true, "core": true, "alloc": true}
+
+// extractTextPackages records the packages a Java, C#, Ruby or Rust file
+// names, for the languages without a tree-sitter import walk here.
+func extractTextPackages(src []byte, lang string) []PackageRef {
+	pattern, ok := textImports[lang]
+	if !ok {
+		return nil
+	}
+	var out []PackageRef
+	for _, m := range pattern.FindAllSubmatchIndex(src, -1) {
+		name := string(src[m[2]:m[3]])
+		if lang == "rust" && rustLocal[name] {
+			continue
+		}
+		if lang == "java" && (strings.HasPrefix(name, "java.") || strings.HasPrefix(name, "javax.")) {
+			continue
+		}
+		if lang == "csharp" && strings.HasPrefix(name, "System") && !strings.HasPrefix(name, "System.Data.SQLite") {
+			continue
+		}
+		out = append(out, PackageRef{Package: name, Line: bytes.Count(src[:m[0]], []byte("\n")) + 1})
+	}
+	return out
 }
 
 // extractEnvReads finds environment variables read by name. It is a text

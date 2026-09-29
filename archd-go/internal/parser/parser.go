@@ -78,6 +78,8 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 	// but we still use tree-sitter for symbols and call extraction.
 	if lang == "csharp" {
 		result.Imports = extractCSharpImports(src)
+		result.Packages = extractTextPackages(src, lang)
+		result.EnvReads = extractEnvReads(src, lang)
 		if grammar := grammarFor(lang); grammar != nil {
 			p := sitter.NewParser()
 			p.SetLanguage(grammar)
@@ -120,6 +122,8 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 		result.Packages = extractPythonPackages(rootNode, src)
 	case "go":
 		result.Packages = extractGoPackages(rootNode, src)
+	default:
+		result.Packages = extractTextPackages(src, lang)
 	}
 	result.EnvReads = extractEnvReads(src, lang)
 	result.Calls = extractCalls(rootNode, src, lang)

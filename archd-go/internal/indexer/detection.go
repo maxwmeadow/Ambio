@@ -15,7 +15,8 @@ import (
 // project files in the import graph.
 // 2: Python imports from a monorepo folder's source root and each name in
 // "from pkg import mod"; Go imports to every file of the imported package.
-const DetectionEvidenceVersion = 2
+// 3: full Python module names; packages and env reads in Java, C#, Ruby, Rust.
+const DetectionEvidenceVersion = 3
 
 // EnsureDetectionEvidence brings a root's detection evidence up to date. An
 // index built by an older archd has none; a full parse pass fills it in and

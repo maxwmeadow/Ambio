@@ -121,3 +121,30 @@ func TestSQLItemEdges(t *testing.T) {
 		t.Errorf("two tables: %+v", p.Contents)
 	}
 }
+
+func TestOtherLanguagesAndFrameworkConfig(t *testing.T) {
+	in := inputs(nil, nil, nil, map[string]string{
+		"Gemfile":             "source 'https://rubygems.org'\ngem 'rails'\ngem 'sidekiq'\n",
+		"config/database.yml": "default: &default\n  adapter: postgresql\n",
+		"api/Api.csproj":      `<Project><ItemGroup><PackageReference Include="Stripe.net" Version="45.0.0" /></ItemGroup></Project>`,
+	})
+	for id, spec := range map[string][2]string{
+		"java": {"src/Billing.java", "java"}, "cs": {"Cache.cs", "csharp"}, "rs": {"src/cache.rs", "rust"},
+	} {
+		in.Files = append(in.Files, File{ID: id, RelPath: spec[0], Language: spec[1]})
+	}
+	in.Packages = append(in.Packages,
+		PackageUse{FileID: "java", Package: "com.stripe.Stripe", Line: 2},
+		PackageUse{FileID: "cs", Package: "StackExchange.Redis", Line: 2},
+		PackageUse{FileID: "rs", Package: "redis", Line: 2},
+	)
+	result := Analyze(in)
+	for _, service := range []string{"stripe/api", "redis/redis", "postgresql/postgres", "sidekiq/sidekiq"} {
+		if find(result, service) == nil {
+			t.Errorf("expected %s from Java, C#, Rust imports, a Gemfile and database.yml", service)
+		}
+	}
+	if stripe := find(result, "stripe/api"); stripe != nil && len(stripe.Edges) == 0 {
+		t.Errorf("the Java file using Stripe is connected: %+v", stripe)
+	}
+}

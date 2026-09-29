@@ -145,6 +145,14 @@ func languageFamily(language string) string {
 		return "py"
 	case "go":
 		return "go"
+	case "java", "kotlin":
+		return "java"
+	case "csharp":
+		return "cs"
+	case "ruby":
+		return "rb"
+	case "rust":
+		return "rs"
 	}
 	return ""
 }
@@ -240,7 +248,8 @@ func (d *detection) servicesForPackage(family, pkg string) []registry.Service {
 		}
 		for _, candidate := range s.Detect.Packages[family] {
 			if candidate == pkg || (family == "go" && strings.HasPrefix(pkg, candidate+"/")) ||
-				(family == "py" && strings.HasPrefix(pkg, candidate+".")) {
+				((family == "py" || family == "java" || family == "cs") && strings.HasPrefix(pkg, candidate+".")) ||
+				(family == "rb" && strings.HasPrefix(pkg, candidate+"/")) {
 				out = append(out, s)
 				break
 			}
