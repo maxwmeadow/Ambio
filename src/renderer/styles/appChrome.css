@@ -482,3 +482,28 @@
 .axiom-context-menu__danger {
   color: #824139 !important;
 }
+
+.axiom-acknowledgements {
+  padding: 14px 20px 20px;
+  background: #f1efe8;
+  font-size: 13px;
+}
+
+.axiom-acknowledgements p {
+  margin: 0 0 10px;
+  color: #34403c;
+}
+
+.axiom-acknowledgements pre {
+  max-height: 52vh;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #cfccc0;
+  background: #f7f6f1;
+  color: #34403c;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

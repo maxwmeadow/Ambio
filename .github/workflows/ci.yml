@@ -53,6 +53,11 @@ jobs:
       - name: Test archd
         run: npm run test:archd
 
+      # Axiom is AGPL-3.0: every shipped dependency must be compatible.
+      - name: Check third-party licenses
+        if: runner.os == 'Linux'
+        run: node scripts/third-party-notices.mjs --check
+
       - name: Test renderer, MCP, and Electron units
         run: npm run test:renderer
 

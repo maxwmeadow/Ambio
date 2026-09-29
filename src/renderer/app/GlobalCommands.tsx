@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '..
 import { useGraphStore } from '../store/graphStore'
 import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
 
-type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | null
+type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | null
 
 function isEditable(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
@@ -77,6 +77,7 @@ export function GlobalCommands() {
     'help.docs': () => { void window.axiom?.openHelp('docs') },
     'help.privacy': () => { void window.axiom?.openHelp('privacy') },
     'help.license': () => { void window.axiom?.openHelp('license') },
+    'help.acknowledgements': () => setDialog('acknowledgements'),
     'help.reportBug': () => { void window.axiom?.reportBug() },
     'help.copyDiagnostics': () => { void window.axiom?.copyDiagnostics().then(() => say('Diagnostics copied to the clipboard.')) },
     'help.openLogs': () => { void window.axiom?.openLogsFolder() },
@@ -88,6 +89,7 @@ export function GlobalCommands() {
       {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog platform={platform} onClose={() => setDialog(null)} />}
       {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
+      {dialog === 'acknowledgements' && <AcknowledgementsDialog onClose={() => setDialog(null)} />}
       {toast && <div className="axiom-app-toast" role="status">{toast}</div>}
     </>
   )
@@ -262,7 +264,26 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           <button type="button" onClick={() => void window.axiom?.openHelp('license')}>License</button>
           <button type="button" onClick={() => void window.axiom?.openHelp('privacy')}>Privacy</button>
           <button type="button" onClick={() => void window.axiom?.openHelp('releases')}>Release notes</button>
+          <button type="button" onClick={() => void window.axiom?.openHelp('source')}>Source code</button>
+          <button type="button" onClick={() => { onClose(); setTimeout(() => emitCommand('help.acknowledgements'), 0) }}>Acknowledgements</button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Acknowledgements ───────────────────────────────────────────────────────
+
+function AcknowledgementsDialog({ onClose }: { onClose: () => void }) {
+  const [text, setText] = useState<string | null>(null)
+  useEffect(() => {
+    void (window.axiom?.thirdPartyNotices?.() ?? Promise.resolve('Available in the desktop app.')).then(setText)
+  }, [])
+  return (
+    <Modal title="Acknowledgements" width={760} onClose={onClose}>
+      <div className="axiom-acknowledgements">
+        <p>Axiom is built on open-source software. These are the components it includes and their licenses.</p>
+        <pre>{text ?? 'Loading…'}</pre>
       </div>
     </Modal>
   )

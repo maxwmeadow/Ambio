@@ -298,7 +298,8 @@ Keyboard accelerators then work everywhere.
 ### Get it and trust it
 - ⬜ Rename (§3)
 - ✅ LICENSE (AGPL-3.0, official text), `CLA.md`, CLA Assistant workflow, `license` in package.json
-- ⬜ Have a lawyer glance at `CLA.md` before charging money (it grants relicensing rights, modelled on the Apache ICLA)
+- ✅ Third-party licenses: `scripts/third-party-notices.mjs` checks every shipped npm package and linked Go module against an AGPL-compatible allowlist (CI fails otherwise), writes `THIRD_PARTY_NOTICES.txt` at package time, and the app shows it in Help → Acknowledgements. The audit removed five unused dependencies, including `elkjs` (EPL-2.0 without a GPL secondary-license notice, which is not AGPL-compatible)
+- Have a lawyer glance at `CLA.md` before charging money (it grants relicensing rights, modelled on the Apache ICLA)
 - ⬜ Enable GitHub private vulnerability reporting (repo Settings → Security) when the repo goes public
 - ⬜ Clean the repo root: move internal notes (`CODEX_BRIEF.md`, `CANVAS_BUG_HUNT.md`, `PARALLEL_AGENTS_BRIEF.md`, …) into `docs/` or remove
 - ✅ `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, issue and PR templates

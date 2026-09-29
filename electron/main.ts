@@ -1079,17 +1079,28 @@ function setupIPC(): void {
   })
 
   // Help links. A fixed set, so the renderer can never open arbitrary URLs.
-  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases') => {
+  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source') => {
     const base = 'https://github.com/maxwmeadow/Axiom'
     const urls = {
       docs: `${base}#readme`,
       privacy: `${base}/blob/main/PRIVACY.md`,
       license: `${base}/blob/main/LICENSE`,
       releases: `${base}/releases`,
+      source: base,
     }
     const url = urls[topic]
     if (url) void shell.openExternal(url)
   })
+  // Third-party notices, generated at package time (scripts/third-party-notices.mjs).
+  ipcMain.handle('app:third-party-notices', () => {
+    const file = app.isPackaged
+      ? join(process.resourcesPath, 'licenses', 'THIRD_PARTY_NOTICES.txt')
+      : join(__dirname, '..', 'licenses', 'THIRD_PARTY_NOTICES.txt')
+    try { return fs.readFileSync(file, 'utf8') } catch {
+      return 'Third-party notices are generated when Axiom is packaged. In a development checkout, run: npm run notices'
+    }
+  })
+
   ipcMain.handle('app:paths', () => ({ config: CONFIG_DIR, data: DATA_DIR, logs: LOG_DIR }))
   ipcMain.handle('shell:open-path', (_event, which: 'config' | 'data' | 'logs') => {
     const paths = { config: CONFIG_DIR, data: DATA_DIR, logs: LOG_DIR }

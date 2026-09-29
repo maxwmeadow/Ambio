@@ -42,6 +42,7 @@ export type CommandId =
   | 'help.openLogs'
   | 'help.privacy'
   | 'help.license'
+  | 'help.acknowledgements'
 
 /** Standard edit and window actions the platform performs itself. */
 export type SystemRole =
@@ -98,6 +99,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'help.openLogs': { id: 'help.openLogs', label: 'Open Logs Folder' },
   'help.privacy': { id: 'help.privacy', label: 'Privacy' },
   'help.license': { id: 'help.license', label: 'License' },
+  'help.acknowledgements': { id: 'help.acknowledgements', label: 'Acknowledgements' },
 }
 
 export type MenuEntry =
@@ -202,7 +204,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
     id: 'help', label: 'Help', entries: [
       command('help.shortcuts'), command('help.guide'), command('help.docs'), separator,
       command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
-      command('help.privacy'), command('help.license'),
+      command('help.privacy'), command('help.license'), command('help.acknowledgements'),
       ...(mac ? [] : [separator, command('app.checkUpdates'), command('app.about')]),
     ],
   })
