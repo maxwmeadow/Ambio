@@ -366,11 +366,12 @@ let deltaRefreshPending = false
  * canvas until the architecture has been authored - at which point the authored
  * systems are what there is to show anyway.
  */
+function isAuthoredSystem(system: { source?: string | null }): boolean {
+  return system.source === 'user' || system.source === 'agent'
+}
+
 function keepAuthoredSystems<T extends { source?: string | null }>(systems: T[]): T[] {
-  const authored = systems.filter(
-    system => system.source === 'user' || system.source === 'agent',
-  )
-  return authored.length > 0 ? authored : []
+  return systems.filter(isAuthoredSystem)
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
@@ -897,6 +898,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         case 'system:upserted': {
           const sys = patch.payload as DbSystem
           const exists = state.systems.some(s => s.id === sys.id)
+          // The same rule as applySnapshot: an inferred grouping never
+          // reaches the canvas. Admitting it live but dropping it on reload
+          // showed a new folder as a system that vanished at the next launch,
+          // leaving its files stranded on the Floor.
+          if (!isAuthoredSystem(sys)) {
+            return exists ? { systems: state.systems.filter(s => s.id !== sys.id) } : {}
+          }
           const systems = exists
             ? state.systems.map(s => s.id === sys.id ? sys : s)
             : [...state.systems, sys]

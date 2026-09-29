@@ -583,6 +583,9 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
               stroke={primaryColor}
               strokeWidth={Math.max(1.5, 2 * presentationScale)}
               className="axiom-system-telemetry-glow"
+              // The glow's drop-shadow uses currentColor; without this it
+              // inherited the dark ink and cast a grey shadow.
+              style={{ color: primaryColor }}
             />
             {windows.map(window => {
               const windowColor = window.kind === 'enter' || window.kind === 'flow-add'

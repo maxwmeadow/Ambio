@@ -796,7 +796,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             className="axiom-living-file-telemetry__badge"
             style={{
               position: 'absolute',
-              top: -26,
+              top: -30,
               left: '50%',
               transform: 'translateX(-50%)',
               display: 'flex',
@@ -826,7 +826,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               style={{
                 color: livingRevealColor,
                 fontFamily: 'var(--font-mono)',
-                fontSize: 8.5,
+                fontSize: 10,
                 fontWeight: 900,
                 letterSpacing: '0.12em',
                 lineHeight: 1,
@@ -839,10 +839,10 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
               style={{
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: 700,
                 lineHeight: 1,
-                maxWidth: 140,
+                maxWidth: 200,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
               }}

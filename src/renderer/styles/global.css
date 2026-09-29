@@ -92,7 +92,9 @@
   --workbench-accent: #4f8279;
   position: absolute;
   right: 18px;
-  bottom: 18px;
+  /* Clear of the Unsorted and Documents bins in the same corner: covering
+     them hid where new files land and blocked dropping onto them. */
+  bottom: 72px;
   z-index: 850;
   width: min(370px, calc(100% - 36px));
   padding: 18px 20px 16px 30px;
@@ -1487,6 +1489,8 @@ a { color: var(--accent); text-decoration: none; }
 .axiom-surface-activity-pill {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+  transform-origin: 100% 100%;
 }
 
 @keyframes axiomSystemTelemetryGlow {
@@ -1538,6 +1542,13 @@ a { color: var(--accent); text-decoration: none; }
 
 .axiom-living-file-telemetry__badge {
   animation: axiomLivingFileBadgeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Never smaller on screen than its natural size: when the camera pulls
+     back, the badge grows in world space instead of shrinking to a speck.
+     The origin is the untransformed left edge, which translateX(-50%)
+     places at the node's centre, so the badge grows up and outward from
+     the middle of the file's top edge. */
+  scale: max(1, calc(1 / var(--axiom-zoom, 1)));
+  transform-origin: 0 100%;
 }
 
 @keyframes axiomLivingFileBeacon {

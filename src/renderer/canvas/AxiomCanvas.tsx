@@ -1446,9 +1446,16 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       .filter(layout => layout.nodeType === 'file' && layout.containmentKind === 'root')
       .map(layout => layout.nodeId),
   ), [floorLayouts])
+  // A file has a home only in a system the canvas shows. A system_id that
+  // points at a withheld inferred grouping is not a home: without this the
+  // file floated loose on the Floor instead of waiting in the Unsorted bin.
+  // The scene's own systems (the proposal's, during review); bin mode empties
+  // its scene's systems on purpose, so it answers from the live Floor.
+  const homeSystems = binScene ? liveSystems : systems
+  const shownSystemIds = useMemo(() => new Set(homeSystems.map(system => system.id)), [homeSystems])
   const fileBelongsOnFloor = useCallback(
-    (file: DbFile) => !!file.systemId || looseFileIds.has(file.id),
-    [looseFileIds],
+    (file: DbFile) => (!!file.systemId && shownSystemIds.has(file.systemId)) || looseFileIds.has(file.id),
+    [looseFileIds, shownSystemIds],
   )
   const bins = useMemo(() => partitionCanvasFiles(binSourceFiles, {
     hasHome: reviewPlacedFileIds
@@ -3603,6 +3610,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   const onMove: OnMove = useCallback((event, viewport) => {
     const zoom = viewport.zoom
     currentZoomRef.current = zoom
+    // Activity badges counter-scale against this so they stay readable when
+    // the camera pulls back. One style write per frame, no React render.
+    canvasRootRef.current?.style.setProperty('--axiom-zoom', String(zoom))
     // Keep the conservative overview tier throughout the entrance animation.
     // Once fitView settles, its completion handler applies the final zoom once.
     const visibilityZoom = pendingInitialFitProjectRef.current
