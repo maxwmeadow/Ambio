@@ -316,11 +316,10 @@ Keyboard accelerators then work everywhere.
 - ✅ Missing-folder detection, "Locate folder…" and "Change folder location…"; archd repoints the root and keeps the map (`POST /api/workspace-relocate`)
 - ✅ Row actions menu; Hide from recents separate from Delete project map
 - ✅ Resume skips a project whose folder is missing
-- ⬜ Project Settings screen (rename, exclusions after setup, re-index, add folder)
-  - ⚠️ Changing exclusions must not journal as file deletions. Today a re-scope
-    reconciles through `RemoveFile`/`ReindexFile`, which record drift, so the
-    Morning Delta would claim excluded files were deleted. Needs a quiet
-    reconcile mode (like the baseline/migration passes) before this ships.
+- ✅ Project Settings (File → Project Settings…, the palette, or the launcher's project menu): rename, and change included folders starting from the project's saved choices; exclusions inside unexpanded folders are kept
+- ✅ Quiet re-scope: files moving in or out of scope (and relationships touching them, and system births/deaths during the re-scan) are not journaled, so the Morning Delta never reports an exclusion as deleted code; concurrent real edits still are
+- ⬜ Force a full re-index from Project Settings
+- ⬜ Add a second folder/repo to a project (backend supports roots)
 - ⬜ Multi-root projects in the UI (backend already supports roots)
 - ⬜ Worktrees of one repo: one project or two - decide and make it explicit
 

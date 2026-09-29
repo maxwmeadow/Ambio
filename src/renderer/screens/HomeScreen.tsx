@@ -9,6 +9,8 @@ import { emitCommand } from '../app/commands'
 interface HomeScreenProps {
   /** A command from the menu or palette, e.g. File → New Project. */
   request?: { kind: 'new'; nonce: number } | null
+  /** Opens Project Settings for a project without opening it. */
+  onEditProject?: (config: ProjectConfig) => void
   onOpenProject: (config: ProjectConfig) => void
   onOpenDialog: () => void
   onCreateProject: (config: ProjectConfig) => void
@@ -42,7 +44,7 @@ function safeFolderName(name: string): string {
     .replace(/^[.\s-]+|[.\s-]+$/g, '')
 }
 
-export function HomeScreen({ request, onOpenProject, onOpenDialog, onCreateProject }: HomeScreenProps) {
+export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog, onCreateProject }: HomeScreenProps) {
   const [recentProjects, setRecentProjects] = useState<ProjectConfig[]>([])
   const [deckStatus, setDeckStatus] = useState<Record<string, CommandDeckStatus>>({})
   const [projectToDelete, setProjectToDelete] = useState<ProjectConfig | null>(null)
@@ -467,6 +469,11 @@ export function HomeScreen({ request, onOpenProject, onOpenDialog, onCreateProje
                               {!project.rootMissing && (
                                 <button role="menuitem" onClick={() => { setMenuProjectId(null); window.axiom?.showInFolder(project.rootPath) }}>
                                   {revealLabel}
+                                </button>
+                              )}
+                              {!project.rootMissing && onEditProject && (
+                                <button role="menuitem" onClick={() => { setMenuProjectId(null); onEditProject(project) }}>
+                                  Project settings…
                                 </button>
                               )}
                               {!project.rootMissing && (

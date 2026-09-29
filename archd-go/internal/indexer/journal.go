@@ -123,6 +123,9 @@ func journalFileChange(
 	sqlDB *sql.DB, root db.Root, labeler *systemLabeler,
 	file *db.File, kind, actor, traceID string,
 ) {
+	if isQuietPath(root.ID, file.RelPath) {
+		return
+	}
 	systemID, systemName := labeler.systemOf(file.ID)
 	recordRootEvent(sqlDB, root, db.StructuralEvent{
 		Actor:        actor,
@@ -144,6 +147,9 @@ func journalFileDeleted(
 	sqlDB *sql.DB, root db.Root, systemID, systemName string,
 	file *db.File, actor, traceID string,
 ) {
+	if isQuietPath(root.ID, file.RelPath) {
+		return
+	}
 	recordRootEvent(sqlDB, root, db.StructuralEvent{
 		Actor:        actor,
 		TraceID:      traceID,
@@ -165,6 +171,9 @@ func journalSystemPlan(
 	sqlDB *sql.DB, root db.Root,
 	before []db.System, after []db.System, removedIDs []string,
 ) {
+	if isQuietRoot(root.ID) {
+		return
+	}
 	existing := make(map[string]db.System, len(before))
 	for _, system := range before {
 		existing[system.ID] = system
@@ -211,6 +220,9 @@ func journalRelationships(
 		case "removed":
 			kind = db.EventEdgeRemoved
 		default:
+			continue
+		}
+		if isQuietPath(root.ID, labeler.pathOf(relationship.Src)) || isQuietPath(root.ID, labeler.pathOf(relationship.Dst)) {
 			continue
 		}
 		srcSystem, srcSystemName := labeler.systemOf(relationship.Src)

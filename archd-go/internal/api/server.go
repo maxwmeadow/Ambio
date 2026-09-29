@@ -73,6 +73,9 @@ type Server struct {
 	worktreeMonitors  map[string]worktreeMonitor
 	rootSyncing       map[string]bool
 	rootSyncPending   map[string]pendingRootSync
+	// Exclusions a root had before the user changed them; the next reconcile
+	// of that root runs as a quiet re-scope. See indexer.ReconcileScope.
+	rootScopeFrom     map[string][]string
 	collisionCache    map[string]collisionCacheEntry
 	collisionCacheTTL time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
@@ -109,6 +112,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		worktreeMonitors:    make(map[string]worktreeMonitor),
 		rootSyncing:         make(map[string]bool),
 		rootSyncPending:     make(map[string]pendingRootSync),
+		rootScopeFrom:       make(map[string][]string),
 		collisionCache:      make(map[string]collisionCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),

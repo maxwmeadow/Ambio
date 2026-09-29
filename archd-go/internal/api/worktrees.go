@@ -231,6 +231,14 @@ func (s *Server) syncWorkspaceWorktrees(
 			}
 			s.launchRootSync(sqlDB, root, true)
 		case reconcileExisting || headChanged || !prior.IsActive:
+			if known && prior.IsActive && !slices.Equal(prior.IgnoredPaths, root.IgnoredPaths) {
+				s.mu.Lock()
+				// Keep the earliest scope if several changes arrive before a sync runs.
+				if _, pending := s.rootScopeFrom[root.ID]; !pending {
+					s.rootScopeFrom[root.ID] = prior.IgnoredPaths
+				}
+				s.mu.Unlock()
+			}
 			s.launchRootSync(sqlDB, root, false)
 		}
 	}
@@ -309,7 +317,17 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 				log.Printf("api: baseline delta snapshot for %s/%s: %v", root.WorkspaceID, root.ID, err)
 			}
 		} else {
-			if _, err := indexer.ReconcileRoot(sqlDB, s.hub, root, root.IgnoredPaths); err != nil {
+			s.mu.Lock()
+			scopeFrom, rescope := s.rootScopeFrom[root.ID]
+			delete(s.rootScopeFrom, root.ID)
+			s.mu.Unlock()
+			var err error
+			if rescope {
+				_, err = indexer.ReconcileScope(sqlDB, s.hub, root, scopeFrom, root.IgnoredPaths)
+			} else {
+				_, err = indexer.ReconcileRoot(sqlDB, s.hub, root, root.IgnoredPaths)
+			}
+			if err != nil {
 				log.Printf("api: reconcile %s: %v", root.Path, err)
 			}
 			snapshot, _ := db.GetCanvasSnapshot(sqlDB, root.WorkspaceID)

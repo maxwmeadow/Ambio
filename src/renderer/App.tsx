@@ -573,6 +573,8 @@ export default function App() {
   // Asks the launcher to open its New Project dialog, even when the command
   // came from inside a project.
   const [launcherRequest, setLauncherRequest] = useState<{ kind: 'new'; nonce: number } | null>(null)
+  // Project Settings, for the open project or one chosen on the launcher.
+  const [projectSettingsFor, setProjectSettingsFor] = useState<ProjectConfig | null>(null)
 
   useCommandHandlers({
     'project.new': () => {
@@ -583,6 +585,7 @@ export default function App() {
       })()
     },
     'project.open': () => { void openProjectDialog() },
+    'project.settings': () => { if (currentProject) setProjectSettingsFor(currentProject) },
     'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
@@ -597,6 +600,32 @@ export default function App() {
     'agent.connect': () => { if (currentProject) setAgentSetupOpen(true) },
     'help.guide': () => { useOnboardingStore.getState().reveal() },
   })
+
+  if (projectSettingsFor) {
+    const editingOpenProject = currentProject?.id === projectSettingsFor.id
+    return (
+      <ProjectSetupScreen
+        key={projectSettingsFor.id}
+        mode="edit"
+        baseConfig={projectSettingsFor}
+        backLabel={editingOpenProject ? 'Canvas' : 'Projects'}
+        onCancel={() => setProjectSettingsFor(null)}
+        onConfirm={updated => {
+          setProjectSettingsFor(null)
+          if (editingOpenProject) {
+            // Re-registering with archd applies the new scope as a quiet re-scan.
+            void openProject(updated)
+            return
+          }
+          void window.axiom?.updateProject(updated.id, {
+            name: updated.name,
+            ignoredPaths: updated.ignoredPaths,
+            sourceBoundariesReviewedAt: updated.sourceBoundariesReviewedAt,
+          }).catch(error => raiseFailure('project-settings', 'Could not save project settings', String(error)))
+        }}
+      />
+    )
+  }
 
   // Project setup configuration screen (after folder picked, before indexing)
   if (pendingSetup) {
@@ -620,6 +649,7 @@ export default function App() {
     return (
       <HomeScreen
         request={launcherRequest}
+        onEditProject={setProjectSettingsFor}
         onOpenProject={(config) => {
           void routeProjectBySourceBoundaryState(config)
         }}
@@ -747,7 +777,7 @@ export default function App() {
 
           {/* Recovers the "indexed nothing, blank Floor, nothing to click" trap */}
           <EmptyIndexNotice
-            onReconfigure={() => setPendingSetup(currentProject)}
+            onReconfigure={() => setProjectSettingsFor(currentProject)}
             hasExclusions={(currentProject.ignoredPaths?.length ?? 0) > 0}
             suppress={createdProjectId === currentProject.id}
           />

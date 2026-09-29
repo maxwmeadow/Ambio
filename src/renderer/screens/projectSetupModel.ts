@@ -31,16 +31,37 @@ export function shouldAutoExclude(name: string): boolean {
   return COMMON_NOISE.has(name) || name.startsWith('.')
 }
 
-export function makeTreeNode(entry: DirEntry): TreeNode {
+/**
+ * A tree row. With `existing` (a project's saved exclusions), the row shows
+ * what the user chose before; without it, first-run defaults apply.
+ */
+export function makeTreeNode(entry: DirEntry, existing?: ReadonlySet<string>): TreeNode {
   const kind = classifyProjectFile(entry.name, entry.isDirectory)
+  const chosen = existing
+    ? existing.has(`${entry.path}/**`) || existing.has(entry.path)
+    : shouldAutoExclude(entry.name)
   return {
     name: entry.name,
     path: entry.path,
     isDirectory: entry.isDirectory,
     kind,
-    excluded: shouldAutoExclude(entry.name) || kind === 'unsupported',
+    excluded: chosen || kind === 'unsupported',
     expanded: false,
   }
+}
+
+/**
+ * Exclusions after editing. The tree only holds folders the user expanded, so
+ * an earlier exclusion deeper than that is not in the tree - it must survive
+ * the edit rather than silently vanish.
+ */
+export function mergeExclusions(nodes: TreeNode[], previous: readonly string[]): string[] {
+  const edited = collectExcluded(nodes)
+  const kept = previous.filter(pattern => {
+    const path = pattern.endsWith('/**') ? pattern.slice(0, -3) : pattern
+    return !findNode(nodes, path)
+  })
+  return [...new Set([...edited, ...kept])]
 }
 
 export function foldersFirst(entries: DirEntry[]): DirEntry[] {

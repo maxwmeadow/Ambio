@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('axiom', {
   setProjectHidden: (projectId: string, hidden: boolean): Promise<ProjectConfig> =>
     ipcRenderer.invoke('project:set-hidden', projectId, hidden),
 
+  updateProject: (projectId: string, patch: Partial<Pick<ProjectConfig, 'name' | 'ignoredPaths' | 'sourceBoundariesReviewedAt'>>): Promise<ProjectConfig> =>
+    ipcRenderer.invoke('project:update', projectId, patch),
+
   getResumeProjectId: (): Promise<string | null> => ipcRenderer.invoke('project:get-resume-id'),
   setResumeProjectId: (projectId: string | null): Promise<void> => ipcRenderer.invoke('project:set-resume-id', projectId),
   completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt'): Promise<ProjectConfig> =>
@@ -226,6 +229,7 @@ declare global {
       removeProject: (projectId: string) => Promise<void>
       relocateProject: (projectId: string) => Promise<ProjectConfig | null>
       setProjectHidden: (projectId: string, hidden: boolean) => Promise<ProjectConfig>
+      updateProject: (projectId: string, patch: Partial<Pick<ProjectConfig, 'name' | 'ignoredPaths' | 'sourceBoundariesReviewedAt'>>) => Promise<ProjectConfig>
       getResumeProjectId: () => Promise<string | null>
       setResumeProjectId: (projectId: string | null) => Promise<void>
       completeProjectLifecycle: (projectId: string, milestone: 'agentSetupCompletedAt' | 'reviewCompletedAt') => Promise<ProjectConfig>

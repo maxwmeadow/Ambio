@@ -13,16 +13,27 @@ import {
   collectExcluded,
   countExploredKinds,
   formatExploredScopeSummary,
+  mergeExclusions,
 } from './projectSetupModel'
 
 interface ProjectSetupScreenProps {
   baseConfig: ProjectConfig
+  /** "setup" is the first run; "edit" is Project Settings for an existing project. */
+  mode?: 'setup' | 'edit'
   onConfirm: (config: ProjectConfig) => void
   onCancel: () => void
+  backLabel?: string
 }
 
-export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectSetupScreenProps) {
+export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCancel, backLabel = 'Projects' }: ProjectSetupScreenProps) {
   const { rootPath, name: projectName } = baseConfig
+  const editing = mode === 'edit'
+  const [name, setName] = useState(projectName)
+  // Editing starts from the project's own choices, not first-run defaults.
+  const existing = useMemo(
+    () => (editing ? new Set(baseConfig.ignoredPaths) : undefined),
+    [editing, baseConfig.ignoredPaths],
+  )
   const [tree, setTree] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -39,7 +50,7 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
 
     void window.axiom.listDir(rootPath)
       .then(entries => {
-        if (active) setTree(foldersFirst(entries).map(makeTreeNode))
+        if (active) setTree(foldersFirst(entries).map(entry => makeTreeNode(entry, existing)))
       })
       .catch(() => {
         if (active) setLoadError('Axiom could not read this project directory.')
@@ -49,7 +60,7 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
       })
 
     return () => { active = false }
-  }, [rootPath])
+  }, [rootPath, existing])
 
   const toggleExclude = useCallback((nodePath: string) => {
     setTree(previous => toggleNode(previous, nodePath, 'excluded'))
@@ -62,7 +73,7 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
     if (!node.children && window.axiom) {
       try {
         const entries = await window.axiom.listDir(nodePath)
-        setTree(previous => setChildren(previous, nodePath, foldersFirst(entries).map(makeTreeNode)))
+        setTree(previous => setChildren(previous, nodePath, foldersFirst(entries).map(entry => makeTreeNode(entry, existing))))
       } catch {
         setLoadError(`Axiom could not read ${node.name}.`)
         return
@@ -70,13 +81,21 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
     }
 
     setTree(previous => toggleNode(previous, nodePath, 'expanded'))
-  }, [tree])
+  }, [tree, existing])
 
   const excludedPaths = useMemo(() => collectExcluded(tree), [tree])
   const explored = useMemo(() => countExploredKinds(tree), [tree])
   const scopeSummary = useMemo(() => formatExploredScopeSummary(explored), [explored])
 
+  const trimmedName = name.trim()
   const handleConfirm = () => {
+    if (editing) {
+      onConfirm(completeSourceBoundaries(
+        { ...baseConfig, name: trimmedName || projectName },
+        mergeExclusions(tree, baseConfig.ignoredPaths),
+      ))
+      return
+    }
     onConfirm({
       ...completeSourceBoundaries(baseConfig, excludedPaths),
       openedAt: Date.now(),
@@ -85,23 +104,42 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
 
   return (
     <main className="axiom-onboarding axiom-project-setup">
-      <WorkbenchTitleBar context="Project Setup" status="PRE-INDEX" />
+      <WorkbenchTitleBar context={editing ? 'Project Settings' : 'Project Setup'} status={editing ? 'SETTINGS' : 'PRE-INDEX'} />
 
       <div className="axiom-source-setup">
         <header className="axiom-source-setup__header">
-          <button className="axiom-source-setup__back" onClick={onCancel} aria-label="Back to projects">
+          <button className="axiom-source-setup__back" onClick={onCancel} aria-label={`Back to ${backLabel.toLowerCase()}`}>
             <span aria-hidden="true">←</span>
-            Projects
+            {backLabel}
           </button>
           <div className="axiom-source-setup__intro">
-            <div>
-              <p className="axiom-source-setup__eyebrow">Choose what Axiom reads</p>
-              <h1>Set up {projectName}</h1>
-              <p className="axiom-source-setup__description">
-                Source files are included by default. Common generated and dependency folders are skipped automatically;
-                documentation stays searchable outside the canvas, and unsupported assets are never indexed.
-              </p>
-            </div>
+            {editing ? (
+              <div>
+                <p className="axiom-source-setup__eyebrow">Project settings</p>
+                <label className="axiom-project-settings__name">
+                  <span>Name</span>
+                  <input
+                    value={name}
+                    onChange={event => setName(event.target.value)}
+                    aria-label="Project name"
+                    spellCheck={false}
+                  />
+                </label>
+                <p className="axiom-source-setup__description">
+                  Choose which folders Axiom reads. Changing them updates the map, and is not reported as a code
+                  change in your review of what agents did.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="axiom-source-setup__eyebrow">Choose what Axiom reads</p>
+                <h1>Set up {projectName}</h1>
+                <p className="axiom-source-setup__description">
+                  Source files are included by default. Common generated and dependency folders are skipped automatically;
+                  documentation stays searchable outside the canvas, and unsupported assets are never indexed.
+                </p>
+              </div>
+            )}
             <code className="axiom-source-setup__path" title={rootPath}>{rootPath}</code>
           </div>
         </header>
@@ -159,11 +197,11 @@ export function ProjectSetupScreen({ baseConfig, onConfirm, onCancel }: ProjectS
             <button
               className="axiom-source-setup__submit"
               onClick={handleConfirm}
-              disabled={loading || Boolean(loadError && tree.length === 0)}
+              disabled={loading || Boolean(loadError && tree.length === 0) || (editing && !trimmedName)}
             >
               <span>
-                <strong>Index this project</strong>
-                <small>You can change this later</small>
+                <strong>{editing ? 'Save changes' : 'Index this project'}</strong>
+                <small>{editing ? 'Updates the map in place' : 'You can change this later in Project Settings'}</small>
               </span>
               <span aria-hidden="true">→</span>
             </button>

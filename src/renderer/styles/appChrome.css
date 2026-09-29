@@ -363,3 +363,30 @@
   font-size: 12.5px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
 }
+
+/* ── Project settings ─────────────────────────────────────────────────────── */
+
+.axiom-project-settings__name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.axiom-project-settings__name span {
+  color: #5f6b66;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.axiom-project-settings__name input {
+  max-width: 420px;
+  padding: 8px 10px;
+  border: 1px solid #8a948f;
+  background: #f7f6f1;
+  color: #1f2a26;
+  font-size: 20px;
+  font-weight: 700;
+}

@@ -712,6 +712,16 @@ function setupIPC(): void {
     return refreshProjectDiskState(updateRegistryProject(projectId, current => relocateProjectConfig(current, newRoot)))
   })
 
+  // Project Settings saved from the launcher, for a project that is not open.
+  // An open project is saved by reopening it, which also re-scopes archd.
+  ipcMain.handle('project:update', (_event, projectId: string, patch: Partial<Pick<ProjectConfig, 'name' | 'ignoredPaths' | 'sourceBoundariesReviewedAt'>>) =>
+    updateRegistryProject(projectId, project => ({
+      ...project,
+      ...(typeof patch?.name === 'string' && patch.name.trim() ? { name: patch.name.trim() } : {}),
+      ...(Array.isArray(patch?.ignoredPaths) ? { ignoredPaths: patch.ignoredPaths.filter(path => typeof path === 'string') } : {}),
+      ...(typeof patch?.sourceBoundariesReviewedAt === 'number' ? { sourceBoundariesReviewedAt: patch.sourceBoundariesReviewedAt } : {}),
+    })))
+
   // Hiding is not deleting: the project and its map stay, it just leaves the
   // launcher's recent list until it is opened again.
   ipcMain.handle('project:set-hidden', (_event, projectId: string, hidden: boolean) =>

@@ -156,3 +156,24 @@ test('collectExcluded generates wildcards for folders and omits unsupported file
   const excluded = collectExcluded(tree)
   assert.deepEqual(excluded, ['/p/dist/**', '/p/src/temp.ts'])
 })
+
+test('editing seeds rows from saved exclusions instead of first-run defaults', async () => {
+  const { makeTreeNode } = await import('./projectSetupModel.ts')
+  const saved = new Set(['/repo/src/**'])
+  assert.equal(makeTreeNode({ name: 'src', isDirectory: true, path: '/repo/src' }, saved).excluded, true)
+  // node_modules is excluded by default on first run, but the user included it.
+  assert.equal(makeTreeNode({ name: 'node_modules', isDirectory: true, path: '/repo/node_modules' }, saved).excluded, false)
+  assert.equal(makeTreeNode({ name: 'node_modules', isDirectory: true, path: '/repo/node_modules' }).excluded, true)
+})
+
+test('exclusions inside folders the user never expanded survive an edit', async () => {
+  const { makeTreeNode, mergeExclusions, toggleNode } = await import('./projectSetupModel.ts')
+  const previous = ['/repo/src/generated/**', '/repo/docs/**']
+  const saved = new Set(previous)
+  let tree = [
+    makeTreeNode({ name: 'src', isDirectory: true, path: '/repo/src' }, saved),
+    makeTreeNode({ name: 'docs', isDirectory: true, path: '/repo/docs' }, saved),
+  ]
+  tree = toggleNode(tree, '/repo/docs', 'excluded')
+  assert.deepEqual(mergeExclusions(tree, previous).sort(), ['/repo/src/generated/**'])
+})
