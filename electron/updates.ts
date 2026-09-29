@@ -19,7 +19,13 @@ const FIRST_CHECK_DELAY_MS = 15_000
 
 let status: UpdateStatus = { state: 'idle' }
 
-export function initUpdates(getWindow: () => BrowserWindow | null, enabled: boolean): void {
+export type UpdateCheckResult = 'up-to-date' | 'available' | 'unavailable' | 'failed'
+
+export function initUpdates(
+  getWindow: () => BrowserWindow | null,
+  enabled: boolean,
+  automaticChecks: () => boolean,
+): void {
   ipcMain.handle('update:get-status', () => status)
   ipcMain.handle('update:install', () => {
     if (status.state === 'ready') {
@@ -28,7 +34,17 @@ export function initUpdates(getWindow: () => BrowserWindow | null, enabled: bool
     }
     void shell.openExternal(RELEASES_URL)
   })
-  ipcMain.handle('update:check', () => (enabled ? check() : undefined))
+  // A check the user asked for, so it reports back even when there is nothing new.
+  ipcMain.handle('update:check', async (): Promise<UpdateCheckResult> => {
+    if (!enabled) return 'unavailable'
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return result?.isUpdateAvailable ? 'available' : 'up-to-date'
+    } catch (error) {
+      console.warn('[updates] manual check failed:', error instanceof Error ? error.message : error)
+      return 'failed'
+    }
+  })
 
   if (!enabled) return
 
@@ -56,8 +72,8 @@ export function initUpdates(getWindow: () => BrowserWindow | null, enabled: bool
   // release yet. It is logged and retried on the next interval.
   autoUpdater.on('error', error => console.warn('[updates] check failed:', error?.message ?? error))
 
-  setTimeout(() => { void check() }, FIRST_CHECK_DELAY_MS)
-  setInterval(() => { void check() }, CHECK_INTERVAL_MS)
+  setTimeout(() => { if (automaticChecks()) void check() }, FIRST_CHECK_DELAY_MS)
+  setInterval(() => { if (automaticChecks()) void check() }, CHECK_INTERVAL_MS)
 }
 
 async function check(): Promise<void> {

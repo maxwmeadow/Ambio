@@ -27,7 +27,7 @@ async function revealFileNode(nodeId: string) {
       return graphStore.getState().files.find(file => file.id === id)?.relPath ?? null
     }, nodeId)
     expect(relPath, `missing E2E file ${nodeId}`).not.toBeNull()
-    await page.keyboard.press('Control+K')
+    await page.keyboard.press('ControlOrMeta+K')
     const search = page.getByRole('textbox', { name: 'Search project files' })
     await search.fill(relPath!)
     await page.getByRole('option').first().click()
@@ -1634,7 +1634,7 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   await expect(selectedNode).toBeVisible()
   await expect(selectedNode).toHaveClass(/selected/)
 
-  await page.keyboard.press('Control+K')
+  await page.keyboard.press('ControlOrMeta+K')
   await expect(page.getByRole('dialog', { name: 'Search files' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Search project files' })).toBeFocused()
   await page.keyboard.press('Escape')

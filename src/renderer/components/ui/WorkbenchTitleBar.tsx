@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
+import { AppMenuBar } from '../../app/AppMenuBar'
 
 interface WorkbenchTitleBarProps {
   context: ReactNode
@@ -22,6 +23,7 @@ export function WorkbenchTitleBar({
     <header className={`axiom-workbench-titlebar ${className}`.trim()}>
       <div className="axiom-workbench-titlebar__product">
         <AxiomMark compact />
+        <AppMenuBar />
         <strong>Axiom Architecture Workbench</strong>
         <span>{context}</span>
       </div>

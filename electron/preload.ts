@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
+import type { AppSettings } from '../src/shared/appSettings'
+import type { CommandId, SystemRole } from '../src/shared/appMenu'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('axiom', {
@@ -99,7 +101,31 @@ contextBridge.exposeInMainWorld('axiom', {
   // Updates from GitHub Releases.
   getUpdateStatus: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:get-status'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('update:install'),
-  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('update:check'),
+  checkForUpdates: (): Promise<UpdateCheckResult> => ipcRenderer.invoke('update:check'),
+
+  // Settings
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+  setSettings: (patch: Partial<AppSettings>): Promise<AppSettings> => ipcRenderer.invoke('settings:set', patch),
+  onSettingsChanged: (callback: (settings: AppSettings) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings)
+    ipcRenderer.on('settings:changed', handler)
+    return () => { ipcRenderer.removeListener('settings:changed', handler) }
+  },
+
+  // Menus and commands
+  setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
+  runMenuRole: (role: SystemRole): Promise<void> => ipcRenderer.invoke('menu:role', role),
+  developerMenuEnabled: (): Promise<boolean> => ipcRenderer.invoke('menu:developer'),
+  onMenuCommand: (callback: (id: CommandId) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: CommandId) => callback(id)
+    ipcRenderer.on('menu:command', handler)
+    return () => { ipcRenderer.removeListener('menu:command', handler) }
+  },
+  zoom: (action: 'in' | 'out' | 'reset'): Promise<number> => ipcRenderer.invoke('window:zoom', action),
+  toggleFullScreen: (): Promise<void> => ipcRenderer.invoke('window:toggle-fullscreen'),
+  openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases'): Promise<void> => ipcRenderer.invoke('help:open', topic),
+  getAppPaths: (): Promise<{ config: string; data: string; logs: string }> => ipcRenderer.invoke('app:paths'),
+  openAppPath: (which: 'config' | 'data' | 'logs'): Promise<string> => ipcRenderer.invoke('shell:open-path', which),
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
     ipcRenderer.on('update:status', handler)
@@ -176,6 +202,8 @@ export interface AgentConnection {
   config: string
 }
 
+export type UpdateCheckResult = 'up-to-date' | 'available' | 'unavailable' | 'failed'
+
 export type UpdateStatus =
   | { state: 'idle' }
   | { state: 'available'; version: string; manual: boolean }
@@ -224,7 +252,19 @@ declare global {
       restartArchd: () => Promise<void>
       getUpdateStatus: () => Promise<UpdateStatus>
       installUpdate: () => Promise<void>
-      checkForUpdates: () => Promise<void>
+      checkForUpdates: () => Promise<UpdateCheckResult>
+      getSettings: () => Promise<AppSettings>
+      setSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>
+      onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
+      setMenuState: (state: { projectOpen: boolean }) => Promise<void>
+      runMenuRole: (role: SystemRole) => Promise<void>
+      developerMenuEnabled: () => Promise<boolean>
+      onMenuCommand: (callback: (id: CommandId) => void) => () => void
+      zoom: (action: 'in' | 'out' | 'reset') => Promise<number>
+      toggleFullScreen: () => Promise<void>
+      openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases') => Promise<void>
+      getAppPaths: () => Promise<{ config: string; data: string; logs: string }>
+      openAppPath: (which: 'config' | 'data' | 'logs') => Promise<string>
       onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
       copyDiagnostics: () => Promise<string>
       openLogsFolder: () => Promise<string>

@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen } from 'electron'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
+import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
+import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSettings } from '../src/shared/appSettings'
+import type { SystemRole } from '../src/shared/appMenu'
 import { format } from 'util'
 import { createLogs, formatDiagnostics, timestamped } from './logging'
 import { readDaemonToken } from './daemonAuth'
@@ -120,6 +123,37 @@ function sanitizeProjectName(name: string): string {
     .replace(/\s+/g, '-')
     .replace(/^[.\s-]+|[.\s-]+$/g, '')
 }
+
+// ─── App settings ────────────────────────────────────────────────────────────
+
+function readSettingsFile(): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch { return {} }
+}
+
+function readAppSettings(): AppSettings {
+  return normalizeSettings(readSettingsFile())
+}
+
+function writeAppSettings(patch: Partial<AppSettings>): AppSettings {
+  const next = patchSettings(readAppSettings(), patch)
+  fs.mkdirSync(CONFIG_DIR, { recursive: true })
+  // settings.json also holds the resume marker; keep every key we don't own.
+  const temp = `${SETTINGS_FILE}.tmp`
+  fs.writeFileSync(temp, JSON.stringify({ ...readSettingsFile(), ...next }, null, 2))
+  fs.renameSync(temp, SETTINGS_FILE)
+  return next
+}
+
+// Chromium reads this switch once, at launch, so "always reduce motion"
+// takes effect on the next start. The CSS already honours the OS setting.
+if (readAppSettings().reduceMotion === 'always') {
+  app.commandLine.appendSwitch('force-prefers-reduced-motion')
+}
+
+const menuState: MenuState = { projectOpen: false, developer: !app.isPackaged || readAppSettings().developerMenu }
 
 // ─── archd daemon lifecycle ─────────────────────────────────────────────────
 
@@ -461,6 +495,10 @@ function createWindow(): void {
     logs.renderer.write(timestamped(level === 2 ? 'warn' : 'error', `${message}${source}`))
   })
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.setZoomFactor(readAppSettings().uiZoom)
+  })
+
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
     console.error(`[main] renderer failed to load: ${code} ${desc} url=${url}`)
   })
@@ -602,7 +640,8 @@ function setupIPC(): void {
   // Get recent projects
   ipcMain.handle('project:list-recent', () => loadRecentProjects().map(refreshProjectDiskState))
 
-  ipcMain.handle('project:get-resume-id', () => readResumeProjectId(SETTINGS_FILE))
+  ipcMain.handle('project:get-resume-id', () =>
+    readAppSettings().reopenLastProject ? readResumeProjectId(SETTINGS_FILE) : null)
   ipcMain.handle('project:set-resume-id', (_event, projectId: string | null) => {
     // Clearing the resume marker is how the renderer leaves a project.
     if (projectId === null) activeProject = null
@@ -821,6 +860,62 @@ function setupIPC(): void {
     await shell.openExternal(`${ISSUES_URL}?${new URLSearchParams({ body }).toString()}`)
   })
 
+  // Settings. Changes apply immediately where they can; reduce-motion needs a
+  // restart because Chromium reads it at launch.
+  ipcMain.handle('settings:get', () => readAppSettings())
+  ipcMain.handle('settings:set', (_event, patch: Partial<AppSettings>) => {
+    const next = writeAppSettings(patch ?? {})
+    mainWindow?.webContents.setZoomFactor(next.uiZoom)
+    const developer = !app.isPackaged || next.developerMenu
+    if (developer !== menuState.developer) {
+      menuState.developer = developer
+      applyApplicationMenu(mainWindow, menuState)
+    }
+    mainWindow?.webContents.send('settings:changed', next)
+    return next
+  })
+
+  // Menus. The renderer reports what is open so project commands enable and
+  // disable in the native menu, and runs system roles for the menu it draws
+  // on Windows and Linux.
+  ipcMain.handle('menu:state', (_event, state: { projectOpen: boolean }) => {
+    if (menuState.projectOpen === Boolean(state?.projectOpen)) return
+    menuState.projectOpen = Boolean(state?.projectOpen)
+    applyApplicationMenu(mainWindow, menuState)
+  })
+  ipcMain.handle('menu:role', (_event, role: SystemRole) => runMenuRole(mainWindow, role, menuState.developer))
+  ipcMain.handle('menu:developer', () => menuState.developer)
+
+  ipcMain.handle('window:zoom', (_event, action: 'in' | 'out' | 'reset') => {
+    const current = readAppSettings().uiZoom
+    const target = action === 'reset' ? 1 : clampZoom(current + (action === 'in' ? UI_ZOOM_STEP : -UI_ZOOM_STEP))
+    const next = writeAppSettings({ uiZoom: target })
+    mainWindow?.webContents.setZoomFactor(next.uiZoom)
+    mainWindow?.webContents.send('settings:changed', next)
+    return next.uiZoom
+  })
+  ipcMain.handle('window:toggle-fullscreen', () => {
+    if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen())
+  })
+
+  // Help links. A fixed set, so the renderer can never open arbitrary URLs.
+  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases') => {
+    const base = 'https://github.com/maxwmeadow/Axiom'
+    const urls = {
+      docs: `${base}#readme`,
+      privacy: `${base}/blob/main/PRIVACY.md`,
+      license: `${base}/blob/main/LICENSE`,
+      releases: `${base}/releases`,
+    }
+    const url = urls[topic]
+    if (url) void shell.openExternal(url)
+  })
+  ipcMain.handle('app:paths', () => ({ config: CONFIG_DIR, data: DATA_DIR, logs: LOG_DIR }))
+  ipcMain.handle('shell:open-path', (_event, which: 'config' | 'data' | 'logs') => {
+    const paths = { config: CONFIG_DIR, data: DATA_DIR, logs: LOG_DIR }
+    if (paths[which]) return shell.openPath(paths[which])
+  })
+
   // Window controls
   ipcMain.handle('window:minimize', () => {
     mainWindow?.minimize()
@@ -965,7 +1060,8 @@ app.whenReady().then(() => {
   )
   createWindow()
   setupIPC()
-  initUpdates(() => mainWindow, app.isPackaged && !IS_E2E)
+  applyApplicationMenu(mainWindow, menuState)
+  initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
   if (!IS_E2E) startArchd()
 
   app.on('activate', () => {

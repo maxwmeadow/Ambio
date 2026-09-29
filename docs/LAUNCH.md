@@ -138,7 +138,21 @@ Target design, graceful in every case:
 
 ---
 
-## 5. Menus, shortcuts and settings - brainstorm ❓
+## 5. Menus, shortcuts and settings - basics built ✅, specifics open
+
+**Built (2026-09-30):** one command model (`src/shared/appMenu.ts`) drives
+the native macOS menu bar, the title-bar menu bar on Windows/Linux, the
+command palette (`⇧⌘P` / `Ctrl+Shift+P`), keyboard shortcuts and the
+Keyboard Shortcuts reference (`⌘/`). Menus: Axiom (macOS), File, Edit, View,
+Agent, Window (macOS), Help. Settings (`⌘,`): General (reopen last project,
+automatic update checks, check now), Appearance (interface zoom, reduce
+motion), Agents, Privacy & Data (data/log folders, diagnostics), Advanced
+(developer menu). About dialog. Production builds no longer show Electron's
+Reload/DevTools unless the developer menu is on.
+
+**Not yet:** Go and Map menus, Open Recent, Export, canvas undo/redo,
+right-click menus, light theme, rebindable shortcuts. The list below is the
+original brainstorm those will come from.
 
 Desktop apps share a grammar. Users expect standard items in standard places;
 Axiom-specific commands go in their own menus. This is a proposal to react
@@ -274,7 +288,7 @@ Keyboard accelerators then work everywhere.
 
 ### First launch
 - ✅ Single-instance lock; launching again focuses the existing window
-- ⬜ Real application menu (§5) and Windows/Linux title-bar menu button
+- ✅ Application menu (§5): native on macOS, drawn in the title bar on Windows/Linux
 - ✅ Remember window size, position and maximized state (never onto a disconnected monitor)
 - ⬜ First-run crash-report opt-in
 
@@ -293,8 +307,8 @@ Keyboard accelerators then work everywhere.
 - ⬜ Worktrees of one repo: one project or two - decide and make it explicit
 
 ### Daily use
-- ⬜ Settings window (§5)
-- ⬜ Command palette and keyboard shortcut reference
+- ✅ Settings window, basics (§5)
+- ✅ Command palette and keyboard shortcut reference
 - ⬜ Canvas undo/redo
 
 ### Staying current

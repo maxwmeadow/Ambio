@@ -4,8 +4,11 @@ import { clearProjectLocalState } from '../projectLocalState'
 import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { handleLauncherKey, launcherProjects } from './homeScreenModel'
 import { useUpdateStatus } from '../useUpdateStatus'
+import { emitCommand } from '../app/commands'
 
 interface HomeScreenProps {
+  /** A command from the menu or palette, e.g. File → New Project. */
+  request?: { kind: 'new'; nonce: number } | null
   onOpenProject: (config: ProjectConfig) => void
   onOpenDialog: () => void
   onCreateProject: (config: ProjectConfig) => void
@@ -39,7 +42,7 @@ function safeFolderName(name: string): string {
     .replace(/^[.\s-]+|[.\s-]+$/g, '')
 }
 
-export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: HomeScreenProps) {
+export function HomeScreen({ request, onOpenProject, onOpenDialog, onCreateProject }: HomeScreenProps) {
   const [recentProjects, setRecentProjects] = useState<ProjectConfig[]>([])
   const [deckStatus, setDeckStatus] = useState<Record<string, CommandDeckStatus>>({})
   const [projectToDelete, setProjectToDelete] = useState<ProjectConfig | null>(null)
@@ -288,6 +291,13 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
       setCreateBusy(false)
     }
   }
+
+  const handledRequest = useRef<number | null>(null)
+  useEffect(() => {
+    if (!request || handledRequest.current === request.nonce) return
+    handledRequest.current = request.nonce
+    if (request.kind === 'new') startNew()
+  })
 
   const safeName = safeFolderName(newName)
   const canCreate = !!newLocation && !!safeName && !createBusy
@@ -704,6 +714,8 @@ function SupportLinks() {
       </button>
       <span aria-hidden="true">·</span>
       <button type="button" onClick={() => void window.axiom.openLogsFolder()}>Open logs</button>
+      <span aria-hidden="true">·</span>
+      <button type="button" onClick={() => emitCommand('app.settings')}>Settings</button>
     </nav>
   )
 }

@@ -8,6 +8,8 @@ import { ChromeButton } from './ui/ChromeButton'
 import { InvestigationsMenu } from './InvestigationsMenu'
 import { RecordingControl } from './RecordingControl'
 import { WindowControls } from './ui/WindowControls'
+import { AppMenuBar } from '../app/AppMenuBar'
+import { useCommandHandlers } from '../app/commands'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -45,6 +47,10 @@ export function Toolbar({
     return () => clearInterval(timer)
   }, [workspaceId])
 
+  useCommandHandlers({
+    'view.fitView': () => fitView({ padding: 0.15, duration: 850 }),
+  })
+
   useEffect(() => {
     void window.axiom?.setTitleBarHeight?.(34)
     const openDispatch = () => setAgentMsgOpen(true)
@@ -58,6 +64,7 @@ export function Toolbar({
       <div className="axiom-title-strip">
         <div className="axiom-title-strip__identity">
           <AxiomLogo />
+          <AppMenuBar />
           <strong>Axiom Architecture Workbench</strong>
           {projectName && (
             <>

@@ -34,6 +34,7 @@ import { useGraphStore, connectToArchd } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
 import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
+import { useCommandHandlers } from './app/commands'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
@@ -276,18 +277,14 @@ export default function App() {
     if (currentProject) enterOnboardingProject(currentProject.id)
   }, [currentProject, enterOnboardingProject])
 
-  // Keyboard shortcuts
+  // Command shortcuts live in GlobalCommands; Escape still closes search.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        if (currentProject) setSearchOpen(s => !s)
-      }
       if (e.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [currentProject])
+  }, [])
 
   const openProject = useCallback(async (incomingConfig: ProjectConfig) => {
     let config = migrateLegacyProjectLifecycle(incomingConfig)
@@ -573,6 +570,34 @@ export default function App() {
     setPendingSetup(null)
   }, [])
 
+  // Asks the launcher to open its New Project dialog, even when the command
+  // came from inside a project.
+  const [launcherRequest, setLauncherRequest] = useState<{ kind: 'new'; nonce: number } | null>(null)
+
+  useCommandHandlers({
+    'project.new': () => {
+      void (async () => {
+        if (currentProject) await closeProject()
+        setPendingSetup(null)
+        setLauncherRequest({ kind: 'new', nonce: Date.now() })
+      })()
+    },
+    'project.open': () => { void openProjectDialog() },
+    'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
+    'project.close': () => { if (currentProject) void closeProject() },
+    'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
+    'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
+    'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
+    'view.reviewChanges': () => {
+      const store = useGraphStore.getState()
+      if (store.delta) store.startDeltaReview()
+      else raiseNotice('no-delta', 'Nothing to review', 'No architectural changes since your last review.')
+    },
+    'agent.message': () => { window.dispatchEvent(new Event('axiom:open-agent-dispatch')) },
+    'agent.connect': () => { if (currentProject) setAgentSetupOpen(true) },
+    'help.guide': () => { useOnboardingStore.getState().reveal() },
+  })
+
   // Project setup configuration screen (after folder picked, before indexing)
   if (pendingSetup) {
     return (
@@ -594,6 +619,7 @@ export default function App() {
   if (!currentProject) {
     return (
       <HomeScreen
+        request={launcherRequest}
         onOpenProject={(config) => {
           void routeProjectBySourceBoundaryState(config)
         }}
