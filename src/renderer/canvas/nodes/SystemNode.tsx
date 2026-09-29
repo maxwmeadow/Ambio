@@ -352,6 +352,8 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
     </div>
   )
 
+  const headerCorner = Math.max(7, Math.min(18, shellSize.w * 0.035, shellSize.h * 0.09))
+  const headerLeft = isDeploymentBoundary ? Math.max(chrome.titleLeft, headerCorner + 6) : chrome.titleLeft
   const header = (
     <div style={{
       position: 'absolute',
@@ -360,8 +362,10 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       // Must be the model's inset, not `padX`. padX is derived from titlePx,
       // which rides presentationScale = min(w/designW, h/designH) - so using
       // it here moved the title sideways whenever the frame's HEIGHT changed.
-      left: chrome.titleLeft,
-      width: chrome.titleWidth,
+      // A hosting frame's cut corner and rails sit where a folder's tab
+      // starts; its title and icon begin after them.
+      left: headerLeft,
+      width: Math.max(0, chrome.titleWidth - (headerLeft - chrome.titleLeft)),
       height: tabBandH,
       display: 'flex',
       alignItems: 'center',
@@ -374,7 +378,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       opacity: containerAlpha,
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
     }}>
-      {infraIdentityIcon(Math.max(12, titleFont * 1.05))}
+      {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
       <EditableNodeTitle value={name} onRename={d.onRename} style={{
         fontSize: titleFont,
         fontWeight: 600,
@@ -415,7 +419,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
 
   const strokeColor = isDropTarget ? color : 'var(--border)'
   const strokeW = isDropTarget ? 2.5 : 1
-  const deploymentCorner = Math.max(7, Math.min(18, shellSize.w * 0.035, shellSize.h * 0.09))
+  const deploymentCorner = headerCorner
   const shellPath = isDeploymentBoundary
     // Hosting is a deployment chassis, not a UML package. It deliberately
     // shares containment mechanics without implying semantic system ownership.
