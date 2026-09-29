@@ -209,3 +209,105 @@ func ReconcileHostingEdges(db *sql.DB, workspaceID string) (added []Dependency, 
 	}
 	return added, removed, nil
 }
+
+// PackageUse is one file loading one external package at a line.
+type PackageUse struct {
+	FileID  string
+	RelPath string
+	Package string
+	Line    int
+}
+
+// EnvRead is one file reading one environment variable at a line.
+type EnvRead struct {
+	FileID  string
+	RelPath string
+	Name    string
+	Line    int
+}
+
+// ReplaceFileEvidence swaps a file's detection evidence for a fresh parse.
+func ReplaceFileEvidence(db *sql.DB, fileID string, packages []PackageUse, envReads []EnvRead) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	if _, err := tx.Exec(`DELETE FROM file_packages WHERE file_id=?`, fileID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM file_env_reads WHERE file_id=?`, fileID); err != nil {
+		return err
+	}
+	for _, p := range packages {
+		if _, err := tx.Exec(`INSERT INTO file_packages (file_id, package, line) VALUES (?,?,?)`, fileID, p.Package, p.Line); err != nil {
+			return err
+		}
+	}
+	for _, e := range envReads {
+		if _, err := tx.Exec(`INSERT INTO file_env_reads (file_id, name, line) VALUES (?,?,?)`, fileID, e.Name, e.Line); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// GetPackageUses lists every external package use in a root.
+func GetPackageUses(db Reader, rootID string) ([]PackageUse, error) {
+	rows, err := db.Query(`
+		SELECT p.file_id, f.rel_path, p.package, p.line FROM file_packages p
+		JOIN files f ON f.id = p.file_id WHERE f.root_id = ? ORDER BY f.rel_path, p.line`, rootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PackageUse
+	for rows.Next() {
+		var u PackageUse
+		if err := rows.Scan(&u.FileID, &u.RelPath, &u.Package, &u.Line); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// GetEnvReads lists every environment variable read in a root.
+func GetEnvReads(db Reader, rootID string) ([]EnvRead, error) {
+	rows, err := db.Query(`
+		SELECT e.file_id, f.rel_path, e.name, e.line FROM file_env_reads e
+		JOIN files f ON f.id = e.file_id WHERE f.root_id = ? ORDER BY e.name, f.rel_path, e.line`, rootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []EnvRead
+	for rows.Next() {
+		var r EnvRead
+		if err := rows.Scan(&r.FileID, &r.RelPath, &r.Name, &r.Line); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// DetectionEvidenceVersion reports which evidence version a root's index has.
+func DetectionEvidenceVersion(db Reader, rootID string) int {
+	var version int
+	_ = db.QueryRow(`SELECT evidence_version FROM detection_state WHERE root_id=?`, rootID).Scan(&version)
+	return version
+}
+
+func SetDetectionEvidenceVersion(db *sql.DB, rootID string, version int) error {
+	_, err := db.Exec(`INSERT INTO detection_state (root_id, evidence_version) VALUES (?,?)
+		ON CONFLICT(root_id) DO UPDATE SET evidence_version=excluded.evidence_version`, rootID, version)
+	return err
+}
+
+// DecideDetectedEdges applies a node decision to the relationships detection
+// proposed into it. Relationships already decided are left alone.
+func DecideDetectedEdges(db *sql.DB, infraID, status string) error {
+	_, err := db.Exec(`UPDATE dependencies SET status=? WHERE dst=? AND dst_type='infra' AND status='proposed'`, status, infraID)
+	return err
+}

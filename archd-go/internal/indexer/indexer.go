@@ -149,6 +149,9 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 	if err := db.MarkRootIndexed(sqlDB, root.ID, ClassifierVersion); err != nil {
 		log.Printf("indexer: mark indexed: %v", err)
 	}
+	if err := db.SetDetectionEvidenceVersion(sqlDB, root.ID, DetectionEvidenceVersion); err != nil {
+		log.Printf("indexer: mark detection evidence: %v", err)
+	}
 
 	h.BroadcastIndexingComplete(root.WorkspaceID)
 	return nil
@@ -665,6 +668,10 @@ func indexOneFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, existing
 	}
 
 	if err := db.UpsertVarRefs(sqlDB, fileID, aggregateVarRefs(fileID, result.VarRefs)); err != nil {
+		return err
+	}
+
+	if err := db.ReplaceFileEvidence(sqlDB, fileID, packageUses(result), envReads(result)); err != nil {
 		return err
 	}
 

@@ -1,0 +1,93 @@
+package infradetect
+
+import (
+	"strings"
+	"testing"
+
+	"axiom.local/archd/internal/registry"
+)
+
+func inputs(files map[string]string, imports [][2]string, packages map[string][]string, config map[string]string) Inputs {
+	in := Inputs{Config: map[string][]byte{}, Registry: registry.Load(nil)}
+	for id, rel := range files {
+		lang := "typescript"
+		if strings.HasSuffix(rel, ".py") {
+			lang = "python"
+		}
+		in.Files = append(in.Files, File{ID: id, RelPath: rel, Language: lang})
+	}
+	for _, pair := range imports {
+		in.Imports = append(in.Imports, Import{From: pair[0], To: pair[1]})
+	}
+	for id, pkgs := range packages {
+		for _, pkg := range pkgs {
+			in.Packages = append(in.Packages, PackageUse{FileID: id, Package: pkg, Line: 1})
+		}
+	}
+	for rel, body := range config {
+		in.Config[rel] = []byte(body)
+	}
+	return in
+}
+
+func TestAFileUsingAnSDKDirectlyUsesTheRole(t *testing.T) {
+	result := Analyze(inputs(
+		map[string]string{"checkout": "src/routes/checkout.ts", "refund": "src/routes/refund.ts"},
+		nil,
+		map[string][]string{"checkout": {"stripe"}, "refund": {"stripe"}},
+		nil,
+	))
+	stripe := find(result, "stripe/api")
+	if stripe == nil || len(stripe.Edges) != 2 {
+		t.Fatalf("both routes use Stripe: %+v", stripe)
+	}
+	for _, e := range stripe.Edges {
+		if e.Kind != "USES" {
+			t.Errorf("no file imports them, so neither is an adapter: %+v", e)
+		}
+	}
+	if len(stripe.Implementations) != 0 {
+		t.Errorf("no adapter, no stand-in: %+v", stripe.Implementations)
+	}
+}
+
+func TestAnAmbiguousPackageIsLeftForTheAgent(t *testing.T) {
+	result := Analyze(inputs(
+		map[string]string{"jobs": "worker/jobs.py"}, nil,
+		map[string][]string{"jobs": {"boto3"}}, nil,
+	))
+	if len(result.Proposals) != 0 {
+		t.Errorf("boto3 alone could be any AWS service; propose nothing: %+v", result.Proposals)
+	}
+	if len(result.Unresolved) != 1 || len(result.Unresolved[0].Candidates) < 2 {
+		t.Errorf("but say what was seen: %+v", result.Unresolved)
+	}
+}
+
+func TestADeclaredButUnusedPackageIsMarked(t *testing.T) {
+	result := Analyze(inputs(
+		map[string]string{"app": "src/app.ts"}, nil, nil,
+		map[string]string{"package.json": `{"dependencies":{"openai":"^4","left-pad":"1"}}`},
+	))
+	openai := find(result, "openai/api")
+	if openai == nil || !openai.DeclaredOnly {
+		t.Fatalf("openai is declared but no file loads it: %+v", openai)
+	}
+}
+
+func TestLocalEnvValuesAreNeverRead(t *testing.T) {
+	in := inputs(map[string]string{"db": "src/db.ts"}, nil, map[string][]string{"db": {"pg"}},
+		map[string]string{
+			".env.example": "DATABASE_URL=postgres://localhost/app\n",
+			".env":         "DATABASE_URL=postgres://admin:hunter2@prod/app\n",
+		})
+	result := Analyze(in)
+	for _, r := range result.Requirements {
+		if strings.Contains(r.Evidence, "hunter2") || strings.Contains(r.Name, "hunter2") {
+			t.Fatalf("a value leaked into a requirement: %+v", r)
+		}
+		if r.Name == "DATABASE_URL" && (!r.Present || r.Service != "postgresql/postgres") {
+			t.Errorf("DATABASE_URL is defined locally and belongs to Postgres: %+v", r)
+		}
+	}
+}

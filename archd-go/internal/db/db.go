@@ -484,6 +484,29 @@ func migrate(db *sql.DB) error {
 		policies        TEXT                            -- json {costs_money, external_side_effects, never_in_tests, confirm_before_running}
 	);
 
+	-- Detection evidence, rebuilt with every parse of a file: the external
+	-- packages it loads and the environment variables it reads, with lines.
+	CREATE TABLE IF NOT EXISTS file_packages (
+		file_id  TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+		package  TEXT NOT NULL,
+		line     INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS file_packages_file ON file_packages(file_id);
+	CREATE INDEX IF NOT EXISTS file_packages_package ON file_packages(package);
+	CREATE TABLE IF NOT EXISTS file_env_reads (
+		file_id  TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+		name     TEXT NOT NULL,
+		line     INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS file_env_reads_file ON file_env_reads(file_id);
+
+	-- Which version of detection evidence each root's index carries, so an
+	-- index built before the evidence existed is backfilled exactly once.
+	CREATE TABLE IF NOT EXISTS detection_state (
+		root_id           TEXT PRIMARY KEY,
+		evidence_version  INTEGER NOT NULL DEFAULT 0
+	);
+
 	-- What code depends on inside an infra node: tables, topics, cache keys,
 	-- methods, webhooks, models, prompts, flags, schedules, channels, routes.
 	CREATE TABLE IF NOT EXISTS infra_contents (

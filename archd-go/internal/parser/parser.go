@@ -45,6 +45,11 @@ type Result struct {
 	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration;
 	// other entries are internal using directives (namespace strings, not file paths).
 	Imports []string
+	// Packages holds every external package the file loads, with its line:
+	// the evidence infra detection matches against the service registry.
+	Packages []PackageRef
+	// EnvReads holds environment variables the file reads, by name.
+	EnvReads []EnvRef
 	// Calls holds raw (unresolved) function calls extracted by tree-sitter.
 	// The indexer resolves CalleeName → callee file ID using the symbols table.
 	Calls []RawCall
@@ -104,6 +109,19 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 	rootNode := tree.RootNode()
 	result.Symbols = extractSymbols(rootNode, src, lang)
 	result.Imports = extractImports(rootNode, src, lang, relPath)
+	switch lang {
+	case "typescript", "tsx", "javascript", "jsx":
+		packages, dynamicRelative := extractJSModuleRefs(rootNode, src, relPath)
+		result.Packages = packages
+		// require() and import() of project files are imports too: an
+		// adapter loaded lazily by its facade is still part of the graph.
+		result.Imports = append(result.Imports, dynamicRelative...)
+	case "python":
+		result.Packages = extractPythonPackages(rootNode, src)
+	case "go":
+		result.Packages = extractGoPackages(rootNode, src)
+	}
+	result.EnvReads = extractEnvReads(src, lang)
 	result.Calls = extractCalls(rootNode, src, lang)
 	result.VarRefs = extractVarRefs(rootNode, src, lang)
 	return result, nil

@@ -15,12 +15,18 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"axiom.local/archd/internal/db"
+	"axiom.local/archd/internal/indexer"
+	"axiom.local/archd/internal/infradetect"
 	"axiom.local/archd/internal/registry"
 )
 
@@ -91,27 +97,7 @@ func (s *Server) handleInfra(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), 404)
 			return
 		}
-		nodes, err := db.GetInfraNodes(sqlDB, workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		edges, err := db.GetInfraEdges(sqlDB, workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		contents, err := db.GetInfraContents(sqlDB, workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		requirements, err := db.GetInfraRequirements(sqlDB, workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		jsonOK(w, map[string]any{"nodes": nodes, "edges": edges, "contents": contents, "requirements": requirements})
+		s.writeInfraList(w, sqlDB, workspaceID)
 
 	case http.MethodPost:
 		var n db.InfraNode
@@ -198,11 +184,13 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 		if body.Subtype != nil {
 			n.Subtype = *body.Subtype
 		}
+		statusChanged := false
 		if body.Status != nil {
-			if *body.Status != "proposed" && *body.Status != "confirmed" && *body.Status != "dismissed" {
+			if !validDecision(*body.Status) {
 				jsonError(w, "status must be proposed|confirmed|dismissed", 400)
 				return
 			}
+			statusChanged = n.Status != *body.Status
 			n.Status = *body.Status
 		}
 		if body.Config != nil {
@@ -221,6 +209,15 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 		if err := db.UpsertInfraNode(sqlDB, n); err != nil {
 			jsonError(w, err.Error(), 500)
 			return
+		}
+		if statusChanged && n.Status != "proposed" {
+			// Deciding a node decides what detection proposed about it; a
+			// relationship someone already decided keeps their decision.
+			if err := db.DecideDetectedEdges(sqlDB, n.ID, n.Status); err != nil {
+				jsonError(w, err.Error(), 500)
+				return
+			}
+			s.broadcastInfraRefresh(sqlDB, n.WorkspaceID)
 		}
 		s.broadcastPatch("infra:upserted", *n)
 		jsonOK(w, n)
@@ -502,4 +499,116 @@ func (s *Server) handleInfraRequirements(w http.ResponseWriter, r *http.Request)
 	}
 	s.broadcastPatch("infra:requirements", map[string]any{"workspaceId": body.WorkspaceID, "items": body.Items})
 	jsonOK(w, map[string]any{"items": body.Items})
+}
+
+// detectInfra proposes the root's infrastructure from the index (L2) and tells
+// open canvases. Runs are serialized per workspace; a failure is logged and
+// the previous map stands.
+func (s *Server) detectInfra(sqlDB *sql.DB, root db.Root) {
+	s.detectMu.Lock()
+	lock := s.detecting[root.WorkspaceID]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		s.detecting[root.WorkspaceID] = lock
+	}
+	s.detectMu.Unlock()
+	lock.Lock()
+	defer lock.Unlock()
+
+	started := time.Now()
+	in, err := infradetect.Load(sqlDB, root, s.currentRegistry())
+	if err != nil {
+		log.Printf("[infra] detection inputs for %s: %v", root.Path, err)
+		return
+	}
+	result := infradetect.Analyze(in)
+	changes, err := infradetect.Apply(sqlDB, root.WorkspaceID, root.ID, result)
+	if err != nil {
+		log.Printf("[infra] detection for %s: %v", root.Path, err)
+		return
+	}
+	s.detectMu.Lock()
+	s.infraUnresolved[root.WorkspaceID] = result.Unresolved
+	s.detectMu.Unlock()
+	log.Printf("[infra] detection for %s: %d proposals, %d relationships, %d withdrawn in %s",
+		root.Path, len(result.Proposals), len(changes.Connected), len(changes.Disconnected)+len(changes.Removed), time.Since(started).Round(time.Millisecond))
+	s.broadcastInfraRefresh(sqlDB, root.WorkspaceID)
+}
+
+// broadcastInfraRefresh sends the whole infra layer in one patch: detection
+// touches dozens of rows at once, and one message keeps canvases consistent.
+func (s *Server) broadcastInfraRefresh(sqlDB *sql.DB, workspaceID string) {
+	nodes, err := db.GetInfraNodes(sqlDB, workspaceID)
+	if err != nil {
+		return
+	}
+	edges, err := db.GetInfraEdges(sqlDB, workspaceID)
+	if err != nil {
+		return
+	}
+	s.broadcastPatch("infra:refreshed", map[string]any{"workspaceId": workspaceID, "nodes": nodes, "edges": edges})
+}
+
+// handleInfraDetect runs detection on demand: POST {workspaceId}.
+func (s *Server) handleInfraDetect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "send {workspaceId}", 400)
+		return
+	}
+	sqlDB, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	roots, err := db.GetRoots(sqlDB, body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	for _, root := range roots {
+		if err := indexer.EnsureDetectionEvidence(sqlDB, root); err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		s.detectInfra(sqlDB, root)
+	}
+	s.writeInfraList(w, sqlDB, body.WorkspaceID)
+}
+
+func (s *Server) writeInfraList(w http.ResponseWriter, sqlDB *sql.DB, workspaceID string) {
+	nodes, err := db.GetInfraNodes(sqlDB, workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	edges, err := db.GetInfraEdges(sqlDB, workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	contents, err := db.GetInfraContents(sqlDB, workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	requirements, err := db.GetInfraRequirements(sqlDB, workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	s.detectMu.Lock()
+	unresolved := s.infraUnresolved[workspaceID]
+	s.detectMu.Unlock()
+	if unresolved == nil {
+		unresolved = []infradetect.Unresolved{}
+	}
+	jsonOK(w, map[string]any{"nodes": nodes, "edges": edges, "contents": contents,
+		"requirements": requirements, "unresolved": unresolved})
 }

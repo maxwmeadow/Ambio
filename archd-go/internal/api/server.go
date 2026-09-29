@@ -38,6 +38,7 @@ import (
 	"axiom.local/archd/internal/db"
 	"axiom.local/archd/internal/gitworktree"
 	"axiom.local/archd/internal/hub"
+	"axiom.local/archd/internal/infradetect"
 	"axiom.local/archd/internal/registry"
 	"axiom.local/archd/internal/runtime"
 	"axiom.local/archd/internal/watcher"
@@ -66,6 +67,11 @@ type Server struct {
 	// re-index and feed the activity engine. Keyed by root ID; closed on
 	// workspace close.
 	watchers map[string]*watcher.Watcher
+	// Infra detection: one run at a time per workspace, and what the latest
+	// run saw but could not attribute to a single service.
+	detectMu        sync.Mutex
+	detecting       map[string]*sync.Mutex
+	infraUnresolved map[string][]infradetect.Unresolved
 	// Worktree topology and heads are driven by Git metadata notifications. A
 	// slow periodic refresh remains only as protection against dropped events.
 	discoverWorktrees func(string) ([]gitworktree.Worktree, error)
@@ -104,6 +110,8 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		runtime:             rt,
 		registry:            registry.Load(nil),
 		watchers:            make(map[string]*watcher.Watcher),
+		detecting:           make(map[string]*sync.Mutex),
+		infraUnresolved:     make(map[string][]infradetect.Unresolved),
 		discoverWorktrees:   gitworktree.Discover,
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
@@ -319,6 +327,7 @@ func (s *Server) startWatcher(sqlDB *sql.DB, root db.Root) {
 	s.watchers[root.ID] = w
 	s.roots[root.ID] = root
 	s.mu.Unlock()
+	w.OnSettled(func(settled db.Root) { s.detectInfra(sqlDB, settled) })
 	go w.Run()
 	log.Printf("api: watcher attached to %s", root.Path)
 }
@@ -347,6 +356,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/files/", s.handleFileByID)
 	mux.HandleFunc("/api/infra", s.handleInfra)
 	mux.HandleFunc("/api/infra/connect", s.handleInfraConnect)
+	mux.HandleFunc("/api/infra/detect", s.handleInfraDetect)
 	mux.HandleFunc("/api/infra/edge/", s.handleInfraEdge)
 	mux.HandleFunc("/api/infra/", s.handleInfraByID)
 	mux.HandleFunc("/api/registry/services", s.handleRegistryServices)
