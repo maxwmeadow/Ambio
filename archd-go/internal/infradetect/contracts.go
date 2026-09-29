@@ -24,8 +24,8 @@ var (
 	prismaModel = regexp.MustCompile(`(?m)^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{`)
 	sqlWrite    = regexp.MustCompile(`(?i)\b(?:insert\s+into|update|delete\s+from)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
 	// The optional "delete" consumes DELETE FROM, which is a write, not a read.
-	sqlRead     = regexp.MustCompile(`(?i)(?:\bdelete\s+)?\b(?:from|join)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
-	columnName  = regexp.MustCompile(`(?m)^\s*["` + "`" + `]?([a-z_][a-z0-9_]*)["` + "`" + `]?\s+[a-z]`)
+	sqlRead    = regexp.MustCompile(`(?i)(?:\bdelete\s+)?\b(?:from|join)\s+["` + "`" + `]?([a-z_][a-z0-9_]*)`)
+	columnName = regexp.MustCompile(`(?m)^\s*["` + "`" + `]?([a-z_][a-z0-9_]*)["` + "`" + `]?\s+[a-z]`)
 )
 
 // sqlDatabase picks the node SQL belongs to: the one SQL database proposal,

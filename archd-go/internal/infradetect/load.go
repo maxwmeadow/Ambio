@@ -46,11 +46,6 @@ func Load(sqlDB *sql.DB, root db.Root, reg *registry.Registry) (Inputs, error) {
 	for _, r := range reads {
 		in.EnvReads = append(in.EnvReads, EnvRead{FileID: r.FileID, Name: r.Name, Line: r.Line})
 	}
-	for _, rel := range ConfigPaths {
-		if body, err := os.ReadFile(filepath.Join(root.Path, rel)); err == nil {
-			in.Config[rel] = body
-		}
-	}
 	if workflows, err := filepath.Glob(filepath.Join(root.Path, ".github", "workflows", "*.y*ml")); err == nil {
 		for _, abs := range workflows {
 			if body, err := os.ReadFile(abs); err == nil {
@@ -76,7 +71,7 @@ func Load(sqlDB *sql.DB, root db.Root, reg *registry.Registry) (Inputs, error) {
 		}
 		return body
 	}
-	loadMigrations(root.Path, in.Config)
+	walkConfig(root.Path, in.Config)
 	// A platform cron names a route; finding the handler means reading
 	// sources. Only done when there are crons to trace, and only small files.
 	if vercel, ok := in.Config["vercel.json"]; ok && bytes.Contains(vercel, []byte(`"crons"`)) {
@@ -109,38 +104,43 @@ func Load(sqlDB *sql.DB, root db.Root, reg *registry.Registry) (Inputs, error) {
 	return in, nil
 }
 
-// loadMigrations reads SQL files and ORM schemas - a database role's contract
-// - into Config. SQL is not indexed as source, so it is found here: files
-// ending in .sql and schema.prisma, outside dependency and build folders.
-func loadMigrations(rootPath string, config map[string][]byte) {
-	skip := map[string]bool{"node_modules": true, ".git": true, "dist": true, "build": true, "out": true, "vendor": true, "target": true, ".next": true}
+// walkConfig reads the project files detection understands, wherever they
+// sit: a monorepo keeps its package.json, Dockerfile and fly.toml in each
+// service's folder, not at the root. SQL files and ORM schemas (a database's
+// contract) are read too; they are not indexed as source.
+func walkConfig(rootPath string, config map[string][]byte) {
+	skip := map[string]bool{"node_modules": true, ".git": true, "dist": true, "build": true, "out": true,
+		"vendor": true, "target": true, ".next": true, "venv": true, ".venv": true, "__pycache__": true}
 	count := 0
 	_ = filepath.WalkDir(rootPath, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
+		rel, relErr := filepath.Rel(rootPath, path)
+		if relErr != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
 		if entry.IsDir() {
-			if skip[entry.Name()] || (strings.HasPrefix(entry.Name(), ".") && path != rootPath) {
+			if path == rootPath {
+				return nil
+			}
+			if skip[entry.Name()] || strings.HasPrefix(entry.Name(), ".") || strings.Count(rel, "/") >= 5 {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".sql") && name != "schema.prisma" {
+		if !WantsConfig(rel) {
 			return nil
 		}
-		if count >= 500 {
+		if count >= 800 {
 			return filepath.SkipAll
 		}
 		if info, err := entry.Info(); err != nil || info.Size() > 1024*1024 {
 			return nil
 		}
-		rel, err := filepath.Rel(rootPath, path)
-		if err != nil {
-			return nil
-		}
 		if body, err := os.ReadFile(path); err == nil {
-			config[filepath.ToSlash(rel)] = body
+			config[rel] = body
 			count++
 		}
 		return nil

@@ -96,7 +96,10 @@ type Content struct {
 // Proposal is one infra node detection believes in, with everything that
 // justifies it.
 type Proposal struct {
-	Service         string
+	Service string
+	// Instance tells apart several nodes of one service: each Dockerfile is its
+	// own container ("api", "worker"). Empty for one-per-project services.
+	Instance        string
 	Name            string
 	Category        string
 	Provider        string
@@ -193,6 +196,27 @@ func newDetection(in Inputs) *detection {
 	}
 	d.readEnvFiles()
 	return d
+}
+
+// proposalKey identifies a proposal across runs: the service, and the
+// instance when a service can appear more than once.
+func proposalKey(p *Proposal) string {
+	if p.Instance == "" {
+		return p.Service
+	}
+	return p.Service + "#" + p.Instance
+}
+
+// instance is the proposal for one of several nodes of a service.
+func (d *detection) instance(service registry.Service, instance string) *Proposal {
+	key := service.ID + "#" + instance
+	if p, ok := d.proposals[key]; ok {
+		return p
+	}
+	p := &Proposal{Service: service.ID, Instance: instance, Name: service.Name + " · " + instance,
+		Category: service.Category, Provider: service.Provider, Subtype: service.Subtype}
+	d.proposals[key] = p
+	return p
 }
 
 func (d *detection) proposal(service registry.Service) *Proposal {
@@ -500,6 +524,7 @@ func (d *detection) result() Result {
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
+		sortProposal(d.proposals[id])
 		out.Proposals = append(out.Proposals, *d.proposals[id])
 	}
 	out.Requirements = d.requirement
@@ -520,7 +545,21 @@ func sortProposal(p *Proposal) {
 	sort.Slice(p.Implementations, func(i, j int) bool {
 		return p.Implementations[i].Kind+p.Implementations[i].Ref < p.Implementations[j].Kind+p.Implementations[j].Ref
 	})
-	sort.Slice(p.Evidence, func(i, j int) bool { return p.Evidence[i].Ref < p.Evidence[j].Ref })
+	sort.Slice(p.Evidence, func(i, j int) bool {
+		if p.Evidence[i].Ref != p.Evidence[j].Ref {
+			return p.Evidence[i].Ref < p.Evidence[j].Ref
+		}
+		return p.Evidence[i].Signal+p.Evidence[i].Detail < p.Evidence[j].Signal+p.Evidence[j].Detail
+	})
+	// Two readers noticing the same file is one reason, not two.
+	kept := p.Evidence[:0]
+	for i, e := range p.Evidence {
+		if i > 0 && e == p.Evidence[i-1] {
+			continue
+		}
+		kept = append(kept, e)
+	}
+	p.Evidence = kept
 }
 
 func ref(relPath string, line int) string {

@@ -19,6 +19,19 @@ type Changes struct {
 type detectedBy struct {
 	Evidence     []Evidence `json:"evidence"`
 	DeclaredOnly bool       `json:"declaredOnly,omitempty"`
+	// Instance tells apart several nodes of one service (one per Dockerfile).
+	Instance string `json:"instance,omitempty"`
+}
+
+// nodeKey matches a stored node to a proposal: service, plus the instance
+// detection recorded for it.
+func nodeKey(n *db.InfraNode) string {
+	var by detectedBy
+	_ = json.Unmarshal(n.DetectedBy, &by)
+	if by.Instance == "" {
+		return n.Service
+	}
+	return n.Service + "#" + by.Instance
 }
 
 // Apply persists detection for one root and reconciles it with what is
@@ -37,11 +50,11 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 	if err != nil {
 		return changes, err
 	}
-	byService := map[string]*db.InfraNode{}
+	byKey := map[string]*db.InfraNode{}
 	for i := range existing {
 		n := &existing[i]
-		if n.Service != "" && byService[n.Service] == nil {
-			byService[n.Service] = n
+		if key := nodeKey(n); n.Service != "" && byKey[key] == nil {
+			byKey[key] = n
 		}
 	}
 
@@ -51,7 +64,8 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 	nodeForService := map[string]string{}
 
 	for _, p := range result.Proposals {
-		node := byService[p.Service]
+		key := proposalKey(&p)
+		node := byKey[key]
 		if node != nil && node.Status == "dismissed" {
 			wantedNodes[node.ID] = true
 			continue
@@ -60,7 +74,7 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 			node = &db.InfraNode{WorkspaceID: workspaceID, Name: p.Name, Category: p.Category,
 				Provider: p.Provider, Service: p.Service, Subtype: p.Subtype, Status: "proposed"}
 		}
-		evidence, _ := json.Marshal(detectedBy{Evidence: p.Evidence, DeclaredOnly: p.DeclaredOnly})
+		evidence, _ := json.Marshal(detectedBy{Evidence: p.Evidence, DeclaredOnly: p.DeclaredOnly, Instance: p.Instance})
 		node.DetectedBy = evidence
 		node.Implementations = mergeImplementations(node.Implementations, p.Implementations)
 		if err := db.UpsertInfraNode(sqlDB, node); err != nil {
@@ -68,7 +82,9 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 		}
 		changes.Upserted = append(changes.Upserted, *node)
 		wantedNodes[node.ID] = true
-		nodeForService[p.Service] = node.ID
+		if p.Instance == "" {
+			nodeForService[p.Service] = node.ID
+		}
 
 		status := "proposed"
 		if node.Status == "confirmed" {

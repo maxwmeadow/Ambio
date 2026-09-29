@@ -10,26 +10,52 @@ import (
 	"strings"
 )
 
-// ConfigPaths are the project files detection reads, relative to the root.
-// Workflow files are matched by directory in WantsConfig.
-var ConfigPaths = []string{
-	"package.json", "requirements.txt", "pyproject.toml", "go.mod",
-	".env.example", ".env.sample", ".env.template", ".env", ".env.local", ".env.development",
-	"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
-	"vercel.json", "fly.toml", "netlify.toml", "render.yaml", "railway.json", "railway.toml",
-	"Dockerfile", "Procfile",
+// ConfigNames are the project files detection reads, by file name, in any
+// folder of the project (a monorepo keeps them per service). Workflow files
+// are matched by directory, SQL files and ORM schemas by extension.
+var ConfigNames = map[string]bool{
+	"package.json": true, "requirements.txt": true, "pyproject.toml": true, "go.mod": true,
+	".env.example": true, ".env.sample": true, ".env.template": true, ".env": true, ".env.local": true, ".env.development": true,
+	"docker-compose.yml": true, "docker-compose.yaml": true, "compose.yml": true, "compose.yaml": true,
+	"vercel.json": true, "fly.toml": true, "netlify.toml": true, "render.yaml": true, "railway.json": true, "railway.toml": true,
+	"Dockerfile": true, "Procfile": true,
 }
 
 // WantsConfig reports whether detection reads a file at this relative path.
 func WantsConfig(relPath string) bool {
-	for _, p := range ConfigPaths {
-		if relPath == p {
-			return true
-		}
+	name := path.Base(relPath)
+	if ConfigNames[name] || strings.HasPrefix(name, "Dockerfile.") {
+		return true
+	}
+	if strings.HasSuffix(name, ".sql") || name == "schema.prisma" {
+		return true
 	}
 	dir := path.Dir(relPath)
 	ext := path.Ext(relPath)
 	return dir == ".github/workflows" && (ext == ".yml" || ext == ".yaml")
+}
+
+// configFiles lists the loaded config files with one of these names, root
+// first, then by path.
+func (d *detection) configFiles(names ...string) []string {
+	want := map[string]bool{}
+	for _, name := range names {
+		want[name] = true
+	}
+	var out []string
+	for file := range d.in.Config {
+		if want[path.Base(file)] {
+			out = append(out, file)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		di, dj := strings.Count(out[i], "/"), strings.Count(out[j], "/")
+		if di != dj {
+			return di < dj
+		}
+		return out[i] < out[j]
+	})
+	return out
 }
 
 var envLine = regexp.MustCompile(`^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=`)
@@ -53,14 +79,14 @@ func (d *detection) readEnvFiles() {
 			}
 		}
 	}
-	for _, file := range examples {
+	for _, file := range d.configFiles(examples...) {
 		scan(file, func(name string, line int) {
 			if _, seen := d.envDeclared[name]; !seen {
 				d.envDeclared[name] = ref(file, line)
 			}
 		})
 	}
-	for _, file := range locals {
+	for _, file := range d.configFiles(locals...) {
 		scan(file, func(name string, line int) { d.envPresent[name] = true })
 	}
 }
@@ -68,55 +94,56 @@ func (d *detection) readEnvFiles() {
 // readManifests proposes services a manifest declares that no file loads -
 // low-confidence, labelled declared-only so the canvas can say so.
 func (d *detection) readManifests() {
-	declared := map[string][]string{} // family → packages
-	if body, ok := d.in.Config["package.json"]; ok {
+	type declaration struct{ pkg, file string }
+	declared := map[string][]declaration{} // family → packages, with the manifest naming them
+	for _, file := range d.configFiles("package.json") {
 		var manifest struct {
-			Dependencies    map[string]string `json:"dependencies"`
-			DevDependencies map[string]string `json:"devDependencies"`
+			Dependencies map[string]string `json:"dependencies"`
 		}
-		if json.Unmarshal(body, &manifest) == nil {
+		if json.Unmarshal(d.in.Config[file], &manifest) == nil {
 			for name := range manifest.Dependencies {
-				declared["js"] = append(declared["js"], name)
+				declared["js"] = append(declared["js"], declaration{name, file})
 			}
 		}
 	}
-	if body, ok := d.in.Config["requirements.txt"]; ok {
-		for _, raw := range strings.Split(string(body), "\n") {
+	for _, file := range d.configFiles("requirements.txt") {
+		for _, raw := range strings.Split(string(d.in.Config[file]), "\n") {
 			name := strings.TrimSpace(strings.SplitN(raw, "#", 2)[0])
-			name = regexp.MustCompile(`[<>=!~\[; ].*$`).ReplaceAllString(name, "")
+			name = requirementName.ReplaceAllString(name, "")
 			if name != "" {
-				declared["py"] = append(declared["py"], name)
+				declared["py"] = append(declared["py"], declaration{name, file})
 			}
 		}
 	}
-	if body, ok := d.in.Config["go.mod"]; ok {
-		for _, raw := range strings.Split(string(body), "\n") {
+	for _, file := range d.configFiles("go.mod") {
+		for _, raw := range strings.Split(string(d.in.Config[file]), "\n") {
 			fields := strings.Fields(strings.TrimPrefix(strings.TrimSpace(raw), "require "))
 			if len(fields) >= 2 && strings.Contains(fields[0], ".") && !strings.HasPrefix(fields[0], "module") {
-				declared["go"] = append(declared["go"], fields[0])
+				declared["go"] = append(declared["go"], declaration{fields[0], file})
 			}
 		}
 	}
-	manifestFor := map[string]string{"js": "package.json", "py": "requirements.txt", "go": "go.mod"}
 	for family, packages := range declared {
-		sort.Strings(packages)
-		for _, pkg := range packages {
-			candidates := d.servicesForPackage(family, pkg)
+		sort.Slice(packages, func(i, j int) bool { return packages[i].pkg+packages[i].file < packages[j].pkg+packages[j].file })
+		for _, decl := range packages {
+			candidates := d.servicesForPackage(family, decl.pkg)
 			if len(candidates) != 1 {
 				continue
 			}
 			service := candidates[0]
 			existing, loaded := d.proposals[service.ID]
-			if loaded && len(existing.Edges) > 0 {
-				existing.Evidence = append(existing.Evidence, Evidence{Signal: "package", Ref: manifestFor[family], Detail: pkg})
+			if loaded && (len(existing.Edges) > 0 || !existing.DeclaredOnly) {
+				existing.Evidence = append(existing.Evidence, Evidence{Signal: "package", Ref: decl.file, Detail: decl.pkg})
 				continue
 			}
 			p := d.proposal(service)
 			p.DeclaredOnly = true
-			p.Evidence = append(p.Evidence, Evidence{Signal: "package", Ref: manifestFor[family], Detail: pkg + " (declared, not loaded by any file)"})
+			p.Evidence = append(p.Evidence, Evidence{Signal: "package", Ref: decl.file, Detail: decl.pkg + " (declared, not loaded by any file)"})
 		}
 	}
 }
+
+var requirementName = regexp.MustCompile(`[<>=!~\[; ].*$`)
 
 // Compose images and what they stand in for locally. A service entry names a
 // registry id; a category entry attaches to whichever node fills that role.
@@ -195,11 +222,8 @@ func parseCompose(body []byte) []composeService {
 
 // readConfig reads compose, platform and CI files.
 func (d *detection) readConfig() {
-	for _, file := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
-		body, ok := d.in.Config[file]
-		if !ok {
-			continue
-		}
+	for _, file := range d.configFiles("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml") {
+		body := d.in.Config[file]
 		for _, svc := range parseCompose(body) {
 			if svc.image == "" {
 				continue
@@ -229,19 +253,7 @@ func (d *detection) readConfig() {
 	}
 	d.readVercel()
 	d.readWorkflows()
-	platformFiles := map[string]string{
-		"fly.toml": "fly/platform", "netlify.toml": "netlify/platform", "render.yaml": "render/platform",
-		"railway.json": "railway/platform", "railway.toml": "railway/platform", "Dockerfile": "docker/docker",
-	}
-	for file, service := range platformFiles {
-		if _, ok := d.in.Config[file]; !ok {
-			continue
-		}
-		if s, ok := d.in.Registry.Get(service); ok {
-			p := d.proposal(s)
-			p.Evidence = append(p.Evidence, Evidence{Signal: "config", Ref: file})
-		}
-	}
+	d.readHosting()
 }
 
 func (d *detection) readVercel() {
