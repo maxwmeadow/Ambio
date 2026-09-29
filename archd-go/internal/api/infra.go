@@ -147,12 +147,12 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodPut && sub == "":
 		var body struct {
-			WorkspaceID string          `json:"workspaceId"`
-			Name        *string         `json:"name"`
-			Service     *string         `json:"service"` // reskin: re-resolves category/provider
-			Subtype     *string         `json:"subtype"`
-			Status      *string         `json:"status"` // 'proposed'|'confirmed'|'dismissed'
-			Config      json.RawMessage `json:"config"`
+			WorkspaceID     string          `json:"workspaceId"`
+			Name            *string         `json:"name"`
+			Service         *string         `json:"service"` // reskin: re-resolves category/provider
+			Subtype         *string         `json:"subtype"`
+			Status          *string         `json:"status"` // 'proposed'|'confirmed'|'dismissed'
+			Config          json.RawMessage `json:"config"`
 			Implementations json.RawMessage `json:"implementations"`
 			Policies        json.RawMessage `json:"policies"`
 		}
@@ -296,7 +296,7 @@ func (s *Server) handleInfraConnect(w http.ResponseWriter, r *http.Request) {
 		InfraID     string  `json:"infraId"`
 		Kind        string  `json:"kind"` // 'READS'|'WRITES'|'PUBLISHES'|... per category
 		Evidence    *string `json:"evidence"`
-		CreatedBy   string  `json:"createdBy"` // 'user'|'agent'|'parser'|'runtime'; defaults to 'user'
+		CreatedBy   string  `json:"createdBy"`  // 'user'|'agent'|'parser'|'runtime'; defaults to 'user'
 		TargetItem  string  `json:"targetItem"` // the contents item: table, topic, key pattern, ...
 		Status      string  `json:"status"`     // 'proposed' for detections; defaults to 'confirmed'
 	}

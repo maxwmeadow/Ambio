@@ -77,7 +77,7 @@ from redis.asyncio import Redis
 from .models import Invoice
 import psycopg2 as pg
 `)
-	if got := packages(py); !reflect.DeepEqual(got, []string{"boto3", "os", "psycopg2", "redis", "stripe"}) {
+	if got := packages(py); !reflect.DeepEqual(got, []string{"boto3.session", "os", "psycopg2", "redis.asyncio", "stripe"}) {
 		t.Errorf("python packages: %v", got)
 	}
 	golang := parseSource(t, "store/pg.go", `package store

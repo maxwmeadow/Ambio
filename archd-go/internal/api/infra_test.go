@@ -57,9 +57,9 @@ func TestAnInProcessRoleIsRecordedWithItsContractAndUsers(t *testing.T) {
 	id := bus["id"].(string)
 
 	code, out := call(t, server.handleInfraByID, "PUT", "/api/infra/"+id, map[string]any{
-		"workspaceId": "ws",
+		"workspaceId":     "ws",
 		"implementations": []map[string]any{{"environment": "local", "kind": "in-process", "ref": "bus.ts"}},
-		"policies": map[string]any{"never_in_tests": false},
+		"policies":        map[string]any{"never_in_tests": false},
 	})
 	if code != 200 {
 		t.Fatalf("implementations: %d %v", code, out)

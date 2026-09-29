@@ -375,14 +375,53 @@ func extractJSImports(root *sitter.Node, src []byte, relPath string) []string {
 
 func extractPythonImports(root *sitter.Node, src []byte) []string {
 	var imports []string
+	seen := map[string]bool{}
+	add := func(spec string) {
+		if spec != "" && !seen[spec] {
+			seen[spec] = true
+			imports = append(imports, spec)
+		}
+	}
+	moduleOf := func(node *sitter.Node) string {
+		switch node.Type() {
+		case "dotted_name", "relative_import":
+			return node.Content(src)
+		case "aliased_import":
+			if name := node.ChildByFieldName("name"); name != nil {
+				return name.Content(src)
+			}
+		}
+		return ""
+	}
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
-		if node.Type() == "import_statement" || node.Type() == "import_from_statement" {
+		switch node.Type() {
+		case "import_statement":
+			// import a.b, c as d
+			for i := 0; i < int(node.NamedChildCount()); i++ {
+				add(moduleOf(node.NamedChild(i)))
+			}
+		case "import_from_statement":
+			// from pkg import mod, fn: the module, and each name as a possible
+			// submodule (pkg.mod). Names that are functions resolve to no file.
+			module := node.ChildByFieldName("module_name")
+			if module == nil {
+				break
+			}
+			base := module.Content(src)
+			add(base)
 			for i := 0; i < int(node.ChildCount()); i++ {
-				child := node.Child(i)
-				if child.Type() == "dotted_name" || child.Type() == "relative_import" {
-					imports = append(imports, child.Content(src))
-					break
+				if node.FieldNameForChild(i) != "name" {
+					continue
+				}
+				name := moduleOf(node.Child(i))
+				if name == "" {
+					continue
+				}
+				if strings.HasSuffix(base, ".") {
+					add(base + name)
+				} else {
+					add(base + "." + name)
 				}
 			}
 		}

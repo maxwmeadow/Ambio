@@ -358,7 +358,54 @@ func (d *detection) readWorkflows() {
 				Detail: map[string]any{"cron": expr, "workflow": file}, Evidence: ref(file, lineAt(body, match[0]))})
 			p.Evidence = append(p.Evidence, Evidence{Signal: "config", Ref: ref(file, lineAt(body, match[0]))})
 		}
+		// What the scheduled workflow runs: `python -m pkg.module`, `node
+		// scripts/x.js`, `go run ./cmd/x`, `npm run <script>` is left alone.
+		for _, m := range workflowRun.FindAllSubmatchIndex(body, -1) {
+			target := ""
+			for g := 2; g+1 < len(m); g += 2 {
+				if m[g] >= 0 {
+					target = string(body[m[g]:m[g+1]])
+					break
+				}
+			}
+			if fileID := d.fileForRunTarget(target); fileID != "" {
+				p := d.proposal(s)
+				p.Edges = append(p.Edges, Edge{FileID: fileID, Kind: "SCHEDULED_BY",
+					Evidence: ref(file, lineAt(body, m[0])) + " (runs " + target + ")"})
+			}
+		}
 	}
+}
+
+var workflowRun = regexp.MustCompile(`(?:python3?\s+-m\s+([\w.]+)|(?:python3?|node|tsx|ts-node|bun|deno\s+run)\s+([\w./-]+\.(?:py|js|mjs|ts))|go\s+run\s+(\./[\w./-]+))`)
+
+var scriptExt = map[string]bool{".py": true, ".js": true, ".mjs": true, ".ts": true}
+
+// fileForRunTarget finds the project file a command runs: a dotted Python
+// module, a script path, or a Go package folder (its main.go).
+func (d *detection) fileForRunTarget(target string) string {
+	var suffixes []string
+	switch {
+	case strings.HasPrefix(target, "./"):
+		dir := strings.TrimPrefix(target, "./")
+		suffixes = []string{dir + "/main.go"}
+	case strings.Contains(target, "/") || scriptExt[path.Ext(target)]:
+		suffixes = []string{strings.TrimPrefix(target, "./")}
+	default:
+		module := strings.ReplaceAll(target, ".", "/")
+		suffixes = []string{module + ".py", module + "/__main__.py"}
+	}
+	best := ""
+	for id, f := range d.files {
+		for _, suffix := range suffixes {
+			if f.RelPath == suffix || strings.HasSuffix(f.RelPath, "/"+suffix) {
+				if best == "" || f.RelPath < d.files[best].RelPath {
+					best = id
+				}
+			}
+		}
+	}
+	return best
 }
 
 // collectRequirements ties every env name to the role whose registry patterns
@@ -372,7 +419,16 @@ func (d *detection) collectRequirements() {
 		} else {
 			req.Evidence = d.envDeclared[name]
 		}
-		var claimants []*Proposal
+		type claimant struct {
+			p        *Proposal
+			strength int
+			reader   bool // a file reading the variable is one of the service's own
+		}
+		readers := map[string]bool{}
+		for _, read := range d.envByName[name] {
+			readers[read.FileID] = true
+		}
+		var claimants []claimant
 		ids := make([]string, 0, len(d.proposals))
 		for id := range d.proposals {
 			ids = append(ids, id)
@@ -380,19 +436,36 @@ func (d *detection) collectRequirements() {
 		sort.Strings(ids)
 		for _, id := range ids {
 			p := d.proposals[id]
-			if s, ok := d.in.Registry.Get(id); ok && envMatches(s, name) {
-				claimants = append(claimants, p)
+			s, ok := d.in.Registry.Get(p.Service)
+			if !ok || p.Instance != "" {
+				continue
 			}
+			strength := envMatchStrength(s, name)
+			if strength == 0 {
+				continue
+			}
+			c := claimant{p: p, strength: strength}
+			for _, e := range p.Edges {
+				c.reader = c.reader || readers[e.FileID]
+			}
+			claimants = append(claimants, c)
 		}
 		if len(claimants) > 0 {
 			sort.SliceStable(claimants, func(i, j int) bool {
-				loadedI, loadedJ := len(claimants[i].Edges) > 0, len(claimants[j].Edges) > 0
-				if loadedI != loadedJ {
-					return loadedI
+				a, b := claimants[i], claimants[j]
+				if a.reader != b.reader {
+					return a.reader
 				}
-				return rolePriority(claimants[i]) < rolePriority(claimants[j])
+				if a.strength != b.strength {
+					return a.strength > b.strength
+				}
+				loadedA, loadedB := len(a.p.Edges) > 0, len(b.p.Edges) > 0
+				if loadedA != loadedB {
+					return loadedA
+				}
+				return rolePriority(a.p) < rolePriority(b.p)
 			})
-			req.Service = claimants[0].Service
+			req.Service = claimants[0].p.Service
 		}
 		d.requirement = append(d.requirement, req)
 	}

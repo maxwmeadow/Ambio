@@ -157,6 +157,7 @@ func Analyze(in Inputs) Result {
 	d.readManifests()
 	d.readConfig()
 	d.collectRequirements()
+	d.linkEnvReaders()
 	d.extractSchedules()
 	d.extractContracts()
 	return d.result()
@@ -238,7 +239,8 @@ func (d *detection) servicesForPackage(family, pkg string) []registry.Service {
 			continue
 		}
 		for _, candidate := range s.Detect.Packages[family] {
-			if candidate == pkg || (family == "go" && strings.HasPrefix(pkg, candidate+"/")) {
+			if candidate == pkg || (family == "go" && strings.HasPrefix(pkg, candidate+"/")) ||
+				(family == "py" && strings.HasPrefix(pkg, candidate+".")) {
 				out = append(out, s)
 				break
 			}
@@ -278,25 +280,39 @@ var roleEnvPrefixes = map[string][]string{
 // patterns, its provider's own prefix (AWS_REGION is an AWS setting whichever
 // AWS service reads it), or its role's generic prefixes.
 func envMatches(s registry.Service, name string) bool {
+	return envMatchStrength(s, name) > 0
+}
+
+// envMatchStrength ranks how specifically a service claims a variable: its
+// own exact name (4), a pattern of its own (3), its provider's prefix (2), or
+// only its role's generic prefix (1). DATABASE_URL is Postgres's by pattern
+// and only generically MongoDB's.
+func envMatchStrength(s registry.Service, name string) int {
+	best := 0
 	if s.Detect != nil {
 		for _, pattern := range s.Detect.EnvPatterns {
-			if name == pattern || strings.HasPrefix(name, pattern) {
-				return true
+			if name == pattern {
+				return 4
+			}
+			if strings.HasPrefix(name, pattern) {
+				best = 3
 			}
 		}
 	}
-	if s.Provider != "" && s.Provider != "generic" {
+	if best == 0 && s.Provider != "" && s.Provider != "generic" {
 		prefix := strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(s.Provider)) + "_"
 		if strings.HasPrefix(name, prefix) {
-			return true
+			best = 2
 		}
 	}
-	for _, prefix := range roleEnvPrefixes[s.Category] {
-		if strings.HasPrefix(name, prefix) {
-			return true
+	if best == 0 {
+		for _, prefix := range roleEnvPrefixes[s.Category] {
+			if strings.HasPrefix(name, prefix) {
+				best = 1
+			}
 		}
 	}
-	return false
+	return best
 }
 
 // matchPackages attributes every package use to a service and separates the
@@ -311,6 +327,9 @@ func (d *detection) matchPackages() {
 		}
 		family := languageFamily(file.Language)
 		candidates := d.servicesForPackage(family, use.Package)
+		if len(candidates) > 1 {
+			candidates = d.narrowBySource(file, candidates)
+		}
 		if len(candidates) > 1 {
 			candidates = d.narrowByEnv(candidates)
 		}

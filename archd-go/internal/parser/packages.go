@@ -123,7 +123,9 @@ func extractPythonPackages(root *sitter.Node, src []byte) []PackageRef {
 		if dotted == "" || strings.HasPrefix(dotted, ".") {
 			return
 		}
-		out = append(out, PackageRef{Package: strings.Split(dotted, ".")[0], Line: line})
+		// The full module: google.cloud.storage, not google. Detection matches
+		// a service's import name as a prefix at a dot.
+		out = append(out, PackageRef{Package: dotted, Line: line})
 	}
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {

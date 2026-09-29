@@ -193,10 +193,10 @@ func TestHarborDetection(t *testing.T) {
 			topics[c.Name] = warning
 			t.Logf("topic %s %v", c.Name, c.Detail)
 		}
-		if warning, ok := topics["booking.reminder"]; !ok || !strings.Contains(warning, "nothing consumes") {
-			t.Errorf("booking.reminder is published with no consumer; got %v", topics)
+		if warning, ok := topics["booking.reminder"]; !ok || !strings.Contains(warning, `only "booking.reminders" is consumed`) {
+			t.Errorf("booking.reminder is published with no consumer, next to a near-identical consumed topic; got %v", topics)
 		}
-		if warning, ok := topics["booking.reminders"]; !ok || !strings.Contains(warning, "nothing publishes") {
+		if warning, ok := topics["booking.reminders"]; !ok || !strings.Contains(warning, `only "booking.reminder" is published`) {
 			t.Errorf("booking.reminders is consumed but never published; got %v", topics)
 		}
 	}

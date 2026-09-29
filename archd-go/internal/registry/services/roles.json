@@ -9,6 +9,12 @@
   { "id": "bullmq/bullmq", "name": "BullMQ", "category": "queue", "subtype": "jobs", "provider": "bullmq",
     "brand": { "icon": "", "color": "#D93B3B" }, "configFields": ["connection"],
     "detect": { "packages": { "js": ["bullmq", "bull"] }, "envPatterns": ["REDIS_"] } },
+  { "id": "celery/celery", "name": "Celery", "category": "queue", "subtype": "jobs", "provider": "celery",
+    "brand": { "icon": "", "color": "#37814A" }, "configFields": ["broker"],
+    "detect": { "packages": { "py": ["celery"] }, "envPatterns": ["CELERY_"] } },
+  { "id": "sidekiq/sidekiq", "name": "Sidekiq", "category": "queue", "subtype": "jobs", "provider": "sidekiq",
+    "brand": { "icon": "", "color": "#B1003E" }, "configFields": ["redis"],
+    "detect": { "packages": { "rb": ["sidekiq"] }, "envPatterns": ["SIDEKIQ_"] } },
   { "id": "node-cron/cron", "name": "node-cron", "category": "scheduler", "provider": "node-cron",
     "brand": { "icon": "", "color": "#5A7A5E" }, "configFields": ["schedule"],
     "detect": { "packages": { "js": ["node-cron", "cron", "node-schedule"], "py": ["apscheduler", "schedule"], "go": ["github.com/robfig/cron/v3"] } } },
@@ -18,7 +24,7 @@
     "brand": { "icon": "github", "color": "#181717", "darkColor": "#FFFFFF" }, "configFields": ["workflow", "schedule"] },
   { "id": "launchdarkly/flags", "name": "LaunchDarkly", "category": "flags", "provider": "launchdarkly",
     "brand": { "icon": "launchdarkly", "color": "#405BFF" }, "configFields": ["project", "environment"],
-    "detect": { "packages": { "js": ["@launchdarkly/node-server-sdk", "launchdarkly-node-server-sdk", "launchdarkly-js-client-sdk"], "py": ["launchdarkly-server-sdk"], "go": ["github.com/launchdarkly/go-server-sdk/v7"] },
+    "detect": { "packages": { "js": ["@launchdarkly/node-server-sdk", "launchdarkly-node-server-sdk", "launchdarkly-js-client-sdk"], "py": ["launchdarkly-server-sdk", "ldclient"], "go": ["github.com/launchdarkly/go-server-sdk/v7"] },
       "envPatterns": ["LAUNCHDARKLY_", "LD_SDK_KEY"] } },
   { "id": "unleash/flags", "name": "Unleash", "category": "flags", "provider": "unleash",
     "brand": { "icon": "", "color": "#1A4049" }, "configFields": ["url", "environment"],
@@ -34,5 +40,5 @@
     "detect": { "packages": { "js": ["ably"], "py": ["ably"] }, "envPatterns": ["ABLY_"] } },
   { "id": "socketio/socketio", "name": "Socket.IO", "category": "realtime", "provider": "socketio",
     "brand": { "icon": "socketdotio", "color": "#010101", "darkColor": "#FFFFFF" }, "configFields": [],
-    "detect": { "packages": { "js": ["socket.io", "socket.io-client"], "py": ["python-socketio"] } } }
+    "detect": { "packages": { "js": ["socket.io", "socket.io-client"], "py": ["python-socketio", "socketio"] } } }
 ]

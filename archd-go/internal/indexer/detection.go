@@ -13,7 +13,9 @@ import (
 //
 // 1: external packages and env reads per file, and require()/import() of
 // project files in the import graph.
-const DetectionEvidenceVersion = 1
+// 2: Python imports from a monorepo folder's source root and each name in
+// "from pkg import mod"; Go imports to every file of the imported package.
+const DetectionEvidenceVersion = 2
 
 // EnsureDetectionEvidence brings a root's detection evidence up to date. An
 // index built by an older archd has none; a full parse pass fills it in and
