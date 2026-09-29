@@ -177,12 +177,12 @@ export async function startHarness(options = {}) {
   try {
     await waitForApi(apiBase)
 
-    const workspaceId = 'harness-' + Date.now().toString(36)
+    const workspaceId = options.workspaceId ?? 'harness-' + Date.now().toString(36)
     const created = await fetch(`${apiBase}/api/workspace`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        workspaceId, name: 'harness', rootPath: projectDir,
+        workspaceId, name: options.projectName ?? 'harness', rootPath: projectDir,
         ignoredPaths: [join(projectDir, 'node_modules', '**'), join(projectDir, '.git', '**')],
       }),
     })
@@ -205,7 +205,7 @@ export async function startHarness(options = {}) {
 
     const activeProjectPath = join(dataDir, 'active_project.json')
     writeFileSync(activeProjectPath, JSON.stringify({
-      workspaceId, rootPath: projectDir, name: 'harness',
+      workspaceId, rootPath: projectDir, name: options.projectName ?? 'harness',
     }))
 
     const mcp = spawn(process.execPath, [MCP_ENTRY, '--axiom-host=axiom-harness'], {

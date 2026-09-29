@@ -72,6 +72,71 @@ func (s *Server) handleInboxHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOK(w, map[string]any{"messages": items, "nextCursor": next, "availableCount": available})
 }
+func (s *Server) handleInboxSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	workspace, messageID := r.URL.Query().Get("workspace"), r.URL.Query().Get("messageId")
+	if workspace == "" || messageID == "" {
+		jsonError(w, "workspace and messageId are required", http.StatusBadRequest)
+		return
+	}
+	d, err := s.dbFor(workspace)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	message, err := db.GetCanvasMessage(d, messageID)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	if message == nil || message.WorkspaceID != workspace {
+		inboxError(w, sql.ErrNoRows)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	jsonOK(w, map[string]string{"sheetContext": message.SheetContext, "buildSpec": message.BuildSpec})
+}
+func (s *Server) handleInboxSnapshotComparison(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	workspace, messageID := r.URL.Query().Get("workspace"), r.URL.Query().Get("messageId")
+	if workspace == "" || messageID == "" {
+		jsonError(w, "workspace and messageId are required", http.StatusBadRequest)
+		return
+	}
+	d, err := s.dbFor(workspace)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	message, err := db.GetCanvasMessage(d, messageID)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	if message == nil || message.WorkspaceID != workspace || message.SheetID == nil {
+		inboxError(w, sql.ErrNoRows)
+		return
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	defer tx.Rollback()
+	comparison, err := db.CompareWorkOrderSnapshot(tx, workspace, message)
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	jsonOK(w, comparison)
+}
 func (s *Server) handleInboxClaim(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.NotFound(w, r)
@@ -200,6 +265,42 @@ func (s *Server) handleInboxCancel(w http.ResponseWriter, r *http.Request) {
 	s.publishInbox(*item)
 	item.LeaseToken = ""
 	jsonOK(w, item)
+}
+
+func (s *Server) handleInboxReview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		MsgID       string `json:"msgId"`
+		ReviewID    string `json:"reviewId"`
+		Decision    string `json:"decision"`
+		Note        string `json:"note"`
+	}
+	if !decodeInbox(w, r, &body) {
+		return
+	}
+	body.Note = strings.TrimSpace(body.Note)
+	if body.WorkspaceID == "" || body.MsgID == "" || len(body.MsgID) > 128 || body.ReviewID == "" || len(body.ReviewID) > 128 ||
+		(body.Decision != "accepted" && body.Decision != "reopened") || len(body.Note) > 4000 || (body.Decision == "reopened" && body.Note == "") {
+		jsonError(w, "valid workspaceId, msgId, reviewId, decision and reopen feedback required", 400)
+		return
+	}
+	d, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	item, err := db.ReviewInbox(d, body.WorkspaceID, body.MsgID, body.ReviewID, body.Decision, body.Note, time.Now().UnixMilli())
+	if err != nil {
+		inboxError(w, err)
+		return
+	}
+	s.publishInbox(*item)
+	item.LeaseToken = ""
+	jsonOK(w, map[string]any{"message": item})
 }
 
 func validInboxText(text string, max int) bool {

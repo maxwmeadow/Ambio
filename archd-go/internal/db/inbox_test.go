@@ -24,6 +24,43 @@ func inboxFixture(t *testing.T) (*sql.DB, CanvasMessage) {
 	}
 	return d, m
 }
+
+func TestInboxHistoryKeepsSentSheetIdentityAfterSheetChanges(t *testing.T) {
+	d, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	if err := UpsertWorkspace(d, Workspace{ID: "ws", Name: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	sheet := Sheet{ID: "sheet-original", WorkspaceID: "ws", Name: "Checkout plan"}
+	if err := CreateSheet(d, &sheet); err != nil {
+		t.Fatal(err)
+	}
+	message := CanvasMessage{
+		WorkspaceID: "ws", SheetID: &sheet.ID, Note: "Implement this sheet",
+		SheetContext: `{"sheet":{"id":"sheet-original","name":"Checkout plan","revision":4}}`,
+	}
+	if err := EnqueueCanvasMessage(d, &message); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Exec(`UPDATE sheets SET name='Checkout plan revised',revision=5 WHERE id=?`, sheet.ID); err != nil {
+		t.Fatal(err)
+	}
+	history, err := InboxHistory(d, "ws", "", 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 || history[0].ID != message.ID || history[0].SentSheetName != "Checkout plan" || history[0].SentSheetRevision != 4 {
+		t.Fatalf("sent sheet identity changed with the current sheet: %+v", history)
+	}
+	item, err := ReadInboxItem(d, message.ID, 1000)
+	if err != nil || item.SentSheetName != "Checkout plan" || item.SentSheetRevision != 4 {
+		t.Fatalf("single inbox read lost sent sheet identity: item=%+v err=%v", item, err)
+	}
+}
+
 func TestInboxConcurrentClaimHasOneOwner(t *testing.T) {
 	d, m := inboxFixture(t)
 	var wg sync.WaitGroup

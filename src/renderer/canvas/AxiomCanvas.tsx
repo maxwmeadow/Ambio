@@ -87,6 +87,8 @@ import {
   stampSelection,
 } from './selectionController'
 import { planCanvasDrop } from './dropPersistence'
+import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
+import { raiseFailure } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
@@ -2600,7 +2602,74 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
    * whichever container the hit test happens to reach first.
    */
 
-  // Stencil drop: palette → canvas → planned element born in name-edit mode.
+  const stencilCreationPending = useRef(false)
+  const [creatingStencil, setCreatingStencil] = useState(false)
+  const [stencilFocusId, setStencilFocusId] = useState<string | null>(null)
+  const stencilScene = useCallback(() => {
+    const nodes = displayNodesRef.current
+    const positions = new Map(nodes.map(node => [node.id,
+      getInternalNode(node.id)?.internals.positionAbsolute ?? node.position]))
+    return { nodes, positions }
+  }, [getInternalNode])
+
+  const createStencil = useCallback(async (stencil: StencilDef, point: { x: number; y: number }, target: Node | null, focusCreated = false) => {
+    if (readOnly || reviewMode || !overlaySheetId || stencilCreationPending.current) return
+    stencilCreationPending.current = true
+    setCreatingStencil(true)
+    let createdId: string | null = null
+    try {
+      const store = useSheetStore.getState()
+      if (stencil.shape === 'note') {
+        await store.createFloatingNote(workspaceIdForOverlay, overlaySheetId, 'New note - double-click to edit', point.x, point.y)
+        return
+      }
+      const id = crypto.randomUUID()
+      const { nodes, positions } = stencilScene()
+      const { plan, layout } = planStencilPlacement({
+        id: `planned:${id}`, stencil, point, target, nodes, positions,
+        editableIds: activeNodeIds, workspaceId: workspaceIdForOverlay, layouts: sheetEffectiveLayouts,
+        systemIds: sheetSystemIds, fileIds: sheetFileIds, infraIds: sheetInfraIds,
+      })
+      const created = await store.createPlanned(workspaceIdForOverlay, overlaySheetId, {
+        id, name: `New${stencil.label.replace(/\s/g, '')}`, kind: stencil.kind,
+        shape: stencil.shape as 'box' | 'folder' | 'cylinder' | 'hexagon',
+        parentSystemId: layout.parentNodeId,
+        positionX: layout.positionX, positionY: layout.positionY,
+        width: layout.width, height: layout.height, scale: layout.scale,
+      })
+      if (!created) throw new Error('The new node was not returned by the server.')
+      createdId = created.id
+      await store.updateLayoutsBatch(workspaceIdForOverlay, overlaySheetId, plan.updates)
+      if (useSheetStore.getState().activeSheetId === overlaySheetId) {
+        setSelectedNode(`planned:${created.id}`)
+        if (focusCreated) setStencilFocusId(`planned:${created.id}`)
+        if (stencil.kind === 'infra') setInfraPickerNode(created.id)
+      }
+    } catch (error) {
+      console.error('[sheets] stencil creation failed:', error)
+      raiseFailure(`sheet-create:${overlaySheetId}`, createdId ? 'Node created, but its placement could not be saved' : 'Could not create the node',
+        error instanceof Error ? error.message : String(error))
+    } finally {
+      stencilCreationPending.current = false
+      setCreatingStencil(false)
+    }
+  }, [readOnly, reviewMode, overlaySheetId, workspaceIdForOverlay, stencilScene, activeNodeIds,
+    sheetEffectiveLayouts, sheetSystemIds, sheetFileIds, sheetInfraIds, setSelectedNode, setInfraPickerNode])
+
+  const onPaletteCreate = useCallback((stencil: StencilDef) => {
+    const { nodes, positions } = stencilScene()
+    const selected = selectedIdsRef.current.size === 1 ? nodes.find(node => selectedIdsRef.current.has(node.id)) : null
+    const target = selected?.type === 'system' ? selected : nodes.find(node => node.id === selected?.parentId && node.type === 'system')
+    const eligibleTarget = target && activeNodeIds.has(target.id) ? target : null
+    const canvas = canvasRootRef.current?.getBoundingClientRect()
+    if (!canvas) return
+    const point = eligibleTarget
+      ? stencilStartInFrame(eligibleTarget, positions.get(eligibleTarget.id)!)
+      : screenToFlowPosition({ x: canvas.left + canvas.width / 2, y: canvas.top + canvas.height / 2 })
+    void createStencil(stencil, point, eligibleTarget, !eligibleTarget)
+  }, [stencilScene, activeNodeIds, screenToFlowPosition, createStencil])
+
+  // Stencil creation and existing-node moves share one placement engine.
   const onOverlayDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/axiom-stencil')) {
       e.preventDefault()
@@ -2653,23 +2722,10 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       return
     }
     const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-    const store = useSheetStore.getState()
-    if (stencil.shape === 'note') {
-      void store.createFloatingNote(workspaceIdForOverlay, overlaySheetId, 'New note - double-click to edit', pos.x, pos.y)
-      return
-    }
-    void store.createPlanned(workspaceIdForOverlay, overlaySheetId, {
-      name: `New${stencil.label.replace(/\s/g, '')}`,
-      kind: stencil.kind,
-      shape: stencil.shape as 'box' | 'folder' | 'cylinder' | 'hexagon',
-      positionX: pos.x, positionY: pos.y,
-    }).then(created => {
-      if (created && stencil.kind === 'infra') {
-        setSelectedNode(`planned:${created.id}`)
-        setInfraPickerNode(created.id)
-      }
-    }).catch(err => console.error('[sheets] stencil creation failed:', err))
-  }, [readOnly, overlaySheetId, workspaceIdForOverlay, screenToFlowPosition, setSelectedNode, setInfraPickerNode])
+    const { nodes, positions } = stencilScene()
+    const target = stencilTargetAt(pos, nodes, positions, activeNodeIds)
+    void createStencil(stencil, pos, target)
+  }, [readOnly, overlaySheetId, screenToFlowPosition, onBinnedFileDrop, stencilScene, activeNodeIds, createStencil])
 
   const onConnectPlanned = useCallback((conn: Connection) => {
     if (!overlaySheetId || !conn.source || !conn.target) return
@@ -4387,6 +4443,16 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     })
   }, [attentionNodes, overlaySheetId, activeNodeIds, readOnly, getResizeHandlers])
 
+  // A palette click can find a free root slot beyond the viewport. Reveal it
+  // after React Flow measures it, so the new node never feels lost.
+  useEffect(() => {
+    if (!stencilFocusId || !nodesInitialized) return
+    if (!overlaySheetId) { setStencilFocusId(null); return }
+    if (!getInternalNode(stencilFocusId)?.measured?.width) return
+    setStencilFocusId(null)
+    void fitView({ nodes: [{ id: stencilFocusId }], padding: 0.25, duration: 350, maxZoom: 1.2 })
+  }, [stencilFocusId, nodesInitialized, renderedNodes, overlaySheetId, getInternalNode, fitView])
+
   // Identity of renderedNodes churns every render while a sheet overlay is
   // open, so the recovery below keys off this value-stable signature instead.
   const renderedSceneSignature = useMemo(
@@ -4914,7 +4980,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       {/* Sheet layer active: stencil palette + slim indicator */}
       {overlaySheetId && (
         <>
-          <SheetPalette />
+          <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
           <div className="axiom-sheet-layer-indicator">
             <span aria-hidden="true" />
             Sheet Layer Active

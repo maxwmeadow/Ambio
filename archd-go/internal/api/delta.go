@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -200,6 +201,9 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 		Branch         string   `json:"branch"`
 		Cwd            string   `json:"cwd"`
 		SessionID      string   `json:"sessionId"`
+		MessageID      string   `json:"messageId"`
+		ClaimOwner     string   `json:"claimOwner"`
+		LeaseToken     string   `json:"leaseToken"`
 		OwnerKey       string   `json:"ownerKey"`
 		Agent          string   `json:"agent"`
 		Goal           string   `json:"goal"`
@@ -243,9 +247,10 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			}
 			rootID, branch = root.ID, root.Branch
 		}
-		session, err := db.StartWorkSession(sqlDB, db.WorkSession{
+		newSession := db.WorkSession{
 			ID:             uuid.NewString(),
 			WorkspaceID:    body.WorkspaceID,
+			MessageID:      body.MessageID,
 			RootID:         rootID,
 			Branch:         branch,
 			OwnerKey:       body.OwnerKey,
@@ -253,8 +258,18 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			Goal:           body.Goal,
 			FocusSystemIDs: body.FocusSystemIDs,
 			FocusFileIDs:   body.FocusFileIDs,
-		})
+		}
+		var session db.WorkSession
+		if body.MessageID != "" {
+			session, err = db.StartInboxWorkSession(sqlDB, newSession, body.ClaimOwner, body.LeaseToken)
+		} else {
+			session, err = db.StartWorkSession(sqlDB, newSession)
+		}
 		if err != nil {
+			if errors.Is(err, db.ErrInboxConflict) {
+				jsonError(w, "work order is no longer claimed by this connector; renew it before starting work", http.StatusConflict)
+				return
+			}
 			jsonError(w, err.Error(), 500)
 			return
 		}
@@ -269,7 +284,7 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := db.AppendWorkSessionNoteByID(
-			sqlDB, body.WorkspaceID, body.SessionID, body.Text,
+			sqlDB, body.WorkspaceID, body.SessionID, body.Text, body.OwnerKey,
 		); err != nil {
 			jsonError(w, "no active work session - call start_work first", 409)
 			return
@@ -289,7 +304,7 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := db.FinishWorkSessionByID(
-			sqlDB, body.WorkspaceID, body.SessionID, body.Summary,
+			sqlDB, body.WorkspaceID, body.SessionID, body.Summary, body.OwnerKey,
 		); err != nil {
 			jsonError(w, "no active work session", 409)
 			return

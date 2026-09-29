@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -10,9 +11,8 @@ import (
 // writes what it intended INTO the map, instead of leaving the map to guess
 // meaning from topology it cannot interpret.
 //
-// An owner key identifies one MCP client process. Starting new work closes
-// only that owner's forgotten session, so independent agents remain visible
-// and attributable while they work in parallel.
+// An owner key identifies one MCP client process. Addressed sessions are
+// scoped to a message, so several chats sharing that process can remain open.
 
 func encodeStringList(values []string) (string, error) {
 	if values == nil {
@@ -32,7 +32,7 @@ func scanWorkSession(scanner interface{ Scan(...any) error }) (WorkSession, erro
 	var session WorkSession
 	var notes, focusSystems, focusFiles string
 	err := scanner.Scan(
-		&session.ID, &session.WorkspaceID, &session.RootID, &session.Branch,
+		&session.ID, &session.WorkspaceID, &session.MessageID, &session.RootID, &session.Branch,
 		&session.OwnerKey, &session.Agent,
 		&session.Goal, &session.Summary, &notes, &focusSystems, &focusFiles,
 		&session.StartedAt, &session.EndedAt,
@@ -48,7 +48,7 @@ func scanWorkSession(scanner interface{ Scan(...any) error }) (WorkSession, erro
 }
 
 const workSessionColumns = `
-	id, workspace_id,
+	id, workspace_id, message_id,
 	COALESCE(root_id, (
 		SELECT r.id FROM roots r WHERE r.workspace_id=work_sessions.workspace_id
 		ORDER BY r.is_primary DESC, r.is_active DESC, r.path LIMIT 1
@@ -60,10 +60,23 @@ const workSessionColumns = `
 	owner_key, agent, goal, summary, notes,
 	focus_system_ids, focus_file_ids, started_at, ended_at`
 
-// StartWorkSession opens a session, closing only a session left open by the
-// same owner. Empty owner keys retain the original single-client behavior for
-// older API callers.
+// StartWorkSession opens standalone work, closing the same owner's previous
+// standalone session. Empty owner keys retain the original single-client
+// behavior for older API callers.
 func StartWorkSession(db *sql.DB, session WorkSession) (WorkSession, error) {
+	return startWorkSession(db, session, "", "")
+}
+
+// StartInboxWorkSession binds narration to a live claim. The request ID alone
+// is not proof of ownership; validation and insertion share one transaction.
+func StartInboxWorkSession(db *sql.DB, session WorkSession, claimOwner, leaseToken string) (WorkSession, error) {
+	if session.MessageID == "" || claimOwner == "" || leaseToken == "" || session.OwnerKey == "" {
+		return session, ErrInboxConflict
+	}
+	return startWorkSession(db, session, claimOwner, leaseToken)
+}
+
+func startWorkSession(db *sql.DB, session WorkSession, claimOwner, leaseToken string) (WorkSession, error) {
 	now := time.Now().UnixMilli()
 	if session.StartedAt == 0 {
 		session.StartedAt = now
@@ -92,18 +105,50 @@ func StartWorkSession(db *sql.DB, session WorkSession) (WorkSession, error) {
 		return session, err
 	}
 	defer tx.Rollback()
+	if session.MessageID != "" {
+		var claimed int
+		err = tx.QueryRow(`SELECT 1 FROM canvas_outbox m JOIN canvas_claims c ON c.message_id=m.id
+			WHERE m.id=? AND m.workspace_id=? AND m.status='delivered'
+			AND c.owner=? AND c.token=? AND c.expires_at>?`,
+			session.MessageID, session.WorkspaceID, claimOwner, leaseToken, now).Scan(&claimed)
+		if err == sql.ErrNoRows {
+			return session, ErrInboxConflict
+		}
+		if err != nil {
+			return session, err
+		}
+		var priorID string
+		err = tx.QueryRow(`SELECT id FROM work_sessions WHERE workspace_id=? AND message_id=?
+			AND owner_key=? AND ended_at=0 ORDER BY started_at DESC LIMIT 1`,
+			session.WorkspaceID, session.MessageID, session.OwnerKey).Scan(&priorID)
+		if err == nil {
+			tx.Rollback()
+			return GetWorkSession(db, session.WorkspaceID, priorID)
+		}
+		if err != sql.ErrNoRows {
+			return session, err
+		}
+		// A reassigned claim may leave the earlier connector's narration open.
+		// Preserve that history and close it before this owner starts a new turn.
+		if _, err = tx.Exec(`UPDATE work_sessions SET ended_at=?,
+			summary=CASE WHEN summary='' THEN 'Claim moved to another connector' ELSE summary END
+			WHERE workspace_id=? AND message_id=? AND ended_at=0`,
+			now, session.WorkspaceID, session.MessageID); err != nil {
+			return session, err
+		}
+	}
 	if _, err := tx.Exec(`
 		UPDATE work_sessions SET ended_at = ?
-		WHERE workspace_id = ? AND owner_key = ? AND ended_at = 0`,
-		now, session.WorkspaceID, session.OwnerKey); err != nil {
+		WHERE workspace_id = ? AND owner_key = ? AND message_id = ? AND ended_at = 0`,
+		now, session.WorkspaceID, session.OwnerKey, session.MessageID); err != nil {
 		return session, err
 	}
 	if _, err := tx.Exec(`
 		INSERT INTO work_sessions (
-			id, workspace_id, root_id, branch, owner_key, agent, goal, summary, notes,
+			id, workspace_id, message_id, root_id, branch, owner_key, agent, goal, summary, notes,
 			focus_system_ids, focus_file_ids, started_at, ended_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)`,
-		session.ID, session.WorkspaceID,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)`,
+		session.ID, session.WorkspaceID, session.MessageID,
 		nullableHistoryIdentity(session.RootID), nullableHistoryIdentity(session.Branch),
 		session.OwnerKey, session.Agent,
 		session.Goal, session.Summary, string(notes), focusSystems, focusFiles,
@@ -198,25 +243,15 @@ func GetWorkSession(db *sql.DB, workspaceID, sessionID string) (WorkSession, err
 
 // AppendWorkSessionNoteByID records a running remark on a specific open
 // session, which is required when several agents share one workspace.
-func AppendWorkSessionNoteByID(db *sql.DB, workspaceID, sessionID, text string) error {
-	var raw string
-	if err := db.QueryRow(`
-		SELECT notes FROM work_sessions
-		WHERE workspace_id = ? AND id = ? AND ended_at = 0`,
-		workspaceID, sessionID).Scan(&raw); err != nil {
-		return err
-	}
-	notes := []SessionNote{}
-	_ = json.Unmarshal([]byte(raw), &notes)
-	notes = append(notes, SessionNote{TS: time.Now().UnixMilli(), Text: text})
-	encoded, err := json.Marshal(notes)
-	if err != nil {
-		return err
+func AppendWorkSessionNoteByID(db *sql.DB, workspaceID, sessionID, text string, ownerKey ...string) error {
+	owner := ""
+	if len(ownerKey) > 0 {
+		owner = ownerKey[0]
 	}
 	result, err := db.Exec(`
-		UPDATE work_sessions SET notes = ?
-		WHERE workspace_id = ? AND id = ? AND ended_at = 0`,
-		string(encoded), workspaceID, sessionID)
+		UPDATE work_sessions SET notes = json_insert(notes, '$[#]', json_object('ts', ?, 'text', ?))
+		WHERE workspace_id = ? AND id = ? AND ended_at = 0 AND (?='' OR owner_key=?)`,
+		time.Now().UnixMilli(), text, workspaceID, sessionID, owner, owner)
 	if err != nil {
 		return err
 	}
@@ -235,11 +270,15 @@ func AppendWorkSessionNote(db *sql.DB, workspaceID, text string) error {
 	return AppendWorkSessionNoteByID(db, workspaceID, id, text)
 }
 
-func FinishWorkSessionByID(db *sql.DB, workspaceID, sessionID, summary string) error {
+func FinishWorkSessionByID(db *sql.DB, workspaceID, sessionID, summary string, ownerKey ...string) error {
+	owner := ""
+	if len(ownerKey) > 0 {
+		owner = ownerKey[0]
+	}
 	result, err := db.Exec(`
 		UPDATE work_sessions SET summary = ?, ended_at = ?
-		WHERE workspace_id = ? AND id = ? AND ended_at = 0`,
-		summary, time.Now().UnixMilli(), workspaceID, sessionID)
+		WHERE workspace_id = ? AND id = ? AND ended_at = 0 AND (?='' OR owner_key=?)`,
+		summary, time.Now().UnixMilli(), workspaceID, sessionID, owner, owner)
 	if err != nil {
 		return err
 	}
@@ -324,4 +363,32 @@ func getWorkSessions(db *sql.DB, workspaceID, where string, args ...any) ([]Work
 		sessions = append(sessions, session)
 	}
 	return sessions, rows.Err()
+}
+
+// InboxWorkSessions loads progress for a history page in one query. Sessions
+// retain their message ID even after a reply, cancellation, or agent takeover.
+func InboxWorkSessions(db *sql.DB, workspaceID string, messageIDs []string) (map[string][]WorkSession, error) {
+	result := make(map[string][]WorkSession, len(messageIDs))
+	if len(messageIDs) == 0 {
+		return result, nil
+	}
+	args := make([]any, 0, len(messageIDs)+1)
+	args = append(args, workspaceID)
+	for _, id := range messageIDs {
+		args = append(args, id)
+	}
+	rows, err := db.Query(`SELECT `+workSessionColumns+` FROM work_sessions WHERE workspace_id=? AND message_id IN (`+
+		strings.TrimSuffix(strings.Repeat("?,", len(messageIDs)), ",")+`) ORDER BY started_at,id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		session, scanErr := scanWorkSession(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[session.MessageID] = append(result[session.MessageID], session)
+	}
+	return result, rows.Err()
 }

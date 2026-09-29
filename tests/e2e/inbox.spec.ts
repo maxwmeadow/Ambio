@@ -19,6 +19,20 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
         if (loseResponse) { loseResponse = false; await route.abort('failed'); return }
         body = messages[0]
       }
+      if (url.endsWith('/api/canvas/review')) {
+        const review = route.request().postDataJSON()
+        const message = messages.find(item => item.id === review.msgId)
+        if (message) {
+          message.review = { id: review.reviewId, decision: review.decision, note: review.note, createdAt: Date.now() }
+          message.reviews = [...(message.reviews ?? []), message.review]
+          if (review.decision === 'reopened') {
+            message.priorReplies = [...(message.priorReplies ?? []), message.reply]
+            delete message.reply
+            message.status = 'queued'
+          }
+        }
+        body = { message }
+      }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
     await page.evaluate(() => {
@@ -50,7 +64,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await expect(panel.locator('.axiom-inbox__compose .axiom-inbox__targets button')).toHaveCount(2)
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
-    await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toContainText('1 queued. Saved in Axiom')
+    await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
     await expect(panel.locator('.axiom-inbox__work-order code')).toHaveText(sends[0].id)
     await expect(panel.getByRole('button', { name: 'Connections' })).toBeVisible()
@@ -59,12 +73,35 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     expect(sends[0].deliveryMode).toBe('addressed')
     expect(JSON.parse(sends[0].selection)).toHaveLength(2)
     expect(messages).toHaveLength(1)
+    messages[0].status = 'delivered'
+    messages[0].sessions = [{ id: 'session-a', messageId: sends[0].id, agent: 'Test agent', goal: 'Trace both systems', notes: [{ ts: Date.now(), text: 'Mapped their shared API boundary.' }], startedAt: Date.now(), endedAt: 0 }]
+    await expect(panel.getByRole('region', { name: 'Work progress: Trace both systems' })).toContainText('Mapped their shared API boundary.', { timeout: 10000 })
     messages[0].status = 'answered'
-    messages[0].reply = { body: 'They communicate through the project API.', agent: 'Test agent', createdAt: Date.now() }
+    messages[0].sessions[0].endedAt = Date.now()
+    messages[0].sessions[0].summary = 'Explained the API boundary.'
+    messages[0].reply = { body: 'They communicate through the project API.', agent: 'Test agent', createdAt: Date.now(), result: { changedFiles: ['src/project-api.ts'], checks: [{ command: 'npm test', outcome: 'passed' }], remaining: ['Confirm timeout behavior'] } }
+    messages[0].changes = [{ kind: 'file.updated', subjectLabel: 'project-api.ts', count: 1, at: Date.now() }]
     await expect(panel.getByText('They communicate through the project API.')).toBeVisible({ timeout: 10000 })
+    await panel.getByRole('button', { name: /Review result/ }).click()
+    await expect(panel.getByText('Explained the API boundary.')).toBeVisible()
+    await expect(panel.getByText('Indexed changes')).toBeVisible()
+    await expect(panel.getByText('Agent report')).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Accept result' })).toBeVisible()
+    await panel.getByRole('button', { name: 'Request changes' }).click()
+    await panel.getByLabel('What needs to change?').fill('Include the timeout path.')
+    await panel.getByRole('button', { name: 'Reopen work order' }).click()
+    await expect(panel.getByText('Changes requested · waiting for agent')).toBeVisible()
+    await expect(panel.getByText('Include the timeout path.')).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
+    messages[0].status = 'answered'
+    messages[0].reply = { body: 'The timeout path also uses the project API.', agent: 'Test agent', createdAt: Date.now() }
+    await expect(panel.getByText('The timeout path also uses the project API.')).toBeVisible({ timeout: 10000 })
+    await panel.getByRole('button', { name: /Review result/ }).click()
+    await panel.getByRole('button', { name: 'Accept result' }).click()
+    await expect(panel.getByText('Accepted', { exact: true }).first()).toBeVisible()
     await page.reload()
     await page.getByRole('button', { name: 'Message agent', exact: true }).click()
-    await expect(page.getByText('They communicate through the project API.')).toBeVisible()
+    await expect(page.getByText('The timeout path also uses the project API.')).toBeVisible()
     await page.screenshot({ path: 'test-results/inbox-complete.png' })
     // A remembered sheet can disappear between sessions. Show it clearly and
     // require the user to remove it before creating a new request.

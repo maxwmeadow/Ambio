@@ -981,7 +981,7 @@ func DeleteInvestigation(db *sql.DB, id string) error {
 	return err
 }
 
-func GetSymbolsByFile(db *sql.DB, fileID string) ([]Symbol, error) {
+func GetSymbolsByFile(db Reader, fileID string) ([]Symbol, error) {
 	rows, err := db.Query(`
 		SELECT id, file_id, name, kind, line_start, line_end, body_hash
 		FROM symbols WHERE file_id=? ORDER BY line_start`, fileID)

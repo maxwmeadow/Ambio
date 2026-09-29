@@ -82,35 +82,22 @@ func containment(parent, parentType string) string {
 	return "part_of"
 }
 
-// CompareSheetStructure compares authored requirements, not pixels. Callers use
-// one transaction so resolution cannot race a structural mutation.
-func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, error) {
-	sheet, err := GetSheet(r, id)
-	if err != nil {
-		return nil, err
-	}
-	if sheet == nil || sheet.WorkspaceID != workspace {
-		return nil, sql.ErrNoRows
-	}
-	c := &SheetComparison{SheetID: id, WorkspaceID: workspace, Name: sheet.Name, Revision: sheet.Revision, ResolvedAt: sheet.ResolvedAt, Differences: []SheetDifference{}, Nodes: []StructureNode{}, Mappings: map[string]string{}}
-	add := func(kind, id, name, expected, actual, detail string) {
-		c.Differences = append(c.Differences, SheetDifference{kind, id, name, expected, actual, detail})
-	}
+func loadLiveStructure(r Reader, workspace string) (map[string]StructureNode, []File, error) {
 	files, err := GetFiles(r, workspace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	systems, err := GetSystems(r, workspace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	infras, err := GetInfraNodes(r, workspace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	floor, err := GetFloorLayouts(r, workspace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	live := map[string]StructureNode{}
 	for _, f := range files {
@@ -128,6 +115,27 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 			n.Containment = l.ContainmentKind
 			live[n.ID] = n
 		}
+	}
+	return live, files, nil
+}
+
+// CompareSheetStructure compares authored requirements, not pixels. Callers use
+// one transaction so resolution cannot race a structural mutation.
+func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, error) {
+	sheet, err := GetSheet(r, id)
+	if err != nil {
+		return nil, err
+	}
+	if sheet == nil || sheet.WorkspaceID != workspace {
+		return nil, sql.ErrNoRows
+	}
+	c := &SheetComparison{SheetID: id, WorkspaceID: workspace, Name: sheet.Name, Revision: sheet.Revision, ResolvedAt: sheet.ResolvedAt, Differences: []SheetDifference{}, Nodes: []StructureNode{}, Mappings: map[string]string{}}
+	add := func(kind, id, name, expected, actual, detail string) {
+		c.Differences = append(c.Differences, SheetDifference{kind, id, name, expected, actual, detail})
+	}
+	live, _, err := loadLiveStructure(r, workspace)
+	if err != nil {
+		return nil, err
 	}
 	elements, err := GetSheetElements(r, id)
 	if err != nil {

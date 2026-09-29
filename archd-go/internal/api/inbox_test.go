@@ -67,6 +67,151 @@ func inboxHTTP(t *testing.T, handler http.Handler, method, path string, body any
 	handler.ServeHTTP(response, request)
 	return response
 }
+
+func TestInboxSnapshotRetainsSentPlanAfterSheetChanges(t *testing.T) {
+	s, mux, _ := inboxServer(t)
+	d, _ := s.dbFor("ws")
+	sheet := db.Sheet{ID: "sent-sheet", WorkspaceID: "ws", Name: "Original plan"}
+	if err := db.CreateSheet(d, &sheet); err != nil {
+		t.Fatal(err)
+	}
+	sent := inboxHTTP(t, mux, "POST", "/api/canvas/send", map[string]any{
+		"workspaceId": "ws", "id": "snapshot-order", "sheetId": sheet.ID, "note": "Build this plan",
+	})
+	if sent.Code != http.StatusOK {
+		t.Fatal(sent.Code, sent.Body.String())
+	}
+	if _, err := d.Exec(`UPDATE sheets SET name='Revised plan',revision=revision+1 WHERE id=?`, sheet.ID); err != nil {
+		t.Fatal(err)
+	}
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	var listed struct {
+		Messages []db.InboxItem `json:"messages"`
+	}
+	if history.Code != http.StatusOK || json.Unmarshal(history.Body.Bytes(), &listed) != nil || len(listed.Messages) != 1 || listed.Messages[0].SentSheetName != "Original plan" || listed.Messages[0].SentSheetRevision != 1 {
+		t.Fatalf("history did not preserve the sent sheet revision: %d %s", history.Code, history.Body.String())
+	}
+	response := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=ws&messageId=snapshot-order", nil)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Code, response.Body.String())
+	}
+	var snapshot struct {
+		SheetContext string `json:"sheetContext"`
+		BuildSpec    string `json:"buildSpec"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	var context struct {
+		Sheet struct {
+			Name     string `json:"name"`
+			Revision int    `json:"revision"`
+		} `json:"sheet"`
+	}
+	if err := json.Unmarshal([]byte(snapshot.SheetContext), &context); err != nil {
+		t.Fatal(err)
+	}
+	if context.Sheet.Name != "Original plan" || context.Sheet.Revision != 1 || strings.Contains(snapshot.SheetContext, "Revised plan") {
+		t.Fatalf("snapshot followed a later sheet edit: %s", snapshot.SheetContext)
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("snapshot should not be cached")
+	}
+	if _, err := d.Exec(`DELETE FROM sheets WHERE id=?`, sheet.ID); err != nil {
+		t.Fatal(err)
+	}
+	afterDelete := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=ws&messageId=snapshot-order", nil)
+	if afterDelete.Code != http.StatusOK || !strings.Contains(afterDelete.Body.String(), "Original plan") {
+		t.Fatalf("sent plan disappeared with its sheet: %d %s", afterDelete.Code, afterDelete.Body.String())
+	}
+	if other := inboxHTTP(t, mux, "GET", "/api/canvas/snapshot?workspace=other&messageId=snapshot-order", nil); other.Code != http.StatusNotFound {
+		t.Fatalf("cross-workspace snapshot status %d", other.Code)
+	}
+}
+
+func TestWorkOrderReviewReopensWithHistoryAndFeedback(t *testing.T) {
+	s, mux, _ := inboxServer(t)
+	send := map[string]any{"id": "review-order", "workspaceId": "ws", "note": "Fix checkout", "deliveryMode": "addressed"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/send", send); r.Code != 200 {
+		t.Fatal(r.Body.String())
+	}
+	claim := func(owner string) db.InboxItem {
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/claim", map[string]string{"workspaceId": "ws", "connectionId": owner, "agent": owner, "messageId": "review-order"})
+		if r.Code != 200 {
+			t.Fatal(r.Code, r.Body.String())
+		}
+		var response struct {
+			Messages []db.InboxItem `json:"messages"`
+		}
+		if err := json.Unmarshal(r.Body.Bytes(), &response); err != nil || len(response.Messages) != 1 {
+			t.Fatal(r.Body.String(), err)
+		}
+		return response.Messages[0]
+	}
+	first := claim("agent-a")
+	d, err := s.dbFor("ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.StartInboxWorkSession(d, db.WorkSession{ID: "session-1", WorkspaceID: "ws", MessageID: "review-order", OwnerKey: "agent-a", Agent: "agent-a", Goal: "Fix checkout"}, "agent-a", first.LeaseToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordStructuralEvent(d, db.StructuralEvent{WorkspaceID: "ws", SessionID: "session-1", Kind: db.EventFileUpdated, SubjectLabel: "checkout.go"}); err != nil {
+		t.Fatal(err)
+	}
+	result := db.WorkResult{ChangedFiles: []string{"checkout.go"}, Checks: []db.WorkCheck{{Command: "go test ./...", Outcome: "passed"}}}
+	submit := map[string]any{"workspaceId": "ws", "msgId": "review-order", "leaseToken": first.LeaseToken, "body": "First attempt", "result": result}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal("identical submission should retry", r.Body.String())
+	}
+	reopen := map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-1", "decision": "reopened", "note": "Handle timeouts too"}
+	for i := 0; i < 2; i++ {
+		if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", reopen); r.Code != 200 {
+			t.Fatal("reopen retry", r.Code, r.Body.String())
+		}
+	}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-1", "decision": "accepted"}); r.Code != 409 {
+		t.Fatal("changed review ID payload should conflict", r.Code)
+	}
+	second := claim("agent-b")
+	if second.Review == nil || second.Review.Note != "Handle timeouts too" || len(second.PriorReplies) != 1 {
+		t.Fatalf("reopened context missing: %#v", second)
+	}
+	if second.PriorReplies[0].Result == nil || second.PriorReplies[0].Result.Checks[0].Outcome != "passed" {
+		t.Fatalf("result history missing: %#v", second.PriorReplies)
+	}
+	submit = map[string]any{"workspaceId": "ws", "msgId": "review-order", "leaseToken": second.LeaseToken, "body": "Timeouts handled"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", submit); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	accept := map[string]string{"workspaceId": "ws", "msgId": "review-order", "reviewId": "review-2", "decision": "accepted"}
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/review", accept); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	var response struct {
+		Messages []db.InboxItem `json:"messages"`
+	}
+	if err := json.Unmarshal(history.Body.Bytes(), &response); err != nil || len(response.Messages) != 1 {
+		t.Fatal(history.Body.String(), err)
+	}
+	item := response.Messages[0]
+	if item.Status != "answered" || item.Review == nil || item.Review.Decision != "accepted" || item.Reply == nil || item.Reply.Body != "Timeouts handled" || len(item.PriorReplies) != 1 {
+		t.Fatalf("incorrect final review: %#v", item)
+	}
+	if len(item.Reviews) != 2 || item.Reviews[0].Note != "Handle timeouts too" {
+		t.Fatalf("review history missing: %#v", item.Reviews)
+	}
+	if len(item.Changes) != 1 || item.Changes[0].SubjectLabel != "checkout.go" {
+		t.Fatalf("linked architecture change missing: %#v", item.Changes)
+	}
+	if strings.Contains(history.Body.String(), second.LeaseToken) {
+		t.Fatal("history leaked claim token")
+	}
+}
 func TestInboxHTTPLifecycle(t *testing.T) {
 	s, mux, _ := inboxServer(t)
 	send := map[string]any{"id": "request", "workspaceId": "ws", "note": "Review file", "selection": "[\"axiom://file/file?label=hello.go\"]"}

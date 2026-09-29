@@ -870,13 +870,14 @@ test('keeps documentation in its library and off the architecture canvas', async
 
 test('uses two-step agent setup for blank projects without changing codebase setup', async () => {
   let agentConnected = true
+  let agentVerified = false
   await page.route(/\/api\/agent\/presence\?/, route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
       connected: agentConnected,
       connections: agentConnected
-        ? [{ connectionId: 'connection-e2e', hostId: 'codex', lastSeenAt: Date.now() }]
+        ? [{ connectionId: 'connection-e2e', hostId: 'codex', lastSeenAt: Date.now(), lastToolAt: agentVerified ? Date.now() : 0 }]
         : [],
     }),
   }))
@@ -922,11 +923,17 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await steps.getByText('Connect').click()
   await expect(page.getByRole('heading', { name: /Connect/ })).toBeVisible()
   expect(await readStableFrame()).toEqual(firstFrame)
-  await expect(page.getByText('Live connection confirmed')).toBeVisible()
+  await expect(page.getByText('Waiting for the agent to verify Axiom tools')).toBeVisible()
   const openCanvas = page.getByRole('button', { name: /Open canvas/ })
+  await expect(openCanvas).toBeDisabled()
+  await page.getByRole('button', { name: 'Copy check' }).click()
+  const checkPrompt = await page.evaluate(() => navigator.clipboard.readText())
+  expect(checkPrompt).toContain('verifyOnly true')
+  expect(checkPrompt).toContain('expectedWorkspaceId "demo"')
+  agentVerified = true
+  await expect(page.getByText('Inbox access verified')).toBeVisible({ timeout: 5_000 })
   await expect(openCanvas).toBeEnabled()
   await openCanvas.click()
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('agent_setup_completed_demo'))).toBe('true')
   await expect(page.locator('button button')).toHaveCount(0)
 
   const cardBox = await card.boundingBox()
@@ -1886,7 +1893,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
   // Addressed inbox routing: a send creates a work order the user hands to a
   // chat of their choosing, instead of asking any agent to drain the queue.
-  await expect(agentDialog).toContainText('Send here, then hand the request')
+  await expect(agentDialog).toContainText('No work orders yet')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
   await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()

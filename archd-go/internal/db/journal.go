@@ -71,6 +71,7 @@ type StructuralEvent struct {
 type WorkSession struct {
 	ID             string        `json:"id"`
 	WorkspaceID    string        `json:"workspaceId"`
+	MessageID      string        `json:"messageId,omitempty"`
 	RootID         string        `json:"rootId"`
 	Branch         string        `json:"branch"`
 	OwnerKey       string        `json:"-"`

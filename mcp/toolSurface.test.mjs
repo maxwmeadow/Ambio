@@ -43,11 +43,12 @@ test('the schema cost stays within budget', () => {
   // Raised from 3,200 when investigation experiments (run, verdict, conclude)
   // and addressed inbox routing (messageId) landed together, and to 3,500 for
   // infra contracts, requirements, implementations and decisions (edit_infra
-  // gave up category, srcType and infraId to pay for most of it). Each was
-  // already trimmed to its minimum. Raise it again only for a new capability,
-  // never for wording.
+  // gave up category, srcType and infraId to pay for most of it), and for
+  // structured work-order results; each fit alone, and 3,650 holds both. Each
+  // was already trimmed to its minimum. Raise it again only for a new
+  // capability, never for wording.
   const coreTokens = Math.round(coreBlock.length / 3.6)
-  assert.ok(coreTokens < 3500, `core tool schema is ~${coreTokens} tokens, budget is 3500`)
+  assert.ok(coreTokens < 3650, `core tool schema is ~${coreTokens} tokens, budget is 3650`)
 })
 
 test('debug tooling is not advertised by default', () => {
