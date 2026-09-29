@@ -150,6 +150,9 @@ func TestHarborDetection(t *testing.T) {
 				t.Errorf("%s is scheduled by node-cron; got %s", want, jobs)
 			}
 		}
+		if strings.Contains(jobs, "telemetry") {
+			t.Errorf("the error reporter the scheduler wraps jobs with is not a job; got %s", jobs)
+		}
 	}
 	if cron := find(result, "vercel/cron"); cron != nil {
 		if jobs := edgesOf(*cron, paths, "SCHEDULED_BY"); len(jobs) == 0 || jobs[0] != "src/http/routes/cron.ts" {

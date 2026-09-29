@@ -150,6 +150,7 @@ func languageFamily(language string) string {
 func Analyze(in Inputs) Result {
 	d := newDetection(in)
 	d.matchPackages()
+	d.dropInfraJobs()
 	d.readManifests()
 	d.readConfig()
 	d.collectRequirements()
@@ -339,6 +340,30 @@ func (d *detection) attributeScheduler(p *Proposal, uses []PackageUse) {
 		}
 	}
 	sortProposal(p)
+}
+
+// dropInfraJobs removes "jobs" that are another role's own files: a scheduler
+// importing the error reporter to wrap its jobs does not schedule the error
+// reporter.
+func (d *detection) dropInfraJobs() {
+	roleFiles := map[string]bool{}
+	for _, p := range d.proposals {
+		for _, e := range p.Edges {
+			if e.Kind == "IMPLEMENTS" {
+				roleFiles[e.FileID] = true
+			}
+		}
+	}
+	for _, p := range d.proposals {
+		kept := p.Edges[:0]
+		for _, e := range p.Edges {
+			if e.Kind == "SCHEDULED_BY" && roleFiles[e.FileID] {
+				continue
+			}
+			kept = append(kept, e)
+		}
+		p.Edges = kept
+	}
 }
 
 func (d *detection) narrowByEnv(candidates []registry.Service) []registry.Service {

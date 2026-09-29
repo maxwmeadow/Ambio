@@ -609,6 +609,12 @@ func (s *Server) writeInfraList(w http.ResponseWriter, sqlDB *sql.DB, workspaceI
 	if unresolved == nil {
 		unresolved = []infradetect.Unresolved{}
 	}
+	// The relationships each role on the map can record, so an agent names the
+	// right kind the first time.
+	edgeKinds := map[string][]string{}
+	for _, n := range nodes {
+		edgeKinds[n.Category] = registry.EdgeKindsFor(n.Category)
+	}
 	jsonOK(w, map[string]any{"nodes": nodes, "edges": edges, "contents": contents,
-		"requirements": requirements, "unresolved": unresolved})
+		"requirements": requirements, "unresolved": unresolved, "edgeKinds": edgeKinds})
 }

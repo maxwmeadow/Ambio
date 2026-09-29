@@ -34,6 +34,8 @@ export interface SummaryInput {
   contents: Array<{ infraId: string; kind: string; name: string; detail?: Record<string, unknown> }>
   requirements: Array<{ name: string; infraId?: string | null; present: boolean }>
   unresolved: Array<{ Package: string; Candidates: string[]; Evidence: string }>
+  /** Relationship kinds each role accepts (category → kinds). */
+  edgeKinds?: Record<string, string[]>
   /** file or system id → path or name. */
   nameOf: (id: string) => string
   status?: string
@@ -99,6 +101,8 @@ export function infraSummary(input: SummaryInput): string {
       if (key === 'USES') usesOnly++
     }
     if (edges.length === 0) lines.push('  No file is connected to it yet.')
+    const recordable = (input.edgeKinds?.[node.category] ?? []).filter(kind => kind !== 'IMPLEMENTS' && kind !== 'USES')
+    if (recordable.length > 0) lines.push(`  Record as: ${recordable.join(', ')}`)
     const items = input.contents.filter(item => item.infraId === node.id)
     const itemKinds = [...new Set(items.map(item => item.kind))]
     for (const kind of itemKinds) {

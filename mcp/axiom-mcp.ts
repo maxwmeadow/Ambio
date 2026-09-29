@@ -2101,6 +2101,7 @@ Steps to execute:
         if (!res.ok) throw new Error(`infra list failed: ${await res.text()}`)
         const data = await res.json() as {
           nodes: any[] | null; edges: any[] | null; contents: any[] | null; requirements: any[] | null; unresolved: any[] | null
+          edgeKinds?: Record<string, string[]>
         }
         const names = new Map<string, string>()
         for (const row of await queryDb(project.workspaceId,
@@ -2114,6 +2115,7 @@ Steps to execute:
           contents: data.contents ?? [],
           requirements: data.requirements ?? [],
           unresolved: data.unresolved ?? [],
+          edgeKinds: data.edgeKinds,
           nameOf: id => names.get(id) ?? id,
           status: args.status as string | undefined,
         })

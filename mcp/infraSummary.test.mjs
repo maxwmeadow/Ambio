@@ -21,6 +21,7 @@ const input = {
   ],
   requirements: [{ name: 'DATABASE_URL', infraId: 'pg', present: false }, { name: 'SESSION_SECRET', infraId: null, present: false }],
   unresolved: [{ Package: 'boto3', Candidates: ['aws/s3', 'aws/sqs'], Evidence: 'jobs.py:1' }],
+  edgeKinds: { database: ['READS', 'WRITES', 'MIGRATES', 'IMPLEMENTS', 'USES'] },
   nameOf: id => names[id] ?? id,
 }
 
@@ -34,6 +35,7 @@ test('the agent reads infra as paths, roles and next steps, not ids and joins', 
   assert.match(text, /Writes bookings: src\/repos\/bookings\.ts/)
   assert.match(text, /Uses \(from imports\): src\/repos\/marinas\.ts/)
   assert.match(text, /tables: bookings/)
+  assert.match(text, /Record as: READS, WRITES, MIGRATES\n/)
   assert.match(text, /! topic booking\.reminder: published, but nothing consumes it \(src\/jobs\/sendReminders\.ts\)/)
   assert.match(text, /Stripe - api \(stripe\/api\) - PROPOSED/)
   assert.match(text, /Env vars no infra claims: SESSION_SECRET/)

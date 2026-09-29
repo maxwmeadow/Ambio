@@ -238,6 +238,16 @@ dependency wiring.
 > involved. Warnings show on the card, first in the inspector ("Looks wrong"),
 > and in the agent's summary. Still to do: cache key patterns, SDK methods,
 > webhook routes, model names, flag keys.
+>
+> Eval on harbor, 2026-09-29, same "put everything on the map" request as L0:
+> 96 s and $0.75 (L0: 153 s, $1.17), 4 shell reads instead of 48 file reads,
+> 15 confirmed nodes including the flags, realtime and auth roles L0 skipped,
+> 39 item-level relationships. Unprompted, it reported seeded bugs 1 (flag key),
+> 3 (reminder topic, "Axiom also flags this") and 7 (unprotected cancel). Its
+> failed calls were guessed relationship kinds, so the summary now lists each
+> role's kinds ("Record as: ..."). On a reminder-bug ticket both arms fixed it
+> in under a minute and the Axiom agent never read the map, so an
+> investigation now opens with the flagged contract gaps.
 
 Contents extraction: SQL migrations and ORM schemas → tables and columns;
 literal event names at publish/subscribe call sites → topics; literal key
