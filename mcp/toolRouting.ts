@@ -208,9 +208,9 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
       // Finishing is the last note plus a close, so one tool covers both and
       // an agent cannot forget which lifecycle call it is on.
       if (args.done) {
-        return { tool: 'finish_work', args: { summary: args.summary ?? args.note ?? '' } }
+        return { tool: 'finish_work', args: compact({ summary: args.summary ?? args.note ?? '', sessionId: args.sessionId }) }
       }
-      return { tool: 'note_work', args: { text: args.note ?? args.summary ?? '' } }
+      return { tool: 'note_work', args: compact({ text: args.note ?? args.summary ?? '', sessionId: args.sessionId }) }
     }
 
     case 'debug_runtime': {

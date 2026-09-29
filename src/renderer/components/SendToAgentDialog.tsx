@@ -88,7 +88,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     window.addEventListener('pointerdown', outside)
     return () => { window.removeEventListener('keydown', escape); window.removeEventListener('pointerdown', outside) }
   }, [isOpen, graph.workspaceId, onClose, pickerOpen, helpOpen])
-  const messageVersion = sheet.messages.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}`).join('|')
+  const messageVersion = sheet.messages.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}:${message.sessions?.map(session => `${session.id}:${session.endedAt}:${session.notes.length}`).join(',') ?? ''}`).join('|')
   useLayoutEffect(() => {
     const el = history.current
     if (!el) return
@@ -172,6 +172,13 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
             {(message.status === 'queued' || message.status === 'delivered') && <button type="button" className="axiom-inbox__handoff-copy" onClick={() => copy(workOrderHandoff(graph.name ?? 'this project', graph.workspaceId, graph.rootPath, message.id), `handoff:${message.id}`)} title={`Copy handoff for work order ${message.id}`}><InboxIcon name={copied === `handoff:${message.id}` ? 'check' : 'copy'} size={12} />{copied === `handoff:${message.id}` ? 'Copied' : 'Copy handoff'}</button>}
             {(message.status === 'queued' || message.status === 'delivered') && <button type="button" className="axiom-inbox__cancel" onClick={() => { void cancelInboxMessage(graph.workspaceId, message.id).catch(err => setError(String(err))) }}>Cancel request</button>}
           </div>
+          {message.sessions?.map(session => <section key={session.id} className="axiom-inbox__progress" aria-label={`Work progress: ${session.goal}`}>
+            <div className="axiom-inbox__progress-head"><span>{session.endedAt ? 'SESSION ENDED' : 'SESSION OPEN'}</span><strong>{session.agent || 'Agent'}</strong></div>
+            <p className="axiom-inbox__progress-goal">{session.goal}</p>
+            {session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}
+            {session.summary && <p className="axiom-inbox__progress-summary">{session.summary}</p>}
+            {session.endedAt > 0 && !session.summary && <p className="axiom-inbox__progress-summary">Session ended without a summary.</p>}
+          </section>)}
           {message.reply && <div className="axiom-inbox__reply"><div className="axiom-inbox__reply-heading"><InboxIcon name="agent" size={16} /><span>AGENT /</span><strong>{message.reply.agent}</strong></div><AgentMessageContent text={message.reply.body} /><button type="button" className="axiom-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div>}
           {message.status === 'answered' && !message.reply && <p className="axiom-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="axiom-inbox__notice">Cancelled in Axiom. If your agent already started, ask it to stop.</p>}

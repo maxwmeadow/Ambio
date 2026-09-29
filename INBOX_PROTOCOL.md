@@ -50,7 +50,13 @@ found on disk but not connected, an incomplete installer workflow, and unavailab
 status. A live MCP connection is not evidence that the model has read a message; only
 the message's **Picked up** state indicates a claim. Neither state proves ongoing code
 work. Agents can use `start_work`/`update_work` to make substantial work visible in
-Morning Delta, while normal indexing updates the live canvas as files change.
+Morning Delta and on the original request card, while normal indexing updates
+the live canvas as files change. For addressed work, `start_work` takes the
+`messageHandle` from `get_inbox` and returns a session ID. `update_work` takes
+that session ID so two chats sharing one MCP process cannot overwrite each
+other's progress. An omitted session ID works only if that process has one
+active session in this workspace. The session link, notes, and summary survive
+restarts and remain visible with the request history.
 
 The same `get_inbox` and `reply_to_canvas` tools are exposed to every configured MCP
 host. Claude Code, Copilot VS Code/CLI, Codex, Cursor, Windsurf, and Antigravity
@@ -82,6 +88,13 @@ process. The panel tells the user to stop that agent separately if necessary.
 - `reply_to_canvas({messageHandle, body})` writes one final reply and resolves its message
   in one transaction. Identical retries return the original reply, including after expiry.
   A different body, wrong token, cancellation, or reassignment returns a conflict.
+- `start_work({goal, messageHandle})` validates the live claim and links a
+  durable work session to that request. A retry by the same MCP process resumes
+  its open session. A new connector taking over the request ends the previous
+  session and starts its own; prior notes remain in the request history.
+- `update_work({sessionId, note})` and `update_work({sessionId, done: true,
+  summary})` address one session. Calls without `sessionId` fail if several
+  sessions are active in the same MCP process.
 - Text content and structured MCP content carry the same result. Tool errors stay errors;
   a daemon outage never means an empty inbox.
 - `review-canvas` is a reusable MCP prompt that describes this workflow. Retrieving a

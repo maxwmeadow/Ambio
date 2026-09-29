@@ -252,6 +252,41 @@ test('an addressed canvas request requires its explicit work-order ID', async ()
   assert.equal(answer.isError, false, answer.text)
 })
 
+test('two addressed requests keep separate work sessions on one MCP connector', async () => {
+  const ids = ['parallel-chat-a', 'parallel-chat-b']
+  const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+  const sessions = []
+  for (const id of ids) {
+    const sent = await post('send', { id, workspaceId: harness.workspaceId, note: `Handle ${id}`, deliveryMode: 'addressed' })
+    assert.equal(sent.status, 200, await sent.text())
+    const claimed = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: harness.workspaceId })
+    assert.equal(claimed.isError, false, claimed.text)
+    const started = await client.callTool('start_work', { goal: `Work on ${id}`, agent: 'codex', messageHandle: claimed.payload.messages[0].messageHandle })
+    assert.equal(started.isError, false, started.text)
+    assert.equal(started.payload.messageId, id)
+    assert.equal(started.payload.sessionId, started.payload.id)
+    sessions.push(started.payload.sessionId)
+  }
+  const ambiguous = await client.callTool('update_work', { note: 'Which chat?' })
+  assert.equal(ambiguous.isError, true)
+  assert.match(ambiguous.text, /Several work sessions/)
+  for (let i = 0; i < ids.length; i++) {
+    const noted = await client.callTool('update_work', { sessionId: sessions[i], note: `Progress for ${ids[i]}` })
+    assert.equal(noted.isError, false, noted.text)
+  }
+  const historyResponse = await fetch(`${harness.apiBase}/api/canvas/history?workspace=${encodeURIComponent(harness.workspaceId)}`)
+  assert.equal(historyResponse.status, 200)
+  const history = await historyResponse.json()
+  for (let i = 0; i < ids.length; i++) {
+    const message = history.messages.find(item => item.id === ids[i])
+    assert.equal(message.sessions.length, 1)
+    assert.equal(message.sessions[0].id, sessions[i])
+    assert.equal(message.sessions[0].notes[0].text, `Progress for ${ids[i]}`)
+    const finished = await client.callTool('update_work', { sessionId: sessions[i], done: true, summary: `Done ${ids[i]}` })
+    assert.equal(finished.isError, false, finished.text)
+  }
+})
+
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
   const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }

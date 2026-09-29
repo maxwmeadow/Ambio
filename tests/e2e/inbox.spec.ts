@@ -59,9 +59,15 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     expect(sends[0].deliveryMode).toBe('addressed')
     expect(JSON.parse(sends[0].selection)).toHaveLength(2)
     expect(messages).toHaveLength(1)
+    messages[0].status = 'delivered'
+    messages[0].sessions = [{ id: 'session-a', messageId: sends[0].id, agent: 'Test agent', goal: 'Trace both systems', notes: [{ ts: Date.now(), text: 'Mapped their shared API boundary.' }], startedAt: Date.now(), endedAt: 0 }]
+    await expect(panel.getByRole('region', { name: 'Work progress: Trace both systems' })).toContainText('Mapped their shared API boundary.', { timeout: 10000 })
     messages[0].status = 'answered'
+    messages[0].sessions[0].endedAt = Date.now()
+    messages[0].sessions[0].summary = 'Explained the API boundary.'
     messages[0].reply = { body: 'They communicate through the project API.', agent: 'Test agent', createdAt: Date.now() }
     await expect(panel.getByText('They communicate through the project API.')).toBeVisible({ timeout: 10000 })
+    await expect(panel.getByText('Explained the API boundary.')).toBeVisible()
     await page.reload()
     await page.getByRole('button', { name: 'Message agent', exact: true }).click()
     await expect(page.getByText('They communicate through the project API.')).toBeVisible()

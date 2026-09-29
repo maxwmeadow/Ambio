@@ -525,6 +525,7 @@ func migrate(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS work_sessions (
 		id            TEXT PRIMARY KEY,
 		workspace_id  TEXT NOT NULL,
+		message_id    TEXT NOT NULL DEFAULT '',
 		root_id       TEXT,
 		branch        TEXT,
 		owner_key     TEXT NOT NULL DEFAULT '',
@@ -721,6 +722,7 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE structural_events ADD COLUMN branch TEXT`,
 		`ALTER TABLE work_sessions ADD COLUMN root_id TEXT`,
 		`ALTER TABLE work_sessions ADD COLUMN branch TEXT`,
+		`ALTER TABLE work_sessions ADD COLUMN message_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE agent_actions ADD COLUMN root_id TEXT`,
 		`ALTER TABLE agent_actions ADD COLUMN branch TEXT`,
 		// Planned UML authoring: semantic shape + user color (REVISION 2 UX)
@@ -774,6 +776,7 @@ func migrate(db *sql.DB) error {
 	if _, err := db.Exec(`
 		CREATE INDEX IF NOT EXISTS structural_events_root ON structural_events(workspace_id, root_id, ts);
 		CREATE INDEX IF NOT EXISTS work_sessions_root ON work_sessions(workspace_id, root_id, started_at);
+		CREATE INDEX IF NOT EXISTS work_sessions_message ON work_sessions(workspace_id, message_id, started_at);
 		CREATE INDEX IF NOT EXISTS agent_actions_root ON agent_actions(workspace_id, root_id, ts);
 	`); err != nil {
 		return fmt.Errorf("create branch-history indexes: %w", err)

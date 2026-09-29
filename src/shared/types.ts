@@ -507,6 +507,7 @@ export interface DeltaSessionNote {
 export interface DeltaWorkSession {
   id: string
   workspaceId: string
+  messageId?: string
   agent?: string
   goal: string
   summary?: string

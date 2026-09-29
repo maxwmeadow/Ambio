@@ -2,7 +2,7 @@
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
 import { create } from 'zustand'
-import type { FloorLayout } from '../../shared/types'
+import type { DeltaWorkSession, FloorLayout } from '../../shared/types'
 import { raiseFailure } from './interruptionStore.ts'
 
 const API = 'http://127.0.0.1:7743'
@@ -91,6 +91,7 @@ export interface CanvasMessage {
   leaseExpiresAt?: number
   agent?: string
   reply?: { body: string; agent: string; createdAt: number }
+  sessions?: DeltaWorkSession[]
   deliveredTo: string | null
   answerAnnotationId: string | null
   createdAt: number

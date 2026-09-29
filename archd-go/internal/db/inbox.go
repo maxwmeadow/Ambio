@@ -20,10 +20,11 @@ type InboxReply struct {
 }
 type InboxItem struct {
 	CanvasMessage
-	LeaseToken     string      `json:"leaseToken,omitempty"`
-	LeaseExpiresAt int64       `json:"leaseExpiresAt,omitempty"`
-	Agent          string      `json:"agent,omitempty"`
-	Reply          *InboxReply `json:"reply,omitempty"`
+	LeaseToken     string        `json:"leaseToken,omitempty"`
+	LeaseExpiresAt int64         `json:"leaseExpiresAt,omitempty"`
+	Agent          string        `json:"agent,omitempty"`
+	Reply          *InboxReply   `json:"reply,omitempty"`
+	Sessions       []WorkSession `json:"sessions,omitempty"`
 }
 
 func migrateInbox(d *sql.DB) error {
@@ -96,6 +97,7 @@ func InboxHistory(d *sql.DB, workspace, before string, limit int, now int64) ([]
 	}
 	defer rows.Close()
 	items := []InboxItem{}
+	messageIDs := []string{}
 	for rows.Next() {
 		item, err := scanInbox(rows, now)
 		if err != nil {
@@ -103,8 +105,22 @@ func InboxHistory(d *sql.DB, workspace, before string, limit int, now int64) ([]
 		}
 		item.LeaseToken = ""
 		items = append(items, *item)
+		messageIDs = append(messageIDs, item.ID)
 	}
-	return items, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	sessions, err := InboxWorkSessions(d, workspace, messageIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Sessions = sessions[items[i].ID]
+	}
+	return items, nil
 }
 func ReadInboxItem(d *sql.DB, id string, now int64) (*InboxItem, error) {
 	return scanInbox(d.QueryRow("SELECT "+inboxColumns+inboxJoins+" WHERE m.id=?", id), now)
