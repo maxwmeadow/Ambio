@@ -43,7 +43,16 @@ const MARKER_ANCHOR = {
  * view's edge instead, and clicking the marker brings it into view. Nothing is
  * drawn once the selection moves on.
  */
-export function InfraSidebarLinks({
+export function InfraSidebarLinks(props: InfraSidebarLinksProps) {
+  // Only an open sidebar with something selected draws; nothing else should
+  // re-render on every frame of a pan.
+  const open = useGraphStore(s => s.infraSidebarOpen)
+  const selectedInfraId = useGraphStore(s => s.selectedInfraId)
+  if (!open || (!selectedInfraId && !props.selectedNodeId)) return null
+  return <ActiveInfraLinks {...props} />
+}
+
+function ActiveInfraLinks({
   nodes, dependencies, files, systems, selectedNodeId, visibilityOptions, containerRef,
 }: InfraSidebarLinksProps) {
   const open = useGraphStore(s => s.infraSidebarOpen)
