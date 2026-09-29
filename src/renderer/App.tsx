@@ -542,6 +542,13 @@ export default function App() {
     let active = true
     void (async () => {
       try {
+        // Launched to open something (`axiom .`, a dock drop, a link): that
+        // wins over resuming yesterday's project.
+        const requested = await window.axiom!.takeOpenRequest?.()
+        if (requested) {
+          await routeProjectBySourceBoundaryState(requested)
+          return
+        }
         const recent = await window.axiom!.listRecentProjects()
         if (!active) return
         const storedResume = await window.axiom!.getResumeProjectId()
@@ -564,7 +571,7 @@ export default function App() {
       }
     })()
     return () => { active = false }
-  }, [resumeChecked, openProject])
+  }, [resumeChecked, openProject, routeProjectBySourceBoundaryState])
 
   // Leaving a project. Deliberate, so the next launch honours it rather than
   // resuming straight back into what was just left. archd keeps the project
@@ -666,6 +673,43 @@ export default function App() {
     const index = Math.max(0, order.indexOf(activeSheetId))
     void openSheet(currentProject.id, order[(index + direction + order.length) % order.length])
   }
+
+  // Something asked Axiom to open a project while it was running.
+  const openRequested = useRef<(config: ProjectConfig) => Promise<void>>(async () => {})
+  openRequested.current = async config => {
+    if (currentProject?.id === config.id) return
+    if (currentProject) await closeProject()
+    setProjectSettingsFor(null)
+    await routeProjectBySourceBoundaryState(config)
+  }
+  useEffect(() => window.axiom?.onOpenRequest?.(() => {
+    void window.axiom.takeOpenRequest().then(config => { if (config) void openRequested.current(config) })
+  }), [])
+
+  // Drop a folder (or a file inside a project) anywhere on the window.
+  useEffect(() => {
+    if (!window.axiom?.pathForFile) return
+    const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
+    const onDragOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    }
+    const onDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      const file = event.dataTransfer?.files?.[0]
+      if (!file) return
+      const path = window.axiom.pathForFile(file)
+      if (path) void window.axiom.openPath(path)
+    }
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [])
 
   // File → Open Recent, from the native menu or the title-bar menu.
   useOpenRecent(projectId => {

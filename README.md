@@ -38,6 +38,10 @@ Axiom checks GitHub Releases for new versions. On Windows and Linux (AppImage)
 updates download in the background and install when you restart; on macOS
 Axiom tells you when a new version is available.
 
+Open a project from a terminal with `axiom .` (install the command from
+Settings → Advanced), by dropping a folder on the window or dock icon, or from
+an `axiom://open?path=/absolute/path` link.
+
 Everything Axiom knows about your code stays on your machine - see
 [PRIVACY.md](PRIVACY.md).
 

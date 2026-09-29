@@ -495,12 +495,33 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 checked={settings.developerMenu}
                 onChange={value => update({ developerMenu: value })}
               />
+              <CliInstallRow />
               <PathRow label="Settings folder" path={paths?.config} onOpen={() => void window.axiom?.openAppPath('config')} />
             </>
           )}
         </div>
       </div>
     </Modal>
+  )
+}
+
+/** `axiom .` in a terminal, like `code .`. */
+function CliInstallRow() {
+  const [result, setResult] = useState<{ ok: boolean; manual?: string; detail: string } | null>(null)
+  return (
+    <div className="axiom-settings__row">
+      <div>
+        <strong>Command-line launcher</strong>
+        <small>{result?.detail ?? 'Open any folder from a terminal with: axiom .'}</small>
+      </div>
+      {result?.manual ? (
+        <button type="button" className="axiom-settings__button" onClick={() => void window.axiom?.copyText(result.manual!)}>Copy</button>
+      ) : (
+        <button type="button" className="axiom-settings__button" onClick={() => { void window.axiom?.installCli().then(setResult) }}>
+          {result?.ok ? 'Installed' : 'Install'}
+        </button>
+      )}
+    </div>
   )
 }
 

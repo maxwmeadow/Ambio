@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
@@ -131,6 +131,18 @@ contextBridge.exposeInMainWorld('axiom', {
     return () => { ipcRenderer.removeListener('menu:open-recent', handler) }
   },
   copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
+
+  // Opening from outside: `axiom .`, dock drops, links, dropped folders.
+  takeOpenRequest: (): Promise<ProjectConfig | null> => ipcRenderer.invoke('app:take-open-request'),
+  onOpenRequest: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('app:open-request', handler)
+    return () => { ipcRenderer.removeListener('app:open-request', handler) }
+  },
+  openPath: (path: string): Promise<void> => ipcRenderer.invoke('app:open-path', path),
+  /** The filesystem path of a dropped File (Electron no longer puts it on File). */
+  pathForFile: (file: File): string => webUtils.getPathForFile(file),
+  installCli: (): Promise<{ ok: boolean; path?: string; manual?: string; detail: string }> => ipcRenderer.invoke('cli:install'),
 
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
@@ -301,6 +313,11 @@ declare global {
       clearRecentProjects: () => Promise<void>
       onOpenRecent: (callback: (projectId: string) => void) => () => void
       copyText: (text: string) => Promise<void>
+      takeOpenRequest: () => Promise<ProjectConfig | null>
+      onOpenRequest: (callback: () => void) => () => void
+      openPath: (path: string) => Promise<void>
+      pathForFile: (file: File) => string
+      installCli: () => Promise<{ ok: boolean; path?: string; manual?: string; detail: string }>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>

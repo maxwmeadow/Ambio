@@ -82,6 +82,14 @@
         "releaseType": "draft"
       }
     ],
+    "protocols": [
+      {
+        "name": "Axiom",
+        "schemes": [
+          "axiom"
+        ]
+      }
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
@@ -105,7 +113,19 @@
           "from": "out/licenses",
           "to": "licenses"
         }
-      ]
+      ],
+      "extendInfo": {
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Folder",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+              "public.folder"
+            ]
+          }
+        ]
+      }
     },
     "win": {
       "target": [

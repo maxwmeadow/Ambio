@@ -312,6 +312,13 @@ Keyboard accelerators then work everywhere.
 - ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
 - ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
+### Opening Axiom (2026-09-30)
+- ✅ `axiom .` terminal command (Settings → Advanced → Command-line launcher): installs into a writable folder on PATH, or gives the one command to run
+- ✅ Drop a folder (or a file inside a project) on the window, or on the macOS dock icon
+- ✅ Recent projects in the macOS dock menu, the Windows jump list, and the OS recent-documents lists
+- ✅ `axiom://open?path=…` and `axiom://project/<id>` links; a link to a folder Axiom does not know asks before adding it
+- ✅ A path inside a known project opens that project (most specific wins); launching with a path skips resuming the last project
+
 ### Large projects (2026-09-30)
 - ✅ Files over 1 MB and `*.min.*` files are skipped (generated code); a file that grows past the limit keeps its last parse
 - ✅ Setup and Project Settings estimate the scope as you toggle folders and warn above ~15,000 source files, naming the largest folders

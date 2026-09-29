@@ -3,13 +3,15 @@ import { readWindowState, restorableBounds, writeWindowState } from './windowSta
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
 import { estimateScope } from './scopeEstimate'
+import { parseAxiomUrl, parseLaunchArgs, type LaunchRequest } from './launchRequests'
+import { installCliLauncher } from './cliLauncher'
 import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
 import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSettings } from '../src/shared/appSettings'
 import type { SystemRole } from '../src/shared/appMenu'
 import { format } from 'util'
 import { createLogs, formatDiagnostics, timestamped } from './logging'
 import { readDaemonToken } from './daemonAuth'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import os from 'os'
 import fs from 'fs'
@@ -119,7 +121,35 @@ function recentForMenu(): Array<{ id: string; name: string; rootPath: string }> 
 }
 
 function refreshApplicationMenu(): void {
-  applyApplicationMenu(() => mainWindow, menuState, recentForMenu())
+  const recent = recentForMenu()
+  applyApplicationMenu(() => mainWindow, menuState, recent)
+  // Recent projects where the OS keeps them: the dock menu on macOS, the
+  // jump list on Windows (whose entries relaunch Axiom with the folder).
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setMenu(Menu.buildFromTemplate(recent.slice(0, 8).map(project => ({
+      label: project.name,
+      click: () => { void handleLaunchRequest({ kind: 'project', projectId: project.id }, 'cli') },
+    }))))
+  }
+  if (process.platform === 'win32' && app.isPackaged) {
+    try {
+      app.setJumpList(recent.length === 0 ? null : [{
+        type: 'custom',
+        name: 'Recent Projects',
+        items: recent.slice(0, 8).map(project => ({
+          type: 'task' as const,
+          title: project.name,
+          description: project.rootPath,
+          program: process.execPath,
+          args: `"${project.rootPath}"`,
+          iconPath: process.execPath,
+          iconIndex: 0,
+        })),
+      }])
+    } catch (error) {
+      console.warn('[main] could not update the jump list:', error)
+    }
+  }
 }
 
 function upsertRecentProject(config: ProjectConfig): void {
@@ -162,6 +192,81 @@ function openExternalIfWeb(url: string): void {
     const parsed = new URL(url)
     if (parsed.protocol === 'https:' || parsed.protocol === 'http:') void shell.openExternal(parsed.href)
   } catch { /* not a URL */ }
+}
+
+/** The project for a folder chosen by the user, registering it if new. */
+function registerFolder(rootPath: string): ProjectConfig {
+  const existing = findProjectByRoot(loadRecentProjects(), rootPath)
+  const id = existing?.id ?? createProjectId()
+  const freshConfig: ProjectConfig = {
+    id,
+    name: rootPath.split(/[/\\]/).pop() ?? 'Project',
+    rootPath,
+    creationSource: 'open-codebase',
+    rootIsEmpty: fs.readdirSync(rootPath).length === 0,
+    ignoredPaths: [],
+    languageOverrides: {},
+    layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
+    openedAt: Date.now(),
+  }
+  let config = mergePersistedProjectConfig(existing, freshConfig)
+  // An empty codebase has no source scope to choose, but it still follows the
+  // Open Codebase journey because the launcher action is authoritative.
+  if (config.rootIsEmpty) {
+    config = completeSourceBoundaries(config, [])
+  }
+  upsertRecentProject(config)
+  return config
+}
+
+// ─── Opening from outside the app ───────────────────────────────────────────
+//
+// `axiom .`, a folder dropped on the window or dock icon, the dock menu, the
+// Windows jump list and axiom:// links all arrive here. A path inside a known
+// project opens that project; a new folder is added like File → Open Folder.
+
+let pendingOpen: ProjectConfig | null = null
+
+async function resolveLaunchRequest(request: LaunchRequest, confirmNewFolders: boolean): Promise<ProjectConfig | null> {
+  const projects = loadRecentProjects()
+  if (request.kind === 'project') return projects.find(project => project.id === request.projectId) ?? null
+  let folder = request.path
+  try {
+    if (!fs.statSync(folder).isDirectory()) folder = dirname(folder)
+  } catch {
+    return null
+  }
+  // The most specific known project containing the path wins.
+  const owner = projects
+    .filter(project => isInside(folder, [project.rootPath]))
+    .sort((left, right) => right.rootPath.length - left.rootPath.length)[0]
+  if (owner) return owner
+  if (confirmNewFolders && mainWindow) {
+    // A link from a web page or another app may not be the user's idea.
+    const answer = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Open', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message: 'Open this folder in Axiom?',
+      detail: folder,
+    })
+    if (answer.response !== 0) return null
+  }
+  return registerFolder(folder)
+}
+
+async function handleLaunchRequest(request: LaunchRequest | null, source: 'cli' | 'link' | 'drop'): Promise<void> {
+  if (!request) return
+  const config = await resolveLaunchRequest(request, source === 'link')
+  if (!config) return
+  pendingOpen = config
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('app:open-request')
+  }
 }
 
 // ─── App settings ────────────────────────────────────────────────────────────
@@ -699,28 +804,7 @@ function setupIPC(): void {
     })
     if (result.canceled || !result.filePaths[0]) return null
 
-    const rootPath = result.filePaths[0]
-    const existing = findProjectByRoot(loadRecentProjects(), rootPath)
-    const id = existing?.id ?? createProjectId()
-    const freshConfig: ProjectConfig = {
-      id,
-      name: rootPath.split(/[/\\]/).pop() ?? 'Project',
-      rootPath,
-      creationSource: 'open-codebase',
-      rootIsEmpty: fs.readdirSync(rootPath).length === 0,
-      ignoredPaths: [],
-      languageOverrides: {},
-      layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
-      openedAt: Date.now(),
-    }
-    let config = mergePersistedProjectConfig(existing, freshConfig)
-    // An empty codebase has no source scope to choose, but it still follows the
-    // Open Codebase journey because the launcher action is authoritative.
-    if (config.rootIsEmpty) {
-      config = completeSourceBoundaries(config, [])
-    }
-    upsertRecentProject(config)
-    return config
+    return registerFolder(result.filePaths[0])
   })
 
   // Open a specific project path directly
@@ -735,6 +819,8 @@ function setupIPC(): void {
     )
     sendToArchd({ type: 'open:project', payload: currentConfig })
     activeProject = currentConfig
+    // The OS recent list (macOS Recent Items, Windows recent documents).
+    try { app.addRecentDocument(currentConfig.rootPath) } catch { /* not supported here */ }
     return currentConfig
   })
 
@@ -818,6 +904,34 @@ function setupIPC(): void {
 
   // File → Open Recent → Clear Recently Opened: hides every project from the
   // recent list. Nothing is deleted; "Show all" on the launcher still has them.
+  // The renderer collects whatever is waiting to open (see handleLaunchRequest).
+  ipcMain.handle('app:take-open-request', () => {
+    const config = pendingOpen
+    pendingOpen = null
+    return config
+  })
+  // Settings → Advanced → Install the axiom command.
+  ipcMain.handle('cli:install', () => {
+    if (!app.isPackaged) {
+      return { ok: false, detail: 'The axiom command is installed from a packaged build; in development run the app with npm run dev.' }
+    }
+    try {
+      return installCliLauncher({
+        executable: process.env.APPIMAGE ?? process.execPath,
+        configDir: CONFIG_DIR,
+        home: os.homedir(),
+      })
+    } catch (error) {
+      return { ok: false, detail: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  // A folder or file dropped on the window.
+  ipcMain.handle('app:open-path', (_event, path: string) => {
+    if (typeof path !== 'string' || !path) return
+    void handleLaunchRequest({ kind: 'path', path }, 'drop')
+  })
+
   ipcMain.handle('project:clear-recent', () => {
     saveRecentProjects(loadRecentProjects().map(project => ({ ...project, hiddenFromRecents: true })))
   })
@@ -1278,13 +1392,27 @@ const hasInstanceLock = IS_E2E || app.requestSingleInstanceLock()
 if (!hasInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv, workingDirectory) => {
     if (!mainWindow) return
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
+    // `axiom <folder>` or an axiom:// link while Axiom is already running.
+    const request = parseLaunchArgs(argv, workingDirectory, [app.getAppPath()])
+    void handleLaunchRequest(request, argv.some(argument => argument.startsWith('axiom:')) ? 'link' : 'cli')
   })
 }
+
+// macOS delivers dock drops and links as events, possibly before ready.
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+  void app.whenReady().then(() => handleLaunchRequest({ kind: 'path', path }, 'drop'))
+})
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  void app.whenReady().then(() => handleLaunchRequest(parseAxiomUrl(url), 'link'))
+})
+if (app.isPackaged && !IS_E2E) app.setAsDefaultProtocolClient('axiom')
 
 app.whenReady().then(() => {
   if (!hasInstanceLock) return
@@ -1318,6 +1446,12 @@ app.whenReady().then(() => {
   refreshApplicationMenu()
   initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
   if (!IS_E2E) void startOrAttachArchd()
+  // Launched as `axiom <folder>` or through a link (Windows/Linux pass both
+  // on the command line). Development passes the app directory; skip it.
+  if (app.isPackaged && !IS_E2E) {
+    const request = parseLaunchArgs(process.argv, process.cwd(), [app.getAppPath()])
+    void handleLaunchRequest(request, process.argv.some(argument => argument.startsWith('axiom:')) ? 'link' : 'cli')
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
