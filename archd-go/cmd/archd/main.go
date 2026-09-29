@@ -122,7 +122,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("archd: local authentication: %v", err)
 	}
-	handler := activity.wrap(api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux)))
+	handler := activity.wrap(api.RequireLoopbackHost(api.AllowAuthenticatedOrigins(api.RequireLocalToken(token, mux))))
 	httpServer := &http.Server{Handler: handler}
 	go func() {
 		log.Printf("archd: HTTP API listening on %s", apiListener.Addr())

@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +26,8 @@ func LocalAPIToken(dataDir string) (string, error) {
 	path := filepath.Join(dataDir, "api-token")
 	existing, err := os.ReadFile(path)
 	if err == nil {
+		// A token file written by an older build may be world-readable.
+		_ = os.Chmod(path, 0600)
 		token := strings.TrimSpace(string(existing))
 		if len(token) < 32 {
 			return "", fmt.Errorf("invalid local API token")
@@ -63,4 +66,27 @@ func RequireLocalToken(token string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequireLoopbackHost refuses requests whose Host header is not a loopback
+// name. Every route already needs the local token, which a web page cannot
+// read; this also stops DNS-rebinding requests (a public name re-pointed at
+// 127.0.0.1) before they reach a handler.
+func RequireLoopbackHost(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHost(r.Host) {
+			jsonError(w, "archd only answers requests addressed to this machine", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLoopbackHost(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.Trim(strings.ToLower(host), "[]")
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }

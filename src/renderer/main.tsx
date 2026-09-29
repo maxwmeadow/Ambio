@@ -3,6 +3,16 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { GlobalCommands } from './app/GlobalCommands'
 import { ErrorBoundary } from './components/ErrorBoundary'
+// Bundled rather than fetched from Google Fonts: nothing leaves the machine
+// just to draw the interface, and the app looks right offline.
+import '@fontsource/ibm-plex-sans/400.css'
+import '@fontsource/ibm-plex-sans/500.css'
+import '@fontsource/ibm-plex-sans/600.css'
+import '@fontsource/ibm-plex-sans/700.css'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
+import '@fontsource/jetbrains-mono/600.css'
+import '@fontsource/jetbrains-mono/700.css'
 import './styles/global.css'
 // Per-track stylesheets. Loading them here keeps two long-running worktrees
 // out of global.css, which is the one file guaranteed to conflict.

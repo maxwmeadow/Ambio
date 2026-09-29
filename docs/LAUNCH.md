@@ -312,6 +312,13 @@ Keyboard accelerators then work everywhere.
 - ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
 - ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
+### Security and privacy (2026-09-30)
+- ✅ Renderer sandboxed; production Content Security Policy (own scripts + WebAssembly, loopback connections only); no new windows, navigation, web views or device permissions; links open in the browser (http/https only)
+- ✅ Fonts bundled: Axiom no longer requests Google Fonts on every launch (a privacy leak and an offline failure)
+- ✅ "Open in Editor" opens source in the detected code editor (Settings → General → Open files in), never through the OS default handler that can execute scripts; file open/reveal/list only inside registered projects
+- ✅ archd rejects non-loopback Host headers (DNS rebinding); older token files tightened to 0600
+- ✅ SECURITY.md documents the security model and its one known boundary (the runtime-adapter port)
+
 ### First launch
 - ✅ Single-instance lock; launching again focuses the existing window
 - ✅ Application menu (§5): native on macOS, drawn in the title bar on Windows/Linux

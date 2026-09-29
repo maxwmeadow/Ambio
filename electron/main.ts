@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen } from 'electron'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
+import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
 import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
 import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSettings } from '../src/shared/appSettings'
 import type { SystemRole } from '../src/shared/appMenu'
@@ -147,6 +148,19 @@ function sanitizeProjectName(name: string): string {
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
     .replace(/\s+/g, '-')
     .replace(/^[.\s-]+|[.\s-]+$/g, '')
+}
+
+function projectRoots(): string[] {
+  return loadRecentProjects().map(project => project.rootPath)
+}
+
+// Only web pages leave for the browser; file:, javascript:, custom schemes
+// and anything else a document might link to are ignored.
+function openExternalIfWeb(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') void shell.openExternal(parsed.href)
+  } catch { /* not a URL */ }
 }
 
 // ─── App settings ────────────────────────────────────────────────────────────
@@ -557,6 +571,11 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // The renderer shows content from the user's repositories (documents,
+      // source, agent messages). If any of it ever became script, the OS
+      // sandbox keeps it away from the machine.
+      sandbox: true,
+      webviewTag: false,
     },
     title: 'Axiom',
     show: false,
@@ -586,6 +605,12 @@ function createWindow(): void {
     window.on('move', scheduleSave)
     window.on('close', () => { if (saveTimer) clearTimeout(saveTimer); saveState() })
   }
+
+  // No second windows, and links leave the app for the browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalIfWeb(url)
+    return { action: 'deny' }
+  })
 
   mainWindow.on('maximize', () => {
     mainWindow?.webContents.send('window:maximized-change', true)
@@ -845,6 +870,9 @@ function setupIPC(): void {
 
   // List directory contents for project setup screen
   ipcMain.handle('fs:list-dir', (_event, dirPath: string) => {
+    // Only inside projects Axiom knows; the setup screen browses a project the
+    // user just chose in the system folder dialog, which registered it.
+    if (typeof dirPath !== 'string' || !isInside(dirPath, projectRoots())) return []
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
       return entries.map(e => ({
@@ -859,13 +887,35 @@ function setupIPC(): void {
 
   // Show item in Finder/Explorer
   ipcMain.handle('shell:show-item', (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !isInside(filePath, [...projectRoots(), CONFIG_DIR])) return
     shell.showItemInFolder(filePath)
   })
 
-  // Open file in default editor
-  ipcMain.handle('shell:open-file', (_event, filePath: string) => {
-    shell.openPath(filePath)
+  // "Open in Editor". Source files go to the user's code editor; only plain
+  // documents may go to the OS default app, because the default "open" for a
+  // script can be to run it (a .js file on Windows runs under Script Host).
+  ipcMain.handle('shell:open-file', async (_event, filePath: string): Promise<{ ok: boolean; detail: string }> => {
+    if (typeof filePath !== 'string' || !isInside(filePath, projectRoots()) || !fs.existsSync(filePath)) {
+      return { ok: false, detail: 'That file is not part of an open project.' }
+    }
+    const editor = chooseEditor(readAppSettings().editor, detectEditors())
+    if (editor) {
+      try {
+        spawn(editor.command, [filePath], { detached: true, stdio: 'ignore', shell: false, windowsHide: false }).unref()
+        return { ok: true, detail: `Opened in ${editor.label}.` }
+      } catch (error) {
+        console.warn('[main] could not start editor', editor.command, error)
+      }
+    }
+    if (safeForSystemOpen(filePath)) {
+      const failure = await shell.openPath(filePath)
+      return failure ? { ok: false, detail: failure } : { ok: true, detail: 'Opened.' }
+    }
+    shell.showItemInFolder(filePath)
+    return { ok: false, detail: 'No code editor found, so Axiom showed the file in its folder instead. Choose an editor in Settings → General.' }
   })
+
+  ipcMain.handle('editors:list', () => detectEditors().map(({ id, label }) => ({ id, label })))
 
   // Get app info (includes archd ports so renderer can connect)
   ipcMain.handle('app:info', () => {
@@ -1253,6 +1303,10 @@ app.whenReady().then(() => {
       callback({ requestHeaders: details.requestHeaders })
     },
   )
+  // Axiom needs no camera, microphone, location, notifications or similar.
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  session.defaultSession.setPermissionCheckHandler(() => false)
+
   createWindow()
   setupIPC()
   refreshApplicationMenu()
@@ -1284,13 +1338,16 @@ app.on('before-quit', () => {
 process.on('SIGINT', () => { quitting = true; stopArchd(); process.exit(0) })
 process.on('SIGTERM', () => { quitting = true; stopArchd(); process.exit(0) })
 
-// Security: prevent navigation to external URLs
+// Security: the window only ever shows Axiom. A link that would navigate it
+// elsewhere opens in the browser instead; embedded web views are refused.
 app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl)
     const devOrigin = DEV_SERVER_URL ? new URL(DEV_SERVER_URL).origin : null
     if (parsedUrl.origin !== devOrigin && !navigationUrl.startsWith('file://')) {
       event.preventDefault()
+      openExternalIfWeb(navigationUrl)
     }
   })
+  contents.on('will-attach-webview', event => event.preventDefault())
 })

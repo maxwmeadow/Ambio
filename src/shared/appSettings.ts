@@ -12,6 +12,8 @@ export interface AppSettings {
   reduceMotion: 'system' | 'always'
   /** Show Reload and Developer Tools in the View menu. */
   developerMenu: boolean
+  /** Where "Open in Editor" opens source files: 'auto' or an editor id. */
+  editor: string
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uiZoom: 1,
   reduceMotion: 'system',
   developerMenu: false,
+  editor: 'auto',
 }
 
 export const UI_ZOOM_MIN = 0.8
@@ -42,6 +45,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     uiZoom: typeof source.uiZoom === 'number' ? clampZoom(source.uiZoom) : DEFAULT_SETTINGS.uiZoom,
     reduceMotion: source.reduceMotion === 'always' ? 'always' : 'system',
     developerMenu: bool('developerMenu'),
+    editor: typeof source.editor === 'string' && /^[a-z0-9-]{1,32}$/.test(source.editor) ? source.editor : 'auto',
   }
 }
 

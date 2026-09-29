@@ -18,6 +18,8 @@ about them stay on your machine.
   version exists. That request carries no information about you, your code or
   your projects beyond what any download from GitHub does (your IP address
   and Axiom's version).
+- **Nothing to draw the interface.** Fonts and every other asset ship with
+  the app; Axiom loads nothing from the internet to display itself.
 - **Nothing else, unless you choose to send it.** "Report a bug" opens a
   GitHub issue in your browser with your OS and Axiom version filled in;
   you see and edit everything before submitting. "Copy diagnostics" puts a

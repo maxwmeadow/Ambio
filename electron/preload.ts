@@ -55,7 +55,9 @@ contextBridge.exposeInMainWorld('axiom', {
   showInFolder: (filePath: string) =>
     ipcRenderer.invoke('shell:show-item', filePath),
 
-  openFile: (filePath: string) =>
+  listEditors: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke('editors:list'),
+
+  openFile: (filePath: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('shell:open-file', filePath),
 
   // App info
@@ -259,7 +261,8 @@ declare global {
       saveNodePosition: (id: string, x: number, y: number, projectId: string) => void
       listDir: (dirPath: string) => Promise<Array<{ name: string; isDirectory: boolean; path: string }>>
       showInFolder: (filePath: string) => void
-      openFile: (filePath: string) => void
+      openFile: (filePath: string) => Promise<{ ok: boolean; detail: string }>
+      listEditors: () => Promise<Array<{ id: string; label: string }>>
       getAppInfo: () => Promise<{ version: string; dataDir: string; platform: string; mcpPath: string; archdApiUrl: string; archdWsUrl: string; isPackaged: boolean }>
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>

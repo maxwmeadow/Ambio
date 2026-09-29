@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { emitCommand } from '../app/commands'
 import { useGraphStore } from '../store/graphStore'
+import { raiseNotice } from '../store/interruptionStore.ts'
 
 export type CanvasContextTarget =
   | { kind: 'file'; id: string }
@@ -124,7 +125,14 @@ function buildEntries(
     const file = store.files.find(candidate => candidate.id === target.id)
     if (!file) return []
     return [
-      { label: 'Open in Editor', run: () => window.axiom?.openFile(file.path) },
+      {
+        label: 'Open in Editor',
+        run: () => {
+          void window.axiom?.openFile(file.path).then(result => {
+            if (!result.ok) raiseNotice('open-in-editor', 'Could not open in an editor', result.detail)
+          })
+        },
+      },
       { label: revealLabel(), run: () => window.axiom?.showInFolder(file.path) },
       'separator',
       { label: 'Copy Path', run: () => copy(file.path) },

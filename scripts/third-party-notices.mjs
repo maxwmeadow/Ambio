@@ -25,6 +25,9 @@ export const COMPATIBLE = new Set([
   'MIT', 'ISC', '0BSD', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', 'BlueOak-1.0.0',
   'CC0-1.0', 'Unlicense', 'Python-2.0', 'MPL-2.0', 'Zlib', 'CC-BY-4.0', 'WTFPL',
   'LGPL-2.1-or-later', 'LGPL-3.0-or-later', 'GPL-3.0-or-later', 'AGPL-3.0-only', 'AGPL-3.0-or-later',
+  // Fonts: the OFL allows bundling fonts with any software; they stay under
+  // their own license as a separate work (the interface fonts).
+  'OFL-1.1',
 ])
 
 /** True when an SPDX expression allows use under at least one compatible license. */

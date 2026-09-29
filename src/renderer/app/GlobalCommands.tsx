@@ -309,6 +309,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [paths, setPaths] = useState<{ config: string; data: string; logs: string } | null>(null)
   const [version, setVersion] = useState('')
   const [checkResult, setCheckResult] = useState<string | null>(null)
+  const [editors, setEditors] = useState<Array<{ id: string; label: string }>>([])
   const projectOpen = useGraphStore(state => state.currentProject !== null)
 
   useEffect(() => {
@@ -320,6 +321,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
     })
     void window.axiom.getAppPaths().then(setPaths)
     void window.axiom.getAppInfo().then(info => setVersion(info.version))
+    void window.axiom.listEditors?.().then(setEditors)
     return window.axiom.onSettingsChanged(setSettings)
   }, [])
 
@@ -360,6 +362,24 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 checked={settings.checkForUpdates}
                 onChange={value => update({ checkForUpdates: value })}
               />
+              <div className="axiom-settings__row">
+                <div>
+                  <strong>Open files in</strong>
+                  <small>
+                    {editors.length > 0
+                      ? 'Used by Open in Editor. Source files never open in the system default app, which may run them.'
+                      : 'No code editor found. Install VS Code, Cursor, Zed or another editor with a command-line launcher.'}
+                  </small>
+                </div>
+                <select
+                  value={editors.some(editor => editor.id === settings.editor) ? settings.editor : 'auto'}
+                  aria-label="Open files in"
+                  onChange={event => update({ editor: event.target.value })}
+                >
+                  <option value="auto">{editors[0] ? `Automatic (${editors[0].label})` : 'Automatic'}</option>
+                  {editors.map(editor => <option key={editor.id} value={editor.id}>{editor.label}</option>)}
+                </select>
+              </div>
               <div className="axiom-settings__row">
                 <div>
                   <strong>Version {version}</strong>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/* Fonts are bundled (src/renderer/main.tsx): Axiom makes no network request to render itself. */
 
 /* ─── Design Tokens - dark drafting table ───────────────────────────────── */
 /* Opaque surfaces stacked like sheets on a drafting board. No translucent
