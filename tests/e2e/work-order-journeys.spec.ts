@@ -23,6 +23,11 @@ async function openMockProject(fixture: 'commerce' | 'service' | 'operations', h
       differences: equivalent ? [] : [{ kind: 'nesting', nodeId: 'payment-retry', name: 'Payment retry', actual: 'outside', expected: 'checkout', detail: 'Move under Checkout' }],
       nodes: [{ id: 'checkout', name: 'Checkout' }], mappings: {},
     }
+    if (sheet && url.pathname === '/api/canvas/snapshot-comparison') body = {
+      messageId: url.searchParams.get('messageId'), sheetId: sheet.id, name: sheet.name, revision: 3,
+      equivalent, checked: 2,
+      differences: equivalent ? [] : [{ kind: 'nesting', nodeId: 'payment-retry', name: 'Payment retry', detail: 'Move under Checkout' }], mappings: {},
+    }
     if (sheet && url.pathname === `/api/sheets/${sheet.id}/resolve`) { sheet.resolvedAt = Date.now(); body = sheet }
     if (url.pathname === '/api/canvas/history') body = { messages: [...orders].reverse(), nextCursor: '', availableCount: orders.filter(order => order.status === 'queued').length }
     if (url.pathname === '/api/canvas/send') {
@@ -101,6 +106,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
     await page.screenshot({ path: 'test-results/work-order-commerce-ready.png' })
     await inbox.getByRole('button', { name: /Review result/ }).click()
     await expect(inbox.getByRole('button', { name: 'Accept result' })).toBeVisible({ timeout: 12000 })
+    await expect(inbox.getByText('Sent structure matches the live architecture')).toBeVisible()
     await expect(inbox.getByText('Indexed changes')).toBeVisible()
     await page.screenshot({ path: 'test-results/work-order-commerce-review.png' })
     await inbox.getByRole('button', { name: 'Accept result' }).click()

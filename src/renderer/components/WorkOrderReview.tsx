@@ -3,6 +3,7 @@ import { reviewInboxMessage, type CanvasMessage, type Sheet, type WorkOrderReply
 import { SheetComparison } from './SheetComparison'
 import { AgentMessageContent } from './AgentMessageContent'
 import { SentSheetSnapshot } from './SentSheetSnapshot'
+import { SentPlanComparison } from './SentPlanComparison'
 
 function ReportedResult({ reply }: { reply: WorkOrderReply }) {
   const result = reply.result
@@ -52,10 +53,11 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
       {message.sheetId && <div className="axiom-inbox__sent-sheet" data-changed={sheetChanged || undefined}>
         <strong>Sheet sent to agent</strong>
         <span>{message.sentSheetName || currentSheet?.name || 'Attached sheet'}{sentRevision > 0 ? ` · revision ${sentRevision}` : ''}</span>
-        {sheetChanged && <p>Current sheet is revision {currentSheet.revision}. The live comparison below checks the current version, not the version sent with this order.</p>}
+        {sheetChanged && <p>Current sheet is revision {currentSheet.revision}. This work order retains the sent revision {sentRevision}.</p>}
         {!currentSheet && <p>The current sheet is unavailable. The agent received its frozen context when this order was sent.</p>}
         <SentSheetSnapshot workspaceId={workspaceId} messageId={message.id} />
       </div>}
+      {message.sheetId && <SentPlanComparison workspaceId={workspaceId} messageId={message.id} />}
       {message.status === 'answered' && message.reply && !accepted && <div className="axiom-inbox__review-actions">
         <button type="button" disabled={busy} onClick={() => { void decide('accepted') }}>Accept result</button>
         <button type="button" disabled={busy} onClick={() => setReopening(!reopening)}>Request changes</button>

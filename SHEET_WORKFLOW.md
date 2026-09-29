@@ -22,6 +22,12 @@ when the sheet has a newer revision. The current comparison always checks the
 current sheet; it must not be mistaken for proof against an older sent snapshot.
 **View sent plan** loads the immutable snapshot and approved build specification
 on demand, including after later sheet edits. History stays lightweight.
+The review also checks the **sent** structural target against the live indexed model.
+It uses frozen node identities, parents, containment, typed relationships, and
+planned-file contracts. A system/infrastructure proposal needs a valid binding;
+an unapproved or unverifiable requirement cannot turn green. This check survives
+later sheet edits and deletion. It never resolves the sheet or certifies prose,
+runtime behavior, tests, or deployment.
 
 The attached sheet's difference panel refreshes every three seconds and on sheet
 revision changes. Live graph mutations continue through the existing workspace-scoped
@@ -108,7 +114,9 @@ HTTP routes under `/api/sheets/:id`: `GET compare`, `GET context`, and `POST bin
 use `{workspaceId,…}` and retain the local bearer-token requirement. The inbox
 loads a work order's frozen plan only when requested through
 `GET /api/canvas/snapshot?workspace=…&messageId=…`; that read checks workspace
-ownership and does not claim or change the order.
+ownership and does not claim or change the order. The read-only
+`GET /api/canvas/snapshot-comparison?workspace=…&messageId=…` checks that sent
+structural target against current live evidence.
 
 ## Verification
 
@@ -118,3 +126,8 @@ edges, pending approvals, missing implementation, contract drift, workspace isol
 stale resolution refusal, retry idempotency, archival and restoration. The real stdio
 MCP harness exercises lookup through resolution; Electron exercises direct attachment,
 Floor navigation, live comparison refresh, archival, and restoration.
+The opt-in `AXIOM_LIVE_HOST_TEST=1` Electron suite runs real Codex sessions against
+isolated demo projects. It covers project and Sheet handoffs, source changes,
+reported checks, an independently executed function, replies, and acceptance.
+The Sheet case changes the current contract after submission and checks that the
+sent contract still matches while the current contract has a remaining difference.

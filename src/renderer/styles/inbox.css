@@ -73,6 +73,18 @@
 .axiom-inbox__sent-plan-body summary { cursor: pointer; font-weight: 700; }
 .axiom-inbox__sent-plan-body ul { margin: 4px 0; padding-left: 18px; }
 .axiom-inbox__sent-plan-body pre { max-height: 220px; margin: 6px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 var(--font-mono, monospace); }
+.axiom-inbox__sent-check { border: 1px solid #b4c8b8; background: #e8eee7; color: #3d6452; }
+.axiom-inbox__sent-check[data-state="loading"] { border-color: #c7ccc3; background: #eceee7; color: #526057; }
+.axiom-inbox__sent-check[data-state="different"], .axiom-inbox__sent-check[data-state="error"] { border-color: #ceb98b; background: #f5eee0; color: #72522d; }
+.axiom-inbox .axiom-inbox__sent-check > button { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 9px; text-align: left; color: inherit; }
+.axiom-inbox__sent-check > button strong { font-size: 11px; }
+.axiom-inbox__sent-check > button span { flex: none; font: 9px var(--font-mono, monospace); text-decoration: underline; text-underline-offset: 2px; }
+.axiom-inbox__sent-check-detail { padding: 0 9px 8px; }
+.axiom-inbox__sent-check-detail p { margin: 0 0 5px; }
+.axiom-inbox__sent-check-detail ul { margin: 5px 0; padding-left: 17px; }
+.axiom-inbox__sent-check-detail li + li { margin-top: 4px; }
+.axiom-inbox__sent-check-detail li span { display: block; }
+.axiom-inbox__sent-check-detail small { color: #647769; }
 .axiom-inbox__review-body p { margin-bottom: 0; }
 .axiom-inbox__review-sessions ul, .axiom-inbox__reported ul { margin: 4px 0 0; padding-left: 18px; }
 .axiom-inbox__review-sessions li + li, .axiom-inbox__reported li + li { margin-top: 3px; }

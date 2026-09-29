@@ -46,6 +46,7 @@ type agentSheetNode struct {
 	Type            string          `json:"type"`
 	Name            string          `json:"name"`
 	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	Members         json.RawMessage `json:"members,omitempty"`
 	Sheet           agentPlacement  `json:"sheet"`
 	LiveFloor       *agentFloorRef  `json:"liveFloor,omitempty"`
 	Planned         bool            `json:"planned"`
@@ -55,11 +56,13 @@ type agentSheetNode struct {
 }
 
 type agentSheetEdge struct {
-	Kind    string `json:"kind"`
-	Source  string `json:"source"`
-	Target  string `json:"target"`
-	Note    string `json:"note,omitempty"`
-	Planned bool   `json:"planned,omitempty"`
+	Kind     string `json:"kind"`
+	Source   string `json:"source"`
+	Target   string `json:"target"`
+	SourceID string `json:"sourceId,omitempty"`
+	TargetID string `json:"targetId,omitempty"`
+	Note     string `json:"note,omitempty"`
+	Planned  bool   `json:"planned,omitempty"`
 }
 
 type agentSheetContext struct {
@@ -231,7 +234,7 @@ func renderAgentSheetContext(sqlDB db.Reader, sheet *db.Sheet, includeUnapproved
 			continue
 		}
 		n := agentSheetNode{
-			ID: "planned:" + p.ID, Type: p.Kind, Name: p.Name, Metadata: p.Metadata,
+			ID: "planned:" + p.ID, Type: p.Kind, Name: p.Name, Metadata: p.Metadata, Members: p.Members,
 			Planned: true, DeclaredPath: p.DeclaredPath, ApprovalStatus: p.ApprovalStatus,
 			Sheet: agentPlacement{X: p.PositionX, Y: p.PositionY, Width: p.Width, Height: p.Height, Scale: normalizedAgentScale(p.Scale), ParentRef: resolveRef(p.ParentSystemID)},
 		}
@@ -254,7 +257,7 @@ func renderAgentSheetContext(sqlDB db.Reader, sheet *db.Sheet, includeUnapproved
 	for _, e := range liveEdges {
 		if displayedLiveIDs[e.Src] && displayedLiveIDs[e.Dst] {
 			contextEdges = append(contextEdges, agentSheetEdge{
-				Kind: e.DependencyType, Source: liveURI(e.Src), Target: liveURI(e.Dst),
+				Kind: e.DependencyType, Source: liveURI(e.Src), Target: liveURI(e.Dst), SourceID: e.Src, TargetID: e.Dst,
 			})
 		}
 	}
@@ -270,20 +273,25 @@ func renderAgentSheetContext(sqlDB db.Reader, sheet *db.Sheet, includeUnapproved
 			}
 		}
 		source, target := "", ""
+		sourceID, targetID := "", ""
 		if e.SrcPlanned != nil {
 			id := "planned:" + *e.SrcPlanned
 			source = *resolveRef(&id)
+			sourceID = id
 		} else if e.SrcLive != nil {
 			source = liveURI(*e.SrcLive)
+			sourceID = *e.SrcLive
 		}
 		if e.DstPlanned != nil {
 			id := "planned:" + *e.DstPlanned
 			target = *resolveRef(&id)
+			targetID = id
 		} else if e.DstLive != nil {
 			target = liveURI(*e.DstLive)
+			targetID = *e.DstLive
 		}
 		contextEdges = append(contextEdges, agentSheetEdge{
-			Kind: e.Kind, Source: source, Target: target, Note: e.Note, Planned: true,
+			Kind: e.Kind, Source: source, Target: target, SourceID: sourceID, TargetID: targetID, Note: e.Note, Planned: true,
 		})
 	}
 

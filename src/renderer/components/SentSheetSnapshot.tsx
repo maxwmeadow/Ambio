@@ -50,7 +50,7 @@ export function SentSheetSnapshot({ workspaceId, messageId }: { workspaceId: str
       {!snapshot && !error && <p>Loading the plan sent with this order…</p>}
       {snapshot && <>
         {context?.sheet && <p><strong>{context.sheet.name || 'Sheet'}</strong>{context.sheet.revision ? ` · revision ${context.sheet.revision}` : ''}{context.sheet.purpose ? ` · ${context.sheet.purpose}` : ''}</p>}
-        {context && <p>{nodes.length} nodes · {plannedEdges.length} planned relationships · {notes.length} notes in the sent snapshot</p>}
+        {context && <p>{nodes.length} {nodes.length === 1 ? 'node' : 'nodes'} · {plannedEdges.length} planned {plannedEdges.length === 1 ? 'relationship' : 'relationships'} · {notes.length} {notes.length === 1 ? 'note' : 'notes'} in the sent snapshot</p>}
         {!!nodes.length && <details><summary>Nodes sent ({nodes.length})</summary><ul>{nodes.slice(0, 100).map(node => <li key={node.id}>{node.name} · {node.type}{node.planned ? ' · planned' : ''}</li>)}</ul>{nodes.length > 100 && <small>Showing the first 100 nodes.</small>}</details>}
         {!!plannedEdges.length && <details><summary>Planned relationships ({plannedEdges.length})</summary><ul>{plannedEdges.slice(0, 100).map((edge, index) => <li key={`${edge.source}:${edge.target}:${index}`}>{edge.source} → {edge.target} · {edge.kind}</li>)}</ul>{plannedEdges.length > 100 && <small>Showing the first 100 relationships.</small>}</details>}
         {snapshot.buildSpec && <details open><summary>Approved build specification</summary><pre>{snapshot.buildSpec}</pre></details>}

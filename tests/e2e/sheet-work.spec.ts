@@ -23,6 +23,10 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
         sheetContext: JSON.stringify({ sheet: { name: 'Checkout original', purpose: 'Original checkout scope', revision: 4 }, nodes: [{ id: 'planned:checkout', name: 'Checkout service', type: 'system', planned: true }], edges: [], notes: [] }),
         buildSpec: 'Build the original checkout service.',
       }
+      if (url.pathname === '/api/canvas/snapshot-comparison') body = {
+        messageId: message.id, sheetId: sheet.id, name: 'Checkout original', revision: 4,
+        equivalent: false, checked: 1, differences: [{ kind: 'nesting', nodeId: 'planned:checkout', name: 'Checkout service', detail: 'The sent parent is not present in the live architecture' }], mappings: {},
+      }
       if (url.pathname === '/api/sheets/sheet_design/compare') body = {
         sheetId: sheet.id, name: sheet.name, revision: sheet.revision, token: 'current', equivalent: false,
         checked: 1, differences: [{ kind: 'nesting', nodeId: 'child', name: 'Checkout', detail: 'Current revision differs' }], nodes: [], mappings: {},
@@ -38,6 +42,9 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
     await expect(panel.getByText(/Current sheet is revision 5/)).toBeVisible()
     await expect(panel.getByText('Current sheet structure')).toBeVisible()
     await expect(panel.getByText('1 structural difference')).toBeVisible()
+    await expect(panel.getByText('1 sent-plan structural difference')).toBeVisible()
+    await panel.getByRole('button', { name: /1 sent-plan structural difference/ }).click()
+    await expect(panel.getByText('The sent parent is not present in the live architecture')).toBeVisible()
     await panel.getByRole('button', { name: 'View sent plan' }).click()
     await expect(panel.getByText('Build the original checkout service.')).toBeVisible()
     await expect(panel.getByText('Checkout service · system · planned')).not.toBeVisible()
