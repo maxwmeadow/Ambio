@@ -270,15 +270,20 @@ export interface DbDependency {
   /** Structural kinds plus category-typed infra kinds (READS, WRITES, PUBLISHES, ...). */
   dependencyType: string
   weight: number
-  createdBy: 'parser' | 'agent' | 'user'
+  createdBy: 'parser' | 'agent' | 'user' | 'runtime'
   /** file:line justifying an infra edge. */
   evidence?: string | null
+  /** Infra edges: the contents item it is about (table, topic, key pattern...). */
+  targetItem?: string
+  /** Infra edges: detected relationships stay proposed until someone decides. */
+  status?: 'proposed' | 'confirmed' | 'dismissed'
 }
 
 /** Infra category - the semantic role that defines edge kinds and silhouette. */
 export type InfraCategory =
   | 'database' | 'cache' | 'queue' | 'storage' | 'search' | 'llm'
-  | 'api' | 'auth' | 'platform' | 'cdn' | 'observability' | 'email'
+  | 'api' | 'auth' | 'platform' | 'observability' | 'email'
+  | 'scheduler' | 'flags' | 'realtime'
 
 export interface DbInfraNode {
   id: string
@@ -296,6 +301,24 @@ export interface DbInfraNode {
   config?: Record<string, unknown>
   positionX: number
   positionY: number
+  /** What fills the role in each environment (INFRA_LAYER_PLAN.md "Model"). */
+  implementations?: InfraImplementation[]
+  policies?: InfraPolicies
+}
+
+export interface InfraImplementation {
+  environment: string
+  kind: 'in-process' | 'local-service' | 'emulator' | 'vendor'
+  /** A file id or path, a compose service, an emulator name, or a host. */
+  ref: string
+  evidence?: string
+}
+
+export interface InfraPolicies {
+  costs_money?: boolean
+  external_side_effects?: boolean
+  never_in_tests?: boolean
+  confirm_before_running?: boolean
 }
 
 export type FloorNodeType = 'system' | 'file' | 'infra'

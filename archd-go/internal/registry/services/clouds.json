@@ -25,7 +25,7 @@
   { "id": "aws/ses", "name": "Amazon SES", "category": "email", "provider": "aws",
     "brand": { "icon": "amazonsimpleemailservice", "color": "#DD344C" }, "configFields": ["region", "domain"],
     "detect": { "packages": { "js": ["@aws-sdk/client-ses", "@aws-sdk/client-sesv2"] }, "envPatterns": ["SES_"] } },
-  { "id": "aws/cloudfront", "name": "Amazon CloudFront", "category": "cdn", "provider": "aws",
+  { "id": "aws/cloudfront", "name": "Amazon CloudFront", "category": "platform", "subtype": "cdn", "provider": "aws",
     "brand": { "icon": "amazonwebservices", "color": "#FF9900" }, "configFields": ["distribution"],
     "detect": { "urlPatterns": ["\\.cloudfront\\.net"] } },
   { "id": "azure/cosmosdb", "name": "Azure Cosmos DB", "category": "database", "subtype": "document", "provider": "azure",
@@ -62,6 +62,6 @@
   { "id": "cloudflare/workers", "name": "Cloudflare Workers", "category": "platform", "provider": "cloudflare",
     "brand": { "icon": "cloudflareworkers", "color": "#F38020" }, "configFields": ["account"],
     "detect": { "packages": { "js": ["wrangler", "@cloudflare/workers-types"] }, "urlPatterns": ["\\.workers\\.dev"] } },
-  { "id": "cloudflare/cdn", "name": "Cloudflare CDN", "category": "cdn", "provider": "cloudflare",
+  { "id": "cloudflare/cdn", "name": "Cloudflare CDN", "category": "platform", "subtype": "cdn", "provider": "cloudflare",
     "brand": { "icon": "cloudflare", "color": "#F38020" }, "configFields": ["zone"] }
 ]

@@ -72,6 +72,9 @@ const INFRA_OPS: Record<string, string> = {
   update: 'update_infra_node',
   delete: 'delete_infra_node',
   connect: 'connect_infra',
+  contents: 'record_infra_contents',
+  require: 'record_infra_requirements',
+  decide: 'decide_infra',
 }
 
 const SHEET_OPS: Record<string, string> = {

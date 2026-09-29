@@ -88,7 +88,8 @@ export function DetailPanel() {
             />
             <Section title="General">
               <div className="axiom-inspector-properties">
-                <Stat label="Type" value={infra.infraType} />
+                <Stat label="Role" value={infra.category} />
+                {infra.service && <Stat label="Service" value={infra.service} />}
                 {infra.subtype && <Stat label="Subtype" value={infra.subtype} />}
                 {infra.status && <Stat label="Status" value={infra.status} />}
               </div>

@@ -70,7 +70,7 @@
   { "id": "twilio/sendgrid", "name": "SendGrid", "category": "email", "provider": "twilio",
     "brand": { "icon": "twilio", "color": "#1A82E2" }, "configFields": ["domain"],
     "detect": { "packages": { "js": ["@sendgrid/mail"], "py": ["sendgrid"] }, "envPatterns": ["SENDGRID_"], "urlPatterns": ["api\\.sendgrid\\.com"] } },
-  { "id": "fastly/cdn", "name": "Fastly", "category": "cdn", "provider": "fastly",
+  { "id": "fastly/cdn", "name": "Fastly", "category": "platform", "subtype": "cdn", "provider": "fastly",
     "brand": { "icon": "fastly", "color": "#FF282D" }, "configFields": ["service"],
     "detect": { "envPatterns": ["FASTLY_"] } }
 ]

@@ -41,11 +41,13 @@ test('the advertised surface stays small', () => {
 test('the schema cost stays within budget', () => {
   // ~3.6 chars per token. The pre-consolidation surface was ~9,600 tokens.
   // Raised from 3,200 when investigation experiments (run, verdict, conclude)
-  // and addressed inbox routing (messageId) landed together, each already
-  // trimmed to its minimum. Raise it again only for a new capability, never
-  // for wording.
+  // and addressed inbox routing (messageId) landed together, and to 3,500 for
+  // infra contracts, requirements, implementations and decisions (edit_infra
+  // gave up category, srcType and infraId to pay for most of it). Each was
+  // already trimmed to its minimum. Raise it again only for a new capability,
+  // never for wording.
   const coreTokens = Math.round(coreBlock.length / 3.6)
-  assert.ok(coreTokens < 3400, `core tool schema is ~${coreTokens} tokens, budget is 3400`)
+  assert.ok(coreTokens < 3500, `core tool schema is ~${coreTokens} tokens, budget is 3500`)
 })
 
 test('debug tooling is not advertised by default', () => {

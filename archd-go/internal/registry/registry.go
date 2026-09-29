@@ -33,21 +33,39 @@ import (
 //go:embed services/*.json
 var embedded embed.FS
 
-// Categories is the closed set of semantic roles. Each category defines which
-// dependency_type values are legal for edges touching its nodes.
+// Categories is the closed set of roles (INFRA_LAYER_PLAN.md "Roles"). Each
+// role defines the relationship kinds that are legal for edges into its nodes.
+// UniversalKinds are legal for every role on top of these.
 var Categories = map[string][]string{
 	"database":      {"READS", "WRITES", "MIGRATES"},
-	"cache":         {"READS", "WRITES"},
+	"cache":         {"READS", "WRITES", "INVALIDATES"},
 	"queue":         {"PUBLISHES", "CONSUMES"},
 	"storage":       {"READS", "WRITES"},
 	"search":        {"QUERIES", "INDEXES"},
 	"llm":           {"CALLS"},
 	"api":           {"CALLS", "HANDLES_WEBHOOK"},
-	"auth":          {"AUTHENTICATES_VIA"},
-	"platform":      {"DEPLOYS_TO"},
-	"cdn":           {"SERVES_VIA"},
-	"observability": {"REPORTS_TO"},
+	"auth":          {"AUTHENTICATES_VIA", "PROTECTS"},
+	"platform":      {"DEPLOYS_TO", "RUNS_ON"},
+	"observability": {"REPORTS_TO", "CAPTURES"},
 	"email":         {"SENDS_VIA"},
+	"scheduler":     {"SCHEDULED_BY"},
+	"flags":         {"EVALUATES"},
+	"realtime":      {"PUBLISHES", "SUBSCRIBES"},
+}
+
+// UniversalKinds are legal for every role.
+//
+// IMPLEMENTS: the file is (part of) what fills the role - a vendor adapter or
+// an in-process stand-in such as an event bus or an LRU.
+// USES: the file uses the role and nothing more specific is known yet. Import
+// evidence proves use, not direction; READS vs WRITES comes from contracts,
+// the agent or a run.
+var UniversalKinds = []string{"IMPLEMENTS", "USES"}
+
+// RetiredCategories map roles that were folded into another, so stored nodes
+// and older registry files keep working: cdn became a platform subtype.
+var RetiredCategories = map[string]struct{ Category, Subtype string }{
+	"cdn": {Category: "platform", Subtype: "cdn"},
 }
 
 // CategoryCapabilities define shared behavior. Services inherit these and may
@@ -90,7 +108,7 @@ type Service struct {
 
 // EdgeKinds returns the legal dependency_type values for this service's category.
 func (s Service) EdgeKinds() []string {
-	return Categories[s.Category]
+	return EdgeKindsFor(s.Category)
 }
 
 // Registry is a resolved, immutable view of all service definitions.
@@ -182,6 +200,12 @@ func (r *Registry) addFile(data []byte, layer, name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, s := range many {
+		if retired, ok := RetiredCategories[s.Category]; ok {
+			s.Category = retired.Category
+			if s.Subtype == "" {
+				s.Subtype = retired.Subtype
+			}
+		}
 		if err := Validate(s); err != nil {
 			log.Printf("[registry] %s (%s): skipped: %v", name, layer, err)
 			continue
@@ -231,12 +255,21 @@ func (r *Registry) All() []Service {
 
 // ValidEdgeKind reports whether kind is legal for the category.
 func ValidEdgeKind(category, kind string) bool {
-	for _, k := range Categories[category] {
+	for _, k := range EdgeKindsFor(category) {
 		if k == kind {
 			return true
 		}
 	}
 	return false
+}
+
+// EdgeKindsFor lists every legal kind for a role, universal kinds last.
+func EdgeKindsFor(category string) []string {
+	kinds, ok := Categories[category]
+	if !ok {
+		return nil
+	}
+	return append(append([]string(nil), kinds...), UniversalKinds...)
 }
 
 // CategoryList returns all category names sorted, for the API response.
@@ -248,7 +281,7 @@ func CategoryList() []map[string]any {
 	sort.Strings(names)
 	out := make([]map[string]any, 0, len(names))
 	for _, c := range names {
-		out = append(out, map[string]any{"id": c, "edgeKinds": Categories[c]})
+		out = append(out, map[string]any{"id": c, "edgeKinds": EdgeKindsFor(c)})
 	}
 	return out
 }

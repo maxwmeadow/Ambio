@@ -541,23 +541,24 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_infra',
-    description: 'Record the infrastructure the code actually talks to - databases, queues, caches, external APIs - and connect it to the files that use it. ops: create | update | delete | connect.',
+    description: 'Record what the code depends on (db, cache, queue, api, llm, storage, email, auth, platform, scheduler, flags, realtime...), in-process stand-ins included, and who uses it. ops: create|update|delete|connect|contents|require|decide',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', description: 'create | update | delete | connect' },
+        op: { type: 'string' },
         id: { type: 'string' },
+        service: { type: 'string', description: 'infra_catalog id or generic/<role>' },
         name: { type: 'string' },
-        service: { type: 'string' },
-        category: { type: 'string' },
         subtype: { type: 'string' },
         status: { type: 'string' },
+        src: { type: 'string', description: 'file path or system id' },
+        kind: { type: 'string', description: 'READS|WRITES|PUBLISHES|IMPLEMENTS...' },
+        item: { type: 'string', description: 'table/topic/key it is about' },
+        evidence: { type: 'string', description: 'file:line' },
+        items: { type: 'array', items: { type: 'object' }, description: 'contents [{kind,name,detail}] | require [{name}]' },
+        implementations: { type: 'array', items: { type: 'object' }, description: '[{environment,kind,ref}]' },
+        policies: { type: 'object' },
         config: { type: 'object' },
-        src: { type: 'string', description: 'connect: file or system id' },
-        srcType: { type: 'string' },
-        infraId: { type: 'string' },
-        kind: { type: 'string', description: 'connect: READS | WRITES | PUBLISHES | ...' },
-        evidence: { type: 'string', description: 'connect: file:line justifying the edge' },
       },
       required: ['op'],
     },
@@ -2128,8 +2129,11 @@ Steps to execute:
             workspaceId: project.workspaceId,
             name: args.name,
             service: args.service,
+            subtype: args.subtype,
             status: args.status,
             config: args.config, // raw object - archd stores it as a JSON blob
+            implementations: args.implementations,
+            policies: args.policies,
           }),
         })
         if (!res.ok) throw new Error(`update infra failed: ${await res.text()}`)
@@ -2150,9 +2154,15 @@ Steps to execute:
       }
 
       case 'connect_infra': {
-        const srcType = (args.srcType as string) || 'file'
-        let srcId = args.src as string
-        // Resolve file relative paths to IDs (systems must be passed by ID).
+        const infraId = (args.infraId ?? args.id) as string
+        if (!infraId) throw new Error('connect needs id: the infra node the file or system uses')
+        const src = String(args.src ?? '')
+        // A system is named by id or name; anything else is a file path or id.
+        const systems = await queryDb(project.workspaceId,
+          'SELECT id FROM systems WHERE workspace_id = ? AND (id = ? OR name = ?) LIMIT 1',
+          [project.workspaceId, src, src])
+        const srcType = (args.srcType as string) || (systems.length > 0 ? 'system' : 'file')
+        let srcId = systems.length > 0 ? systems[0].id : src
         if (srcType === 'file' && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(srcId)) {
           const rows = await queryDb(project.workspaceId, `
             SELECT f.id FROM files f
@@ -2163,7 +2173,7 @@ Steps to execute:
           if (rows.length === 0) throw new Error(`File not found: ${srcId}`)
           srcId = rows[0].id
         }
-        await postAgentActivity(project.workspaceId, `Agent connecting ${args.src} → infra (${args.kind})`, 'info')
+        await postAgentActivity(project.workspaceId, `Agent connecting ${src} → infra (${args.kind}${args.item ? ` ${args.item}` : ''})`, 'info')
         const res = await fetch(`${API_BASE}/api/infra/connect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2171,14 +2181,82 @@ Steps to execute:
             workspaceId: project.workspaceId,
             srcId,
             srcType,
-            infraId: args.infraId,
+            infraId,
             kind: args.kind,
+            targetItem: args.item ?? '',
+            status: args.status,
             evidence: args.evidence,
             createdBy: 'agent',
           }),
         })
         if (!res.ok) throw new Error(`connect infra failed: ${await res.text()}`)
         result = await res.json()
+        break
+      }
+
+      case 'record_infra_contents': {
+        if (!args.id) throw new Error('contents needs id: the infra node these items belong to')
+        const items = (args.items as Array<Record<string, unknown>> | undefined) ?? []
+        const res = await fetch(`${API_BASE}/api/infra/${encodeURIComponent(args.id as string)}/contents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceId: project.workspaceId,
+            source: 'agent',
+            items: items.map(item => ({
+              kind: item.kind,
+              name: item.name,
+              detail: item.detail,
+              evidence: item.evidence ?? args.evidence,
+            })),
+          }),
+        })
+        if (!res.ok) throw new Error(`record contents failed: ${await res.text()}`)
+        result = await res.json()
+        await postAgentActivity(project.workspaceId, `Agent recorded ${items.length} contract item(s) on infra ${args.id}`, 'info')
+        break
+      }
+
+      case 'record_infra_requirements': {
+        const items = (args.items as Array<Record<string, unknown>> | undefined) ?? []
+        const res = await fetch(`${API_BASE}/api/infra/requirements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceId: project.workspaceId,
+            items: items.map(item => ({
+              kind: item.kind ?? 'env',
+              name: item.name,
+              infraId: item.infraId ?? args.id,
+              evidence: item.evidence ?? args.evidence,
+              source: 'agent',
+            })),
+          }),
+        })
+        if (!res.ok) throw new Error(`record requirements failed: ${await res.text()}`)
+        result = await res.json()
+        break
+      }
+
+      case 'decide_infra': {
+        const status = args.status as string
+        if (!['confirmed', 'dismissed', 'proposed'].includes(status)) {
+          throw new Error('decide needs status: confirmed or dismissed')
+        }
+        const id = args.id as string
+        const isNode = (await queryDb(project.workspaceId, 'SELECT id FROM infra_nodes WHERE id = ?', [id])).length > 0
+        const res = isNode
+          ? await fetch(`${API_BASE}/api/infra/${encodeURIComponent(id)}`, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ workspaceId: project.workspaceId, status }),
+            })
+          : await fetch(`${API_BASE}/api/infra/edge/${encodeURIComponent(id)}`, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ workspaceId: project.workspaceId, status }),
+            })
+        if (!res.ok) throw new Error(`decide failed: ${await res.text()}`)
+        result = await res.json()
+        await postAgentActivity(project.workspaceId, `Agent ${status} infra ${isNode ? 'node' : 'relationship'} ${id}`, 'info')
         break
       }
 
@@ -2217,7 +2295,7 @@ Steps to execute:
         }
         const placeholders = ids.map(() => '?').join(',')
         result = await queryDb(project.workspaceId, `
-          SELECT f.rel_path AS file, d.dependency_type AS kind, d.evidence,
+          SELECT f.rel_path AS file, d.dependency_type AS kind, d.target_item AS item, d.status, d.evidence,
                  i.id AS infraId, i.name AS infraName, i.category, i.provider, i.service
           FROM dependencies d
           JOIN files f ON f.id = d.src
