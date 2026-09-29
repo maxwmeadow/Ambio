@@ -32,12 +32,18 @@ An individual source file. The **primary unit of the canvas** - always visible r
 - Files are the targets of import/call graph edges
 
 ### 3. Infra
-An external dependency that your code talks to but that isn't source code. Databases, queues, platforms, external APIs.
+A role your code depends on that isn't this code's own logic: a database, cache,
+queue, storage, search, LLM, external API, auth, platform, observability, email,
+scheduler, feature flags or realtime channel.
 
-- Examples: Postgres, Redis, Vercel, Railway, Stripe API, another microservice
-- Eventually typed with canonical icons (a Postgres node looks like Postgres)
-- Connected to files/systems via edges (a file that talks to Postgres gets a `READS_DB` or `CALLS` edge to the Postgres infra node)
-- Positioned alongside systems on the canvas, not nested inside them
+- A node is a role plus what fills it in each environment - an in-process
+  stand-in (an event bus, an LRU), a local service, an emulator, or the vendor.
+- It carries a contract (tables, topics, cache keys, methods, prompts, …),
+  relationships to the files and systems that use it with `file:line` evidence,
+  and its local behaviour (requirements, reachability, activity during runs).
+- Relationships point from code to infra and are typed by role (`READS`,
+  `WRITES`, `PUBLISHES`, `CONSUMES`, `CALLS`, `IMPLEMENTS`, …).
+- Platform nodes can host systems. See [INFRA_LAYER_PLAN.md](INFRA_LAYER_PLAN.md).
 
 ### 4. Call Graph (not a node type - an edge layer)
 The output of recursive tree-sitter function call mapping. Every function call in every file is recorded as a directed edge at the symbol level. These edges are **aggregated for display** rather than shown individually.
@@ -306,7 +312,6 @@ The current renderer (TypeScript + ReactFlow) handles ~500 nodes comfortably. Fo
 
 ## Open Questions / Future Work
 
-- **Infra typed nodes**: Define a canonical set of infra types with icons (Postgres, Redis, Vercel, Railway, Stripe, custom HTTP, etc.)
 - **Cross-workspace connections**: Can two separate Axiom workspaces reference each other?
 - **Call graph storage scale**: At 10,000+ files, the call_graph table may have millions of rows. Consider columnar storage or an embedded graph DB (DuckDB, RocksDB) for the call graph specifically.
 - **Real-time collaboration**: Multiple users editing system assignments simultaneously - conflict resolution strategy TBD.
