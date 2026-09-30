@@ -24,6 +24,7 @@ What Axiom must ship itself:
 | Node recorder | bundled (`adapters/node`), loaded with `NODE_OPTIONS`. |
 | Python recorder | bundled (`adapters/python`), loaded through `PYTHONPATH` + `sitecustomize`. |
 | Ruby recorder | bundled (`adapters/ruby`), loaded through `RUBYLIB` + `RUBYOPT=-raxiom_recorder`. Added 2026-09-30. |
+| Go recorder | built into archd (`internal/runtime/gorecorder`), applied through the go command's `-overlay`. Added 2026-09-30. |
 
 ## Recorders, not debuggers
 
@@ -40,7 +41,7 @@ agent reads all of them the same way.
 | Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods; drift not yet) |
 | Java / Kotlin | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on workspace classes | next |
 | C# / .NET | `DOTNET_STARTUP_HOOKS`, method patching in workspace assemblies | after Java |
-| Go | `go build -toolexec` source rewrite into a temp overlay, as the Node transform does | after .NET; hardest, but covers `go test` and `go run` |
+| Go | source rewrite applied with `GOFLAGS=-overlay=...`; a recorder package added only in the overlay | done (functions and methods; panics from output) |
 | C / C++ | no in-process hook without a rebuild | debugger fallback (below) |
 
 Each recorder is a few files shipped with the app and runs on the user's own
@@ -77,6 +78,7 @@ run will show values or only output before it plans a repro.
 2. Ruby recorder - **done**, proves the pattern end to end.
 3. Readiness readout in the UI and in `investigation start` - **done**
    (`/api/investigation/readiness`, the Investigations menu, the case-open reply).
-4. Java agent, then .NET startup hook, then Go toolexec.
+4. Go overlay recorder - **done**. Java agent and .NET startup hook next
+   (they need a JDK and the .NET SDK to build and test).
 5. Debugger detection and install hints for C/C++; on-demand delve and
    netcoredbg.

@@ -42,7 +42,7 @@ var readinessLanguages = map[string]languageSpec{
 	"js":     {name: "JavaScript/TypeScript", tools: []string{"node"}, versionArgs: []string{"--version"}, recorder: true, install: "Node.js (nodejs.org)"},
 	"python": {name: "Python", tools: []string{"python3", "python"}, versionArgs: []string{"--version"}, recorder: true, install: "Python (python.org)"},
 	"ruby":   {name: "Ruby", tools: []string{"ruby"}, versionArgs: []string{"--version"}, recorder: true, install: "Ruby (ruby-lang.org)"},
-	"go":     {name: "Go", tools: []string{"go"}, versionArgs: []string{"version"}, install: "Go (go.dev)", planned: "function-level evidence for Go is planned"},
+	"go":     {name: "Go", tools: []string{"go"}, versionArgs: []string{"version"}, recorder: true, install: "Go (go.dev)"},
 	"java":   {name: "Java/Kotlin", tools: []string{"java"}, versionArgs: []string{"-version"}, install: "a JDK (adoptium.net)", planned: "function-level evidence for Java is planned"},
 	"csharp": {name: "C#/.NET", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, install: "the .NET SDK (dot.net)", planned: "function-level evidence for .NET is planned"},
 	"rust":   {name: "Rust", tools: []string{"cargo"}, versionArgs: []string{"--version"}, install: "Rust (rustup.rs)", planned: "no function-level recorder for Rust yet"},

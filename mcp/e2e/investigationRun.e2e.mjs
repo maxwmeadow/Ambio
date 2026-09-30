@@ -19,6 +19,7 @@ import { startHarness, harnessFetch } from './mcpHarness.mjs'
 
 const PYTHON = ['python3', 'python'].find(cmd => spawnSync(cmd, ['--version']).status === 0)
 const RUBY = spawnSync('ruby', ['--version']).status === 0
+const GO = spawnSync('go', ['version']).status === 0
 
 let harness
 let client
@@ -72,7 +73,35 @@ test.before(async () => {
     'w = Warehouse.new',
     '4.times { puts w.reserve(DEFAULT_STOCK, "widget", 3)["widget"] }',
   ].join('\n'))
-  harness = await startHarness({ projectDir: project, minFiles: 4 })
+  writeFileSync(join(project, 'go.mod'), 'module example.com/stock\n\ngo 1.21\n')
+  writeFileSync(join(project, 'reserve.go'), [
+    'package main',
+    '',
+    'import (',
+    '\t"errors"',
+    '\t"fmt"',
+    ')',
+    '',
+    'var defaultStock = map[string]int{"widget": 10}',
+    '',
+    'func reserve(stock map[string]int, sku string, qty int) (int, error) {',
+    '\tif stock[sku] < qty {',
+    '\t\treturn 0, errors.New("not enough " + sku)',
+    '\t}',
+    '\tstock[sku] -= qty',
+    '\treturn stock[sku], nil',
+    '}',
+    '',
+    'func main() {',
+    '\tfor i := 0; i < 4; i++ {',
+    '\t\tleft, err := reserve(defaultStock, "widget", 3)',
+    '\t\tfmt.Println(left, err)',
+    '\t}',
+    '\tvar orders []string',
+    '\tfmt.Println(orders[2])',
+    '}',
+  ].join('\n'))
+  harness = await startHarness({ projectDir: project, minFiles: 5 })
   client = harness.client
 }, { timeout: 90000 })
 
@@ -135,6 +164,17 @@ test('a Ruby run shows the shared state and the crash, with nothing installed', 
   assert.match(run.text, /`reserve` changes its argument `stock\.widget` on 3 of 4 calls: 10 → 7, 7 → 4/)
   assert.match(run.text, /receives the same `stock` object again on 3 of 4 calls/)
   assert.match(run.text, /Uncaught `ArgumentError: not enough widget` at inventory\.rb:5/)
+})
+
+// Go records through a build overlay the go command applies: the module's
+// files are rewritten for the run only, nothing on disk changes.
+test('a Go run shows the shared map, the returned error and the panic', { skip: !GO && 'no go on this machine' }, async () => {
+  const run = await client.callTool('investigation', { op: 'run', command: 'go run .', watch: ['reserve.go:reserve'] }, 120000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`reserve` changes its argument `stock\.widget` on 3 of 4 calls: 10 → 7, 7 → 4/)
+  assert.match(run.text, /receives the same `stock` object again on 3 of 4 calls/)
+  assert.match(run.text, /`reserve` returned `error: not enough widget` on 1 of 4 calls/)
+  assert.match(run.text, /Uncaught `panic: runtime error: index out of range \[2\] with length 0` at reserve\.go:24/)
 })
 
 test('a watch that names nothing fails before running, with the reason', async () => {

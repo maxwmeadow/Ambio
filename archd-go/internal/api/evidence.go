@@ -425,7 +425,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		for _, ex := range w.Exceptions {
 			rw.Findings = append(rw.Findings, Finding{
 				Kind: "exception", Severity: "high", Anchor: a, rank: 95,
-				Text: fmt.Sprintf("%s threw `%s` on %s", name, ex.What, ofCalls(int64(ex.N), w.Calls)),
+				Text: fmt.Sprintf("%s %s `%s` on %s", name, failedVerb(ex.What), ex.What, ofCalls(int64(ex.N), w.Calls)),
 			})
 		}
 
@@ -854,7 +854,7 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		for _, w := range rep.Watched {
 			fmt.Fprintf(&b, "• %s  %s · %d calls", w.Anchor.Symbol, where(w.Anchor), w.Calls)
 			if w.Errors > 0 {
-				fmt.Fprintf(&b, " · %d threw", w.Errors)
+				fmt.Fprintf(&b, " · %d %s", w.Errors, failedVerb(firstFailure(w)))
 			}
 			if w.Returns != "" {
 				fmt.Fprintf(&b, " · returns %s", clip(w.Returns, 120))
@@ -869,7 +869,7 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 				fmt.Fprintf(&b, "    call %d: %s", s.Call, clip(s.Args, 160))
 				switch {
 				case s.Threw != "":
-					fmt.Fprintf(&b, " threw %s", clip(s.Threw, 120))
+					fmt.Fprintf(&b, " %s %s", failedVerb(s.Threw), clip(s.Threw, 120))
 				case s.Returned != nil:
 					fmt.Fprintf(&b, " → %s", clip(*s.Returned, 120))
 				}
@@ -1071,4 +1071,22 @@ func dedupeDrift(all []Finding) []Finding {
 		out[at].Text += " (also seen from " + strings.Join(names, ", ") + ")"
 	}
 	return out
+}
+
+// failedVerb: Go reports failure by returning an error (the recorder writes
+// "error: ..."); other languages throw.
+func failedVerb(what string) string {
+	if strings.HasPrefix(what, "error: ") {
+		return "returned"
+	}
+	return "threw"
+}
+
+func firstFailure(w ReportWatched) string {
+	for _, s := range w.Samples {
+		if s.Threw != "" {
+			return s.Threw
+		}
+	}
+	return ""
 }

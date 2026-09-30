@@ -17,7 +17,7 @@ func TestReadinessSaysWhatARunCanSee(t *testing.T) {
 	want := []struct{ lang, level, tool string }{
 		{"JavaScript/TypeScript", "full", "node"},
 		{"Python", "full", "python3"},
-		{"Go", "output", "go"},
+		{"Go", "full", "go"},
 		{"Ruby", "missing", ""},
 	}
 	for i, w := range want {

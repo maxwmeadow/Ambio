@@ -164,9 +164,9 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node, Python and Ruby record function-level evidence, each
-  through the user's own interpreter with nothing to install. Go, .NET and
-  others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
+- **Languages**: Node, Python, Ruby and Go record function-level evidence,
+  each through the user's own toolchain with nothing to install. .NET, Java
+  and others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
 - **Long-running servers**: `run` waits for the command to exit. For a server,
@@ -183,6 +183,14 @@ and truncated. It stays on the local machine in archd's data directory.
 - **Python**: a function that catches an exception and then returns `None` is
   indistinguishable from one that raised. Generators count each resume as a
   call.
+- **Go**: the module's files are rewritten for the run and applied with
+  `go -overlay` (nothing on disk changes; line numbers are the user's own).
+  Functions and methods are recorded, function literals are not. A non-nil
+  error returned last counts as the call failing. Panics are read from the
+  output and pinned to the first frame in the user's code. `go test` runs
+  with `-vet=off` during a run (vet reads package folders from disk, where
+  the run's recorder package does not exist). Files with `import "C"` and
+  generated files run uninstrumented.
 - **Ruby**: methods are recorded, blocks are not. Drift (the same object
   changing between calls) is not reported yet; shared arguments and mutations
   are. A method that rescues and then returns `nil` looks like one that raised,

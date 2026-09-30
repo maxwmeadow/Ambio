@@ -208,7 +208,8 @@ type RunOutcome struct {
 	Edges           []EvidenceEdge     `json:"edges"`
 	Watched         []WatchedEvidence  `json:"watched"`
 	Uncaught        []UncaughtError    `json:"uncaught"`
-	Instrumented    []string           `json:"instrumented"` // languages whose adapters were injected
+	Instrumented    []string           `json:"instrumented"`    // languages whose adapters were injected
+	Notes           []string           `json:"notes,omitempty"` // why a language present was not recorded
 }
 
 // cappedOutput keeps the head and tail of a stream so a runaway log costs a
@@ -295,6 +296,15 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = injectRubyEnv(env, dir)
 		instrumented = append(instrumented, "ruby")
 	}
+	// Go: the module's files are rewritten into the evidence folder and
+	// swapped in by the go command's -overlay; nothing on disk changes.
+	var goNote string
+	if withGo, note := injectGoOverlay(env, spec.Root, filepath.Join(evidenceDir, "go")); withGo != nil {
+		env = withGo
+		instrumented = append(instrumented, "go")
+	} else {
+		goNote = note
+	}
 	// Python and Ruby scope recording to the user's files by this root.
 	env = append(env, "AXIOM_WORKSPACE_ROOT="+spec.Root)
 
@@ -358,8 +368,12 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		OutputBytes:     out.total,
 		OutputTruncated: truncated,
 		Instrumented:    instrumented,
+		Notes:           nonEmpty(goNote),
 	}
 	mergeEvidence(outcome, readEvidence(evidenceDir))
+	if contains(instrumented, "go") {
+		outcome.Uncaught = append(outcome.Uncaught, goPanics(text, spec.Root)...)
+	}
 	return outcome, nil
 }
 

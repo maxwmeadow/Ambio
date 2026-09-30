@@ -126,7 +126,7 @@ installed toolchain.
 | TypeScript / JavaScript | `.ts` `.tsx` `.js` `.mjs` `.cjs` `.jsx` | imports, `require`, dynamic `import()` | calls, arguments, returns, crashes |
 | Python | `.py` | imports (from a monorepo folder's source root too) | calls, arguments, returns, crashes |
 | Ruby | `.rb` | `require_relative`, `require` of project files | calls, arguments, returns, crashes |
-| Go | `.go` | package imports through `go.mod` | exit code and output |
+| Go | `.go` | package imports through `go.mod` | calls, arguments, returns, returned errors, panics |
 | Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | exit code and output |
 | C# | `.cs` | `using` namespaces | exit code and output |
 | Rust | `.rs` | `mod`, and `use` within the crate | exit code and output |
