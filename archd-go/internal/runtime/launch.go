@@ -293,6 +293,39 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 	return out
 }
 
+// FindRubyAdapterDir locates adapters/ruby (the run recorder).
+func FindRubyAdapterDir() (string, error) {
+	return findAdapterDir("ruby", "axiom_recorder.rb")
+}
+
+// injectRubyEnv loads the Ruby recorder into every Ruby the run starts. The
+// directory goes on RUBYLIB (a path list, so spaces are fine) and RUBYOPT
+// names only the feature: a path inside RUBYOPT is split on spaces, which
+// breaks under C:\Program Files. Existing values are kept, and Bundler keeps
+// both when it re-execs, so `bundle exec` records too.
+func injectRubyEnv(env []string, adapterDir string) []string {
+	out := make([]string, 0, len(env)+2)
+	rubyLib := adapterDir
+	rubyOpt := "-raxiom_recorder"
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		switch {
+		case strings.HasPrefix(upper, "RUBYLIB="):
+			if v := kv[len("RUBYLIB="):]; v != "" {
+				rubyLib += string(os.PathListSeparator) + v
+			}
+			continue
+		case strings.HasPrefix(upper, "RUBYOPT="):
+			if v := kv[len("RUBYOPT="):]; v != "" {
+				rubyOpt += " " + v
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
+}
+
 // injectNodeEnv wires the Node adapter in via NODE_OPTIONS (--require for CJS,
 // --import for ESM), preserving any existing NODE_OPTIONS. AXIOM_WORKSPACE_ROOT
 // scopes instrumentation to the user's files (node_modules is skipped).

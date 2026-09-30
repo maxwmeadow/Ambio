@@ -13,11 +13,12 @@ import { startHarness, harnessFetch } from './mcpHarness.mjs'
  * case - and the timeline the canvas replays holds every step.
  *
  * The fixture has bugs of the kinds runs exist to catch: a function that
- * writes into an object it is handed again on every call (JavaScript), and a
- * crash (Python).
+ * writes into an object it is handed again on every call (JavaScript, and
+ * Ruby), and a crash (Python, and Ruby).
  */
 
 const PYTHON = ['python3', 'python'].find(cmd => spawnSync(cmd, ['--version']).status === 0)
+const RUBY = spawnSync('ruby', ['--version']).status === 0
 
 let harness
 let client
@@ -57,7 +58,21 @@ test.before(async () => {
     'print(ship(5, 1))',
     'print(ship(5, 9))',
   ].join('\n'))
-  harness = await startHarness({ projectDir: project, minFiles: 3 })
+  writeFileSync(join(project, 'inventory.rb'), [
+    'DEFAULT_STOCK = { "widget" => 10 }',
+    '',
+    'class Warehouse',
+    '  def reserve(stock, sku, qty)',
+    '    raise ArgumentError, "not enough #{sku}" if stock[sku] < qty',
+    '    stock[sku] -= qty',
+    '    stock',
+    '  end',
+    'end',
+    '',
+    'w = Warehouse.new',
+    '4.times { puts w.reserve(DEFAULT_STOCK, "widget", 3)["widget"] }',
+  ].join('\n'))
+  harness = await startHarness({ projectDir: project, minFiles: 4 })
   client = harness.client
 }, { timeout: 90000 })
 
@@ -108,6 +123,16 @@ test('a crash is pinned to the line in the user\'s code', { skip: !PYTHON && 'no
   assert.equal(run.isError, false, run.text)
   assert.match(run.text, /Uncaught `ValueError: cannot ship 9` at stock\.py:3/)
   assert.match(run.text, /`ship` threw `ValueError: cannot ship 9` on 1 of 2 calls/)
+})
+
+// Ruby records through TracePoint loaded by RUBYOPT: nothing to install, no
+// debugger, the same evidence as the other recorders.
+test('a Ruby run shows the shared state and the crash, with nothing installed', { skip: !RUBY && 'no ruby on this machine' }, async () => {
+  const run = await client.callTool('investigation', { op: 'run', command: 'ruby inventory.rb', watch: ['inventory.rb:reserve'] }, 60000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`reserve` changes its argument `stock\.widget` on 3 of 4 calls: 10 → 7, 7 → 4/)
+  assert.match(run.text, /receives the same `stock` object again on 3 of 4 calls/)
+  assert.match(run.text, /Uncaught `ArgumentError: not enough widget` at inventory\.rb:5/)
 })
 
 test('a watch that names nothing fails before running, with the reason', async () => {

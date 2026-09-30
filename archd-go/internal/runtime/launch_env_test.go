@@ -33,3 +33,24 @@ func TestFileURL(t *testing.T) {
 		}
 	}
 }
+
+// A path inside RUBYOPT is split on spaces, so the adapter folder goes on
+// RUBYLIB and RUBYOPT names only the feature; the user's own values survive.
+func TestRubyRecorderSurvivesSpacesAndExistingOptions(t *testing.T) {
+	env := injectRubyEnv([]string{"RUBYOPT=-W0", "RUBYLIB=/opt/lib", "HOME=/h"}, `C:\Program Files\Axiom\resources\adapters\ruby`)
+	got := map[string]string{}
+	for _, kv := range env {
+		if i := strings.IndexByte(kv, '='); i > 0 {
+			got[kv[:i]] = kv[i+1:]
+		}
+	}
+	if got["RUBYOPT"] != "-raxiom_recorder -W0" {
+		t.Errorf("RUBYOPT names the feature, not a path, and keeps -W0: %q", got["RUBYOPT"])
+	}
+	if !strings.HasPrefix(got["RUBYLIB"], `C:\Program Files\Axiom\resources\adapters\ruby`) || !strings.HasSuffix(got["RUBYLIB"], "/opt/lib") {
+		t.Errorf("RUBYLIB leads with the adapter folder and keeps the user's: %q", got["RUBYLIB"])
+	}
+	if got["HOME"] != "/h" {
+		t.Errorf("other variables are untouched")
+	}
+}

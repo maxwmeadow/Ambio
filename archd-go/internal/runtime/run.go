@@ -289,9 +289,14 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	}
 	if dir, err := FindPythonAdapterDir(); err == nil && pythonAdapterRecords(dir) {
 		env = injectAdapterEnv(env, dir, m.port, spec.WorkspaceID)
-		env = append(env, "AXIOM_WORKSPACE_ROOT="+spec.Root)
 		instrumented = append(instrumented, "python")
 	}
+	if dir, err := FindRubyAdapterDir(); err == nil {
+		env = injectRubyEnv(env, dir)
+		instrumented = append(instrumented, "ruby")
+	}
+	// Python and Ruby scope recording to the user's files by this root.
+	env = append(env, "AXIOM_WORKSPACE_ROOT="+spec.Root)
 
 	runCtx, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()

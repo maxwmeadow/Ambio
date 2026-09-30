@@ -164,8 +164,11 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node and Python only. Go, .NET and others run with exit code
-  and output. The DAP-based live debuggers under `debug_runtime` are separate.
+- **Languages**: Node, Python and Ruby record function-level evidence, each
+  through the user's own interpreter with nothing to install. Go, .NET and
+  others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
+  for the plan. The DAP-based live debuggers under `debug_runtime` are
+  separate.
 - **Long-running servers**: `run` waits for the command to exit. For a server,
   use a repro script that exercises it, or `debug_runtime` to attach.
 - **Reach**: drift and mutation see objects reachable from arguments, the
@@ -180,6 +183,10 @@ and truncated. It stays on the local machine in archd's data directory.
 - **Python**: a function that catches an exception and then returns `None` is
   indistinguishable from one that raised. Generators count each resume as a
   call.
+- **Ruby**: methods are recorded, blocks are not. Drift (the same object
+  changing between calls) is not reported yet; shared arguments and mutations
+  are. A method that rescues and then returns `nil` looks like one that raised,
+  as in Python. Ruby 2.6 and newer.
 - **Paths**: symlinked project paths are resolved on both sides. Windows paths
   are normalized for Node's option parser.
 

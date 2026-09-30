@@ -43,4 +43,7 @@ cpSync(join(SRC, 'python'), join(OUT, 'python'), {
   filter: source => !/__pycache__|\.pyc$/.test(source),
 })
 
+// The Ruby recorder is plain Ruby, loaded by the user's own interpreter.
+cpSync(join(SRC, 'ruby'), join(OUT, 'ruby'), { recursive: true })
+
 console.log('Done - ' + OUT)
