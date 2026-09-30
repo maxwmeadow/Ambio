@@ -37,7 +37,7 @@ const MARKER_ANCHOR = {
 } as const
 
 /**
- * Lines between the infrastructure sidebar and the canvas (INFRA_LAYER_PLAN.md,
+ * Lines between the infrastructure sidebar and the canvas (docs/INFRA.md,
  * "Canvas placement"). Drawn in screen space because one end is a sidebar row
  * and the other a box on the map. A box outside the view is announced on the
  * view's edge instead, and clicking the marker brings it into view. Nothing is

@@ -4,9 +4,9 @@ Status: preservation baseline for the renderer refactor
 Baseline commit: `7e55a2a` (`Canvas: stabilize extreme-zoom resize interactions`)  
 Last verified: 2026-07-22
 
-Product direction and slice status live in
-[AXIOM_PRODUCT_PLAN.md](AXIOM_PRODUCT_PLAN.md). This document records *behavior*;
-that one records *intent and progress*.
+Product direction lives in [PRODUCT.md](PRODUCT.md) and open work in
+[../WORK.md](../WORK.md). This document records *behavior*; those record
+*intent and progress*.
 
 ## Purpose
 

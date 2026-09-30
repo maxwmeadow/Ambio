@@ -1733,7 +1733,7 @@ test('keeps canvas utility chrome screen-sized, legible, and interactive', async
   const zoomOf = () => viewport.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
 
   // Fit, zoom and tidy moved to the View menu and the keyboard; the canvas
-  // keeps only what you act on (INFRA_LAYER_PLAN.md, "Canvas chrome").
+  // keeps only what you act on (docs/INFRA.md, "Canvas chrome").
   await expect(page.locator('.react-flow__controls')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Tidy Layout' })).toHaveCount(0)
   await expect(minimap).toBeVisible()

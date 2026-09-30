@@ -1,4 +1,4 @@
-// Package registry is the infra service registry (INFRA_LAYER_PLAN.md).
+// Package registry is the infra service registry (docs/INFRA.md).
 //
 // A "service" is one external-infrastructure product Axiom knows how to
 // render and (later) detect: aws/rds, openai/api, stripe/api, generic/postgres.
@@ -33,7 +33,7 @@ import (
 //go:embed services/*.json
 var embedded embed.FS
 
-// Categories is the closed set of roles (INFRA_LAYER_PLAN.md "Roles"). Each
+// Categories is the closed set of roles (docs/INFRA.md "Roles"). Each
 // role defines the relationship kinds that are legal for edges into its nodes.
 // UniversalKinds are legal for every role on top of these.
 var Categories = map[string][]string{

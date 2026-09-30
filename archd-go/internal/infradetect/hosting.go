@@ -10,7 +10,7 @@ import (
 )
 
 // readHosting finds what runs the code and which part of the project each
-// host runs (INFRA_LAYER_PLAN.md, "Canvas placement"): the canvas draws hosts
+// host runs (docs/INFRA.md, "Canvas placement"): the canvas draws hosts
 // as frames around the systems they hold, nested the way they really are - a
 // backend in a Docker image, on Fly.
 //

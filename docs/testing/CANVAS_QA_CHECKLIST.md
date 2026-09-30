@@ -1,10 +1,12 @@
-# Canvas Bug Hunt
+# Canvas QA checklist
 
-Working checklist for the Living Canvas solidity pass. Max hunts, Claude fixes.
+Manual test script for the canvas, run in the real app. A person tests; an
+agent fixes. Report by ID (e.g. "D4 is broken, the west handle jumps") and add
+each bug to [WORK.md](../../WORK.md) with its ID.
 
-Report by ID (e.g. "D4 is broken, the west handle jumps"). Expected results come
-from `CANVAS_BEHAVIOR_CONTRACT.md` where that document specifies them; the rest
-are read from the current handlers.
+Expected results come from [CANVAS_BEHAVIOR_CONTRACT.md](../CANVAS_BEHAVIOR_CONTRACT.md)
+where that document specifies them; the rest are read from the current
+handlers. When the contract changes, update the item here too.
 
 Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed, needs recheck
 
@@ -81,7 +83,7 @@ All verified. Bugs found and fixed in this section:
 
 - [x] **D1–D4, D6, D8, D9** verified good as written.
 - [x] **D5 / chrome** System tab chrome rewritten as a swept pure model,
-  [`systemChrome.ts`](src/renderer/canvas/systemChrome.ts), with ~17k combinations
+  [`systemChrome.ts`](../../src/renderer/canvas/systemChrome.ts), with ~17k combinations
   enforcing: no line box exceeds its band, chip inside the slant, title never
   under the chip, tab never exceeds the shell, name truncates only when needed,
   and **tab geometry independent of both frame width and height**.
@@ -173,7 +175,7 @@ Fixed during this pass:
 
 ## I. Infrastructure
 
-- [ ] **I1** `Add infra` -> InfraPickerDialog -> node lands on the Floor
+- [ ] **I1** Map → Add Infrastructure (or Add in the Infrastructure sidebar) -> dialog -> it appears in the sidebar; hosting appears as a frame around what it runs
 - [ ] **I2** Group results by type / by provider
 - [ ] **I3** Confirmed vs proposed infra visual distinction
 - [ ] **I4** Infra with a missing registry entry - graceful fallback icon
@@ -183,13 +185,13 @@ Fixed during this pass:
 ## J. Sheets and planned UML
 
 - [ ] **J1** Create a sheet (SheetRail); Escape cancels naming
-- [ ] **J2** Activate a sheet - live nodes dim in place, sheet is an overlay NOT a separate tab
+- [ ] **J2** Activate a sheet - it is an overlay, not a separate tab; live nodes stay at full opacity; the paper tint, framed edge and "live map untouched" mark say you are on a sheet
 - [ ] **J3** Drag a stencil from SheetPalette onto the sheet
 - [ ] **J4** Planned outlines dashed; realized solid; status colors planned/partial/realized
-- [ ] **J5** Connect two nodes on an active sheet (Floor nodes must NOT be connectable)
+- [ ] **J5** Connect two nodes on an active sheet; live nodes are connectable on a sheet too (the connection is a proposal)
 - [ ] **J6** Edit planned element name / path / members inline
 - [ ] **J7** `Delete`/`Backspace` removes the selected sheet node (must not fire while typing)
-- [ ] **J8** Delete/Backspace on the **Floor** must do nothing
+- [ ] **J8** Delete/Backspace on the **Floor**: record what happens. The rule is being decided (WORK.md `floor-edit-rules`)
 - [ ] **J9** Deactivate the sheet - live identity preserved, nothing orphaned
 - [ ] **J10** Sheet geometry persists across sheet layout mutations
 

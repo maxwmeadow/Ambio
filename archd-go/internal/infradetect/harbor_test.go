@@ -13,7 +13,7 @@ import (
 	"axiom.local/archd/internal/registry"
 )
 
-// harborResult indexes the harbor lab project (INFRA_LAYER_PLAN.md L0) and
+// harborResult indexes the harbor lab project (docs/INFRA.md L0) and
 // runs detection on it. The lab lives outside the repo; the test skips when it
 // is absent.
 func harborResult(t *testing.T) (Result, map[string]string) {

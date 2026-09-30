@@ -1,4 +1,4 @@
-// Sheets, annotations, and the canvas→agent outbox (UML_UX_PLAN.md U1 + U-C).
+// Sheets, annotations, and the canvas→agent outbox (docs/history/UML_UX_PLAN.md U1 + U-C).
 package db
 
 import (

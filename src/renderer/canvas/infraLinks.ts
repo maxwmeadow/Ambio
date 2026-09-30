@@ -2,7 +2,7 @@ import type { DbDependency } from '../../shared/types.ts'
 
 /**
  * The relationships the infrastructure sidebar draws onto the canvas
- * (INFRA_LAYER_PLAN.md, "Canvas placement"). Infra code talks to is not on the
+ * (docs/INFRA.md, "Canvas placement"). Infra code talks to is not on the
  * canvas; it is a row in the sidebar. Selecting a row draws a line from it to
  * every visible box that touches it; selecting a system or file while the
  * sidebar is open draws a line from that box back to each row it touches.

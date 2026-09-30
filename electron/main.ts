@@ -84,7 +84,7 @@ for (const level of ['log', 'info', 'warn', 'error'] as const) {
 
 // Crashes are kept on this machine (Electron minidumps) and counted in
 // diagnostics. Nothing is uploaded: an opt-in upload needs a destination
-// Axiom does not have yet (see docs/LAUNCH.md).
+// Axiom does not have yet (see WORK.md).
 crashReporter.start({ uploadToServer: false })
 process.on('uncaughtException', error => console.error('[main] uncaught exception:', error))
 process.on('unhandledRejection', reason => console.error('[main] unhandled rejection:', reason))

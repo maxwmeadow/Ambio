@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ContentKinds is what an infra node can contain (INFRA_LAYER_PLAN.md
+// ContentKinds is what an infra node can contain (docs/INFRA.md
 // "Model"): the things code depends on inside a database, queue, cache, ....
 var ContentKinds = map[string]bool{
 	"table": true, "collection": true, "topic": true, "key_pattern": true,

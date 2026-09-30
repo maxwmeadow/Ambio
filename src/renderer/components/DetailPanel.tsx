@@ -621,7 +621,7 @@ function useNodeName(): (id: string) => string {
 }
 
 /**
- * An infra node as the plan says it must read (INFRA_LAYER_PLAN.md "Why this
+ * An infra node as the plan says it must read (docs/INFRA.md "Why this
  * exists"): what role it plays and what fills it here, who touches it and
  * how, what code depends on inside it, and what running it locally needs.
  */

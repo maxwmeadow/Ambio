@@ -1,5 +1,5 @@
 // NodeShell - the unified shape shell every canvas node converges on
-// (UML_UX_PLAN.md Revision 2b: node = Shell × Body × Status).
+// (docs/history/UML_UX_PLAN.md Revision 2b: node = Shell × Body × Status).
 //
 // Geometry is drawn as an inline SVG path INSIDE the node's bounding box:
 // - never CSS clip-path: it clips badges/tooltips (overflow) and hijacks

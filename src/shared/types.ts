@@ -320,7 +320,7 @@ export interface DbInfraNode {
   config?: Record<string, unknown>
   positionX: number
   positionY: number
-  /** What fills the role in each environment (INFRA_LAYER_PLAN.md "Model"). */
+  /** What fills the role in each environment (docs/INFRA.md "Model"). */
   implementations?: InfraImplementation[]
   policies?: InfraPolicies
 }

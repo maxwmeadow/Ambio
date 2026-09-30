@@ -9,7 +9,7 @@ import (
 )
 
 // extractContracts fills in what code depends on inside a database or a
-// queue (INFRA_LAYER_PLAN.md L4): tables from migrations and who reads or
+// queue (docs/INFRA.md L4): tables from migrations and who reads or
 // writes each, topics and who publishes or consumes each. Import evidence says
 // a file uses Postgres; this says it writes bookings.
 func (d *detection) extractContracts() {

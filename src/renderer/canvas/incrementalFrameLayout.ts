@@ -127,7 +127,7 @@ export function fitFrameAmongSiblings(
 /**
  * Where infrastructure goes when nobody has placed it: a band below
  * everything else on the Floor, stores first, then messaging, external
- * services, and hosting last (INFRA_LAYER_PLAN.md L3). Code in the middle,
+ * services, and hosting last (docs/INFRA.md L3). Code in the middle,
  * what it depends on underneath - the order is stable, so the band reads the
  * same in every project.
  */

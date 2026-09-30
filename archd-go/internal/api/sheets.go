@@ -1,4 +1,4 @@
-// Sheets + annotations + canvas→agent channel endpoints (UML_UX_PLAN.md U1/U-C).
+// Sheets + annotations + canvas→agent channel endpoints (docs/history/UML_UX_PLAN.md U1/U-C).
 //
 //	GET    /api/sheets?workspace=            - list sheets
 //	POST   /api/sheets                       - create sheet {workspaceId, name, purpose?, kind?, elements?}

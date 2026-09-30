@@ -1528,7 +1528,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   // Only infra that runs code is on the canvas: confirmed platforms, as frames
   // that hold the systems they host. Everything code talks to (databases,
   // queues, APIs...) lives in the infrastructure sidebar, which draws its
-  // relationships onto the canvas on demand (INFRA_LAYER_PLAN.md, "Canvas
+  // relationships onto the canvas on demand (docs/INFRA.md, "Canvas
   // placement"). There is no good automatic place for a database on a map of
   // code.
   const hostingInfraNodes = useMemo(
@@ -4663,7 +4663,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }, 100)
   }, [getViewport])
 
-  // Canvas commands (INFRA_LAYER_PLAN.md, "Canvas chrome"): zoom, tidy and
+  // Canvas commands (docs/INFRA.md, "Canvas chrome"): zoom, tidy and
   // the infrastructure sidebar live in the View and Map menus, the palette
   // and the keyboard (src/shared/appMenu.ts) rather than as buttons on the
   // canvas. Fit is the toolbar's. Only the main canvas answers them.
@@ -4682,7 +4682,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
 
   // ── Hosting frames ────────────────────────────────────────────────────────
   // A confirmed platform wraps the code it runs, nested the way it really is
-  // (INFRA_LAYER_PLAN.md, "Canvas placement"). Arranged once per platform:
+  // (docs/INFRA.md, "Canvas placement"). Arranged once per platform:
   // afterwards the frame is the person's to rearrange, and emptying it on
   // purpose must not make it grab the code back.
   const infraContents = useGraphStore(s => s.infraContents)

@@ -13,7 +13,7 @@ import { COMMANDS, formatAccelerator } from '../../shared/appMenu'
 import { archdApi } from '../archdEndpoint.ts'
 
 /**
- * The infrastructure sidebar (INFRA_LAYER_PLAN.md, "Canvas placement").
+ * The infrastructure sidebar (docs/INFRA.md, "Canvas placement").
  *
  * Infra code talks to - databases, caches, queues, APIs - has no honest place
  * on a map of code, so it lives here, on the canvas's left edge. Selecting a

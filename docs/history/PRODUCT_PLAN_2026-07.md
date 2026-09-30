@@ -1,11 +1,20 @@
 # Axiom - Product Plan
 
+> **Historical product plan (July 2026).** Its slice-by-slice build notes are
+> kept for context. The current product definition is
+> [../PRODUCT.md](../PRODUCT.md); open items from its "Still open" lists moved
+> to [../../WORK.md](../../WORK.md). Note that the positioning changed: this plan
+> called bidirectional UML "the substrate, not the product"; the product is now
+> stated as the bidirectional architecture layer between a developer and their
+> agents (see PRODUCT.md).
+
+
 Status: living document. Update the status markers as slices land.
 Established: 2026-07-25 (product reframe). Last updated: 2026-07-30.
 
-Related: [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md) (observable
+Related: [CANVAS_BEHAVIOR_CONTRACT.md](../CANVAS_BEHAVIOR_CONTRACT.md) (observable
 behavior that must not regress), [UML_UX_PLAN.md](UML_UX_PLAN.md),
-[INFRA_LAYER_PLAN.md](INFRA_LAYER_PLAN.md),
+[INFRA.md](../INFRA.md),
 [RUNTIME_LAYER_PLAN.md](RUNTIME_LAYER_PLAN.md).
 
 ---
@@ -353,7 +362,7 @@ what the filesystem did.
 - [x] E2E harness (`npm run test:mcp`) drives the real MCP over stdio against
       a real archd on spare ports - it caught two live bugs the unit tests
       could not see
-- [x] See [MCP_SURFACE.md](MCP_SURFACE.md)
+- [x] See [MCP_SURFACE.md](../MCP_SURFACE.md)
 
 ### Still open
 

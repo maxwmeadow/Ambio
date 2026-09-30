@@ -1,6 +1,6 @@
 /**
  * Words for the infra layer, shared by the tray, the inspector and the canvas
- * so a role reads the same wherever it appears (INFRA_LAYER_PLAN.md "Roles").
+ * so a role reads the same wherever it appears (docs/INFRA.md "Roles").
  */
 
 export const ROLE_LABEL: Record<string, string> = {

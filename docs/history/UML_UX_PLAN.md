@@ -1,5 +1,20 @@
 # Axiom - UML Experience Layer: Sheets, Intent, and the Living Model
 
+> **Historical design plan (July 2026).** Kept for its reasoning. It is not a
+> description of the current product. Current behaviour lives in
+> [../PRODUCT.md](../PRODUCT.md), [../CANVAS_BEHAVIOR_CONTRACT.md](../CANVAS_BEHAVIOR_CONTRACT.md),
+> [../SHEET_WORKFLOW.md](../SHEET_WORKFLOW.md) and [../INBOX_PROTOCOL.md](../INBOX_PROTOCOL.md);
+> open work lives in [../../WORK.md](../../WORK.md). Superseded here:
+> sheets stored as `.axiom/sheets/` JSON in the repo (sheets live in the local
+> SQLite map; committing maps is an open decision), the outbox drain,
+> piggyback trailer and `await_canvas` long-poll (replaced by addressed work
+> orders), dimming the Floor while a sheet is active (live nodes stay at full
+> opacity), and sheets as curated subsets (a sheet is a proposal of moves,
+> additions and removals). Not built yet: intent sheets and rules
+> (`check_architecture`), class and sequence sheets, Mermaid/PlantUML export -
+> each is an item in WORK.md.
+
+
 > Status: REVISED - see Revision 2 below, which supersedes the tab-based sheet
 > model and adds the missing fundamental: UML authoring.
 > Authors: Claude Fable 5 (research) + Gemini (challenge)

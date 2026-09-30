@@ -1,5 +1,5 @@
 // NewSheetDialog - lasso a selection → curate it into a named Sheet
-// (UML_UX_PLAN.md "Creating and populating sheets"). Mirrors GroupDialog.
+// (docs/history/UML_UX_PLAN.md "Creating and populating sheets"). Mirrors GroupDialog.
 import React, { useState } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'

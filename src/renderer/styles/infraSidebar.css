@@ -1,6 +1,6 @@
 /* ─── Infrastructure sidebar ─────────────────────────────────────────────────
    What the code talks to lives on the canvas's left edge rather than on the
-   map (INFRA_LAYER_PLAN.md, "Canvas placement"). Same drafting-board chrome
+   map (docs/INFRA.md, "Canvas placement"). Same drafting-board chrome
    as the Drawings rail: it is part of the workbench, not a sheet on it. */
 
 /* One thin tab on the sidebar's edge, at mid-height in both states: on the

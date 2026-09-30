@@ -1,5 +1,16 @@
 # Axiom - Runtime Debugging Layer: Complete Architecture Plan
 
+> **Historical design plan (July 2026).** The "Status: Planning" line below is
+> out of date. What exists today is described in
+> [../INVESTIGATIONS.md](../INVESTIGATIONS.md) (Node and Python recording,
+> hypothesis-driven runs) and the debug-profile `debug_runtime` tool in
+> [../MCP_SURFACE.md](../MCP_SURFACE.md) (DAP inspection mode for Go, C#, C++,
+> Ruby; Java unverified). Superseded here: streaming each call over a socket
+> (runs aggregate in-process), Go AST rewriting (dropped; Open Decision 2 below
+> predates that), Python `sys.settrace`-first plans (the adapter uses
+> `sys.monitoring`). Open runtime work is tracked in [../../WORK.md](../../WORK.md).
+
+
 > Status: Planning  
 > Authors: Claude Sonnet 4.6 + Gemini (research)  
 > Last updated: 2026-07-01

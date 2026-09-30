@@ -3,7 +3,7 @@
  *
  * Raw rows are ids and joins; an agent reading them spends turns resolving
  * what a person would see at a glance. This renders each node as the plan
- * describes it (INFRA_LAYER_PLAN.md): role and what fills it locally, what it
+ * describes it (docs/INFRA.md): role and what fills it locally, what it
  * needs to run, who touches it and how, and its contract - with file paths,
  * and with the next action where one is due (a proposal to decide, a "uses"
  * that could say READS or WRITES).

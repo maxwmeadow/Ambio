@@ -1,7 +1,7 @@
 // Package infradetect proposes a project's infrastructure from evidence the
 // index already has: the packages each file loads, the environment variables
 // it reads, the import graph, and a few configuration files
-// (INFRA_LAYER_PLAN.md L2, "propose, then confirm").
+// (docs/INFRA.md L2, "propose, then confirm").
 //
 // Analyze is pure: it takes the evidence and returns proposals, so the rules
 // are tested without a database. Apply persists them.

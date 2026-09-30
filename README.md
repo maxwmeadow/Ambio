@@ -1,44 +1,61 @@
 # Axiom
 
-**See your entire codebase. Steer what your agents build.**
+**Your architecture, shared with your agents - in both directions.**
 
-Axiom is a local-first architecture workbench for developers working with AI
-coding agents. It reads your code into a live map of systems, files and the
-relationships between them, and gives your agents the same map through MCP.
-You and your agents look at, and change, one shared picture of the project.
+Coding agents now build faster than anyone can draw a diagram of what they
+built, let alone write the UML first and hand it over. So people stop looking
+at architecture and review forty-file diffs instead. Axiom is the layer between
+you and your agents that keeps you both on the same page:
 
-<!-- Hero: a short GIF or video of the Floor, a sheet sent to an agent, and
-     the review of what it built goes here, before anything else. -->
+- **You change the architecture, your agent builds it.** Draw a new system,
+  move a responsibility or rule out a dependency, and send it to your agent as
+  a work order. Axiom checks what was built against what you drew.
+- **Your agent changes the architecture, you see it.** Agents draw what they
+  think the system is, what they plan to build and what they changed, on the
+  same surface, for you to confirm or correct.
+- **The code keeps both of you honest.** The architecture is derived from your
+  real code and updates live as you or an agent edit it, so neither of you is
+  looking at a picture of how things used to be.
+
+<!-- Hero: a short video of the loop in both directions - draw a sheet, send
+     it, watch the agent build it and review it; then an agent draws its plan
+     and you confirm it. It goes here, before anything else. -->
 
 > Axiom is in active development and has not had a stable release yet. Expect
 > things to change, and please [report what breaks](https://github.com/maxwmeadow/Axiom/issues).
 
 [Install](#install) · [How it works](#how-it-works) · [Your data](#your-data) ·
 [Uninstall](#uninstall) · [Development](#development-setup) ·
-[Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md)
+[Roadmap](WORK.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) ·
+[Privacy](PRIVACY.md)
 
 ## What it does
 
-- **A live map of your code.** Files are grouped into nested systems by what
-  they do, not by folder, and the map updates as files change, whether you or
-  an agent changed them.
-- **Your agents see the same map.** Claude Code, Codex, Copilot, Cursor and
-  other MCP agents can ask Axiom where things are and what depends on what,
-  and propose how the code should be organised. You review a proposal on the
-  canvas and approve it, rearrange it or send parts back.
-- **Plan on the canvas, then hand it off.** Sketch a feature on a sheet laid
-  over the map and send it to an agent as a work order. Axiom checks what the
-  agent built against the plan and shows you the differences.
-- **Review what changed.** Review Changes shows what moved in the
-  architecture since you last looked, instead of a forty-file diff.
+- **Sheets: plans both of you can draw.** A sheet is a proposal laid over the
+  live map - new systems, moved files, removed relationships. You draw one and
+  send it to an agent as a work order; an agent draws one to show you its plan
+  before it writes code. When the work comes back, Axiom compares it with the
+  plan: matched, flexed, drifted or missing.
+- **Review what changed, as architecture.** Review Changes shows what moved in
+  the architecture since you last looked, as statements like "Api now depends
+  on Storage", each attributed to you or to an agent, instead of a diff.
+- **A live map that is never stale.** Files are grouped into nested systems by
+  what they do, not by folder, and the map updates as files change. Agents
+  propose how the code is organised; you approve or correct it.
+- **Your agents read and write the same model.** Claude Code, Codex, Copilot,
+  Cursor, Windsurf, Antigravity, JetBrains and Zed connect through MCP: they
+  ask where things are and what depends on what, author systems, record
+  infrastructure, draw sheets, and pick up work orders.
 - **Infrastructure in view.** Databases, queues, caches, external APIs and
-  hosting are detected from code and config. They sit in a sidebar and draw
-  their connections onto the map when selected; what runs your code is shown
-  as frames around the systems it hosts.
+  hosting are detected from code and config, with the tables, topics and keys
+  your code uses. They sit in a sidebar and draw their connections onto the map
+  when selected; what runs your code is shown as frames around it.
+- **Parallel agents without collisions.** Worktrees are tracked per branch, and
+  two branches changing the same system show up before they are merged.
 - **Keyboard first.** A command palette (`⇧⌘P` / `Ctrl+Shift+P`) reaches every
   command; `⌘/` / `Ctrl+/` lists the shortcuts.
-- **Local.** Maps, layouts and history live on your computer. There is no
-  account, no analytics, and your code is never uploaded.
+- **Local.** Architecture, layouts and history live on your computer. There is
+  no account, no analytics, and your code is never uploaded.
 
 ## Install
 
@@ -90,6 +107,11 @@ The currently supported installers are:
 - JetBrains IDEs (IntelliJ, WebStorm, PyCharm, and siblings)
 - Zed
 
+Then the daily loop: open **Review Changes** to see what changed while you
+were away; draw the next piece on a **sheet** and send it to an agent; watch it
+arrive on the map; check what was built against what you drew. Agents can
+start the loop too, by drawing their plan on a sheet for you to confirm.
+
 The mapping command is harness-dependent. For example, Codex uses `$axiom-map`, Claude Code uses `/axiom-map`, and Antigravity uses its installed `axiom-map` skill. The setup screen always shows the correct instruction for the selected harness.
 
 Agents keep working when the Axiom window is closed: Axiom's background
@@ -116,16 +138,16 @@ does.
 
 ## File policy
 
-Architecture indexing currently supports:
+Languages Axiom reads, and how deeply:
 
-- TypeScript and JavaScript: `.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.jsx`
-- Python: `.py`
-- Go: `.go`
-- Rust: `.rs`
-- C#: `.cs`
-- C/C++ headers and sources: `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`
-- Ruby: `.rb`
-- Java: `.java`
+- **Full depth** (symbols, imports, calls, data flow, infrastructure from
+  packages): TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`,
+  `.jsx`), Python (`.py`), Go (`.go`).
+- **Nearly full**: C# (`.cs`); imports come from `using` directives.
+- **Symbols and calls, no import edges yet** (the map is coarser): Rust
+  (`.rs`), Java (`.java`), Ruby (`.rb`), C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`,
+  `.hxx`).
+- **Not yet read**: C (`.c`, `.h`), Kotlin, Swift, PHP. See [WORK.md](WORK.md).
 
 Readable documentation is indexed separately from the architecture canvas:
 
@@ -159,7 +181,7 @@ Axiom has three main runtime pieces:
 
 The Electron main process starts the desktop application and bundled daemon. archd prefers port `7743` for its local HTTP API and `7744` for WebSocket updates, and moves to free ports when another program holds them; the ports in use are published in `~/.axiom/data/daemon.json`. Every request needs the token in `~/.axiom/data/api-token`, and archd only answers on loopback - see [SECURITY.md](SECURITY.md). Each project's map is its own SQLite database under `~/.axiom/data/<project id>/`.
 
-More detailed references are available in [ARCHITECTURE.md](ARCHITECTURE.md), [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md), [MCP_SURFACE.md](MCP_SURFACE.md) and [INFRA_LAYER_PLAN.md](INFRA_LAYER_PLAN.md). Launch readiness and product decisions are tracked in [docs/LAUNCH.md](docs/LAUNCH.md).
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how it fits together), [docs/PRODUCT.md](docs/PRODUCT.md) (what it is for and the rules it keeps), [docs/CANVAS_BEHAVIOR_CONTRACT.md](docs/CANVAS_BEHAVIOR_CONTRACT.md), [docs/MCP_SURFACE.md](docs/MCP_SURFACE.md) and [docs/INFRA.md](docs/INFRA.md). Everything still to do is in [WORK.md](WORK.md); decisions and their reasons are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Development setup
 

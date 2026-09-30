@@ -1,5 +1,5 @@
 // ASM - Axiom Sheet Markup: the textual rendering of a sheet for agents,
-// who cannot see the canvas (UML_UX_PLAN.md "How agents see sheets").
+// who cannot see the canvas (docs/history/UML_UX_PLAN.md "How agents see sheets").
 // Durable URI refs (file://relpath, sys://name-path, infra://service/name),
 // containment by indentation, health as bracket tags, notes block-indented.
 // Layout is topological only - x/y never appears.
@@ -528,7 +528,7 @@ func renderSheetASM(sqlDB *sql.DB, sheet *db.Sheet) (string, error) {
 }
 
 // renderBuildSpec renders a sheet's PLANNED elements as an agent build spec
-// (UML_UX_PLAN.md REVISION 2 - "the sheet as prompt"): target additions with
+// (docs/history/UML_UX_PLAN.md REVISION 2 - "the sheet as prompt"): target additions with
 // paths and member signature tables, structural intent edges, and precise
 // live-context links so the agent doesn't search-hallucinate.
 func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {

@@ -1,5 +1,5 @@
 // SheetRail - the drafting-cabinet drawer labels: The Floor pinned on top,
-// sheets beneath (UML_UX_PLAN.md "Navigation: the sheet rail").
+// sheets beneath (docs/history/UML_UX_PLAN.md "Navigation: the sheet rail").
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { untakenSheetName } from '../../shared/sheetNames'

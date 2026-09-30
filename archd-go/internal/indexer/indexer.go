@@ -598,7 +598,7 @@ func normalizedChurn(sqlDB *sql.DB, workspaceID, fileID string) (float64, error)
 	return activity.Normalize(entries, time.Now().UnixMilli())[fileID], nil
 }
 
-// ─── Shape inference (UML_UX_PLAN.md Rev 2b: shape = semantic role) ────────────
+// ─── Shape inference (docs/history/UML_UX_PLAN.md Rev 2b: shape = semantic role) ────────────
 //
 // Shape is what a node IS, not where it came from. Inferred each parse;
 // files.shape_override (user/agent) always wins at display time. Guardrail:

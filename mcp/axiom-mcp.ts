@@ -2124,7 +2124,7 @@ Steps to execute:
         break
       }
 
-      // ── Infra layer (INFRA_LAYER_PLAN.md Phase I1) ─────────────────────────
+      // ── Infra layer (docs/INFRA.md Phase I1) ─────────────────────────
       case 'list_infra_services': {
         const res = await fetch(`${API_BASE}/api/registry/services`)
         if (!res.ok) throw new Error(`registry fetch failed: ${await res.text()}`)
@@ -2370,7 +2370,7 @@ Steps to execute:
         break
       }
 
-      // ── Sheets (UML experience layer - UML_UX_PLAN.md U1) ─────────────────
+      // ── Sheets (UML experience layer - docs/history/UML_UX_PLAN.md U1) ─────────────────
       case 'list_sheets': {
         const res = await fetch(`${API_BASE}/api/sheets?workspace=${encodeURIComponent(project.workspaceId)}`)
         if (!res.ok) throw new Error(`sheets list failed: ${await res.text()}`)
@@ -2534,7 +2534,7 @@ Steps to execute:
         break
       }
 
-      // ── Canvas → agent channel (UML_UX_PLAN.md U-C) ────────────────────────
+      // ── Canvas → agent channel (docs/history/UML_UX_PLAN.md U-C) ────────────────────────
       case 'get_canvas_updates':
       case 'await_canvas': {
         if (args.expectedWorkspaceId && args.expectedWorkspaceId !== project.workspaceId) throw new Error(`This MCP connection is bound to workspace ${project.workspaceId}, not the requested workspace ${args.expectedWorkspaceId}. Reconnect from the correct project before claiming work.`)

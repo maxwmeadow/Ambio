@@ -353,7 +353,7 @@ interface GraphState {
    */
   documentsOpen: boolean
   setDocumentsOpen: (open: boolean) => void
-  /** The infrastructure sidebar on the canvas's left edge (INFRA_LAYER_PLAN.md). */
+  /** The infrastructure sidebar on the canvas's left edge (docs/INFRA.md). */
   infraSidebarOpen: boolean
   setInfraSidebarOpen: (open: boolean) => void
   /** A sidebar item whose relationships are drawn out onto the canvas. */

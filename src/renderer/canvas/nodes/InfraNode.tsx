@@ -12,7 +12,7 @@ import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { AxiomNodeResizer } from './AxiomNodeResizer'
 
-// Infra node - Category x Provider x Service (INFRA_LAYER_PLAN.md).
+// Infra node - Category x Provider x Service (docs/INFRA.md).
 // The CATEGORY drives the glyph and the legend label ("DATABASE · SQL"),
 // the SERVICE's brand drives the icon and accent color, and STATUS renders
 // proposals ghosted (dashed, dimmed) until confirmed. Drafting-table styling:

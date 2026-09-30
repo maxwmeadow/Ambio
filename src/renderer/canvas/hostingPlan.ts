@@ -2,7 +2,7 @@ import { FRAME_ITEM_GAP, FRAME_ROOT_GAP, frameContentInsets } from './frameGeome
 import { packFrame, placeIncoming } from './packing.ts'
 
 /**
- * Hosting on the canvas (INFRA_LAYER_PLAN.md, "Canvas placement"): what runs
+ * Hosting on the canvas (docs/INFRA.md, "Canvas placement"): what runs
  * the code is a frame around the systems it runs, nested the way it really is
  * - the backend in a Docker image, on Fly. Detection says which folder each
  * host runs ("hosts" contents, with "via" naming the container a platform

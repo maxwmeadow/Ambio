@@ -11,7 +11,7 @@ import (
 )
 
 // PackageRef is one use of an external package: the evidence infra detection
-// starts from (INFRA_LAYER_PLAN.md L2). Package is the installable name -
+// starts from (docs/INFRA.md L2). Package is the installable name -
 // "@aws-sdk/client-s3", "stripe", "github.com/lib/pq" - not the subpath.
 type PackageRef struct {
 	Package string

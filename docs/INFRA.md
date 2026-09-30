@@ -370,8 +370,9 @@ and surfaced to the agent.
   and deployed environments are later layers on the same model.
 - **The agent is a first-class reader and writer.** Every phase ships its MCP
   surface and its instructions, measured with a real agent on the lab project.
-- **No spaghetti.** The Floor shows infra through rims, cards and
-  selection-revealed lines, never permanent all-graph wiring.
+- **No spaghetti.** Infra your code talks to lives in the sidebar and draws
+  its lines onto the map only while something is selected; infra that runs
+  your code is a hosting frame. Never permanent all-graph wiring.
 - **Secrets never enter the database.** Names and hosts only.
 
 ## Open questions

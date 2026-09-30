@@ -1,8 +1,12 @@
-# Launch readiness
+# Decisions
 
-Status: living document. Tracks everything outside the live canvas that a
-public launch needs, and every decision made along the way.
-Started: 2026-09-29.
+Status: living record. Every product, business and engineering decision, with
+the date and the reasoning, so nobody (human or agent) re-litigates a settled
+question or quietly reverses one. Open work lives in [../WORK.md](../WORK.md);
+what the product is lives in [PRODUCT.md](PRODUCT.md).
+
+Add a row to §1 whenever a decision is made. If a decision is reversed, keep the
+old row and add a new one that says so.
 
 Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 
@@ -27,6 +31,10 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 | 2026-09-30 | **License: AGPL-3.0-only + CLA** (CLA Assistant bot, signatures on the `cla-signatures` branch). The paid collaboration service stays in a separate private repository. |
 | 2026-09-30 | **Menus and Settings:** build the standard basics now; specifics later. |
 | 2026-09-30 | **Name:** on hold. |
+| 2026-09-30 | **Keyboard:** the map owns the plain zoom keys (`⌘0` fit, `⌘=`/`⌘-` zoom); interface zoom is `⌥⌘=`/`⌥⌘-`/`⌥⌘0`; Tidy Layout `⇧⌘L`; Infrastructure `⇧⌘E`; Agent Log `⇧⌘A`. All commands live in `src/shared/appMenu.ts`. |
+| 2026-09-30 | **Positioning:** Axiom is the bidirectional architecture layer between a developer and their agents - not a codebase visualizer. Every tool works in both directions: you change the architecture and your agent builds it; your agent changes or proposes architecture and you see it. The map is how the architecture stays true, not the pitch. See [PRODUCT.md](PRODUCT.md). |
+| 2026-09-30 | **UML bet:** semantic architecture (systems, relationships, infrastructure, plans) is the primary diagram. Classic class/sequence UML will fade as agents write the code; it is worth having, generated algorithmically, scoped to a selection and live, but it is not the centre of the product. |
+| 2026-09-30 | **One work list:** all open work - features, bugs, ideas, launch tasks - lives in [../WORK.md](../WORK.md). Agent sessions pick work from it and add what they find to it. Stray briefs and plans were consolidated into `docs/`. |
 
 ---
 
@@ -296,23 +304,20 @@ Keyboard accelerators then work everywhere.
 
 ---
 
-## 6. Checklist
+## 6. Launch plumbing in place
+
+What was built for launch readiness, kept as a reference for how things work
+and why. Open launch items moved to [../WORK.md](../WORK.md).
 
 ### Get it and trust it
-- ⬜ Rename (§3)
 - ✅ LICENSE (AGPL-3.0, official text), `CLA.md`, CLA Assistant workflow, `license` in package.json
 - ✅ Third-party licenses: `scripts/third-party-notices.mjs` checks every shipped npm package and linked Go module against an AGPL-compatible allowlist (CI fails otherwise), writes `THIRD_PARTY_NOTICES.txt` at package time, and the app shows it in Help → Acknowledgements. The audit removed five unused dependencies, including `elkjs` (EPL-2.0 without a GPL secondary-license notice, which is not AGPL-compatible)
 - Have a lawyer glance at `CLA.md` before charging money (it grants relicensing rights, modelled on the Apache ICLA)
-- ⬜ Enable GitHub private vulnerability reporting (repo Settings → Security) when the repo goes public
-- ⬜ Clean the repo root: move internal notes (`CODEX_BRIEF.md`, `CANVAS_BUG_HUNT.md`, `PARALLEL_AGENTS_BRIEF.md`, …) into `docs/` or remove
 - ✅ `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, issue and PR templates
-- ⬜ `CODE_OF_CONDUCT.md` (needs a contact address for reports)
 - ✅ Secret scan of full git history (124 commits, 2026-09-29): no keys, tokens, private keys, env files or databases found. One manual test script hard-coded a personal Windows path; it now uses env vars / the checkout path. Re-run before flipping the repo public.
 - ✅ README install section: per-OS steps including unsigned-app warnings, updates, privacy link
 - ✅ README rewritten for users (what it does, your data, uninstall, docs links); ⬜ hero GIF/video still to record (placeholder comment at the top)
 - ✅ Release workflow publishes tagged builds to a draft GitHub Release with `latest*.yml`; fails fast if the tag and `package.json` version differ
-- ⬜ The two macOS jobs (arm64, x64) each write `latest-mac.yml`; merge them (or build universal) before macOS auto-install is switched on
-- ⬜ Windows signing via SignPath; macOS signing + notarization once enrolled
 - ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
 ### Opening Axiom (2026-09-30)
@@ -347,7 +352,6 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 - ✅ Single-instance lock; launching again focuses the existing window
 - ✅ Application menu (§5): native on macOS, drawn in the title bar on Windows/Linux
 - ✅ Remember window size, position and maximized state (never onto a disconnected monitor)
-- ⬜ First-run crash-report opt-in
 
 ### Project setup and management
 - ✅ Unlimited projects; launcher shows 8 recents + "Show all"; search covers everything
@@ -363,17 +367,13 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
   - clustering that only removes stale systems belonging to its own root (`clusterAndAssign` runs per root, systems are workspace-wide);
   - Morning Delta, history identity and work sessions that span roots (all resolve to one primary root today);
   - a decision on cross-root edges (imports between repos) and how roots appear on the Floor.
-- ⬜ Multi-root projects in the UI (backend already supports roots)
-- ⬜ Worktrees of one repo: one project or two - decide and make it explicit
 
 ### Daily use
 - ✅ Settings window, basics (§5)
 - ✅ Command palette and keyboard shortcut reference
-- ⬜ Canvas undo/redo
 
 ### Staying current
 - ✅ Auto-update via electron-updater + GitHub Releases: Windows and AppImage download and install on restart; macOS and non-AppImage Linux are told a version is available and linked to it
-- ⬜ Turn on macOS auto-install once signed
 - ✅ CHANGELOG.md (Keep a Changelog) ships with the app; after an update Axiom shows that version's section once as What's New (Help → What's New any time); contributors add a line per user-visible change
 - ✅ Database downgrade guard: `PRAGMA user_version` stamped with `db.SchemaVersion`; a newer database is refused with a clear message. **Bump `SchemaVersion` whenever `migrate` changes.**
 
@@ -385,7 +385,6 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 - ✅ Report a Bug / Copy Diagnostics / Open Logs on the launcher, the archd failure notice and the crash screen (Help menu later)
 - ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
 - ✅ Crashes captured locally (Electron minidumps, never uploaded) and counted in diagnostics; uncaught errors in the main process and the window are logged
-- ⬜ Opt-in crash upload, when there is a destination (Sentry/GlitchTip project). Design: a first-run choice with nothing pre-selected, the exact fields listed, never code, file names, paths or project names; PRIVACY.md updated before it ships
 - ✅ Daemon discovery and graceful agent behaviour when the app is closed (§4)
 - ✅ Ports: archd prefers 7743-7745 and, when another program holds one, binds a free port and publishes it in `daemon.json`; the app, renderer and MCP server follow it. archd also takes an OS lock on its data folder, so two daemons can never share the databases
 
@@ -394,7 +393,7 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 - ✅ Settings → Privacy & Data → Delete all Axiom data (native confirmation, stops archd, restarts fresh)
 - ✅ Uninstall per OS documented in the README
 
-## 7. Design notes (not built)
+## 7. Design notes (not built; the work items are in WORK.md)
 
 ### Maps committed to the repo (`.axiom/` in the project)
 The question: should a project's map live in the repository, so cloning a repo brings its architecture with it?

@@ -1,5 +1,5 @@
 // Planned elements - authored UML for code that doesn't exist yet
-// (UML_UX_PLAN.md REVISION 2). CRUD + reconciliation against reality.
+// (docs/history/UML_UX_PLAN.md REVISION 2). CRUD + reconciliation against reality.
 package db
 
 import (

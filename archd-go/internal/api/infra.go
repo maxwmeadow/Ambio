@@ -1,4 +1,4 @@
-// Infra layer HTTP endpoints (INFRA_LAYER_PLAN.md Phase I1).
+// Infra layer HTTP endpoints (docs/INFRA.md Phase I1).
 //
 //	GET  /api/registry/services              - resolved service registry (categories + services)
 //	GET  /api/infra?workspace=               - list infra nodes + their edges

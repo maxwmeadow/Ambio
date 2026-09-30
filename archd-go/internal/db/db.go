@@ -264,7 +264,7 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS file_activity_file ON file_activity(file_id, ts);
 	CREATE INDEX IF NOT EXISTS file_activity_ws   ON file_activity(workspace_id, ts);
 
-	-- ─── Sheets (UML experience layer - UML_UX_PLAN.md Phase U1) ─────────────
+	-- ─── Sheets (UML experience layer - docs/history/UML_UX_PLAN.md Phase U1) ─────────────
 	-- A sheet is a named, curated diagram: a subset of live model elements,
 	-- arranged by hand, annotated. Elements are REFERENCES, never copies.
 	CREATE TABLE IF NOT EXISTS sheets (
@@ -325,7 +325,7 @@ func migrate(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS annotations_sheet ON annotations(sheet_id);
 
-	-- Planned elements (UML_UX_PLAN.md REVISION 2): authored UML for code
+	-- Planned elements (docs/history/UML_UX_PLAN.md REVISION 2): authored UML for code
 	-- that does not exist yet. Lifecycle planned → partial → realized →
 	-- flattened; the watcher reconciles declared paths/members against
 	-- reality as the agent builds. Isolated from live tables by design.
@@ -470,7 +470,7 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS architecture_proposal_layouts_parent
 		ON architecture_proposal_layouts(proposal_id, revision, parent_ref_type, parent_ref_id);
 
-	-- Canvas→agent outbox (UML_UX_PLAN.md Phase U-C). The user composes a
+	-- Canvas→agent outbox (docs/history/UML_UX_PLAN.md Phase U-C). The user composes a
 	-- note on the canvas; MCP tools claim it with a renewable lease. Tool
 	-- responses carry an available-count hint for connected agents.
 	CREATE TABLE IF NOT EXISTS canvas_outbox (
@@ -491,7 +491,7 @@ func migrate(db *sql.DB) error {
 
 	-- ─── Infra nodes ──────────────────────────────────────────────────────────
 	-- External dependencies (databases, queues, APIs, platforms) as first-class
-	-- canvas nodes. See INFRA_LAYER_PLAN.md. Identity is Category x Provider x
+	-- canvas nodes. See docs/INFRA.md. Identity is Category x Provider x
 	-- Service: category drives edge semantics + node silhouette, provider drives
 	-- the brand skin, service is the registry id ('aws/rds', 'openai/api', ...).
 	CREATE TABLE IF NOT EXISTS infra_nodes (
@@ -758,7 +758,7 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE systems ADD COLUMN height REAL`,
 		`ALTER TABLE files   ADD COLUMN width  REAL`,
 		`ALTER TABLE files   ADD COLUMN height REAL`,
-		// Unified shape vocabulary (UML_UX_PLAN.md Rev 2b): shape is a SEMANTIC
+		// Unified shape vocabulary (docs/history/UML_UX_PLAN.md Rev 2b): shape is a SEMANTIC
 		// role inferred at index time ('', 'class', 'cylinder', 'hexagon');
 		// display_name is the class-first title (dominant class ≈ filename);
 		// shape_override wins over inference when the user/agent sets it.
@@ -833,7 +833,7 @@ func migrate(db *sql.DB) error {
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.
 		`UPDATE planned_nodes SET kind='data_store' WHERE kind='class' AND shape='cylinder'`,
 		`UPDATE planned_nodes SET kind='service' WHERE kind='class' AND shape='hexagon'`,
-		// Infra layer (INFRA_LAYER_PLAN.md Phase I1)
+		// Infra layer (docs/INFRA.md Phase I1)
 		`ALTER TABLE infra_nodes  ADD COLUMN category    TEXT NOT NULL DEFAULT 'api'`,
 		`ALTER TABLE infra_nodes  ADD COLUMN provider    TEXT NOT NULL DEFAULT 'generic'`,
 		`ALTER TABLE infra_nodes  ADD COLUMN service     TEXT NOT NULL DEFAULT ''`,
@@ -841,7 +841,7 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE infra_nodes  ADD COLUMN status      TEXT NOT NULL DEFAULT 'confirmed'`,
 		`ALTER TABLE infra_nodes  ADD COLUMN detected_by TEXT`,
 		`ALTER TABLE dependencies ADD COLUMN evidence    TEXT`,
-		// Infra layer, local-development plan (INFRA_LAYER_PLAN.md L1).
+		// Infra layer, local-development plan (docs/INFRA.md L1).
 		`ALTER TABLE dependencies ADD COLUMN target_item TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE dependencies ADD COLUMN status      TEXT NOT NULL DEFAULT 'confirmed'`,
 		`ALTER TABLE infra_nodes  ADD COLUMN implementations TEXT`,

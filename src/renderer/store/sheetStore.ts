@@ -1,4 +1,4 @@
-// Sheets - curated diagrams over the live model (UML_UX_PLAN.md U1) plus the
+// Sheets - curated diagrams over the live model (docs/history/UML_UX_PLAN.md U1) plus the
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
 import { create } from 'zustand'
