@@ -150,3 +150,67 @@ func TestOverlayBuildsAndRecords(t *testing.T) {
 		t.Errorf("nothing is written into the user's module")
 	}
 }
+
+// Drift: a cache hands out the same object, someone else changes it between
+// calls, and the watched function sees different data for "the same" input.
+func TestOverlayReportsDriftBetweenCalls(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("no go toolchain")
+	}
+	root := t.TempDir()
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/ledger\n\ngo 1.18\n"), 0o644))
+	must(os.WriteFile(filepath.Join(root, "main.go"), []byte(`package main
+
+import "fmt"
+
+type Customer struct {
+	Name     string
+	Discount int
+}
+
+var cache = map[string]*Customer{}
+
+func lookup(id string) *Customer {
+	if c, ok := cache[id]; ok {
+		return c
+	}
+	c := &Customer{Name: id}
+	cache[id] = c
+	return c
+}
+
+func price(c *Customer, base int) int { return base - c.Discount }
+
+func main() {
+	fmt.Println(price(lookup("a"), 100))
+	lookup("a").Discount = 30
+	fmt.Println(price(lookup("a"), 100))
+}
+`), 0o644))
+	overlay, _, err := Build(root, t.TempDir())
+	must(err)
+	evidence := t.TempDir()
+	cmd := exec.Command("go", "run", ".")
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "GOFLAGS=-overlay="+overlay, "AXIOM_EVIDENCE_DIR="+evidence,
+		`AXIOM_WATCHES=[{"absPath":"`+filepath.Join(root, "main.go")+`","symbol":"price"}]`)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	files, _ := filepath.Glob(filepath.Join(evidence, "*.json"))
+	if len(files) != 1 {
+		t.Fatalf("evidence: %v", files)
+	}
+	data, _ := os.ReadFile(files[0])
+	text := string(data)
+	for _, want := range []string{`"drift":[{"calls":1`, `"after":"30","before":"0","key":"Discount"`, `"path":"c"`, `"param":"c"`} {
+		if !strings.Contains(text, want) {
+			t.Errorf("evidence lacks %s:\n%s", want, text)
+		}
+	}
+}

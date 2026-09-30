@@ -191,9 +191,7 @@ and truncated. It stays on the local machine in archd's data directory.
   with `-vet=off` during a run (vet reads package folders from disk, where
   the run's recorder package does not exist). Files with `import "C"` and
   generated files run uninstrumented.
-- **Ruby**: methods are recorded, blocks are not. Drift (the same object
-  changing between calls) is not reported yet; shared arguments and mutations
-  are. A method that rescues and then returns `nil` looks like one that raised,
+- **Ruby**: methods are recorded, blocks are not. A method that rescues and then returns `nil` looks like one that raised,
   as in Python. Ruby 2.6 and newer.
 - **Paths**: symlinked project paths are resolved on both sides. Windows paths
   are normalized for Node's option parser.

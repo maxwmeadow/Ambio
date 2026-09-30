@@ -172,6 +172,45 @@ module AxiomRecorder
     end
   end
 
+  MAX_NODES = 60
+  NODE_DEPTH = 5
+  NODE_FIELDS = 48
+
+  # Objects reachable from a value, each with its own leaf fields, so a later
+  # call can recognise the same object by identity and see what changed.
+  def collect_nodes(root, prefix, nodes)
+    seen = {}
+    walk = lambda do |v, path, depth|
+      return if nodes.size >= MAX_NODES || depth > NODE_DEPTH || leaf(v) || seen[v.object_id]
+      seen[v.object_id] = true
+      fields = {}
+      children = []
+      pairs = if v.is_a?(Hash)
+                v.first(NODE_FIELDS).map { |k, x| [k.to_s, x] }
+              elsif v.is_a?(Array)
+                fields['len'] = v.length.to_s
+                v.first(8).each_with_index.map { |x, i| ["[#{i}]", x] }
+              elsif v.is_a?(Struct)
+                struct_pairs(v)
+              else
+                ivars(v).first(NODE_FIELDS)
+              end
+      pairs.each do |k, child|
+        l = leaf(child)
+        if l
+          fields[k] = display(l)
+        elsif !child.nil?
+          children << [k.start_with?('[') ? "#{path}#{k}" : "#{path}.#{k}", child]
+        end
+      end
+      nodes << [v, path, fields] unless fields.empty?
+      children.each { |cp, c| walk.call(c, cp, depth + 1) }
+    end
+    walk.call(root, prefix, 0)
+  rescue StandardError
+    nil
+  end
+
   # ── per-path statistics (mirrors PathStats in recorder.py) ──────────────────
 
   class PathStats
@@ -274,6 +313,32 @@ module AxiomRecorder
       @last_args = nil
       @repeats = 0
       @repeat_example = nil
+      @objects = {} # object_id -> [object, path, call, fields]; objects kept alive for the run
+      @drift = {}
+    end
+
+    # The same object reachable from the arguments, with different contents
+    # on a later call: state shared between calls and changed by someone else.
+    def check_drift(nodes, call)
+      nodes.each do |obj, path, fields|
+        prev = @objects[obj.object_id]
+        if prev && prev[0].equal?(obj) && prev[2] != call
+          changes = (prev[3].keys | fields.keys).map do |k|
+            a = prev[3].fetch(k, '(absent)')
+            b = fields.fetch(k, '(absent)')
+            { 'key' => k, 'before' => a, 'after' => b } if a != b
+          end.compact
+          unless changes.empty?
+            d = @drift[path]
+            d = @drift[path] = { 'calls' => 0, 'examples' => [] } if d.nil? && @drift.size < 20
+            if d
+              d['calls'] += 1
+              d['examples'] << { 'fromCall' => prev[2], 'toCall' => call, 'changes' => changes.first(4) } if d['examples'].size < 4
+            end
+          end
+        end
+        @objects[obj.object_id] = [obj, path, call, fields]
+      end
     end
 
     def observe(path, l)
@@ -343,7 +408,7 @@ module AxiomRecorder
         'shared' => @shared.values,
         'repeats' => @repeats,
         'repeatExample' => @repeat_example,
-        'drift' => []
+        'drift' => @drift.map { |p, d| { 'path' => p, 'calls' => d['calls'], 'examples' => d['examples'] } }
       }
     end
   end
@@ -468,6 +533,9 @@ module AxiomRecorder
               w.observe("arg.#{p}", l)
             end
           end
+          nodes = []
+          names.zip(values).each { |n, v| AxiomRecorder.collect_nodes(v, n, nodes) }
+          w.check_drift(nodes, w.calls)
           args_preview = AxiomRecorder.preview(Hash[names.map(&:to_sym).zip(values)])
           fingerprint = before.map { |p, l| "#{p}=#{AxiomRecorder.display(l)}" }.join('|')
           w.observe_args(w.calls, names, values, fingerprint, args_preview)
@@ -530,6 +598,9 @@ module AxiomRecorder
         end
       end
       changed.first(20).each { |path, b, a| rec.mutation(path, b, a, w[:call]) }
+      after_nodes = []
+      w[:names].zip(w[:values]).each { |n, v| AxiomRecorder.collect_nodes(v, n, after_nodes) }
+      rec.check_drift(after_nodes, w[:call])
       sample = { 'call' => w[:call], 'args' => w[:args], 'ms' => ms.round(3) }
       if threw
         sample['threw'] = threw

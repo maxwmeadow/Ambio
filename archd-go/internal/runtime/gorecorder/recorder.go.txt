@@ -163,9 +163,10 @@ type Call struct {
 	w      *watchState
 	n      int
 	names  []string
-	before map[string]leaf
-	args   string
-	nargs  int
+	before   map[string]leaf
+	args     string
+	nargs    int
+	receiver map[string]bool
 }
 
 // Enter counts a call and the edge from the nearest instrumented caller.
@@ -217,11 +218,29 @@ func (c *Call) Args(names []string, values ...interface{}) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	receiver := map[string]bool{}
+	clean := make([]string, len(names))
+	for i, name := range names {
+		if strings.HasPrefix(name, "@") {
+			name = name[1:]
+			receiver[name] = true
+		}
+		clean[i] = name
+	}
+	names = clean
 	c.names = names
 	c.nargs = len(names)
+	c.receiver = receiver
 	c.before = map[string]leaf{}
 	parts := make([]string, 0, len(names))
 	fingerprint := make([]string, 0, len(names))
+	var nodes []node
+	for i, name := range names {
+		if !receiver[name] {
+			collectNodes(reflect.ValueOf(values[i]), name, &nodes)
+		}
+	}
+	c.w.checkDrift(nodes, c.n)
 	for i, name := range names {
 		v := reflect.ValueOf(values[i])
 		for p, l := range flatten(v, name) {
@@ -286,6 +305,13 @@ func (c *Call) After(values ...interface{}) {
 	for _, ch := range changed {
 		w.mutation(ch[0], ch[1], ch[2], c.n)
 	}
+	var nodes []node
+	for i := 0; i < c.nargs && i < len(values); i++ {
+		if !c.receiver[c.names[i]] {
+			collectNodes(reflect.ValueOf(values[i]), c.names[i], &nodes)
+		}
+	}
+	w.checkDrift(nodes, c.n)
 	results := values[minInt(c.nargs, len(values)):]
 	s := sample{Call: c.n, Args: c.args, Ms: round3(ms)}
 	var failed string
@@ -840,12 +866,30 @@ type watchState struct {
 	lastArgs   string
 	repeats    int
 	repeatEx   map[string]interface{}
+	objects    map[uintptr]objectSnapshot
+	drift      map[string]*driftRecord
+	driftOrder []string
+}
+
+// objectSnapshot is an object seen reachable from a call's arguments: its
+// leaf fields, and the object itself so its address keeps meaning it.
+type objectSnapshot struct {
+	path   string
+	call   int
+	fields map[string]string
+	keep   interface{}
+}
+
+type driftRecord struct {
+	calls    int
+	examples []map[string]interface{}
 }
 
 func newWatch(f *fn) *watchState {
 	return &watchState{f: f, shapes: map[string]bool{}, paths: map[string]*pathStats{},
 		mutations: map[string]map[string]interface{}{}, exceptions: map[string]int{}, returns: newPathStats(),
-		seen: map[uintptr]int{}, sharedBy: map[string]map[string]interface{}{}}
+		seen: map[uintptr]int{}, sharedBy: map[string]map[string]interface{}{},
+		objects: map[uintptr]objectSnapshot{}, drift: map[string]*driftRecord{}}
 }
 
 func (w *watchState) observe(path string, l leaf) {
@@ -999,6 +1043,199 @@ func (w *watchState) json() map[string]interface{} {
 		"calls": w.calls, "errors": w.errors, "avgMs": avg,
 		"samples": samples, "values": values, "mutations": mutations,
 		"exceptions": exceptions, "returns": w.returns.json(),
-		"shared": shared, "repeats": w.repeats, "repeatExample": w.repeatEx, "drift": []interface{}{},
+		"shared": shared, "repeats": w.repeats, "repeatExample": w.repeatEx, "drift": w.driftJSON(),
 	}
+}
+
+// ── drift: the same object, changed between calls ─────────────────────────────
+
+const (
+	maxNodes   = 60
+	nodeDepth  = 5
+	nodeFields = 48
+)
+
+type node struct {
+	addr   uintptr
+	path   string
+	fields map[string]string
+	keep   interface{}
+}
+
+// collectNodes lists the objects reachable from a value - pointers to
+// structs, maps, slices - each with its own leaf fields, so a later call can
+// recognise the same object by address and see what changed in it.
+func collectNodes(root reflect.Value, prefix string, out *[]node) {
+	seen := map[uintptr]bool{}
+	var walk func(v reflect.Value, path string, depth int)
+	walk = func(v reflect.Value, path string, depth int) {
+		if len(*out) >= maxNodes || depth > nodeDepth || !v.IsValid() {
+			return
+		}
+		for v.Kind() == reflect.Interface {
+			if v.IsNil() {
+				return
+			}
+			v = v.Elem()
+		}
+		var addr uintptr
+		target := v
+		switch v.Kind() {
+		case reflect.Ptr:
+			if v.IsNil() {
+				return
+			}
+			addr = v.Pointer()
+			target = v.Elem()
+		case reflect.Map, reflect.Slice:
+			if v.IsNil() {
+				return
+			}
+			addr = v.Pointer()
+		default:
+			return
+		}
+		if seen[addr] {
+			return
+		}
+		seen[addr] = true
+		fields := map[string]string{}
+		type child struct {
+			path string
+			v    reflect.Value
+		}
+		var children []child
+		sep := func(k string) string {
+			if strings.HasPrefix(k, "[") {
+				return path + k
+			}
+			return path + "." + k
+		}
+		switch target.Kind() {
+		case reflect.Struct:
+			for i := 0; i < target.NumField() && i < nodeFields; i++ {
+				name := target.Type().Field(i).Name
+				f := target.Field(i)
+				if l, ok := leafValue(f); ok {
+					fields[name] = l.text
+				} else {
+					children = append(children, child{sep(name), f})
+				}
+			}
+		case reflect.Map:
+			keys := target.MapKeys()
+			sort.Slice(keys, func(i, j int) bool { return preview(keys[i], 3) < preview(keys[j], 3) })
+			for i, k := range keys {
+				if i >= nodeFields {
+					break
+				}
+				name := preview(k, 3)
+				if k.Kind() == reflect.String {
+					name = k.String()
+				}
+				val := target.MapIndex(k)
+				if l, ok := leafValue(val); ok {
+					fields[name] = l.text
+				} else {
+					children = append(children, child{sep(name), val})
+				}
+			}
+		case reflect.Slice:
+			fields["len"] = strconv.Itoa(target.Len())
+			for i := 0; i < target.Len() && i < 8; i++ {
+				val := target.Index(i)
+				if l, ok := leafValue(val); ok {
+					fields["["+strconv.Itoa(i)+"]"] = l.text
+				} else {
+					children = append(children, child{fmt.Sprintf("%s[%d]", path, i), val})
+				}
+			}
+		default:
+			if l, ok := leafValue(target); ok {
+				fields["*"] = l.text
+			}
+		}
+		if len(fields) > 0 {
+			var keep interface{}
+			if v.CanInterface() {
+				keep = v.Interface()
+			}
+			*out = append(*out, node{addr: addr, path: path, fields: fields, keep: keep})
+		}
+		for _, c := range children {
+			walk(c.v, c.path, depth+1)
+		}
+	}
+	func() {
+		defer func() { _ = recover() }()
+		walk(root, prefix, 0)
+	}()
+}
+
+// checkDrift compares each object with how it looked on an earlier call.
+// Only objects kept alive by the recorder are compared, so an address always
+// means the same object.
+func (w *watchState) checkDrift(nodes []node, call int) {
+	for _, n := range nodes {
+		prev, ok := w.objects[n.addr]
+		if ok && prev.call != call && prev.keep != nil {
+			var changes []map[string]interface{}
+			keys := map[string]bool{}
+			for k := range prev.fields {
+				keys[k] = true
+			}
+			for k := range n.fields {
+				keys[k] = true
+			}
+			sorted := make([]string, 0, len(keys))
+			for k := range keys {
+				sorted = append(sorted, k)
+			}
+			sort.Strings(sorted)
+			for _, k := range sorted {
+				a, okA := prev.fields[k]
+				b, okB := n.fields[k]
+				if !okA {
+					a = "(absent)"
+				}
+				if !okB {
+					b = "(absent)"
+				}
+				if a != b {
+					changes = append(changes, map[string]interface{}{"key": k, "before": a, "after": b})
+				}
+			}
+			if len(changes) > 0 {
+				d, exists := w.drift[n.path]
+				if !exists && len(w.drift) < 20 {
+					d = &driftRecord{}
+					w.drift[n.path] = d
+					w.driftOrder = append(w.driftOrder, n.path)
+				}
+				if d != nil {
+					d.calls++
+					if len(d.examples) < 4 {
+						if len(changes) > 4 {
+							changes = changes[:4]
+						}
+						d.examples = append(d.examples, map[string]interface{}{"fromCall": prev.call, "toCall": call, "changes": changes})
+					}
+				}
+			}
+		}
+		keep := n.keep
+		if keep == nil && ok {
+			keep = prev.keep
+		}
+		w.objects[n.addr] = objectSnapshot{path: n.path, call: call, fields: n.fields, keep: keep}
+	}
+}
+
+func (w *watchState) driftJSON() []map[string]interface{} {
+	out := []map[string]interface{}{}
+	for _, p := range w.driftOrder {
+		d := w.drift[p]
+		out = append(out, map[string]interface{}{"path": p, "calls": d.calls, "examples": d.examples})
+	}
+	return out
 }

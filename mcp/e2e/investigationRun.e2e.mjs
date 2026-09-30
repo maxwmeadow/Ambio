@@ -101,7 +101,23 @@ test.before(async () => {
     '\tfmt.Println(orders[2])',
     '}',
   ].join('\n'))
-  harness = await startHarness({ projectDir: project, minFiles: 5 })
+  writeFileSync(join(project, 'ledger.rb'), [
+    'Customer = Struct.new(:name, :discount)',
+    'CACHE = {}',
+    '',
+    'def lookup(id)',
+    '  CACHE[id] ||= Customer.new(id, 0)',
+    'end',
+    '',
+    'def price(customer, base)',
+    '  base - customer.discount',
+    'end',
+    '',
+    'puts price(lookup("a"), 100)',
+    'lookup("a").discount = 30',
+    'puts price(lookup("a"), 100)',
+  ].join('\n'))
+  harness = await startHarness({ projectDir: project, minFiles: 6 })
   client = harness.client
 }, { timeout: 90000 })
 
@@ -175,6 +191,12 @@ test('a Go run shows the shared map, the returned error and the panic', { skip: 
   assert.match(run.text, /receives the same `stock` object again on 3 of 4 calls/)
   assert.match(run.text, /`reserve` returned `error: not enough widget` on 1 of 4 calls/)
   assert.match(run.text, /Uncaught `panic: runtime error: index out of range \[2\] with length 0` at reserve\.go:24/)
+})
+
+test('a Ruby run sees a cached object change between calls', { skip: !RUBY && 'no ruby on this machine' }, async () => {
+  const run = await client.callTool('investigation', { op: 'run', command: 'ruby ledger.rb', watch: ['ledger.rb:price'] }, 60000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`customer` is the same object on calls 1 and 2 of `price`, and it changed in between: `discount` 0 → 30/)
 })
 
 test('a watch that names nothing fails before running, with the reason', async () => {

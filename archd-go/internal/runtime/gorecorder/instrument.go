@@ -72,8 +72,10 @@ func Instrument(src []byte, absPath, importPath string) (out []byte, ok bool, er
 		specs = append(specs, fmt.Sprintf("%s:%d", fd.Name.Name, fset.Position(fd.Pos()).Line))
 
 		var params []string
+		receivers := 0
 		if fd.Recv != nil {
 			params = append(params, fieldNames(fd.Recv)...)
+			receivers = len(params)
 		}
 		params = append(params, fieldNames(fd.Type.Params)...)
 
@@ -111,9 +113,15 @@ func Instrument(src []byte, absPath, importPath string) (out []byte, ok bool, er
 			results = nil
 		}
 
+		// The receiver is marked "@": its own state is expected to change
+		// between calls, so drift does not report it.
 		quoted := make([]string, len(params))
 		for i, p := range params {
-			quoted[i] = strconv.Quote(p)
+			if i < receivers {
+				quoted[i] = strconv.Quote("@" + p)
+			} else {
+				quoted[i] = strconv.Quote(p)
+			}
 		}
 		values := append(append([]string{}, params...), results...)
 		var b strings.Builder
