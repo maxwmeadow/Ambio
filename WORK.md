@@ -50,16 +50,25 @@ it or saying why in the Done log.
 ## Now
 
 The next things to do, in order. Max reorders this; agents pick from the top.
+The area tag says which part of the code an item touches: when several
+sessions run at once, pick items in **different areas** so branches don't
+collide. Full context for each item is in its section below.
 
-1. ❓ `floor-edit-rules` - decide how Floor edits relate to sheets (see *Decisions*). Blocks `floor-reality-to-work-order`.
-2. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent (*Sheets and work orders*).
-3. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes (*Bidirectional core*).
-4. ⬜ `curation-history-undo` - journal and undo meaning edits (*Review Changes and history*).
-5. ⬜ `ci-e2e` - run the MCP end-to-end and Playwright suites in CI (*Quality*).
-6. ⬜ `mac-update-manifest` - merge the two macOS `latest-mac.yml` files (*Launch*).
-7. ⬜ `canvas-undo-redo` - undo and redo on the canvas (*Canvas*).
-8. ⬜ `headless-watch` - a daemon started by an agent watches files too (*Agents*).
-9. ⬜ `rules-and-drift` - standing architecture rules and drift checks (*Bidirectional core*).
+1. ❓ `floor-edit-rules` - decide how Floor edits relate to sheets (*Decisions*). Blocks `floor-reality-to-work-order`. [Max]
+2. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
+3. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
+4. ⬜ `curation-history-undo` - journal and undo meaning edits. [archd delta/journal, DeltaPanel]
+5. ⬜ `ci-e2e` - run the MCP end-to-end and Playwright suites in CI. [.github/workflows]
+6. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
+7. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
+8. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
+9. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
+10. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
+11. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
+12. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
+13. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
+14. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
+15. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -109,6 +118,9 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `rules-in-ci` (after `rules-and-drift`) **A PR/CI check.** A headless `archd check` that runs the rules and reports new architectural claims on a pull request, so a team sees drift without everyone running Axiom. This is also the most likely paid-team entry point.
 - ⬜ `infra-both-ways` **Human infra edits become work.** Adding "Redis cache for sessions" on the canvas should be sendable as a work order, and the agent's infra edits already show up; make both directions visible in Review Changes (`infra-claims`).
 - ⬜ `verify-beyond-structure` **Raise the trust ceiling on work orders.** Today a work order passes if its structure matches; agent-reported results (commit, checks) are labelled unverified. Options: let the human attach checks (a test command) to a sheet that Axiom runs on reply; record the commit and diff; show which planned members exist as symbols. **Done when:** at least "the tests named on the sheet ran and passed" is verified by Axiom, not reported by the agent.
+- ⬜ `human-decisions-to-agents` **Rejections teach agents.** When you reject an agent's proposed system, planned element or infra node, record why (optional one-line reason) and return it to agents in later sessions, so the same proposal is not made again. **Start:** proposal review (`ArchitectureProposalPanel.tsx`), sheet confirm/reject, `edit_infra decide`.
+- ⬜ `agent-explains-change` **Agents annotate their own changes.** When an agent's work creates a claim in Review Changes ("Api now depends on Storage"), show the agent's stated reason from its work session next to it; flag claims no session explains (UNEXPLAINED exists - make it prominent and filterable).
+- ⬜ `sheet-from-selection` **Start a sheet from what you are looking at.** Select systems/files on the Floor → "New sheet from selection" pre-populates the sheet with that context, for both humans and agents (`edit_sheet create` with node IDs).
 
 ## Sheets and work orders
 
@@ -120,6 +132,10 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `midflight-approval` **What happens when you approve, reject or change a plan while the agent is already building.** Define and implement (e.g. the agent is told on its next `update_work`).
 - ⬜ `sheet-markdown` **Sheets ⇄ Markdown specs.** Export a sheet as a Markdown spec (for PRs, AGENTS.md, Spec Kit/Kiro users) and import a Markdown spec as a draft sheet. Research: planning today is text; meeting people there lowers the switching cost.
 - ⬜ `work-order-live-validation` **Validate the loop with real hosts beyond Codex:** Claude Code, Antigravity, Cursor. Record runs; file bugs in the Inbox.
+- ⬜ `work-order-notifications` **OS notifications** when an agent claims, replies to or finishes a work order while Axiom is in the background or minimized (Electron `Notification`; respect a setting).
+- ⬜ `work-order-queue-view` **One place for all work orders:** waiting, claimed (by which agent), in review, accepted - across sheets, with filters. Today review is per sheet/inbox.
+- ⬜ `sheet-templates` **Starter sheets:** "Add an endpoint", "Extract a service", "Add a queue consumer", "Split a system" - drawn skeletons that make the first work order fast.
+- ⬜ `sheet-history` **Sheet revision history** you can browse and restore (sheets are revisioned; there is no UI for past revisions).
 
 ## Review Changes and history
 
@@ -128,6 +144,8 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `delta-live-validation` **Validate Review Changes with a real Antigravity (and Claude Code) session** end to end; the product plan marked it "needs live validation".
 - ⬜ `hub-orphan-claims-check` **Confirm hub/orphan claims work** (listed open in the old plan, described as built elsewhere); close or fix.
 - ⬜ `review-shareable` **Share a review.** Export a Review Changes summary as Markdown for a PR description or a standup.
+- ⬜ `timeline` **Architecture timeline:** scrub back through the journal to see the map as it was on a day or at a commit, and compare two points. The journal already has the data.
+- ⬜ `review-filters` **Filter Review Changes** by agent, work order, system and claim kind; mark claims as seen individually.
 
 ## Canvas and the Floor
 
@@ -143,6 +161,12 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `canvas-context-empty` **Right-click on empty canvas:** New System Here, Paste, Tidy Layout, Fit (from the menu design notes).
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
+- ⬜ `model-explorer` **Outline panel:** a searchable tree of systems → files → symbols beside the canvas, synced with selection. Needed for large maps and for keyboard/screen-reader users (from the UML plan's Model Explorer).
+- ⬜ `search-everything` **Search systems, symbols and infra** from `⌘K`, not only files; jump to and highlight the result.
+- ⬜ `zoom-to-selection` **Zoom to Selection** (View menu, from the menu design notes).
+- ⬜ `panels-menu` **View → Panels ▸** (sheet rail, detail panel, documents, agent log, status bar) with remembered visibility.
+- ⬜ `html-export` **Share a read-only map:** export a self-contained HTML file of the map (pan, zoom, click through) that anyone can open without Axiom. Research: the popular code-graph tools grow through exactly this.
+- ⬜ `stable-layout-tests` **Layout stability tests:** re-indexing, adding files and renaming systems never move human-placed nodes (design law). Pin it with tests on the frame packing.
 
 ## Agents and MCP
 
@@ -153,6 +177,10 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `legacy-tool-names` **Remove the ~80 legacy MCP tool names** after checking `agent_actions` that nothing still calls them.
 - ⬜ `mcp-op-schemas` **Per-op validation.** Consolidated tools take `op: string` with loosely typed params; validate per op and return precise errors.
 - ⬜ `mcp-multi-root` **MCP connections that span roots** (single `rootPath` today; `branch_scope` falls back to `roots[0]`). Needed for `multi-root-projects` and `multi-window`.
+- ⬜ `agent-onboarding-check` **Verify the agent connection end to end during setup:** after installing into a host, confirm a real tool call arrived (`get_inbox verifyOnly`) and show which hosts are connected and working in Settings → Agents.
+- ⬜ `agents-md-generation` **Offer to write the project's architecture into `AGENTS.md`/`CLAUDE.md`** (systems, rules, where things live) so agents without MCP still get the map. Keep it updated from the map.
+- ⬜ `mcp-resources` **Expose the map as MCP resources** (architecture overview, current rules, open work orders) for hosts that read resources into context.
+- ⬜ `agent-cost-tracking` **Show what an agent's session cost in Axiom reads** (tool calls, tokens returned) in the agent log, to keep the MCP surface honest.
 
 ## Indexing and languages
 
@@ -163,6 +191,9 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `index-benchmark` **Benchmark indexing and re-clustering on large repos** (10k, 50k files): time, memory, re-cluster cost (full `git log` read, TF-IDF pairs). Make re-clustering incremental if needed.
 - ⬜ `cluster-quality-tests` **Clustering quality tests.** Only path-invariance is tested; add fixtures with known good groupings.
 - ⬜ `log-noise` **Remove debug logging** left in production (`csNodeDiagDone` node-type dump, 15 sample symbols per call-graph build).
+- ⬜ `cross-repo-links` **Services in separate repos.** Real systems span repos (frontend, backend, workers). Let a project reference another project's systems/APIs as external nodes, with HTTP/queue contracts linking them (infra plan: team-run services as `api` nodes backed by another workspace).
+- ⬜ `generated-code-detection` **Detect generated code** (protobuf, OpenAPI clients, ORM output) beyond `*.min.*` and exclude or mark it, so it does not distort clustering.
+- ⬜ `monorepo-workspaces` **Understand monorepo package boundaries** (npm/pnpm workspaces, Go workspaces, Cargo workspaces, Nx/Turborepo) as strong hints for systems, without letting folders define systems.
 
 ## Infrastructure
 
@@ -191,6 +222,14 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `rebind-shortcuts` **Rebindable shortcuts** (the command model already centralises them).
 - ⬜ `remove-legacy-archd` **Delete the legacy TypeScript daemon** in `archd/` (still built by electron-vite, never started) and its `npm run archd` script.
 - ⬜ `first-run-guide` **A guided first run** on the user's own project that shows both directions of the loop (see `demo-project`).
+- ⬜ `db-corruption-recovery` **Recover from a damaged map database:** run `PRAGMA integrity_check` on open when a crash happened; if damaged, offer to restore the newest backup (backups exist since `map-safety`).
+- ⬜ `schema-upgrade-tests` **Upgrade tests:** open a map written by each earlier schema version (v1 fixtures) with the current build, and refuse a newer one. `SchemaVersion` is 2 as of the infra merge.
+- ⬜ `trash-orphans` **List unlabeled trash entries.** A map moved to `.trash` whose `trash.json` was never written (app quit mid-delete) is purged after 30 days but never shown in Recently Deleted. Show it by project ID. **Start:** `electron/projectRegistry.ts` `listTrash`.
+- ⬜ `windows-cli-path` **`axiom` command on Windows:** add `%USERPROFILE%\.axiom\bin` to the user PATH automatically (today the user is told to do it). **Start:** `electron/cliLauncher.ts`.
+- ⬜ `linux-desktop-integration` **Linux AppImage integration:** register a `.desktop` entry and the `axiom://` handler on first run (AppImages do not install one), so links and the app menu work.
+- ⬜ `tray-presence` **Menu-bar/tray presence** while agents work with the window closed: which agents are active, open work orders, open Axiom.
+- ⬜ `feedback-link` **Send feedback** in Help and on the launcher (a prefilled GitHub discussion or issue), distinct from Report a Bug.
+- ⬜ `startup-performance` **Measure and trim launch time** (window shown, launcher interactive, project open) and memory with many projects; add a budget to CI.
 
 ## Launch, distribution and repo
 
@@ -200,21 +239,33 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `linux-packages` **deb/rpm** alongside the AppImage.
 - ⬜ `rename-mechanics` (after `rename`) The mechanical rename across paths, IDs and docs.
 - ⬜ `launch-plan` **A launch plan:** Show HN, r/programming and agent-tool communities, the README video, a comparison page, a short docs site. Lead with the bidirectional loop, not "see your codebase".
+- ⬜ `actions-node24` **Update GitHub Actions** (`actions/checkout`, `setup-node`, `setup-go`, `upload-artifact`) to versions on Node 24; CI warns that Node 20 actions are being forced onto Node 24.
+- ⬜ `commercial-license-page` **Explain commercial licensing** for companies that cannot use AGPL (the CLA allows it): a short section in README or a LICENSING.md, with a contact.
+- ⬜ `community-space` **A place to talk:** GitHub Discussions (on) with categories for ideas, help and show-and-tell; link it from Help and the README.
+- ⬜ `docs-site` **A small docs site** (GitHub Pages) generated from `docs/` user pages, once `user-docs` exists.
+- ⬜ `release-checklist` **A written release checklist** (`docs/RELEASING.md`): version bump, CHANGELOG section, tag, draft release review, notices, smoke test per OS.
 
 ## Quality, tests and CI
 
 - ⬜ `ci-e2e` **Run `npm run test:mcp` and the Playwright suite in CI** (at least on Linux; Playwright needs Electron under xvfb). Today neither runs, and the 5,000-line canvas is only covered by Playwright.
 - ⬜ `gofmt-dbquery` **`archd-go/cmd/dbquery/main.go` is not gofmt-clean**; format it and add a gofmt check to CI.
 - ⬜ `coverage-report` **Coverage numbers** for Go and the node suite, to find the untested areas beyond runtime.
+- ⬜ `ci-windows-mac-go-race` **Run the Go tests with `-race`** in CI on at least Linux; this session found a real ordering bug (open-time backup) that only showed up as a flaky cleanup on macOS.
+- ⬜ `flaky-test-watch` **Track flaky tests:** a note in this file (or a label) for any test that fails once and passes on retry, with the run link, so flakes get root-caused instead of re-run.
+- ⬜ `e2e-real-agent-smoke` **A scheduled smoke test with a real agent** (the opt-in live Codex smoke test exists; run it weekly with a secret, and add Claude Code).
 
 ## Docs
 
 - ⬜ `user-docs` **User documentation** for Help → Documentation: getting started, the loop, sheets, work orders, rules, troubleshooting. Short, task-based.
+- ⬜ `research-archive` **Keep the competitive research somewhere durable.** The September 2026 report and notes live only in the maintainer's local `reports/` and `research_notes/` (git-ignored). Decide whether to commit a trimmed version under `docs/research/`, and refresh it quarterly.
+- ⬜ `mcp-surface-sync` **Keep docs/MCP_SURFACE.md generated or tested against the real tool list** so it cannot drift (a test that compares the doc's tool table with `CORE_TOOLS`).
 
 ## Growth and positioning
 
 - ⬜ `benchmark-public` (after `mcp-eval-harness`) **Publish a head-to-head** against codebase-memory-mcp, Graphify and GitNexus on the same repos: what each tells an agent, and what only Axiom does (the two-way loop). Research: the code-graph layer is commoditised; prove the loop instead.
 - ⬜ `comparison-page` **"How Axiom compares"** page: Kiro/Spec Kit (text specs), Windsurf Codemaps (read-only, per task), code-graph MCPs (one-way), diagram tools (stale).
+- ⬜ `competitor-watch` **Quarterly competitor check:** Windsurf Codemaps, Archyl, Kiro, Spec Kit, Traycer, codebase-memory-mcp, Graphify, GitNexus, Claude Code/Codex/Cursor agent views. Record what changed in `docs/research/` (see `research-archive`).
+- ⬜ `positioning-copy` **One sentence and one image** that say "bidirectional architecture between you and your agents" - for the README, the app's About box, the release notes and the launch post. Test it on developers who have not seen Axiom.
 
 ## Business and collaboration (later)
 
