@@ -5,6 +5,7 @@ const SOURCE_EXTENSIONS = new Set([
   '.py', '.go', '.rs', '.cs',
   '.cpp', '.cc', '.cxx', '.hpp', '.hxx',
   '.rb', '.java',
+  '.c', '.h', '.hh', '.c++', '.kt', '.kts', '.swift', '.php',
 ])
 
 const DOCUMENT_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc'])

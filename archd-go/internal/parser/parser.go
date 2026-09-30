@@ -14,14 +14,18 @@ import (
 	"sync/atomic"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/csharp"
 	"github.com/smacker/go-tree-sitter/golang"
 	"github.com/smacker/go-tree-sitter/java"
 	"github.com/smacker/go-tree-sitter/javascript"
+	"github.com/smacker/go-tree-sitter/kotlin"
+	"github.com/smacker/go-tree-sitter/php"
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/ruby"
 	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/swift"
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 
@@ -151,8 +155,17 @@ func detectLanguage(path string) string {
 		return "rust"
 	case ".cs":
 		return "csharp"
-	case ".cpp", ".cc", ".cxx", ".hpp", ".hxx":
+	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hxx", ".hh", ".h":
+		// .h is C or C++; the C++ grammar reads both.
 		return "cpp"
+	case ".c":
+		return "c"
+	case ".kt", ".kts":
+		return "kotlin"
+	case ".swift":
+		return "swift"
+	case ".php":
+		return "php"
 	case ".rb":
 		return "ruby"
 	case ".java":
@@ -188,6 +201,14 @@ func grammarFor(lang string) *sitter.Language {
 		return ruby.GetLanguage()
 	case "java":
 		return java.GetLanguage()
+	case "c":
+		return c.GetLanguage()
+	case "kotlin":
+		return kotlin.GetLanguage()
+	case "swift":
+		return swift.GetLanguage()
+	case "php":
+		return php.GetLanguage()
 	default:
 		return nil
 	}
@@ -239,6 +260,14 @@ var symbolNodeTypes = map[string]string{
 	"class":            "class",
 	// (Ruby "class" and Java "class_declaration"/"interface_declaration" reuse
 	// the entries above; Java method_declaration reuses Go's mapping.)
+	// Kotlin (class_declaration, function_declaration shared above)
+	"object_declaration": "class",
+	// Swift (class_declaration covers struct/enum/extension)
+	"protocol_declaration":          "interface",
+	"protocol_function_declaration": "method",
+	"init_declaration":              "function",
+	// PHP (function_definition, method_declaration, class/interface shared)
+	"trait_declaration": "class",
 }
 
 // containerSymbolTypes are declaration nodes that name a scope we record as a symbol
@@ -253,6 +282,9 @@ var containerSymbolTypes = map[string]bool{
 	"struct_specifier":      true, // C++
 	"class":                 true, // Ruby
 	"module":                true, // Ruby
+	"object_declaration":    true, // Kotlin
+	"protocol_declaration":  true, // Swift
+	"trait_declaration":     true, // PHP
 }
 
 func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
@@ -294,7 +326,7 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	}
 	// C++: the function name is nested in a declarator chain
 	// (function_definition → declarator: function_declarator → declarator: identifier).
-	if lang == "cpp" {
+	if lang == "cpp" || lang == "c" {
 		if d := node.ChildByFieldName("declarator"); d != nil {
 			if n := cppDeclaratorName(d, src); n != "" {
 				return n
@@ -305,7 +337,7 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(i)
 		t := child.Type()
-		if t == "identifier" || t == "name" || t == "property_identifier" || t == "type_identifier" {
+		if t == "identifier" || t == "name" || t == "property_identifier" || t == "type_identifier" || t == "simple_identifier" {
 			return child.Content(src)
 		}
 	}
@@ -343,7 +375,7 @@ func extractImports(root *sitter.Node, src []byte, lang, relPath string) []strin
 	case "go":
 		return extractGoImports(root, src)
 	default:
-		return nil
+		return extractTextImports(src, lang)
 	}
 }
 

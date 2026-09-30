@@ -116,16 +116,26 @@ does.
 
 ## File policy
 
-Architecture indexing currently supports:
+Every language below is read for symbols (functions, classes, methods) and
+for the links between files. What an investigation run can see depends on
+whether Axiom has a recorder for the language; runs always use your own
+installed toolchain.
 
-- TypeScript and JavaScript: `.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.jsx`
-- Python: `.py`
-- Go: `.go`
-- Rust: `.rs`
-- C#: `.cs`
-- C/C++ headers and sources: `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`
-- Ruby: `.rb`
-- Java: `.java`
+| Language | Files | Links between files | Investigation runs |
+|---|---|---|---|
+| TypeScript / JavaScript | `.ts` `.tsx` `.js` `.mjs` `.cjs` `.jsx` | imports, `require`, dynamic `import()` | calls, arguments, returns, crashes |
+| Python | `.py` | imports (from a monorepo folder's source root too) | calls, arguments, returns, crashes |
+| Ruby | `.rb` | `require_relative`, `require` of project files | calls, arguments, returns, crashes |
+| Go | `.go` | package imports through `go.mod` | exit code and output |
+| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | exit code and output |
+| C# | `.cs` | `using` namespaces | exit code and output |
+| Rust | `.rs` | `mod`, and `use` within the crate | exit code and output |
+| C / C++ | `.c` `.h` `.cpp` `.cc` `.cxx` `.c++` `.hpp` `.hxx` `.hh` | `#include` (quoted, and `<dir/file.h>` in the project) | exit code and output |
+| PHP | `.php` | `require`/`include`, `use` (PSR-4 layout) | exit code and output |
+| Swift | `.swift` | `import` of a module folder in the project | exit code and output |
+
+Function-level runs for more languages are planned; see
+`docs/INVESTIGATION_RUNTIMES.md`.
 
 Readable documentation is indexed separately from the architecture canvas:
 

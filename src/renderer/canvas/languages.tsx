@@ -21,9 +21,12 @@ export const LANGUAGES: LanguageDefinition[] = [
   { id: 'go', label: 'Go', extensions: ['.go'], preferredExtension: '.go', short: 'GO', color: '#00add8', textColor: '#fff', icon: 'go' },
   { id: 'rust', label: 'Rust', extensions: ['.rs'], preferredExtension: '.rs', short: 'RS', color: '#dea584', textColor: '#20150f', icon: 'rust' },
   { id: 'csharp', label: 'C# / .NET', extensions: ['.cs'], preferredExtension: '.cs', short: 'C#', color: '#512bd4', textColor: '#fff', icon: 'dotnet' },
-  { id: 'cpp', label: 'C / C++', extensions: ['.c', '.cc', '.cpp', '.cxx', '.h', '.hpp'], preferredExtension: '.cpp', short: 'C++', color: '#00599c', textColor: '#fff', icon: 'cplusplus' },
+  { id: 'cpp', label: 'C / C++', extensions: ['.c', '.cc', '.cpp', '.cxx', '.c++', '.h', '.hh', '.hpp', '.hxx'], preferredExtension: '.cpp', short: 'C++', color: '#00599c', textColor: '#fff', icon: 'cplusplus' },
   { id: 'ruby', label: 'Ruby', extensions: ['.rb'], preferredExtension: '.rb', short: 'RB', color: '#cc342d', textColor: '#fff', icon: 'ruby' },
   { id: 'java', label: 'Java / OpenJDK', extensions: ['.java'], preferredExtension: '.java', short: 'JV', color: '#f89820', textColor: '#fff', icon: 'openjdk' },
+  { id: 'kotlin', label: 'Kotlin', extensions: ['.kt', '.kts'], preferredExtension: '.kt', short: 'KT', color: '#7f52ff', textColor: '#fff', icon: 'kotlin' },
+  { id: 'swift', label: 'Swift', extensions: ['.swift'], preferredExtension: '.swift', short: 'SW', color: '#f05138', textColor: '#fff', icon: 'swift' },
+  { id: 'php', label: 'PHP', extensions: ['.php'], preferredExtension: '.php', short: 'PHP', color: '#777bb4', textColor: '#fff', icon: 'php' },
   { id: 'markdown', label: 'Markdown', extensions: ['.md', '.mdx'], preferredExtension: '.md', short: 'MD', color: '#5f6f78', textColor: '#fff', icon: 'markdown' },
 ]
 

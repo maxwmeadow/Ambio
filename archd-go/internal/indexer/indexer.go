@@ -52,6 +52,7 @@ var sourceExts = map[string]bool{
 	".ts": true, ".tsx": true, ".js": true, ".mjs": true, ".cjs": true,
 	".jsx": true, ".py": true, ".go": true, ".rs": true, ".cs": true,
 	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".rb": true, ".java": true,
+	".c": true, ".h": true, ".hh": true, ".c++": true, ".kt": true, ".kts": true, ".swift": true, ".php": true,
 }
 
 var documentExts = map[string]bool{
@@ -1453,6 +1454,8 @@ func buildImportPathIndex(files []db.File) map[string]string {
 		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 		index[relPath] = file.ID
 		index[noExt] = file.ID
+		index[idPrefix+file.ID] = relPath
+		indexSuffixes(index, relPath, file.ID)
 
 		if strings.EqualFold(filepath.Ext(relPath), ".py") {
 			modulePath := noExt
@@ -1554,9 +1557,16 @@ func joinModule(module string, below []string) string {
 	return module + "/" + strings.Join(below, "/")
 }
 
+const idPrefix = "id:"
+
 // resolveImportFileIDs is resolveImportFileID for imports that name several
-// files: a Go package is every file in its folder.
+// files: a Go package is every file in its folder; C/C++, Java, Kotlin, Rust,
+// Ruby, PHP and Swift specs follow their own rules (imports_other.go).
 func resolveImportFileIDs(file db.File, imported string, index map[string]string) []string {
+	relOf := func(id string) string { return index[idPrefix+id] }
+	if ids, ok := resolveTextSpec(file, imported, index, relOf); ok {
+		return ids
+	}
 	if strings.EqualFold(filepath.Ext(file.RelPath), ".go") {
 		if joined, ok := index[goPackagePrefix+strings.TrimSpace(imported)]; ok {
 			return strings.Split(joined, ",")
