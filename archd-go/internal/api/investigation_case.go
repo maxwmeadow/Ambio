@@ -37,6 +37,39 @@ func (s *Server) registerCaseRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/investigation/message", s.handleCaseMessage)
 	mux.HandleFunc("/api/investigation/case", s.handleCaseState)
 	mux.HandleFunc("/api/investigation/pending", s.handleCasePending)
+	mux.HandleFunc("/api/investigation/readiness", s.handleCaseReadiness)
+}
+
+// handleCaseReadiness reports, per language in the workspace, what a run can
+// see: function-level evidence, output only, or nothing until the language's
+// toolchain is installed (docs/INVESTIGATION_RUNTIMES.md).
+func (s *Server) handleCaseReadiness(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	workspaceID := r.URL.Query().Get("workspace")
+	sqlDB, err := s.dbFor(workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	rows, err := sqlDB.Query(`SELECT f.language, COUNT(*) FROM files f JOIN roots r ON r.id = f.root_id
+		WHERE r.workspace_id = ? GROUP BY f.language`, workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	counts := map[string]int{}
+	for rows.Next() {
+		var language string
+		var n int
+		if rows.Scan(&language, &n) == nil {
+			counts[language] = n
+		}
+	}
+	rows.Close()
+	jsonOK(w, map[string]any{"languages": runtime.Readiness(counts)})
 }
 
 // ensureCase opens a case when an agent goes straight to a hypothesis or a

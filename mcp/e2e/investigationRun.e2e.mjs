@@ -82,7 +82,9 @@ test.after(() => {
 })
 
 test('a run reports the side effect reading the code would have to infer', async () => {
-  await client.callTool('investigation', { op: 'start', name: 'Invoices creep up' })
+  const started = await client.callTool('investigation', { op: 'start', name: 'Invoices creep up' })
+  assert.match(started.text, /Runs record calls, arguments and returns for [^.]*JavaScript\/TypeScript \(2 files\)/,
+    'the agent learns what a run can see before planning one')
   const h = await client.callTool('investigation', { op: 'hypothesis', text: 'applyLateFee() accumulates into the shared DEFAULT_FEES table' })
   assert.equal(h.isError, false, h.text)
   assert.match(h.text, /H1 recorded on billing\/ledger\.js › applyLateFee/, 'the hypothesis is anchored from its text')
