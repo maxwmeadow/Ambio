@@ -64,6 +64,14 @@ jobs:
             exit 1
           fi
 
+      # Before publishing anything: archd.exe must import only DLLs that
+      # ship with Windows, or the installer fails on a clean machine.
+      - name: Check archd.exe needs only system DLLs
+        if: runner.os == 'Windows'
+        run: |
+          npm run build:archd
+          node scripts/check-archd-imports.mjs
+
       # Runs prepackage -> build:archd, so the daemon copied in via
       # extraResources is always freshly built for this host.
       - name: Package

@@ -36,10 +36,16 @@ case "$(uname -s)" in
       export GOROOT="/mingw64/lib/go"
     fi
     BIN="archd.exe"
+    # Link the C runtime in statically. Otherwise archd.exe imports MinGW's
+    # libgcc/libwinpthread DLLs, which exist only on machines with MSYS2 - the
+    # installer would work on a developer's PC and fail on a clean one.
+    # scripts/check-archd-imports.mjs enforces it.
+    EXTLDFLAGS="-static"
     ;;
   *)
     # Go from PATH; GOROOT is whatever that toolchain reports, so leave it unset.
     BIN="archd"
+    EXTLDFLAGS=""
     ;;
 esac
 
@@ -55,7 +61,7 @@ case "${1:-build}" in
   build)
     # The app compares this with its own version before attaching to a
     # daemon that is already running (for instance one an agent started).
-    go build -ldflags "-X main.version=${AXIOM_VERSION:-dev}" -o "$BIN" ./cmd/archd
+    go build -ldflags "-X main.version=${AXIOM_VERSION:-dev} ${EXTLDFLAGS:+-extldflags=$EXTLDFLAGS}" -o "$BIN" ./cmd/archd
     # A binary that cannot answer -h is not a successful build.
     "./$BIN" -h >/dev/null
     echo "Done - $ROOT/archd-go/$BIN"

@@ -47,6 +47,12 @@ jobs:
       - name: Build archd
         run: npm run build:archd
 
+      # The installer promises nothing else to set up: archd.exe may import
+      # only DLLs that ship with Windows, not MSYS2's MinGW runtime.
+      - name: Check archd.exe needs only system DLLs
+        if: runner.os == 'Windows'
+        run: node scripts/check-archd-imports.mjs
+
       - name: Vet archd
         run: npm run vet:archd
 
