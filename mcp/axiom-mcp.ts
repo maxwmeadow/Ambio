@@ -22,6 +22,7 @@ import { findWorktreeForCwd, type WorktreeContext, type WorktreeRow } from './wo
 import fs from 'fs'
 import { daemonFetch as fetch } from '../electron/daemonAuth.ts'
 import { infraGaps, infraSummary } from './infraSummary.ts'
+import { readinessLine, type LanguageReadiness } from './readiness.ts'
 
 // Helper: UUID generator for system nodes
 function generateUUID(): string {
@@ -1945,8 +1946,14 @@ Steps to execute:
             gaps = infraGaps({ nodes: data.nodes ?? [], contents: data.contents ?? [] })
           }
         } catch { /* the case opens either way */ }
+        let readiness = ''
+        try {
+          const probe = await fetch(`${API_BASE}/api/investigation/readiness?workspace=${encodeURIComponent(project.workspaceId)}`)
+          if (probe.ok) readiness = readinessLine(((await probe.json()) as { languages: LanguageReadiness[] }).languages ?? [])
+        } catch { /* the case opens either way */ }
         result = [
           `Case open: "${data.name}"${data.commit ? ` (pinned to ${String(data.commit).slice(0, 8)})` : ''}. The person watching sees it on their map.`,
+          readiness,
           gaps.length ? `\nAxiom's infra map flags these contract gaps; check whether one is the cause:\n${gaps.map(line => `  ! ${line}`).join('\n')}` : '',
           '',
           'Next: state what you suspect with op "hypothesis", then test it with op "run" - the command that reproduces the problem, plus `watch` on the functions you suspect.',
