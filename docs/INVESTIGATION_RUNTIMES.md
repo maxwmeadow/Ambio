@@ -75,7 +75,8 @@ run will show values or only output before it plans a repro.
 
 1. Self-contained `archd.exe` - **done** (verify on a clean Windows VM).
 2. Ruby recorder - **done**, proves the pattern end to end.
-3. Readiness readout in the UI and in `investigation start`.
+3. Readiness readout in the UI and in `investigation start` - **done**
+   (`/api/investigation/readiness`, the Investigations menu, the case-open reply).
 4. Java agent, then .NET startup hook, then Go toolexec.
 5. Debugger detection and install hints for C/C++; on-demand delve and
    netcoredbg.
