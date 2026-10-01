@@ -25,6 +25,7 @@ What Axiom must ship itself:
 | Python recorder | bundled (`adapters/python`), loaded through `PYTHONPATH` + `sitecustomize`. |
 | Ruby recorder | bundled (`adapters/ruby`), loaded through `RUBYLIB` + `RUBYOPT=-raxiom_recorder`. Added 2026-09-30. |
 | Go recorder | built into archd (`internal/runtime/gorecorder`), applied through the go command's `-overlay`. Added 2026-09-30. |
+| C# recorder | bundled (`adapters/dotnet`: `Axiom.targets`, a 92 KB rewriter, and the recorder source it compiles into each project). Ships nothing third-party: the rewriter loads Roslyn from the user's own SDK. Prebuilt and committed; `adapters/dotnet/build.mjs` rebuilds it. Added 2026-10-01. |
 | JVM recorder | bundled (`adapters/java/axiom-agent.jar`, 255 KB, ASM relocated inside it), loaded through `JAVA_TOOL_OPTIONS`. Prebuilt and committed, so building Axiom needs no JDK; `adapters/java/build.mjs` rebuilds it. Added 2026-10-01. |
 
 ## Recorders, not debuggers
@@ -41,7 +42,7 @@ agent reads all of them the same way.
 | Python | `PYTHONPATH` + `sitecustomize`, `sys.settrace` | done |
 | Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods, drift; exact rescue tracking on 3.3+) |
 | Java / Kotlin / Scala | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on classes compiled from workspace sources | done (methods, constructors, drift, suspend functions) |
-| C# / .NET | `DOTNET_STARTUP_HOOKS`, method patching in workspace assemblies | next |
+| C# | source rewrite applied by MSBuild (`CustomAfterMicrosoftCommonTargets` imports `Axiom.targets`), with a recorder source compiled into each project | done (methods, constructors, local functions, accessors, async results, drift) |
 | Go | source rewrite applied with `GOFLAGS=-overlay=...`; a recorder package added only in the overlay | done (functions and methods; panics from output) |
 | C / C++ | no in-process hook without a rebuild | debugger fallback (below) |
 
@@ -79,7 +80,20 @@ run will show values or only output before it plans a repro.
 2. Ruby recorder - **done**, proves the pattern end to end.
 3. Readiness readout in the UI and in `investigation start` - **done**
    (`/api/investigation/readiness`, the Investigations menu, the case-open reply).
-4. Go overlay recorder - **done**. JVM agent - **done**. .NET startup hook
-   next (it needs the .NET SDK to build and test).
+4. Go overlay recorder - **done**. JVM agent - **done**. C# build-time
+   recorder - **done**.
 5. Debugger detection and install hints for C/C++; on-demand delve and
    netcoredbg.
+
+## Why C# is rewritten at build time, not patched at run time
+
+The obvious .NET hook is `DOTNET_STARTUP_HOOKS` plus a method-patching library
+(Harmony). It was prototyped and rejected: a patched method runs as a generated
+copy, so the program's own stack traces lose their line numbers and show names
+like `Reserve_Patch1`, and an exception passing through a patch loses the
+frames below it. A recorder must not make a crash harder to read than it was.
+
+The build-time rewrite keeps traces exact (code is added on existing lines, an
+exception filter records an exception without catching it), records what an
+`async` method actually returned, and needs no runtime patching at all. The
+cost is that it only sees C# that the run's command builds.

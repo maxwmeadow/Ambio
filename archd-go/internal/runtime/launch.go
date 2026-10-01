@@ -326,6 +326,56 @@ func injectRubyEnv(env []string, adapterDir string) []string {
 	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
 }
 
+// FindDotnetTargets locates the C# build hook (adapters/dotnet/Axiom.targets),
+// which sits beside the rewriter it runs.
+func FindDotnetTargets() (string, error) {
+	dir, err := findAdapterDir("dotnet", dotnetTargets)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(dir, "AxiomRewriter.dll")); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, dotnetTargets), nil
+}
+
+const (
+	dotnetTargets    = "Axiom.targets"
+	dotnetTargetsEnv = "CustomAfterMicrosoftCommonTargets"
+)
+
+// injectDotnetEnv makes every C# project the run builds import Axiom.targets.
+// MSBuild turns environment variables into properties, and this one names a
+// file the common targets import last; the targets then compile instrumented
+// copies of the project's sources (adapters/dotnet). A value the user already
+// set is theirs: the run then records no C#, and the note says why.
+//
+// The build servers are switched off for the run so that nothing it starts
+// outlives it holding the run's environment.
+func injectDotnetEnv(env []string, targets string) ([]string, string) {
+	out := make([]string, 0, len(env)+4)
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		switch {
+		case strings.HasPrefix(upper, strings.ToUpper(dotnetTargetsEnv)+"="):
+			if kv[len(dotnetTargetsEnv)+1:] != "" {
+				return nil, "C# was not recorded: " + dotnetTargetsEnv + " is already set in the environment"
+			}
+			continue
+		case strings.HasPrefix(upper, "MSBUILDDISABLENODEREUSE="), strings.HasPrefix(upper, "USESHAREDCOMPILATION="),
+			strings.HasPrefix(upper, "DOTNET_CLI_USE_MSBUILD_SERVER="):
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out,
+		dotnetTargetsEnv+"="+targets,
+		"MSBUILDDISABLENODEREUSE=1",
+		"UseSharedCompilation=false",
+		"DOTNET_CLI_USE_MSBUILD_SERVER=0",
+	), ""
+}
+
 // FindJavaAgentJar locates the JVM recorder (adapters/java/axiom-agent.jar).
 func FindJavaAgentJar() (string, error) {
 	dir, err := findAdapterDir("java", javaAgentJar)

@@ -60,7 +60,7 @@ var readinessLanguages = map[string]languageSpec{
 	"ruby":   {name: "Ruby", tools: []string{"ruby"}, versionArgs: []string{"--version"}, recorder: true, install: "Ruby (ruby-lang.org)"},
 	"go":     {name: "Go", tools: []string{"go"}, versionArgs: []string{"version"}, recorder: true, install: "Go (go.dev)"},
 	"java":   {name: "Java/Kotlin", tools: []string{"java"}, versionArgs: []string{"-version"}, recorder: true, install: "a JDK (adoptium.net)"},
-	"csharp": {name: "C#/.NET", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, install: "the .NET SDK (dot.net)", planned: "function-level evidence for .NET is planned"},
+	"csharp": {name: "C#", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, recorder: true, install: "the .NET SDK (dot.net)"},
 	"rust":   {name: "Rust", tools: []string{"cargo"}, versionArgs: []string{"--version"}, install: "Rust (rustup.rs)", planned: "no function-level recorder for Rust yet"},
 	"swift":  {name: "Swift", tools: []string{"swift"}, versionArgs: []string{"--version"}, install: "Swift (swift.org)", planned: "no function-level recorder for Swift yet"},
 	"php":    {name: "PHP", tools: []string{"php"}, versionArgs: []string{"--version"}, install: "PHP (php.net)", planned: "a PHP recorder is planned"},

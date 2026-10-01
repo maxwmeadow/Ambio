@@ -1,0 +1,57 @@
+<!--
+  Axiom's hook into a C# build during an `investigation run`.
+
+  archd points MSBuild at this file through the CustomAfterMicrosoftCommonTargets
+  environment variable, so every project the run's command builds imports it.
+  Before a project compiles, AxiomRewriter writes instrumented copies of its C#
+  files under obj/.../axiom and this target compiles those instead. The
+  project's own files are never written, and the build output does nothing
+  different unless it runs under Axiom (the recorder compiled into it is
+  dormant without AXIOM_EVIDENCE_DIR).
+
+  If anything here fails, the project compiles from its own files as usual.
+-->
+<Project>
+  <!-- Before the build hashes its compile inputs (_GenerateCompileDependencyCache):
+       the hash then differs between a run and an ordinary build, so the first
+       ordinary build after a run recompiles and leaves no instrumented output. -->
+  <Target Name="AxiomInstrument" BeforeTargets="_GenerateCompileDependencyCache"
+          DependsOnTargets="ResolveAssemblyReferences;FindReferenceAssembliesForReferences"
+          Condition="'$(Language)' == 'C#' and '$(MSBuildRuntimeType)' == 'Core' and '$(AXIOM_EVIDENCE_DIR)' != '' and '@(Compile)' != ''">
+    <PropertyGroup>
+      <_AxiomDir>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'axiom'))</_AxiomDir>
+      <_AxiomInputs>$([System.IO.Path]::Combine('$(_AxiomDir)', 'inputs.txt'))</_AxiomInputs>
+      <_AxiomCompileList>$([System.IO.Path]::Combine('$(_AxiomDir)', 'compile.txt'))</_AxiomCompileList>
+      <_AxiomHost>$(DOTNET_HOST_PATH)</_AxiomHost>
+      <_AxiomHost Condition="'$(_AxiomHost)' == ''">dotnet</_AxiomHost>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AxiomLine Include="roslyn=$([MSBuild]::Escape('$(RoslynTargetsPath)'))" />
+      <_AxiomLine Include="out=$([MSBuild]::Escape('$(_AxiomDir)'))" />
+      <_AxiomLine Include="assembly=$([MSBuild]::Escape('$(AssemblyName)'))" />
+      <_AxiomLine Include="langversion=$(LangVersion)" />
+      <_AxiomLine Include="nullable=$(Nullable)" />
+      <_AxiomLine Include="defines=$([MSBuild]::Escape('$(DefineConstants)'))" />
+      <_AxiomLine Include="@(Compile->'compile=%(FullPath)')" />
+      <_AxiomLine Include="@(ReferencePathWithRefAssemblies->'reference=%(FullPath)')" />
+    </ItemGroup>
+    <MakeDir Directories="$(_AxiomDir)" ContinueOnError="true" />
+    <WriteLinesToFile File="$(_AxiomInputs)" Lines="@(_AxiomLine)" Overwrite="true" ContinueOnError="true" />
+    <Exec Command="&quot;$(_AxiomHost)&quot; exec &quot;$(MSBuildThisFileDirectory)AxiomRewriter.dll&quot; &quot;$(_AxiomInputs)&quot;"
+          ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <ReadLinesFromFile File="$(_AxiomCompileList)" Condition="Exists('$(_AxiomCompileList)')">
+      <Output TaskParameter="Lines" ItemName="_AxiomCompile" />
+    </ReadLinesFromFile>
+    <ItemGroup Condition="'@(_AxiomCompile)' != ''">
+      <Compile Remove="@(Compile)" />
+      <Compile Include="@(_AxiomCompile)" />
+    </ItemGroup>
+    <!-- Style rules do not apply to the added code. Compiler warnings are left
+         exactly as the project has them, warnings-as-errors included: the
+         rewriter keeps only files whose rewrite adds no warning and no error. -->
+    <PropertyGroup Condition="'@(_AxiomCompile)' != ''">
+      <RunAnalyzers>false</RunAnalyzers>
+      <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+  </Target>
+</Project>

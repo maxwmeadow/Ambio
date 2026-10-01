@@ -164,9 +164,9 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node, Python, Ruby, Go and the JVM (Java, Kotlin, Scala)
+- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala) and C#
   record function-level evidence, each through the user's own toolchain with
-  nothing to install. .NET and others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
+  nothing to install. Others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
 - **Long-running servers**: `run` with `server` (and `port`) starts the server
@@ -215,6 +215,24 @@ and truncated. It stays on the local machine in archd's data directory.
   only the JDK's and Kotlin's own collections. A Gradle daemon already
   running keeps its own environment: stop it (`gradle --stop`) or run with
   `--no-daemon` if a run shows no JVM evidence.
+- **C#**: recorded through the build. Every project the command builds
+  (`dotnet run`, `dotnet test`, `dotnet build`) imports a targets file, which
+  compiles instrumented copies of the project's `.cs` files kept under
+  `obj/.../axiom`; the project's own files are never written. Code is added
+  only on existing lines and a `#line` directive keeps the original path, so
+  stack traces, line numbers and the debugger see the user's source. The
+  rewriter uses the SDK's own compiler (.NET SDK 6 or newer, C# 6 or newer)
+  and keeps a file only if its rewrite adds no error and no warning; anything
+  else compiles as written. Methods, constructors, local functions and
+  property accessors that do more than read or write a field are recorded;
+  lambdas, operators, indexers and top-level statements are not. An `async`
+  method's result is what it returned, not the `Task`. An iterator's items, a
+  `ref` return, and `Span`, pointer or `out` values are not captured. A
+  command that does not build (`dotnet test --no-build`, running a prebuilt
+  DLL) records nothing. The first ordinary build after a run recompiles, so
+  no instrumented output stays behind; until then the build output carries a
+  recorder that does nothing outside a run. Style analyzers are off for the
+  instrumented compile. F# and Visual Basic run with output only.
 - **Ruby**: methods are recorded, blocks are not. An exception counts against
   every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
   event), a method that rescues and then returns `nil` without calling anything

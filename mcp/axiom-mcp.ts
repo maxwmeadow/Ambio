@@ -699,7 +699,7 @@ const CORE_TOOLS = [
   },
   {
     name: 'investigation',
-    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python, Ruby, Go, Java/Kotlin). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
+    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python, Ruby, Go, Java/Kotlin, C#). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
     inputSchema: {
       type: 'object',
       properties: {

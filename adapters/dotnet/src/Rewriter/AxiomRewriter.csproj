@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs on whatever .NET the user's SDK brings (6 or newer), and takes
+       Roslyn from that SDK instead of shipping its own. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <AssemblyName>AxiomRewriter</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.0.1" ExcludeAssets="runtime" PrivateAssets="all" />
+    <EmbeddedResource Include="../Recorder/AxiomRec.cs" LogicalName="AxiomRec.cs" />
+  </ItemGroup>
+</Project>

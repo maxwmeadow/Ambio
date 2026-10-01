@@ -72,3 +72,20 @@ func TestJavaAgentSurvivesSpacesAndExistingOptions(t *testing.T) {
 		t.Fatalf("stripped = %q", got)
 	}
 }
+
+// MSBuild imports the targets file named by this variable into every project.
+// A value the user set themselves is left alone, and the run says so.
+func TestDotnetTargetsAreInjectedUnlessTheUserSetTheirOwn(t *testing.T) {
+	env, note := injectDotnetEnv([]string{"HOME=/h", "MSBUILDDISABLENODEREUSE=0"}, `C:\Program Files\Axiom\adapters\dotnet\Axiom.targets`)
+	joined := strings.Join(env, "\n")
+	if note != "" || !strings.Contains(joined, `CustomAfterMicrosoftCommonTargets=C:\Program Files\Axiom\adapters\dotnet\Axiom.targets`) {
+		t.Fatalf("env = %q, note = %q", env, note)
+	}
+	if !strings.Contains(joined, "MSBUILDDISABLENODEREUSE=1") || strings.Contains(joined, "MSBUILDDISABLENODEREUSE=0") {
+		t.Fatalf("build servers must be off for the run: %q", env)
+	}
+	env, note = injectDotnetEnv([]string{"CustomAfterMicrosoftCommonTargets=/their/own.targets"}, "/axiom/Axiom.targets")
+	if env != nil || !strings.Contains(note, "already set") {
+		t.Fatalf("env = %q, note = %q", env, note)
+	}
+}

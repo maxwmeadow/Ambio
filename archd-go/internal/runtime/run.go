@@ -315,6 +315,16 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = injectJavaEnv(env, jar)
 		instrumented = append(instrumented, "java")
 	}
+	// C#: MSBuild compiles instrumented copies of each project's sources.
+	var dotnetNote string
+	if targets, err := FindDotnetTargets(); err == nil {
+		if withDotnet, note := injectDotnetEnv(env, targets); withDotnet != nil {
+			env = withDotnet
+			instrumented = append(instrumented, "csharp")
+		} else {
+			dotnetNote = note
+		}
+	}
 	// Go: the module's files are rewritten into the evidence folder and
 	// swapped in by the go command's -overlay; nothing on disk changes.
 	var goNote string
@@ -353,7 +363,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 				StartedAt:    server.started.UnixMilli(),
 				DurationMs:   serverOut.ReadyMs,
 				Instrumented: instrumented,
-				Notes:        nonEmpty(goNote),
+				Notes:        nonEmpty(goNote, dotnetNote),
 				Server:       serverOut,
 			}
 			mergeEvidence(outcome, readEvidence(evidenceDir))
@@ -433,7 +443,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		OutputBytes:     out.total,
 		OutputTruncated: truncated,
 		Instrumented:    instrumented,
-		Notes:           nonEmpty(goNote),
+		Notes:           nonEmpty(goNote, dotnetNote),
 		Server:          serverOut,
 	}
 	mergeEvidence(outcome, readEvidence(evidenceDir))

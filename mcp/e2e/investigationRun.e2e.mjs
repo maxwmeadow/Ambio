@@ -24,6 +24,10 @@ const GO = spawnSync('go', ['version']).status === 0
 // the run does not depend on what archd's own PATH holds.
 const jdkTool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name) : name
 const JDK = spawnSync(jdkTool('javac'), ['-version']).status === 0
+// The .NET SDK from DOTNET_ROOT or the PATH, named in full for the same reason.
+const dotnet = process.env.DOTNET_ROOT ? join(process.env.DOTNET_ROOT, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet') : 'dotnet'
+const dotnetProbe = spawnSync(dotnet, ['--version'], { encoding: 'utf8' })
+const DOTNET = dotnetProbe.status === 0 ? Number(dotnetProbe.stdout.split('.')[0]) : 0
 
 let harness
 let client
@@ -76,6 +80,49 @@ test.before(async () => {
     '        for (int i = 0; i < 4; i++) {',
     '            reserve(LEVELS, "widget", 3);',
     '        }',
+    '    }',
+    '}',
+    '',
+  ].join('\n'))
+  mkdirSync(join(project, 'ledger'), { recursive: true })
+  writeFileSync(join(project, 'ledger', 'Ledger.csproj'), [
+    '<Project Sdk="Microsoft.NET.Sdk">',
+    '  <PropertyGroup>',
+    '    <OutputType>Exe</OutputType>',
+    `    <TargetFramework>net${DOTNET || 8}.0</TargetFramework>`,
+    '    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>',
+    '  </PropertyGroup>',
+    '</Project>',
+    '',
+  ].join('\n'))
+  writeFileSync(join(project, 'ledger', 'Ledger.cs'), [
+    'using System;',
+    'using System.Collections.Generic;',
+    '',
+    'public class Customer { public string Id = ""; public int Discount; }',
+    '',
+    'public static class Ledger',
+    '{',
+    '    static readonly Dictionary<string, Customer> Cache = new Dictionary<string, Customer>();',
+    '',
+    '    static Customer Find(string id)',
+    '    {',
+    '        if (!Cache.TryGetValue(id, out var c)) Cache[id] = c = new Customer { Id = id, Discount = 10 };',
+    '        return c;',
+    '    }',
+    '',
+    '    static int Total(string id, int amount)',
+    '    {',
+    '        if (amount < 0) throw new ArgumentException("negative amount");',
+    '        return amount - Find(id).Discount;',
+    '    }',
+    '',
+    '    public static void Main()',
+    '    {',
+    '        Console.WriteLine(Total("a", 100));',
+    '        Find("a").Discount += 5;',
+    '        Console.WriteLine(Total("a", 100));',
+    '        Total("a", -1);',
     '    }',
     '}',
     '',
@@ -253,6 +300,19 @@ test('a Java run shows the shared map, the thrown exception and the crash', { sk
   assert.match(run.text, /`reserve` threw `IllegalArgumentException: not enough widget` on 1 of 4 calls/)
   assert.match(run.text, /Uncaught `IllegalArgumentException: not enough widget` at shop\/Stock\.java:12/)
   assert.doesNotMatch(run.text, /Picked up JAVA_TOOL_OPTIONS/, 'the JVM notice about the agent is not the program\'s output')
+})
+
+// C# records through the build: MSBuild compiles instrumented copies of the
+// project's sources, with the user's own SDK and nothing else installed.
+test('a C# run shows the cached object that changed, the exception and the crash', { skip: DOTNET < 6 && 'no .NET SDK on this machine' }, async () => {
+  const run = await client.callTool('investigation', {
+    op: 'run', command: `"${dotnet}" run --project ledger`, watch: ['ledger/Ledger.cs:Find', 'ledger/Ledger.cs:Total'], timeoutSec: 300,
+  }, 330000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`Find` returns the same object on calls 2 and 3, and it changed in between: `Discount` 10 → 15/)
+  assert.match(run.text, /call 2: \{"id": "a", "amount": 100\} → 85/)
+  assert.match(run.text, /Uncaught `ArgumentException: negative amount` at ledger\/Ledger\.cs:18/)
+  assert.match(run.text, /\n90\n85\n/)
 })
 
 // A bug behind a server: the server runs under the recorder, the command is

@@ -53,4 +53,13 @@ cpSync(join(SRC, 'ruby'), join(OUT, 'ruby'), { recursive: true, filter: source =
 mkdirSync(join(OUT, 'java'), { recursive: true })
 for (const file of ['axiom-agent.jar', 'ASM-LICENSE.txt']) cpSync(join(SRC, 'java', file), join(OUT, 'java', file))
 
+// The C# recorder is an MSBuild targets file and the prebuilt rewriter it runs
+// (adapters/dotnet/build.mjs rebuilds it; that needs the .NET SDK, building
+// Axiom does not). It ships nothing third-party: Roslyn comes from the user's
+// own SDK.
+mkdirSync(join(OUT, 'dotnet'), { recursive: true })
+for (const file of ['Axiom.targets', 'AxiomRewriter.dll', 'AxiomRewriter.runtimeconfig.json']) {
+  cpSync(join(SRC, 'dotnet', file), join(OUT, 'dotnet', file))
+}
+
 console.log('Done - ' + OUT)
