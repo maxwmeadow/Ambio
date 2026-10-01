@@ -270,8 +270,8 @@ and truncated. It stays on the local machine in archd's data directory.
   three differences: `get_included_files()` lists the recorder's files, a
   failed file open adds PHP's "stream_open call failed" warning to the native
   one, and `get_defined_vars()` inside a recorded function includes `__ax`. An
-  `auto_prepend_file` of the user's own is replaced for the run. PHP 7.1 and
-  newer.
+  `auto_prepend_file` of the user's own is replaced for the run. Tested on
+  PHP 8.0 through 8.5; written to run on 7.4.
 - **Ruby**: methods are recorded, blocks are not. An exception counts against
   every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
   event), a method that rescues and then returns `nil` without calling anything

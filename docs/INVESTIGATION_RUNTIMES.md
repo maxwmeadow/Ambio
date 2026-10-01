@@ -86,8 +86,31 @@ run will show values or only output before it plans a repro.
    (`/api/investigation/readiness`, the Investigations menu, the case-open reply).
 4. Go overlay recorder - **done**. JVM agent - **done**. C# build-time
    recorder - **done**.
-5. Debugger detection and install hints for C/C++; on-demand delve and
-   netcoredbg.
+5. C/C++ through the system debugger (lldb-dap or gdb) - **done** for
+   `debug_runtime`, verified on macOS with lldb once Developer Tools access
+   is enabled.
+
+## Versions each recorder has been run on
+
+Each recorder runs inside the user's own runtime, so the range of versions
+matters more than for ordinary code. These were run against real installs of
+each version (2026-10-01, macOS x64); the adapter tests take the interpreter
+or SDK from an environment variable so the sweep can be repeated.
+
+| Recorder | Verified on | Select with |
+|---|---|---|
+| Python | 3.9, 3.10, 3.11, 3.12, 3.13, 3.14 | `PYTHON_BINARY` |
+| Ruby | 2.6, 4.0 (the exact `:rescue` tracking needs 3.3+) | `RUBY_BINARY` |
+| JVM agent | JDK 8, 17, 21, 25; Kotlin 2.4 on all; Scala 3.9 and Groovy 6 on 17+ | `JAVA_HOME`, `KOTLIN_HOME`, `SCALA_HOME`, `GROOVY_HOME` |
+| C# | .NET SDK 6, 8, 10 | `DOTNET_ROOT` |
+| PHP | 8.0, 8.1, 8.2, 8.3, 8.4, 8.5 | `PHP_BINARY` |
+| Rust | 1.70 and 1.99 (editions 2021 and 2024) | `RUSTUP_TOOLCHAIN` |
+| Go | 1.27 | - |
+| Node | 22 | - |
+
+What the sweep found: Python 3.13 rests a suspended generator one instruction
+past its yield, which read as a raise; Ruby and Go did not follow returned
+objects for drift. Both are fixed. Not yet run on Windows or Linux.
 
 ## Why C# is rewritten at build time, not patched at run time
 
