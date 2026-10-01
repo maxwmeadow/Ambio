@@ -228,7 +228,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/runtime` (40%: Ruby/.NET/Java tracing need rdbg, netcoredbg and java-debug in CI the way delve and gdb now are), `internal/api` (49%); see `npm run coverage:archd`. (Done: watcher 16% → 77%, infradetect 32% → 59%, runtime 17% → 40%.) (2026-10-01)
+- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/runtime` (.NET and Java tracing need netcoredbg and java-debug in CI), `internal/api` (49%); see `npm run coverage:archd`. (Done: watcher 16% → 77%, infradetect 32% → 59%, runtime 17% → 40%+ with live delve, gdb and rdbg tests.) (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -243,6 +243,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 Ruby tracing has a live test through rdbg (three calls counted; Ruby is call-only), finding rdbg in the debug gem when AXIOM_RDBG_PATH is unset. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 C++ tracing has a live test through gdb's DAP mode (three calls to a watched function, with arguments); CI installs gdb next to delve. `internal/runtime` 30% → 40%. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 Go tracing fixes found by a new live delve test: dlv was started in archd's own directory, so building any program in another Go module failed ("Build error", nothing else) - it now starts in the program's directory; a refused launch is reported at once with delve's own detail instead of "no initialized event" after 20s; DAP errors carry `body.error.format`. CI installs delve on Linux so the test runs. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `coverage-gaps` (infradetect) Tests for `Apply` (new and withdrawn links reported once, dismissed nodes stay dismissed) and detection end to end on a small Node project (PostgreSQL and Redis from compose and imports, cache.ts writing `cart:{}`, env requirements). `internal/infradetect` 32% → 59%. (claude/gracious-gauss-1bgdv9)
