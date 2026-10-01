@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- A system notification when an agent picks up or replies to a work order
+  while Axiom is in the background (Settings → General to turn it off).
 - Agents starting work also hear which proposed systems and infrastructure you
   rejected or confirmed, and why.
 - New Sheet from Selection: right-click a system, file or infrastructure node

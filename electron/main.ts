@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter, Notification } from 'electron'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
@@ -1458,6 +1458,30 @@ function setupIPC(): void {
 
   // Settings. Changes apply immediately where they can; reduce-motion needs a
   // restart because Chromium reads it at launch.
+  // Work-order notifications (renderer workOrderNotice.ts decides what is news).
+  // Shown only while the window is not focused; one per work order at a time.
+  const shownNotices = new Map<string, Notification>()
+  ipcMain.handle('app:notify', (_event, notice: { title?: unknown; body?: unknown; tag?: unknown }) => {
+    if (!readAppSettings().workOrderNotifications || !Notification.isSupported()) return false
+    if (mainWindow?.isFocused()) return false
+    const text = (value: unknown, limit: number) => (typeof value === 'string' ? value.slice(0, limit) : '')
+    const title = text(notice?.title, 120)
+    if (!title) return false
+    const tag = text(notice?.tag, 120)
+    shownNotices.get(tag)?.close()
+    const notification = new Notification({ title, body: text(notice?.body, 240) })
+    notification.on('click', () => {
+      if (!mainWindow) return
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    })
+    notification.on('close', () => { if (shownNotices.get(tag) === notification) shownNotices.delete(tag) })
+    shownNotices.set(tag, notification)
+    notification.show()
+    return true
+  })
+
   ipcMain.handle('settings:get', () => readAppSettings())
   ipcMain.handle('settings:set', (_event, patch: Partial<AppSettings>) => {
     const next = writeAppSettings(patch ?? {})

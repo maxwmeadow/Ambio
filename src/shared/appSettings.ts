@@ -14,6 +14,8 @@ export interface AppSettings {
   developerMenu: boolean
   /** Where "Open in Editor" opens source files: 'auto' or an editor id. */
   editor: string
+  /** A system notification when an agent picks up or answers a work order while Axiom is in the background. */
+  workOrderNotifications: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: 'system',
   developerMenu: false,
   editor: 'auto',
+  workOrderNotifications: true,
 }
 
 export const UI_ZOOM_MIN = 0.8
@@ -46,6 +49,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     reduceMotion: source.reduceMotion === 'always' ? 'always' : 'system',
     developerMenu: bool('developerMenu'),
     editor: typeof source.editor === 'string' && /^[a-z0-9-]{1,32}$/.test(source.editor) ? source.editor : 'auto',
+    workOrderNotifications: bool('workOrderNotifications'),
   }
 }
 

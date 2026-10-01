@@ -382,6 +382,12 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 onChange={value => update({ reopenLastProject: value })}
               />
               <Toggle
+                label="Notify me about work orders"
+                detail="A system notification when an agent picks up or replies to a work order while Axiom is in the background."
+                checked={settings.workOrderNotifications}
+                onChange={value => update({ workOrderNotifications: value })}
+              />
+              <Toggle
                 label="Check for updates automatically"
                 detail="Axiom asks GitHub Releases for new versions. Nothing about you or your code is sent."
                 checked={settings.checkForUpdates}

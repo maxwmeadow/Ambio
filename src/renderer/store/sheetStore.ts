@@ -3,6 +3,7 @@
 // activeSheetId === null.
 import { create } from 'zustand'
 import type { SheetMember } from '../canvas/sheetFromSelection'
+import { workOrderNotice } from './workOrderNotice.ts'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
 import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
@@ -1151,7 +1152,12 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'canvas:message': {
       const m = patch.payload as CanvasMessage
-      if (m.workspaceId === s.workspaceId) void refreshInbox(m.workspaceId)
+      if (m.workspaceId === s.workspaceId) {
+        // Told outside the window only while you are elsewhere (workOrderNotice.ts).
+        const notice = workOrderNotice(s.messages.find(message => message.id === m.id), m)
+        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.axiom?.notify?.(notice)
+        void refreshInbox(m.workspaceId)
+      }
       break
     }
   }

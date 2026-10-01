@@ -194,6 +194,11 @@ matches systems, infrastructure and files from the store and asks archd's
 for symbols - the same endpoint behind `search_symbols` and the Model
 Explorer's search.
 
+Work-order updates arrive as `canvas:message` patches; while the window is
+not focused, a pickup or a reply becomes a system notification
+(`store/workOrderNotice.ts` decides, `app:notify` in `electron/main.ts`
+shows it, gated by the `workOrderNotifications` setting).
+
 ## Tests and CI
 
 - `npm run test:renderer` - node unit tests for renderer, shared, Electron,

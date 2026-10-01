@@ -153,6 +153,8 @@ contextBridge.exposeInMainWorld('axiom', {
   takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
   clearAllData: (): Promise<boolean> => ipcRenderer.invoke('app:clear-all-data'),
+  /** A system notification (if the setting allows); clicking it brings Axiom forward. */
+  notify: (notice: { title: string; body: string; tag: string }): Promise<boolean> => ipcRenderer.invoke('app:notify', notice),
 
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
@@ -338,6 +340,7 @@ declare global {
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>
       clearAllData: () => Promise<boolean>
+      notify: (notice: { title: string; body: string; tag: string }) => Promise<boolean>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>
