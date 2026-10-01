@@ -241,6 +241,8 @@ Fixed during this pass:
 
 ## M. Toolbar and global
 
+- [ ] **M-E1** ⌘⇧O opens Model Explorer; typing filters to matches with their path open; clicking a row selects and frames it; selecting on the canvas highlights its row; arrows, Enter and Escape work without a mouse
+
 - [ ] **M1** `Ctrl+K` opens search; Escape closes
 - [ ] **M2** Search results navigate to and select the file
 - [ ] **M3** `Open project`

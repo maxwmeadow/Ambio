@@ -2322,6 +2322,33 @@ test('Edit → Undo and Redo step through map changes made on the Floor', async 
   expect(calls).toEqual(['edit', 'undo [1]', 'edit'])
 })
 
+test('Model Explorer outlines the map, filters it and follows the selection', async () => {
+  await page.keyboard.press('ControlOrMeta+Shift+O')
+  const explorer = page.getByRole('complementary', { name: 'Model Explorer' })
+  await expect(explorer).toBeVisible()
+  const tree = explorer.getByRole('tree')
+  await expect(tree.getByRole('treeitem', { name: /Canvas Renderer/ })).toBeVisible()
+
+  // Filtering opens the path to every match.
+  await explorer.getByLabel('Filter systems, files and symbols').fill('AxiomCanvas')
+  const fileRow = tree.getByRole('treeitem', { name: /AxiomCanvas\.tsx/ })
+  await expect(fileRow).toBeVisible()
+
+  // Choosing a row selects that node on the canvas.
+  await fileRow.click()
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { __axiomGraphStore: { getState: () => { selectedNodeId: string | null } } })
+      .__axiomGraphStore.getState().selectedNodeId)).toBe('file_canvas')
+  await expect(fileRow).toHaveAttribute('aria-selected', 'true')
+
+  // Keyboard: the tree answers arrows and Escape closes it.
+  await explorer.getByLabel('Filter systems, files and symbols').fill('')
+  await tree.focus()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Escape')
+  await expect(explorer).toHaveCount(0)
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {

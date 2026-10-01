@@ -35,6 +35,7 @@ export type CommandId =
   | 'view.fitView'
   | 'view.agentLog'
   | 'view.documents'
+  | 'view.explorer'
   | 'view.reviewChanges'
   | 'view.zoomIn'
   | 'view.zoomOut'
@@ -103,6 +104,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
   'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+A', needsProject: true },
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
+  'view.explorer': { id: 'view.explorer', label: 'Model Explorer', accelerator: 'CmdOrCtrl+Shift+O', needsProject: true },
   'view.reviewChanges': { id: 'view.reviewChanges', label: 'Review Changes', needsProject: true },
   'view.zoomIn': { id: 'view.zoomIn', label: 'Zoom In Interface', accelerator: 'CmdOrCtrl+Alt+=' },
   'view.zoomOut': { id: 'view.zoomOut', label: 'Zoom Out Interface', accelerator: 'CmdOrCtrl+Alt+-' },
@@ -183,7 +185,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
-      command('view.agentLog'), command('view.documents'), command('view.infrastructure'), separator,
+      command('view.agentLog'), command('view.documents'), command('view.explorer'), command('view.infrastructure'), separator,
       command('view.fitView'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),

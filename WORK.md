@@ -57,7 +57,6 @@ collide. Full context for each item is in its section below.
 1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 3. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-4. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -146,7 +145,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `canvas-context-empty` **Right-click on empty canvas:** New System Here, Paste, Tidy Layout, Fit (from the menu design notes).
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
-- ⬜ `model-explorer` **Outline panel:** a searchable tree of systems → files → symbols beside the canvas, synced with selection. Needed for large maps and for keyboard/screen-reader users (from the UML plan's Model Explorer).
 - ⬜ `search-everything` **Search systems, symbols and infra** from `⌘K`, not only files; jump to and highlight the result.
 - ⬜ `zoom-to-selection` **Zoom to Selection** (View menu, from the menu design notes).
 - ⬜ `panels-menu` **View → Panels ▸** (sheet rail, detail panel, documents, agent log, status bar) with remembered visibility.
@@ -257,6 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `explorer-symbol-search` Model Explorer searches symbols only in files already opened in it; search all symbols through archd's symbol index (`search_symbols`'s endpoint) instead. (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -272,6 +271,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `model-explorer` View → Model Explorer (⌘⇧O): a searchable ARIA tree of systems → files → symbols (`canvas/modelOutline.ts`, tested; `components/ModelExplorer.tsx`); choosing a row selects and frames its node, a canvas selection opens the path to its row; arrows/Home/End/Enter/Escape. Symbol search covers files whose symbols are loaded (opened). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `canvas-undo-redo` Edit → Undo / Redo are app commands (⌘Z / ⌘⇧Z, Ctrl on Windows and Linux; text fields keep their own undo). On the canvas they step through the meaning edits made on the Floor (`canvas/undoStack.ts`): undo reverses the journal rows, redo re-applies the edits; undoing from a notice takes the entry off the stack; the stack resets per project. Sheet removals stay off it (contract). Layout moves are `canvas-undo-redo-layout`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `runtime-tests` Runtime layer tests: the investigation case file (hypotheses, verdict words, runs linked by any name, conclusions verified by run number, human messages delivered exactly once, copies not aliases), recording start/notes/stop, the DAP client over in-memory pipes (responses matched by seq, events, failures, a hostile frame size closing the connection, headers), and frame/source matching and editor PATH stripping. Launching real debuggers stays covered by the opt-in suites. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-sheet-arrival` An agent's new sheet or new pending proposal raises an invitation with Open Sheet (one per sheet, replaced while the agent works); agent sheets not yet opened are marked NEW in the rail; pending proposals are outlined PROPOSED on the canvas (rejected ones fade) and listed under "To review" in the rail with one-click Confirm / Reject and Confirm All. Playwright covers arrival → open → confirm. (claude/gracious-gauss-1bgdv9)

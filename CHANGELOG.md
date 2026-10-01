@@ -57,6 +57,9 @@ in the app as "What's New" after updating, so write it for users.
 - Edit → Undo and Redo (⌘Z / ⌘⇧Z) undo and redo map changes made on the
   map - moves into systems, renames, grouping - and still undo typing in
   text fields.
+- Model Explorer (View menu, ⌘⇧O): the map as a searchable outline of
+  systems, files and symbols, synced with the canvas selection and fully
+  usable from the keyboard.
 - Sheets can propose removing code: press Delete on a live file or system on
   a sheet. It disappears from that sheet only, stays listed with Restore, and
   a sent work order counts it as done once the code is really gone. Agents

@@ -9,6 +9,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { DocumentsPanel } from './components/DocumentsPanel'
 import { BinDragGhostLayer } from './components/BinDragGhostLayer'
 import { SearchBar } from './components/SearchBar'
+import { ModelExplorer } from './components/ModelExplorer'
 import { InjectConfirmBanner } from './components/InjectConfirmBanner'
 import { AgentLogPanel } from './components/AgentLogPanel'
 import { PaperTextureDefs } from './canvas/nodes/PaperTexture'
@@ -164,6 +165,7 @@ async function stepHistory(direction: 'undo' | 'redo'): Promise<void> {
 
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [explorerOpen, setExplorerOpen] = useState(false)
   const [agentLogOpen, setAgentLogOpen] = useState(false)
   const caseOpen = useGraphStore(state => state.caseFile !== null || state.replay !== null)
   // Shared with the canvas documents bin, so both entry points open one browser.
@@ -726,6 +728,7 @@ export default function App() {
     'project.importMap': () => { void importMap() },
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
+    'view.explorer': () => { if (currentProject) setExplorerOpen(open => !open) },
     'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
     'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
     'view.reviewChanges': () => {
@@ -999,6 +1002,7 @@ export default function App() {
 
           {/* Search overlay */}
           {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
+          {explorerOpen && <ModelExplorer onClose={() => setExplorerOpen(false)} />}
 
           {/* The one surface anything is allowed to interrupt you through.
               Everything below raises into it and renders nothing itself. */}
