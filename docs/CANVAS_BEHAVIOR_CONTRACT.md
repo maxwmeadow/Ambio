@@ -302,6 +302,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   connection between two live nodes on the Floor draws "A uses B" on a new
   sheet the same way. A connection's source is always the node it was drawn
   from, whichever overlapping handle the pointer grabbed.
+- New Sheet from Selection… (right-click a system, file or infrastructure
+  node, or New Sheet in the selection bar) starts a sheet with what is
+  selected, of every kind; right-clicking a node outside the selection
+  starts it with that node alone. Planned nodes are not carried over.
 - On a sheet, the removed node leaves that sheet's picture together with
   what sits inside it, a notice offers Restore, and the sheet rail lists it
   under "Removed on this sheet". Once its code is really gone it is marked

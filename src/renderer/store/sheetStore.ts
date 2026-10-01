@@ -2,6 +2,7 @@
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
 import { create } from 'zustand'
+import type { SheetMember } from '../canvas/sheetFromSelection'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
 import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
@@ -365,7 +366,8 @@ interface SheetState {
   fetchSheets: (workspaceId: string) => Promise<void>
   openSheet: (workspaceId: string, sheetId: string | null) => Promise<void>
   toggleSheetVisibility: (workspaceId: string, sheetId: string) => Promise<void>
-  createSheet: (workspaceId: string, name: string, purpose: string, fileIds: string[]) => Promise<Sheet>
+  /** Members are file ids or typed members (sheetFromSelection.ts). */
+  createSheet: (workspaceId: string, name: string, purpose: string, members: Array<string | SheetMember>) => Promise<Sheet>
   deleteSheet: (workspaceId: string, sheetId: string) => Promise<void>
   previewElementPosition: (elementId: string, x: number, y: number) => void
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
@@ -805,7 +807,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   // Throws on refusal. The server rejects duplicate names, and "a sheet named X
   // already exists" is the only useful thing to say at that moment - swallowing
   // it into a null would leave the caller guessing that archd was down.
-  createSheet: async (workspaceId, name, purpose, fileIds) => {
+  createSheet: async (workspaceId, name, purpose, members) => {
     const res = await fetch(`${archdApi()}/api/sheets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -813,8 +815,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         workspaceId, name,
         purpose: purpose || null,
         createdBy: 'user',
-        elements: fileIds.map((id, i) => ({
-          fileId: id,
+        elements: members.map((member, i) => ({
+          ...(typeof member === 'string' ? { fileId: member } : member),
           // starting grid so a fresh sheet isn't a stack at 0,0
           x: 40 + (i % 5) * 220, y: 40 + Math.floor(i / 5) * 120,
         })),

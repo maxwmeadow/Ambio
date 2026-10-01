@@ -1767,6 +1767,8 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }, [])
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [sheetDialogOpen, setSheetDialogOpen] = useState(false)
+  // What the next New Sheet starts with: the selection, or one right-clicked node.
+  const [sheetSourceIds, setSheetSourceIds] = useState<string[]>([])
   // Review and bin canvases reuse this component; only the live Floor answers.
   useCommandHandlers({ 'map.newSheet': () => { if (!isolatedScene) setSheetDialogOpen(true) } })
   // ── Sheet overlay (REVISION 2: sheets are layers over the Floor) ─────────
@@ -5162,7 +5164,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           </button>
           <button
             type="button"
-            onClick={() => setSheetDialogOpen(true)}
+            onClick={() => { setSheetSourceIds([...selectedIdsRef.current]); setSheetDialogOpen(true) }}
             title="Curate the selection onto a named sheet - a live diagram telling one story"
             className="axiom-selection-action"
           >
@@ -5215,6 +5217,11 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
               if (!selectedIdsRef.current.has(fileId)) commitSelection(new Set([fileId]))
               setGroupDialogOpen(true)
             },
+            // The selection when the node is part of it, else the node alone.
+            newSheetFrom: nodeId => {
+              setSheetSourceIds(selectedIdsRef.current.has(nodeId) ? [...selectedIdsRef.current] : [nodeId])
+              setSheetDialogOpen(true)
+            },
             // Reality changes are never faked on the Floor: they go to an
             // agent as a work order, with the node attached and the
             // instruction already written (docs/PRODUCT.md §2).
@@ -5227,7 +5234,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       {!reviewMode && <NewSheetDialog
         isOpen={sheetDialogOpen}
         onClose={() => setSheetDialogOpen(false)}
-        selectedFileIds={selectedFileIds}
+        nodeIds={sheetSourceIds}
         onSuccess={() => {
           setRfNodes(nodes => nodes.map(n => ({ ...n, selected: false })))
           commitSelection(emptySelection())

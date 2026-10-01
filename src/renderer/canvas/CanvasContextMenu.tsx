@@ -26,6 +26,8 @@ interface Props {
      */
     removeCode: (nodeId: string, label: string, instruction: string) => void
     newSystemHere: (screen: { x: number; y: number }) => void
+    /** Start a sheet from the selection containing this node, or the node alone. */
+    newSheetFrom: (nodeId: string) => void
   }
 }
 
@@ -161,6 +163,7 @@ function buildEntries(
       { label: 'Copy Path', run: () => copy(file.path) },
       { label: 'Copy Relative Path', run: () => copy(file.relPath) },
       ...(floorEdits ? fileMeaningEntries(file, store.systems, floorEdits, meaning) : []),
+      ...(floorEdits ? [{ label: 'New Sheet from Selection…', run: () => floorEdits.newSheetFrom(file.id) }] : []),
       ...(floorEdits ? [{
         label: 'Delete This File…',
         danger: true,
@@ -182,6 +185,7 @@ function buildEntries(
       { label: 'Copy Name', run: () => copy(system.name) },
       ...(floorEdits ? [
         'separator' as const,
+        { label: 'New Sheet from Selection…', run: () => floorEdits.newSheetFrom(system.id) },
         {
           // Ungrouping changes meaning only: the contents move up a level and
           // no code is touched. Undo is offered in the confirmation.
@@ -202,6 +206,7 @@ function buildEntries(
 
   return [
     { label: 'Show Details', run: () => onShowDetails(target.id) },
+    ...(floorEdits ? [{ label: 'New Sheet from Selection…', run: () => floorEdits.newSheetFrom(target.id) }] : []),
     messageAgent,
   ]
 }

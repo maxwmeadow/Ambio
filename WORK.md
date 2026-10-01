@@ -104,7 +104,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `verify-beyond-structure` **Raise the trust ceiling on work orders.** Today a work order passes if its structure matches; agent-reported results (commit, checks) are labelled unverified. Options: let the human attach checks (a test command) to a sheet that Axiom runs on reply; record the commit and diff; show which planned members exist as symbols. **Done when:** at least "the tests named on the sheet ran and passed" is verified by Axiom, not reported by the agent.
 - ⬜ `human-decisions-to-agents-more` (after `human-decisions-to-agents`) **Rejections of other proposals teach agents too.** Planned elements on sheets are done; extend the same `proposal.decided` journal row and briefing line to architecture proposals (`ArchitectureProposalPanel.tsx`) and infra decisions (`edit_infra decide`).
 - ⬜ `agent-explains-change` **Agents annotate their own changes.** When an agent's work creates a claim in Review Changes ("Api now depends on Storage"), show the agent's stated reason from its work session next to it; flag claims no session explains (UNEXPLAINED exists - make it prominent and filterable).
-- ⬜ `sheet-from-selection` **Start a sheet from what you are looking at.** Select systems/files on the Floor → "New sheet from selection" pre-populates the sheet with that context, for both humans and agents (`edit_sheet create` with node IDs).
 
 ## Sheets and work orders
 
@@ -264,6 +263,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `sheet-from-selection` New Sheet from Selection… on the right-click menu of systems, files and infrastructure, and the selection bar's New Sheet, start a sheet with every selected kind (it used to take files only); agents already could with `edit_sheet create` `members`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `search-everything` `explorer-symbol-search` ⌘K finds systems, infrastructure, files and symbols (grouped, ranked exact → prefix → contains); a symbol frames its file and opens the source at its lines. archd `/api/symbols/search` (`db.SearchSymbols`) now serves ⌘K, the Model Explorer's search (all files, not only opened ones) and MCP `search_symbols`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `zoom-to-selection` `canvas-context-empty` View → Zoom to Selection (⌘⇧0) frames the selected nodes, or the inspected one; the empty-canvas menu gains Tidy Layout beside New System Here and Fit (no Paste: the map has no node clipboard). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `delta-panel-e2e` Playwright covers Review Changes: a meaning claim with a code disagreement, Copy as Markdown, Make the Code Match… (with the code check attached) and Undo. (claude/gracious-gauss-1bgdv9)

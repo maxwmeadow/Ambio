@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- New Sheet from Selection: right-click a system, file or infrastructure node
+  to start a sheet with it (or with everything selected).
 - ⌘K finds systems, infrastructure and functions or classes, not only files;
   picking a symbol shows its file on the map and opens the code at it. The
   Model Explorer's search reaches symbols in every file.

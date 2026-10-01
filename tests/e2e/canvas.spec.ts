@@ -1940,7 +1940,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(surface.getByRole('heading', { name: 'New Sheet' })).toBeVisible()
   await expect(surface.getByRole('textbox', { name: 'Sheet name' })).toBeFocused()
   await expect(surface.getByRole('textbox', { name: /Purpose/ })).toBeVisible()
-  await expect(surface).toContainText(/Curating \d+ selected files/)
+  await expect(surface).toContainText(/Starting the sheet with \d+ files/)
 
   const backdropColor = await backdrop.evaluate(element => getComputedStyle(element).backgroundColor)
   const surfaceBox = await surface.boundingBox()
@@ -2440,6 +2440,26 @@ test('Zoom to Selection frames what is selected, and the empty-canvas menu offer
   expect(box.y).toBeGreaterThanOrEqual(pane.y)
   expect(box.x + box.width).toBeLessThanOrEqual(pane.x + pane.width)
   expect(box.y + box.height).toBeLessThanOrEqual(pane.y + pane.height)
+})
+
+test('a sheet can start from a right-clicked system, with the system on it', async () => {
+  let posted: { elements?: unknown[]; createdBy?: string } | null = null
+  await page.route(/\/api\/sheets$/, async route => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    posted = route.request().postDataJSON()
+    await route.fulfill({ json: {
+      id: 'sheet_from_selection', workspaceId: 'demo', name: 'MCP story', purpose: '', kind: 'structure',
+      folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1,
+    } })
+  })
+  await page.locator('.react-flow__node[data-id="sys_mcp"]').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'New Sheet from Selection…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New Sheet' })
+  await expect(dialog).toContainText('Starting the sheet with 1 system')
+  await dialog.getByRole('textbox', { name: 'Sheet name' }).fill('MCP story')
+  await dialog.getByRole('button', { name: 'Create Sheet' }).click()
+  await expect.poll(() => posted?.elements).toEqual([expect.objectContaining({ systemId: 'sys_mcp' })])
+  expect(posted!.createdBy).toBe('user')
 })
 
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
