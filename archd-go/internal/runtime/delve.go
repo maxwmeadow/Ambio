@@ -150,6 +150,12 @@ func (s *DelveSession) start(dlvPath string) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	cmd := exec.Command(dlvPath, "dap", "--listen", addr)
+	// Build where the program lives: from archd's own directory, go refuses a
+	// package outside its module ("Build error" with nothing else said).
+	cmd.Dir = s.Program
+	if info, err := os.Stat(s.Program); err != nil || !info.IsDir() {
+		cmd.Dir = filepath.Dir(s.Program)
+	}
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start dlv dap: %w", err)
@@ -212,7 +218,9 @@ func (s *DelveSession) handshake() error {
 	}()
 
 	// Wait for the "initialized" event, then send breakpoints + configurationDone.
-	if err := s.waitForInitialized(); err != nil {
+	// A launch delve refuses (the program does not build, the path is wrong)
+	// answers before any initialized event; its error is the one to report.
+	if err := s.waitForInitialized(launchDone); err != nil {
 		return err
 	}
 	if err := s.setBreakpoints(); err != nil {
@@ -237,9 +245,16 @@ func (s *DelveSession) handshake() error {
 	return nil
 }
 
-func (s *DelveSession) waitForInitialized() error {
+func (s *DelveSession) waitForInitialized(launchDone chan error) error {
 	for {
 		select {
+		case err := <-launchDone:
+			if err != nil {
+				return fmt.Errorf("dlv could not launch %s: %w", s.Program, err)
+			}
+			// Launched without error: keep waiting, and let handshake see it.
+			launchDone <- nil
+			launchDone = nil
 		case ev := <-s.client.events:
 			if ev.Event == "initialized" {
 				return nil

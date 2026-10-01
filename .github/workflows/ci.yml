@@ -55,6 +55,12 @@ jobs:
           unformatted="$(gofmt -l archd-go)"
           if [ -n "$unformatted" ]; then echo "Run gofmt -w on:"; echo "$unformatted"; exit 1; fi
 
+      # Go tracing is tested against a real delve (runtime/delve_live_test.go
+      # skips without one). Linux is enough to keep the integration honest.
+      - name: Install delve
+        if: runner.os == 'Linux'
+        run: go install github.com/go-delve/delve/cmd/dlv@latest
+
       - name: Test archd
         run: npm run test:archd
 

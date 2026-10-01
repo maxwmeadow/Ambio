@@ -130,6 +130,8 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- Tracing Go code works again for projects outside Axiom's own folder, and
+  a program that does not build says why.
 - A damaged map is caught when the project opens: Axiom offers to restore
   the newest backup instead of opening it, and never backs up a damaged
   map over the good backups.

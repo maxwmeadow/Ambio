@@ -228,7 +228,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/runtime` (17%), `internal/api` (49%); see `npm run coverage:archd`. (Done: watcher 16% → 77%, infradetect 32% → 59%.) (2026-10-01)
+- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/runtime` (30%: the Python/Ruby/.NET adapters need their debuggers in CI the way delve now is), `internal/api` (49%); see `npm run coverage:archd`. (Done: watcher 16% → 77%, infradetect 32% → 59%, runtime 17% → 30%.) (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -243,6 +243,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 Go tracing fixes found by a new live delve test: dlv was started in archd's own directory, so building any program in another Go module failed ("Build error", nothing else) - it now starts in the program's directory; a refused launch is reported at once with delve's own detail instead of "no initialized event" after 20s; DAP errors carry `body.error.format`. CI installs delve on Linux so the test runs. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `coverage-gaps` (infradetect) Tests for `Apply` (new and withdrawn links reported once, dismissed nodes stay dismissed) and detection end to end on a small Node project (PostgreSQL and Redis from compose and imports, cache.ts writing `cart:{}`, env requirements). `internal/infradetect` 32% → 59%. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `coverage-gaps` (watcher) A live watcher test on a real folder and map: saves, files in a new folder, a non-source file and a deletion, plus the settled hook. `internal/watcher` 16% → 77%. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `coverage-report` `npm run coverage:archd` / `coverage:node`. Go statements: watcher 16%, cmd/archd 17%, runtime 17%, infradetect 32%, api 49%, registry 56%, hub 59%, db 61%, cluster 61%, gitworktree 76%, parser 83%, indexer 83%, collision 87%, delta 88%. Node: 91% lines of the modules the unit tests load (React components are covered by Playwright only and not counted). Lowest first: watcher, runtime, infradetect. (claude/gracious-gauss-1bgdv9)
