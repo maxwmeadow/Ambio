@@ -11,6 +11,7 @@ import { useSheetStore } from '../store/sheetStore'
 import { raiseNotice } from '../store/interruptionStore'
 import { SHEET_TEMPLATES } from '../canvas/sheetTemplates'
 import { mapAsMermaid } from '../canvas/mermaidExport'
+import { looksLikeMermaid, mermaidToSheetMarkdown } from '../canvas/mermaidImport'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 
 const PLACEHOLDER = `# Payment flow
@@ -69,6 +70,12 @@ export function SheetMarkdown() {
   return importing ? <ImportDialog workspaceId={workspaceId} onClose={() => setImporting(false)} /> : null
 }
 
+function asSpec(text: string): string {
+  if (!looksLikeMermaid(text)) return text
+  const { systems, infraNodes } = useGraphStore.getState()
+  return mermaidToSheetMarkdown(text, { systems: systems.map(system => system.name), infra: infraNodes.map(node => node.name) })
+}
+
 function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
   const [markdown, setMarkdown] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,7 +95,8 @@ function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
       const response = await fetch(`${archdApi()}/api/sheet-import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, markdown, createdBy: 'user' }),
+        // A Mermaid flowchart is drafted through the same spec (mermaidImport.ts).
+        body: JSON.stringify({ workspaceId, markdown: asSpec(markdown), createdBy: 'user' }),
       })
       if (!response.ok) throw new Error(await response.text())
       const { sheet, warnings } = await response.json() as { sheet: { id: string; name: string }; warnings: string[] }
@@ -139,6 +147,7 @@ function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
         <DialogNote>
           The sheet keeps what the map recognises: <code>## Add</code>, <code>## Remove</code>,{' '}
           <code>## Connections</code> and <code>## Context</code>. Anything else is left out and listed.
+          A Mermaid flowchart works too: boxes the map has become context, new ones are drawn.
         </DialogNote>
         <DialogActions inset>
           <DialogButton type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancel</DialogButton>

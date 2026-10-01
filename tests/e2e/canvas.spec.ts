@@ -2521,6 +2521,13 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
   await expect(page.getByText('Sheet copied as Markdown')).toBeVisible()
   expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('# Runtime Draft\n')
 
+  // A Mermaid sketch goes through the same import as a spec.
+  await runCommand('New Sheet from Markdown')
+  await dialog.getByRole('textbox', { name: 'Markdown spec' }).fill('flowchart LR\n  a["MCP Server"] --> q[Job Queue]\n')
+  await dialog.getByRole('button', { name: 'Draft Sheet' }).click()
+  await expect.poll(() => imported?.markdown).toContain('- system `Job Queue`')
+  expect(imported!.markdown).toContain('## Context\n- system `MCP Server`')
+
   await runCommand('Copy Map as Mermaid')
   await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toMatch(/^```mermaid/)
   const diagram = await app.evaluate(({ clipboard }) => clipboard.readText())

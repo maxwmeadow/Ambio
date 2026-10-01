@@ -237,7 +237,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `mermaid-import` The other direction of Copy Map as Mermaid: paste a Mermaid flowchart (a whiteboard sketch, an agent's diagram) and draft it as a sheet, reusing `/api/sheet-import` (subgraph → system, node → planned element or live match, edge → connection). (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -253,6 +252,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `mermaid-import` New Sheet from Markdown… also takes a Mermaid flowchart: boxes naming live systems or infrastructure become context, new boxes planned systems (cylinders data stores), edges connections with infra verbs kept (`canvas/mermaidImport.ts`, then the same `/api/sheet-import`). Agents can already send a spec through `edit_sheet import`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `export-diagrams` (part) Map → Copy Map as Mermaid: systems nest as subgraphs, infrastructure as cylinders, file dependencies rolled up per system pair with counts (`canvas/mermaidExport.ts`). PNG/SVG and C4 remain. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `sheet-templates` Four starter sheets (Add an endpoint, Extract a service, Add a queue consumer, Split a system) as Markdown specs in New Sheet from Markdown…'s Start from picker (`canvas/sheetTemplates.ts`, checked against the import format). Placeholders in angle brackets are edited before drafting. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `canvas-undo-redo-layout` Moving and resizing on the Floor go on Edit → Undo / Redo (`canvas/layoutUndo.ts`); a move into another system stays one meaning edit. Not covered: sheets' layouts, Tidy Layout, first placements. (claude/gracious-gauss-1bgdv9)
