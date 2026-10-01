@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -1514,10 +1515,102 @@ func buildImportPathIndex(files []db.File) map[string]string {
 	for importPath, ids := range goPackages {
 		index[goPackagePrefix+importPath] = strings.Join(ids, ",")
 	}
+	addTailIndex(index, files)
 	return index
 }
 
 const goPackagePrefix = "go:"
+
+// Tail keys find a file or folder by the end of its path, for languages whose
+// imports are rooted somewhere the index does not know (Java's
+// src/main/java, Ruby's load path, C++ include directories):
+//
+//	#tail:a/b/C     the one file whose path, without extension, ends in a/b/C
+//	#dirtail:a/b    every file of the one folder whose path ends in a/b
+//
+// A tail shared by two files or folders is ambiguous and maps to "".
+const (
+	tailPrefix    = "#tail:"
+	dirTailPrefix = "#dirtail:"
+)
+
+func addTailIndex(index map[string]string, files []db.File) {
+	dirFiles := map[string][]string{}
+	for _, file := range files {
+		relPath := filepath.ToSlash(filepath.Clean(file.RelPath))
+		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+		segments := strings.Split(noExt, "/")
+		for k := 1; k <= len(segments); k++ {
+			key := tailPrefix + strings.Join(segments[len(segments)-k:], "/")
+			if existing, taken := index[key]; taken && existing != file.ID {
+				index[key] = ""
+			} else {
+				index[key] = file.ID
+			}
+		}
+		dir := filepath.ToSlash(filepath.Dir(relPath))
+		dirFiles[dir] = append(dirFiles[dir], file.ID)
+	}
+	dirOfTail := map[string]string{}
+	for dir, ids := range dirFiles {
+		if dir == "." {
+			continue
+		}
+		segments := strings.Split(dir, "/")
+		for k := 1; k <= len(segments); k++ {
+			tail := strings.Join(segments[len(segments)-k:], "/")
+			if other, taken := dirOfTail[tail]; taken && other != dir {
+				index[dirTailPrefix+tail] = ""
+				continue
+			}
+			dirOfTail[tail] = dir
+			index[dirTailPrefix+tail] = strings.Join(ids, ",")
+		}
+	}
+}
+
+// resolveTextImport resolves the prefixed specs parser/imports_more.go
+// writes for Java, Rust, Ruby and C++. ok is false for any other spec.
+func resolveTextImport(imported string, index map[string]string) (ids []string, ok bool) {
+	one := func(keys ...string) []string {
+		for _, key := range keys {
+			if id := index[key]; id != "" {
+				return []string{id}
+			}
+		}
+		return nil
+	}
+	switch {
+	case strings.HasPrefix(imported, parser.ImportJavaClass):
+		return one(tailPrefix + strings.TrimPrefix(imported, parser.ImportJavaClass)), true
+	case strings.HasPrefix(imported, parser.ImportJavaPkg):
+		if joined := index[dirTailPrefix+strings.TrimPrefix(imported, parser.ImportJavaPkg)]; joined != "" {
+			return strings.Split(joined, ","), true
+		}
+		return nil, true
+	case strings.HasPrefix(imported, parser.ImportRustPath):
+		// crate::a::b::C is a.rs, a/b.rs or a/b/mod.rs holding C: the longest
+		// prefix of the path that is a module file.
+		for p := strings.TrimPrefix(imported, parser.ImportRustPath); p != "." && p != "/" && p != ""; p = path.Dir(p) {
+			if found := one(p, p+"/mod"); found != nil {
+				return found, true
+			}
+		}
+		return nil, true
+	case strings.HasPrefix(imported, parser.ImportRubyPath):
+		return one(strings.TrimPrefix(imported, parser.ImportRubyPath)), true
+	case strings.HasPrefix(imported, parser.ImportRubyReq):
+		spec := strings.TrimPrefix(imported, parser.ImportRubyReq)
+		return one("lib/"+spec, spec, tailPrefix+spec), true
+	case strings.HasPrefix(imported, parser.ImportCppInc):
+		dir, spec, _ := strings.Cut(strings.TrimPrefix(imported, parser.ImportCppInc), "|")
+		// Headers are not indexed: an include stands for the file that
+		// implements it, found by the header's name without its extension.
+		stem := strings.TrimSuffix(spec, path.Ext(spec))
+		return one(path.Join(dir, stem), stem, tailPrefix+stem), true
+	}
+	return nil, false
+}
 
 // pythonModuleFromSourceRoot strips the folders above a module's top-level
 // package: worker/pantry_worker/db → pantry_worker/db when pantry_worker has an
@@ -1584,6 +1677,9 @@ func joinModule(module string, below []string) string {
 // resolveImportFileIDs is resolveImportFileID for imports that name several
 // files: a Go package is every file in its folder.
 func resolveImportFileIDs(file db.File, imported string, index map[string]string) []string {
+	if ids, ok := resolveTextImport(imported, index); ok {
+		return ids
+	}
 	if strings.EqualFold(filepath.Ext(file.RelPath), ".go") {
 		if joined, ok := index[goPackagePrefix+strings.TrimSpace(imported)]; ok {
 			return strings.Split(joined, ",")

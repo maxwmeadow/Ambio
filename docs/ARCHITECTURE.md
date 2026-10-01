@@ -128,8 +128,8 @@ app's decision.
 |---|---|---|---|---|---|---|
 | TS/JS, Python, Go | ✅ | ✅ | ✅ | ✅ | ✅ | Node/Python recording; Go via delve |
 | C# | ✅ | via `using` + namespaces | ✅ | - | regex | netcoredbg |
-| Rust, Java, Ruby | ✅ | - | ✅ | - | regex | Ruby rdbg; Java unverified |
-| C++ | ✅ | - | ✅ | - | - | gdb DAP |
+| Rust, Java, Ruby | ✅ | `mod`/`use`, `import`, `require` | ✅ | - | regex | Ruby rdbg; Java unverified |
+| C++ | ✅ | quoted `#include` (to the implementing file) | ✅ | - | - | gdb DAP |
 | C, Kotlin, Swift, PHP | not parsed | | | | | |
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import

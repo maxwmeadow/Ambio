@@ -342,6 +342,8 @@ func extractImports(root *sitter.Node, src []byte, lang, relPath string) []strin
 		return extractPythonImports(root, src)
 	case "go":
 		return extractGoImports(root, src)
+	case "java", "rust", "ruby", "cpp":
+		return extractTextImports(src, lang, relPath)
 	default:
 		return nil
 	}

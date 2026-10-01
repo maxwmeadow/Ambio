@@ -22,6 +22,8 @@ in the app as "What's New" after updating, so write it for users.
   starts on demand and stops when idle, and keeps the map current with what
   the agent changes.
 - Remove Axiom from any agent, or from all of them, in one step.
+- Rust, Java, Ruby and C++ projects get import relationships, so their
+  systems group by what the code uses, not just by names.
 - Moved or renamed project folders are detected; point Axiom at the new
   location and the map comes with it.
 - Report a bug, Copy diagnostics and local log files; automatic updates.
