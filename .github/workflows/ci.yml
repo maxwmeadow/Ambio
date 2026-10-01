@@ -49,6 +49,12 @@ jobs:
       - name: Vet archd
         run: npm run vet:archd
 
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: |
+          unformatted="$(gofmt -l archd-go)"
+          if [ -n "$unformatted" ]; then echo "Run gofmt -w on:"; echo "$unformatted"; exit 1; fi
+
       - name: Test archd
         run: npm run test:archd
 
