@@ -11,12 +11,41 @@ pub(crate) mod __axiom_rec {
     use std::sync::Mutex;
     use std::time::Instant;
 
+    /// Compiled against this recorder. rustc tells Cargo which environment
+    /// variables a crate read, so a different recorder (an Axiom update)
+    /// makes Cargo rebuild instead of reusing a crate built with the old one.
+    const VERSION: Option<&str> = option_env!("AXIOM_RECORDER_VERSION");
     /// Where the compiler ran: source paths in panics are relative to it.
     const BASE: &str = "__AXIOM_BASE__";
     const CRATE: &str = "__AXIOM_CRATE__";
     const SHOW_MAX: usize = 2000;
     const PREVIEW_MAX: usize = 240;
-    const MAX_EDGES: usize = 5000;
+    /// Caller → callee counts live in a fixed table of atomics: every call
+    /// records one, from any thread, and a lock there is what a program
+    /// would spend its time waiting on.
+    const EDGE_SLOTS: usize = 8192;
+    const EDGE_PROBES: usize = 32;
+    const ZERO: AtomicU64 = AtomicU64::new(0);
+    static EDGE_KEYS: [AtomicU64; EDGE_SLOTS] = [ZERO; EDGE_SLOTS];
+    static EDGE_COUNTS: [AtomicU64; EDGE_SLOTS] = [ZERO; EDGE_SLOTS];
+    static EDGES_DROPPED: AtomicU64 = AtomicU64::new(0);
+
+    fn edge(key: u64, calls: u64) {
+        // key is caller<<32|callee, never 0: ids start at 1
+        let mut at = (key.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 40) as usize & (EDGE_SLOTS - 1);
+        for _ in 0..EDGE_PROBES {
+            let held = EDGE_KEYS[at].load(Ordering::Relaxed);
+            if held == key || (held == 0 && match EDGE_KEYS[at].compare_exchange(0, key, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => true,
+                Err(now) => now == key,
+            }) {
+                EDGE_COUNTS[at].fetch_add(calls, Ordering::Relaxed);
+                return;
+            }
+            at = (at + 1) & (EDGE_SLOTS - 1);
+        }
+        EDGES_DROPPED.fetch_add(calls, Ordering::Relaxed);
+    }
 
     /// One instrumented function. A `static` inside the function it describes.
     pub struct F {
@@ -29,15 +58,38 @@ pub(crate) mod __axiom_rec {
         pub kind: u8,
         /// Whether return values pass through the recorder at all.
         pub captures: bool,
+        /// The function's number, with WATCHED and HOT in the top bits; 0 until first called.
         id: AtomicU32,
         calls: AtomicU64,
         errors: AtomicU64,
         nanos: AtomicU64,
+        /// Calls to a watched function, exactly: detail is sampled once it is busy.
+        seen: AtomicU32,
+    }
+
+    const WATCHED: u32 = 0x8000_0000;
+    /// Called so often that only counting it is affordable (see HOT_AFTER).
+    const HOT: u32 = 0x4000_0000;
+    const ID: u32 = 0x3fff_ffff;
+    /// A function nobody watches is timed and placed in the call graph for
+    /// its first calls; past this many it is only counted. A tiny function
+    /// in a loop is called a billion times, and a clock read each way would
+    /// make the program a hundred times slower.
+    const HOT_AFTER: u64 = 20_000;
+    /// Watched calls are all recorded in detail up to here, then every 2nd,
+    /// 4th, 8th...: a few hundred samples spread over the run.
+    const FULL_CALLS: u32 = 100;
+
+    fn add_calls(f: &'static F, calls: u64, nanos: u64) {
+        f.nanos.fetch_add(nanos, Ordering::Relaxed);
+        if f.calls.fetch_add(calls, Ordering::Relaxed) + calls >= HOT_AFTER && f.id.load(Ordering::Relaxed) & (WATCHED | HOT) == 0 {
+            f.id.fetch_or(HOT, Ordering::Relaxed);
+        }
     }
 
     impl F {
         pub const fn new(name: &'static str, file: &'static str, line: u32, params: &'static str, kind: u8, captures: bool) -> F {
-            F { name, file, line, params, kind, captures, id: AtomicU32::new(0), calls: AtomicU64::new(0), errors: AtomicU64::new(0), nanos: AtomicU64::new(0) }
+            F { name, file, line, params, kind, captures, id: AtomicU32::new(0), calls: AtomicU64::new(0), errors: AtomicU64::new(0), nanos: AtomicU64::new(0), seen: AtomicU32::new(0) }
         }
     }
 
@@ -421,7 +473,8 @@ pub(crate) mod __axiom_rec {
 
     #[derive(Default)]
     struct Watch {
-        calls: u32,
+        /// Calls recorded in detail; every call is counted on the function itself.
+        sampled: u32,
         errors: u32,
         total_ms: f64,
         head: Vec<Sample>,
@@ -475,8 +528,8 @@ pub(crate) mod __axiom_rec {
         }
 
         fn json(&self, f: &F, b: &mut String) {
-            let _ = write!(b, "{{\"file\":{},\"symbol\":{},\"line\":{},\"calls\":{},\"errors\":{},\"avgMs\":{}", q(f.file), q(f.name), f.line, self.calls, self.errors,
-                num(if self.calls == 0 { 0.0 } else { round3(self.total_ms / self.calls as f64) }));
+            let _ = write!(b, "{{\"file\":{},\"symbol\":{},\"line\":{},\"calls\":{},\"sampled\":{},\"errors\":{},\"avgMs\":{}", q(f.file), q(f.name), f.line,
+                f.seen.load(Ordering::Relaxed), self.sampled, self.errors, num(if self.sampled == 0 { 0.0 } else { round3(self.total_ms / self.sampled as f64) }));
             let mut all: Vec<&Sample> = self.head.iter().chain(self.novel.iter()).chain(self.tail.iter()).collect();
             all.sort_by_key(|s| s.call);
             b.push_str(",\"samples\":[");
@@ -537,8 +590,6 @@ pub(crate) mod __axiom_rec {
         run_id: String,
         watches: Vec<(String, Vec<Spec>)>,
         fns: Vec<&'static F>,
-        edges: HashMap<(u32, u32), u64>,
-        edges_dropped: u64,
         watched: HashMap<u32, Watch>,
         uncaught: Vec<String>,
         last_written: u64,
@@ -548,10 +599,78 @@ pub(crate) mod __axiom_rec {
 
     static ENABLED: AtomicU8 = AtomicU8::new(0); // 0: not looked yet, 1: off, 2: on
     static STATE: Mutex<Option<State>> = Mutex::new(None);
-    static ACTIVE: AtomicU64 = AtomicU64::new(0);
+    /// What a thread has counted and not yet added to the shared totals. A
+    /// program calls its hot functions from every thread at once; counting
+    /// into shared memory on each call would have the cores fighting over it.
+    struct Local {
+        stack: Vec<u32>,
+        fns: [(Option<&'static F>, u64, u64); LOCAL_SLOTS], // function, calls, nanoseconds
+        edges: [(u64, u64); LOCAL_SLOTS],                   // caller<<32|callee, calls
+        flushed: Option<Instant>,
+    }
+
+    const LOCAL_SLOTS: usize = 64;
+
+    impl Local {
+        fn count(&mut self, f: &'static F, id: u32, nanos: u64, calls: u64) {
+            let slot = &mut self.fns[id as usize % LOCAL_SLOTS];
+            match slot.0 {
+                Some(held) if std::ptr::eq(held, f) => {}
+                Some(held) => {
+                    add_calls(held, slot.1, slot.2);
+                    *slot = (Some(f), 0, 0);
+                }
+                None => *slot = (Some(f), 0, 0),
+            }
+            slot.1 += calls;
+            slot.2 += nanos;
+        }
+
+        fn edge(&mut self, from: u32, to: u32) {
+            let key = ((from as u64) << 32) | to as u64;
+            let slot = &mut self.edges[(from as usize * 31 + to as usize) % LOCAL_SLOTS];
+            if slot.0 != key {
+                if slot.1 > 0 {
+                    edge(slot.0, slot.1);
+                }
+                *slot = (key, 0);
+            }
+            slot.1 += 1;
+        }
+
+        /// Adds everything held here to the shared totals.
+        fn spill(&mut self) {
+            for slot in self.fns.iter_mut() {
+                if let Some(f) = slot.0 {
+                    add_calls(f, slot.1, slot.2);
+                }
+                *slot = (None, 0, 0);
+            }
+            for slot in self.edges.iter_mut() {
+                if slot.1 > 0 {
+                    edge(slot.0, slot.1);
+                }
+                *slot = (0, 0);
+            }
+        }
+    }
+
+    impl Drop for Local {
+        fn drop(&mut self) {
+            self.spill(); // the thread is ending
+        }
+    }
+
+    fn spill_this_thread() {
+        let _ = LOCAL.try_with(|l| {
+            if let Ok(mut l) = l.try_borrow_mut() {
+                l.spill();
+            }
+        });
+    }
 
     thread_local! {
-        static STACK: RefCell<Vec<u32>> = RefCell::new(Vec::new());
+        static LOCAL: RefCell<Local> = RefCell::new(Local { stack: Vec::new(), fns: [(None, 0, 0); LOCAL_SLOTS], edges: [(0, 0); LOCAL_SLOTS], flushed: None });
         static PANIC: RefCell<Option<String>> = RefCell::new(None);
         static FRAME: RefCell<Vec<Pending>> = RefCell::new(Vec::new());
     }
@@ -613,8 +732,6 @@ pub(crate) mod __axiom_rec {
             run_id: std::env::var("AXIOM_RUN_ID").unwrap_or_default(),
             watches,
             fns: Vec::new(),
-            edges: HashMap::new(),
-            edges_dropped: 0,
             watched: HashMap::new(),
             uncaught: Vec::new(),
             last_written: u64::MAX,
@@ -638,7 +755,8 @@ pub(crate) mod __axiom_rec {
             if std::thread::current().name() == Some("main") {
                 if let Some(at) = info.location() {
                     let file = if std::path::Path::new(at.file()).is_absolute() { at.file().to_string() } else { format!("{}/{}", BASE, at.file()) };
-                    let name = STACK.try_with(|s| s.borrow().last().copied()).ok().flatten();
+                    let name = LOCAL.try_with(|l| l.try_borrow().ok().and_then(|l| l.stack.last().copied())).ok().flatten();
+                    spill_this_thread();
                     if let Ok(mut guard) = STATE.lock() {
                         if let Some(state) = guard.as_mut() {
                             let function = name.and_then(|id| state.fns.get(id as usize - 1)).map(|f| f.name).unwrap_or("main");
@@ -661,6 +779,7 @@ pub(crate) mod __axiom_rec {
                 fn atexit(callback: extern "C" fn()) -> i32;
             }
             extern "C" fn at_exit() {
+                spill_this_thread();
                 write();
             }
             atexit(at_exit);
@@ -704,8 +823,11 @@ pub(crate) mod __axiom_rec {
     pub struct Call {
         f: Option<&'static F>,
         id: u32,
-        start: Instant,
+        start: Option<Instant>,
+        /// This call's detail is wanted: the function is watched and the call is one of the sampled.
         watched: bool,
+        /// Which call to the watched function this is, counting every one.
+        number: u32,
         /// A value was seen on its way out, and whether it was an Err.
         seen: std::cell::Cell<bool>,
         err: std::cell::Cell<bool>,
@@ -713,12 +835,19 @@ pub(crate) mod __axiom_rec {
 
     pub fn enter(f: &'static F) -> Call {
         if !on() {
-            return Call { f: None, id: 0, start: Instant::now(), watched: false, seen: std::cell::Cell::new(false), err: std::cell::Cell::new(false) };
+            return Call { f: None, id: 0, start: None, watched: false, number: 0, seen: std::cell::Cell::new(false), err: std::cell::Cell::new(false) };
         }
         let mut id = f.id.load(Ordering::Relaxed);
-        let mut watched = false;
-        if id == 0 || id & 0x8000_0000 != 0 {
-            watched = id != 0;
+        if id & HOT != 0 {
+            // Counted, and nothing else: no clock, no place in the call graph.
+            let counted = LOCAL.try_with(|l| match l.try_borrow_mut() {
+                Ok(mut l) => { l.count(f, id & ID, 0, 1); true }
+                Err(_) => false,
+            }).unwrap_or(false);
+            if !counted {
+                f.calls.fetch_add(1, Ordering::Relaxed);
+            }
+            return Call { f: None, id: 0, start: None, watched: false, number: 0, seen: std::cell::Cell::new(false), err: std::cell::Cell::new(false) };
         }
         if id == 0 {
             if let Ok(mut guard) = STATE.lock() {
@@ -729,39 +858,40 @@ pub(crate) mod __axiom_rec {
                         id = state.fns.len() as u32;
                         if is_watched(state, f) {
                             state.watched.insert(id, Watch::default());
-                            id |= 0x8000_0000;
+                            id |= WATCHED;
                         }
                         f.id.store(id, Ordering::Relaxed);
                     }
                 }
             }
-            watched = id & 0x8000_0000 != 0;
         }
-        let id = id & 0x7fff_ffff;
-        f.calls.fetch_add(1, Ordering::Relaxed);
-        ACTIVE.fetch_add(1, Ordering::Relaxed);
-        let caller = STACK.try_with(|s| {
-            let mut s = s.borrow_mut();
-            let caller = s.last().copied();
-            s.push(id);
-            caller
-        }).ok().flatten();
-        if let Some(caller) = caller {
-            if caller != id {
-                if let Ok(mut guard) = STATE.lock() {
-                    if let Some(state) = guard.as_mut() {
-                        if let Some(n) = state.edges.get_mut(&(caller, id)) {
-                            *n += 1;
-                        } else if state.edges.len() < MAX_EDGES {
-                            state.edges.insert((caller, id), 1);
-                        } else {
-                            state.edges_dropped += 1;
-                        }
-                    }
+        let (mut watched, mut number) = (id & WATCHED != 0, 0);
+        if watched {
+            number = f.seen.fetch_add(1, Ordering::Relaxed) + 1;
+            let mut stride = 1;
+            let mut limit = FULL_CALLS;
+            while number > limit && limit < u32::MAX / 2 {
+                stride *= 2;
+                limit *= 2;
+            }
+            watched = number & (stride - 1) == 0;
+        }
+        let id = id & ID;
+        let counted = LOCAL.try_with(|l| {
+            let mut l = match l.try_borrow_mut() { Ok(l) => l, Err(_) => return false };
+            if let Some(caller) = l.stack.last().copied() {
+                if caller != id {
+                    l.edge(caller, id);
                 }
             }
+            l.stack.push(id);
+            l.count(f, id, 0, 1);
+            true
+        }).unwrap_or(false);
+        if !counted {
+            f.calls.fetch_add(1, Ordering::Relaxed); // the thread is ending: no cache left to count in
         }
-        Call { f: Some(f), id, start: Instant::now(), watched, seen: std::cell::Cell::new(false), err: std::cell::Cell::new(false) }
+        Call { f: Some(f), id, start: Some(Instant::now()), watched, number, seen: std::cell::Cell::new(false), err: std::cell::Cell::new(false) }
     }
 
     /// Whether an address is on this thread's stack: a local, whose address
@@ -811,8 +941,8 @@ pub(crate) mod __axiom_rec {
             let mut call = 0;
             if let Ok(mut guard) = STATE.lock() {
                 if let Some(w) = guard.as_mut().and_then(|s| s.watched.get_mut(&self.id)) {
-                    w.calls += 1;
-                    call = w.calls;
+                    w.sampled += 1;
+                    call = self.number;
                     for flat in &flat_all {
                         for (path, (kind, leaf)) in flat {
                             w.observe(&format!("arg.{}", path), kind, leaf);
@@ -893,14 +1023,29 @@ pub(crate) mod __axiom_rec {
     impl Drop for Call {
         fn drop(&mut self) {
             let f = match self.f { Some(f) => f, None => return };
-            let nanos = self.start.elapsed().as_nanos() as u64;
-            f.nanos.fetch_add(nanos, Ordering::Relaxed);
-            let _ = STACK.try_with(|s| {
-                let mut s = s.borrow_mut();
-                if let Some(at) = s.iter().rposition(|id| *id == self.id) {
-                    s.truncate(at);
+            let nanos = self.start.map_or(0, |at| at.elapsed().as_nanos() as u64);
+            // Nothing runs when a Rust program ends: flush when the last call
+            // in progress on this thread finishes (main returning, a test
+            // ending), at most five times a second.
+            let flush = LOCAL.try_with(|l| {
+                let mut l = match l.try_borrow_mut() { Ok(l) => l, Err(_) => return None };
+                if let Some(at) = l.stack.iter().rposition(|id| *id == self.id) {
+                    l.stack.truncate(at);
                 }
-            });
+                l.count(f, self.id, nanos, 0);
+                if !l.stack.is_empty() {
+                    return Some(false);
+                }
+                let due = f.name == "main" || l.flushed.map_or(true, |at| at.elapsed().as_millis() >= 200);
+                if due {
+                    l.spill();
+                    l.flushed = Some(Instant::now());
+                }
+                Some(due)
+            }).ok().flatten();
+            if flush.is_none() {
+                f.nanos.fetch_add(nanos, Ordering::Relaxed);
+            }
             let panicking = std::thread::panicking();
             let frame = if self.watched {
                 FRAME.try_with(|frames| {
@@ -993,12 +1138,8 @@ pub(crate) mod __axiom_rec {
                     }
                 }
             }
-            // Nothing runs when a Rust program ends: flush when the last call
-            // in progress finishes (main returning, a test ending), at most
-            // five times a second.
-            if ACTIVE.fetch_sub(1, Ordering::Relaxed) == 1 {
-                let due = STATE.lock().ok().and_then(|g| g.as_ref().map(|s| s.last_flush.elapsed().as_millis() >= 200 || f.name == "main")).unwrap_or(false);
-                if due { write(); }
+            if flush == Some(true) {
+                write();
             }
         }
     }
@@ -1026,18 +1167,26 @@ pub(crate) mod __axiom_rec {
                 let _ = write!(b, "{{\"file\":{},\"name\":{},\"line\":{},\"calls\":{},\"errors\":{},\"ms\":{}}}", q(f.file), q(f.name), f.line, calls, f.errors.load(Ordering::Relaxed), num(round3(f.nanos.load(Ordering::Relaxed) as f64 / 1.0e6)));
             }
             b.push_str("],\"edges\":[");
-            for (i, ((from, to), calls)) in state.edges.iter().enumerate() {
-                if i > 0 { b.push(','); }
-                let (a, z) = (state.fns[*from as usize - 1], state.fns[*to as usize - 1]);
+            let mut n = 0;
+            for slot in 0..EDGE_SLOTS {
+                let key = EDGE_KEYS[slot].load(Ordering::Relaxed);
+                let calls = EDGE_COUNTS[slot].load(Ordering::Relaxed);
+                let (from, to) = ((key >> 32) as usize, (key & 0xffff_ffff) as usize);
+                if key == 0 || calls == 0 || from > state.fns.len() || to > state.fns.len() {
+                    continue;
+                }
+                if n > 0 { b.push(','); }
+                n += 1;
+                let (a, z) = (state.fns[from - 1], state.fns[to - 1]);
                 let _ = write!(b, "{{\"from\":{{\"file\":{},\"name\":{},\"line\":{}}},\"to\":{{\"file\":{},\"name\":{},\"line\":{}}},\"calls\":{}}}", q(a.file), q(a.name), a.line, q(z.file), q(z.name), z.line, calls);
             }
-            let _ = write!(b, "],\"edgesDropped\":{},\"watched\":[", state.edges_dropped);
+            let _ = write!(b, "],\"edgesDropped\":{},\"watched\":[", EDGES_DROPPED.load(Ordering::Relaxed));
             let mut n = 0;
             let mut ids: Vec<&u32> = state.watched.keys().collect();
             ids.sort();
             for id in ids {
                 let w = &state.watched[id];
-                if w.calls == 0 { continue; }
+                if w.sampled == 0 { continue; }
                 if n > 0 { b.push(','); }
                 n += 1;
                 w.json(state.fns[*id as usize - 1], &mut b);

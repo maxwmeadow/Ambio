@@ -344,12 +344,14 @@ func injectRustEnv(env []string, archd string) ([]string, string) {
 			}
 			continue
 		}
-		if strings.HasPrefix(upper, rustrecorder.WrapperEnv+"=") {
+		if strings.HasPrefix(upper, rustrecorder.WrapperEnv+"=") || strings.HasPrefix(upper, rustrecorder.VersionEnv+"=") {
 			continue
 		}
 		out = append(out, kv)
 	}
-	return append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1"), ""
+	// The version is in Cargo's own environment, where Cargo compares it
+	// with what each cached crate was built against.
+	return append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1", rustrecorder.VersionEnv+"="+rustrecorder.Version()), ""
 }
 
 // FindPHPAdapterDir locates the PHP run recorder (adapters/php).

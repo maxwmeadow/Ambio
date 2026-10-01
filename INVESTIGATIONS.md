@@ -255,7 +255,11 @@ and truncated. It stays on the local machine in archd's data directory.
   compiles. `const fn`, closures, code inside macros, `no_std` crates, the
   2015 edition and proc-macro crates are not recorded; `impl Trait` and `!`
   results are not captured. Each crate carries its own recorder, so call
-  edges stop at crate boundaries.
+  edges stop at crate boundaries. A function nobody watches is timed and
+  placed in the call graph for its first 20,000 calls and only counted after
+  that (a tiny function in a loop runs a billion times); a watched one is
+  recorded in full for 100 calls and then sampled. Instrumented crates are
+  tied to the recorder's version, so an Axiom update rebuilds them.
 - **PHP**: an ini file of the run's own (`PHP_INI_SCAN_DIR`) prepends the
   recorder to every PHP the command starts: `php script.php`, PHPUnit, `php
   -S` (one evidence document per request). PHP has no tracing hook for

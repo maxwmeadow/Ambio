@@ -11,7 +11,9 @@ package rustrecorder
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -22,6 +24,20 @@ import (
 
 //go:embed recorder.rs.txt
 var recorderSource string
+
+// VersionEnv carries Version to the compiler. The recorder module reads it
+// with option_env!, which makes it part of what Cargo's cache depends on.
+const VersionEnv = "AXIOM_RECORDER_VERSION"
+
+// instrumentVersion changes whenever Instrument emits different code.
+const instrumentVersion = "1"
+
+// Version identifies the recorder and the rewrite: crates instrumented by a
+// different one are rebuilt.
+func Version() string {
+	sum := sha256.Sum256([]byte(instrumentVersion + "\n" + recorderSource))
+	return hex.EncodeToString(sum[:8])
+}
 
 // How much of a function is recorded. A function whose instrumented form does
 // not compile drops a tier at a time (wrapper.go) until it does.

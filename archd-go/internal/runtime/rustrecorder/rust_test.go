@@ -57,6 +57,10 @@ func TestInstrumentKeepsEveryLineAndSkipsWhatItCannotRecord(t *testing.T) {
 	}
 }
 
+// recorderVersion is what the test runs pass as the recorder's version; a
+// test changes it to stand in for an Axiom update.
+var recorderVersion = Version()
+
 type evidence struct {
 	Functions []struct {
 		Name   string `json:"name"`
@@ -105,7 +109,7 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 		exe, _ := os.Executable()
 		root, _ := filepath.EvalSymlinks(dir)
 		watchJSON, _ := json.Marshal(watches)
-		cmd.Env = append(cmd.Env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", "AXIOM_RECORDER_DEBUG=1",
+		cmd.Env = append(cmd.Env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AXIOM_RECORDER_DEBUG=1",
 			"AXIOM_EVIDENCE_DIR="+evidenceDir, "AXIOM_WORKSPACE_ROOT="+root, "AXIOM_WATCHES="+string(watchJSON))
 	}
 	out, _ := cmd.CombinedOutput()
@@ -501,5 +505,27 @@ mod tests {
 	// A failing test is the harness's to report, not an uncaught crash.
 	if len(docs[0].Uncaught) != 0 {
 		t.Fatalf("uncaught: %+v", docs[0].Uncaught)
+	}
+}
+
+// An instrumented crate is cached by Cargo like any other. When the recorder
+// changes - an Axiom update - the cached one must not be reused: Cargo
+// rebuilds because the recorder's version is part of what the crate read.
+func TestRustRebuildsWhenTheRecorderChanges(t *testing.T) {
+	dir := crate(t, map[string]string{"src/main.rs": "fn answer() -> i32 { 42 }\nfn main() { println!(\"{}\", answer()); }\n"})
+	built := func() bool {
+		out, _ := cargoRun(t, dir, true, nil, "run")
+		return strings.Contains(out, "Compiling shop")
+	}
+	if !built() {
+		t.Fatal("the first run compiles the crate")
+	}
+	if built() {
+		t.Fatal("an unchanged crate and recorder must come from the cache")
+	}
+	defer func(v string) { recorderVersion = v }(recorderVersion)
+	recorderVersion = "a-later-axiom"
+	if !built() {
+		t.Fatal("a different recorder must rebuild the crate")
 	}
 }
