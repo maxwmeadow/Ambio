@@ -192,8 +192,8 @@ Every platform needs:
 - Node.js - the version in [`.nvmrc`](.nvmrc). A version manager (`fnm`, `nvm`) will pick it up automatically.
 - Go 1.22 or newer.
 - Git.
-- A C toolchain. `archd` uses CGO (`mattn/go-sqlite3`, `go-tree-sitter`) and the
-  renderer depends on `better-sqlite3`, so both halves compile native code.
+- A C toolchain. `archd` uses CGO (`mattn/go-sqlite3`, `go-tree-sitter`), so it
+  compiles native code. The Electron side has no native modules.
 
 Then, per platform:
 
@@ -262,8 +262,8 @@ Artifacts land in `release/`. `prepackage` rebuilds the daemon first, and
 electron-builder copies it into the application bundle through `extraResources`
 so the packaged app can spawn it from `process.resourcesPath`.
 
-A build only ever targets the host it runs on: neither the CGO daemon nor
-`better-sqlite3` cross-compiles cleanly. Builds for every platform are produced
+A build only ever targets the host it runs on: the CGO daemon does not
+cross-compile cleanly. Builds for every platform are produced
 by [`.github/workflows/release.yml`](.github/workflows/release.yml), which
 packages on Linux, Windows, and both Intel and Apple Silicon macOS runners.
 

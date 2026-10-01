@@ -61,8 +61,7 @@ collide. Full context for each item is in its section below.
 5. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
 6. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
 7. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
-8. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
-9. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+8. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -179,7 +178,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `call-resolution` **Fewer false call edges.** Calls are matched by name across the project (`buildCallGraph`), so common names (`get`, `run`) create false edges. Options: import-scoped resolution first, stack-graphs, or LSP where available.
 - ⬜ `index-benchmark` **Benchmark indexing and re-clustering on large repos** (10k, 50k files): time, memory, re-cluster cost (full `git log` read, TF-IDF pairs). Make re-clustering incremental if needed.
 - ⬜ `cluster-quality-tests` **Clustering quality tests.** Only path-invariance is tested; add fixtures with known good groupings.
-- ⬜ `log-noise` **Remove debug logging** left in production (`csNodeDiagDone` node-type dump, 15 sample symbols per call-graph build).
 - ⬜ `cross-repo-links` **Services in separate repos.** Real systems span repos (frontend, backend, workers). Let a project reference another project's systems/APIs as external nodes, with HTTP/queue contracts linking them (infra plan: team-run services as `api` nodes backed by another workspace).
 - ⬜ `generated-code-detection` **Detect generated code** (protobuf, OpenAPI clients, ORM output) beyond `*.min.*` and exclude or mark it, so it does not distort clustering.
 - ⬜ `monorepo-workspaces` **Understand monorepo package boundaries** (npm/pnpm workspaces, Go workspaces, Cargo workspaces, Nx/Turborepo) as strong hints for systems, without letting folders define systems.
@@ -209,7 +207,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `crash-opt-in` **First-run crash-report choice** (nothing pre-selected), and upload once there is a destination (Sentry/GlitchTip). PRIVACY.md updated first.
 - ⬜ `settings-specifics` **Settings from the design notes:** global exclude patterns, max file size, languages, docs indexing; canvas edge style, snap to grid; beta update channel; keep running in background.
 - ⬜ `rebind-shortcuts` **Rebindable shortcuts** (the command model already centralises them).
-- ⬜ `remove-legacy-archd` **Delete the legacy TypeScript daemon** in `archd/` (still built by electron-vite, never started) and its `npm run archd` script.
 - ⬜ `first-run-guide` **A guided first run** on the user's own project that shows both directions of the loop (see `demo-project`).
 - ⬜ `trash-orphans` **List unlabeled trash entries.** A map moved to `.trash` whose `trash.json` was never written (app quit mid-delete) is purged after 30 days but never shown in Recently Deleted. Show it by project ID. **Start:** `electron/projectRegistry.ts` `listTrash`.
 - ⬜ `windows-cli-path` **`axiom` command on Windows:** add `%USERPROFILE%\.axiom\bin` to the user PATH automatically (today the user is told to do it). **Start:** `electron/cliLauncher.ts`.
@@ -234,7 +231,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Quality, tests and CI
 
-- ⬜ `gofmt-dbquery` **`archd-go/cmd/dbquery/main.go` is not gofmt-clean**; format it and add a gofmt check to CI.
 - ⬜ `coverage-report` **Coverage numbers** for Go and the node suite, to find the untested areas beyond runtime.
 - ⬜ `ci-windows-mac-go-race` **Run the Go tests with `-race`** in CI on at least Linux; this session found a real ordering bug (open-time backup) that only showed up as a flaky cleanup on macOS.
 - ⬜ `flaky-test-watch` **Track flaky tests:** a note in this file (or a label) for any test that fails once and passes on retry, with the run link, so flakes get root-caused instead of re-run.
@@ -269,6 +265,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `gofmt-ci` Add a gofmt check to CI (`test -z "$(gofmt -l archd-go)"`), now that the tree is clean.
+- ⬜ `sheet-authoring-timing` "sheet authoring (click)" failed once in a full local Playwright run (waiting 8 s for the new planned node to become the selected parent) and passed on rerun; find what it waits on. (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
@@ -283,6 +281,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` Removed the C# node-type dump and the call-graph symbol samples; gofmt'd `cmd/dbquery`; deleted the legacy TypeScript daemon (`archd/`, its electron-vite entry, `npm run archd`, the `@archd` path) and the dependencies only it used (hono, @hono/node-server, web-tree-sitter, better-sqlite3, chokidar, ws, @types/better-sqlite3), plus `postinstall: electron-rebuild` and @electron/rebuild, which existed for better-sqlite3. A gofmt check in CI is still open (`gofmt-ci`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `db-corruption-recovery` Opening a project runs `PRAGMA quick_check`; a damaged map (or one SQLite refuses as malformed / not a database) is not used or backed up, and the open answers 409 with the backups; the app raises a decision offering the newest backup. Restore keeps an unsnapshottable damaged map aside as `damaged-<time>.db.bak`. Test covers a damaged header and damaged pages. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `schema-upgrade-tests` Maps written by schema v0, v1 and v2 (fixtures generated by those versions' own code: `internal/db/testdata/schemagen`, replayed from `testdata/schema-v*.sql`) open with the current build, keep their data, and take meaning edits, code fit, removals and code checks; newer maps are refused (`schema_version_test.go`). When bumping `SchemaVersion`, add a fixture for the version being left behind. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `imports-rust-java-ruby-cpp` Import edges for Java (`import`, packages via `.*`, static), Rust (`mod x;`, `use crate::/self::/super::` incl. brace groups), Ruby (`require_relative`, `require`) and C++ (quoted `#include`, resolved to the implementing file since headers are not indexed); text-based specs in `parser/imports_more.go`, resolved with path-tail and folder-tail keys (`indexer.resolveTextImport`). (claude/gracious-gauss-1bgdv9)

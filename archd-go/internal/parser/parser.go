@@ -7,11 +7,9 @@ package parser
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/cpp"
@@ -564,27 +562,13 @@ var scopeNodeTypes = map[string]bool{
 
 // extractCalls walks the AST and returns every function/method call site found,
 // annotated with the name of the enclosing function (CallerSymbol).
-// csNodeDiagDone gates the one-time C# node-type diagnostic log.
-var csNodeDiagDone atomic.Bool
-
 func extractCalls(root *sitter.Node, src []byte, lang string) []RawCall {
 	var calls []RawCall
 	var scope []string // stack of enclosing function names
 
-	// One-time diagnostic: log every unique node type seen in the first C# file
-	// so we can verify the tree-sitter grammar's actual node names.
-	var diagTypes map[string]int
-	if lang == "csharp" && csNodeDiagDone.CompareAndSwap(false, true) {
-		diagTypes = make(map[string]int)
-	}
-
 	var walk func(*sitter.Node)
 	walk = func(n *sitter.Node) {
 		t := n.Type()
-
-		if diagTypes != nil {
-			diagTypes[t]++
-		}
 
 		// Scope push/pop: enter function body, recurse, exit.
 		if scopeNodeTypes[t] {
@@ -615,13 +599,6 @@ func extractCalls(root *sitter.Node, src []byte, lang string) []RawCall {
 		}
 	}
 	walk(root)
-
-	if diagTypes != nil {
-		log.Printf("[parser/csharp] unique node types in first C# file (%d total nodes):", len(diagTypes))
-		for nt, count := range diagTypes {
-			log.Printf("[parser/csharp]   %-40s %d", nt, count)
-		}
-	}
 
 	return calls
 }

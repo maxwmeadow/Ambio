@@ -38,7 +38,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main.ts'),
-          archd: resolve(__dirname, 'archd/index.ts'),
         }
       }
     },

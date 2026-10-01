@@ -68,6 +68,9 @@ in the app as "What's New" after updating, so write it for users.
   checked against the code rather than taken from the agent's reply.
 
 ### Changed
+- Smaller install: the old built-in service and the native modules only it
+  used are gone, so installing Axiom from source no longer compiles native
+  Node code.
 - Axiom runs its agent connection on its own bundled runtime; Node.js no
   longer needs to be installed.
 - Unlimited projects, with a short recent list and "Show all".

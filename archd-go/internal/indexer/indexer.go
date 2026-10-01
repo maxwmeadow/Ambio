@@ -842,16 +842,6 @@ func buildCallGraph(sqlDB *sql.DB, root db.Root, rawCallsMap *sync.Map) error {
 	rows.Close()
 	log.Printf("[callgraph] symbol index: %d unique names across project", len(symbolToFiles))
 
-	// Log a sample of indexed symbol names so we can compare against raw call names.
-	sampleIdx := 0
-	for name, fileIDs := range symbolToFiles {
-		log.Printf("[callgraph] symbol sample: %q defined in %d file(s)", name, len(fileIDs))
-		sampleIdx++
-		if sampleIdx >= 15 {
-			break
-		}
-	}
-
 	// ── Step 2: Build import map as tiebreaker for ambiguous names ───────────
 	// Only used when multiple files define the same symbol name.
 	deps, err := db.GetDependencies(sqlDB, root.WorkspaceID)

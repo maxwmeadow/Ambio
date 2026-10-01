@@ -32,8 +32,6 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   start it headless while the app is closed; a headless daemon exits when idle).
 - The **MCP server** finds the project from the agent's working directory and
   starts archd on demand. Agents never need Node installed.
-- A legacy TypeScript daemon in `archd/` is still built but never started
-  (work item `remove-legacy-archd`).
 
 ## Data
 

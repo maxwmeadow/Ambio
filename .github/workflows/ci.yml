@@ -6,9 +6,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Axiom builds two native artifacts per host - the CGO archd daemon and the
-# better-sqlite3 node addon - and neither cross-compiles cleanly. Every
-# platform therefore has to build and test on its own runner.
+# archd is a CGO binary and does not cross-compile cleanly, so every
+# platform has to build and test on its own runner.
 jobs:
   build:
     name: ${{ matrix.os }}
