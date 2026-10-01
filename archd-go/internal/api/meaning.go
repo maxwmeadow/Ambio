@@ -4,15 +4,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
 	"axiom.local/archd/internal/db"
+	"axiom.local/archd/internal/delta"
 )
 
 // Meaning edits: one recorded path for every change to what the architecture
 // says - naming, grouping and nesting systems, and which system a file belongs
 // to - whoever makes it (docs/PRODUCT.md §2, db/meaning.go).
 //
-//	POST /api/architecture/edits  {workspaceId, actor, edits[]}
+//	POST /api/architecture/edits    {workspaceId, actor, edits[]}
+//	POST /api/architecture/undo     {workspaceId, actor, eventIds[]} - reverse edits from Review Changes
+//	GET  /api/architecture/changes?workspace=&since=  - net meaning changes, for agents
 //
 // The older system and file routes stay for compatibility and funnel their
 // meaning changes through the same path, so no change escapes the journal.
@@ -40,6 +45,87 @@ func (s *Server) handleArchitectureEdits(w http.ResponseWriter, r *http.Request)
 	jsonOK(w, result)
 }
 
+type meaningUndoReq struct {
+	WorkspaceID string           `json:"workspaceId"`
+	Actor       *db.MeaningActor `json:"actor"`
+	EventIDs    []int64          `json:"eventIds"`
+}
+
+func (s *Server) handleArchitectureUndo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var req meaningUndoReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.Actor == nil {
+		jsonError(w, "actor is required", http.StatusBadRequest)
+		return
+	}
+	sqlDB, err := s.dbFor(req.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	result, err := db.UndoMeaningEvents(sqlDB, req.WorkspaceID, *req.Actor, req.EventIDs)
+	if err != nil {
+		jsonError(w, err.Error(), meaningStatus(err))
+		return
+	}
+	s.broadcastMeaning(req.WorkspaceID, result)
+	jsonOK(w, result)
+}
+
+// handleArchitectureChanges tells an agent what people and agents changed
+// about the map recently - by default the last seven days - so it starts work
+// from the architecture as it is now, not as it last saw it.
+func (s *Server) handleArchitectureChanges(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	workspaceID := r.URL.Query().Get("workspace")
+	sqlDB, err := s.dbFor(workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	now := time.Now().UnixMilli()
+	since := now - 7*24*60*60*1000
+	if raw := r.URL.Query().Get("since"); raw != "" {
+		if parsed, parseErr := strconv.ParseInt(raw, 10, 64); parseErr == nil {
+			since = parsed
+		}
+	}
+	events, err := db.GetStructuralEvents(sqlDB, workspaceID, since)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	meaningEvents := []db.StructuralEvent{}
+	for _, ev := range events {
+		if delta.IsMeaningEvent(ev) {
+			meaningEvents = append(meaningEvents, ev)
+		}
+	}
+	summary := delta.Aggregate(meaningEvents, since, now)
+	jsonOK(w, map[string]any{"since": since, "changes": summary.Meaning})
+}
+
+func meaningStatus(err error) int {
+	switch {
+	case errors.Is(err, db.ErrMeaningConflict):
+		return http.StatusConflict
+	case errors.Is(err, db.ErrMeaningEdit):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 // applyMeaning applies a batch, broadcasts what changed and writes any error
 // response. It reports whether the caller should continue.
 func (s *Server) applyMeaning(
@@ -56,11 +142,7 @@ func (s *Server) applyMeaning(
 	}
 	result, err := db.ApplyMeaningEdits(sqlDB, workspaceID, *actor, edits)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, db.ErrMeaningEdit) {
-			status = http.StatusBadRequest
-		}
-		jsonError(w, err.Error(), status)
+		jsonError(w, err.Error(), meaningStatus(err))
 		return db.MeaningResult{}, false
 	}
 	s.broadcastMeaning(workspaceID, result)

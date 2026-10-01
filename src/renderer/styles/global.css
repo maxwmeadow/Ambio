@@ -7132,6 +7132,27 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
   color: #813c35;
 }
 
+.axiom-delta__undo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 6px;
+  font-size: 11px;
+}
+
+.axiom-delta__undo {
+  padding: 2px 9px;
+  border: 1px solid #8a948f;
+  background: #f7f6f1;
+  color: #1f2a26;
+  font-size: 11px;
+}
+
+.axiom-delta__undo:hover:not(:disabled) { border-color: #2f5f56; }
+.axiom-delta__undo:disabled { opacity: 0.6; }
+.axiom-delta__undone { color: #2f5f56; font-family: var(--font-mono); letter-spacing: 0.04em; }
+.axiom-delta__undo-error { color: #8a3b30; }
+
 .axiom-delta__evidence-toggle {
   width: 100%;
   padding: 2px 12px 10px;

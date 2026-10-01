@@ -122,12 +122,30 @@ type meaningBatch struct {
 	systems     map[string]*System
 	result      *MeaningResult
 	upserted    map[string]bool
+	// undoing is the journal row an inverse edit reverses, recorded on the
+	// new row so a review can pair the two.
+	undoing int64
 }
 
 // ApplyMeaningEdits applies a batch of meaning edits in one transaction and
 // journals each change. Either every edit applies or none does.
 func ApplyMeaningEdits(
 	database *sql.DB, workspaceID string, actor MeaningActor, edits []MeaningEdit,
+) (MeaningResult, error) {
+	return withMeaningBatch(database, workspaceID, actor, func(b *meaningBatch) error {
+		for i, edit := range edits {
+			change, err := b.apply(edit)
+			if err != nil {
+				return fmt.Errorf("edit %d (%s): %w", i+1, edit.Op, err)
+			}
+			b.result.Changes = append(b.result.Changes, change)
+		}
+		return nil
+	})
+}
+
+func withMeaningBatch(
+	database *sql.DB, workspaceID string, actor MeaningActor, run func(*meaningBatch) error,
 ) (MeaningResult, error) {
 	result := MeaningResult{
 		Changes: []MeaningChange{}, UpsertedSystems: []System{},
@@ -138,9 +156,6 @@ func ApplyMeaningEdits(
 	}
 	if workspaceID == "" {
 		return result, meaningErr("workspaceId is required")
-	}
-	if len(edits) == 0 {
-		return result, nil
 	}
 
 	// History identity: an agent's declared session says which worktree and
@@ -174,13 +189,8 @@ func ApplyMeaningEdits(
 	for i := range systems {
 		batch.systems[systems[i].ID] = &systems[i]
 	}
-
-	for i, edit := range edits {
-		change, err := batch.apply(edit)
-		if err != nil {
-			return MeaningResult{}, fmt.Errorf("edit %d (%s): %w", i+1, edit.Op, err)
-		}
-		result.Changes = append(result.Changes, change)
+	if err := run(batch); err != nil {
+		return MeaningResult{}, err
 	}
 	for id := range batch.upserted {
 		if system, ok := batch.systems[id]; ok {
@@ -689,8 +699,12 @@ func (b *meaningBatch) describeForUndo(system *System) map[string]any {
 }
 
 func (b *meaningBatch) journal(ev StructuralEvent, detail map[string]any) (int64, error) {
+	detail["meaning"] = true
 	if b.actor.Agent != "" {
 		detail["agent"] = b.actor.Agent
+	}
+	if b.undoing != 0 {
+		detail["undoes"] = []int64{b.undoing}
 	}
 	encoded, err := json.Marshal(detail)
 	if err != nil {

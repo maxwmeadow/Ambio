@@ -146,6 +146,12 @@ test('an agent can curate the architecture map', async () => {
   for (const kind of ['system.created', 'system.renamed', 'file.assigned', 'system.ungrouped']) {
     assert.ok(kinds.includes(kind), `${kind} was not recorded for the agent: ${kinds.join(', ')}`)
   }
+
+  // And any agent can read back what changed on the map.
+  const changes = await client.callTool('get_architecture', { scope: 'changes' })
+  assert.equal(changes.isError, false, changes.text)
+  assert.ok(Array.isArray(changes.payload?.changes), changes.text)
+  assert.ok(changes.payload.changes.some(change => change.kind === 'ungrouped'), changes.text)
 })
 
 test('sheet ops route correctly', async () => {

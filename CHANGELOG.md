@@ -36,6 +36,10 @@ in the app as "What's New" after updating, so write it for users.
   frames around the systems it runs.
 - Send a sheet to an agent as a work order, and review what it built
   against the plan.
+- Review Changes shows changes to the map itself - files moved between
+  systems, systems renamed, nested, merged, ungrouped or newly grouped, by
+  you or by an agent - and each one can be undone. Agents can ask what
+  changed, so they build on your decisions instead of reversing them.
 
 ### Changed
 - Axiom runs its agent connection on its own bundled runtime; Node.js no
@@ -47,6 +51,10 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- Every change an agent makes to your systems is now recorded and shown in
+  Review Changes; before, agents could rename, regroup or delete systems
+  without a trace.
+- Returning a file to the unsorted bin could fail.
 - Edits made while Axiom was closed could be missed when a file's timestamp
   was too close to the last index.
 - A second copy of Axiom, or another program on Axiom's ports, no longer

@@ -46,7 +46,7 @@ in the surface for exactly that reason.
 
 | Tool | Absorbs |
 |---|---|
-| `get_architecture` | overview, systems, system_files, files, unclassified, node, neighbors, family, cross_dependencies, dependency_graph, infra, infra_for_files, infra_catalog, hotspots |
+| `get_architecture` | overview, systems, system_files, files, unclassified, node, neighbors, family, cross_dependencies, dependency_graph, infra, infra_for_files, infra_catalog, hotspots, changes |
 | `search_symbols` | - |
 | `get_symbols` | `get_symbols_for_files`, `get_function_body` |
 | `trace_calls` | `get_call_path`, `get_call_graph`, `get_call_graph_for_files` |

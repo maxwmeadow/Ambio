@@ -23,6 +23,7 @@ test('one architecture question reaches every graph read', () => {
     infra_for_files: 'get_infra_for_files',
     infra_catalog: 'list_infra_services',
     hotspots: 'get_activity_hotspots',
+    changes: 'get_architecture_changes',
   }
   for (const [scope, tool] of Object.entries(cases)) {
     assert.equal(routeTool('get_architecture', { scope }).tool, tool, scope)

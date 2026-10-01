@@ -138,6 +138,23 @@ export async function apiEditArchitecture(workspaceId: string, edits: MeaningEdi
   return res.json()
 }
 
+/**
+ * Reverse meaning edits from Review Changes. Refused (409) when the map has
+ * changed since in a way the undo would overwrite; the message says what.
+ */
+export async function apiUndoArchitecture(workspaceId: string, eventIds: number[]): Promise<void> {
+  const res = await fetch(`${archdWsHttp()}/api/architecture/undo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, actor: { kind: 'human' }, eventIds }),
+  })
+  if (!res.ok) {
+    let message = await res.text()
+    try { message = (JSON.parse(message) as { error?: string }).error ?? message } catch { /* plain text */ }
+    throw new Error(message.replace(/^changed since: /, ''))
+  }
+}
+
 export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
   await apiEditArchitecture(workspaceId, [{ op: 'assign', fileIds: [fileId], systemId }])
 }

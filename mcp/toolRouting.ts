@@ -44,6 +44,7 @@ const ARCHITECTURE_SCOPES: Record<string, string> = {
   infra_for_files: 'get_infra_for_files',
   infra_catalog: 'list_infra_services',
   hotspots: 'get_activity_hotspots',
+  changes: 'get_architecture_changes',
 }
 
 /** Architecture curation. Agents keep the map true; that is the product. */

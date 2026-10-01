@@ -534,6 +534,12 @@ export type DeltaClaimKind =
   | 'system.membership'
   | 'file.unclassified'
   | 'system.internal'
+  | 'meaning.moved'
+  | 'meaning.renamed'
+  | 'meaning.nested'
+  | 'meaning.merged'
+  | 'meaning.ungrouped'
+  | 'meaning.grouped'
 
 export interface DeltaEvidence {
   kind: string
@@ -564,6 +570,8 @@ export interface DeltaClaim {
   /** Whether agent work matched an immutable build spec dispatched first. */
   intentStatus?: 'expected' | 'unexpected'
   intentIds?: string[]
+  /** A change to meaning (moved, renamed, nested...) can be undone from here. */
+  undoEventIds?: number[]
 }
 
 /**

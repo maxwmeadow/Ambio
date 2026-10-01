@@ -14,6 +14,7 @@ import {
 } from '../canvas/deltaReview.ts'
 import type { DeltaClaim } from '../../shared/types'
 import { raiseInvitation, resolveInterruption } from '../store/interruptionStore.ts'
+import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
 
 /** One id, so a refreshed delta replaces its invitation instead of stacking. */
 const DELTA_INVITATION = 'delta-review'
@@ -42,6 +43,12 @@ const KIND_TONE: Record<string, string> = {
   'system.membership': 'membership',
   'file.unclassified': 'pending',
   'system.internal': 'internal',
+  'meaning.moved': 'membership',
+  'meaning.renamed': 'membership',
+  'meaning.nested': 'membership',
+  'meaning.merged': 'structural',
+  'meaning.ungrouped': 'structural',
+  'meaning.grouped': 'structural',
 }
 
 function actorBadge(actor: string): string {
@@ -51,7 +58,7 @@ function actorBadge(actor: string): string {
 }
 
 function ClaimRow({
-  claim, review, active, expanded, onSelect, onToggle,
+  claim, review, active, expanded, onSelect, onToggle, undo, onUndo,
 }: {
   claim: DeltaClaim
   review: DeltaReview
@@ -59,6 +66,8 @@ function ClaimRow({
   expanded: boolean
   onSelect: () => void
   onToggle: () => void
+  undo?: UndoState
+  onUndo: () => void
 }) {
   const evidence = [...(claim.realizationEvidence ?? []), ...claim.evidence]
   const hasEvidence = evidence.length > 0
@@ -102,6 +111,25 @@ function ClaimRow({
         </span>
       </button>
 
+      {claim.undoEventIds && claim.undoEventIds.length > 0 && (
+        <div className="axiom-delta__undo-row">
+          {undo?.status === 'done'
+            ? <span className="axiom-delta__undone">Undone</span>
+            : (
+              <button
+                type="button"
+                className="axiom-delta__undo"
+                disabled={undo?.status === 'working'}
+                onClick={onUndo}
+                title="Put the map back the way it was before this change"
+              >
+                {undo?.status === 'working' ? 'Undoing…' : 'Undo'}
+              </button>
+            )}
+          {undo?.status === 'error' && <span className="axiom-delta__undo-error" role="alert">{undo.message}</span>}
+        </div>
+      )}
+
       {hasEvidence && (
         <button
           type="button"
@@ -127,6 +155,8 @@ function ClaimRow({
   )
 }
 
+type UndoState = { status: 'working' | 'done' } | { status: 'error'; message: string }
+
 export function DeltaPanel() {
   const { delta, reviewing, cursor, deferredUntil, files, systems, startReview, setCursor, deferDelta, endReview } =
     useGraphStore(useShallow(state => ({
@@ -144,6 +174,21 @@ export function DeltaPanel() {
 
   const [showInternal, setShowInternal] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // A review is a snapshot, so an undone claim is marked here; the next
+  // delta after the review leaves out both the change and its undo.
+  const [undos, setUndos] = useState<Record<string, UndoState>>({})
+  const undoClaim = useCallback(async (claim: DeltaClaim) => {
+    const workspaceId = useGraphStore.getState().currentProject?.id
+    if (!workspaceId || !claim.undoEventIds?.length) return
+    setUndos(current => ({ ...current, [claim.id]: { status: 'working' } }))
+    try {
+      await apiUndoArchitecture(workspaceId, claim.undoEventIds)
+      setUndos(current => ({ ...current, [claim.id]: { status: 'done' } }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setUndos(current => ({ ...current, [claim.id]: { status: 'error', message: `Can't undo: ${message}` } }))
+    }
+  }, [])
   const listRef = useRef<HTMLOListElement>(null)
 
   const knownNodeIds = useMemo(() => {
@@ -283,6 +328,8 @@ export function DeltaPanel() {
             expanded={expanded.has(claim.id)}
             onSelect={() => setCursor(index)}
             onToggle={() => toggleEvidence(claim.id)}
+            undo={undos[claim.id]}
+            onUndo={() => void undoClaim(claim)}
           />
         ))}
       </ol>

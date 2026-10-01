@@ -62,7 +62,7 @@ test('no legacy tool name leaks back into the listing', () => {
     'get_systems_overview', 'get_system_files', 'get_neighbors', 'get_family',
     'get_node', 'get_raw_files', 'get_unclassified_files', 'get_systems_with_files',
     'get_cross_system_dependencies', 'get_infra_for_files', 'list_infra',
-    'get_activity_hotspots', 'list_infra_services',
+    'get_activity_hotspots', 'list_infra_services', 'get_architecture_changes',
     'create_system', 'update_system', 'delete_system', 'assign_files_to_system',
     'merge_systems', 'update_systems_bulk',
     'create_infra_node', 'update_infra_node', 'delete_infra_node', 'connect_infra',

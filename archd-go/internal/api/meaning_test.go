@@ -137,3 +137,33 @@ func TestTidyingSavesGeometryWithoutHistory(t *testing.T) {
 		t.Fatalf("presentation wrote history: %+v", events)
 	}
 }
+
+func TestUndoFromTheReviewAndChangesForAgents(t *testing.T) {
+	server := meaningServer(t)
+	human := map[string]any{"kind": "human"}
+	moved := send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": human,
+		"edits": []map[string]any{{"op": "assign", "fileIds": []string{"billing"}, "systemId": "payments"}},
+	})
+	var result db.MeaningResult
+	if err := json.Unmarshal(moved.Body.Bytes(), &result); err != nil || len(result.Changes[0].EventIDs) != 1 {
+		t.Fatalf("edit result: %s", moved.Body.String())
+	}
+
+	changes := send(t, server, http.MethodGet, "/api/architecture/changes?workspace=ws", nil)
+	if changes.Code != http.StatusOK || !bytes.Contains(changes.Body.Bytes(), []byte(`"kind":"moved"`)) {
+		t.Fatalf("agents cannot see the move: %d %s", changes.Code, changes.Body.String())
+	}
+
+	// Someone moves it again; undoing the first move would overwrite that.
+	send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": human,
+		"edits": []map[string]any{{"op": "assign", "fileIds": []string{"billing"}, "systemId": "orders"}},
+	})
+	conflict := send(t, server, http.MethodPost, "/api/architecture/undo", map[string]any{
+		"workspaceId": "ws", "actor": human, "eventIds": result.Changes[0].EventIDs,
+	})
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("want 409 for an undo over later work, got %d %s", conflict.Code, conflict.Body.String())
+	}
+}

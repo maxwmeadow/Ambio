@@ -77,6 +77,14 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   `/api/systems` and `/api/files/:id/assign` routes funnel meaning changes
   through the same path and refuse them without an actor; geometry (position,
   size, colour) stays presentation and is never journaled.
+  Review Changes turns these rows into claims ("billing.ts moved from Orders to
+  Payments", "Auth merged into Identity"), collapsed to net effect, each with
+  the event IDs that produced it. `POST /api/architecture/undo` reverses them
+  (`internal/db/meaning_undo.go`): the inverse is itself a recorded edit that
+  names the row it reverses, it is refused with 409 when later work would be
+  overwritten, and an edit and its undo in the same window cancel out.
+  Agents read recent meaning changes with `get_architecture` scope `changes`
+  (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history
   is branch-stamped and collisions between branches are projected onto systems.
 

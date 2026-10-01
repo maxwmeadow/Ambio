@@ -500,7 +500,7 @@ function humanMessagesText(messages: HumanMessage[]): string {
 const CORE_TOOLS = [
   {
     name: 'get_architecture',
-    description: "Read any part of the architecture map. Use `scope` to say what you want: overview | systems | system_files | files | unclassified | node | neighbors | family | cross_dependencies | dependency_graph | infra | infra_for_files | infra_catalog | hotspots. Start here before editing anything.",
+    description: "Read any part of the architecture map. Use `scope` to say what you want: overview | systems | system_files | files | unclassified | node | neighbors | family | cross_dependencies | dependency_graph | infra | infra_for_files | infra_catalog | hotspots | changes (what people and agents changed on the map recently: moves, renames, regroupings; read before reorganizing). Start here before editing anything.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -2230,6 +2230,28 @@ Steps to execute:
         if (!res.ok) throw new Error(`decide failed: ${await res.text()}`)
         result = await res.json()
         await postAgentActivity(project.workspaceId, `Agent ${status} infra ${isNode ? 'node' : 'relationship'} ${id}`, 'info')
+        break
+      }
+
+      case 'get_architecture_changes': {
+        // What people and agents changed about the map itself, so this agent
+        // works from the architecture as it is now and does not undo a
+        // decision someone just made.
+        const since = typeof args.since === 'number' ? `&since=${args.since}` : ''
+        const res = await fetch(
+          `${API_BASE}/api/architecture/changes?workspace=${encodeURIComponent(project.workspaceId)}${since}`
+        )
+        if (!res.ok) throw new Error(`changes failed: ${await res.text()}`)
+        const body = await res.json() as { since: number; changes: Array<Record<string, unknown>> }
+        result = {
+          since: body.since,
+          changes: body.changes.map(change => ({
+            kind: change.kind, subject: change.subjectLabel, from: change.fromLabel || undefined,
+            to: change.toLabel || undefined, by: change.actor === 'human' ? 'the user' : (change.agent || change.actor),
+            files: change.fileLabels, at: change.ts,
+          })),
+          note: 'Moves and renames by the user are decisions: build on them, and ask before reversing one.',
+        }
         break
       }
 

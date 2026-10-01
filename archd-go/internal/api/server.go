@@ -367,6 +367,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)
 	mux.HandleFunc("/api/architecture/edits", s.handleArchitectureEdits)
+	mux.HandleFunc("/api/architecture/undo", s.handleArchitectureUndo)
+	mux.HandleFunc("/api/architecture/changes", s.handleArchitectureChanges)
 	mux.HandleFunc("/api/systems", s.handleSystems)
 	mux.HandleFunc("/api/systems/", s.handleSystemByID)
 	mux.HandleFunc("/api/files/", s.handleFileByID)
