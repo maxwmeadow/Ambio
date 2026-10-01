@@ -2393,6 +2393,25 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
   await expect.poll(() => undone).toEqual([41])
 })
 
+test('Zoom to Selection frames what is selected, and the empty-canvas menu offers Tidy Layout', async () => {
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 900, y: 600 } })
+  await expect(page.getByRole('menuitem', { name: 'Tidy Layout' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
+  await system.click()
+  const before = await canvasZoom()
+  const widthBefore = (await system.boundingBox())!.width
+  await page.keyboard.press('ControlOrMeta+Shift+0')
+  await expect.poll(canvasZoom).not.toBeCloseTo(before, 2)
+  const box = (await system.boundingBox())!
+  const pane = (await page.locator('.react-flow').boundingBox())!
+  expect(box.width).toBeGreaterThan(widthBefore)
+  expect(box.x).toBeGreaterThanOrEqual(pane.x)
+  expect(box.y).toBeGreaterThanOrEqual(pane.y)
+  expect(box.x + box.width).toBeLessThanOrEqual(pane.x + pane.width)
+  expect(box.y + box.height).toBeLessThanOrEqual(pane.y + pane.height)
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {

@@ -135,6 +135,7 @@ function buildEntries(
       'separator',
       { label: store.selectionMode ? 'Stop Lasso Select' : 'Lasso Select', run: () => emitCommand('map.lasso') },
       { label: 'Fit Map to Window', run: () => emitCommand('view.fitView') },
+      { label: 'Tidy Layout', run: () => emitCommand('map.tidy') },
       ...(floorEdits ? [
         'separator' as const,
         // A system with no code yet is a plan: drawn on a new sheet, ready to send.

@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- View → Zoom to Selection (⌘⇧0) frames what you have selected; Tidy Layout
+  is in the right-click menu on empty canvas.
 - Command palette, keyboard shortcuts and a shortcut reference; full menus
   (File, Edit, View, Go, Map, Agent, Help) and right-click menus on the map.
 - Settings: reopen last project, update checks, interface zoom, reduce

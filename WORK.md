@@ -140,11 +140,9 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `export-diagrams` **Export** the map or a sheet as PNG/SVG, Mermaid, C4 (Structurizr DSL) and Markdown. Lets the map live in READMEs and PRs.
 - ⬜ `infra-local-production` **Local / Production switch for hosting frames** (infra plan "still to do").
 - ⬜ `system-kinds` **Colour systems by kind** (backend, frontend, service), assigned by agents.
-- ⬜ `canvas-context-empty` **Right-click on empty canvas:** New System Here, Paste, Tidy Layout, Fit (from the menu design notes).
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
 - ⬜ `search-everything` **Search systems, symbols and infra** from `⌘K`, not only files; jump to and highlight the result.
-- ⬜ `zoom-to-selection` **Zoom to Selection** (View menu, from the menu design notes).
 - ⬜ `panels-menu` **View → Panels ▸** (sheet rail, detail panel, documents, agent log, status bar) with remembered visibility.
 - ⬜ `html-export` **Share a read-only map:** export a self-contained HTML file of the map (pan, zoom, click through) that anyone can open without Axiom. Research: the popular code-graph tools grow through exactly this.
 - ⬜ `stable-layout-tests` **Layout stability tests:** re-indexing, adding files and renaming systems never move human-placed nodes (design law). Pin it with tests on the frame packing.
@@ -268,6 +266,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `zoom-to-selection` `canvas-context-empty` View → Zoom to Selection (⌘⇧0) frames the selected nodes, or the inspected one; the empty-canvas menu gains Tidy Layout beside New System Here and Fit (no Paste: the map has no node clipboard). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `delta-panel-e2e` Playwright covers Review Changes: a meaning claim with a code disagreement, Copy as Markdown, Make the Code Match… (with the code check attached) and Undo. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `review-shareable` Review Changes has Copy as Markdown: headline, window, what the agents set out to do, and each claim with its first evidence and tags (closes a loop, unexplained, code still disagrees) (`canvas/reviewMarkdown.ts`, tested). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `human-decisions-to-agents` Confirming or rejecting an agent's planned element is journaled (`proposal.decided`, with an optional one-line reason asked when you reject in the sheet rail) and told to later agent sessions in `start_work`'s `mapChanges.decisions` ("The user rejected the proposed system Job Queue on Agent Plan: we already queue through SQS"); not a Review Changes claim. Architecture proposals and infra decisions remain (`human-decisions-to-agents-more`). (claude/gracious-gauss-1bgdv9)

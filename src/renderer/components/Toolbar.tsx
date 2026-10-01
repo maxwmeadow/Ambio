@@ -23,7 +23,7 @@ interface ToolbarProps {
 export function Toolbar({
   onSearch, onCloseProject, onManageAgentConnections, projectName, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
-  const { fitView } = useReactFlow()
+  const { fitView, getNodes } = useReactFlow()
   const isIndexing = useGraphStore(s => s.isIndexing)
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
@@ -47,6 +47,13 @@ export function Toolbar({
 
   useCommandHandlers({
     'view.fitView': () => fitView({ padding: 0.15, duration: 850 }),
+    // Frames what is selected; with nothing selected it frames the inspected node.
+    'view.zoomSelection': () => {
+      const selected = getNodes().filter(node => node.selected).map(node => ({ id: node.id }))
+      const fallback = useGraphStore.getState().selectedNodeId
+      const nodes = selected.length > 0 ? selected : fallback ? [{ id: fallback }] : []
+      if (nodes.length > 0) void fitView({ nodes, padding: 0.3, duration: 600, maxZoom: 1.6 })
+    },
     'map.lasso': () => setSelectionMode(!useGraphStore.getState().selectionMode),
   })
 

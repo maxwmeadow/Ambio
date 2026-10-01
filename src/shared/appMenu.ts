@@ -36,6 +36,7 @@ export type CommandId =
   | 'view.agentLog'
   | 'view.documents'
   | 'view.explorer'
+  | 'view.zoomSelection'
   | 'view.reviewChanges'
   | 'view.zoomIn'
   | 'view.zoomOut'
@@ -99,6 +100,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.search': { id: 'view.search', label: 'Search Files…', accelerator: 'CmdOrCtrl+K', needsProject: true },
   // The map owns the plain zoom keys; the whole interface zooms with Alt added.
   'view.fitView': { id: 'view.fitView', label: 'Fit Map to Window', accelerator: 'CmdOrCtrl+0', needsProject: true },
+  'view.zoomSelection': { id: 'view.zoomSelection', label: 'Zoom to Selection', accelerator: 'CmdOrCtrl+Shift+0', needsProject: true },
   'view.zoomMapIn': { id: 'view.zoomMapIn', label: 'Zoom In Map', accelerator: 'CmdOrCtrl+=', needsProject: true },
   'view.zoomMapOut': { id: 'view.zoomMapOut', label: 'Zoom Out Map', accelerator: 'CmdOrCtrl+-', needsProject: true },
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
@@ -186,7 +188,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
       command('view.agentLog'), command('view.documents'), command('view.explorer'), command('view.infrastructure'), separator,
-      command('view.fitView'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
+      command('view.fitView'), command('view.zoomSelection'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),
       ...(options.developer
