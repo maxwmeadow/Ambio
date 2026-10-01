@@ -238,7 +238,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `unassigned-regrouped` **Files taken out of every system can be regrouped by the clusterer.** Unassigned files are classifier-managed, so ungrouping a top-level system or dragging a file to empty canvas may be undone by the next cluster pass. Decide whether a human "unassign" should pin the file as deliberately unsorted. (2026-10-01, meaning-edits-recorded)
-- ⬜ `seed-script-stale` **`scripts/seed-architecture.ts` (`npm run seed-arch`) calls routes that no longer exist** (`/systems/:id/assign` on the old TS daemon). Fix it against `/api/architecture/edits` or delete it. (2026-10-01, meaning-edits-recorded)
 - ⬜ `readme-screenshots` **README screenshots** of the Floor, a sheet and Review Changes, once the rename and theme settle. (2026-09-30, docs cleanup)
 
 ---
@@ -247,6 +246,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `seed-script-stale` Deleted `scripts/seed-architecture.ts` and `npm run seed-arch`: it seeded one personal project through the removed TS daemon's routes on a fixed port; the `name-architecture` MCP prompt and `edit_systems` sessions do this now. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mcp-surface-sync` `mcp/toolSurface.test.mjs` checks docs/MCP_SURFACE.md: the Core table lists exactly the advertised tools and its count, and each tool's documented ops equal its schema's `op` enum (verified to fail on drift). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `ci-windows-mac-go-race` CI runs `go test -race ./...` for archd on Linux (passes locally). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-explains-change` Review Changes' header shows "N unexplained" when agents changed things without a work session, and clicking it shows only those; claims already carry the session's summary or goal as their reason and the Who filter has Unexplained. The reason is per session, not per claim. (claude/gracious-gauss-1bgdv9)

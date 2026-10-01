@@ -25,7 +25,6 @@
     "package": "electron-vite build && electron-builder",
     "build:archd": "node scripts/archd.mjs build",
     "dbquery": "node scripts/archd.mjs dbquery",
-    "seed-arch": "npx tsx scripts/seed-architecture.ts",
     "test:archd": "node scripts/archd.mjs test",
     "vet:archd": "node scripts/archd.mjs vet",
     "build:mcp": "node scripts/build-mcp.mjs",
