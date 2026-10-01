@@ -257,7 +257,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `sheet-authoring-timing` "sheet authoring (click)" failed once in a full local Playwright run (waiting 8 s for the new planned node to become the selected parent) and passed on rerun; find what it waits on. With `--repeat-each=3` it failed 2 of 6 at d1485e7 and 0 of 6 with the undo work on top, so it is intermittent, both variants: the nested file's sheet layout never gets the planned system as parent within 8 s (line 79). (2026-10-01)
+- ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`

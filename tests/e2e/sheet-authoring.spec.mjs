@@ -92,8 +92,21 @@ for (const creation of ['drag', 'click']) {
       expect(rootFile).toBeTruthy()
       const fileNode = page.locator(`.react-flow__node[data-id="planned:${rootFile.id}"]`)
       await expect(fileNode).toBeVisible()
-      const from = await fileNode.boundingBox()
-      const to = await systemNode.boundingBox()
+      // A new node animates into place; drag from where it settles, not from
+      // where it was mid-flight.
+      const settled = async locator => {
+        let previous = null
+        for (let attempt = 0; attempt < 40; attempt++) {
+          const box = await locator.boundingBox()
+          if (previous && box && Math.abs(box.x - previous.x) < 0.5 && Math.abs(box.y - previous.y) < 0.5 &&
+            Math.abs(box.width - previous.width) < 0.5) return box
+          previous = box
+          await page.waitForTimeout(100)
+        }
+        return previous
+      }
+      const from = await settled(fileNode)
+      const to = await settled(systemNode)
       await page.mouse.move(from.x + from.width / 2, from.y + 12)
       await page.mouse.down()
       await page.mouse.move(to.x + to.width * 0.6, to.y + to.height * 0.7, { steps: 20 })
