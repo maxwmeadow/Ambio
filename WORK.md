@@ -208,7 +208,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 - ⬜ `user-docs` **User documentation** for Help → Documentation: getting started, the loop, sheets, work orders, rules, troubleshooting. Short, task-based.
 - ⬜ `research-archive` **Keep the competitive research somewhere durable.** The September 2026 report and notes live only in the maintainer's local `reports/` and `research_notes/` (git-ignored). Decide whether to commit a trimmed version under `docs/research/`, and refresh it quarterly.
-- ⬜ `mcp-surface-sync` **Keep docs/MCP_SURFACE.md generated or tested against the real tool list** so it cannot drift (a test that compares the doc's tool table with `CORE_TOOLS`).
 
 ## Growth and positioning
 
@@ -248,6 +247,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `mcp-surface-sync` `mcp/toolSurface.test.mjs` checks docs/MCP_SURFACE.md: the Core table lists exactly the advertised tools and its count, and each tool's documented ops equal its schema's `op` enum (verified to fail on drift). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `ci-windows-mac-go-race` CI runs `go test -race ./...` for archd on Linux (passes locally). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-explains-change` Review Changes' header shows "N unexplained" when agents changed things without a work session, and clicking it shows only those; claims already carry the session's summary or goal as their reason and the Who filter has Unexplained. The reason is per session, not per claim. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `midflight-approval` Decided: an agent hears on its next `update_work` what the person changed or decided since its previous note (approvals, rejections with reasons, map edits, code disagreements), as `mapChanges`, once (`briefingSince` in `api/map_briefing.go`); the implement prompt tells it to follow them. (claude/gracious-gauss-1bgdv9)

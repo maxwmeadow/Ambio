@@ -102,3 +102,22 @@ test('descriptions stay short enough to be worth their tokens', () => {
   // a label. Everything else earns its length.
   assert.ok(longest < 460, `longest description is ${longest} chars; keep them tight`)
 })
+
+test('docs/MCP_SURFACE.md lists the real core tools and their ops', () => {
+  const doc = readFileSync(new URL('../docs/MCP_SURFACE.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const table = doc.slice(doc.indexOf('## Core profile'), doc.indexOf('## Debug profile'))
+  const rows = new Map([...table.matchAll(/^\| `([a-z_]+)` \| (.*) \|$/gm)].map(m => [m[1], m[2]]))
+  const core = toolNames(coreBlock)
+  assert.deepEqual([...rows.keys()].sort(), [...core].sort(), 'the Core table and CORE_TOOLS disagree')
+  assert.match(table, new RegExp(`## Core profile - ${core.length} tools`))
+  for (const name of core) {
+    const start = coreBlock.indexOf(`    name: '${name}',`)
+    const next = coreBlock.indexOf("\n    name: '", start + 1)
+    const block = coreBlock.slice(start, next < 0 ? undefined : next)
+    const ops = block.match(/op: \{ type: 'string', enum: \[([^\]]*)\]/)
+    if (!ops) continue
+    const real = [...ops[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort()
+    const documented = rows.get(name).split(/,\s*/).map(op => op.replace(/ - .*$/, '').trim()).sort()
+    assert.deepEqual(documented, real, `${name}: documented ops differ from the schema`)
+  }
+})
