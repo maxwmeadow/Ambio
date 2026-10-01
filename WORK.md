@@ -120,7 +120,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 - ⬜ `infra-claims` **Infrastructure changes as claims** ("Orders now writes to Redis") in Review Changes. (Infra plan L7.)
 - ⬜ `delta-live-validation` **Validate Review Changes with a real Antigravity (and Claude Code) session** end to end; the product plan marked it "needs live validation".
-- ⬜ `hub-orphan-claims-check` **Confirm hub/orphan claims work** (listed open in the old plan, described as built elsewhere); close or fix.
 - ⬜ `timeline` **Architecture timeline:** scrub back through the journal to see the map as it was on a day or at a commit, and compare two points. The journal already has the data.
 
 ## Canvas and the Floor
@@ -258,6 +257,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `hub-orphan-claims-check` Confirmed built: `system.hub` (a system crossing the hub threshold, exact before/after) and `system.orphaned` (a system losing its last connection) are produced by `delta/claims.go` and covered by `TestHubTransitionRequiresAnExactBeforeAfterThresholdCrossing` and `TestLosingTheFinalConnectionCreatesAnOrphanClaim`; the renderer gives them tones and the Dependencies filter group. Closed, no change. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `review-filters` Review Changes filters by who (you, each agent, unexplained), work session, kind and system, offering only choices some claim has; each claim can be marked seen (button or S) and seen claims hidden (`canvas/reviewFilters.ts`). Seen is per review, not stored. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mcp-prompts-implement` MCP prompts `propose` (draw on a sheet, then stop for the user), `implement` (build a sheet, verified by compare) and `review` (where code and map disagree), so hosts with slash commands get `/axiom:propose` etc. (`mcp/prompts.ts`). Prompts only help hosts that show them; `agents-draw-first` still needs the installed workflow files. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `sheet-markdown` Sheets round-trip through a Markdown spec (Context / Add / Remove / Connections; `api/sheet_markdown.go`): Map → Copy Sheet as Markdown and New Sheet from Markdown… for people, `edit_sheet` export/import for agents (an agent's import arrives as proposals). Lines it cannot read are listed, not fatal. (claude/gracious-gauss-1bgdv9)
