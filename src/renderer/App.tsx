@@ -53,6 +53,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { archdApi, archdWs } from './archdEndpoint.ts'
+import { clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -137,6 +138,28 @@ function projectIsReady(config: ProjectConfig): boolean {
   if (config.rootMissing) return false
   config = migrateLegacyProjectLifecycle(config)
   return sourceBoundariesAreComplete(config) && projectHasEnteredWorkbench(config)
+}
+
+
+/**
+ * Edit → Undo / Redo. A text field keeps its own history; anywhere else the
+ * canvas's map changes are stepped (canvas/undoStack.ts).
+ */
+async function stepHistory(direction: 'undo' | 'redo'): Promise<void> {
+  const focused = document.activeElement as HTMLElement | null
+  const tag = focused?.tagName?.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || focused?.isContentEditable) {
+    document.execCommand(direction)
+    return
+  }
+  try {
+    const label = direction === 'undo' ? await undoLast() : await redoNext()
+    if (label) raiseNotice(`history-${direction}`, `${direction === 'undo' ? 'Undid' : 'Redid'}: ${label}`)
+    else raiseNotice(`history-${direction}`, direction === 'undo' ? 'Nothing to undo' : 'Nothing to redo')
+  } catch (error) {
+    raiseFailure(`history-${direction}`, direction === 'undo' ? "Couldn't undo" : "Couldn't redo",
+      error instanceof Error ? error.message : String(error))
+  }
 }
 
 export default function App() {
@@ -346,6 +369,8 @@ export default function App() {
   }, [])
 
   const openProject = useCallback(async (incomingConfig: ProjectConfig) => {
+    // Undo history belongs to the project it was made in.
+    clearUndo()
     let config = migrateLegacyProjectLifecycle(incomingConfig)
     let returning = projectHasEnteredWorkbench(config)
     // Older builds did not persist this milestone. Their existing index is
@@ -694,6 +719,8 @@ export default function App() {
         }
       }).catch(error => raiseFailure('reindex', 'Could not re-index this project', String(error)))
     },
+    'edit.undo': () => { void stepHistory('undo') },
+    'edit.redo': () => { void stepHistory('redo') },
     'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
     'project.exportMap': () => { if (currentProject) void exportMap(currentProject) },
     'project.importMap': () => { void importMap() },

@@ -2,6 +2,7 @@ import { useGraphStore } from '../store/graphStore'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiEditArchitecture, apiUndoArchitecture, type MeaningEdit } from './arcdApi.ts'
 import { codeFitNoticeBody, openMakeCodeMatch } from './codeFit.ts'
+import { forgetUndo, pushUndo, type UndoEntry } from './undoStack.ts'
 
 /**
  * Apply meaning edits made on the canvas: show them at once, record them in
@@ -27,11 +28,27 @@ export async function commitMeaningEdits(
     if (eventIds.length > 0) {
       const id = `meaning-edit-${eventIds[0]}`
       const codeFit = result.codeFit ?? []
+      // Edit → Undo walks the same journal: undo reverses the recorded rows,
+      // redo applies the edits again and remembers the new rows.
+      let recorded = eventIds
+      const entry: UndoEntry = {
+        label: confirmation,
+        undo: async () => {
+          await apiUndoArchitecture(workspaceId, recorded)
+          resolveInterruption(id) // its Undo button no longer applies
+        },
+        redo: async () => {
+          const again = await apiEditArchitecture(workspaceId, edits)
+          recorded = (again.changes ?? []).flatMap(change => change.eventIds ?? [])
+        },
+      }
+      pushUndo(entry)
       const actions = [{
         label: 'Undo',
         run: () => {
           resolveInterruption(id)
-          void apiUndoArchitecture(workspaceId, eventIds).catch(error => {
+          forgetUndo(entry)
+          void apiUndoArchitecture(workspaceId, recorded).catch(error => {
             raiseFailure(`${id}-undo`, "Couldn't undo", error instanceof Error ? error.message : String(error))
           })
         },

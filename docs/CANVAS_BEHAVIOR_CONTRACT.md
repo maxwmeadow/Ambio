@@ -306,6 +306,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   what sits inside it, a notice offers Restore, and the sheet rail lists it
   under "Removed on this sheet". Once its code is really gone it is marked
   GONE there, and a work order that carried it counts it as done.
+- Edit → Undo / Redo step back and forward through the meaning edits made on
+  the Floor; in a text field they undo typing. Undoing one from its notice
+  takes it off the stack. Sheet removals are not on it.
 - When the code disagrees with a meaning edit (the file lives outside its new
   system's folder, or its imports still mostly connect to another system),
   the edit still happens; its notice says where the code disagrees and offers

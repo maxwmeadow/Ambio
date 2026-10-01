@@ -2299,6 +2299,29 @@ test('an agent-drawn sheet cannot go unnoticed, and each proposal is one click t
   await expect(review).toHaveCount(0)
 })
 
+test('Edit → Undo and Redo step through map changes made on the Floor', async () => {
+  const calls: string[] = []
+  page.on('request', request => {
+    if (request.method() !== 'POST') return
+    if (request.url().includes('/api/architecture/undo')) calls.push(`undo ${JSON.stringify((request.postDataJSON() as { eventIds?: number[] }).eventIds)}`)
+    if (request.url().includes('/api/architecture/edits')) calls.push('edit')
+  })
+  const file = await revealFileNode('file_canvas')
+  await file.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^Take Out of / }).click()
+  await expect.poll(() => calls).toEqual(['edit'])
+  await page.locator('.react-flow__pane').click({ position: { x: 420, y: 420 } })
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect.poll(() => calls).toEqual(['edit', 'undo [1]'])
+  await expect(page.getByText(/^Undid: /)).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect.poll(() => calls).toEqual(['edit', 'undo [1]', 'edit'])
+  // Nothing left to redo: a further press sends nothing.
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await page.waitForTimeout(300)
+  expect(calls).toEqual(['edit', 'undo [1]', 'edit'])
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {

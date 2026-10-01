@@ -50,6 +50,8 @@ export function GlobalCommands() {
       const spec = COMMANDS[id]
       const modified = event.metaKey || event.ctrlKey
       if (!modified && isEditable(event.target)) return
+      // A text field's own undo history answers its undo keys.
+      if ((id === 'edit.undo' || id === 'edit.redo') && isEditable(event.target)) return
       if (spec.needsProject && !useGraphStore.getState().currentProject) return
       event.preventDefault()
       emitCommand(id)

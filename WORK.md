@@ -56,9 +56,8 @@ collide. Full context for each item is in its section below.
 
 1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
-3. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
-4. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-5. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+3. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
+4. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -135,7 +134,7 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Canvas and the Floor
 
-- ⬜ `canvas-undo-redo` **Undo and redo on the canvas** for presentation edits (move, resize) and, via the journal, meaning edits. The contract says sheet removals are recoverable "not through undo" - keep that; undo is additional. **Start:** read the contract first.
+- ⬜ `canvas-undo-redo-layout` (after `canvas-undo-redo`) **Undo presentation edits too.** Edit → Undo covers meaning edits made on the Floor; moving and resizing nodes is not on the stack yet. Push an entry from the layout save paths (`apiSaveFloorLayouts`) with the before/after rows, and make the canvas re-apply restored layouts.
 - ⬜ `large-map-readability` **Large projects stay readable.** A realistic large map stays navigable, activity stays legible, and manual layout survives indexing, resize and reopening.
 - ⬜ `split-axiom-canvas` **Split `AxiomCanvas.tsx` (~5,000 lines).** Extract gesture, projection and overlay logic into tested modules without behaviour change (the contract's refactor rule applies).
 - ⬜ `zoom-glitch` **The "zoom spaz" is masked, not fixed** (old bug hunt). Find the root cause.
@@ -258,7 +257,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `sheet-authoring-timing` "sheet authoring (click)" failed once in a full local Playwright run (waiting 8 s for the new planned node to become the selected parent) and passed on rerun; find what it waits on. (2026-10-01)
+- ⬜ `sheet-authoring-timing` "sheet authoring (click)" failed once in a full local Playwright run (waiting 8 s for the new planned node to become the selected parent) and passed on rerun; find what it waits on. With `--repeat-each=3` it failed 2 of 6 at d1485e7 and 0 of 6 with the undo work on top, so it is intermittent, both variants: the nested file's sheet layout never gets the planned system as parent within 8 s (line 79). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
@@ -273,6 +272,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `canvas-undo-redo` Edit → Undo / Redo are app commands (⌘Z / ⌘⇧Z, Ctrl on Windows and Linux; text fields keep their own undo). On the canvas they step through the meaning edits made on the Floor (`canvas/undoStack.ts`): undo reverses the journal rows, redo re-applies the edits; undoing from a notice takes the entry off the stack; the stack resets per project. Sheet removals stay off it (contract). Layout moves are `canvas-undo-redo-layout`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `runtime-tests` Runtime layer tests: the investigation case file (hypotheses, verdict words, runs linked by any name, conclusions verified by run number, human messages delivered exactly once, copies not aliases), recording start/notes/stop, the DAP client over in-memory pipes (responses matched by seq, events, failures, a hostile frame size closing the connection, headers), and frame/source matching and editor PATH stripping. Launching real debuggers stays covered by the opt-in suites. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-sheet-arrival` An agent's new sheet or new pending proposal raises an invitation with Open Sheet (one per sheet, replaced while the agent works); agent sheets not yet opened are marked NEW in the rail; pending proposals are outlined PROPOSED on the canvas (rejected ones fade) and listed under "To review" in the rail with one-click Confirm / Reject and Confirm All. Playwright covers arrival → open → confirm. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mac-update-manifest` + `actions-node24` A tagged release now ends with a job that merges the arm64 and x64 `latest-mac.yml` (`scripts/merge-mac-manifest.mjs`, tested) and replaces the uploaded one on the draft release; actions moved to their Node 24 majors (checkout v5, setup-node v5, setup-go v6, upload-artifact v5, download-artifact v6). Not yet exercised: runs on the next `v*` tag. (claude/gracious-gauss-1bgdv9)

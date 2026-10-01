@@ -54,6 +54,9 @@ in the app as "What's New" after updating, so write it for users.
 - When an agent draws a sheet or proposes something on one, Axiom tells you
   and marks the sheet NEW; its proposals are outlined on the map and listed
   in the sheet rail to confirm or reject with one click.
+- Edit → Undo and Redo (⌘Z / ⌘⇧Z) undo and redo map changes made on the
+  map - moves into systems, renames, grouping - and still undo typing in
+  text fields.
 - Sheets can propose removing code: press Delete on a live file or system on
   a sheet. It disappears from that sheet only, stays listed with Restore, and
   a sent work order counts it as done once the code is really gone. Agents

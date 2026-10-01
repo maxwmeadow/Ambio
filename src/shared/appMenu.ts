@@ -10,6 +10,8 @@ export type CommandId =
   | 'app.settings'
   | 'app.checkUpdates'
   | 'project.new'
+  | 'edit.undo'
+  | 'edit.redo'
   | 'project.open'
   | 'project.reveal'
   | 'project.exportMap'
@@ -73,6 +75,9 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'app.about': { id: 'app.about', label: 'About Axiom' },
   'app.settings': { id: 'app.settings', label: 'Settings…', accelerator: 'CmdOrCtrl+,' },
   'app.checkUpdates': { id: 'app.checkUpdates', label: 'Check for Updates…' },
+  // Text fields keep their own undo; on the canvas these step through map changes.
+  'edit.undo': { id: 'edit.undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z' },
+  'edit.redo': { id: 'edit.redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z' },
   'project.new': { id: 'project.new', label: 'New Project…', accelerator: 'CmdOrCtrl+N' },
   'project.open': { id: 'project.open', label: 'Open Folder…', accelerator: 'CmdOrCtrl+O' },
   'project.reveal': { id: 'project.reveal', label: 'Reveal Project Folder', needsProject: true },
@@ -169,7 +174,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'edit', label: 'Edit', entries: [
-      role('undo', 'Undo', 'CmdOrCtrl+Z'), role('redo', 'Redo', mac ? 'Cmd+Shift+Z' : 'Ctrl+Y'), separator,
+      command('edit.undo'), command('edit.redo'), separator,
       role('cut', 'Cut', 'CmdOrCtrl+X'), role('copy', 'Copy', 'CmdOrCtrl+C'), role('paste', 'Paste', 'CmdOrCtrl+V'),
       role('selectAll', 'Select All', 'CmdOrCtrl+A'),
     ],
