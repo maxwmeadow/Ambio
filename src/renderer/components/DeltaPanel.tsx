@@ -17,6 +17,7 @@ import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption } from 
 import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
 import { codeFitNoticeBody, openMakeCodeMatch } from '../canvas/codeFit.ts'
 import { reviewMarkdown } from '../canvas/reviewMarkdown.ts'
+import { NO_FILTER, claimMatches, isFiltered, reviewFilterOptions, type FilterOption, type ReviewFilter } from '../canvas/reviewFilters.ts'
 
 /** One id, so a refreshed delta replaces its invitation instead of stacking. */
 const DELTA_INVITATION = 'delta-review'
@@ -60,7 +61,7 @@ function actorBadge(actor: string): string {
 }
 
 function ClaimRow({
-  claim, review, active, expanded, onSelect, onToggle, undo, onUndo,
+  claim, review, active, expanded, onSelect, onToggle, undo, onUndo, seen, onSeen,
 }: {
   claim: DeltaClaim
   review: DeltaReview
@@ -70,6 +71,8 @@ function ClaimRow({
   onToggle: () => void
   undo?: UndoState
   onUndo: () => void
+  seen: boolean
+  onSeen: () => void
 }) {
   const evidence = [...(claim.realizationEvidence ?? []), ...claim.evidence]
   const hasEvidence = evidence.length > 0
@@ -85,6 +88,7 @@ function ClaimRow({
       data-tone={KIND_TONE[claim.kind] ?? 'structural'}
       data-active={active || undefined}
       data-cycle={claim.createsCycle || undefined}
+      data-seen={seen || undefined}
       aria-current={active ? 'true' : undefined}
     >
       <button type="button" className="axiom-delta__claim-head" onClick={onSelect}>
@@ -111,6 +115,16 @@ function ClaimRow({
           )}
           <span className="axiom-delta__actor" data-actor={claim.actor}>{actorBadge(claim.actor)}</span>
         </span>
+      </button>
+      <button
+        type="button"
+        className="axiom-delta__seen"
+        aria-pressed={seen}
+        aria-label={seen ? `Mark “${claim.title}” unseen` : `Mark “${claim.title}” seen`}
+        title={seen ? 'Seen - press S to unmark' : 'Mark seen (S)'}
+        onClick={onSeen}
+      >
+        {seen ? '✓ Seen' : 'Seen'}
       </button>
 
       {claim.undoEventIds && claim.undoEventIds.length > 0 && (
@@ -173,6 +187,22 @@ function ClaimRow({
 
 type UndoState = { status: 'working' | 'done' } | { status: 'error'; message: string }
 
+/** A filter worth offering only when there is more than one thing to choose. */
+function FilterSelect({ label, value, options, onChange }: {
+  label: string
+  value: string
+  options: FilterOption[]
+  onChange: (value: string) => void
+}) {
+  if (options.length < 2 && !value) return null
+  return (
+    <select className="axiom-delta__filter" aria-label={`${label} filter`} value={value} onChange={event => onChange(event.target.value)}>
+      <option value="">{label}: all</option>
+      {options.map(option => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+    </select>
+  )
+}
+
 export function DeltaPanel() {
   const { delta, reviewing, cursor, deferredUntil, files, systems, startReview, setCursor, deferDelta, endReview } =
     useGraphStore(useShallow(state => ({
@@ -215,10 +245,33 @@ export function DeltaPanel() {
   }, [files, systems])
 
   const review = useMemo(() => buildDeltaReview(delta, knownNodeIds), [delta, knownNodeIds])
-  const visible = useMemo(
+  const all = useMemo(
     () => (showInternal ? [...review.claims, ...review.internalClaims] : review.claims),
     [review, showInternal],
   )
+  // Filters and "seen" belong to this review; a new delta starts clean.
+  const [filter, setFilter] = useState<ReviewFilter>(NO_FILTER)
+  const [seen, setSeen] = useState<Set<string>>(new Set())
+  useEffect(() => { setFilter(NO_FILTER); setSeen(new Set()) }, [delta?.until])
+  const filterContext = useMemo(() => ({
+    sessions: review.sessions,
+    systemOfFile: new Map(files.map(file => [file.id, file.systemId])),
+    sessionGoals: new Map(review.sessionList.map(session => [session.id, session.goal])),
+    systemNames: new Map(systems.map(system => [system.id, system.name])),
+  }), [review, files, systems])
+  const options = useMemo(() => reviewFilterOptions(all, filterContext), [all, filterContext])
+  const visible = useMemo(
+    () => all.filter(claim => claimMatches(claim, filter, filterContext, seen)),
+    [all, filter, filterContext, seen],
+  )
+  const toggleSeen = useCallback((id: string) => {
+    setSeen(current => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
   const active = clampClaimCursor(visible, cursor)
 
   const toggleEvidence = useCallback((id: string) => {
@@ -236,7 +289,7 @@ export function DeltaPanel() {
     if (!reviewing) return
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.isContentEditable)) return
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.isContentEditable)) return
       if (event.key === 'j' || event.key === 'ArrowDown') {
         event.preventDefault()
         setCursor(Math.min(active + 1, visible.length - 1))
@@ -246,13 +299,16 @@ export function DeltaPanel() {
       } else if (event.key === 'Enter' && visible[active]) {
         event.preventDefault()
         toggleEvidence(visible[active].id)
+      } else if (event.key === 's' && visible[active]) {
+        event.preventDefault()
+        toggleSeen(visible[active].id)
       } else if (event.key === 'Escape') {
         endReview(false)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [reviewing, active, visible, setCursor, endReview, toggleEvidence])
+  }, [reviewing, active, visible, setCursor, endReview, toggleEvidence, toggleSeen])
 
   // Keep the active claim in view when moving by keyboard.
   useEffect(() => {
@@ -355,6 +411,23 @@ export function DeltaPanel() {
         </ol>
       )}
 
+      <div className="axiom-delta__filters" role="group" aria-label="Filter changes">
+        <FilterSelect label="Who" value={filter.who} options={options.who} onChange={who => setFilter(f => ({ ...f, who }))} />
+        <FilterSelect label="Work" value={filter.work} options={options.work} onChange={work => setFilter(f => ({ ...f, work }))} />
+        <FilterSelect label="Kind" value={filter.kind} options={options.kind} onChange={kind => setFilter(f => ({ ...f, kind }))} />
+        <FilterSelect label="System" value={filter.system} options={options.system} onChange={system => setFilter(f => ({ ...f, system }))} />
+        <label className="axiom-delta__filter-check">
+          <input type="checkbox" checked={filter.hideSeen} onChange={event => setFilter(f => ({ ...f, hideSeen: event.target.checked }))} />
+          Hide seen{seen.size > 0 ? ` (${seen.size})` : ''}
+        </label>
+        {isFiltered(filter) && (
+          <span className="axiom-delta__filter-count">
+            {visible.length} of {all.length}
+            <button type="button" onClick={() => setFilter(NO_FILTER)}>Clear</button>
+          </span>
+        )}
+      </div>
+
       <ol className="axiom-delta__claims" ref={listRef}>
         {visible.map((claim, index) => (
           <ClaimRow
@@ -367,6 +440,8 @@ export function DeltaPanel() {
             onToggle={() => toggleEvidence(claim.id)}
             undo={undos[claim.id]}
             onUndo={() => void undoClaim(claim)}
+            seen={seen.has(claim.id)}
+            onSeen={() => toggleSeen(claim.id)}
           />
         ))}
       </ol>
@@ -384,7 +459,7 @@ export function DeltaPanel() {
           </button>
         )}
         <div className="axiom-delta__footer-actions">
-          <kbd className="axiom-delta__hint">J / K</kbd>
+          <kbd className="axiom-delta__hint">J / K · S</kbd>
           <button
             type="button"
             className="axiom-delta__button axiom-delta__button--primary"

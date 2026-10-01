@@ -2423,6 +2423,33 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
   await expect.poll(() => undone).toEqual([41])
 })
 
+test('Review Changes narrows by who made a change and hides what you have seen', async () => {
+  const counts = { filesCreated: 0, filesUpdated: 0, filesDeleted: 0, edgesAdded: 0, edgesRemoved: 0, systemsAdded: 0, systemsRemoved: 0, crossBoundary: 0, agentFiles: 0, humanFiles: 0 }
+  const base = { subtitle: '', severity: 3, score: 1, ts: 2, createsCycle: false, internal: false, evidence: [] }
+  const claims = [
+    { ...base, id: 'claim:mine', kind: 'meaning.renamed', title: 'Canvas Renderer renamed to Canvas', actor: 'human', focusSystemIds: ['sys_canvas'] },
+    { ...base, id: 'claim:agent', kind: 'system.coupling', title: 'MCP Server now depends on Shared Types', actor: 'agent', focusSystemIds: ['sys_mcp', 'sys_shared'] },
+  ]
+  await page.evaluate(summary => {
+    const store = (window as unknown as { __axiomGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__axiomGraphStore
+    store.setState({ delta: summary })
+    store.getState().startDeltaReview()
+  }, { since: 1, until: 4, files: [], edges: [], systems: [], claims, sessions: [], counts, empty: false })
+
+  const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
+  const titles = panel.locator('.axiom-delta__claim-title')
+  await expect(titles).toHaveCount(2)
+  await panel.getByRole('combobox', { name: 'Who filter' }).selectOption({ label: 'Unexplained (1)' })
+  await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
+  await expect(panel).toContainText('1 of 2')
+  await panel.getByRole('button', { name: 'Clear' }).click()
+  await expect(titles).toHaveCount(2)
+
+  await panel.getByRole('button', { name: 'Mark “Canvas Renderer renamed to Canvas” seen' }).click()
+  await panel.getByRole('checkbox', { name: /Hide seen/ }).check()
+  await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
+})
+
 test('Zoom to Selection frames what is selected, and the empty-canvas menu offers Tidy Layout', async () => {
   await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 900, y: 600 } })
   await expect(page.getByRole('menuitem', { name: 'Tidy Layout' })).toBeVisible()

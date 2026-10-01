@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Review Changes filters: by who made a change, the work it belongs to, its
+  kind and system; mark changes seen (S) and hide them.
 - Agent slash commands `/axiom:propose`, `/axiom:implement` and `/axiom:review`
   in hosts that show MCP prompts.
 - Sheets as Markdown: copy a sheet as a Markdown spec for a PR or AGENTS.md,

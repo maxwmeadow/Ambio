@@ -7040,9 +7040,81 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 }
 
 .axiom-delta__claim {
+  position: relative;
   border-bottom: 1px solid var(--delta-rule);
   border-left: 3px solid #9aa39e;
   background: var(--delta-paper);
+}
+
+/* Seen claims stay in the list, quieter, until "Hide seen" takes them out. */
+.axiom-delta__claim[data-seen] { opacity: 0.55; }
+.axiom-delta__claim[data-seen][data-active] { opacity: 0.8; }
+
+.axiom-delta__seen {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #66716c;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0;
+}
+
+.axiom-delta__claim:hover .axiom-delta__seen,
+.axiom-delta__claim[data-active] .axiom-delta__seen,
+.axiom-delta__seen[aria-pressed="true"],
+.axiom-delta__seen:focus-visible {
+  border-color: #a9b0ac;
+  opacity: 1;
+}
+
+.axiom-delta__filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--delta-rule);
+  background: #ebe9e2;
+  font-size: 11px;
+}
+
+.axiom-delta__filter {
+  max-width: 150px;
+  padding: 2px 4px;
+  border: 1px solid #a9b0ac;
+  background: #f7f6f1;
+  color: #1f2a26;
+  font-size: 11px;
+}
+
+.axiom-delta__filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #45524d;
+}
+
+.axiom-delta__filter-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: #45524d;
+  font-family: var(--font-mono);
+}
+
+.axiom-delta__filter-count button {
+  padding: 0 6px;
+  border: 1px solid #a9b0ac;
+  background: #f7f6f1;
+  font-size: 10px;
 }
 
 .axiom-delta__claim[data-tone="coupling"]   { border-left-color: #2fa35d; }
