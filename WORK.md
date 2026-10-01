@@ -58,8 +58,7 @@ collide. Full context for each item is in its section below.
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 3. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
 4. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-5. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
-6. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+5. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -194,7 +193,6 @@ Plan and phases: [docs/INFRA.md](docs/INFRA.md).
 
 Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs/history/RUNTIME_LAYER_PLAN.md](docs/history/RUNTIME_LAYER_PLAN.md).
 
-- ⬜ `runtime-tests` **Test the runtime layer:** ~4,800 lines with two unit tests.
 - ⬜ `runtime-java-ruby` **Verify Java tracing; add Ruby argument values.**
 - ⬜ `investigations-at-scale` **Evaluate investigations on several-hundred-file codebases** and production-like data (the investigations doc's stated next step).
 - ⬜ `runtime-toolchains` **The toolchain track:** make DAP adapters and compilers (MSYS2 etc.) installable or clearly optional, per the one-install decision.
@@ -275,6 +273,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `runtime-tests` Runtime layer tests: the investigation case file (hypotheses, verdict words, runs linked by any name, conclusions verified by run number, human messages delivered exactly once, copies not aliases), recording start/notes/stop, the DAP client over in-memory pipes (responses matched by seq, events, failures, a hostile frame size closing the connection, headers), and frame/source matching and editor PATH stripping. Launching real debuggers stays covered by the opt-in suites. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-sheet-arrival` An agent's new sheet or new pending proposal raises an invitation with Open Sheet (one per sheet, replaced while the agent works); agent sheets not yet opened are marked NEW in the rail; pending proposals are outlined PROPOSED on the canvas (rejected ones fade) and listed under "To review" in the rail with one-click Confirm / Reject and Confirm All. Playwright covers arrival → open → confirm. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mac-update-manifest` + `actions-node24` A tagged release now ends with a job that merges the arm64 and x64 `latest-mac.yml` (`scripts/merge-mac-manifest.mjs`, tested) and replaces the uploaded one on the draft release; actions moved to their Node 24 majors (checkout v5, setup-node v5, setup-go v6, upload-artifact v5, download-artifact v6). Not yet exercised: runs on the next `v*` tag. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` Removed the C# node-type dump and the call-graph symbol samples; gofmt'd `cmd/dbquery`; deleted the legacy TypeScript daemon (`archd/`, its electron-vite entry, `npm run archd`, the `@archd` path) and the dependencies only it used (hono, @hono/node-server, web-tree-sitter, better-sqlite3, chokidar, ws, @types/better-sqlite3), plus `postinstall: electron-rebuild` and @electron/rebuild, which existed for better-sqlite3. CI now fails on unformatted Go (Linux). (claude/gracious-gauss-1bgdv9)
