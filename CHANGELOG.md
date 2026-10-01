@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Review Changes shows infrastructure changes: "Orders now writes to Redis",
+  "Billing no longer reads from Postgres".
 - Review Changes filters: by who made a change, the work it belongs to, its
   kind and system; mark changes seen (S) and hide them.
 - Agent slash commands `/axiom:propose`, `/axiom:implement` and `/axiom:review`

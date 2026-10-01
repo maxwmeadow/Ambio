@@ -1136,6 +1136,23 @@ func GetOutgoingDependenciesByFile(db *sql.DB, workspaceID, fileID string) ([]De
 	return deps, rows.Err()
 }
 
+// GetDependency reads one edge by id; nil when there is none.
+func GetDependency(db Reader, id string) (*Dependency, error) {
+	var d Dependency
+	err := db.QueryRow(`
+		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence, target_item, status
+		FROM dependencies WHERE id = ?`, id).Scan(
+		&d.ID, &d.WorkspaceID, &d.Src, &d.Dst, &d.SrcType, &d.DstType, &d.DependencyType, &d.Weight,
+		&d.CreatedBy, &d.Evidence, &d.TargetItem, &d.Status)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
 // DeleteDependency removes a single edge by id.
 func DeleteDependency(db *sql.DB, id string) error {
 	_, err := db.Exec(`DELETE FROM dependencies WHERE id=?`, id)

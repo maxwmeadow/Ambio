@@ -443,3 +443,56 @@ func TestARejectedArchitectureProposalSystemReachesTheNextAgent(t *testing.T) {
 		t.Fatalf("the next session was not told: %s", started.Body.String())
 	}
 }
+
+func TestAnAgentConnectingCodeToInfrastructureShowsInReviewChanges(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	if _, err := sqlDB.Exec(`UPDATE files SET system_id = 'orders' WHERE id = 'billing'`); err != nil {
+		t.Fatal(err)
+	}
+	redis := db.InfraNode{ID: "redis", WorkspaceID: "ws", Name: "Redis", Category: "cache", Provider: "generic", Status: "confirmed"}
+	if err := db.UpsertInfraNode(sqlDB, &redis); err != nil {
+		t.Fatal(err)
+	}
+	r := send(t, server, http.MethodPost, "/api/infra/connect", map[string]any{
+		"workspaceId": "ws", "srcId": "billing", "srcType": "file", "infraId": "redis", "kind": "WRITES",
+		"targetItem": "invoice:*", "createdBy": "agent",
+	})
+	if r.Code != http.StatusOK {
+		t.Fatalf("connect: %d %s", r.Code, r.Body.String())
+	}
+	review := send(t, server, http.MethodGet, "/api/delta?workspace=ws&since=0", nil)
+	body := review.Body.String()
+	if !strings.Contains(body, `"title":"Orders now writes to Redis"`) || !strings.Contains(body, `"kind":"infra.linked"`) ||
+		!strings.Contains(body, `"subtitle":"invoice:*"`) {
+		t.Fatalf("review = %s", body)
+	}
+}
+
+func TestDetectionsFirstRunIsTheBaselineAndLaterRunsAreJournaled(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	pg := db.InfraNode{ID: "pg", WorkspaceID: "ws", Name: "Postgres", Category: "database", Provider: "generic", Status: "confirmed"}
+	if err := db.UpsertInfraNode(sqlDB, &pg); err != nil {
+		t.Fatal(err)
+	}
+	root := db.Root{ID: "root", WorkspaceID: "ws"}
+	link := db.Dependency{Src: "billing", Dst: "pg", SrcType: "file", DstType: "infra", DependencyType: "READS"}
+	count := func() int {
+		n := 0
+		for _, ev := range eventsIn(t, server) {
+			if ev.Kind == db.EventInfraLinked || ev.Kind == db.EventInfraUnlinked {
+				n++
+			}
+		}
+		return n
+	}
+	server.journalDetectedLinks(sqlDB, root, []db.Dependency{link}, nil)
+	if n := count(); n != 0 {
+		t.Fatalf("the baseline run journaled %d links", n)
+	}
+	server.journalDetectedLinks(sqlDB, root, nil, []db.Dependency{link})
+	if n := count(); n != 1 {
+		t.Fatalf("a later run journaled %d links, want 1", n)
+	}
+}

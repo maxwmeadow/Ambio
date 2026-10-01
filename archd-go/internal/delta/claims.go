@@ -381,6 +381,9 @@ func buildClaims(
 	// ── Meaning: what people and agents changed about the map itself ────────
 	claims = append(claims, meaningClaims(summary)...)
 
+	// ── Infrastructure: code that started or stopped using it ───────────────
+	claims = append(claims, infraClaims(summary)...)
+
 	// ── Internal churn, one claim per system, hidden by default ─────────────
 	claims = append(claims, internalClaims(summary, internalEdges, internalNames)...)
 	if before != nil && after != nil {

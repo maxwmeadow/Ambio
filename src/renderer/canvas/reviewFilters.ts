@@ -15,11 +15,12 @@ export interface ReviewFilter {
 
 export const NO_FILTER: ReviewFilter = { who: '', work: '', kind: '', system: '', hideSeen: false }
 
-export type ReviewKindGroup = 'meaning' | 'dependencies' | 'systems' | 'files'
+export type ReviewKindGroup = 'meaning' | 'dependencies' | 'infrastructure' | 'systems' | 'files'
 
 export const KIND_GROUP_LABELS: Record<ReviewKindGroup, string> = {
   meaning: 'Map changes',
   dependencies: 'Dependencies',
+  infrastructure: 'Infrastructure',
   systems: 'Systems',
   files: 'Files',
 }
@@ -27,6 +28,7 @@ export const KIND_GROUP_LABELS: Record<ReviewKindGroup, string> = {
 export function kindGroup(kind: string): ReviewKindGroup {
   if (kind.startsWith('meaning.')) return 'meaning'
   if (kind.startsWith('file.')) return 'files'
+  if (kind.startsWith('infra.')) return 'infrastructure'
   if (kind === 'system.coupling' || kind === 'system.decoupling' || kind === 'system.hub' || kind === 'system.orphaned') {
     return 'dependencies'
   }

@@ -52,6 +52,8 @@ const KIND_TONE: Record<string, string> = {
   'meaning.merged': 'structural',
   'meaning.ungrouped': 'structural',
   'meaning.grouped': 'structural',
+  'infra.linked': 'coupling',
+  'infra.unlinked': 'decoupling',
 }
 
 function actorBadge(actor: string): string {

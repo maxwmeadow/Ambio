@@ -70,7 +70,11 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or
-  an agent session; the source of Review Changes.
+  an agent session; the source of Review Changes. Code starting or stopping
+  to use infrastructure is journaled as `infra.linked` / `infra.unlinked`
+  (by hand through `/api/infra/connect`, or found by detection after a
+  root's first run in the process; `api/infra_journal.go`) and becomes
+  claims like "Orders now writes to Redis" (`delta/infra.go`).
 - **Meaning edits**: every change to what the architecture says - create,
   rename, nest, group, ungroup, merge systems, and which system a file belongs
   to - goes through one path, `POST /api/architecture/edits`

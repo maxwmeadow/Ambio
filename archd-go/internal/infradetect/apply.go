@@ -13,6 +13,10 @@ type Changes struct {
 	Removed      []string // infra node ids
 	Connected    []db.Dependency
 	Disconnected []string // dependency ids
+	// Linked and Unlinked are the code→infrastructure relationships that are
+	// new since the last run, or gone: what Review Changes reports.
+	Linked   []db.Dependency
+	Unlinked []db.Dependency
 }
 
 // detectedBy is what a node records about why detection proposed it.
@@ -58,6 +62,32 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 		}
 	}
 
+	// What detection had found in this root before this run.
+	parserEdges := func() (map[[4]string]db.Dependency, error) {
+		rows, err := sqlDB.Query(`SELECT d.id, d.src, d.dst, d.dependency_type, d.target_item FROM dependencies d
+			JOIN files f ON f.id = d.src
+			WHERE d.workspace_id = ? AND f.root_id = ? AND d.dst_type = 'infra' AND d.created_by = 'parser'`,
+			workspaceID, rootID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		out := map[[4]string]db.Dependency{}
+		for rows.Next() {
+			var dep db.Dependency
+			if err := rows.Scan(&dep.ID, &dep.Src, &dep.Dst, &dep.DependencyType, &dep.TargetItem); err != nil {
+				return nil, err
+			}
+			dep.WorkspaceID, dep.SrcType, dep.DstType = workspaceID, "file", "infra"
+			out[[4]string{dep.Src, dep.Dst, dep.DependencyType, dep.TargetItem}] = dep
+		}
+		return out, rows.Err()
+	}
+	before, err := parserEdges()
+	if err != nil {
+		return changes, err
+	}
+
 	wantedNodes := map[string]bool{}
 	wantedEdges := map[[4]string]bool{}
 	wantedContents := map[[3]string]bool{}
@@ -97,7 +127,11 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 			if err := db.UpsertDependency(sqlDB, dep); err != nil {
 				return changes, err
 			}
-			wantedEdges[[4]string{e.FileID, node.ID, e.Kind, e.Item}] = true
+			key := [4]string{e.FileID, node.ID, e.Kind, e.Item}
+			if _, known := before[key]; !known && !wantedEdges[key] {
+				changes.Linked = append(changes.Linked, dep)
+			}
+			wantedEdges[key] = true
 			changes.Connected = append(changes.Connected, dep)
 		}
 		for _, c := range p.Contents {
@@ -129,30 +163,19 @@ func Apply(sqlDB *sql.DB, workspaceID, rootID string, result Result) (Changes, e
 	}
 
 	// Withdraw parser-owned evidence that no longer holds.
-	rows, err := sqlDB.Query(`SELECT d.id, d.src, d.dst, d.dependency_type, d.target_item FROM dependencies d
-		JOIN files f ON f.id = d.src
-		WHERE d.workspace_id = ? AND f.root_id = ? AND d.dst_type = 'infra' AND d.created_by = 'parser'`,
-		workspaceID, rootID)
+	after, err := parserEdges()
 	if err != nil {
 		return changes, err
 	}
-	var stale []string
-	for rows.Next() {
-		var id, src, dst, kind, item string
-		if err := rows.Scan(&id, &src, &dst, &kind, &item); err != nil {
-			rows.Close()
+	for key, dep := range after {
+		if wantedEdges[key] {
+			continue
+		}
+		if err := db.DeleteDependency(sqlDB, dep.ID); err != nil {
 			return changes, err
 		}
-		if !wantedEdges[[4]string{src, dst, kind, item}] {
-			stale = append(stale, id)
-		}
-	}
-	rows.Close()
-	for _, id := range stale {
-		if err := db.DeleteDependency(sqlDB, id); err != nil {
-			return changes, err
-		}
-		changes.Disconnected = append(changes.Disconnected, id)
+		changes.Disconnected = append(changes.Disconnected, dep.ID)
+		changes.Unlinked = append(changes.Unlinked, dep)
 	}
 
 	for _, n := range existing {

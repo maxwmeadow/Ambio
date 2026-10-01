@@ -38,4 +38,5 @@ test('offers only choices some claim has, with counts', () => {
   assert.deepEqual(options.system.map(o => `${o.label}:${o.count}`), ['Orders:2', 'Payments:2'])
   assert.equal(kindGroup('system.hub'), 'dependencies')
   assert.equal(kindGroup('system.added'), 'systems')
+  assert.equal(kindGroup('infra.linked'), 'infrastructure')
 })

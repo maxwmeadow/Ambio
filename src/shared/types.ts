@@ -540,6 +540,8 @@ export type DeltaClaimKind =
   | 'meaning.merged'
   | 'meaning.ungrouped'
   | 'meaning.grouped'
+  | 'infra.linked'
+  | 'infra.unlinked'
 
 export interface DeltaEvidence {
   kind: string

@@ -35,6 +35,9 @@ const (
 	// A person confirmed or rejected an agent's proposal, with an optional
 	// reason; later agent sessions are told (api/map_briefing.go).
 	EventProposalDecided = "proposal.decided"
+	// Code started or stopped using a piece of infrastructure (delta/infra.go).
+	EventInfraLinked   = "infra.linked"
+	EventInfraUnlinked = "infra.unlinked"
 )
 
 // updateCollapseWindowMs mirrors the activity burst window: repeated saves of

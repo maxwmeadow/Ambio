@@ -73,6 +73,9 @@ type Server struct {
 	detectMu        sync.Mutex
 	detecting       map[string]*sync.Mutex
 	infraUnresolved map[string][]infradetect.Unresolved
+	// infraBaselined marks roots whose first detection run has happened in
+	// this process; only later runs are journaled (infra_journal.go).
+	infraBaselined map[string]bool
 	// Worktree topology and heads are driven by Git metadata notifications. A
 	// slow periodic refresh remains only as protection against dropped events.
 	discoverWorktrees func(string) ([]gitworktree.Worktree, error)
@@ -117,6 +120,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		watchers:            make(map[string]*watcher.Watcher),
 		detecting:           make(map[string]*sync.Mutex),
 		infraUnresolved:     make(map[string][]infradetect.Unresolved),
+		infraBaselined:      make(map[string]bool),
 		discoverWorktrees:   gitworktree.Discover,
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
