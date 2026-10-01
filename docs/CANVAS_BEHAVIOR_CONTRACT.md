@@ -298,7 +298,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   Changes that need code start from the right-click menu instead: New
   System Here… draws a planned system on a new sheet, ready to send, and
   Delete This File… / Delete <system>'s Code… draw the removal on a new
-  "Remove …" sheet and open the send dialog with it attached. Drawing a
+  "Remove …" sheet and open the send dialog with it attached. Split System…
+  draws a "Split <system>" sheet with the system as context and two new
+  systems to name and fill before sending. Drawing a
   connection between two live nodes on the Floor draws "A uses B" on a new
   sheet the same way. A connection's source is always the node it was drawn
   from, whichever overlapping handle the pointer grabbed.

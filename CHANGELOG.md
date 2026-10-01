@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Split System… on a system's right-click menu draws the split on a sheet
+  for an agent to build.
 - Paste a Mermaid flowchart into New Sheet from Markdown… to draft it as a
   sheet.
 - Map → Copy Map as Mermaid: paste the architecture into a README, PR or

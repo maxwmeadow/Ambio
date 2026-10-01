@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { startSplitSheet, systemPath } from './splitSystem.ts'
 import { emitCommand } from '../app/commands'
 import { useGraphStore } from '../store/graphStore'
 import { raiseNotice } from '../store/interruptionStore.ts'
@@ -186,6 +187,13 @@ function buildEntries(
       ...(floorEdits ? [
         'separator' as const,
         { label: 'New Sheet from Selection…', run: () => floorEdits.newSheetFrom(system.id) },
+        {
+          // Splitting moves code, so it is drawn on a sheet and sent, never done here.
+          label: 'Split System…',
+          run: () => {
+            if (workspaceId) void startSplitSheet(workspaceId, { name: system.name, path: systemPath(system.id, store.systems) })
+          },
+        },
         {
           // Ungrouping changes meaning only: the contents move up a level and
           // no code is touched. Undo is offered in the confirmation.

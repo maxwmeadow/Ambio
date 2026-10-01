@@ -2567,6 +2567,23 @@ test('Edit → Undo puts a moved system back, and Redo moves it again', async ()
   await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
 })
 
+test('Split System… draws the split on a new sheet', async () => {
+  let imported: { markdown?: string } | null = null
+  await page.route(/\/api\/sheet-import$/, async route => {
+    imported = route.request().postDataJSON()
+    await route.fulfill({ json: {
+      sheet: { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: '', kind: 'structure',
+        folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 },
+      warnings: [],
+    } })
+  })
+  await page.locator('.react-flow__node[data-id="sys_mcp"]').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Split System…' }).click()
+  await expect.poll(() => imported?.markdown).toMatch(/^# Split MCP Server\n/)
+  expect(imported!.markdown).toContain('- system `MCP Server: first part`')
+  await expect(page.getByText('Split MCP Server drawn on a sheet')).toBeVisible()
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {
