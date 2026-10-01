@@ -1818,8 +1818,14 @@ Steps to execute:
         })
         if (!res.ok) throw new Error(`start_work failed: ${await res.text()}`)
         result = await res.json()
-        const session = result as ActiveWorkSession
-        result = { ...session, sessionId: session.id }
+        const session = result as ActiveWorkSession & { mapChanges?: unknown }
+        result = {
+          ...session,
+          sessionId: session.id,
+          ...(session.mapChanges ? {
+            mapChangesNote: 'The user changed the architecture map since you last worked here. These are decisions: build on them, and ask before reversing one. codeDisagrees lists where the code does not match them yet; change it only if asked.',
+          } : {}),
+        }
         for (const [id, active] of activeWorkSessions) {
           if (active.workspaceId === project.workspaceId && (message ? active.messageId === message.msgId : !active.messageId)) activeWorkSessions.delete(id)
         }

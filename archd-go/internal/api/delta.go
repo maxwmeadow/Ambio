@@ -248,6 +248,8 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			}
 			rootID, branch = root.ID, root.Branch
 		}
+		// Read before this session is recorded, so "since" is the previous one.
+		briefing := mapChangesSince(sqlDB, body.WorkspaceID, body.Agent, time.Now())
 		newSession := db.WorkSession{
 			ID:             uuid.NewString(),
 			WorkspaceID:    body.WorkspaceID,
@@ -277,7 +279,10 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 		activity.MarkAgent(body.WorkspaceID)
 		s.invalidateCollisionCache(body.WorkspaceID)
 		s.hub.Broadcast("work:session", session)
-		jsonOK(w, session)
+		jsonOK(w, struct {
+			db.WorkSession
+			MapChanges *mapBriefing `json:"mapChanges,omitempty"`
+		}{session, briefing})
 
 	case strings.HasSuffix(r.URL.Path, "/note"):
 		if strings.TrimSpace(body.SessionID) == "" {

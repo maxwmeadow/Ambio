@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"axiom.local/archd/internal/db"
 	"axiom.local/archd/internal/delta"
@@ -300,5 +301,46 @@ func TestAWorkOrderToRemoveCodeIsCheckedForTheRemoval(t *testing.T) {
 	}
 	if r := send(t, server, http.MethodDelete, "/api/sheets/"+sheet.ID+"/removals/billing?workspace=ws", nil); r.Code != http.StatusOK {
 		t.Fatalf("restore: %d %s", r.Code, r.Body.String())
+	}
+}
+
+func TestAnAgentStartingWorkHearsWhatThePersonChanged(t *testing.T) {
+	server := meaningServer(t)
+	start := func(agent string) map[string]any {
+		t.Helper()
+		r := send(t, server, http.MethodPost, "/api/work/start", map[string]any{"workspaceId": "ws", "agent": agent, "goal": "add refunds"})
+		if r.Code != http.StatusOK {
+			t.Fatalf("start: %d %s", r.Code, r.Body.String())
+		}
+		var body map[string]any
+		_ = json.Unmarshal(r.Body.Bytes(), &body)
+		return body
+	}
+	// An agent's own edits are not news to it.
+	send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": map[string]any{"kind": "agent", "agent": "codex"},
+		"edits": []map[string]any{{"op": "rename", "systemId": "orders", "name": "Checkout"}},
+	})
+	if body := start("codex"); body["mapChanges"] != nil {
+		t.Fatalf("an agent was briefed on agent edits: %v", body["mapChanges"])
+	}
+	time.Sleep(5 * time.Millisecond)
+	send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": map[string]any{"kind": "human"},
+		"edits": []map[string]any{{"op": "assign", "fileIds": []string{"billing"}, "systemId": "payments"}},
+	})
+	briefing, _ := start("codex")["mapChanges"].(map[string]any)
+	changes, _ := briefing["changes"].([]any)
+	if len(changes) != 1 || !strings.Contains(changes[0].(map[string]any)["what"].(string), "billing.ts moved") {
+		t.Fatalf("briefing = %v", briefing)
+	}
+	// Told once: the next session starts after it.
+	time.Sleep(5 * time.Millisecond)
+	if body := start("codex"); body["mapChanges"] != nil {
+		t.Fatalf("the same change was told twice: %v", body["mapChanges"])
+	}
+	// Another agent, never seen here, hears it too.
+	if body := start("claude-code"); body["mapChanges"] == nil {
+		t.Fatal("a new agent was not briefed")
 	}
 }
