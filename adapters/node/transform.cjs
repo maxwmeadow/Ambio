@@ -43,10 +43,11 @@ const FN_TYPES = new Set([
 // Node 22.13+ strips TypeScript by replacing every type with whitespace, so
 // line and column positions survive exactly - a watch on line 14 of the .ts
 // file is line 14 of what we instrument. TS that needs real transformation
-// (enums, namespaces, parameter properties) throws here; the caller then
-// leaves the file uninstrumented rather than breaking it.
+// (enums, namespaces, parameter properties) is transformed instead, which
+// moves lines; it comes back with a source map ({ code, mapped: true }) that
+// puts every function back on its .ts line.
 let stripTypes = null
-function stripTypeScript(source) {
+function stripTypeScript(source, filename) {
   if (stripTypes === null) {
     try { stripTypes = require('module').stripTypeScriptTypes || false } catch (_) { stripTypes = false }
   }
@@ -56,13 +57,17 @@ function stripTypeScript(source) {
   const emit = process.emitWarning
   process.emitWarning = function (warning, ...rest) {
     const text = typeof warning === 'string' ? warning : (warning && warning.message) || ''
-    if (/stripTypeScriptTypes/.test(text)) return
+    if (/stripTypeScriptTypes|Transform Types/.test(text)) return
     return emit.call(process, warning, ...rest)
   }
   try {
-    return stripTypes(source, { mode: 'strip' })
+    return { code: stripTypes(source, { mode: 'strip' }), mapped: false }
   } catch (_) {
-    return null
+    try {
+      return { code: stripTypes(source, { mode: 'transform', sourceMap: true, sourceUrl: filename }), mapped: true }
+    } catch (_e) {
+      return null
+    }
   } finally {
     process.emitWarning = emit
   }
@@ -72,10 +77,14 @@ const TS_FILE = /\.(ts|mts|cts)$/
 
 function transform(source, opts) {
   const filename = opts.filename
+  let transformedTypeScript = false
   if (opts.typescript || TS_FILE.test(filename)) {
-    const stripped = stripTypeScript(source)
+    const stripped = stripTypeScript(source, filename)
     // Already-transpiled output (tsx, ts-node) is plain JS and strips to itself.
-    if (stripped != null) source = stripped
+    if (stripped != null) {
+      source = stripped.code
+      transformedTypeScript = stripped.mapped
+    }
   }
   let ast
   const parseOpts = {
@@ -102,7 +111,7 @@ function transform(source, opts) {
   const s = new MagicString(source)
   const fileLit = JSON.stringify(filename)
   // Build output with a source map is recorded in source terms (sourcemap.cjs).
-  const sm = opts.typescript ? null : loadSourceMap(source, filename)
+  const sm = opts.typescript && !transformedTypeScript ? null : loadSourceMap(source, filename)
   let count = 0
 
   // Unique per-file identifiers so instrumentation never collides with a

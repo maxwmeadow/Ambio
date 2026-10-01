@@ -176,8 +176,12 @@ and truncated. It stays on the local machine in archd's data directory.
   state no watched function touches is invisible; watch a function that does.
 - **Sampling**: past 100 calls, value statistics and samples come from sampled
   calls. The report says how many were sampled.
-- **TypeScript** that needs real transformation (enums, namespaces, parameter
-  properties) is run uninstrumented, as Node's own stripper requires.
+- **TypeScript** is stripped with Node's own `stripTypeScriptTypes`, keeping
+  every line where it was. Files that need real transformation (enums,
+  namespaces, parameter properties) are transformed by the same API with a
+  source map, so they record under their `.ts` lines too. Running such a file
+  still needs the user's own `--experimental-transform-types` (or tsx), as
+  Node requires.
 - **Derived-class constructors** are observed from after a top-level `super()`.
   A conditional `super()` leaves the constructor unobserved.
 - **Python**: how a call ended is read from the instruction its frame stopped
