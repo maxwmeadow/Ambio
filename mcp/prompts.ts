@@ -58,7 +58,7 @@ export function loopPromptText(name: string, args: Record<string, string | undef
         '',
         `1. Read it: get_build_plan with sheet ${sheet || '<name>'} for what to build, where it lives and what must be removed. Only confirmed elements are part of the order; proposals still awaiting the user are not.`,
         '2. start_work with a one-sentence goal before editing. Read the mapChanges and decisions it returns: they are what the user changed or decided since you last worked here.',
-        '3. Build it. Put new code where the sheet says (declaredPath, the system it is drawn in). Remove what the sheet removes, including what only it used.',
+        '3. Build it. Put new code where the sheet says (declaredPath, the system it is drawn in). Remove what the sheet removes, including what only it used. Report progress with update_work; when it returns mapChanges, the user changed or decided something while you worked - follow it before going on.',
         '4. Check: edit_sheet op "compare". Bind each new live node to its planned element (op "bind"), apply nesting the sheet asks for (op "apply_nesting"), and compare again until nothing is open.',
         '5. update_work with what you did and the checks you ran, then tell the user. Do not resolve the sheet yourself unless they ask.',
         '',

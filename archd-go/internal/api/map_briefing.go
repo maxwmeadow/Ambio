@@ -42,6 +42,14 @@ func mapChangesSince(sqlDB *sql.DB, workspaceID, agent string, now time.Time) *m
 			since = previous.Int64
 		}
 	}
+	return briefingSince(sqlDB, workspaceID, since, now)
+}
+
+// briefingSince is what the person changed and decided since a moment: at
+// start_work since the agent's previous session, and on each update_work
+// since its previous note - so a plan approved, rejected or changed while
+// the agent is already building reaches it mid-flight.
+func briefingSince(sqlDB *sql.DB, workspaceID string, since int64, now time.Time) *mapBriefing {
 	events, err := db.GetStructuralEvents(sqlDB, workspaceID, since)
 	if err != nil {
 		return nil

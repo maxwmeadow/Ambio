@@ -496,3 +496,41 @@ func TestDetectionsFirstRunIsTheBaselineAndLaterRunsAreJournaled(t *testing.T) {
 		t.Fatalf("a later run journaled %d links, want 1", n)
 	}
 }
+
+func TestAVerdictWhileTheAgentIsBuildingReachesItsNextNote(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	started := send(t, server, http.MethodPost, "/api/work/start", map[string]any{"workspaceId": "ws", "agent": "codex", "goal": "build the queue"})
+	var session struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(started.Body.Bytes(), &session)
+	time.Sleep(5 * time.Millisecond)
+
+	if err := db.CreateSheet(sqlDB, &db.Sheet{ID: "plan", WorkspaceID: "ws", Name: "Agent Plan"}); err != nil {
+		t.Fatal(err)
+	}
+	proposal := &db.PlannedNode{SheetID: "plan", WorkspaceID: "ws", Kind: "system", Name: "Job Queue", CreatedBy: "agent"}
+	if err := db.UpsertPlannedNode(sqlDB, proposal); err != nil {
+		t.Fatal(err)
+	}
+	send(t, server, http.MethodPost, "/api/planned/"+proposal.ID+"/approval", map[string]any{
+		"workspaceId": "ws", "decision": "rejected", "reason": "use the existing scheduler",
+	})
+	time.Sleep(5 * time.Millisecond)
+
+	note := func() string {
+		r := send(t, server, http.MethodPost, "/api/work/note", map[string]any{"workspaceId": "ws", "sessionId": session.ID, "text": "halfway"})
+		if r.Code != http.StatusOK {
+			t.Fatalf("note: %d %s", r.Code, r.Body.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+		return r.Body.String()
+	}
+	if first := note(); !strings.Contains(first, "The user rejected the proposed system Job Queue on Agent Plan: use the existing scheduler") {
+		t.Fatalf("the verdict did not reach the building agent: %s", first)
+	}
+	if second := note(); strings.Contains(second, "mapChanges") {
+		t.Fatalf("the same verdict was told twice: %s", second)
+	}
+}

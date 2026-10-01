@@ -109,7 +109,9 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   where the code still disagrees, and `decisions`: the person's verdicts with
   their reasons (`proposal.decided` rows) on planned elements, systems in
   architecture proposals and proposed infrastructure; an agent's own
-  decisions (`decidedBy: "agent"`) are not journaled as news
+  decisions (`decidedBy: "agent"`) are not journaled as news. Each
+  `update_work` note returns the same briefing for what happened since the
+  agent's previous note, so a verdict given mid-flight reaches it
   (`internal/api/map_briefing.go`, `recordDecision` in `api/sheets.go`).
   Agents read recent meaning changes with `get_architecture` scope `changes`
   (`GET /api/architecture/changes`).
