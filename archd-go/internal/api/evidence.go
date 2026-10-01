@@ -192,7 +192,21 @@ type RunReport struct {
 	OutputTail   string           `json:"outputTail"`
 	OutputLines  int              `json:"outputLines"`
 	Instrumented []string         `json:"instrumented"`
+	Notes        []string         `json:"notes,omitempty"`
 	Processes    int              `json:"processes"`
+	Server       *ReportServer    `json:"server,omitempty"`
+}
+
+// ReportServer is the long-running process a run exercised.
+type ReportServer struct {
+	Command     string `json:"command"`
+	Port        int    `json:"port,omitempty"`
+	ReadyMs     int64  `json:"readyMs"`
+	Failed      string `json:"failed,omitempty"`
+	Exited      bool   `json:"exited,omitempty"`
+	ExitCode    int    `json:"exitCode,omitempty"`
+	OutputTail  string `json:"outputTail"`
+	OutputLines int    `json:"outputLines"`
 }
 
 // ─── analysis ─────────────────────────────────────────────────────────────────
@@ -206,6 +220,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		TimedOut:     out.TimedOut,
 		DurationMs:   out.DurationMs,
 		Instrumented: out.Instrumented,
+		Notes:        out.Notes,
 		Processes:    out.Processes,
 	}
 
@@ -557,6 +572,23 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		rep.Findings = append(rep.Findings, Finding{Kind: "tests", Severity: "high", rank: 75, Text: text})
 	}
 
+	if srv := out.Server; srv != nil {
+		rep.Server = &ReportServer{Command: srv.Command, Port: srv.Port, ReadyMs: srv.ReadyMs,
+			Failed: srv.Failed, Exited: srv.Exited, ExitCode: srv.ExitCode}
+		rep.Server.OutputTail, rep.Server.OutputLines = outputTail(srv.Output, 30)
+		switch {
+		case srv.Failed != "":
+			rep.Findings = append(rep.Findings, Finding{Kind: "server", Severity: "high", rank: 95,
+				Text: "The command did not run: " + srv.Failed})
+		case srv.Exited && srv.ExitCode != 0:
+			rep.Findings = append(rep.Findings, Finding{Kind: "server", Severity: "high", rank: 90,
+				Text: fmt.Sprintf("The server exited with code %d while the command ran", srv.ExitCode)})
+		case srv.Exited:
+			rep.Findings = append(rep.Findings, Finding{Kind: "server", Severity: "medium", rank: 50,
+				Text: "The server exited on its own while the command ran"})
+		}
+	}
+
 	if out.TimedOut {
 		rep.Findings = append(rep.Findings, Finding{Kind: "exit", Severity: "high", rank: 70,
 			Text: fmt.Sprintf("Timed out after %s and was stopped", humanMs(out.DurationMs))})
@@ -568,17 +600,7 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 	rep.Findings = dedupeDrift(rep.Findings)
 	sort.SliceStable(rep.Findings, func(i, j int) bool { return rep.Findings[i].rank > rep.Findings[j].rank })
 
-	lines := strings.Split(strings.TrimRight(out.Output, "\n"), "\n")
-	if strings.TrimSpace(out.Output) == "" {
-		lines = nil
-	}
-	rep.OutputLines = len(lines)
-	tailN := 30
-	if len(lines) > tailN {
-		rep.OutputTail = strings.Join(lines[len(lines)-tailN:], "\n")
-	} else {
-		rep.OutputTail = strings.Join(lines, "\n")
-	}
+	rep.OutputTail, rep.OutputLines = outputTail(out.Output, 30)
 
 	switch {
 	case len(rep.Findings) > 0 && rep.Findings[0].Severity == "high":
@@ -591,6 +613,18 @@ func analyzeRun(out *runtime.RunOutcome, requested []runtime.RunWatch, idx *file
 		rep.Headline = fmt.Sprintf("Ran %d functions in %d files", rep.FunctionsRun, rep.FilesRun)
 	}
 	return rep
+}
+
+// outputTail is the last n lines of a process's output, and how many it had.
+func outputTail(output string, n int) (string, int) {
+	if strings.TrimSpace(output) == "" {
+		return "", 0
+	}
+	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	if len(lines) > n {
+		return strings.Join(lines[len(lines)-n:], "\n"), len(lines)
+	}
+	return strings.Join(lines, "\n"), len(lines)
 }
 
 func stripRoot(path string) string {
@@ -823,7 +857,13 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 	if rep.TimedOut {
 		status = "timed out"
 	}
+	if rep.Server != nil && rep.Server.Failed != "" {
+		status = "not run"
+	}
 	fmt.Fprintf(&b, "Run R%d · `%s` · %s · %s", rep.N, rep.Command, status, humanMs(rep.DurationMs))
+	if rep.Server != nil {
+		fmt.Fprintf(&b, " · against `%s`", rep.Server.Command)
+	}
 	if rep.HypothesisID != "" {
 		fmt.Fprintf(&b, " · testing %s", rep.HypothesisID)
 	}
@@ -892,7 +932,7 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		}
 		b.WriteString("\n")
 	} else {
-		names := map[string]string{"javascript": "JavaScript/TypeScript", "python": "Python"}
+		names := map[string]string{"javascript": "JavaScript/TypeScript", "python": "Python", "ruby": "Ruby", "go": "Go"}
 		var shown []string
 		for _, l := range rep.Instrumented {
 			if n, ok := names[l]; ok {
@@ -908,6 +948,12 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		fmt.Fprintf(&b, "\nNo runtime evidence: the command ran no %s code from this workspace, so only its output is available.\n", langs)
 	}
 
+	// Why a language in the workspace was not recorded, so an empty result is
+	// not mistaken for code that never ran.
+	for _, note := range rep.Notes {
+		fmt.Fprintf(&b, "\nNote: %s.\n", note)
+	}
+
 	if rep.OutputLines > 0 {
 		shown := strings.Count(rep.OutputTail, "\n") + 1
 		if shown < rep.OutputLines {
@@ -917,6 +963,32 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		}
 		b.WriteString(clip(rep.OutputTail, 4000))
 		b.WriteString("\n")
+	}
+
+	if srv := rep.Server; srv != nil {
+		state := "stopped after the command"
+		switch {
+		case srv.Failed != "":
+			state = "never ready"
+		case srv.Exited:
+			state = fmt.Sprintf("exited %d on its own", srv.ExitCode)
+		}
+		ready := ""
+		if srv.Failed == "" {
+			ready = fmt.Sprintf(", ready after %s", humanMs(srv.ReadyMs))
+		}
+		if srv.OutputLines == 0 {
+			fmt.Fprintf(&b, "\nServer (%s%s): no output\n", state, ready)
+		} else {
+			shown := strings.Count(srv.OutputTail, "\n") + 1
+			fmt.Fprintf(&b, "\nServer output (%s%s", state, ready)
+			if shown < srv.OutputLines {
+				fmt.Fprintf(&b, "; last %d of %d lines", shown, srv.OutputLines)
+			}
+			b.WriteString(")\n")
+			b.WriteString(clip(srv.OutputTail, 3000))
+			b.WriteString("\n")
+		}
 	}
 
 	if rep.HypothesisID != "" {

@@ -404,6 +404,8 @@ func (s *Server) handleCaseRun(w http.ResponseWriter, r *http.Request) {
 		Cwd         string            `json:"cwd"`
 		TimeoutSec  int               `json:"timeoutSec"`
 		Hypothesis  string            `json:"hypothesis"`
+		Server      string            `json:"server"` // long-running process the command exercises
+		Port        int               `json:"port"`   // where the server listens, to know it is ready
 	}
 	if !decodeBody(w, r, &body) {
 		return
@@ -477,6 +479,8 @@ func (s *Server) handleCaseRun(w http.ResponseWriter, r *http.Request) {
 		Command:     body.Command,
 		Watches:     watches,
 		Timeout:     timeout,
+		Server:      body.Server,
+		Port:        body.Port,
 	})
 	if err != nil {
 		s.hub.Broadcast("investigation:run", map[string]any{

@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 )
 
@@ -39,8 +40,11 @@ var cppConfig = dapLangConfig{
 	breakpointMode: "function",
 	requestType:    "launch",
 	threadPrefix:   "thread",
-	findDebugger:   func() (string, error) { return findOnPath("gdb", "AXIOM_GDB_PATH") },
+	findDebugger:   findCppDebugger,
 	buildArgv: func(dbg string, port int, program string, args []string, watches []Watch) []string {
+		if isLLDB(dbg) {
+			return []string{dbg} // lldb-dap speaks DAP on stdio by default
+		}
 		return []string{dbg, "--interpreter=dap"}
 	},
 	launchArgs: func(program, cwd string, args []string) map[string]any {
@@ -51,6 +55,43 @@ var cppConfig = dapLangConfig{
 		return m
 	},
 	qualifySymbol: func(sym string) string { return sym }, // gdb takes the bare name
+}
+
+// findCppDebugger prefers gdb, then lldb-dap: macOS has no gdb, and Apple's
+// command line tools ship lldb-dap (`xcrun -f lldb-dap`); LLVM toolchains on
+// Linux and Windows ship it too.
+func findCppDebugger() (string, error) {
+	if p, err := findOnPath("gdb", "AXIOM_GDB_PATH"); err == nil {
+		return p, nil
+	}
+	if p, err := findOnPath("lldb-dap", "AXIOM_LLDB_DAP_PATH"); err == nil {
+		return p, nil
+	}
+	if goruntime.GOOS == "darwin" {
+		if out, err := exec.Command("xcrun", "-f", "lldb-dap").Output(); err == nil {
+			if p := strings.TrimSpace(string(out)); p != "" {
+				return p, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no C/C++ debugger found - install gdb, or lldb (xcode-select --install on macOS), or set AXIOM_GDB_PATH / AXIOM_LLDB_DAP_PATH")
+}
+
+// macOSDebuggingBlocked reports whether macOS will refuse to let a debugger
+// launch a program: with Developer Tools access off, lldb waits on an
+// authorization prompt a background process can never answer.
+func macOSDebuggingBlocked() bool {
+	if goruntime.GOOS != "darwin" {
+		return false
+	}
+	out, err := exec.Command("DevToolsSecurity", "-status").CombinedOutput()
+	return err == nil && strings.Contains(strings.ToLower(string(out)), "disabled")
+}
+
+const macOSDebuggingHint = "macOS blocks debuggers until Developer Tools access is on: run `sudo DevToolsSecurity -enable` once, then try again"
+
+func isLLDB(path string) bool {
+	return strings.Contains(strings.ToLower(filepath.Base(path)), "lldb")
 }
 
 // ─── Ruby (rdbg / debug gem) ────────────────────────────────────────────────

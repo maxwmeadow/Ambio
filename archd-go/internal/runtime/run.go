@@ -58,6 +58,11 @@ type RunSpec struct {
 	Command     string
 	Watches     []RunWatch
 	Timeout     time.Duration
+	// Server, when set, is started first and stopped after Command, which
+	// then exercises it (server.go). Port, when set, is how archd knows it is
+	// ready.
+	Server string
+	Port   int
 }
 
 // EvidenceFunction is one instrumented function's aggregate for a run.
@@ -210,6 +215,7 @@ type RunOutcome struct {
 	Uncaught        []UncaughtError    `json:"uncaught"`
 	Instrumented    []string           `json:"instrumented"`    // languages whose adapters were injected
 	Notes           []string           `json:"notes,omitempty"` // why a language present was not recorded
+	Server          *ServerOutcome     `json:"server,omitempty"`
 }
 
 // cappedOutput keeps the head and tail of a stream so a runaway log costs a
@@ -269,6 +275,14 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	if spec.Cwd == "" {
 		spec.Cwd = spec.Root
 	}
+	spec.Server = strings.TrimSpace(spec.Server)
+	if spec.Server == "" {
+		spec.Port = 0
+	}
+	if spec.Port > 0 && listening(spec.Port) {
+		// The command would reach whatever is there instead of this server.
+		return nil, fmt.Errorf("port %d is already in use; stop what is listening there first", spec.Port)
+	}
 
 	runID := uuid.New().String()[:8]
 	evidenceDir, err := os.MkdirTemp("", "axiom-run-"+runID+"-")
@@ -311,6 +325,37 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	runCtx, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
 
+	var server *serverProcess
+	var serverOut *ServerOutcome
+	if spec.Server != "" {
+		if server, err = startServer(spec.Server, spec.Cwd, env); err != nil {
+			return nil, err
+		}
+		serverOut = &ServerOutcome{Command: spec.Server, Port: spec.Port}
+		serverOut.Failed = server.waitReady(runCtx, spec.Port)
+		serverOut.ReadyMs = time.Since(server.started).Milliseconds()
+		if serverOut.Failed != "" {
+			// The command never runs: what the server printed and recorded
+			// while starting is the evidence.
+			finishServer(server, serverOut)
+			outcome := &RunOutcome{
+				ID:           runID,
+				Command:      spec.Command,
+				Cwd:          spec.Cwd,
+				StartedAt:    server.started.UnixMilli(),
+				DurationMs:   serverOut.ReadyMs,
+				Instrumented: instrumented,
+				Notes:        nonEmpty(goNote),
+				Server:       serverOut,
+			}
+			mergeEvidence(outcome, readEvidence(evidenceDir))
+			if contains(instrumented, "go") {
+				outcome.Uncaught = append(outcome.Uncaught, goPanics(serverOut.Output, spec.Root)...)
+			}
+			return outcome, nil
+		}
+	}
+
 	cmd := shellCommand(spec.Command)
 	cmd.Dir = spec.Cwd
 	cmd.Env = env
@@ -322,6 +367,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 
 	started := time.Now()
 	if err := cmd.Start(); err != nil {
+		if server != nil {
+			finishServer(server, serverOut)
+		}
 		return nil, fmt.Errorf("start %q: %w", spec.Command, err)
 	}
 	done := make(chan error, 1)
@@ -342,6 +390,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		}
 	}
 	duration := time.Since(started)
+	if server != nil {
+		finishServer(server, serverOut)
+	}
 
 	exitCode := 0
 	if waitErr != nil {
@@ -369,10 +420,14 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		OutputTruncated: truncated,
 		Instrumented:    instrumented,
 		Notes:           nonEmpty(goNote),
+		Server:          serverOut,
 	}
 	mergeEvidence(outcome, readEvidence(evidenceDir))
 	if contains(instrumented, "go") {
 		outcome.Uncaught = append(outcome.Uncaught, goPanics(text, spec.Root)...)
+		if serverOut != nil {
+			outcome.Uncaught = append(outcome.Uncaught, goPanics(serverOut.Output, spec.Root)...)
+		}
 	}
 	return outcome, nil
 }

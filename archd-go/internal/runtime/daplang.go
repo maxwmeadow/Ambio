@@ -94,6 +94,12 @@ func (m *Manager) LaunchLangTarget(workspaceID, language, program string, args [
 	if err != nil {
 		return nil, err
 	}
+	if isLLDB(dbgPath) {
+		cfg.adapterID = "lldb-dap"
+		if macOSDebuggingBlocked() {
+			return nil, fmt.Errorf("%s", macOSDebuggingHint)
+		}
+	}
 	watches := m.WatchesForWorkspace(workspaceID)
 	funcToID := make(map[string]string)
 	for _, w := range watches {

@@ -27,6 +27,7 @@ type LanguageReadiness struct {
 	Tool    string `json:"tool,omitempty"`    // the command found, e.g. "python3"
 	Version string `json:"version,omitempty"` // its first version line
 	Note    string `json:"note"`              // what it means, and what would improve it
+	Install string `json:"install,omitempty"` // the command that installs the toolchain here
 }
 
 type languageSpec struct {
@@ -36,6 +37,21 @@ type languageSpec struct {
 	recorder    bool
 	install     string // what installs the toolchain
 	planned     string // when output-only: what is planned
+}
+
+// installCommand is the one command that installs a language's toolchain on
+// this OS, where there is a well-known one (Homebrew, winget, apt).
+var installCommand = map[string]map[string]string{
+	"js":     {"darwin": "brew install node", "windows": "winget install OpenJS.NodeJS.LTS", "linux": "sudo apt install nodejs npm"},
+	"python": {"darwin": "brew install python", "windows": "winget install Python.Python.3.12", "linux": "sudo apt install python3"},
+	"ruby":   {"darwin": "brew install ruby", "windows": "winget install RubyInstallerTeam.RubyWithDevKit.3.3", "linux": "sudo apt install ruby"},
+	"go":     {"darwin": "brew install go", "windows": "winget install GoLang.Go", "linux": "sudo apt install golang"},
+	"java":   {"darwin": "brew install --cask temurin", "windows": "winget install EclipseAdoptium.Temurin.21.JDK", "linux": "sudo apt install openjdk-21-jdk"},
+	"csharp": {"darwin": "brew install --cask dotnet-sdk", "windows": "winget install Microsoft.DotNet.SDK.8", "linux": "sudo apt install dotnet-sdk-8.0"},
+	"rust":   {"darwin": "brew install rustup", "windows": "winget install Rustlang.Rustup", "linux": "curl https://sh.rustup.rs -sSf | sh"},
+	"cpp":    {"darwin": "xcode-select --install", "windows": "winget install MSYS2.MSYS2", "linux": "sudo apt install build-essential"},
+	"swift":  {"darwin": "xcode-select --install", "windows": "winget install Swift.Toolchain"},
+	"php":    {"darwin": "brew install php", "linux": "sudo apt install php-cli"},
 }
 
 var readinessLanguages = map[string]languageSpec{
@@ -170,6 +186,10 @@ func readiness(counts map[string]int, probe func(string, []string) (string, stri
 		case r.Tool == "":
 			r.Level = "missing"
 			r.Note = "no " + strings.Join(spec.tools, " or ") + " on PATH; runs of this code need " + spec.install
+			if cmd := installCommand[key][goruntime.GOOS]; cmd != "" {
+				r.Install = cmd
+				r.Note += " - install with `" + cmd + "`"
+			}
 		case spec.recorder:
 			r.Level = "full"
 			r.Note = "runs record calls, arguments, returns and crashes; nothing to install"

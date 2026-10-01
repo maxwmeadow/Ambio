@@ -48,6 +48,17 @@ test.before(async () => {
     '',
     'module.exports = { applyLateFee, invoiceTotal }',
   ].join('\n'))
+  // A server whose handler adds to a shared table on every request.
+  writeFileSync(join(project, 'billing', 'server.js'), [
+    "const http = require('node:http')",
+    'const RATES = { base: 10 }',
+    'function quote(rates) {',
+    '  rates.base += 5',
+    '  return rates.base',
+    '}',
+    "http.createServer((req, res) => res.end(String(quote(RATES)))).listen(Number(process.argv[2]), '127.0.0.1', () => console.log('quotes ready'))",
+    '',
+  ].join('\n'))
   writeFileSync(join(project, 'billing', 'repro.js'),
     "const { invoiceTotal } = require('./ledger')\nfor (const base of [100, 100, 100, 100]) console.log(invoiceTotal(base))\n")
   writeFileSync(join(project, 'stock.py'), [
@@ -128,7 +139,7 @@ test.after(() => {
 
 test('a run reports the side effect reading the code would have to infer', async () => {
   const started = await client.callTool('investigation', { op: 'start', name: 'Invoices creep up' })
-  assert.match(started.text, /Runs record calls, arguments and returns for [^.]*JavaScript\/TypeScript \(2 files\)/,
+  assert.match(started.text, /Runs record calls, arguments and returns for [^.]*JavaScript\/TypeScript \(3 files\)/,
     'the agent learns what a run can see before planning one')
   const h = await client.callTool('investigation', { op: 'hypothesis', text: 'applyLateFee() accumulates into the shared DEFAULT_FEES table' })
   assert.equal(h.isError, false, h.text)
@@ -197,6 +208,29 @@ test('a Ruby run sees a cached object change between calls', { skip: !RUBY && 'n
   const run = await client.callTool('investigation', { op: 'run', command: 'ruby ledger.rb', watch: ['ledger.rb:price'] }, 60000)
   assert.equal(run.isError, false, run.text)
   assert.match(run.text, /`customer` is the same object on calls 1 and 2 of `price`, and it changed in between: `discount` 0 → 30/)
+})
+
+// A bug behind a server: the server runs under the recorder, the command is
+// the request, and the report covers both.
+test('a run against a server records what the server did with the request', async () => {
+  const port = 20000 + Math.floor(Math.random() * 20000)
+  const hit = `node -e "(async () => { for (let i = 0; i < 3; i++) console.log(await (await fetch('http://127.0.0.1:${port}/')).text()) })()"`
+  const run = await client.callTool('investigation', {
+    op: 'run', server: `node billing/server.js ${port}`, port, command: hit, watch: ['billing/server.js:quote'],
+  }, 60000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /against `node billing\/server\.js \d+`/)
+  assert.match(run.text, /`quote` changes its argument `rates\.base` on all 3 calls: 10 → 15, 15 → 20/)
+  assert.match(run.text, /Server output \(stopped after the command, ready after [^)]+\)\nquotes ready/)
+  assert.match(run.text, /\nOutput\n15\n20\n25\n/)
+
+  const dead = await client.callTool('investigation', {
+    op: 'run', server: 'node billing/no-such-server.js', port: port + 1, command: 'echo unreachable',
+  }, 60000)
+  assert.equal(dead.isError, false, dead.text)
+  assert.match(dead.text, /not run/)
+  assert.match(dead.text, /The command did not run: the server exited with code 1 before it was ready/)
+  assert.doesNotMatch(dead.text, /\nunreachable/)
 })
 
 test('a watch that names nothing fails before running, with the reason', async () => {

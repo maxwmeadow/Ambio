@@ -169,8 +169,13 @@ and truncated. It stays on the local machine in archd's data directory.
   and others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
-- **Long-running servers**: `run` waits for the command to exit. For a server,
-  use a repro script that exercises it, or `debug_runtime` to attach.
+- **Long-running servers**: `run` with `server` (and `port`) starts the server
+  under the same recorders, waits until the port takes connections (2 s when
+  no port is given), runs `command` against it, waits 1.2 s so every recorder
+  flushes, then stops the server's process group. Evidence from both merges;
+  the server's output is reported separately. A port already in use is
+  refused, since the command would reach the wrong process. A server that
+  dies while starting is the result, and the command does not run.
 - **Reach**: drift and mutation see objects reachable from arguments, the
   receiver and the return value (depth 5, 60 objects per call). Module-level
   state no watched function touches is invisible; watch a function that does.
