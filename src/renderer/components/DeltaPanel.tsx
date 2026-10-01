@@ -13,9 +13,10 @@ import {
   type DeltaReview,
 } from '../canvas/deltaReview.ts'
 import type { DeltaClaim } from '../../shared/types'
-import { raiseInvitation, resolveInterruption } from '../store/interruptionStore.ts'
+import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
 import { codeFitNoticeBody, openMakeCodeMatch } from '../canvas/codeFit.ts'
+import { reviewMarkdown } from '../canvas/reviewMarkdown.ts'
 
 /** One id, so a refreshed delta replaces its invitation instead of stacking. */
 const DELTA_INVITATION = 'delta-review'
@@ -296,6 +297,27 @@ export function DeltaPanel() {
           <strong>{deltaHeadline(review)}</strong>
           <span>{deltaWindow(delta.since, delta.until)} · {deltaAttribution(delta.counts)}</span>
         </div>
+        <button
+          type="button"
+          className="axiom-delta__copy"
+          title="Copy these changes as Markdown, for a pull request or a standup"
+          onClick={() => {
+            const text = reviewMarkdown({
+              headline: deltaHeadline(review),
+              window: deltaWindow(delta.since, delta.until),
+              claims: review.claims,
+              sessions: review.sessionList,
+              projectName: useGraphStore.getState().currentProject?.name,
+            })
+            const copy = window.axiom?.copyText ? window.axiom.copyText(text) : navigator.clipboard.writeText(text)
+            void copy.then(
+              () => raiseNotice('review-copied', 'Review copied as Markdown'),
+              error => raiseFailure('review-copied', "Couldn't copy the review", String(error)),
+            )
+          }}
+        >
+          Copy as Markdown
+        </button>
         <button
           type="button"
           className="axiom-delta__close"

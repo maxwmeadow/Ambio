@@ -8507,3 +8507,5 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 .axiom-explorer__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .axiom-explorer__row small { color: #7a847e; font-size: 10px; }
 .axiom-explorer__empty { padding: 10px; color: #6b766f; }
+
+.axiom-delta__copy { margin-left: auto; padding: 2px 8px; border: 1px solid #8a948f; background: #f7f6f1; color: #1f2a26; font-size: 11px; cursor: pointer; }

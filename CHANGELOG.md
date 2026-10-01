@@ -52,6 +52,7 @@ in the app as "What's New" after updating, so write it for users.
 - Draw a connection between two live systems or files on the map to propose
   a new dependency; it opens on a sheet ready to send, and counts as done
   once the code actually depends that way.
+- Copy a review as Markdown, for a pull request description or a standup.
 - An agent starting work is told what you changed on the map since it last
   worked here, and which of its proposals you rejected and why, so it builds
   on your decisions instead of undoing them.

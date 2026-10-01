@@ -126,7 +126,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `infra-claims` **Infrastructure changes as claims** ("Orders now writes to Redis") in Review Changes. (Infra plan L7.)
 - ⬜ `delta-live-validation` **Validate Review Changes with a real Antigravity (and Claude Code) session** end to end; the product plan marked it "needs live validation".
 - ⬜ `hub-orphan-claims-check` **Confirm hub/orphan claims work** (listed open in the old plan, described as built elsewhere); close or fix.
-- ⬜ `review-shareable` **Share a review.** Export a Review Changes summary as Markdown for a PR description or a standup.
 - ⬜ `timeline` **Architecture timeline:** scrub back through the journal to see the map as it was on a day or at a commit, and compare two points. The journal already has the data.
 - ⬜ `review-filters` **Filter Review Changes** by agent, work order, system and claim kind; mark claims as seen individually.
 
@@ -253,6 +252,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `delta-panel-e2e` Review Changes has no Playwright coverage (no fake `/api/delta` summary in `canvas.spec.ts`); add one covering Undo, Make the Code Match and Copy as Markdown. (2026-10-01)
 - ⬜ `explorer-symbol-search` Model Explorer searches symbols only in files already opened in it; search all symbols through archd's symbol index (`search_symbols`'s endpoint) instead. (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
@@ -269,6 +269,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `review-shareable` Review Changes has Copy as Markdown: headline, window, what the agents set out to do, and each claim with its first evidence and tags (closes a loop, unexplained, code still disagrees) (`canvas/reviewMarkdown.ts`, tested). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `human-decisions-to-agents` Confirming or rejecting an agent's planned element is journaled (`proposal.decided`, with an optional one-line reason asked when you reject in the sheet rail) and told to later agent sessions in `start_work`'s `mapChanges.decisions` ("The user rejected the proposed system Job Queue on Agent Plan: we already queue through SQS"); not a Review Changes claim. Architecture proposals and infra decisions remain (`human-decisions-to-agents-more`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agents-see-human-changes` `start_work` returns `mapChanges`: the person's meaning edits since this agent's previous session (else the last 7 days) as claim sentences ("billing.ts moved from Orders to Payments"), plus `codeDisagrees`; agents' own edits are excluded and each change is told once per agent; the MCP adds a note to treat them as decisions. Rejections (`human-decisions-to-agents`) are not in it yet. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `lang-c` C is parsed (`.c`, `.h`; tree-sitter C grammar, C++ symbol rules); headers are indexed and a quoted `#include` resolves to the header itself, falling back to the implementing file; renderer gets a C language entry. (claude/gracious-gauss-1bgdv9)
