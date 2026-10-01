@@ -57,7 +57,8 @@ npm run build                    # the app bundles
   (docs/PRODUCT.md §1). Don't add a one-way feature without a WORK item for the
   other direction.
 - Bump `db.SchemaVersion` (`archd-go/internal/db/db.go`) whenever a migration
-  changes the schema.
+  changes the schema, and add an upgrade fixture for the version you leave
+  behind (`archd-go/internal/db/testdata/schemagen`).
 - New archd calls from the renderer go through `archdApi()` / `archdWs()`
   (`src/renderer/archdEndpoint.ts`); never hard-code ports.
 - All commands, menus and shortcuts come from `src/shared/appMenu.ts`.
