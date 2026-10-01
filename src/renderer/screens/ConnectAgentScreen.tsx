@@ -323,7 +323,10 @@ export function ConnectAgentScreen({
   const copyText = async (text?: string | null) => {
     if (!text) return
     try {
-      await navigator.clipboard.writeText(text)
+      // The main process writes reliably; the web clipboard refuses when the
+      // window is not focused, and the copy then silently does nothing.
+      if (window.axiom?.copyText) await window.axiom.copyText(text)
+      else await navigator.clipboard.writeText(text)
       setCopied(true)
       if (copiedTimer.current) clearTimeout(copiedTimer.current)
       copiedTimer.current = setTimeout(() => setCopied(false), 2200)

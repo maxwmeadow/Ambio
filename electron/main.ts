@@ -775,12 +775,13 @@ function createWindow(): void {
     if (IS_E2E) rendererUrl.searchParams.set('e2e', '1')
     if (IS_E2E_HOME) rendererUrl.searchParams.set('home', '1')
     if (IS_E2E && process.env.AXIOM_E2E_FIXTURE) rendererUrl.searchParams.set('fixture', process.env.AXIOM_E2E_FIXTURE)
+    if (IS_E2E && process.env.AXIOM_E2E_ROOT) rendererUrl.searchParams.set('root', process.env.AXIOM_E2E_ROOT)
     mainWindow.loadURL(rendererUrl.toString())
     if (!IS_E2E) mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     mainWindow.loadFile(
       join(__dirname, '../renderer/index.html'),
-      IS_E2E ? { query: { e2e: '1', ...(IS_E2E_HOME ? { home: '1' } : {}), ...(process.env.AXIOM_E2E_FIXTURE ? { fixture: process.env.AXIOM_E2E_FIXTURE } : {}) } } : undefined,
+      IS_E2E ? { query: { e2e: '1', ...(IS_E2E_HOME ? { home: '1' } : {}), ...(process.env.AXIOM_E2E_FIXTURE ? { fixture: process.env.AXIOM_E2E_FIXTURE } : {}), ...(process.env.AXIOM_E2E_ROOT ? { root: process.env.AXIOM_E2E_ROOT } : {}) } } : undefined,
     )
   }
 

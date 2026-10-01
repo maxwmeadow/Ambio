@@ -64,7 +64,8 @@ const E2E_BLANK_PROJECT = E2E_MODE && APP_PARAMS.get('blank') === '1'
 const E2E_PROJECT_BASE: ProjectConfig = {
   id: 'demo',
   name: 'Axiom Canvas Fixture',
-  rootPath: '/axiom-e2e',
+  // The suite passes a real fixture folder; without one nothing is browsable.
+  rootPath: APP_PARAMS.get('root') ?? '/axiom-e2e',
   ignoredPaths: [],
   languageOverrides: {},
   layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
@@ -150,7 +151,7 @@ export default function App() {
   )
   // Pending project awaiting setup configuration before indexing starts
   const [pendingSetup, setPendingSetup] = useState<ProjectConfig | null>(
-    E2E_SETUP ? { ...E2E_PROJECT, rootPath: '.' } : null
+    E2E_SETUP ? E2E_PROJECT : null
   )
   const [reviewActive, setReviewActive] = useState(E2E_REVIEW)
   // Gates the launcher until the resume decision is known, so a resuming

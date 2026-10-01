@@ -74,6 +74,8 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- Copying the connection check during agent setup could silently do
+  nothing when the window was not focused.
 - Connections between two live nodes on a sheet were silently dropped, and
   a drawn dependency could never be confirmed by the code; both work now.
 - A file moved or renamed on disk keeps its system, its place on the map and

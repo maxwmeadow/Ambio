@@ -1,7 +1,37 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
+let e2eHome: string
+
+/**
+ * Every run gets its own home folder: the app's project registry, settings
+ * and window state are read from there, so the suite neither depends on nor
+ * writes to the developer's real ~/.axiom. The fixture project is registered
+ * and has a small real folder for the setup screen to browse.
+ */
+function isolatedHome(): { home: string; root: string } {
+  const home = mkdtempSync(join(tmpdir(), 'axiom-e2e-home-'))
+  const root = join(home, 'axiom-e2e')
+  for (const dir of ['src/renderer', 'docs', 'electron']) mkdirSync(join(root, dir), { recursive: true })
+  writeFileSync(join(root, 'package.json'), '{ "name": "axiom-e2e" }\n')
+  writeFileSync(join(root, 'ARCHITECTURE.md'), '# Architecture\n\nThe renderer consumes indexed source only.\n')
+  writeFileSync(join(root, 'electron.vite.config.ts'), 'export default {}\n')
+  writeFileSync(join(root, 'src/renderer/App.tsx'), 'export const App = () => null\n')
+  const project = (id: string, name: string, openedAt: number) => ({
+    id, name, rootPath: root, ignoredPaths: [], languageOverrides: {},
+    layoutPreferences: { zoom: 1, panX: 0, panY: 0 }, openedAt,
+  })
+  mkdirSync(join(home, '.axiom'), { recursive: true })
+  writeFileSync(join(home, '.axiom', 'projects.json'), JSON.stringify([
+    project('demo', 'Axiom Canvas Fixture', 2),
+    project('fixture-shopfront', 'shopfront', 1),
+  ], null, 2))
+  return { home, root }
+}
 
 async function expectResizeChrome(nodeId: string) {
   const handles = page.locator(`.axiom-node-resizer[data-node-id="${nodeId}"] .axiom-floating-resize-handle`)
@@ -52,9 +82,11 @@ async function revealFileNode(nodeId: string) {
 
 test.beforeEach(async () => {
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env
+  const isolated = isolatedHome()
+  e2eHome = isolated.home
   app = await electron.launch({
     args: ['.'],
-    env: { ...env, AXIOM_E2E: '1' },
+    env: { ...env, AXIOM_E2E: '1', AXIOM_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home },
   })
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
@@ -229,6 +261,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   await app?.close()
+  if (e2eHome) rmSync(e2eHome, { recursive: true, force: true })
 })
 
 /** The canvas zoom, read from React Flow's viewport transform. */
@@ -951,7 +984,8 @@ test('uses two-step agent setup for blank projects without changing codebase set
   const openCanvas = page.getByRole('button', { name: /Open canvas/ })
   await expect(openCanvas).toBeDisabled()
   await page.getByRole('button', { name: 'Copy check' }).click()
-  const checkPrompt = await page.evaluate(() => navigator.clipboard.readText())
+  await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toContain('verifyOnly true')
+  const checkPrompt = await app.evaluate(({ clipboard }) => clipboard.readText())
   expect(checkPrompt).toContain('verifyOnly true')
   expect(checkPrompt).toContain('expectedWorkspaceId "demo"')
   agentVerified = true
