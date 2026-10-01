@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Starter sheets: add an endpoint, extract a service, add a queue consumer,
+  split a system (Map → New Sheet from Markdown…).
 - Undo and redo moving and resizing on the map (⌘Z / ⌘⇧Z).
 - The Agent inbox shows work orders by stage: waiting, working, to review,
   accepted and cancelled.

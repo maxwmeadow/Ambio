@@ -8,6 +8,7 @@ import { archdApi } from '../archdEndpoint'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'
 import { raiseNotice } from '../store/interruptionStore'
+import { SHEET_TEMPLATES } from '../canvas/sheetTemplates'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 
 const PLACEHOLDER = `# Payment flow
@@ -100,6 +101,20 @@ function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
     <DialogFrame title="New Sheet from Markdown" width={560}>
       <DialogForm onSubmit={submit}>
         {error && <DialogError>{error}</DialogError>}
+        <DialogField label="Start from" optional="optional - a starter sheet to edit">
+          <select
+            className="axiom-dialog-input"
+            aria-label="Start from"
+            defaultValue=""
+            onChange={event => {
+              const template = SHEET_TEMPLATES.find(item => item.id === event.target.value)
+              if (template) setMarkdown(template.markdown)
+            }}
+          >
+            <option value="">A blank spec</option>
+            {SHEET_TEMPLATES.map(template => <option key={template.id} value={template.id}>{template.label}</option>)}
+          </select>
+        </DialogField>
         <DialogField label="Markdown spec">
           <textarea
             value={markdown}

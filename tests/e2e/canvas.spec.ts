@@ -2508,6 +2508,8 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
 
   await runCommand('New Sheet from Markdown')
   const dialog = page.getByRole('dialog', { name: 'New Sheet from Markdown' })
+  await dialog.getByRole('combobox', { name: 'Start from' }).selectOption({ label: 'Add a queue consumer' })
+  await expect(dialog.getByRole('textbox', { name: 'Markdown spec' })).toHaveValue(/^# Consume <topic>/)
   await dialog.getByRole('textbox', { name: 'Markdown spec' }).fill('# Runtime Draft\n\n## Add\n- system `Queue`\n')
   await dialog.getByRole('button', { name: 'Draft Sheet' }).click()
   await expect(dialog).toHaveCount(0)

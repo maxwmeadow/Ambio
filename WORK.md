@@ -112,7 +112,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `build-plan-panel` **A persistent Build Plan panel** replacing the modal, showing what was sent, who holds it, and realisation live.
 - ⬜ `midflight-approval` **What happens when you approve, reject or change a plan while the agent is already building.** Define and implement (e.g. the agent is told on its next `update_work`).
 - ⬜ `work-order-live-validation` **Validate the loop with real hosts beyond Codex:** Claude Code, Antigravity, Cursor. Record runs; file bugs in the Inbox.
-- ⬜ `sheet-templates` **Starter sheets:** "Add an endpoint", "Extract a service", "Add a queue consumer", "Split a system" - drawn skeletons that make the first work order fast.
 - ⬜ `sheet-history` **Sheet revision history** you can browse and restore (sheets are revisioned; there is no UI for past revisions).
 
 ## Review Changes and history
@@ -253,6 +252,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `sheet-templates` Four starter sheets (Add an endpoint, Extract a service, Add a queue consumer, Split a system) as Markdown specs in New Sheet from Markdown…'s Start from picker (`canvas/sheetTemplates.ts`, checked against the import format). Placeholders in angle brackets are edited before drafting. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `canvas-undo-redo-layout` Moving and resizing on the Floor go on Edit → Undo / Redo (`canvas/layoutUndo.ts`); a move into another system stays one meaning edit. Not covered: sheets' layouts, Tidy Layout, first placements. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `work-order-queue-view` The Agent inbox (already workspace-wide, across sheets) gets a stage strip: Waiting, Working, To review, Accepted, Cancelled with counts, filtering the thread (`inboxModel.ts` `workOrderStage`). Filtering by agent is not there yet; each order already says who picked it up. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `panels-menu` View → Panels ▸ groups Agent Log, Documents, Model Explorer, Infrastructure and new Sheet Rail / Detail Panel / Status Bar toggles, remembered per machine (`store/panelStore.ts`). Menus gained a `group` entry (native submenu on macOS, labelled group in the drawn menu bar). The drawn menu shows check marks; the macOS native menu does not yet. (claude/gracious-gauss-1bgdv9)
