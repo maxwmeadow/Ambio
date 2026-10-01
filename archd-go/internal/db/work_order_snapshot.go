@@ -44,9 +44,9 @@ type frozenSheetContext struct {
 		Name     string `json:"name"`
 		Revision int    `json:"revision"`
 	} `json:"sheet"`
-	Nodes            []frozenSheetNode `json:"nodes"`
-	Edges            []frozenSheetEdge `json:"edges"`
-	Removals         []struct {
+	Nodes    []frozenSheetNode `json:"nodes"`
+	Edges    []frozenSheetEdge `json:"edges"`
+	Removals []struct {
 		ID   string `json:"id"`
 		Type string `json:"type"`
 		Name string `json:"name"`
