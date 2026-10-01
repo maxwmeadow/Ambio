@@ -48,3 +48,28 @@ export function workOrderStageCounts(messages: Array<Parameters<typeof workOrder
   for (const message of messages) counts[workOrderStage(message, now)]++
   return counts
 }
+
+/**
+ * What kind of work order this is (WORK send-dialog-modes). Asking, asking
+ * for a plan and ordering a build are different contracts; the contract is
+ * written into the order itself, so every host and agent reads it the same
+ * way. A build says nothing extra: it is what a work order already is.
+ */
+export type WorkOrderMode = 'ask' | 'propose' | 'build'
+
+export const WORK_ORDER_MODES: Array<{ mode: WorkOrderMode; label: string; hint: string }> = [
+  { mode: 'ask', label: 'Ask', hint: 'A question: the agent answers and changes nothing' },
+  { mode: 'propose', label: 'Propose', hint: 'The agent draws a plan on a sheet and waits for you' },
+  { mode: 'build', label: 'Build', hint: 'The agent does the work' },
+]
+
+const MODE_CONTRACT: Record<WorkOrderMode, string> = {
+  ask: 'This is a question. Answer it in your reply; do not change code or the architecture map.',
+  propose: 'Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.',
+  build: '',
+}
+
+export function workOrderNote(mode: WorkOrderMode, note: string): string {
+  const contract = MODE_CONTRACT[mode]
+  return contract ? `${contract}\n\n${note}` : note
+}

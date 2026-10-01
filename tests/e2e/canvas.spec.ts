@@ -2707,6 +2707,20 @@ test('the inbox shows work orders by stage', async () => {
   await expect(inbox).toContainText('Add a retry queue')
 })
 
+test('asking a question tells the agent not to change anything', async () => {
+  let sent: { note?: string } | undefined
+  await page.route(/\/api\/canvas\/send$/, async route => {
+    sent = route.request().postDataJSON()
+    await route.fulfill({ json: { ...sent, workspaceId: 'demo', status: 'queued', createdAt: 5 } })
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('axiom:open-agent-dispatch')))
+  const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
+  await inbox.getByRole('radio', { name: 'Ask' }).click()
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Why does checkout call the MCP server?')
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
+  await expect.poll(() => sent?.note).toMatch(/^This is a question\. .*\n\nWhy does checkout call the MCP server\?$/s)
+})
+
 test('New System Here draws a planned system on a new sheet, ready to send', async () => {
   let planned: { kind?: string } | undefined
   page.on('request', request => {

@@ -8650,3 +8650,23 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
   border-color: #3c7d76;
   background: #dfeae6;
 }
+
+.axiom-inbox__modes {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.axiom-inbox__modes button {
+  padding: 2px 9px;
+  border: 1px solid #a9b0ac;
+  background: #f7f6f1;
+  color: #2b3833;
+  font-size: 11px;
+}
+
+.axiom-inbox__modes button[aria-checked="true"] {
+  border-color: #3c7d76;
+  background: #dfeae6;
+  font-weight: 600;
+}

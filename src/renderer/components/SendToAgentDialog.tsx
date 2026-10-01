@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
-import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, workOrderStage, workOrderStageCounts, type WorkOrderStage } from './inboxModel'
+import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, workOrderStage, workOrderStageCounts, type WorkOrderStage, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode } from './inboxModel'
 import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
@@ -24,6 +24,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const [copied, setCopied] = useState('')
   // Which stage of work orders the thread shows; null is all of them.
   const [stage, setStage] = useState<WorkOrderStage | null>(null)
+  const [mode, setMode] = useState<WorkOrderMode>('build')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -141,7 +142,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     if (sendLock.current || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100) return
     if (!retry.current && attachedSheetId && !attachedSheet) { setError('This attached sheet is no longer available. Remove it before sending.'); return }
     sendLock.current = true; setSending(true); setError(null); setPickerOpen(false)
-    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: attachedSheetId, codeFitFileIds }
+    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: workOrderNote(mode, note.trim()), selection, sheetId: attachedSheetId, codeFitFileIds }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
       const pending = retry.current
@@ -203,6 +204,10 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       <AgentHandoff workspaceId={graph.workspaceId} projectRoot={graph.rootPath} onManageConnections={onManageConnections} />
       {effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="axiom-inbox__compose" onSubmit={submit}>
+        <div className="axiom-inbox__modes" role="radiogroup" aria-label="What you are asking for">
+          {WORK_ORDER_MODES.map(item => <button key={item.mode} type="button" role="radio" aria-checked={mode === item.mode}
+            title={item.hint} disabled={locked} onClick={() => setMode(item.mode)}>{item.label}</button>)}
+        </div>
         {(effectiveSheetId || effectiveSelection.length > 0 || codeFitFileIds.length > 0) && <div className="axiom-inbox__attachments">
           {codeFitFileIds.length > 0 && <div className="axiom-inbox__attachment" title="After the agent replies, Axiom checks that the code agrees with where the map puts these files"><span className="axiom-inbox__sheet-icon"><InboxIcon name="check" size={16} /></span><span><strong>Axiom checks the code afterwards</strong><small>{codeFitFileIds.length === 1 ? '1 file' : `${codeFitFileIds.length} files`}</small></span><button className="axiom-inbox__icon" type="button" disabled={locked} aria-label="Don't check the code afterwards" onClick={() => setCodeFitFileIds([])}><InboxIcon name="close" size={13} /></button></div>}
           {effectiveSheetId && <div className="axiom-inbox__attachment" title={attachedSheet ? `${attachedSheet.name} · revision ${attachedSheet.revision} · snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="axiom-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="axiom-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
