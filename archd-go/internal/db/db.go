@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Axiom can recognise a database written by a newer one.
-const SchemaVersion = 3 // 3: work_order_code_checks
+const SchemaVersion = 4 // 3: work_order_code_checks, 4: sheet_removals
 
 // ErrNewerSchema reports a database written by a newer Axiom. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -865,6 +865,9 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateCodeChecks(db); err != nil {
 		return fmt.Errorf("migrate work order code checks: %w", err)
+	}
+	if err := migrateSheetRemovals(db); err != nil {
+		return fmt.Errorf("migrate sheet removals: %w", err)
 	}
 	// Item-level infra edges: "writes orders" and "writes customers" are two
 	// relationships, so the unique key includes target_item.

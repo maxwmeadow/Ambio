@@ -58,6 +58,15 @@ type SheetComparison struct {
 	Differences []SheetDifference `json:"differences"`
 	Nodes       []StructureNode   `json:"nodes"`
 	Mappings    map[string]string `json:"mappings"`
+	// Removals are the live nodes the sheet proposes taking away.
+	Removals []string `json:"removals,omitempty"`
+}
+
+func removalDetail(nodeType string) string {
+	if nodeType == "system" {
+		return "Remove this system's code; the sheet proposes it should no longer exist"
+	}
+	return "Remove this from the code; the sheet proposes it should no longer exist"
 }
 
 func refValue(p *string) string {
@@ -167,8 +176,21 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 	if err != nil {
 		return nil, err
 	}
+	// Removal wins over a move: a node the sheet takes away has no place to be
+	// checked, only an absence to be checked for.
+	removals, err := GetSheetRemovals(r, workspace, id)
+	if err != nil {
+		return nil, err
+	}
+	removed := map[string]bool{}
+	for _, removal := range removals {
+		removed[removal.NodeID] = true
+	}
 	desired := map[string]StructureNode{}
 	for _, e := range elements {
+		if removed[refValue(e.FileID)] || removed[refValue(e.SystemID)] || removed[refValue(e.InfraID)] {
+			continue
+		}
 		n := StructureNode{ID: refValue(e.FileID), Type: "file", Name: e.Label, ParentID: refValue(e.ParentSystemID)}
 		if e.SystemID != nil {
 			n.ID = *e.SystemID
@@ -217,6 +239,9 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 	// Canonical layout opinions also include nodes inherited from the Floor that
 	// are not duplicated in sheet_elements. They are still authored requirements.
 	for _, l := range layouts {
+		if removed[l.NodeID] {
+			continue
+		}
 		n, ok := desired[l.NodeID]
 		if !ok {
 			if strings.HasPrefix(l.NodeID, "planned:") {
@@ -260,6 +285,13 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 		}
 		if actual.ParentID != parent || actual.Containment != n.Containment {
 			add("nesting", n.ID, n.Name, parent, actual.ParentID, "Match parent and containment: "+n.Containment+" (live: "+actual.Containment+")")
+		}
+	}
+	for _, removal := range removals {
+		c.Checked++
+		c.Removals = append(c.Removals, removal.NodeID)
+		if !removal.Done {
+			add("removal", removal.NodeID, removal.Label, "removed", removal.NodeType, removalDetail(removal.NodeType))
 		}
 	}
 	edges, err := GetPlannedEdges(r, id)

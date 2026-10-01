@@ -230,6 +230,15 @@ test('sheet ops route correctly', async () => {
 
   const fetched = await client.callTool('edit_sheet', { op: 'get', sheet: 'HarnessSheet' })
   assert.equal(fetched.isError, false, fetched.text)
+
+  // An agent can propose taking code away; nothing is deleted, and compare
+  // reports the removal as open work until the code is gone.
+  const removed = await client.callTool('edit_sheet', { op: 'remove', sheet: 'HarnessSheet', members: ['api/serializers.py'] })
+  assert.equal(removed.isError, false, removed.text)
+  const compared = await client.callTool('edit_sheet', { op: 'compare', sheet: 'HarnessSheet' })
+  assert.ok(compared.payload?.differences?.some(difference => difference.kind === 'removal'), compared.text)
+  const restored = await client.callTool('edit_sheet', { op: 'restore', sheet: 'HarnessSheet', members: ['api/serializers.py'] })
+  assert.equal(restored.isError, false, restored.text)
 })
 
 test('an agent finds a sheet, implements nesting, resolves it and restores it', async () => {

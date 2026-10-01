@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"axiom.local/archd/internal/db"
@@ -256,5 +257,48 @@ func TestTheCodeDisagreementFollowsTheChangeAndItsWorkOrder(t *testing.T) {
 	history = send(t, server, http.MethodGet, "/api/canvas/history?workspace=ws", nil)
 	if !bytes.Contains(history.Body.Bytes(), []byte(`"state":"agrees"`)) {
 		t.Fatalf("the check did not follow the code: %s", history.Body.String())
+	}
+}
+
+func TestAWorkOrderToRemoveCodeIsCheckedForTheRemoval(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	created := send(t, server, http.MethodPost, "/api/sheets", map[string]any{"workspaceId": "ws", "name": "Retire billing"})
+	var sheet db.Sheet
+	if err := json.Unmarshal(created.Body.Bytes(), &sheet); err != nil || sheet.ID == "" {
+		t.Fatalf("create sheet: %s", created.Body.String())
+	}
+	if r := send(t, server, http.MethodPost, "/api/sheets/"+sheet.ID+"/removals", map[string]any{"workspaceId": "ws", "nodeId": "billing"}); r.Code != http.StatusOK {
+		t.Fatalf("propose removal: %d %s", r.Code, r.Body.String())
+	}
+	loaded := send(t, server, http.MethodGet, "/api/sheets/"+sheet.ID+"?workspace=ws", nil)
+	if !bytes.Contains(loaded.Body.Bytes(), []byte(`"removals":[{"sheetId"`)) {
+		t.Fatalf("the sheet does not list its removal: %s", loaded.Body.String())
+	}
+	sent := send(t, server, http.MethodPost, "/api/canvas/send", map[string]any{
+		"id": "remove-billing", "workspaceId": "ws", "note": "Delete billing.ts", "selection": "[]",
+		"sheetId": sheet.ID, "deliveryMode": "addressed",
+	})
+	if sent.Code != http.StatusOK {
+		t.Fatalf("send: %d %s", sent.Code, sent.Body.String())
+	}
+	spec := send(t, server, http.MethodGet, "/api/sheets/"+sheet.ID+"/buildspec?workspace=ws", nil)
+	if !bytes.Contains(spec.Body.Bytes(), []byte("remove file://billing.ts [OPEN]")) {
+		t.Fatalf("the build spec does not ask for the removal: %s", spec.Body.String())
+	}
+	check := func() string {
+		return send(t, server, http.MethodGet, "/api/canvas/snapshot-comparison?workspace=ws&messageId=remove-billing", nil).Body.String()
+	}
+	if !strings.Contains(check(), `"kind":"removal"`) {
+		t.Fatalf("the sent removal is not checked: %s", check())
+	}
+	if err := db.DeleteFileByID(sqlDB, "billing"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(check(), `"kind":"removal"`) {
+		t.Fatalf("the removal is still open after the file is gone: %s", check())
+	}
+	if r := send(t, server, http.MethodDelete, "/api/sheets/"+sheet.ID+"/removals/billing?workspace=ws", nil); r.Code != http.StatusOK {
+		t.Fatalf("restore: %d %s", r.Code, r.Body.String())
 	}
 }

@@ -83,6 +83,8 @@ const SHEET_OPS: Record<string, string> = {
   get: 'get_sheet',
   create: 'create_sheet',
   add: 'add_to_sheet',
+  remove: 'propose_sheet_removal',
+  restore: 'restore_sheet_removal',
   annotate: 'annotate_sheet',
   compare: 'compare_sheet',
   bind: 'bind_sheet',

@@ -635,11 +635,11 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Find sheets by name or ID. compare checks nesting and relationships, not pixels. Implement code, bind new nodes, then apply_nesting. Recompare after changes. resolve archives only matching structure using the latest revision/token; it does not verify runtime behavior.',
+    description: 'Find sheets by name or ID. remove proposes live nodes leave the code (deletes nothing). compare checks nesting, relationships and removals, not pixels. Implement code, bind new nodes, then apply_nesting. Recompare after changes. resolve archives only matching structure using the latest revision/token; it does not verify runtime behavior.',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', enum: ['list','get','create','add','annotate','compare','bind','apply_nesting','resolve','reopen'] },
+        op: { type: 'string', enum: ['list','get','create','add','remove','restore','annotate','compare','bind','apply_nesting','resolve','reopen'] },
         sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
         includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
         revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
@@ -649,7 +649,7 @@ const CORE_TOOLS = [
         nodeId: { type: 'string', description: 'apply_nesting: requirement node ID returned by compare' },
         name: { type: 'string' },
         purpose: { type: 'string' },
-        members: { type: 'array', items: { type: 'string' }, description: 'Existing file paths or live node IDs to include' },
+        members: { type: 'array', items: { type: 'string' }, description: 'File paths or live node IDs (add, remove, restore)' },
         target: { type: 'string' },
         body: { type: 'string' },
       },
@@ -2397,6 +2397,33 @@ Steps to execute:
         })
         if (!res.ok) throw new Error(`add to sheet failed: ${await res.text()}`)
         result = await res.json()
+        break
+      }
+
+      case 'propose_sheet_removal':
+      case 'restore_sheet_removal': {
+        // A removal is a proposal on the sheet: nothing is deleted here. It
+        // is done once the code is gone (db/sheet_removals.go).
+        const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const changed: string[] = []
+        for (const ref of (args.members as string[]) ?? []) {
+          const resolved = await resolveModelRef(project.workspaceId, ref)
+          const nodeId = resolved.fileId ?? resolved.systemId ?? resolved.infraId
+          if (!nodeId) throw new Error(`${ref} is not a live file, system or infrastructure node`)
+          const base = `${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/removals`
+          const res = call === 'propose_sheet_removal'
+            ? await fetch(base, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: project.workspaceId, nodeId, createdBy: 'agent' }),
+              })
+            : await fetch(`${base}/${encodeURIComponent(nodeId)}?workspace=${encodeURIComponent(project.workspaceId)}`, { method: 'DELETE' })
+          if (!res.ok) throw new Error(`${call === 'propose_sheet_removal' ? 'remove' : 'restore'} ${ref} failed: ${await res.text()}`)
+          changed.push(ref)
+        }
+        result = call === 'propose_sheet_removal'
+          ? { status: 'success', proposedForRemoval: changed, note: 'Proposed on the sheet only; tell the user, and remove the code only when asked.' }
+          : { status: 'success', restored: changed }
         break
       }
 

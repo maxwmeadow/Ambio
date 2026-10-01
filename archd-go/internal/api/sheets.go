@@ -7,6 +7,7 @@
 //	PUT    /api/sheets/:id                   - update name/purpose/folder/viewport
 //	DELETE /api/sheets/:id?workspace=
 //	POST   /api/sheets/:id/elements          - add element(s)
+//	POST   /api/sheets/:id/removals          - propose removing a live node (DELETE …/removals/:nodeId restores)
 //	DELETE /api/sheets/:id/elements/:elId?workspace=
 //	POST   /api/sheets/:id/elements/:elId/position
 //	POST   /api/annotations                  - create note/flag/reply
@@ -19,6 +20,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -218,6 +220,12 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// removals: POST /api/sheets/:id/removals, DELETE /api/sheets/:id/removals/:nodeId
+	if len(parts) >= 2 && parts[1] == "removals" {
+		s.handleSheetRemovals(w, r, id, parts[2:])
+		return
+	}
+
 	// element subroutes: /api/sheets/:id/elements[/:elId[/position]]
 	if len(parts) >= 2 && parts[1] == "elements" {
 		s.handleSheetElements(w, r, id, parts[2:])
@@ -377,9 +385,11 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		planned, _ := db.GetPlannedNodes(sqlDB, id)
 		plannedEdges, _ := db.GetPlannedEdges(sqlDB, id)
 		layouts, _ := db.GetSheetLayouts(sqlDB, id)
+		removals, _ := db.GetSheetRemovals(sqlDB, sheet.WorkspaceID, id)
 		jsonOK(w, map[string]any{
 			"sheet": sheet, "elements": elements, "annotations": annotations,
 			"planned": planned, "plannedEdges": plannedEdges, "layouts": layouts,
+			"removals": removals,
 		})
 
 	case r.Method == http.MethodPut && len(parts) == 1:
@@ -1125,4 +1135,70 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 		item.CodeChecks = checks[item.ID]
 	}
 	jsonOK(w, map[string]any{"message": item})
+}
+
+// handleSheetRemovals proposes and restores removals: live nodes a sheet says
+// should leave the code (db/sheet_removals.go). Neither touches reality.
+//
+//	POST   /api/sheets/:id/removals          {workspaceId, nodeId, createdBy?}
+//	DELETE /api/sheets/:id/removals/:nodeId?workspace=
+func (s *Server) handleSheetRemovals(w http.ResponseWriter, r *http.Request, sheetID string, rest []string) {
+	switch {
+	case r.Method == http.MethodPost && len(rest) == 0:
+		var body struct {
+			WorkspaceID string `json:"workspaceId"`
+			NodeID      string `json:"nodeId"`
+			CreatedBy   string `json:"createdBy"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.NodeID == "" {
+			jsonError(w, "bad request: nodeId required", http.StatusBadRequest)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		removal, err := db.ProposeSheetRemoval(sqlDB, body.WorkspaceID, sheetID, body.NodeID, body.CreatedBy)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			jsonError(w, err.Error(), status)
+			return
+		}
+		s.broadcastSheetRemovals(sqlDB, body.WorkspaceID, sheetID)
+		jsonOK(w, removal)
+	case r.Method == http.MethodDelete && len(rest) == 1:
+		workspaceID := r.URL.Query().Get("workspace")
+		sqlDB, err := s.dbFor(workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if err := db.RestoreSheetRemoval(sqlDB, workspaceID, sheetID, rest[0]); err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			jsonError(w, err.Error(), status)
+			return
+		}
+		s.broadcastSheetRemovals(sqlDB, workspaceID, sheetID)
+		jsonOK(w, map[string]bool{"restored": true})
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (s *Server) broadcastSheetRemovals(sqlDB *sql.DB, workspaceID, sheetID string) {
+	removals, err := db.GetSheetRemovals(sqlDB, workspaceID, sheetID)
+	if err != nil {
+		return
+	}
+	s.broadcastPatch("sheet:removals", map[string]any{"workspaceId": workspaceID, "sheetId": sheetID, "removals": removals})
+	if sheet, err := db.GetSheet(sqlDB, sheetID); err == nil && sheet != nil {
+		s.broadcastPatch("sheet:upserted", sheet)
+	}
 }

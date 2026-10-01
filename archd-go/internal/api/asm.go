@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"axiom.local/archd/internal/db"
@@ -71,6 +72,16 @@ type agentSheetContext struct {
 	Nodes         []agentSheetNode `json:"nodes"`
 	Edges         []agentSheetEdge `json:"edges"`
 	Notes         []db.Annotation  `json:"notes"`
+	// Removals are live nodes the sheet proposes taking out of the code.
+	Removals []agentSheetRemoval `json:"removals,omitempty"`
+}
+
+type agentSheetRemoval struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Name string `json:"name"`
+	URI  string `json:"uri"`
+	Done bool   `json:"done"`
 }
 
 // renderAgentSheetContext freezes the authored Sheet together with the live
@@ -355,11 +366,37 @@ func renderAgentSheetContext(sqlDB db.Reader, sheet *db.Sheet, includeUnapproved
 			nodes[i].ContainmentKind = layout.ContainmentKind
 		}
 	}
+	removals, err := db.GetSheetRemovals(sqlDB, sheet.WorkspaceID, sheet.ID)
+	if err != nil {
+		return "", err
+	}
+	removedIDs := map[string]bool{}
+	contextRemovals := make([]agentSheetRemoval, 0, len(removals))
+	for _, removal := range removals {
+		removedIDs[removal.NodeID] = true
+		uri := liveURI(removal.NodeID)
+		if uri == removal.NodeID && removal.NodeType == "file" {
+			uri = "file://" + removal.Label
+		}
+		contextRemovals = append(contextRemovals, agentSheetRemoval{
+			ID: removal.NodeID, Type: removal.NodeType, Name: removal.Label, URI: uri, Done: removal.Done,
+		})
+	}
+	if len(removedIDs) > 0 {
+		kept := nodes[:0]
+		for _, node := range nodes {
+			if node.LiveFloor != nil && removedIDs[node.LiveFloor.ID] {
+				continue
+			}
+			kept = append(kept, node)
+		}
+		nodes = kept
+	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
 	ctx := agentSheetContext{
 		SchemaVersion: 1,
 		Sheet:         map[string]any{"id": sheet.ID, "name": sheet.Name, "purpose": sheet.Purpose, "revision": sheet.Revision},
-		Nodes:         nodes, Edges: contextEdges, Notes: notes,
+		Nodes:         nodes, Edges: contextEdges, Notes: notes, Removals: contextRemovals,
 	}
 	encoded, err := json.MarshalIndent(ctx, "", "  ")
 	return string(encoded), err
@@ -606,6 +643,24 @@ func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {
 		if p.Status != "realized" {
 			open++
 		}
+	}
+
+	if removals, err := db.GetSheetRemovals(sqlDB, sheet.WorkspaceID, sheet.ID); err == nil && len(removals) > 0 {
+		b.WriteString("\n## Target removals\n")
+		for _, removal := range removals {
+			state := "OPEN"
+			if removal.Done {
+				state = "DONE"
+			} else {
+				open++
+			}
+			ref := liveRef(removal.NodeID)
+			if ref == removal.NodeID {
+				ref = removal.NodeType + " " + strconv.Quote(removal.Label)
+			}
+			fmt.Fprintf(&b, "- remove %s [%s]\n", ref, state)
+		}
+		b.WriteString("Remove these from the code, including what only they use; update everything that depended on them.\n")
 	}
 
 	if len(edges) > 0 {

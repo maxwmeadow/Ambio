@@ -46,6 +46,11 @@ type frozenSheetContext struct {
 	} `json:"sheet"`
 	Nodes            []frozenSheetNode `json:"nodes"`
 	Edges            []frozenSheetEdge `json:"edges"`
+	Removals         []struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		Name string `json:"name"`
+	} `json:"removals"`
 	ComparisonAtSend struct {
 		Nodes    []StructureNode   `json:"nodes"`
 		Mappings map[string]string `json:"mappings"`
@@ -216,6 +221,12 @@ func CompareWorkOrderSnapshot(r Reader, workspace string, message *CanvasMessage
 		}
 		if actual.ParentID != parent || actual.Containment != desired.Containment {
 			add("nesting", desired.ID, desired.Name, parent, actual.ParentID, "Match the sent parent and containment: "+desired.Containment+" (live: "+actual.Containment+")")
+		}
+	}
+	for _, removal := range frozen.Removals {
+		c.Checked++
+		if removalPending(live, files, removal.ID, removal.Type) {
+			add("removal", removal.ID, removal.Name, "removed", removal.Type, removalDetail(removal.Type))
 		}
 	}
 	for index, edge := range frozen.Edges {
