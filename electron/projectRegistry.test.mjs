@@ -226,3 +226,23 @@ test('an exported map imports with its settings, pointed at the code on this com
   assert.equal(bare.workbenchOpenedAt, 7)
   assert.deepEqual(bare.ignoredPaths, [])
 })
+
+test('a map trashed without its label is still listed and restorable', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-trash-orphan-'))
+  try {
+    const orphan = path.join(dataDir, '.trash', 'proj-42-1700000000000')
+    fs.mkdirSync(orphan, { recursive: true })
+    fs.writeFileSync(path.join(orphan, 'axiom.db'), 'map')
+    fs.mkdirSync(path.join(dataDir, '.trash', 'not-ours'))
+    const [entry, ...rest] = listTrash(dataDir)
+    assert.deepEqual(rest, [])
+    assert.equal(entry.config.id, 'proj-42')
+    assert.equal(entry.config.name, 'Unlabeled map proj-42')
+    assert.equal(entry.config.rootPath, '')
+    assert.equal(entry.deletedAt, 1700000000000)
+    assert.equal(restoreTrash(dataDir, entry.trashId).id, 'proj-42')
+    assert.equal(fs.readFileSync(path.join(dataDir, 'proj-42', 'axiom.db'), 'utf8'), 'map')
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true })
+  }
+})

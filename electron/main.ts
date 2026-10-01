@@ -1074,7 +1074,7 @@ function setupIPC(): void {
   ipcMain.handle('project:restore-trash', (_event, trashId: string) => {
     const entry = listTrash(DATA_DIR).find(candidate => candidate.trashId === trashId)
     if (!entry) throw new Error('That map is no longer in Recently Deleted.')
-    const owner = findProjectByRoot(loadRecentProjects(), entry.config.rootPath)
+    const owner = entry.config.rootPath ? findProjectByRoot(loadRecentProjects(), entry.config.rootPath) : undefined
     if (owner && owner.id !== entry.config.id) {
       throw new Error(`Its folder now belongs to the project "${owner.name}". Delete that project first, then restore this one.`)
     }

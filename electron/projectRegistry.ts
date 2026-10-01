@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import fs from 'fs'
-import { dirname, join, relative, resolve, sep } from 'path'
+import { basename, dirname, join, relative, resolve, sep } from 'path'
 import type { ProjectConfig, TrashedProject } from '../src/shared/types'
 
 export function readResumeProjectId(settingsFile: string): string | null {
@@ -143,13 +143,35 @@ export function listTrash(dataDir: string): TrashEntry[] {
   try { names = fs.readdirSync(root) } catch { return [] }
   const entries: TrashEntry[] = []
   for (const trashId of names) {
-    try {
-      const meta = JSON.parse(fs.readFileSync(join(root, trashId, 'trash.json'), 'utf8')) as { config: ProjectConfig; deletedAt: number }
-      if (!meta?.config?.id || typeof meta.deletedAt !== 'number') continue
-      entries.push({ trashId, config: meta.config, deletedAt: meta.deletedAt, expiresAt: meta.deletedAt + TRASH_DAYS * 86_400_000 })
-    } catch { /* not ours */ }
+    const meta = readTrashMeta(join(root, trashId))
+    if (!meta) continue
+    entries.push({ trashId, config: meta.config, deletedAt: meta.deletedAt, expiresAt: meta.deletedAt + TRASH_DAYS * 86_400_000 })
   }
   return entries.sort((left, right) => right.deletedAt - left.deletedAt)
+}
+
+/**
+ * What a trashed map was. A map whose trash.json was never written (the app
+ * quit between the move and the write) is still listed, by the project ID
+ * and time in its folder name, `<id>-<ms>`; restoring it brings the map back
+ * with no folder, which the launcher offers to locate.
+ */
+function readTrashMeta(entryPath: string): { config: ProjectConfig; deletedAt: number } | null {
+  try {
+    const meta = JSON.parse(fs.readFileSync(join(entryPath, 'trash.json'), 'utf8')) as { config: ProjectConfig; deletedAt: number }
+    return meta?.config?.id && typeof meta.deletedAt === 'number' ? meta : null
+  } catch {
+    const orphan = /^(.+)-(\d{13})$/.exec(basename(entryPath))
+    if (!orphan || !/^[A-Za-z0-9._-]{1,200}$/.test(orphan[1]) || orphan[1].startsWith('.')) return null
+    try { if (!fs.statSync(entryPath).isDirectory()) return null } catch { return null }
+    return {
+      config: {
+        id: orphan[1], name: `Unlabeled map ${orphan[1].slice(0, 8)}`, rootPath: '', ignoredPaths: [],
+        languageOverrides: {}, layoutPreferences: { zoom: 1, panX: 0, panY: 0 }, openedAt: Number(orphan[2]),
+      },
+      deletedAt: Number(orphan[2]),
+    }
+  }
 }
 
 export function trashEntryPath(dataDir: string, trashId: string): string {
@@ -160,7 +182,8 @@ export function trashEntryPath(dataDir: string, trashId: string): string {
 /** Put a trashed map back. Fails if the project already has a map again. */
 export function restoreTrash(dataDir: string, trashId: string): ProjectConfig {
   const source = trashEntryPath(dataDir, trashId)
-  const meta = JSON.parse(fs.readFileSync(join(source, 'trash.json'), 'utf8')) as { config: ProjectConfig }
+  const meta = readTrashMeta(source)
+  if (!meta) throw new Error('That map is no longer in Recently Deleted.')
   const target = validatedProjectDataDir(dataDir, meta.config.id)
   if (fs.existsSync(target)) throw new Error(`"${meta.config.name}" already has a map. Delete it before restoring this one.`)
   fs.rmSync(join(source, 'trash.json'), { force: true })
