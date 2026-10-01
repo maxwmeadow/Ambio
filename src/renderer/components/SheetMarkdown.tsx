@@ -1,7 +1,8 @@
 // Sheets as Markdown specs (archd api/sheet_markdown.go): Map → Copy Sheet as
 // Markdown puts the open sheet on the clipboard for a PR or AGENTS.md, and
 // Map → New Sheet from Markdown… turns a pasted spec into a draft sheet.
-// Agents do both through edit_sheet export / import.
+// Agents do both through edit_sheet export / import. Map → Copy Map as
+// Mermaid puts the whole map on the clipboard as a diagram (mermaidExport.ts).
 import React, { useState } from 'react'
 import { useCommandHandlers } from '../app/commands'
 import { archdApi } from '../archdEndpoint'
@@ -9,6 +10,7 @@ import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'
 import { raiseNotice } from '../store/interruptionStore'
 import { SHEET_TEMPLATES } from '../canvas/sheetTemplates'
+import { mapAsMermaid } from '../canvas/mermaidExport'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 
 const PLACEHOLDER = `# Payment flow
@@ -54,6 +56,14 @@ export function SheetMarkdown() {
       })()
     },
     'map.importSheetMarkdown': () => { if (workspaceId) setImporting(true) },
+    'map.copyMermaid': () => {
+      const { systems, files, infraNodes, dependencies } = useGraphStore.getState()
+      const diagram = '```mermaid\n' + mapAsMermaid({ systems, files, infraNodes, dependencies }) + '```\n'
+      void Promise.resolve(copyText(diagram)).then(
+        () => raiseNotice('map-mermaid', 'Map copied as Mermaid', 'Paste it into a README, PR or issue; GitHub draws it.'),
+        error => raiseNotice('map-mermaid', 'Could not copy the map', String(error)),
+      )
+    },
   })
 
   return importing ? <ImportDialog workspaceId={workspaceId} onClose={() => setImporting(false)} /> : null

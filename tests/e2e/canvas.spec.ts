@@ -2520,6 +2520,12 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
   await runCommand('Copy Sheet as Markdown')
   await expect(page.getByText('Sheet copied as Markdown')).toBeVisible()
   expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('# Runtime Draft\n')
+
+  await runCommand('Copy Map as Mermaid')
+  await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toMatch(/^```mermaid/)
+  const diagram = await app.evaluate(({ clipboard }) => clipboard.readText())
+  expect(diagram).toMatch(/^```mermaid\nflowchart LR\n/)
+  expect(diagram).toContain('["MCP Server"]')
 })
 
 test('View → Panels hides the status bar and remembers it', async () => {

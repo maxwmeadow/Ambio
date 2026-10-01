@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Map → Copy Map as Mermaid: paste the architecture into a README, PR or
+  issue and GitHub draws it.
 - Starter sheets: add an endpoint, extract a service, add a queue consumer,
   split a system (Map → New Sheet from Markdown…).
 - Undo and redo moving and resizing on the map (⌘Z / ⌘⇧Z).
