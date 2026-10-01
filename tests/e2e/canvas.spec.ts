@@ -2351,6 +2351,48 @@ test('Model Explorer outlines the map, filters it and follows the selection', as
   await expect(explorer).toHaveCount(0)
 })
 
+test('Review Changes: undo a map change, make the code match, copy as Markdown', async () => {
+  let undone: number[] | undefined
+  page.on('request', request => {
+    if (request.url().includes('/api/architecture/undo') && request.method() === 'POST') {
+      undone = (request.postDataJSON() as { eventIds?: number[] }).eventIds
+    }
+  })
+  const counts = { filesCreated: 0, filesUpdated: 0, filesDeleted: 0, edgesAdded: 0, edgesRemoved: 0, systemsAdded: 0, systemsRemoved: 0, crossBoundary: 0, agentFiles: 0, humanFiles: 0 }
+  const moved = {
+    id: 'claim:moved', kind: 'meaning.moved', title: 'AxiomCanvas.tsx moved from Canvas Renderer to Shared Types',
+    subtitle: 'by you', severity: 3, score: 1, actor: 'human', ts: 2, createsCycle: false, internal: false,
+    focusSystemIds: ['sys_shared'], focusFileIds: ['file_canvas'],
+    evidence: [{ kind: 'file.moved', label: 'AxiomCanvas.tsx', detail: 'Canvas Renderer → Shared Types', fileIds: ['file_canvas'] }],
+    undoEventIds: [41],
+    codeFit: [{
+      kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared Types',
+      summary: 'AxiomCanvas.tsx belongs to Shared Types, but the rest of Shared Types is in src/shared/',
+      ask: 'Move src/renderer/canvas/AxiomCanvas.tsx to src/shared/AxiomCanvas.tsx and update every import of it.',
+    }],
+  }
+  await page.evaluate(summary => {
+    const store = (window as unknown as { __axiomGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__axiomGraphStore
+    store.setState({ delta: summary })
+    store.getState().startDeltaReview()
+  }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
+
+  const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
+  await expect(panel).toContainText('AxiomCanvas.tsx moved from Canvas Renderer to Shared Types')
+  await expect(panel).toContainText('the rest of Shared Types is in src/shared/')
+
+  await panel.getByRole('button', { name: 'Copy as Markdown' }).click()
+  await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
+    .toContain('- AxiomCanvas.tsx moved from Canvas Renderer to Shared Types _(by you)_ - code still disagrees')
+
+  await panel.getByRole('button', { name: 'Make the Code Match…' }).click()
+  await expect(page.locator('textarea').first()).toHaveValue(/Move src\/renderer\/canvas\/AxiomCanvas\.tsx to src\/shared/)
+  await expect(page.getByText('Axiom checks the code afterwards')).toBeVisible()
+
+  await panel.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect.poll(() => undone).toEqual([41])
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {
