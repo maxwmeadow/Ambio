@@ -46,8 +46,9 @@ type Result struct {
 	LineCount int
 	Symbols   []db.Symbol
 	// Imports holds resolved relative paths or module specifiers for most languages.
-	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration;
-	// other entries are internal using directives (namespace strings, not file paths).
+	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration,
+	// "#global:" a global using; other entries are internal using directives
+	// (namespace strings, not file paths).
 	Imports []string
 	// Packages holds every external package the file loads, with its line:
 	// the evidence infra detection matches against the service registry.
@@ -527,6 +528,15 @@ func extractCSharpImports(src []byte) []string {
 			// Skip partial or generic namespace artifacts
 			if ns != "" && !strings.ContainsAny(ns, "(<{") {
 				imports = append(imports, "#ns:"+ns)
+			}
+			continue
+		}
+
+		// Global using: in scope in every file of the project.
+		if strings.HasPrefix(line, "global using ") && strings.HasSuffix(line, ";") {
+			name := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "global using "), ";"))
+			if !strings.HasPrefix(name, "static ") && !strings.Contains(name, "=") && !isCSharpExternal(name) {
+				imports = append(imports, "#global:"+name)
 			}
 			continue
 		}

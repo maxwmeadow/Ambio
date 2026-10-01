@@ -1335,7 +1335,7 @@ func buildExistingMap(sqlDB *sql.DB, rootID string) (map[string]db.File, error) 
 
 // buildImportDependencies scans all files for a root and creates IMPORTS dependencies.
 // Called once after initial indexing when all file IDs are known.
-// C# files use namespace-based resolution; all others use relative path resolution.
+// C# files resolve by the types they use; all others by import paths.
 func buildImportDependencies(sqlDB *sql.DB, root db.Root) error {
 	files, err := db.GetFilesByRoot(sqlDB, root.ID)
 	if err != nil {
@@ -1345,79 +1345,17 @@ func buildImportDependencies(sqlDB *sql.DB, root db.Root) error {
 	// Build relPath → fileID index for path-based import resolution (JS/TS/Go/Python).
 	relToID := buildImportPathIndex(files)
 
-	// For C# files: first pass to build namespace → []fileID map.
-	csNsToIDs := buildCSharpNamespaceMap(files)
-	log.Printf("[indexer] C# namespace map: %d namespaces", len(csNsToIDs))
+	// C# files link by the types they use (csharp_links.go).
+	csIndex := buildCSharpIndex(files)
 
 	for _, f := range files {
 		if strings.HasSuffix(strings.ToLower(f.RelPath), ".cs") {
-			if err := buildCSharpDependenciesForFile(sqlDB, root, f, csNsToIDs); err != nil {
+			if err := buildCSharpDependenciesForFile(sqlDB, root, f, csIndex); err != nil {
 				log.Printf("indexer: cs dependencies for %s: %v", f.RelPath, err)
 			}
 		} else {
 			if err := rebuildDependenciesForFileWithIndex(sqlDB, root, f, relToID); err != nil {
 				log.Printf("indexer: dependencies for %s: %v", f.RelPath, err)
-			}
-		}
-	}
-	return nil
-}
-
-// buildCSharpNamespaceMap parses all C# files and maps namespace → []fileID.
-// Multiple files can declare the same namespace (partial classes, etc.).
-func buildCSharpNamespaceMap(files []db.File) map[string][]string {
-	nsToIDs := make(map[string][]string)
-	for _, f := range files {
-		if !strings.HasSuffix(strings.ToLower(f.RelPath), ".cs") {
-			continue
-		}
-		result, err := parser.ParseFile(f.Path, f.RelPath)
-		if err != nil || result == nil {
-			continue
-		}
-		for _, imp := range result.Imports {
-			if strings.HasPrefix(imp, "#ns:") {
-				ns := strings.TrimPrefix(imp, "#ns:")
-				nsToIDs[ns] = append(nsToIDs[ns], f.ID)
-			}
-		}
-	}
-	return nsToIDs
-}
-
-// buildCSharpDependenciesForFile creates IMPORTS dependencies for a single C# file
-// by resolving its using directives against the namespace→fileID map.
-func buildCSharpDependenciesForFile(sqlDB *sql.DB, root db.Root, f db.File, nsToIDs map[string][]string) error {
-	result, err := parser.ParseFile(f.Path, f.RelPath)
-	if err != nil {
-		return err
-	}
-	if err := db.DeleteOutgoingDependenciesByFile(sqlDB, f.ID); err != nil {
-		return err
-	}
-	for _, imp := range result.Imports {
-		if strings.HasPrefix(imp, "#ns:") {
-			continue // own namespace declaration, not a dependency
-		}
-		dstIDs, ok := nsToIDs[imp]
-		if !ok {
-			continue // external namespace - no matching file in the project
-		}
-		for _, dstID := range dstIDs {
-			if dstID == f.ID {
-				continue // skip self-reference
-			}
-			d := db.Dependency{
-				WorkspaceID:    root.WorkspaceID,
-				Src:            f.ID,
-				Dst:            dstID,
-				SrcType:        "file",
-				DstType:        "file",
-				DependencyType: "IMPORTS",
-				CreatedBy:      "parser",
-			}
-			if err := db.UpsertDependency(sqlDB, d); err != nil {
-				log.Printf("indexer: upsert cs dependency %s→ns:%s: %v", f.RelPath, imp, err)
 			}
 		}
 	}
@@ -1434,8 +1372,7 @@ func rebuildDependenciesForFile(sqlDB *sql.DB, root db.Root, relPath string) err
 		return err
 	}
 	if strings.HasSuffix(strings.ToLower(relPath), ".cs") {
-		csNsToIDs := buildCSharpNamespaceMap(files)
-		return buildCSharpDependenciesForFile(sqlDB, root, *f, csNsToIDs)
+		return buildCSharpDependenciesForFile(sqlDB, root, *f, buildCSharpIndex(files))
 	}
 	relToID := buildImportPathIndex(files)
 	return rebuildDependenciesForFileWithIndex(sqlDB, root, *f, relToID)
