@@ -2537,6 +2537,21 @@ test('View → Panels hides the status bar and remembers it', async () => {
   await expect(status).toBeVisible()
 })
 
+test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
+  const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
+  const start = (await system.boundingBox())!
+  await page.mouse.move(start.x + 24, start.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  const moved = (await system.boundingBox())!
+  await page.keyboard.press('ControlOrMeta+Z')
+  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - start.x)).toBeLessThan(3)
+  await page.keyboard.press('ControlOrMeta+Shift+Z')
+  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {

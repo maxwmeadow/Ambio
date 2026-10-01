@@ -63,6 +63,8 @@ import { commitMeaningEdits } from './meaningActions.ts'
 import { FloorEditContext, type FloorEdits } from './floorEditContext'
 import { NewSheetDialog } from '../components/NewSheetDialog'
 import { useCommandHandlers } from '../app/commands'
+import { layoutUndoEntry } from './layoutUndo'
+import { pushUndo } from './undoStack'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
 import { SheetPalette, STENCILS, type StencilDef } from '../components/SheetPalette'
 import { InfraPickerDialog } from '../components/InfraPickerDialog'
@@ -1416,6 +1418,27 @@ function binDragDebug(): boolean {
 const emptyBinSystems: DbSystem[] = []
 /** The bin never persists geometry, so it always packs from nothing. */
 const emptyBinLayouts: FloorLayout[] = []
+
+/** Puts a Floor move or resize on Edit → Undo (layoutUndo.ts). */
+function pushFloorLayoutUndo(
+  workspaceId: string,
+  label: string,
+  before: FloorLayout[],
+  after: Omit<FloorLayout, 'workspaceId' | 'updatedAt'>[],
+) {
+  const entry = layoutUndoEntry({
+    label, before, after,
+    save: async rows => {
+      const changedKeys = new Set(rows.map(row => `${row.nodeType}:${row.nodeId}`))
+      useGraphStore.setState(state => ({
+        floorLayouts: replaceFloorLayouts(state.floorLayouts,
+          rows.map(row => ({ ...row, workspaceId, updatedAt: Date.now() })), changedKeys),
+      }))
+      await apiSaveFloorLayouts(workspaceId, rows)
+    },
+  })
+  if (entry) pushUndo(entry)
+}
 
 export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCanvasProps = {}) {
   const reviewMode = reviewScene !== undefined
@@ -3236,7 +3259,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     useGraphStore.setState(state => ({
       floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.optimisticLayouts, plan.changedKeys),
     }))
-    void apiSaveFloorLayouts(workspaceId, plan.updates).catch(error => {
+    void apiSaveFloorLayouts(workspaceId, plan.updates).then(() => {
+      pushFloorLayoutUndo(workspaceId, 'Resize', plan.previousLayouts, plan.updates)
+    }).catch(error => {
       console.error('[AxiomCanvas] floor resize failed', error)
       useGraphStore.setState(state => ({
         floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.previousLayouts, plan.changedKeys),
@@ -4601,7 +4626,11 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
                 restoreLayouts()
                 return
               }
-              return apiSaveFloorLayouts(workspaceId, plan.updates).catch(error => {
+              return apiSaveFloorLayouts(workspaceId, plan.updates).then(() => {
+                // A drop into another system is a meaning edit with its own
+                // undo; only a plain move is undone as placement.
+                if (meaningEdits.length === 0) pushFloorLayoutUndo(workspaceId, 'Move', plan.previousLayouts, plan.updates)
+              }).catch(error => {
                 console.error('[AxiomCanvas] floor group drop failed', error)
                 restoreLayouts()
               })
