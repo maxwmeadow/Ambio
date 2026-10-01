@@ -19,7 +19,8 @@ in the app as "What's New" after updating, so write it for users.
   window or dock, from the dock menu or Windows jump list, and from
   `axiom://` links.
 - Agents keep working while Axiom is closed: Axiom's background service
-  starts on demand and stops when idle.
+  starts on demand and stops when idle, and keeps the map current with what
+  the agent changes.
 - Remove Axiom from any agent, or from all of them, in one step.
 - Moved or renamed project folders are detected; point Axiom at the new
   location and the map comes with it.

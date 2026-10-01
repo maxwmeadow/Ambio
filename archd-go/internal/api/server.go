@@ -261,9 +261,54 @@ func (s *Server) dbFor(workspaceID string) (*sql.DB, error) {
 	s.mu.RUnlock()
 	if !ok {
 		// Attempt to open lazily - the DB may exist on disk from a previous session.
-		return s.openDB(workspaceID)
+		d, err := s.openDB(workspaceID)
+		if err == nil {
+			go s.keepWorkspaceLive(workspaceID, d)
+		}
+		return d, err
 	}
 	return d, nil
+}
+
+// keepWorkspaceLive makes a project opened by a request, rather than by the
+// app (an agent's daemon started while the app is closed, or a project the
+// app does not have open), as live as one the app opened: it catches up on
+// changes made while nobody was watching and watches the files from now on.
+// It only touches the root that already holds the indexed map; indexing a
+// project for the first time stays the app's decision.
+func (s *Server) keepWorkspaceLive(workspaceID string, sqlDB *sql.DB) {
+	roots, err := db.GetRoots(sqlDB, workspaceID)
+	if err != nil {
+		return
+	}
+	var live *db.Root
+	most := 0
+	for i := range roots {
+		root := roots[i]
+		if !root.IsActive || root.IndexedAt == nil || *root.IndexedAt == 0 {
+			continue
+		}
+		var files int
+		if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM files WHERE root_id = ?`, root.ID).Scan(&files); err != nil {
+			continue
+		}
+		if live == nil || files > most {
+			live, most = &roots[i], files
+		}
+	}
+	if live == nil {
+		return
+	}
+	s.mu.RLock()
+	_, watching := s.watchers[live.ID]
+	_, stillOpen := s.dbs[workspaceID]
+	s.mu.RUnlock()
+	if watching || !stillOpen {
+		return
+	}
+	log.Printf("api: %s opened without the app; watching %s", workspaceID, live.Path)
+	s.startWatcher(sqlDB, *live)
+	s.launchRootSync(sqlDB, *live, false)
 }
 
 // closeDB closes and removes the database connection for a workspace without

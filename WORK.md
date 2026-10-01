@@ -57,15 +57,14 @@ collide. Full context for each item is in its section below.
 1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 3. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
-4. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
-5. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
-6. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
-7. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-8. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
-9. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
-10. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
-11. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
-12. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+4. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
+5. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
+6. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
+7. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
+8. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
+9. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
+10. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
+11. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -164,7 +163,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Agents and MCP
 
-- ⬜ `headless-watch` **A headless daemon watches files.** When an agent starts archd while the app is closed, it answers from the saved map but does not watch files until the app opens the project (reconcile catches up later). Attach watchers for the agent's project so the map stays live. **Start:** `archd-go/cmd/archd/daemon.go`, `internal/api` project open path.
 - ⬜ `mcp-tool-steering` **Make agents actually use the tools.** Measure how often each host calls Axiom tools unprompted; tune descriptions, prompts and installed instructions/hooks. Pairs with `agents-draw-first`.
 - ⬜ `mcp-eval-harness` **An evaluation harness:** the same tasks with and without Axiom on a lab project (like the infra L4 eval: time, cost, reads, correctness). Needed to prove value and to publish `benchmark-public`.
 - ⬜ `more-hosts` **Installers for more agent hosts:** Gemini CLI, Kiro, Cline, Roo Code, Amp, OpenCode, Continue. Check which support MCP config files and hooks.
@@ -290,6 +288,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `headless-watch` A project opened by a request instead of the app (an agent's headless daemon) reconciles and watches the root that holds its indexed map (`Server.keepWorkspaceLive`, from `dbFor`'s lazy open); test covers a change made while closed and a save afterwards. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `ci-e2e` CI gains an `e2e` job on Linux: `npm run test:mcp`, then the whole Playwright suite under xvfb with `--update-snapshots=missing`; results and any newly written Linux screenshots are uploaded as an artifact. Locally the full suite is green (38 passed, 2 opt-in skipped). Not yet run on GitHub: CI only runs on main and pull requests. After its first run, commit the uploaded Linux baseline. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `playwright-launcher-failures` The three failing canvas tests pass: each run now gets an isolated home (`HOME`/`USERPROFILE`) with a registered fixture project and a real fixture folder (`AXIOM_E2E_ROOT` → renderer `root` param), so the suite no longer reads or writes the developer's real `~/.axiom`; the setup screen browses that folder instead of `.` (refused since file access was limited to project roots); Copy check in agent setup writes through the main process, since the web clipboard refuses an unfocused window. Only the missing Linux screenshot baseline remains (see `ci-e2e`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `floor-connection-gesture` Drawing a connection between two live nodes on the Floor draws "A uses B" on a new sheet and opens the send dialog; on a sheet, live-to-live connections are now kept as proposals (they were silently dropped). Loose connection mode with the drawn-from node as source (overlapping handles reversed it). Comparison: `DEPENDS_ON` is met by any import or call from inside the source to inside the target, so a drawn dependency can be verified (`relationshipPresent`, used by the live and snapshot comparisons). (claude/gracious-gauss-1bgdv9)

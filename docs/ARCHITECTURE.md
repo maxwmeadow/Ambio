@@ -116,6 +116,11 @@ delete and a create in either order; the new path takes over the vanished
 file's identity (same content, or the only vanished file with that name,
 within 30 s), so it keeps its system, layout and history
 (`internal/indexer/moves.go`).
+A project opened by a request rather than by the app (an agent's headless
+daemon, or a project the app does not have open) is made live the same way:
+the root holding its indexed map is reconciled and watched
+(`Server.keepWorkspaceLive`); indexing a project for the first time stays the
+app's decision.
 
 **Language depth:**
 
