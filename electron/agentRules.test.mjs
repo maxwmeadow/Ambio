@@ -12,8 +12,42 @@ function fixture() {
   const home = path.join(root, 'home')
   const project = path.join(root, 'project')
   fs.mkdirSync(project, { recursive: true })
-  return { root, home, project, hosts: buildHosts(home, path.join(root, 'appdata')), cleanup: () => fs.rmSync(root, { recursive: true, force: true }) }
+  // Zed honours XDG_CONFIG_HOME independently of the injected home/appdata.
+  // Each worker needs its own directory, including on GitHub's Ubuntu runner.
+  const previousXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.join(root, 'xdg-config')
+  return {
+    root, home, project, hosts: buildHosts(home, path.join(root, 'appdata')),
+    cleanup: () => {
+      try { fs.rmSync(root, { recursive: true, force: true }) } finally {
+        if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
+        else process.env.XDG_CONFIG_HOME = previousXdg
+      }
+    },
+  }
 }
+
+test('a fixture leaves the inherited XDG config untouched and restores it on cleanup', () => {
+  const inherited = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-inherited-xdg-'))
+  const previousXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = inherited
+  try {
+    const f = fixture()
+    try {
+      // Explicit Linux discovery exercises XDG even on macOS/Windows CI.
+      const zed = buildHosts(f.home, path.join(f.root, 'appdata'), 'linux').find(host => host.id === 'zed')
+      assert.equal(zed.configPath(), path.join(f.root, 'xdg-config', 'zed', 'settings.json'))
+      assert.ok(zed.install('node', ['axiom.mjs'], '# Axiom', f.project).ok)
+      assert.ok(uninstallHost(zed, f.project).ok)
+      assert.deepEqual(fs.readdirSync(inherited), [], 'fixture wrote to an inherited/shared config directory')
+    } finally { f.cleanup() }
+    assert.equal(process.env.XDG_CONFIG_HOME, inherited)
+  } finally {
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = previousXdg
+    fs.rmSync(inherited, { recursive: true, force: true })
+  }
+})
 
 test('every supported host receives draw-first guidance and repairs missing project rules', () => {
   const f = fixture()

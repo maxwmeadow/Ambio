@@ -293,6 +293,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-09-30 `ci-xdg-test-isolation` Isolated installer/rule/uninstaller test fixtures from inherited XDG configuration; added a regression proving the inherited directory stays untouched. Fixes the Ubuntu parallel-test failure in [CI run 36811623304](https://github.com/maxwmeadow/Axiom/actions/runs/36811623304). (codex/agents-draw-first)
+
 - 2026-09-30 `docs-consolidation` Stray briefs and plans consolidated: current docs in `docs/`, old plans in `docs/history/`, the bug hunt became `docs/testing/CANVAS_QA_CHECKLIST.md`, LAUNCH split into this file and `docs/DECISIONS.md`, new PRODUCT/ARCHITECTURE docs, README repositioned around bidirectional architecture. (claude/gracious-gauss-1bgdv9)
 - 2026-09-30 `ci-fix` Open-time backup made synchronous; path tests made host-independent. (c063eb8)
 - 2026-09-30 `merge-infra-work-orders` Merged the infrastructure sidebar, hosting frames and work orders; canvas commands joined the shared command model. (d253dbc)
