@@ -403,6 +403,14 @@ test('two addressed requests keep separate work sessions on one MCP connector', 
   }
 })
 
+test('the loop prompts are advertised and filled in', async () => {
+  const listed = await client.request('prompts/list', {})
+  const names = listed.result.prompts.map(prompt => prompt.name)
+  for (const name of ['review-canvas', 'name-architecture', 'propose', 'implement', 'review']) assert.ok(names.includes(name), names.join(', '))
+  const prompt = await client.request('prompts/get', { name: 'implement', arguments: { sheet: 'Payment flow' } })
+  assert.match(prompt.result.messages[0].content.text, /get_build_plan with sheet "Payment flow"/)
+})
+
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
   const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }

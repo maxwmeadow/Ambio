@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Agent slash commands `/axiom:propose`, `/axiom:implement` and `/axiom:review`
+  in hosts that show MCP prompts.
 - Sheets as Markdown: copy a sheet as a Markdown spec for a PR or AGENTS.md,
   and turn a pasted spec into a draft sheet (Map menu).
 - A system notification when an agent picks up or replies to a work order

@@ -18,6 +18,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { actionKind, actionSummary, actionTargets } from './agentAction.ts'
 import { routeTool } from './toolRouting.ts'
+import { LOOP_PROMPTS, loopPromptText } from './prompts.ts'
 import { findWorktreeForCwd, type WorktreeContext, type WorktreeRow } from './worktreeContext.ts'
 import fs from 'fs'
 import { daemonFetch as fetch } from '../electron/daemonAuth.ts'
@@ -365,6 +366,7 @@ server.setRequestHandler(ListPromptsRequestSchema, async () => ({
       description: "Read this codebase and tell its owner what its systems actually are, as a tree they can confirm.",
       arguments: [],
     },
+    ...LOOP_PROMPTS,
   ],
 }))
 
@@ -398,6 +400,8 @@ server.setRequestHandler(GetPromptRequestSchema, async (request) => {
   if (request.params.name === 'name-architecture') {
     return { messages: [{ role: 'user', content: { type: 'text', text: NAME_ARCHITECTURE_PROMPT } }] }
   }
+  const loop = loopPromptText(request.params.name, request.params.arguments ?? {})
+  if (loop) return { messages: [{ role: 'user', content: { type: 'text', text: loop } }] }
   if (request.params.name !== 'review-canvas') {
     throw new Error(`Unknown prompt: ${request.params.name}`)
   }

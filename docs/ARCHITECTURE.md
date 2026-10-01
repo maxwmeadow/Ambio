@@ -175,7 +175,8 @@ Fifteen tools by default (`get_architecture`, `search_symbols`, `get_symbols`,
 `trace_calls`, `get_data_flow`, `edit_systems`, `edit_infra`, `edit_sheet`,
 `get_inbox`, `get_build_plan`, `plan_element`, `reply_to_canvas`,
 `start_work`, `update_work`, `investigation`), `debug_runtime` in the debug
-profile, and two prompts (`review-canvas`, `name-architecture`). About 80
+profile, and five prompts (`review-canvas`, `name-architecture`, and the
+loop prompts `propose`, `implement`, `review` in `mcp/prompts.ts`). About 80
 legacy tool names still route but are not advertised. Budget and merge rules:
 [MCP_SURFACE.md](MCP_SURFACE.md). Installers for ten agent hosts live in
 `electron/agentInstallers.ts`.
