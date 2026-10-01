@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"axiom.local/archd/internal/runtime/rustrecorder"
 	"github.com/google/uuid"
 )
 
@@ -324,6 +325,31 @@ func injectRubyEnv(env []string, adapterDir string) []string {
 		out = append(out, kv)
 	}
 	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
+}
+
+const rustWrapperEnv = "RUSTC_WORKSPACE_WRAPPER"
+
+// injectRustEnv makes Cargo run archd itself as the compiler wrapper for the
+// workspace's own crates (dependencies are not wrapped). The wrapper compiles
+// instrumented copies of each crate's sources (rustrecorder), and Cargo
+// caches wrapped builds apart from ordinary ones. A wrapper the user already
+// set is theirs: the run then records no Rust, and the note says why.
+func injectRustEnv(env []string, archd string) ([]string, string) {
+	out := make([]string, 0, len(env)+2)
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		if strings.HasPrefix(upper, rustWrapperEnv+"=") {
+			if kv[len(rustWrapperEnv)+1:] != "" {
+				return nil, "Rust was not recorded: " + rustWrapperEnv + " is already set in the environment"
+			}
+			continue
+		}
+		if strings.HasPrefix(upper, rustrecorder.WrapperEnv+"=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1"), ""
 }
 
 // FindPHPAdapterDir locates the PHP run recorder (adapters/php).

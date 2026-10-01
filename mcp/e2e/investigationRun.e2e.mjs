@@ -24,6 +24,10 @@ const GO = spawnSync('go', ['version']).status === 0
 // the run does not depend on what archd's own PATH holds.
 const jdkTool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name) : name
 const JDK = spawnSync(jdkTool('javac'), ['-version']).status === 0
+// Cargo, by its full path (CARGO, or wherever the PATH finds it).
+const cargoProbe = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['cargo'], { encoding: 'utf8' })
+const cargo = process.env.CARGO || (cargoProbe.status === 0 ? cargoProbe.stdout.split('\n')[0].trim() : '')
+const CARGO = cargo !== '' && spawnSync(cargo, ['--version']).status === 0
 const phpBinary = process.env.PHP_BINARY || 'php'
 const PHP = spawnSync(phpBinary, ['-r', 'exit(PHP_VERSION_ID >= 70100 ? 0 : 1);']).status === 0
 // The .NET SDK from DOTNET_ROOT or the PATH, named in full for the same reason.
@@ -83,6 +87,34 @@ test.before(async () => {
     '            reserve(LEVELS, "widget", 3);',
     '        }',
     '    }',
+    '}',
+    '',
+  ].join('\n'))
+  mkdirSync(join(project, 'depot', 'src'), { recursive: true })
+  writeFileSync(join(project, 'depot', 'Cargo.toml'), '[package]\nname = "depot"\nversion = "0.1.0"\nedition = "2021"\n')
+  writeFileSync(join(project, 'depot', 'src', 'main.rs'), [
+    'use std::collections::BTreeMap;',
+    '',
+    '#[derive(Debug)]',
+    'struct Depot {',
+    '    levels: BTreeMap<String, i64>,',
+    '}',
+    '',
+    'fn reserve(depot: &mut Depot, item: &str, qty: i64) -> Result<i64, String> {',
+    '    let have = *depot.levels.get(item).unwrap_or(&0);',
+    '    if qty > have {',
+    '        return Err(format!("not enough {item}"));',
+    '    }',
+    '    depot.levels.insert(item.to_string(), have - qty);',
+    '    Ok(have - qty)',
+    '}',
+    '',
+    'fn main() {',
+    '    let mut depot = Box::new(Depot { levels: BTreeMap::from([("widget".to_string(), 10)]) });',
+    '    for _ in 0..3 {',
+    '        reserve(&mut depot, "widget", 3).unwrap();',
+    '    }',
+    '    reserve(&mut depot, "widget", 3).unwrap();',
     '}',
     '',
   ].join('\n'))
@@ -323,6 +355,21 @@ test('a Java run shows the shared map, the thrown exception and the crash', { sk
   assert.match(run.text, /`reserve` threw `IllegalArgumentException: not enough widget` on 1 of 4 calls/)
   assert.match(run.text, /Uncaught `IllegalArgumentException: not enough widget` at shop\/Stock\.java:12/)
   assert.doesNotMatch(run.text, /Picked up JAVA_TOOL_OPTIONS/, 'the JVM notice about the agent is not the program\'s output')
+})
+
+// Rust records through Cargo: archd is the compiler wrapper for the workspace's
+// crates and compiles instrumented copies of their sources.
+test('a Rust run shows the mutated state, the returned error and the panic', { skip: !CARGO && 'no Rust toolchain on this machine' }, async () => {
+  const run = await client.callTool('investigation', {
+    op: 'run', command: `"${cargo}" run -q --manifest-path depot/Cargo.toml`, watch: ['depot/src/main.rs:reserve'], timeoutSec: 300,
+  }, 330000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`reserve` changes its argument `depot\.levels\.widget` on 3 of 4 calls: 10 → 7, 7 → 4/)
+  assert.match(run.text, /receives the same `depot` object again on 3 of 4 calls/)
+  assert.match(run.text, /`reserve` returned `error: "not enough widget"` on 1 of 4 calls/)
+  assert.match(run.text, /Uncaught `panic: called `Result::unwrap\(\)` on an `Err` value: "not enough widget"` at depot\/src\/main\.rs:22/)
+  // The program's own panic message names its own file and line.
+  assert.match(run.text, /panicked at src\/main\.rs:22:38/)
 })
 
 // PHP records through its own configuration: an ini file prepends the recorder

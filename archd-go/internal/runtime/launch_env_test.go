@@ -113,3 +113,17 @@ func TestPHPRecorderIsPrependedThroughARunIni(t *testing.T) {
 		t.Fatalf("the user's own scan folder comes first: %q", got)
 	}
 }
+
+// Cargo runs the wrapper named here for workspace crates only. One the user
+// set themselves is left alone, and the run says so.
+func TestRustWrapperIsArchdUnlessTheUserSetTheirOwn(t *testing.T) {
+	env, note := injectRustEnv([]string{"HOME=/h"}, `C:\Program Files\Axiom\archd.exe`)
+	joined := strings.Join(env, "\n")
+	if note != "" || !strings.Contains(joined, `RUSTC_WORKSPACE_WRAPPER=C:\Program Files\Axiom\archd.exe`) || !strings.Contains(joined, "AXIOM_RUSTC_WRAPPER=1") {
+		t.Fatalf("env = %q, note = %q", env, note)
+	}
+	env, note = injectRustEnv([]string{"RUSTC_WORKSPACE_WRAPPER=/usr/bin/sccache"}, "/axiom/archd")
+	if env != nil || !strings.Contains(note, "already set") {
+		t.Fatalf("env = %q, note = %q", env, note)
+	}
+}

@@ -315,6 +315,16 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = injectJavaEnv(env, jar)
 		instrumented = append(instrumented, "java")
 	}
+	// Rust: Cargo runs archd as the compiler wrapper for the workspace's crates.
+	var rustNote string
+	if exe, err := os.Executable(); err == nil {
+		if withRust, note := injectRustEnv(env, exe); withRust != nil {
+			env = withRust
+			instrumented = append(instrumented, "rust")
+		} else {
+			rustNote = note
+		}
+	}
 	// PHP: the recorder is prepended to every script and rewrites the
 	// workspace's files as they are included.
 	if dir, err := FindPHPAdapterDir(); err == nil {
@@ -371,7 +381,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 				StartedAt:    server.started.UnixMilli(),
 				DurationMs:   serverOut.ReadyMs,
 				Instrumented: instrumented,
-				Notes:        nonEmpty(goNote, dotnetNote),
+				Notes:        nonEmpty(goNote, dotnetNote, rustNote),
 				Server:       serverOut,
 			}
 			mergeEvidence(outcome, readEvidence(evidenceDir))
@@ -451,7 +461,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		OutputBytes:     out.total,
 		OutputTruncated: truncated,
 		Instrumented:    instrumented,
-		Notes:           nonEmpty(goNote, dotnetNote),
+		Notes:           nonEmpty(goNote, dotnetNote, rustNote),
 		Server:          serverOut,
 	}
 	mergeEvidence(outcome, readEvidence(evidenceDir))

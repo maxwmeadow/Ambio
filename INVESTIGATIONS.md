@@ -164,8 +164,8 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala), C#
-  and PHP record function-level evidence, each through the user's own toolchain with
+- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala,
+  Groovy), C#, PHP and Rust record function-level evidence, each through the user's own toolchain with
   nothing to install. Others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
@@ -236,6 +236,26 @@ and truncated. It stays on the local machine in archd's data directory.
   no instrumented output stays behind; until then the build output carries a
   recorder that does nothing outside a run. Style analyzers are off for the
   instrumented compile. F# and Visual Basic run with output only.
+- **Rust**: recorded through Cargo. archd is the compiler wrapper for the
+  workspace's own crates (`RUSTC_WORKSPACE_WRAPPER`; dependencies are not
+  wrapped) and compiles instrumented copies of each crate's sources kept under
+  `target/.../axiom-src`, with a recorder module that exists only there. The
+  project's files are never written, paths are remapped so panic locations
+  and debug info name the user's files, and Cargo caches wrapped builds apart
+  from ordinary ones. Values are shown with their `Debug` implementation (a
+  type without one is named, `<Ledger>`), so a custom `Debug` runs. A function
+  that returns `Err` counts as failing, like Go's returned errors; one that
+  leaves through `?` is recorded as "propagated with `?`" without the value.
+  A panic on the main thread is the crash; a panicking test is the harness's
+  to report. Mutation is reported for reference arguments and `self`. "The
+  same object" means the same heap or static address: a local on the stack
+  has an address the next call's local reuses, so it is not followed. A
+  function whose instrumented form does not compile is recorded less (no
+  after-values, then no return value, then not at all) until the crate
+  compiles. `const fn`, closures, code inside macros, `no_std` crates, the
+  2015 edition and proc-macro crates are not recorded; `impl Trait` and `!`
+  results are not captured. Each crate carries its own recorder, so call
+  edges stop at crate boundaries.
 - **PHP**: an ini file of the run's own (`PHP_INI_SCAN_DIR`) prepends the
   recorder to every PHP the command starts: `php script.php`, PHPUnit, `php
   -S` (one evidence document per request). PHP has no tracing hook for
