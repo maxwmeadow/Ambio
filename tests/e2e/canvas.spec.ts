@@ -2445,6 +2445,11 @@ test('Review Changes narrows by who made a change and hides what you have seen',
   await panel.getByRole('button', { name: 'Clear' }).click()
   await expect(titles).toHaveCount(2)
 
+  await panel.getByRole('button', { name: '1 unexplained' }).click()
+  await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
+  await panel.getByRole('button', { name: '1 unexplained' }).click()
+  await expect(titles).toHaveCount(2)
+
   await panel.getByRole('button', { name: 'Mark “Canvas Renderer renamed to Canvas” seen' }).click()
   await panel.getByRole('checkbox', { name: /Hide seen/ }).check()
   await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])

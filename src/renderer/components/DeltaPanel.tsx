@@ -262,6 +262,7 @@ export function DeltaPanel() {
     systemNames: new Map(systems.map(system => [system.id, system.name])),
   }), [review, files, systems])
   const options = useMemo(() => reviewFilterOptions(all, filterContext), [all, filterContext])
+  const unexplained = options.who.find(option => option.value === 'unexplained')?.count ?? 0
   const visible = useMemo(
     () => all.filter(claim => claimMatches(claim, filter, filterContext, seen)),
     [all, filter, filterContext, seen],
@@ -355,6 +356,17 @@ export function DeltaPanel() {
           <strong>{deltaHeadline(review)}</strong>
           <span>{deltaWindow(delta.since, delta.until)} · {deltaAttribution(delta.counts)}</span>
         </div>
+        {unexplained > 0 && (
+          <button
+            type="button"
+            className="axiom-delta__unexplained-count"
+            aria-pressed={filter.who === 'unexplained'}
+            title="Changes an agent made without saying what work they were for"
+            onClick={() => setFilter(f => ({ ...NO_FILTER, who: f.who === 'unexplained' ? '' : 'unexplained' }))}
+          >
+            {unexplained} unexplained
+          </button>
+        )}
         <button
           type="button"
           className="axiom-delta__copy"

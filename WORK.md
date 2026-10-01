@@ -102,7 +102,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `rules-in-ci` (after `rules-and-drift`) **A PR/CI check.** A headless `archd check` that runs the rules and reports new architectural claims on a pull request, so a team sees drift without everyone running Axiom. This is also the most likely paid-team entry point.
 - ⬜ `infra-both-ways` **Human infra edits become work.** Adding "Redis cache for sessions" on the canvas should be sendable as a work order, and the agent's infra edits already show up; Review Changes already shows both directions (`infra-claims`, done); what remains is sending a drawn infra change as a work order.
 - ⬜ `verify-beyond-structure` **Raise the trust ceiling on work orders.** Today a work order passes if its structure matches; agent-reported results (commit, checks) are labelled unverified. Options: let the human attach checks (a test command) to a sheet that Axiom runs on reply; record the commit and diff; show which planned members exist as symbols. **Done when:** at least "the tests named on the sheet ran and passed" is verified by Axiom, not reported by the agent.
-- ⬜ `agent-explains-change` **Agents annotate their own changes.** When an agent's work creates a claim in Review Changes ("Api now depends on Storage"), show the agent's stated reason from its work session next to it; flag claims no session explains (UNEXPLAINED exists - make it prominent and filterable).
 
 ## Sheets and work orders
 
@@ -250,6 +249,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `agent-explains-change` Review Changes' header shows "N unexplained" when agents changed things without a work session, and clicking it shows only those; claims already carry the session's summary or goal as their reason and the Who filter has Unexplained. The reason is per session, not per claim. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `midflight-approval` Decided: an agent hears on its next `update_work` what the person changed or decided since its previous note (approvals, rejections with reasons, map edits, code disagreements), as `mapChanges`, once (`briefingSince` in `api/map_briefing.go`); the implement prompt tells it to follow them. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `send-dialog-modes` The Agent inbox asks Ask / Propose / Build before sending; Ask and Propose write their contract into the order ("answer, change nothing" / "draw on a sheet and wait for me"), Build sends the order as written (`inboxModel.ts` `workOrderNote`). The mode is in the text, not a stored field, so archd and review do not treat the kinds differently yet. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `stable-layout-tests` (part) Playwright: a system you placed stays within 1px when a file arrives in another system, a system is renamed and the snapshot is replaced. Unit tests wait on `split-axiom-canvas`. (claude/gracious-gauss-1bgdv9)

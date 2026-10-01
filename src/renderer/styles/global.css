@@ -8670,3 +8670,21 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
   background: #dfeae6;
   font-weight: 600;
 }
+
+/* Unexplained agent changes are the ones to read first. */
+.axiom-delta__unexplained-count {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid #a8803c;
+  background: #f6ead0;
+  color: #6b4d12;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.axiom-delta__unexplained-count[aria-pressed="true"] {
+  background: #ead49c;
+}
