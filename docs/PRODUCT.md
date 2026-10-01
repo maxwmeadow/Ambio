@@ -81,22 +81,28 @@ Systems are clustered from real topology, never from folders.
 - **A sheet** is a proposal about the architecture: moves, additions and
   removals. A proposal never touches reality until someone builds it.
 
-### What you may change on the Floor (proposed rule, `floor-edit-rules` in WORK.md)
+### What you may change on the Floor (decided 2026-10-01)
 
 Edits on the Floor come in three kinds, and each is handled differently:
 
-1. **Presentation** - position, size, collapse, colour, pinning. Always free.
-   It changes how the map looks, never what it says. (Today: dragging on the
-   Floor never rewrites ownership.)
+1. **Presentation** - position within the same parent, size, collapse, tidy.
+   Always free and not recorded: it changes how the map looks, never what it
+   says.
 2. **Meaning** - what a system is called, which files belong to which system,
-   how systems nest. Systems are Axiom's interpretation of the code, not the
-   code, so changing them does not lie about reality. Allowed on the Floor, but
-   every meaning edit is journaled, attributed (you or an agent), visible to
-   agents, and undoable from Review Changes. (Today: placing unsorted files
-   from the bins; not journaled yet.)
-3. **Reality** - anything that needs the code to change: a new system that has
-   no code yet, removing a relationship, splitting a module so files move,
-   deleting a system's code. The Floor cannot fake these. The gesture instead
+   how systems nest, grouping and ungrouping. Systems are Axiom's
+   interpretation of the code, not the code, so changing them does not lie
+   about reality. Allowed on the Floor for you and your agents; every meaning
+   edit is journaled, attributed (you or a named agent), visible to the other
+   side and undoable from Review Changes. **Placement is meaning:** dragging a
+   file into another system moves it there, dragging a system into another
+   nests it, and dragging either out onto empty canvas lifts it to the top
+   level. (Overlapping one node with another has no visual use, so a drop
+   onto a system always means "belongs here".) Delete on a system ungroups it:
+   its contents move up a level and no code is touched. Agent meaning edits
+   apply immediately.
+3. **Reality** - anything that needs the code to change: deleting a file, a
+   new system that has no code yet, removing a relationship, splitting a
+   module so files move. The Floor cannot fake these. The gesture instead
    offers **Draft as a work order**, which opens a sheet with the change
    already drawn, ready to send.
 
