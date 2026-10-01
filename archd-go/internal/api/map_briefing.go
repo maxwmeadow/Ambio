@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -15,7 +16,9 @@ import (
 type mapBriefing struct {
 	Since   int64               `json:"since"`
 	Changes []mapBriefingChange `json:"changes"`
-	Code    []db.CodeFitFinding `json:"codeDisagrees,omitempty"`
+	// Decisions are the person's verdicts on agents' proposals, with why.
+	Decisions []mapBriefingChange `json:"decisions,omitempty"`
+	Code      []db.CodeFitFinding `json:"codeDisagrees,omitempty"`
 }
 
 type mapBriefingChange struct {
@@ -44,22 +47,24 @@ func mapChangesSince(sqlDB *sql.DB, workspaceID, agent string, now time.Time) *m
 		return nil
 	}
 	human := []db.StructuralEvent{}
+	briefing := &mapBriefing{Since: since, Changes: []mapBriefingChange{}}
 	for _, ev := range events {
-		if ev.Actor == "human" && delta.IsMeaningEvent(ev) {
+		if ev.Actor != "human" {
+			continue
+		}
+		if ev.Kind == db.EventProposalDecided {
+			briefing.Decisions = append(briefing.Decisions, mapBriefingChange{What: decisionSentence(ev), At: ev.TS})
+		} else if delta.IsMeaningEvent(ev) {
 			human = append(human, ev)
 		}
 	}
-	if len(human) == 0 {
-		return nil
-	}
 	summary := delta.Aggregate(human, since, now.UnixMilli())
-	briefing := &mapBriefing{Since: since, Changes: []mapBriefingChange{}}
 	for _, claim := range delta.BuildClaims(summary, nil) {
 		if strings.HasPrefix(string(claim.Kind), "meaning.") {
 			briefing.Changes = append(briefing.Changes, mapBriefingChange{What: claim.Title, At: claim.TS})
 		}
 	}
-	if len(briefing.Changes) == 0 {
+	if len(briefing.Changes) == 0 && len(briefing.Decisions) == 0 {
 		return nil
 	}
 	fileIDs := []string{}
@@ -70,4 +75,25 @@ func mapChangesSince(sqlDB *sql.DB, workspaceID, agent string, now time.Time) *m
 		briefing.Code = findings
 	}
 	return briefing
+}
+
+// decisionSentence says what was decided about a proposal, and why when known:
+// "The user rejected the proposed system Job Queue on Agent Plan: we use SQS".
+func decisionSentence(ev db.StructuralEvent) string {
+	var detail struct {
+		Decision, Reason, Kind, SheetName string
+	}
+	_ = json.Unmarshal([]byte(ev.Detail), &detail)
+	verb := "confirmed"
+	if detail.Decision == "rejected" {
+		verb = "rejected"
+	}
+	sentence := "The user " + verb + " the proposed " + strings.TrimSpace(detail.Kind+" "+ev.SubjectLabel)
+	if detail.SheetName != "" {
+		sentence += " on " + detail.SheetName
+	}
+	if detail.Reason != "" {
+		sentence += ": " + detail.Reason
+	}
+	return sentence
 }

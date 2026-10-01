@@ -53,7 +53,8 @@ in the app as "What's New" after updating, so write it for users.
   a new dependency; it opens on a sheet ready to send, and counts as done
   once the code actually depends that way.
 - An agent starting work is told what you changed on the map since it last
-  worked here, so it builds on your decisions instead of undoing them.
+  worked here, and which of its proposals you rejected and why, so it builds
+  on your decisions instead of undoing them.
 - When an agent draws a sheet or proposes something on one, Axiom tells you
   and marks the sheet NEW; its proposals are outlined on the map and listed
   in the sheet rail to confirm or reject with one click.

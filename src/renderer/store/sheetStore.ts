@@ -375,7 +375,7 @@ interface SheetState {
   lastCreatedPlannedId: string | null   // node enters inline name-edit on mount
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
-  setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected') => Promise<void>
+  setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
   previewPlannedPosition: (id: string, x: number, y: number) => void
   updatePlannedLayout: (workspaceId: string, id: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   previewLayoutsBatch: (workspaceId: string, sheetId: string, layouts: SheetLayoutMutation[]) => void
@@ -599,7 +599,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     }
   },
 
-  setPlannedApproval: async (workspaceId, id, decision) => {
+  setPlannedApproval: async (workspaceId, id, decision, reason) => {
     const planned = Object.values(get().layersById)
       .flatMap(layer => layer.planned)
       .find(node => node.id === id)
@@ -607,7 +607,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     const res = await fetch(`${archdApi()}/api/planned/${encodeURIComponent(id)}/approval`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, decision }),
+      // The reason reaches later agent sessions, so the proposal is not made again.
+      body: JSON.stringify({ workspaceId, decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
     })
     if (!res.ok) throw new Error(await res.text())
     const updated = withValidScale(await res.json() as PlannedNode)

@@ -31,6 +31,10 @@ const (
 	EventSystemNested    = "system.nested"
 	EventSystemMerged    = "system.merged"
 	EventSystemUngrouped = "system.ungrouped"
+
+	// A person confirmed or rejected an agent's proposal, with an optional
+	// reason; later agent sessions are told (api/map_briefing.go).
+	EventProposalDecided = "proposal.decided"
 )
 
 // updateCollapseWindowMs mirrors the activity burst window: repeated saves of

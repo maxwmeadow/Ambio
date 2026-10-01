@@ -99,7 +99,9 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   Axiom, not reported by the agent.
   `start_work` hands the agent `mapChanges`: the person's meaning edits since
   that agent's previous session (or the last week), as claim sentences, with
-  where the code still disagrees (`internal/api/map_briefing.go`).
+  where the code still disagrees, and `decisions`: the person's verdicts on
+  agents' proposals with their reasons (`proposal.decided` rows)
+  (`internal/api/map_briefing.go`).
   Agents read recent meaning changes with `get_architecture` scope `changes`
   (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history

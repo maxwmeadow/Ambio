@@ -2262,7 +2262,7 @@ test('drawing a dependency on the Floor starts a sheet proposing it, ready to se
   await expect(page.locator('textarea').first()).toHaveValue(/^Make Shared Types use MCP Server/)
 })
 
-test('an agent-drawn sheet cannot go unnoticed, and each proposal is one click to confirm', async () => {
+test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', async () => {
   const agentSheet = {
     id: 'sheet_agent', workspaceId: 'demo', name: 'Agent Plan', purpose: '', kind: 'structure',
     folder: '', createdBy: 'agent', revision: 1, createdAt: 9, updatedAt: 9,
@@ -2294,8 +2294,10 @@ test('an agent-drawn sheet cannot go unnoticed, and each proposal is one click t
   await expect(review).toContainText('Job Queue')
   await expect(page.locator('.react-flow__node[data-id="planned:plan_queue"]')).toHaveAttribute('data-proposal', 'pending')
   await expect(page.locator('.axiom-sheet-rail__new')).toHaveCount(0)
-  await review.getByRole('button', { name: 'Confirm Job Queue' }).click()
-  await expect.poll(() => decided?.decision).toBe('approved')
+  await review.getByRole('button', { name: 'Reject Job Queue' }).click()
+  await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
+  await review.getByRole('button', { name: 'Reject', exact: true }).click()
+  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', decision: 'rejected', reason: 'we already queue through SQS' })
   await expect(review).toHaveCount(0)
 })
 

@@ -12,11 +12,16 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   const pending = (planned ?? []).filter(node => node.approvalStatus === 'pending')
   const decide = useSheetStore(s => s.setPlannedApproval)
   const [busy, setBusy] = useState(false)
+  // Rejecting asks why, in a line; the next agent session is told.
+  const [rejecting, setRejecting] = useState<string | null>(null)
+  const [reason, setReason] = useState('')
   if (!sheetId || pending.length === 0) return null
-  const run = async (ids: string[], decision: 'approved' | 'rejected') => {
+  const run = async (ids: string[], decision: 'approved' | 'rejected', why?: string) => {
     setBusy(true)
     try {
-      for (const id of ids) await decide(workspaceId, id, decision)
+      for (const id of ids) await decide(workspaceId, id, decision, why)
+      setRejecting(null)
+      setReason('')
     } catch (error) {
       raiseFailure('proposal-review', decision === 'approved' ? "Couldn't confirm" : "Couldn't reject", String(error))
     } finally {
@@ -38,7 +43,24 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
               <small>{node.kind}</small> {node.name}
             </span>
             <button type="button" disabled={busy} aria-label={`Confirm ${node.name}`} title="Confirm: part of the plan" onClick={() => void run([node.id], 'approved')}>✓</button>
-            <button type="button" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => void run([node.id], 'rejected')}>✕</button>
+            <button type="button" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => { setRejecting(node.id); setReason('') }}>✕</button>
+            {rejecting === node.id && (
+              <form
+                className="axiom-sheet-rail__review-reason"
+                onSubmit={event => { event.preventDefault(); void run([node.id], 'rejected', reason) }}
+              >
+                <input
+                  autoFocus
+                  aria-label={`Why reject ${node.name}? (optional)`}
+                  placeholder="Why? (optional, the agent is told)"
+                  value={reason}
+                  maxLength={300}
+                  onChange={event => setReason(event.target.value)}
+                  onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') setRejecting(null) }}
+                />
+                <button type="submit" disabled={busy}>Reject</button>
+              </form>
+            )}
           </li>
         ))}
       </ul>

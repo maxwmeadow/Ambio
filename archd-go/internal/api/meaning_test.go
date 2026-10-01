@@ -344,3 +344,34 @@ func TestAnAgentStartingWorkHearsWhatThePersonChanged(t *testing.T) {
 		t.Fatal("a new agent was not briefed")
 	}
 }
+
+func TestARejectionAndItsReasonReachTheNextAgent(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	if err := db.CreateSheet(sqlDB, &db.Sheet{ID: "plan", WorkspaceID: "ws", Name: "Agent Plan"}); err != nil {
+		t.Fatal(err)
+	}
+	proposal := &db.PlannedNode{SheetID: "plan", WorkspaceID: "ws", Kind: "system", Name: "Job Queue", CreatedBy: "agent"}
+	if err := db.UpsertPlannedNode(sqlDB, proposal); err != nil {
+		t.Fatal(err)
+	}
+	r := send(t, server, http.MethodPost, "/api/planned/"+proposal.ID+"/approval", map[string]any{
+		"workspaceId": "ws", "decision": "rejected", "reason": "we already queue through SQS",
+	})
+	if r.Code != http.StatusOK {
+		t.Fatalf("reject: %d %s", r.Code, r.Body.String())
+	}
+	started := send(t, server, http.MethodPost, "/api/work/start", map[string]any{"workspaceId": "ws", "agent": "codex", "goal": "add retries"})
+	want := "The user rejected the proposed system Job Queue on Agent Plan: we already queue through SQS"
+	if !strings.Contains(started.Body.String(), want) {
+		t.Fatalf("the next session was not told: %s", started.Body.String())
+	}
+	// The rejection is not a change to the map, so Review Changes stays quiet about it.
+	events, _ := db.GetStructuralEvents(sqlDB, "ws", 0)
+	claims := delta.BuildClaims(delta.Aggregate(events, 0, 1<<62), nil)
+	for _, claim := range claims {
+		if strings.Contains(claim.Title, "Job Queue") {
+			t.Fatalf("a decision became a claim: %+v", claim)
+		}
+	}
+}

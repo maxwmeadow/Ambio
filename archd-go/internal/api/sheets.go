@@ -638,6 +638,8 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			WorkspaceID string `json:"workspaceId"`
 			Decision    string `json:"decision"`
+			// Reason is why, in a line; it reaches later agent sessions.
+			Reason string `json:"reason"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
@@ -653,10 +655,14 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "planned node not found", 404)
 			return
 		}
+		wasPending := planned.ApprovalStatus == "pending"
 		planned, err = db.SetPlannedApproval(sqlDB, id, body.Decision)
 		if err != nil {
 			jsonError(w, err.Error(), 409)
 			return
+		}
+		if wasPending && planned.CreatedBy == "agent" {
+			s.recordProposalDecision(sqlDB, planned, body.Decision, body.Reason)
 		}
 		s.broadcastPatch("planned:upserted", planned)
 		jsonOK(w, planned)
@@ -1200,5 +1206,25 @@ func (s *Server) broadcastSheetRemovals(sqlDB *sql.DB, workspaceID, sheetID stri
 	s.broadcastPatch("sheet:removals", map[string]any{"workspaceId": workspaceID, "sheetId": sheetID, "removals": removals})
 	if sheet, err := db.GetSheet(sqlDB, sheetID); err == nil && sheet != nil {
 		s.broadcastPatch("sheet:upserted", sheet)
+	}
+}
+
+// recordProposalDecision journals a person's verdict on an agent's proposal so
+// the next agent session hears it (api/map_briefing.go) and does not propose
+// the same thing again.
+func (s *Server) recordProposalDecision(sqlDB *sql.DB, planned *db.PlannedNode, decision, reason string) {
+	sheetName := ""
+	if sheet, err := db.GetSheet(sqlDB, planned.SheetID); err == nil && sheet != nil {
+		sheetName = sheet.Name
+	}
+	detail, _ := json.Marshal(map[string]string{
+		"decision": decision, "reason": strings.TrimSpace(reason), "kind": planned.Kind,
+		"sheetId": planned.SheetID, "sheetName": sheetName,
+	})
+	if err := db.RecordStructuralEvent(sqlDB, db.StructuralEvent{
+		WorkspaceID: planned.WorkspaceID, Actor: "human", Kind: db.EventProposalDecided,
+		SubjectID: planned.ID, SubjectLabel: planned.Name, Detail: string(detail),
+	}); err != nil {
+		log.Printf("[archd] record proposal decision: %v", err)
 	}
 }
