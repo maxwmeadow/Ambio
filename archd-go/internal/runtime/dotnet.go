@@ -162,7 +162,7 @@ func (s *DotnetSession) handshake() error {
 		launchDone <- err
 	}()
 
-	if err := s.waitForInitialized(); err != nil {
+	if err := s.waitForInitialized(launchDone); err != nil {
 		return err
 	}
 	if err := s.setBreakpoints(); err != nil {
@@ -187,13 +187,21 @@ func (s *DotnetSession) handshake() error {
 	return nil
 }
 
-func (s *DotnetSession) waitForInitialized() error {
+func (s *DotnetSession) waitForInitialized(launchDone chan error) error {
 	// Absolute deadline (not per-iteration) so a chatty pre-init event stream
 	// can't defer the timeout forever, and only one timer is allocated.
 	deadline := time.NewTimer(25 * time.Second)
 	defer deadline.Stop()
 	for {
 		select {
+		case err := <-launchDone:
+			// A refused launch answers before any initialized event; say why
+			// now rather than after the deadline.
+			if err != nil {
+				return fmt.Errorf("%s could not launch %s: %w", "netcoredbg", s.Program, err)
+			}
+			launchDone <- nil
+			launchDone = nil
 		case ev := <-s.client.events:
 			if ev.Event == "initialized" {
 				return nil
