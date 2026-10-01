@@ -51,6 +51,9 @@ in the app as "What's New" after updating, so write it for users.
 - Draw a connection between two live systems or files on the map to propose
   a new dependency; it opens on a sheet ready to send, and counts as done
   once the code actually depends that way.
+- When an agent draws a sheet or proposes something on one, Axiom tells you
+  and marks the sheet NEW; its proposals are outlined on the map and listed
+  in the sheet rail to confirm or reject with one click.
 - Sheets can propose removing code: press Delete on a live file or system on
   a sheet. It disappears from that sheet only, stays listed with Restore, and
   a sent work order counts it as done once the code is really gone. Agents

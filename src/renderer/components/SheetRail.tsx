@@ -7,6 +7,7 @@ import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, type Sheet } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
 import { SheetRemovedList } from './SheetRemovedList'
+import { SheetProposalReview } from './SheetProposalReview'
 
 const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
   structure: 'STR',
@@ -52,6 +53,19 @@ export function SheetRail() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [showResolved, setShowResolved] = useState(false)
   const [restoreError, setRestoreError] = useState('')
+  // Agent-drawn sheets you have not opened yet are marked NEW. Remembered per
+  // viewer only; losing it just shows the mark again.
+  const seenKey = `axiom:seen-agent-sheets:${workspaceId}`
+  const [seenAgentSheets, setSeenAgentSheets] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(seenKey) ?? '[]') as string[] } catch { return [] }
+  })
+  useEffect(() => {
+    if (!activeSheetId || seenAgentSheets.includes(activeSheetId)) return
+    if (!sheets.some(sheet => sheet.id === activeSheetId && sheet.createdBy === 'agent')) return
+    const next = [...seenAgentSheets, activeSheetId]
+    setSeenAgentSheets(next)
+    try { localStorage.setItem(seenKey, JSON.stringify(next)) } catch { /* the mark just returns */ }
+  }, [activeSheetId, sheets, seenAgentSheets, seenKey])
   const activeSheets = sheets.filter(sheet => !sheet.resolvedAt)
   const resolvedSheets = sheets.filter(sheet => sheet.resolvedAt)
   const restore = async (sheet: Sheet) => {
@@ -228,6 +242,7 @@ export function SheetRail() {
                 <span className="axiom-sheet-rail__name" title={sheet.name}>{sheet.name}</span>
                 <span className="axiom-sheet-rail__kind">{SHEET_KIND_LABELS[sheet.kind]}</span>
                 {sheet.createdBy === 'agent' && <span className="axiom-sheet-rail__agent" title="Created by agent">AI</span>}
+                {sheet.createdBy === 'agent' && !active && !seenAgentSheets.includes(sheet.id) && <span className="axiom-sheet-rail__new" title="Drawn by an agent; not opened yet">NEW</span>}
               </button>
 
               {active && <button type="button" className="axiom-sheet-rail__attach" aria-label={`Attach ${sheet.name} to agent message`} title="Discuss or implement this sheet" onClick={() => window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { sheetId: sheet.id } }))}>↗</button>}
@@ -248,6 +263,7 @@ export function SheetRail() {
           )
         })}
       </div>
+      <SheetProposalReview workspaceId={workspaceId} />
       <SheetRemovedList workspaceId={workspaceId} />
       {resolvedSheets.length > 0 && <div className="axiom-sheet-rail__archive">
         <button type="button" aria-expanded={showResolved} onClick={() => setShowResolved(value => !value)}>Resolved sheets ({resolvedSheets.length})</button>

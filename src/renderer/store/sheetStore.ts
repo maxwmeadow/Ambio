@@ -3,7 +3,7 @@
 // activeSheetId === null.
 import { create } from 'zustand'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
-import { raiseFailure } from './interruptionStore.ts'
+import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
 
 let openSheetRequest = 0
@@ -953,6 +953,21 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 }))
 
+/**
+ * What an agent draws must not go unnoticed (docs/PRODUCT.md §1): one
+ * invitation per sheet, replaced rather than stacked while the agent works.
+ */
+function announceAgentDrawing(sheetId: string, title: string, body: string) {
+  raiseInvitation(`agent-drawing-${sheetId}`, title, body, [{
+    label: 'Open Sheet',
+    primary: true,
+    run: () => {
+      const workspaceId = useSheetStore.getState().workspaceId
+      if (workspaceId) void useSheetStore.getState().openSheet(workspaceId, sheetId)
+    },
+  }])
+}
+
 // handleSheetPatch routes sheet/annotation/canvas WebSocket patches into the
 // sheet store. Called from graphStore's patch pipeline (one-way dependency).
 export function handleSheetPatch(patch: { type: string; payload: unknown }): void {
@@ -962,6 +977,9 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
   switch (patch.type) {
     case 'sheet:upserted': {
       const sheet = patch.payload as Sheet
+      if (sheet.createdBy === 'agent' && !sheet.resolvedAt && !s.sheets.some(item => item.id === sheet.id)) {
+        announceAgentDrawing(sheet.id, `An agent drew a sheet: ${sheet.name}`, 'Open it to see what it proposes, then confirm or reject each part.')
+      }
       if (sheet.resolvedAt) {
         useSheetStore.setState(st => {
           const previous = st.sheets.find(item => item.id === sheet.id)
@@ -1077,6 +1095,11 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'planned:upserted': {
       const p = withValidScale(patch.payload as PlannedNode)
+      const known = Object.values(s.layersById).some(layer => layer.planned.some(node => node.id === p.id))
+      if (p.createdBy === 'agent' && p.approvalStatus === 'pending' && !known) {
+        const sheetName = s.sheets.find(sheet => sheet.id === p.sheetId)?.name ?? 'a sheet'
+        announceAgentDrawing(p.sheetId, `An agent proposed ${p.name}`, `On ${sheetName}. Confirm or reject it in the sheet rail.`)
+      }
       if (!s.layersById[p.sheetId]) break
       useSheetStore.setState(st => {
         const layer = st.layersById[p.sheetId]

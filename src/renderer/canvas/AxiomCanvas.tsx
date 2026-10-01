@@ -2172,6 +2172,8 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         domAttributes: {
           ...sheetNode.domAttributes,
           'data-sheet-placed': isSheetPlaced ? 'true' : undefined,
+          // An agent's proposal waits for you; a rejected one stays visible but faded.
+          'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus : undefined,
         },
         draggable: activeNodeIds.has(sheetNode.id) && nodeOpacity > 0.1,
         // Context nodes are selectable so they can be inspected, connected and

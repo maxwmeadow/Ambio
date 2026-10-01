@@ -2262,6 +2262,43 @@ test('drawing a dependency on the Floor starts a sheet proposing it, ready to se
   await expect(page.locator('textarea').first()).toHaveValue(/^Make Shared Types use MCP Server/)
 })
 
+test('an agent-drawn sheet cannot go unnoticed, and each proposal is one click to confirm', async () => {
+  const agentSheet = {
+    id: 'sheet_agent', workspaceId: 'demo', name: 'Agent Plan', purpose: '', kind: 'structure',
+    folder: '', createdBy: 'agent', revision: 1, createdAt: 9, updatedAt: 9,
+  }
+  const proposal = {
+    id: 'plan_queue', sheetId: 'sheet_agent', workspaceId: 'demo', kind: 'system', name: 'Job Queue',
+    declaredPath: '', members: '[]', metadata: '{}', status: 'planned', approvalStatus: 'pending',
+    realizedFileId: null, notes: '', shape: '', color: '', positionX: 400, positionY: 300,
+    width: 320, height: 200, scale: 1, parentSystemId: null, createdBy: 'agent',
+  }
+  let decided: { decision?: string } | undefined
+  await page.route(/\/api\/sheets\/sheet_agent\?/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ sheet: agentSheet, elements: [], annotations: [], planned: [proposal], plannedEdges: [], layouts: [], removals: [] }),
+  }))
+  await page.route(/\/api\/planned\/plan_queue\/approval$/, async route => {
+    decided = route.request().postDataJSON()
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...proposal, approvalStatus: decided?.decision }) })
+  })
+  await page.evaluate(sheet => {
+    (window as unknown as { __axiomGraphStore: { getState: () => { applyDbPatch: (patch: unknown) => void } } })
+      .__axiomGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet })
+  }, agentSheet)
+
+  await expect(page.getByText('An agent drew a sheet: Agent Plan')).toBeVisible()
+  await expect(page.locator('.axiom-sheet-rail__new')).toBeVisible()
+  await page.getByRole('button', { name: 'Open Sheet' }).click()
+  const review = page.getByLabel('Agent proposals to review')
+  await expect(review).toContainText('Job Queue')
+  await expect(page.locator('.react-flow__node[data-id="planned:plan_queue"]')).toHaveAttribute('data-proposal', 'pending')
+  await expect(page.locator('.axiom-sheet-rail__new')).toHaveCount(0)
+  await review.getByRole('button', { name: 'Confirm Job Queue' }).click()
+  await expect.poll(() => decided?.decision).toBe('approved')
+  await expect(review).toHaveCount(0)
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {
