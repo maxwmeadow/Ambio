@@ -68,3 +68,51 @@ jobs:
 
       - name: Build Electron bundles
         run: npm run build
+
+  # The canvas is covered by Playwright and the agent surface by the MCP
+  # end-to-end suite; both drive real processes (Electron, archd, the MCP
+  # server), so they run once, on Linux, under a virtual display.
+  e2e:
+    name: end-to-end (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: archd-go/go.sum
+
+      - run: npm ci
+
+      # Builds archd and the runtime adapters, then drives the real MCP server
+      # against a real daemon over stdio.
+      - name: MCP end to end
+        run: npm run test:mcp
+
+      - name: Install a virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build Electron bundles
+        run: npm run build
+
+      # Screenshot baselines are per platform. A missing Linux baseline is
+      # written rather than failed, and uploaded below so it can be reviewed
+      # and committed from the runner that will compare against it.
+      - name: Playwright
+        run: xvfb-run -a npx playwright test --update-snapshots=missing
+
+      - name: Upload Playwright results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            tests/e2e/__screenshots__/**/linux/
+          if-no-files-found: ignore

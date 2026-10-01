@@ -56,17 +56,16 @@ collide. Full context for each item is in its section below.
 
 1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
-3. ⬜ `ci-e2e` - run the MCP end-to-end and Playwright suites in CI. [.github/workflows]
-4. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
-5. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
-6. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
-7. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
-8. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-9. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
-10. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
-11. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
-12. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
-13. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+3. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
+4. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
+5. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
+6. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
+7. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
+8. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
+9. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
+10. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
+11. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
+12. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -242,7 +241,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Quality, tests and CI
 
-- ⬜ `ci-e2e` **Run `npm run test:mcp` and the Playwright suite in CI** (at least on Linux; Playwright needs Electron under xvfb). Today neither runs, and the 5,000-line canvas is only covered by Playwright. The suite is green on Linux except "renders the deterministic Floor baseline", which has no Linux screenshot: generate it on the CI runner (`--update-snapshots` once) rather than locally, so fonts match.
 - ⬜ `gofmt-dbquery` **`archd-go/cmd/dbquery/main.go` is not gofmt-clean**; format it and add a gofmt check to CI.
 - ⬜ `coverage-report` **Coverage numbers** for Go and the node suite, to find the untested areas beyond runtime.
 - ⬜ `ci-windows-mac-go-race` **Run the Go tests with `-race`** in CI on at least Linux; this session found a real ordering bug (open-time backup) that only showed up as a flaky cleanup on macOS.
@@ -278,6 +276,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
+
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `unassigned-regrouped` **Files taken out of every system can be regrouped by the clusterer.** Unassigned files are classifier-managed, so ungrouping a top-level system or dragging a file to empty canvas may be undone by the next cluster pass. Decide whether a human "unassign" should pin the file as deliberately unsorted. (2026-10-01, meaning-edits-recorded)
@@ -290,6 +290,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `ci-e2e` CI gains an `e2e` job on Linux: `npm run test:mcp`, then the whole Playwright suite under xvfb with `--update-snapshots=missing`; results and any newly written Linux screenshots are uploaded as an artifact. Locally the full suite is green (38 passed, 2 opt-in skipped). Not yet run on GitHub: CI only runs on main and pull requests. After its first run, commit the uploaded Linux baseline. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `playwright-launcher-failures` The three failing canvas tests pass: each run now gets an isolated home (`HOME`/`USERPROFILE`) with a registered fixture project and a real fixture folder (`AXIOM_E2E_ROOT` → renderer `root` param), so the suite no longer reads or writes the developer's real `~/.axiom`; the setup screen browses that folder instead of `.` (refused since file access was limited to project roots); Copy check in agent setup writes through the main process, since the web clipboard refuses an unfocused window. Only the missing Linux screenshot baseline remains (see `ci-e2e`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `floor-connection-gesture` Drawing a connection between two live nodes on the Floor draws "A uses B" on a new sheet and opens the send dialog; on a sheet, live-to-live connections are now kept as proposals (they were silently dropped). Loose connection mode with the drawn-from node as source (overlapping handles reversed it). Comparison: `DEPENDS_ON` is met by any import or call from inside the source to inside the target, so a drawn dependency can be verified (`relationshipPresent`, used by the live and snapshot comparisons). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `sheet-removals` Sheets propose removing live code (`db/sheet_removals.go`, schema 4): removal wins over a move, stays listed until restored, is marked done once the code is gone, and is checked by the live comparison, the frozen work-order snapshot and the build spec. Canvas: Delete on a live node on a sheet proposes removal (hidden on that sheet with its contents, Restore in the notice and in the rail's "Removed on this sheet"); Floor Delete This File… / Delete <system>'s Code… draw a "Remove …" sheet and attach it to the order. Agents: `edit_sheet` `remove`/`restore`. Go, MCP e2e and Playwright tests. (claude/gracious-gauss-1bgdv9)
