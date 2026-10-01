@@ -326,6 +326,58 @@ func injectRubyEnv(env []string, adapterDir string) []string {
 	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
 }
 
+// FindJavaAgentJar locates the JVM recorder (adapters/java/axiom-agent.jar).
+func FindJavaAgentJar() (string, error) {
+	dir, err := findAdapterDir("java", javaAgentJar)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, javaAgentJar), nil
+}
+
+const javaAgentJar = "axiom-agent.jar"
+
+// injectJavaEnv loads the recorder into every JVM the run starts - java
+// itself, Maven's Surefire forks, Gradle's test workers - through
+// JAVA_TOOL_OPTIONS, which all of them read. The JVM splits the variable on
+// spaces but honours quotes, so a path under C:\Program Files is quoted.
+// The user's own options are kept.
+func injectJavaEnv(env []string, agentJar string) []string {
+	option := "-javaagent:" + agentJar
+	if strings.ContainsAny(agentJar, " \t") {
+		option = `-javaagent:"` + agentJar + `"`
+	}
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(strings.ToUpper(kv), "JAVA_TOOL_OPTIONS=") {
+			if v := kv[len("JAVA_TOOL_OPTIONS="):]; v != "" {
+				option += " " + v
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "JAVA_TOOL_OPTIONS="+option)
+}
+
+// The JVM announces JAVA_TOOL_OPTIONS on stderr in every process it starts.
+// That line is Axiom's doing, not the program's output.
+func stripJavaToolOptionsNotice(output string) string {
+	if !strings.Contains(output, javaToolOptionsNotice) {
+		return output
+	}
+	lines := strings.SplitAfter(output, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if !strings.HasPrefix(line, javaToolOptionsNotice) {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "")
+}
+
+const javaToolOptionsNotice = "Picked up JAVA_TOOL_OPTIONS:"
+
 // injectNodeEnv wires the Node adapter in via NODE_OPTIONS (--require for CJS,
 // --import for ESM), preserving any existing NODE_OPTIONS. AXIOM_WORKSPACE_ROOT
 // scopes instrumentation to the user's files (node_modules is skipped).

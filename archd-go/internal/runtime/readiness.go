@@ -59,7 +59,7 @@ var readinessLanguages = map[string]languageSpec{
 	"python": {name: "Python", tools: []string{"python3", "python"}, versionArgs: []string{"--version"}, recorder: true, install: "Python (python.org)"},
 	"ruby":   {name: "Ruby", tools: []string{"ruby"}, versionArgs: []string{"--version"}, recorder: true, install: "Ruby (ruby-lang.org)"},
 	"go":     {name: "Go", tools: []string{"go"}, versionArgs: []string{"version"}, recorder: true, install: "Go (go.dev)"},
-	"java":   {name: "Java/Kotlin", tools: []string{"java"}, versionArgs: []string{"-version"}, install: "a JDK (adoptium.net)", planned: "function-level evidence for Java is planned"},
+	"java":   {name: "Java/Kotlin", tools: []string{"java"}, versionArgs: []string{"-version"}, recorder: true, install: "a JDK (adoptium.net)"},
 	"csharp": {name: "C#/.NET", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, install: "the .NET SDK (dot.net)", planned: "function-level evidence for .NET is planned"},
 	"rust":   {name: "Rust", tools: []string{"cargo"}, versionArgs: []string{"--version"}, install: "Rust (rustup.rs)", planned: "no function-level recorder for Rust yet"},
 	"swift":  {name: "Swift", tools: []string{"swift"}, versionArgs: []string{"--version"}, install: "Swift (swift.org)", planned: "no function-level recorder for Swift yet"},

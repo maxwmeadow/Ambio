@@ -310,6 +310,11 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = injectRubyEnv(env, dir)
 		instrumented = append(instrumented, "ruby")
 	}
+	// Java, Kotlin and Scala: one agent, loaded by every JVM the run starts.
+	if jar, err := FindJavaAgentJar(); err == nil {
+		env = injectJavaEnv(env, jar)
+		instrumented = append(instrumented, "java")
+	}
 	// Go: the module's files are rewritten into the evidence folder and
 	// swapped in by the go command's -overlay; nothing on disk changes.
 	var goNote string
@@ -338,6 +343,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 			// The command never runs: what the server printed and recorded
 			// while starting is the evidence.
 			finishServer(server, serverOut)
+			if contains(instrumented, "java") {
+				serverOut.Output = stripJavaToolOptionsNotice(serverOut.Output)
+			}
 			outcome := &RunOutcome{
 				ID:           runID,
 				Command:      spec.Command,
@@ -407,6 +415,12 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	}
 
 	text, truncated := out.String()
+	if contains(instrumented, "java") {
+		text = stripJavaToolOptionsNotice(text)
+		if serverOut != nil {
+			serverOut.Output = stripJavaToolOptionsNotice(serverOut.Output)
+		}
+	}
 	outcome := &RunOutcome{
 		ID:              runID,
 		Command:         spec.Command,

@@ -104,8 +104,23 @@ function goModules() {
   return [...found.values()]
 }
 
+// Components that ship inside a prebuilt artifact instead of through a package
+// manager: ASM, relocated into the JVM run recorder (adapters/java/build.mjs
+// pins the version and checksum).
+function bundledComponents() {
+  const build = fs.readFileSync(path.join(ROOT, 'adapters', 'java', 'build.mjs'), 'utf8')
+  const version = /ASM_VERSION = '([^']+)'/.exec(build)?.[1] ?? 'unknown'
+  return [{
+    name: 'org.ow2.asm (asm, asm-commons) in adapters/java/axiom-agent.jar',
+    version,
+    license: 'BSD-3-Clause',
+    texts: [fs.readFileSync(path.join(ROOT, 'adapters', 'java', 'ASM-LICENSE.txt'), 'utf8').split('\n').slice(3).join('\n').trim()],
+    source: 'bundled',
+  }]
+}
+
 function main() {
-  const packages = [...npmPackages(), ...goModules()].sort((left, right) => left.name.localeCompare(right.name))
+  const packages = [...npmPackages(), ...goModules(), ...bundledComponents()].sort((left, right) => left.name.localeCompare(right.name))
   const blocked = packages.filter(entry => !licenseAllowed(entry.license))
   if (blocked.length > 0) {
     console.error('Third-party licenses that are not known to be AGPL-3.0 compatible:')

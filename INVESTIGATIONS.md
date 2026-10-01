@@ -164,9 +164,9 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node, Python, Ruby and Go record function-level evidence,
-  each through the user's own toolchain with nothing to install. .NET, Java
-  and others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
+- **Languages**: Node, Python, Ruby, Go and the JVM (Java, Kotlin, Scala)
+  record function-level evidence, each through the user's own toolchain with
+  nothing to install. .NET and others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
 - **Long-running servers**: `run` with `server` (and `port`) starts the server
@@ -202,6 +202,19 @@ and truncated. It stays on the local machine in archd's data directory.
   with `-vet=off` during a run (vet reads package folders from disk, where
   the run's recorder package does not exist). Files with `import "C"` and
   generated files run uninstrumented.
+- **Java, Kotlin, Scala**: an agent loaded through `JAVA_TOOL_OPTIONS` into
+  every JVM the command starts (java, Maven Surefire forks, Gradle test
+  workers) rewrites classes compiled from workspace sources as they load;
+  dependencies are untouched. Java 8 and newer. Parameter names need debug
+  info (`-g`, the Maven and Gradle default); without it they read `arg0`.
+  Lambdas, getters and setters, and the methods the compiler writes for
+  records and data classes are not recorded. A Kotlin suspend function is one
+  call across its suspensions; one that suspends and is never resumed is
+  counted without a result. Values are read field by field; the recorder
+  never calls the program's `toString`, getters or `hashCode`, and iterates
+  only the JDK's and Kotlin's own collections. A Gradle daemon already
+  running keeps its own environment: stop it (`gradle --stop`) or run with
+  `--no-daemon` if a run shows no JVM evidence.
 - **Ruby**: methods are recorded, blocks are not. An exception counts against
   every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
   event), a method that rescues and then returns `nil` without calling anything

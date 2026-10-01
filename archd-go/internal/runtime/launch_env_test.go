@@ -54,3 +54,21 @@ func TestRubyRecorderSurvivesSpacesAndExistingOptions(t *testing.T) {
 		t.Errorf("other variables are untouched")
 	}
 }
+
+// The JVM splits JAVA_TOOL_OPTIONS on spaces but honours quotes; the user's
+// own options survive, and the notice the JVM prints about the variable is
+// not the program's output.
+func TestJavaAgentSurvivesSpacesAndExistingOptions(t *testing.T) {
+	env := injectJavaEnv([]string{"JAVA_TOOL_OPTIONS=-Xmx2g", "HOME=/h"}, `C:\Program Files\Axiom\resources\adapters\java\axiom-agent.jar`)
+	want := `JAVA_TOOL_OPTIONS=-javaagent:"C:\Program Files\Axiom\resources\adapters\java\axiom-agent.jar" -Xmx2g`
+	if got := env[len(env)-1]; got != want || len(env) != 2 {
+		t.Fatalf("env = %q, want last %q", env, want)
+	}
+	if got := injectJavaEnv(nil, "/opt/axiom/axiom-agent.jar"); got[0] != "JAVA_TOOL_OPTIONS=-javaagent:/opt/axiom/axiom-agent.jar" {
+		t.Fatalf("a plain path needs no quotes: %q", got)
+	}
+	out := "Picked up JAVA_TOOL_OPTIONS: -javaagent:/x.jar\nBUILD OK\nPicked up JAVA_TOOL_OPTIONS: -javaagent:/x.jar\n27\n"
+	if got := stripJavaToolOptionsNotice(out); got != "BUILD OK\n27\n" {
+		t.Fatalf("stripped = %q", got)
+	}
+}

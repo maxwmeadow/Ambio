@@ -20,6 +20,10 @@ import { startHarness, harnessFetch } from './mcpHarness.mjs'
 const PYTHON = ['python3', 'python'].find(cmd => spawnSync(cmd, ['--version']).status === 0)
 const RUBY = spawnSync('ruby', ['--version']).status === 0
 const GO = spawnSync('go', ['version']).status === 0
+// A JDK from JAVA_HOME or the PATH; the commands below name it in full, so
+// the run does not depend on what archd's own PATH holds.
+const jdkTool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name) : name
+const JDK = spawnSync(jdkTool('javac'), ['-version']).status === 0
 
 let harness
 let client
@@ -47,6 +51,34 @@ test.before(async () => {
     '}',
     '',
     'module.exports = { applyLateFee, invoiceTotal }',
+  ].join('\n'))
+  mkdirSync(join(project, 'shop'), { recursive: true })
+  writeFileSync(join(project, 'shop', 'Stock.java'), [
+    'package shop;',
+    '',
+    'import java.util.HashMap;',
+    'import java.util.Map;',
+    '',
+    'public class Stock {',
+    '    static final Map<String, Integer> LEVELS = new HashMap<>();',
+    '',
+    '    static int reserve(Map<String, Integer> stock, String item, int qty) {',
+    '        int have = stock.getOrDefault(item, 0);',
+    '        if (qty > have) {',
+    '            throw new IllegalArgumentException("not enough " + item);',
+    '        }',
+    '        stock.put(item, have - qty);',
+    '        return have - qty;',
+    '    }',
+    '',
+    '    public static void main(String[] args) {',
+    '        LEVELS.put("widget", 10);',
+    '        for (int i = 0; i < 4; i++) {',
+    '            reserve(LEVELS, "widget", 3);',
+    '        }',
+    '    }',
+    '}',
+    '',
   ].join('\n'))
   // A server whose handler adds to a shared table on every request.
   writeFileSync(join(project, 'billing', 'server.js'), [
@@ -208,6 +240,19 @@ test('a Ruby run sees a cached object change between calls', { skip: !RUBY && 'n
   const run = await client.callTool('investigation', { op: 'run', command: 'ruby ledger.rb', watch: ['ledger.rb:price'] }, 60000)
   assert.equal(run.isError, false, run.text)
   assert.match(run.text, /`customer` is the same object on calls 1 and 2 of `price`, and it changed in between: `discount` 0 → 30/)
+})
+
+// The JVM records through an agent every JVM loads from JAVA_TOOL_OPTIONS:
+// the same evidence, with nothing installed beyond the user's own JDK.
+test('a Java run shows the shared map, the thrown exception and the crash', { skip: !JDK && 'no JDK on this machine' }, async () => {
+  const command = `"${jdkTool('javac')}" -g -d out/classes shop/Stock.java && "${jdkTool('java')}" -cp out/classes shop.Stock`
+  const run = await client.callTool('investigation', { op: 'run', command, watch: ['shop/Stock.java:reserve'] }, 120000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`reserve` changes its argument `stock\.widget` on 3 of 4 calls: 10 → 7, 7 → 4/)
+  assert.match(run.text, /receives the same `stock` object again on 3 of 4 calls/)
+  assert.match(run.text, /`reserve` threw `IllegalArgumentException: not enough widget` on 1 of 4 calls/)
+  assert.match(run.text, /Uncaught `IllegalArgumentException: not enough widget` at shop\/Stock\.java:12/)
+  assert.doesNotMatch(run.text, /Picked up JAVA_TOOL_OPTIONS/, 'the JVM notice about the agent is not the program\'s output')
 })
 
 // A bug behind a server: the server runs under the recorder, the command is

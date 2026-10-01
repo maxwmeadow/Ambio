@@ -25,6 +25,7 @@ What Axiom must ship itself:
 | Python recorder | bundled (`adapters/python`), loaded through `PYTHONPATH` + `sitecustomize`. |
 | Ruby recorder | bundled (`adapters/ruby`), loaded through `RUBYLIB` + `RUBYOPT=-raxiom_recorder`. Added 2026-09-30. |
 | Go recorder | built into archd (`internal/runtime/gorecorder`), applied through the go command's `-overlay`. Added 2026-09-30. |
+| JVM recorder | bundled (`adapters/java/axiom-agent.jar`, 255 KB, ASM relocated inside it), loaded through `JAVA_TOOL_OPTIONS`. Prebuilt and committed, so building Axiom needs no JDK; `adapters/java/build.mjs` rebuilds it. Added 2026-10-01. |
 
 ## Recorders, not debuggers
 
@@ -39,8 +40,8 @@ agent reads all of them the same way.
 | JavaScript / TypeScript | `NODE_OPTIONS --require/--import`, source transform | done |
 | Python | `PYTHONPATH` + `sitecustomize`, `sys.settrace` | done |
 | Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods, drift; exact rescue tracking on 3.3+) |
-| Java / Kotlin | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on workspace classes | next |
-| C# / .NET | `DOTNET_STARTUP_HOOKS`, method patching in workspace assemblies | after Java |
+| Java / Kotlin / Scala | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on classes compiled from workspace sources | done (methods, constructors, drift, suspend functions) |
+| C# / .NET | `DOTNET_STARTUP_HOOKS`, method patching in workspace assemblies | next |
 | Go | source rewrite applied with `GOFLAGS=-overlay=...`; a recorder package added only in the overlay | done (functions and methods; panics from output) |
 | C / C++ | no in-process hook without a rebuild | debugger fallback (below) |
 
@@ -78,7 +79,7 @@ run will show values or only output before it plans a repro.
 2. Ruby recorder - **done**, proves the pattern end to end.
 3. Readiness readout in the UI and in `investigation start` - **done**
    (`/api/investigation/readiness`, the Investigations menu, the case-open reply).
-4. Go overlay recorder - **done**. Java agent and .NET startup hook next
-   (they need a JDK and the .NET SDK to build and test).
+4. Go overlay recorder - **done**. JVM agent - **done**. .NET startup hook
+   next (it needs the .NET SDK to build and test).
 5. Debugger detection and install hints for C/C++; on-demand delve and
    netcoredbg.

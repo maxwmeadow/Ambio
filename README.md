@@ -127,8 +127,8 @@ installed toolchain.
 | Python | `.py` | imports (from a monorepo folder's source root too) | calls, arguments, returns, crashes |
 | Ruby | `.rb` | `require_relative`, `require` of project files | calls, arguments, returns, crashes |
 | Go | `.go` | package imports through `go.mod` | calls, arguments, returns, returned errors, panics |
-| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | exit code and output |
-| C# | `.cs` | `using` namespaces | exit code and output |
+| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | calls, arguments, returns, crashes (Scala too, through the same JVM recorder) |
+| C# | `.cs` | the types a file uses, from its own namespace and its `using`s | exit code and output |
 | Rust | `.rs` | `mod`, and `use` within the crate | exit code and output |
 | C / C++ | `.c` `.h` `.cpp` `.cc` `.cxx` `.c++` `.hpp` `.hxx` `.hh` | `#include` (quoted, and `<dir/file.h>` in the project) | exit code and output |
 | PHP | `.php` | `require`/`include`, `use` (PSR-4 layout) | exit code and output |
