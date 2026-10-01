@@ -16,6 +16,8 @@
     "predev": "npm run build:archd && npm run build:adapters",
     "dev": "electron-vite dev",
     "build": "npm run build:mcp && npm run build:adapters && electron-vite build",
+    "coverage:archd": "cd archd-go && go test -cover ./...",
+    "coverage:node": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-test-coverage --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\"",
     "test:renderer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\" \"adapters/**/*.test.mjs\" \"scripts/**/*.test.mjs\"",
     "test:mcp": "npm run build:archd && npm run build:adapters && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"mcp/e2e/*.e2e.mjs\"",
     "test:e2e": "npm run build && playwright test",
