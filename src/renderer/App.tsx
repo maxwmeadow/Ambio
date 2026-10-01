@@ -32,7 +32,7 @@ import {
 
 import { useGraphStore, connectToArchd, scheduleInfraDetails } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
-import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
+import { raiseDecision, raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
 import { emitCommand, useCommandHandlers, useOpenRecent } from './app/commands'
 import { useSheetStore } from './store/sheetStore'
@@ -425,10 +425,36 @@ export default function App() {
         if (!response.ok) {
           setIndexingComplete()
           let detail = `archd answered ${response.status}.`
+          let damaged: { backups?: Array<{ name: string; createdAt: number }> } | undefined
           try {
-            const body = await response.json() as { error?: string }
+            const body = await response.json() as { error?: string; damaged?: typeof damaged }
             if (body.error) detail = body.error
+            damaged = body.damaged
           } catch { /* keep the status line */ }
+          // A damaged map is not opened; its newest backup is offered instead.
+          const newest = damaged?.backups?.[0]
+          if (damaged && newest && window.axiom) {
+            const id = 'map-damaged'
+            raiseDecision(id, `${config.name}'s map is damaged`,
+              `It cannot be opened as it is. Restore the backup from ${new Date(newest.createdAt).toLocaleString()}? The damaged map is kept aside, and your code is untouched.`, [
+                {
+                  label: 'Restore Backup',
+                  primary: true,
+                  run: async () => {
+                    try {
+                      if (await window.axiom!.restoreBackup(config.id, newest.name)) {
+                        resolveInterruption(id)
+                        void openProject(config)
+                      }
+                    } catch (error) {
+                      raiseFailure('map-restore', "Couldn't restore the backup", String(error))
+                    }
+                  },
+                },
+                { label: 'Not Now', run: () => resolveInterruption(id) },
+              ])
+            return
+          }
           raiseFailure('workspace-register', `Could not open ${config.name}`,
             `${detail} Your code is untouched.`)
           return

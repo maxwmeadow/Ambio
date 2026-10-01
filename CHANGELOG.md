@@ -77,6 +77,9 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- A damaged map is caught when the project opens: Axiom offers to restore
+  the newest backup instead of opening it, and never backs up a damaged
+  map over the good backups.
 - Copying the connection check during agent setup could silently do
   nothing when the window was not focused.
 - Connections between two live nodes on a sheet were silently dropped, and

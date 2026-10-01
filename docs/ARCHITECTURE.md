@@ -41,7 +41,9 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   (cgo `mattn/go-sqlite3`, WAL, bounded pool). `PRAGMA user_version` carries
   `db.SchemaVersion` (currently 2); a newer database is refused. **Bump
   `SchemaVersion` whenever a migration changes the schema.**
-- Daily backups (`backups/`, seven kept), a 30-day trash (`data/.trash`), and
+- Daily backups (`backups/`, seven kept; a map failing `PRAGMA quick_check`
+  on open is never backed up and the app offers its newest backup instead),
+  a 30-day trash (`data/.trash`), and
   `.axiommap` export/import (a SQLite snapshot plus a manifest table).
 - The project registry, settings and window state are JSON in `~/.axiom`.
 

@@ -52,6 +52,69 @@ func (s *Server) trashWorkspace(workspaceID string) (string, error) {
 	return target, nil
 }
 
+// ─── Damage ─────────────────────────────────────────────────────────────────
+
+// damagedMapInfo tells the app a map cannot be used and what it can be
+// restored from, newest backup first.
+type damagedMapInfo struct {
+	WorkspaceID string       `json:"workspaceId"`
+	Detail      string       `json:"detail"`
+	Backups     []backupInfo `json:"backups"`
+}
+
+// mapIntegrityProblem runs SQLite's quick check and returns what it found, or
+// "" for a healthy map. Quick, because it runs on every open.
+func mapIntegrityProblem(sqlDB *sql.DB) string {
+	rows, err := sqlDB.Query(`PRAGMA quick_check(5)`)
+	if err != nil {
+		return err.Error()
+	}
+	defer rows.Close()
+	problems := []string{}
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			return err.Error()
+		}
+		if line != "ok" {
+			problems = append(problems, line)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err.Error()
+	}
+	return strings.Join(problems, "; ")
+}
+
+// damagedMap describes a map that failed its check or failed to open with
+// SQLite's corruption errors. It returns nil when an open failed for another
+// reason (a newer schema, no map file yet), which is reported as it is.
+func (s *Server) damagedMap(workspaceID, detail string, checked bool) *damagedMapInfo {
+	projectDir, err := s.workspaceDataPath(workspaceID)
+	if err != nil {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "axiom.db")); err != nil {
+		return nil
+	}
+	lower := strings.ToLower(detail)
+	if !checked && !strings.Contains(lower, "malformed") && !strings.Contains(lower, "not a database") &&
+		!strings.Contains(lower, "corrupt") {
+		return nil
+	}
+	log.Printf("[api] workspace %s map is damaged: %s", workspaceID, detail)
+	return &damagedMapInfo{WorkspaceID: workspaceID, Detail: detail, Backups: listBackups(projectDir)}
+}
+
+func jsonDamaged(w http.ResponseWriter, damaged *damagedMapInfo) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusConflict)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error":   "This map is damaged and cannot be opened as it is.",
+		"damaged": damaged,
+	})
+}
+
 // ─── Backups ────────────────────────────────────────────────────────────────
 
 type backupInfo struct {
@@ -149,15 +212,25 @@ func (s *Server) handleWorkspaceRestoreBackup(w http.ResponseWriter, r *http.Req
 		jsonError(w, "backup not found", http.StatusNotFound)
 		return
 	}
-	if sqlDB, err := s.dbFor(req.WorkspaceID); err == nil {
-		safety := filepath.Join(projectDir, backupDirName, fmt.Sprintf("before-restore-%s.db", time.Now().Format("20060102-150405")))
+	live := filepath.Join(projectDir, "axiom.db")
+	stamp := time.Now().Format("20060102-150405")
+	safety := filepath.Join(projectDir, backupDirName, fmt.Sprintf("before-restore-%s.db", stamp))
+	sqlDB, openErr := s.dbFor(req.WorkspaceID)
+	if openErr == nil && mapIntegrityProblem(sqlDB) == "" {
 		if err := snapshotDatabase(sqlDB, safety); err != nil {
 			jsonError(w, fmt.Sprintf("could not back up the current map first: %v", err), http.StatusInternalServerError)
 			return
 		}
+	} else if _, err := os.Stat(live); err == nil {
+		// A damaged map cannot be snapshotted; keep the file itself aside,
+		// outside the backup list so it is never offered as a restore point.
+		s.closeDB(req.WorkspaceID)
+		if err := copyFile(live, filepath.Join(projectDir, fmt.Sprintf("damaged-%s.db.bak", stamp))); err != nil {
+			jsonError(w, fmt.Sprintf("could not keep the damaged map aside: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 	s.closeDB(req.WorkspaceID)
-	live := filepath.Join(projectDir, "axiom.db")
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(live + suffix)
 	}

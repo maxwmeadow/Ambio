@@ -562,7 +562,18 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB, err := s.openDB(wsID)
 	if err != nil {
+		if damaged := s.damagedMap(wsID, err.Error(), false); damaged != nil {
+			jsonDamaged(w, damaged)
+			return
+		}
 		jsonError(w, err.Error(), 500)
+		return
+	}
+	// A damaged map is reported, not used: nothing is written to it and it is
+	// never backed up, so a bad copy cannot push the good backups out.
+	if problem := mapIntegrityProblem(sqlDB); problem != "" {
+		s.closeDB(wsID)
+		jsonDamaged(w, s.damagedMap(wsID, problem, true))
 		return
 	}
 
