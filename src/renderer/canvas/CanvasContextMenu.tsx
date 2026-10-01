@@ -18,7 +18,12 @@ interface Props {
   onShowDetails: (id: string) => void
   onZoomTo: (id: string) => void
   /** Present only on the live, editable Floor: meaning edits are offered. */
-  floorEdits?: { groupFiles: (fileId: string) => void }
+  floorEdits?: {
+    groupFiles: (fileId: string) => void
+    /** Changes that need code go to an agent as a work order, never faked here. */
+    draftWorkOrder: (nodeId: string, instruction: string) => void
+    newSystemHere: (screen: { x: number; y: number }) => void
+  }
 }
 
 interface Item { label: string; run: () => void; danger?: boolean }
@@ -38,7 +43,7 @@ function copy(text: string) {
 export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoomTo, floorEdits }: Props) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
-  const entries = buildEntries(target, onShowDetails, onZoomTo, floorEdits)
+  const entries = buildEntries(target, onShowDetails, onZoomTo, floorEdits, { x, y })
 
   // Keep the menu inside the window.
   useLayoutEffect(() => {
@@ -108,6 +113,7 @@ function buildEntries(
   onShowDetails: (id: string) => void,
   onZoomTo: (id: string) => void,
   floorEdits?: Props['floorEdits'],
+  at: { x: number; y: number } = { x: 0, y: 0 },
 ): Entry[] {
   const store = useGraphStore.getState()
   const workspaceId = store.currentProject?.id
@@ -126,6 +132,11 @@ function buildEntries(
       'separator',
       { label: store.selectionMode ? 'Stop Lasso Select' : 'Lasso Select', run: () => emitCommand('map.lasso') },
       { label: 'Fit Map to Window', run: () => emitCommand('view.fitView') },
+      ...(floorEdits ? [
+        'separator' as const,
+        // A system with no code yet is a plan: drawn on a new sheet, ready to send.
+        { label: 'New System Here…', run: () => floorEdits.newSystemHere(at) },
+      ] : []),
     ]
   }
 
@@ -146,6 +157,12 @@ function buildEntries(
       { label: 'Copy Path', run: () => copy(file.path) },
       { label: 'Copy Relative Path', run: () => copy(file.relPath) },
       ...(floorEdits ? fileMeaningEntries(file, store.systems, floorEdits, meaning) : []),
+      ...(floorEdits ? [{
+        label: 'Delete This File…',
+        danger: true,
+        run: () => floorEdits.draftWorkOrder(file.id,
+          `Delete ${file.relPath}. Remove anything only it uses, and update whatever imports it so nothing breaks.`),
+      }] : []),
       'separator',
       { label: 'Show Details', run: () => onShowDetails(file.id) },
       messageAgent,
@@ -166,6 +183,12 @@ function buildEntries(
           // no code is touched. Undo is offered in the confirmation.
           label: 'Ungroup',
           run: () => meaning([{ op: 'ungroup', systemId: system.id }], `${system.name} ungrouped`),
+        },
+        {
+          label: `Delete ${system.name}'s Code…`,
+          danger: true,
+          run: () => floorEdits.draftWorkOrder(system.id,
+            `Delete the code in ${system.name}. Remove what only it uses, and update whatever depends on it so nothing breaks.`),
         },
       ] : []),
       'separator',

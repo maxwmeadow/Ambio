@@ -54,8 +54,13 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   }
   useEffect(() => {
     const attach = (event: Event) => {
-      const id = (event as CustomEvent<{ sheetId?: string }>).detail?.sheetId
-      if (id && !retry.current && !sendLock.current) attachSheet(id)
+      const detail = (event as CustomEvent<{ sheetId?: string; note?: string }>).detail
+      if (retry.current || sendLock.current) return
+      if (detail?.sheetId) attachSheet(detail.sheetId)
+      // A gesture that needs the code to change arrives with its instruction
+      // written (docs/PRODUCT.md §2); a draft already here is kept above it.
+      const drafted = detail?.note
+      if (drafted) setNote(current => current.trim() ? `${current.trimEnd()}\n\n${drafted}` : drafted)
     }
     window.addEventListener('axiom:open-agent-dispatch', attach)
     return () => window.removeEventListener('axiom:open-agent-dispatch', attach)

@@ -60,7 +60,20 @@ test.beforeEach(async () => {
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
     const url = route.request().url()
-    const body = url.includes('/api/investigation/list?')
+    const method = route.request().method()
+    const newSheet = {
+      id: 'sheet_new', workspaceId: 'demo', name: 'New system', purpose: '', kind: 'structure',
+      folder: '', createdBy: 'user', revision: 1, createdAt: 2, updatedAt: 2,
+    }
+    const body = method === 'POST' && /\/api\/sheets$/.test(url.split('?')[0])
+      ? newSheet
+      : url.includes('/api/sheets/sheet_new?')
+      ? { sheet: newSheet, elements: [], annotations: [], planned: [], plannedEdges: [] }
+      : method === 'POST' && url.includes('/api/sheets/sheet_new/planned')
+      ? { ...route.request().postDataJSON(), sheetId: 'sheet_new', status: 'planned', createdAt: 3, updatedAt: 3 }
+      : url.includes('/api/sheets/sheet_new/layouts/batch')
+      ? { revision: 2, layouts: [] }
+      : url.includes('/api/investigation/list?')
       ? {
           investigations: [{
             id: 'inv_checkout',
@@ -2166,6 +2179,27 @@ test('Floor edits to meaning are recorded: Delete ungroups a system, its title r
   await input.fill('Rendering')
   await input.press('Enter')
   await expect.poll(() => sent).toContainEqual({ op: 'rename', systemId: 'sys_canvas', name: 'Rendering' })
+})
+
+test('a change that needs code opens a work order instead of happening on the Floor', async () => {
+  const file = await revealFileNode('file_canvas')
+  await file.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Delete This File…' }).click()
+  const instruction = page.locator('textarea').first()
+  await expect(instruction).toBeVisible()
+  await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AxiomCanvas\.tsx\./)
+})
+
+test('New System Here draws a planned system on a new sheet, ready to send', async () => {
+  let planned: { kind?: string } | undefined
+  page.on('request', request => {
+    if (request.url().includes('/api/sheets/sheet_new/planned') && request.method() === 'POST') {
+      planned = request.postDataJSON() as { kind?: string }
+    }
+  })
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 900, y: 600 } })
+  await page.getByRole('menuitem', { name: 'New System Here…' }).click()
+  await expect.poll(() => planned?.kind).toBe('system')
 })
 
 test('wheel zoom continues over revealed file content through 100x', async () => {

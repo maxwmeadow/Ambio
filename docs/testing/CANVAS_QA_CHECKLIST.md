@@ -146,6 +146,8 @@ Fixed during this pass:
 - [ ] **E-M4** Undo from the notice and from Review Changes both put it back; a second, later move makes the first Undo refuse with a reason
 - [ ] **E-M5** Double-click a system title on the Floor → rename; Review Changes shows the rename
 - [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
+- [ ] **E-M7** Right-click open canvas → New System Here… opens a new sheet with a planned system where you clicked, ready to send
+- [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… open Send to Agent with the instruction written; nothing is deleted until an agent does it
 
 
 ## F. Tidy and layout

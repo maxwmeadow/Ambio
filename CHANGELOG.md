@@ -41,6 +41,10 @@ in the app as "What's New" after updating, so write it for users.
   onto open canvas to take it out. Rename a system by double-clicking its
   name; right-click to group files into a new system or ungroup one. Delete
   on a system ungroups it and never touches code. Each change offers Undo.
+- Changes that need code start a work order from the map: right-click open
+  canvas for New System Here…, which draws a planned system on a new sheet
+  ready to send, or right-click a file or system to ask an agent to delete
+  its code.
 - Review Changes shows changes to the map itself - files moved between
   systems, systems renamed, nested, merged, ungrouped or newly grouped, by
   you or by an agent - and each one can be undone. Agents can ask what

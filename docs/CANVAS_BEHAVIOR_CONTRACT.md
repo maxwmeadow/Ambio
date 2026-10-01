@@ -295,6 +295,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   proposed for removal. On the Floor, Delete never touches code: a selected
   system is ungrouped (its contents move up a level, undoable), and a selected
   file stays, with a notice that deleting code goes through a work order.
+  Changes that need code start from the right-click menu instead: New
+  System Here… draws a planned system on a new sheet, ready to send, and
+  Delete This File… / Delete <system>'s Code… open the send dialog with the
+  instruction written, because sheets cannot yet draw removals.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed

@@ -63,7 +63,7 @@ import { FloorEditContext, type FloorEdits } from './floorEditContext'
 import { NewSheetDialog } from '../components/NewSheetDialog'
 import { useCommandHandlers } from '../app/commands'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
-import { SheetPalette, type StencilDef } from '../components/SheetPalette'
+import { SheetPalette, STENCILS, type StencilDef } from '../components/SheetPalette'
 import { InfraPickerDialog } from '../components/InfraPickerDialog'
 import { plannedMembers, plannedMetadata, sheetElementMetadata, useSheetStore } from '../store/sheetStore'
 import type { PlannedNodeKind, PlannedNodeMetadata, SheetLayoutMutation } from '../store/sheetStore'
@@ -2665,6 +2665,36 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }, [readOnly, reviewMode, overlaySheetId, workspaceIdForOverlay, stencilScene, activeNodeIds,
     sheetEffectiveLayouts, sheetSystemIds, sheetFileIds, sheetInfraIds, setSelectedNode, setInfraPickerNode])
 
+  // New System Here (Floor right-click): a system with no code yet is a plan,
+  // so it is drawn on a new sheet, in the same place, ready to name and send.
+  // The sheet opens first; the system is placed through the palette's own
+  // path once the sheet is the active surface.
+  const pendingNewSystem = useRef<{ sheetId: string; point: { x: number; y: number } } | null>(null)
+  const startNewSystemSheet = useCallback(async (point: { x: number; y: number }) => {
+    const workspaceId = useGraphStore.getState().currentProject?.id
+    if (!workspaceId) return
+    try {
+      const store = useSheetStore.getState()
+      const sheet = await store.createSheet(workspaceId, 'New system', 'A system to build: name it, then send it to an agent', [])
+      pendingNewSystem.current = { sheetId: sheet.id, point }
+      await store.openSheet(workspaceId, sheet.id)
+    } catch (error) {
+      pendingNewSystem.current = null
+      raiseFailure('new-system-sheet', 'Could not start a new system', error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+  useEffect(() => {
+    const pending = pendingNewSystem.current
+    if (!pending || overlaySheetId !== pending.sheetId) return
+    pendingNewSystem.current = null
+    const systemStencil = STENCILS.find(stencil => stencil.kind === 'system')
+    if (!systemStencil) return
+    void createStencil(systemStencil, pending.point, null, true).then(() => {
+      raiseNotice('new-system-sheet', 'New system drawn on a sheet',
+        'Name it, add what it should hold, then send the sheet to an agent with ↗ in the sheet rail.')
+    })
+  }, [overlaySheetId, createStencil])
+
   const onPaletteCreate = useCallback((stencil: StencilDef) => {
     const { nodes, positions } = stencilScene()
     const selected = selectedIdsRef.current.size === 1 ? nodes.find(node => selectedIdsRef.current.has(node.id)) : null
@@ -3600,7 +3630,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       }
       if (state.files.some(file => file.id === selectedNodeId)) {
         event.preventDefault()
-        raiseNotice('floor-delete-file', 'Files are code', 'Deleting one changes the code, so it is never done on the Floor. Draw it on a sheet and send it to an agent.')
+        raiseNotice('floor-delete-file', 'Files are code', 'Deleting one changes the code, so it is never done on the Floor. Right-click it and choose Delete This File… to send the change to an agent.')
       }
     }
     window.addEventListener('keydown', onDeleteOnFloor)
@@ -5085,6 +5115,14 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
               if (!selectedIdsRef.current.has(fileId)) commitSelection(new Set([fileId]))
               setGroupDialogOpen(true)
             },
+            // Reality changes are never faked on the Floor: they go to an
+            // agent as a work order, with the node attached and the
+            // instruction already written (docs/PRODUCT.md §2).
+            draftWorkOrder: (nodeId, instruction) => {
+              commitSelection(new Set([nodeId]))
+              window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { note: instruction } }))
+            },
+            newSystemHere: screen => { void startNewSystemSheet(screenToFlowPosition(screen)) },
           } : undefined}
         />
       )}
