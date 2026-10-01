@@ -57,6 +57,9 @@ import { partitionCanvasFiles } from './binModel'
 import { dropOnFloorAt, registerFloorDropTarget, systemAtFloorPoint } from './binDropBridge'
 import { hideBinGhost, hideRealNode, moveBinGhost, showBinGhost } from './binDragGhost'
 import { GroupDialog } from '../components/GroupDialog'
+import { describeDropEdits, meaningEditsForDrop } from './floorMeaning.ts'
+import { commitMeaningEdits } from './meaningActions.ts'
+import { FloorEditContext, type FloorEdits } from './floorEditContext'
 import { NewSheetDialog } from '../components/NewSheetDialog'
 import { useCommandHandlers } from '../app/commands'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
@@ -90,7 +93,7 @@ import {
 } from './selectionController'
 import { planCanvasDrop } from './dropPersistence'
 import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
-import { raiseFailure } from '../store/interruptionStore'
+import { raiseFailure, raiseNotice } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
@@ -1770,6 +1773,8 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   // planned edges on top. Live members keep their Floor positions.
   const liveOverlaySheetId = useSheetStore(s => s.activeSheetId)
   const overlaySheetId = isolatedScene ? null : liveOverlaySheetId
+  // The live Floor accepts meaning edits; sheets, reviews and the bin do not.
+  const floorEditable = !readOnly && !isolatedScene && !overlaySheetId
   // Sheet mode outlives its own exit so the departure can animate. See
   // sheetPhase.ts - a class that vanishes with the state can only fade IN.
   const sheetPhase = useSheetPhase(overlaySheetId)
@@ -3573,6 +3578,35 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   }), [binMode])
   useCanvasWasdPan(getViewport, setViewport, true, wasdScope)
 
+  // Delete on the Floor changes meaning, never code: a system is ungrouped
+  // (its contents move up a level) and a file is left alone with a pointer to
+  // the way files really go away - a work order (DECISIONS 2026-10-01).
+  useEffect(() => {
+    if (!floorEditable || !selectedNodeId) return
+    const onDeleteOnFloor = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
+      const state = useGraphStore.getState()
+      const workspaceId = state.currentProject?.id
+      const system = state.systems.find(candidate => candidate.id === selectedNodeId)
+      if (system && workspaceId) {
+        event.preventDefault()
+        setSelectedNode(null)
+        setInspectedNode(null)
+        void commitMeaningEdits(workspaceId, [{ op: 'ungroup', systemId: system.id }], `${system.name} ungrouped`)
+        return
+      }
+      if (state.files.some(file => file.id === selectedNodeId)) {
+        event.preventDefault()
+        raiseNotice('floor-delete-file', 'Files are code', 'Deleting one changes the code, so it is never done on the Floor. Draw it on a sheet and send it to an agent.')
+      }
+    }
+    window.addEventListener('keydown', onDeleteOnFloor)
+    return () => window.removeEventListener('keydown', onDeleteOnFloor)
+  }, [floorEditable, selectedNodeId, setSelectedNode, setInspectedNode])
+
   useEffect(() => {
     if (readOnly || !overlaySheetId || !selectedNodeId) return
     const onDeleteSelectedSheetNode = (event: KeyboardEvent) => {
@@ -4319,8 +4353,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       el.style.marginLeft = ''
       el.style.marginTop = ''
     }
-    // Floor drops are one atomic frame transform. They never rewrite semantic
-    // system/file ownership.
+    // A drop is one atomic frame transform. On the Floor it may also change
+    // what a node belongs to (see the save below); sheets and reviews only
+    // ever rewrite their own layout layer.
     const sheetState = useSheetStore.getState()
     const sheetId = isolatedScene ? null : sheetState.activeSheetId
     const graph = useGraphStore.getState()
@@ -4413,6 +4448,27 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           })
         })
       } else {
+        // On the Floor, placement is meaning: landing inside another system
+        // moves the node there (docs/PRODUCT.md §2). Ownership is recorded
+        // first, so the layout saved after it can never disagree with it.
+        // Compare with the owner the Floor shows: inferred systems never reach
+        // the canvas, so their files sit at the top level until someone
+        // places them, and moving one around there changes nothing.
+        const shownSystemIds = new Set(graph.systems.map(system => system.id))
+        const shown = (id: string | null | undefined) => (id && shownSystemIds.has(id) ? id : null)
+        const meaningEdits = meaningEditsForDrop(plan.updates, {
+          fileSystem: new Map(graph.files.map(file => [file.id, shown(file.systemId)])),
+          systemParent: new Map(graph.systems.map(system => [system.id, shown(system.parentId)])),
+        })
+        const restoreLayouts = () => useGraphStore.setState(state => ({
+          floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.previousLayouts, plan.changedKeys),
+        }))
+        const ownershipRecorded = meaningEdits.length === 0
+          ? Promise.resolve(true)
+          : commitMeaningEdits(workspaceId, meaningEdits, describeDropEdits(meaningEdits, {
+              file: id => graph.files.find(file => file.id === id)?.relPath.split('/').pop() ?? 'File',
+              system: id => id === null ? 'no system' : graph.systems.find(system => system.id === id)?.name ?? 'a system',
+            }))
         useGraphStore.setState(state => ({
           floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.arrivalLayouts, plan.changedKeys),
         }))
@@ -4423,11 +4479,15 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
               floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.optimisticLayouts, plan.changedKeys),
             }))
             window.setTimeout(() => setIsTransitioningLayout(false), LAYOUT_TRANSITION_MS)
-            void apiSaveFloorLayouts(workspaceId, plan.updates).catch(error => {
-              console.error('[AxiomCanvas] floor group drop failed', error)
-              useGraphStore.setState(state => ({
-                floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.previousLayouts, plan.changedKeys),
-              }))
+            void ownershipRecorded.then(recorded => {
+              if (!recorded) {
+                restoreLayouts()
+                return
+              }
+              return apiSaveFloorLayouts(workspaceId, plan.updates).catch(error => {
+                console.error('[AxiomCanvas] floor group drop failed', error)
+                restoreLayouts()
+              })
             })
           })
         })
@@ -4453,6 +4513,19 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }
 
   }, [currentProject, getInternalNode, getViewport, screenToFlowPosition, overlaySheetId, activeElementByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, updateInteractiveNodes, sheetSystemIds, sheetFileIds, sheetInfraIds, sheetEffectiveLayouts, reviewMode, reviewScene?.workspaceId, reviewEditableNodeIds, previewReviewLayouts, saveReviewLayouts, systems, files, infraNodes, floorLayouts])
+
+  // Meaning edits offered to nodes on the live Floor (floorEditContext). The
+  // value is stable: it reads current state when called, so providing it
+  // never re-renders the map.
+  const floorEdits = useMemo<FloorEdits | null>(() => floorEditable ? {
+    canRename: id => useGraphStore.getState().systems.some(system => system.id === id),
+    renameSystem: (id, name) => {
+      const workspaceId = useGraphStore.getState().currentProject?.id
+      const system = useGraphStore.getState().systems.find(candidate => candidate.id === id)
+      if (!workspaceId || !system || system.name === name) return
+      void commitMeaningEdits(workspaceId, [{ op: 'rename', systemId: id, name }], `${system.name} renamed to ${name}`)
+    },
+  } : null, [floorEditable])
 
   const renderedNodes = useMemo(() => {
     if (!overlaySheetId) return attentionNodes
@@ -4800,6 +4873,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       onPointerMoveCapture={traceSuspiciousCursor}
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
+      <FloorEditContext.Provider value={floorEdits}>
       <ReactFlow
         zoomOnScroll={false}
         nodes={renderedNodes}
@@ -4921,6 +4995,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           </Panel>
         )}
       </ReactFlow>
+      </FloorEditContext.Provider>
       {!isolatedScene && (
         <>
           <InfraSidebarLinks
@@ -5003,6 +5078,14 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           onClose={closeContextMenu}
           onShowDetails={id => { setSelectedNode(id); setInspectedNode(id) }}
           onZoomTo={id => { void fitView({ nodes: [{ id }], padding: 0.2, duration: 600 }) }}
+          floorEdits={floorEditable ? {
+            // Group what is selected; a right-clicked file outside the
+            // selection is grouped on its own.
+            groupFiles: fileId => {
+              if (!selectedIdsRef.current.has(fileId)) commitSelection(new Set([fileId]))
+              setGroupDialogOpen(true)
+            },
+          } : undefined}
         />
       )}
 

@@ -36,6 +36,11 @@ in the app as "What's New" after updating, so write it for users.
   frames around the systems it runs.
 - Send a sheet to an agent as a work order, and review what it built
   against the plan.
+- On the map, where you put something is what it belongs to: drag a file
+  into a system to move it there, drag a system into another to nest it, or
+  onto open canvas to take it out. Rename a system by double-clicking its
+  name; right-click to group files into a new system or ungroup one. Delete
+  on a system ungroups it and never touches code. Each change offers Undo.
 - Review Changes shows changes to the map itself - files moved between
   systems, systems renamed, nested, merged, ungrouped or newly grouped, by
   you or by an agent - and each one can be undone. Agents can ask what

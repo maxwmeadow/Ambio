@@ -140,6 +140,13 @@ Fixed during this pass:
 - [ ] **E8** Drag does not start from editable text, symbol rows, buttons, scroll regions
 - [ ] **E9** Drag a node during a live flow animation - no teleport, no lost geometry
 - [ ] **E10** Rapid drag + release + immediate re-drag
+- [ ] **E-M1** Floor: drag a file into another system → it belongs there (notice "x.ts now belongs to Y" with Undo); Review Changes shows "x.ts moved from X to Y by you"
+- [ ] **E-M2** Floor: drag a system into another → nested; drag it onto open canvas → top level
+- [ ] **E-M3** Floor: rearrange inside the same system → no notice, nothing in Review Changes
+- [ ] **E-M4** Undo from the notice and from Review Changes both put it back; a second, later move makes the first Undo refuse with a reason
+- [ ] **E-M5** Double-click a system title on the Floor → rename; Review Changes shows the rename
+- [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
+
 
 ## F. Tidy and layout
 
@@ -191,7 +198,7 @@ Fixed during this pass:
 - [ ] **J5** Connect two nodes on an active sheet; live nodes are connectable on a sheet too (the connection is a proposal)
 - [ ] **J6** Edit planned element name / path / members inline
 - [ ] **J7** `Delete`/`Backspace` removes the selected sheet node (must not fire while typing)
-- [ ] **J8** Delete/Backspace on the **Floor**: record what happens. The rule is being decided (WORK.md `floor-edit-rules`)
+- [ ] **J8** Delete/Backspace on the **Floor**: a selected system is ungrouped (contents move up a level; notice with Undo); a selected file stays and a notice says files are code
 - [ ] **J9** Deactivate the sheet - live identity preserved, nothing orphaned
 - [ ] **J10** Sheet geometry persists across sheet layout mutations
 

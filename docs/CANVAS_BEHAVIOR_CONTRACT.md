@@ -251,6 +251,26 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - The Floor remains the live base model.
 - Sheets are overlays over the Floor, not independent truth copies.
 
+### Placement on the Floor is meaning (decided 2026-10-01)
+
+See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
+
+- Dropping a file inside a system makes it belong to that system; dropping a
+  system inside another nests it; dropping either on open canvas takes it out
+  of every system. Infrastructure hosting (a frame around what it runs) is
+  visual and changes no ownership.
+- Ownership is recorded before the layout is saved, through the one recorded
+  path for meaning edits, so where a node sits and what it belongs to never
+  disagree. A refused edit rolls the layout back with an explanation.
+- Rearranging within the same parent is presentation and records nothing.
+- Inferred (cluster) systems are not drawn, so their files sit at the top
+  level; moving one there changes nothing.
+- A live system's title is renamable in place.
+- Every meaning edit confirms itself with a notice that offers Undo, and
+  appears in Review Changes attributed to you.
+- Sheets, proposal reviews and the unsorted bin only ever write their own
+  layout layer; none of this applies there.
+
 ### What a sheet is (revised 2026-07-30)
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
@@ -272,7 +292,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   place.
 - The same delete gesture means different things in different places, so the UI
   states which: sheet-only content is really deleted, live code on a sheet is
-  proposed for removal, live code on the Floor is really deleted.
+  proposed for removal. On the Floor, Delete never touches code: a selected
+  system is ungrouped (its contents move up a level, undoable), and a selected
+  file stays, with a notice that deleting code goes through a work order.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed

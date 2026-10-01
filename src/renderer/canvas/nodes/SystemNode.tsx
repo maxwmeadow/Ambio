@@ -13,6 +13,7 @@ import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
+import { useFloorEdits } from '../floorEditContext'
 
 // Drop-target feedback: renders the cell grid only while a node is being
 // dragged over this container (green = free, amber = displaced, red = occupied).
@@ -108,8 +109,15 @@ function GridOverlay({ d }: { d: SystemNodeData }) {
   )
 }
 
-export const SystemNode = React.memo(function SystemNode({ data, selected, width, height, isConnectable }: NodeProps) {
+export const SystemNode = React.memo(function SystemNode({ id, data, selected, width, height, isConnectable }: NodeProps) {
   const d = data as unknown as SystemNodeData
+  // A live system on an editable Floor can be renamed in place; planned
+  // elements bring their own handler. The name is meaning, so the rename is
+  // recorded and undoable (floorEditContext).
+  const floorEdits = useFloorEdits()
+  const onRename = d.onRename ?? (floorEdits && id && floorEdits.canRename(id)
+    ? (next: string) => floorEdits.renameSystem(id, next)
+    : undefined)
   const infraCategory = d.umlMetadata?.category ?? 'platform'
   const isDeploymentBoundary = d.umlKind === 'infra'
   const infraService = useInfraService(d.umlKind === 'infra' ? (d.umlMetadata?.service ?? '') : '')
@@ -321,7 +329,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
       padding: `0 ${padX}px`,
     }}>
-      <EditableNodeTitle value={name} onRename={d.onRename} style={{
+      <EditableNodeTitle value={name} onRename={onRename} style={{
         fontSize: bigTitleFont,
         fontWeight: 700,
         fontFamily: 'var(--font-mono)',
@@ -330,7 +338,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
         maxWidth: '100%',
         whiteSpace: 'nowrap',
         textAlign: 'center',
-        pointerEvents: d.onRename ? 'auto' : 'none',
+        pointerEvents: onRename ? 'auto' : 'none',
       }} />
       {infraIdentityIcon(Math.max(16, bigTitleFont * 0.48))}
       {totalCount > 0 && (
@@ -379,7 +387,7 @@ export const SystemNode = React.memo(function SystemNode({ data, selected, width
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
     }}>
       {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
-      <EditableNodeTitle value={name} onRename={d.onRename} style={{
+      <EditableNodeTitle value={name} onRename={onRename} style={{
         fontSize: titleFont,
         fontWeight: 600,
         fontFamily: 'var(--font-mono)',

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { emitCommand } from '../app/commands'
 import { useGraphStore } from '../store/graphStore'
 import { raiseNotice } from '../store/interruptionStore.ts'
+import { commitMeaningEdits } from './meaningActions.ts'
 
 export type CanvasContextTarget =
   | { kind: 'file'; id: string }
@@ -16,6 +17,8 @@ interface Props {
   onClose: () => void
   onShowDetails: (id: string) => void
   onZoomTo: (id: string) => void
+  /** Present only on the live, editable Floor: meaning edits are offered. */
+  floorEdits?: { groupFiles: (fileId: string) => void }
 }
 
 interface Item { label: string; run: () => void; danger?: boolean }
@@ -32,10 +35,10 @@ function copy(text: string) {
 }
 
 /** Right-click menu for the live canvas. */
-export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoomTo }: Props) {
+export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoomTo, floorEdits }: Props) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
-  const entries = buildEntries(target, onShowDetails, onZoomTo)
+  const entries = buildEntries(target, onShowDetails, onZoomTo, floorEdits)
 
   // Keep the menu inside the window.
   useLayoutEffect(() => {
@@ -104,8 +107,13 @@ function buildEntries(
   target: CanvasContextTarget,
   onShowDetails: (id: string) => void,
   onZoomTo: (id: string) => void,
+  floorEdits?: Props['floorEdits'],
 ): Entry[] {
   const store = useGraphStore.getState()
+  const workspaceId = store.currentProject?.id
+  const meaning = (edits: Parameters<typeof commitMeaningEdits>[1], confirmation: string) => {
+    if (workspaceId) void commitMeaningEdits(workspaceId, edits, confirmation)
+  }
   const messageAgent: Item = {
     label: 'Message Agent About This…',
     run: () => window.dispatchEvent(new Event('axiom:open-agent-dispatch')),
@@ -137,6 +145,7 @@ function buildEntries(
       'separator',
       { label: 'Copy Path', run: () => copy(file.path) },
       { label: 'Copy Relative Path', run: () => copy(file.relPath) },
+      ...(floorEdits ? fileMeaningEntries(file, store.systems, floorEdits, meaning) : []),
       'separator',
       { label: 'Show Details', run: () => onShowDetails(file.id) },
       messageAgent,
@@ -150,6 +159,15 @@ function buildEntries(
       { label: 'Show Details', run: () => onShowDetails(system.id) },
       { label: 'Zoom to System', run: () => onZoomTo(system.id) },
       { label: 'Copy Name', run: () => copy(system.name) },
+      ...(floorEdits ? [
+        'separator' as const,
+        {
+          // Ungrouping changes meaning only: the contents move up a level and
+          // no code is touched. Undo is offered in the confirmation.
+          label: 'Ungroup',
+          run: () => meaning([{ op: 'ungroup', systemId: system.id }], `${system.name} ungrouped`),
+        },
+      ] : []),
       'separator',
       messageAgent,
     ]
@@ -159,4 +177,22 @@ function buildEntries(
     { label: 'Show Details', run: () => onShowDetails(target.id) },
     messageAgent,
   ]
+}
+
+function fileMeaningEntries(
+  file: { id: string; relPath: string; systemId: string | null },
+  systems: Array<{ id: string; name: string }>,
+  floorEdits: NonNullable<Props['floorEdits']>,
+  meaning: (edits: Parameters<typeof commitMeaningEdits>[1], confirmation: string) => void,
+): Entry[] {
+  const owner = systems.find(system => system.id === file.systemId)
+  const name = file.relPath.split('/').pop() ?? file.relPath
+  const entries: Entry[] = ['separator', { label: 'Group into New System…', run: () => floorEdits.groupFiles(file.id) }]
+  if (owner) {
+    entries.push({
+      label: `Take Out of ${owner.name}`,
+      run: () => meaning([{ op: 'assign', fileIds: [file.id], systemId: null }], `${name} no longer belongs to ${owner.name}`),
+    })
+  }
+  return entries
 }

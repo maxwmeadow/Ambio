@@ -95,6 +95,8 @@ test.beforeEach(async () => {
           }
       : url.includes('/api/layout/batch')
       ? { revision: 1, layouts: [] }
+      : url.includes('/api/architecture/edits')
+      ? { changes: [{ op: 'nest', changed: true, eventIds: [1] }] }
       : url.includes('/api/files/file_canvas/symbols?')
         ? [{
             id: 'symbol_render_canvas',
@@ -2109,7 +2111,11 @@ test('drags a root node fluidly and keeps its persisted final frame', async () =
 
 test('persists a container reparenting drop as one layout batch', async () => {
   let persistedParent: string | null | undefined
+  let recordedNest: unknown
   page.on('request', request => {
+    if (request.url().includes('/api/architecture/edits') && request.method() === 'POST') {
+      recordedNest = (request.postDataJSON() as { edits?: unknown[] }).edits?.[0]
+    }
     if (!request.url().includes('/api/layout/batch') || request.method() !== 'POST') return
     const payload = request.postDataJSON() as { layouts?: Array<{ nodeId: string; parentNodeId: string | null }> }
     const moved = payload.layouts?.find(layout => layout.nodeId === 'sys_shared')
@@ -2134,6 +2140,32 @@ test('persists a container reparenting drop as one layout batch', async () => {
   await page.mouse.up()
 
   await expect.poll(() => persistedParent).toBe('sys_canvas')
+  // On the Floor, placement is meaning: the nest is recorded as the user's
+  // edit before the layout lands (docs/PRODUCT.md §2).
+  expect(recordedNest).toEqual({ op: 'nest', systemId: 'sys_shared', parentId: 'sys_canvas' })
+})
+
+test('Floor edits to meaning are recorded: Delete ungroups a system, its title renames it', async () => {
+  const sent: unknown[] = []
+  page.on('request', request => {
+    if (request.url().includes('/api/architecture/edits') && request.method() === 'POST') {
+      sent.push(...((request.postDataJSON() as { edits?: unknown[] }).edits ?? []))
+    }
+  })
+  const system = page.locator('.react-flow__node[data-id="sys_shared"]')
+  await system.click()
+  await expect(system).toHaveClass(/selected/)
+  await page.keyboard.press('Delete')
+  await expect.poll(() => sent).toContainEqual({ op: 'ungroup', systemId: 'sys_shared' })
+
+  // Whichever title the current zoom shows (centred or tab) is the editable one.
+  const title = page.locator('.react-flow__node[data-id="sys_canvas"] [data-node-editable="true"]:visible').first()
+  await title.dblclick()
+  const input = page.locator('.react-flow__node[data-id="sys_canvas"] input')
+  await expect(input).toBeVisible()
+  await input.fill('Rendering')
+  await input.press('Enter')
+  await expect.poll(() => sent).toContainEqual({ op: 'rename', systemId: 'sys_canvas', name: 'Rendering' })
 })
 
 test('wheel zoom continues over revealed file content through 100x', async () => {
