@@ -198,7 +198,7 @@ func main() {
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOFLAGS=-overlay="+overlay, "AXIOM_EVIDENCE_DIR="+evidence,
-		`AXIOM_WATCHES=[{"absPath":"`+filepath.Join(root, "main.go")+`","symbol":"price"}]`)
+		`AXIOM_WATCHES=[{"absPath":"`+filepath.Join(root, "main.go")+`","symbol":"price"},{"absPath":"`+filepath.Join(root, "main.go")+`","symbol":"lookup"}]`)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -208,7 +208,8 @@ func main() {
 	}
 	data, _ := os.ReadFile(files[0])
 	text := string(data)
-	for _, want := range []string{`"drift":[{"calls":1`, `"after":"30","before":"0","key":"Discount"`, `"path":"c"`, `"param":"c"`} {
+	// price sees it in its argument; lookup, the cache itself, in what it returns.
+	for _, want := range []string{`"drift":[{"calls":1`, `"after":"30","before":"0","key":"Discount"`, `"path":"c"`, `"param":"c"`, `"path":"return"`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("evidence lacks %s:\n%s", want, text)
 		}

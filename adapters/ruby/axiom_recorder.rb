@@ -624,6 +624,13 @@ module AxiomRecorder
         whole = AxiomRecorder.preview(value)
         rec.returns.add(value.is_a?(Numeric) ? ['number', value] : ['text', whole.length <= 80 ? whole : "#{whole[0, 79]}…"])
         AxiomRecorder.flatten(value, 'return').each { |p, l| rec.observe(p, l) }
+        # What a method hands back can be changed behind its back too: a cache
+        # returning the same object, altered since it last returned it.
+        if AxiomRecorder.leaf(value).nil?
+          returned = []
+          AxiomRecorder.collect_nodes(value, 'return', returned)
+          rec.check_drift(returned, w[:call])
+        end
       end
       changed = []
       w[:names].zip(w[:values]).each do |n, v|

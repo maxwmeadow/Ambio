@@ -327,6 +327,11 @@ func (c *Call) After(values ...interface{}) {
 		for p, l := range flatten(v, "return") {
 			w.observe(p, l)
 		}
+		// What a function hands back can be changed behind its back too: a
+		// cache returning the same object, altered since it last returned it.
+		var returned []node
+		collectNodes(v, "return", &returned)
+		w.checkDrift(returned, c.n)
 	}
 	if failed != "" {
 		w.errors++
