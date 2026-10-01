@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COMMANDS, buildMenu, formatAccelerator, type MenuSection } from '../../shared/appMenu'
 import { useGraphStore } from '../store/graphStore'
+import { PANEL_COMMANDS, usePanelStore } from '../store/panelStore'
 import { currentPlatform, emitCommand, requestOpenRecent } from './commands'
 import type { ProjectConfig } from '../../shared/types'
 
@@ -12,6 +13,11 @@ import type { ProjectConfig } from '../../shared/types'
 export function AppMenuBar() {
   const platform = currentPlatform()
   const projectOpen = useGraphStore(state => state.currentProject !== null)
+  const panelsShown = {
+    sheetRail: usePanelStore(state => state.sheetRail),
+    detailPanel: usePanelStore(state => state.detailPanel),
+    statusBar: usePanelStore(state => state.statusBar),
+  }
   const [developer, setDeveloper] = useState(false)
   const [open, setOpen] = useState<MenuSection['id'] | null>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
@@ -130,6 +136,31 @@ export function AppMenuBar() {
                       <span>{COMMANDS['project.clearRecent'].label}</span>
                     </button>
                   )}
+                </div>
+              )
+            }
+            if (entry.kind === 'group') {
+              return (
+                <div key={`group-${entry.label}`} className="axiom-menubar__recent" role="group" aria-label={entry.label}>
+                  <span className="axiom-menubar__group-label">{entry.label}</span>
+                  {entry.entries.map(id => {
+                    const spec = COMMANDS[id]
+                    const panel = PANEL_COMMANDS[id as keyof typeof PANEL_COMMANDS]
+                    return (
+                      <button
+                        key={`${section.id}-${spec.id}`}
+                        type="button"
+                        role={panel ? 'menuitemcheckbox' : 'menuitem'}
+                        aria-checked={panel ? panelsShown[panel] : undefined}
+                        disabled={Boolean(spec.needsProject && !projectOpen)}
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => { setOpen(null); emitCommand(spec.id) }}
+                      >
+                        <span>{panel ? `${panelsShown[panel] ? '✓ ' : ''}${spec.label}` : spec.label}</span>
+                        {spec.accelerator && <kbd>{formatAccelerator(spec.accelerator, platform)}</kbd>}
+                      </button>
+                    )
+                  })}
                 </div>
               )
             }

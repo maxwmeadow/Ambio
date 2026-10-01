@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands, type CommandId } from '../../shared/appMenu'
+import { COMMANDS, buildMenu, commandForKey, commandIds, formatAccelerator, paletteCommands, type CommandId } from '../../shared/appMenu'
 import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '../../shared/appSettings'
 import { useGraphStore } from '../store/graphStore'
 import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
@@ -233,9 +233,8 @@ function ShortcutsDialog({ platform, onClose }: { platform: 'darwin' | 'win32' |
   const sections = buildMenu(platform)
     .map(section => ({
       label: section.id === 'app' ? 'Axiom' : section.label,
-      commands: section.entries
-        .filter((entry): entry is { kind: 'command'; id: CommandId } => entry.kind === 'command')
-        .map(entry => COMMANDS[entry.id])
+      commands: commandIds(section.entries)
+        .map(id => COMMANDS[id])
         .filter(spec => spec.accelerator),
     }))
     .filter(section => section.commands.length > 0)

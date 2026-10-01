@@ -39,6 +39,9 @@ export type CommandId =
   | 'view.documents'
   | 'view.explorer'
   | 'view.zoomSelection'
+  | 'view.panelSheetRail'
+  | 'view.panelDetail'
+  | 'view.panelStatusBar'
   | 'view.reviewChanges'
   | 'view.zoomIn'
   | 'view.zoomOut'
@@ -105,6 +108,10 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   // The map owns the plain zoom keys; the whole interface zooms with Alt added.
   'view.fitView': { id: 'view.fitView', label: 'Fit Map to Window', accelerator: 'CmdOrCtrl+0', needsProject: true },
   'view.zoomSelection': { id: 'view.zoomSelection', label: 'Zoom to Selection', accelerator: 'CmdOrCtrl+Shift+0', needsProject: true },
+  // Show or hide; the choice is remembered (renderer store/panelStore.ts).
+  'view.panelSheetRail': { id: 'view.panelSheetRail', label: 'Sheet Rail', needsProject: true },
+  'view.panelDetail': { id: 'view.panelDetail', label: 'Detail Panel', needsProject: true },
+  'view.panelStatusBar': { id: 'view.panelStatusBar', label: 'Status Bar', needsProject: true },
   'view.zoomMapIn': { id: 'view.zoomMapIn', label: 'Zoom In Map', accelerator: 'CmdOrCtrl+=', needsProject: true },
   'view.zoomMapOut': { id: 'view.zoomMapOut', label: 'Zoom Out Map', accelerator: 'CmdOrCtrl+-', needsProject: true },
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
@@ -136,6 +143,14 @@ export type MenuEntry =
   | { kind: 'recent' }
   | { kind: 'role'; role: SystemRole; label: string; accelerator?: string }
   | { kind: 'separator' }
+  /** A submenu of commands (View → Panels ▸). */
+  | { kind: 'group'; label: string; entries: CommandId[] }
+
+/** Every command in a list of entries, including those inside groups. */
+export function commandIds(entries: MenuEntry[]): CommandId[] {
+  return entries.flatMap(entry =>
+    entry.kind === 'command' ? [entry.id] : entry.kind === 'group' ? entry.entries : [])
+}
 
 export interface MenuSection {
   id: 'app' | 'file' | 'edit' | 'view' | 'go' | 'map' | 'agent' | 'window' | 'help'
@@ -191,7 +206,13 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
-      command('view.agentLog'), command('view.documents'), command('view.explorer'), command('view.infrastructure'), separator,
+      {
+        kind: 'group', label: 'Panels', entries: [
+          'view.agentLog', 'view.documents', 'view.explorer', 'view.infrastructure',
+          'view.panelSheetRail', 'view.panelDetail', 'view.panelStatusBar',
+        ],
+      },
+      separator,
       command('view.fitView'), command('view.zoomSelection'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),

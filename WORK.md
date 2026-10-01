@@ -134,7 +134,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `system-kinds` **Colour systems by kind** (backend, frontend, service), assigned by agents.
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
-- ⬜ `panels-menu` **View → Panels ▸** (sheet rail, detail panel, documents, agent log, status bar) with remembered visibility.
 - ⬜ `html-export` **Share a read-only map:** export a self-contained HTML file of the map (pan, zoom, click through) that anyone can open without Axiom. Research: the popular code-graph tools grow through exactly this.
 - ⬜ `stable-layout-tests` **Layout stability tests:** re-indexing, adding files and renaming systems never move human-placed nodes (design law). Pin it with tests on the frame packing.
 
@@ -256,6 +255,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `panels-menu` View → Panels ▸ groups Agent Log, Documents, Model Explorer, Infrastructure and new Sheet Rail / Detail Panel / Status Bar toggles, remembered per machine (`store/panelStore.ts`). Menus gained a `group` entry (native submenu on macOS, labelled group in the drawn menu bar). The drawn menu shows check marks; the macOS native menu does not yet. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `infra-claims` Review Changes reports code that starts or stops using infrastructure ("Orders now writes to Redis", items as the subtitle, files as evidence), from relationships drawn by hand or by an agent and from detection runs after a root's baseline run (`delta/infra.go`, `api/infra_journal.go`). Not covered: links that appear while archd was not running (the first run after start is the baseline). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `hub-orphan-claims-check` Confirmed built: `system.hub` (a system crossing the hub threshold, exact before/after) and `system.orphaned` (a system losing its last connection) are produced by `delta/claims.go` and covered by `TestHubTransitionRequiresAnExactBeforeAfterThresholdCrossing` and `TestLosingTheFinalConnectionCreatesAnOrphanClaim`; the renderer gives them tones and the Dependencies filter group. Closed, no change. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `review-filters` Review Changes filters by who (you, each agent, unexplained), work session, kind and system, offering only choices some claim has; each claim can be marked seen (button or S) and seen claims hidden (`canvas/reviewFilters.ts`). Seen is per review, not stored. (claude/gracious-gauss-1bgdv9)

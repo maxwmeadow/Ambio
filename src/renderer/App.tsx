@@ -42,6 +42,7 @@ import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
 import { SheetRail } from './components/SheetRail'
 import { SheetMarkdown } from './components/SheetMarkdown'
+import { usePanelStore } from './store/panelStore'
 import type { ProjectConfig } from '../shared/types'
 import {
   completeSourceBoundaries,
@@ -166,6 +167,11 @@ async function stepHistory(direction: 'undo' | 'redo'): Promise<void> {
 
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
+  const panels = {
+    sheetRail: usePanelStore(s => s.sheetRail),
+    detailPanel: usePanelStore(s => s.detailPanel),
+    statusBar: usePanelStore(s => s.statusBar),
+  }
   const [explorerOpen, setExplorerOpen] = useState(false)
   const [agentLogOpen, setAgentLogOpen] = useState(false)
   const caseOpen = useGraphStore(state => state.caseFile !== null || state.replay !== null)
@@ -698,6 +704,9 @@ export default function App() {
   const [projectSettingsFor, setProjectSettingsFor] = useState<ProjectConfig | null>(null)
 
   useCommandHandlers({
+    'view.panelSheetRail': () => usePanelStore.getState().toggle('sheetRail'),
+    'view.panelDetail': () => usePanelStore.getState().toggle('detailPanel'),
+    'view.panelStatusBar': () => usePanelStore.getState().toggle('statusBar'),
     'project.new': () => {
       void (async () => {
         if (currentProject) await closeProject()
@@ -974,7 +983,7 @@ export default function App() {
 
         {/* Sheet rail + canvas area */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <SheetRail />
+          {panels.sheetRail && <SheetRail />}
           <SheetMarkdown />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {/* REVISION 2: sheets are layers over the live canvas, not separate
@@ -1000,7 +1009,7 @@ export default function App() {
           <ArchitectureProposalPanel />
 
           {/* Detail panel (right side) */}
-          <DetailPanel />
+          {panels.detailPanel && <DetailPanel />}
 
           {/* Search overlay */}
           {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
@@ -1050,7 +1059,7 @@ export default function App() {
         </div>
 
         {/* Status bar */}
-        <StatusBar workspaceId={currentProject.id} />
+        {panels.statusBar && <StatusBar workspaceId={currentProject.id} />}
       </div>
     </ReactFlowProvider>
   )

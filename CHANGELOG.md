@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- View → Panels: show or hide the sheet rail, detail panel and status bar;
+  Axiom remembers your choice.
 - Review Changes shows infrastructure changes: "Orders now writes to Redis",
   "Billing no longer reads from Postgres".
 - Review Changes filters: by who made a change, the work it belongs to, its

@@ -2520,6 +2520,23 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
   expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('# Runtime Draft\n')
 })
 
+test('View → Panels hides the status bar and remembers it', async () => {
+  const status = page.getByRole('contentinfo', { name: 'Application status' })
+  await expect(status).toBeVisible()
+  await page.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'View', exact: true }).click()
+  const toggle = page.getByRole('menuitemcheckbox', { name: /Status Bar/ })
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await toggle.click()
+  await expect(status).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('.react-flow__node').first()).toBeVisible()
+  await expect(status).toHaveCount(0)
+  await page.keyboard.press('ControlOrMeta+Shift+P')
+  await page.getByRole('textbox', { name: 'Command' }).fill('Status Bar')
+  await page.keyboard.press('Enter')
+  await expect(status).toBeVisible()
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {
