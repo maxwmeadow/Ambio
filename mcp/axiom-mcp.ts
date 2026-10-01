@@ -65,6 +65,38 @@ function soleWorkSession(workspaceId: string): ActiveWorkSession | undefined {
   return sessions.length === 1 ? sessions[0] : undefined
 }
 
+/**
+ * Every change to what the architecture says goes through one recorded path,
+ * attributed to this agent and its declared work session, so the human sees
+ * it in Review Changes and can undo it (docs/PRODUCT.md §2).
+ */
+interface MeaningEdit {
+  op: 'create' | 'rename' | 'describe' | 'nest' | 'assign' | 'merge' | 'ungroup'
+  systemId?: string
+  name?: string
+  description?: string | null
+  parentId?: string | null
+  fileIds?: string[]
+  intoSystemId?: string
+}
+
+async function applyMeaningEdits(workspaceId: string, edits: MeaningEdit[]): Promise<{
+  changes: Array<{ op: string; systemId?: string; changed: boolean }>
+}> {
+  const session = soleWorkSession(workspaceId)
+  const res = await fetch(`${API_BASE}/api/architecture/edits`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      workspaceId,
+      actor: { kind: 'agent', agent: agentHostId, sessionId: session?.id },
+      edits,
+    }),
+  })
+  if (!res.ok) throw new Error(`Architecture edit failed: ${await res.text()}`)
+  return res.json()
+}
+
 // Helper: Retrieve the active project metadata
 interface ActiveProject {
   workspaceId: string
@@ -1131,26 +1163,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             'with edit_systems(op: "propose") or a committed chunked session.',
           )
         }
-        const systemId = generateUUID()
-        const payload = {
-          id: systemId,
-          workspaceId: project.workspaceId,
-          name: args.name,
-          parentId: args.parentId || null,
-          description: args.description || null,
-          source: 'agent',
-        }
         await postAgentActivity(project.workspaceId, `Creating system "${args.name}"`, 'info')
-        const res = await fetch(`${API_BASE}/api/systems`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        if (!res.ok) {
-          const errMsg = await res.text()
-          await postAgentActivity(project.workspaceId, `Error creating system "${args.name}": ${errMsg}`, 'error')
-          throw new Error(`HTTP mutation failed: ${errMsg}`)
-        }
+        const created = await applyMeaningEdits(project.workspaceId, [{
+          op: 'create', name: args.name, parentId: args.parentId || null, description: args.description || null,
+        }])
+        const systemId = created.changes[0]?.systemId
         await postAgentActivity(project.workspaceId, `System "${args.name}" created successfully`, 'success')
         result = { status: 'success', systemId }
         break
@@ -1158,60 +1175,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'update_system': {
         const sysId = args.systemId as string
-        const dbRows = await queryDb(project.workspaceId, 'SELECT * FROM systems WHERE id = ?', [sysId])
-        if (dbRows.length === 0) {
-          throw new Error(`System ${sysId} not found`)
-        }
-        const existing = dbRows[0]
-
-        const payload = {
-          id: sysId,
-          workspaceId: project.workspaceId,
-          name: args.name !== undefined ? args.name : existing.name,
-          parentId: args.parentId !== undefined ? (args.parentId || null) : existing.parent_id,
-          description: args.description !== undefined ? (args.description || null) : existing.description,
-          source: existing.source,
-          color: existing.color,
-          agentNotes: existing.agent_notes,
-          depth: existing.depth,
-          positionX: existing.position_x,
-          positionY: existing.position_y,
-          width: existing.width,
-          height: existing.height,
-        }
-
-        await postAgentActivity(project.workspaceId, `Updating system "${payload.name}"`, 'info')
-        const res = await fetch(`${API_BASE}/api/systems/${sysId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        if (!res.ok) {
-          const errMsg = await res.text()
-          await postAgentActivity(project.workspaceId, `Error updating system "${payload.name}": ${errMsg}`, 'error')
-          throw new Error(`HTTP mutation failed: ${errMsg}`)
-        }
-        await postAgentActivity(project.workspaceId, `System "${payload.name}" updated successfully`, 'success')
-        result = { status: 'success' }
+        const edits: MeaningEdit[] = []
+        if (args.name !== undefined) edits.push({ op: 'rename', systemId: sysId, name: args.name })
+        if (args.parentId !== undefined) edits.push({ op: 'nest', systemId: sysId, parentId: args.parentId || null })
+        if (args.description !== undefined) edits.push({ op: 'describe', systemId: sysId, description: args.description || null })
+        await postAgentActivity(project.workspaceId, `Updating system "${args.name ?? sysId}"`, 'info')
+        const updated = await applyMeaningEdits(project.workspaceId, edits)
+        result = { status: 'success', changed: updated.changes.some(change => change.changed) }
         break
       }
 
       case 'delete_system': {
+        // Removing a system ungroups it: its files and systems move up a
+        // level and no code is touched.
         const sysId = args.systemId as string
         const existing = await queryDb(project.workspaceId, 'SELECT name FROM systems WHERE id = ?', [sysId])
         const sysLabel = existing.length > 0 ? existing[0].name : sysId
-
-        await postAgentActivity(project.workspaceId, `Deleting system "${sysLabel}"`, 'info')
-        const res = await fetch(`${API_BASE}/api/systems/${sysId}?workspace=${project.workspaceId}`, {
-          method: 'DELETE',
-        })
-        if (!res.ok) {
-          const errMsg = await res.text()
-          await postAgentActivity(project.workspaceId, `Error deleting system "${sysLabel}": ${errMsg}`, 'error')
-          throw new Error(`HTTP mutation failed: ${errMsg}`)
-        }
-        await postAgentActivity(project.workspaceId, `System "${sysLabel}" deleted successfully`, 'success')
-        result = { status: 'success' }
+        await postAgentActivity(project.workspaceId, `Ungrouping system "${sysLabel}"`, 'info')
+        await applyMeaningEdits(project.workspaceId, [{ op: 'ungroup', systemId: sysId }])
+        result = { status: 'success', note: 'The system was removed; its files and systems moved up a level.' }
         break
       }
 
@@ -1245,17 +1227,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         await postAgentActivity(project.workspaceId, `Assigning ${idsToAssign.length} files to system "${sysLabel}"`, 'info')
 
-        for (const fileId of idsToAssign) {
-          const res = await fetch(`${API_BASE}/api/files/${fileId}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemId, workspaceId: project.workspaceId }),
-          })
-          if (!res.ok) {
-            const errMsg = await res.text()
-            await postAgentActivity(project.workspaceId, `Error assigning file ${fileId}: ${errMsg}`, 'error')
-            throw new Error(`HTTP mutation failed: ${errMsg}`)
-          }
+        if (idsToAssign.length > 0) {
+          await applyMeaningEdits(project.workspaceId, [{ op: 'assign', fileIds: idsToAssign, systemId: systemId || '' }])
         }
 
         await postAgentActivity(project.workspaceId, `Assigned ${idsToAssign.length} files to system "${sysLabel}" successfully`, 'success')
@@ -1278,53 +1251,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         await postAgentActivity(project.workspaceId, `Merging system "${sourceLabel}" into "${targetLabel}"`, 'info')
         
-        // 1. Reassign files in source system
-        const filesToMove = await queryDb(project.workspaceId, 'SELECT id FROM files WHERE system_id = ?', [sourceId])
-        for (const file of filesToMove) {
-          const res = await fetch(`${API_BASE}/api/files/${file.id}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemId: targetId, workspaceId: project.workspaceId }),
-          })
-          if (!res.ok) throw new Error(`Failed to reassign file ${file.id}: ${await res.text()}`)
-        }
-        
-        // 2. Reassign subsystems in source system
-        const subsystemsToMove = await queryDb(project.workspaceId, `
-          SELECT id, name, parent_id, source, color, description, agent_notes,
-                 depth, position_x, position_y, width, height 
-          FROM systems WHERE parent_id = ?
-        `, [sourceId])
-        for (const sys of subsystemsToMove) {
-          const payload = {
-            id: sys.id,
-            workspaceId: project.workspaceId,
-            name: sys.name,
-            parentId: targetId,
-            description: sys.description || null,
-            source: sys.source,
-            color: sys.color || null,
-            agentNotes: sys.agent_notes || null,
-            depth: sys.depth,
-            positionX: sys.position_x,
-            positionY: sys.position_y,
-            width: sys.width,
-            height: sys.height,
-          }
-          const res = await fetch(`${API_BASE}/api/systems/${sys.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
-          if (!res.ok) throw new Error(`Failed to reassign subsystem ${sys.id}: ${await res.text()}`)
-        }
-        
-        // 3. Delete the source system
-        const res = await fetch(`${API_BASE}/api/systems/${sourceId}?workspace=${project.workspaceId}`, {
-          method: 'DELETE',
-        })
-        if (!res.ok) throw new Error(`Failed to delete source system ${sourceId}: ${await res.text()}`)
-        
+        // One atomic, recorded step: files and child systems move, the source goes.
+        await applyMeaningEdits(project.workspaceId, [{ op: 'merge', systemId: sourceId, intoSystemId: targetId }])
+
         await postAgentActivity(project.workspaceId, `System "${sourceLabel}" merged into "${targetLabel}" successfully`, 'success')
         result = { status: 'success' }
         break
@@ -1397,39 +1326,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const errors: Array<{ systemId: string; error: string }> = []
         let updatedCount = 0
         
-        // Process updates in parallel
-        await Promise.all(updates.map(async (u) => {
+        // In order: a later nest may depend on an earlier one.
+        for (const u of updates) {
           try {
             const existing = lookup.get(u.systemId)
             if (!existing) {
               throw new Error(`System ${u.systemId} not found`)
             }
             
-            const payload = {
-              id: u.systemId,
-              workspaceId: project.workspaceId,
-              name: u.name !== undefined ? u.name : existing.name,
-              parentId: u.parentId !== undefined ? (u.parentId || null) : existing.parent_id,
-              description: u.description !== undefined ? (u.description || null) : existing.description,
-              source: existing.source,
-              color: existing.color,
-              agentNotes: existing.agent_notes,
-              depth: existing.depth,
-              positionX: existing.position_x,
-              positionY: existing.position_y,
-              width: existing.width,
-              height: existing.height,
-            }
-            
-            const res = await fetch(`${API_BASE}/api/systems/${u.systemId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            })
-            
-            if (!res.ok) {
-              throw new Error(await res.text())
-            }
+            const edits: MeaningEdit[] = []
+            if (u.name !== undefined) edits.push({ op: 'rename', systemId: u.systemId, name: u.name })
+            if (u.parentId !== undefined) edits.push({ op: 'nest', systemId: u.systemId, parentId: u.parentId || null })
+            if (u.description !== undefined) edits.push({ op: 'describe', systemId: u.systemId, description: u.description || null })
+            if (edits.length > 0) await applyMeaningEdits(project.workspaceId, edits)
             updatedCount++
           } catch (err: any) {
             errors.push({
@@ -1437,7 +1346,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               error: err.message || String(err)
             })
           }
-        }))
+        }
         
         await postAgentActivity(
           project.workspaceId, 

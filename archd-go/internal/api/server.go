@@ -366,6 +366,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace/", s.handleWorkspaceByID)
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)
+	mux.HandleFunc("/api/architecture/edits", s.handleArchitectureEdits)
 	mux.HandleFunc("/api/systems", s.handleSystems)
 	mux.HandleFunc("/api/systems/", s.handleSystemByID)
 	mux.HandleFunc("/api/files/", s.handleFileByID)
@@ -592,25 +593,34 @@ func (s *Server) handleWorkspaceByID(w http.ResponseWriter, r *http.Request) {
 
 // ─── Systems ──────────────────────────────────────────────────────────────────
 
+// handleSystems creates a system. Creating a boundary is a meaning edit, so
+// it is recorded like any other (meaning.go) and needs a stated actor.
 func (s *Server) handleSystems(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		var sys db.System
-		if err := json.NewDecoder(r.Body).Decode(&sys); err != nil {
+		var body struct {
+			db.System
+			Actor   *db.MeaningActor `json:"actor"`
+			FileIDs []string         `json:"fileIds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
-		sqlDB, err := s.dbFor(sys.WorkspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		result, ok := s.applyMeaning(w, body.WorkspaceID, body.Actor, []db.MeaningEdit{{
+			Op: db.MeaningCreate, SystemID: body.ID, Name: body.Name,
+			ParentID: body.ParentID, Description: body.Description, FileIDs: body.FileIDs,
+		}})
+		if !ok {
 			return
 		}
-		if err := db.UpsertSystem(sqlDB, sys); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
+		created := body.System
+		for _, system := range result.UpsertedSystems {
+			if system.ID == result.Changes[0].SystemID {
+				created = system
+			}
 		}
-		s.broadcastPatch("system:upserted", sys)
-		jsonOK(w, sys)
+		jsonOK(w, created)
 	default:
 		http.NotFound(w, r)
 	}
@@ -628,36 +638,72 @@ func (s *Server) handleSystemByID(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodPut && sub == "":
-		var sys db.System
-		if err := json.NewDecoder(r.Body).Decode(&sys); err != nil {
+		// Presentation (position, size, colour) is saved directly. Meaning
+		// (name, parent, description) goes through the recorded path and
+		// needs a stated actor; confirming an inferred boundary only adopts it.
+		var body struct {
+			db.System
+			Actor *db.MeaningActor `json:"actor"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
+		sys := body.System
 		sys.ID = id
 		sqlDB, err := s.dbFor(sys.WorkspaceID)
 		if err != nil {
 			jsonError(w, err.Error(), 404)
 			return
 		}
-		if err := db.UpsertSystem(sqlDB, sys); err != nil {
+		stored, err := db.GetSystem(sqlDB, id)
+		if err != nil {
 			jsonError(w, err.Error(), 500)
 			return
 		}
-		s.broadcastPatch("system:upserted", sys)
-		jsonOK(w, sys)
+		if stored == nil || stored.WorkspaceID != sys.WorkspaceID {
+			jsonError(w, "system not found", 404)
+			return
+		}
+		edits := meaningEditsBetween(*stored, sys)
+		if len(edits) > 0 {
+			if _, ok := s.applyMeaning(w, sys.WorkspaceID, body.Actor, edits); !ok {
+				return
+			}
+			if stored, err = db.GetSystem(sqlDB, id); err != nil || stored == nil {
+				jsonError(w, "system not found after edit", 500)
+				return
+			}
+		}
+		presented := *stored
+		presented.PositionX, presented.PositionY = sys.PositionX, sys.PositionY
+		presented.Width, presented.Height = sys.Width, sys.Height
+		presented.Color, presented.AgentNotes = sys.Color, sys.AgentNotes
+		if confirmsInferredBoundary(*stored, sys) {
+			presented.Source = sys.Source
+		}
+		if err := db.UpsertSystem(sqlDB, presented); err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		s.broadcastPatch("system:upserted", presented)
+		jsonOK(w, presented)
 
 	case r.Method == http.MethodDelete && sub == "":
+		// Removing a system ungroups it: its files and systems move up a
+		// level and no code is touched (DECISIONS 2026-10-01).
 		workspaceID := r.URL.Query().Get("workspace")
-		sqlDB, err := s.dbFor(workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		var actor *db.MeaningActor
+		if kind := r.URL.Query().Get("actor"); kind != "" {
+			actor = &db.MeaningActor{
+				Kind: kind, Agent: r.URL.Query().Get("agent"), SessionID: r.URL.Query().Get("session"),
+			}
+		}
+		if _, ok := s.applyMeaning(w, workspaceID, actor, []db.MeaningEdit{{
+			Op: db.MeaningUngroup, SystemID: id,
+		}}); !ok {
 			return
 		}
-		if err := db.DeleteSystem(sqlDB, id); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		s.broadcastPatch("system:deleted", map[string]string{"id": id, "workspaceId": workspaceID})
 		jsonOK(w, map[string]string{"deleted": id})
 
 	case r.Method == http.MethodPost && sub == "position":
@@ -700,25 +746,27 @@ func (s *Server) handleFileByID(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodPost && sub == "assign":
+		// Which system a file belongs to is meaning: recorded, attributed.
+		// A null or empty systemId takes the file out of every system.
 		var body struct {
-			SystemID    string `json:"systemId"`
-			WorkspaceID string `json:"workspaceId"`
+			SystemID    *string          `json:"systemId"`
+			WorkspaceID string           `json:"workspaceId"`
+			Actor       *db.MeaningActor `json:"actor"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
-		sqlDB, err := s.dbFor(body.WorkspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		target := ""
+		if body.SystemID != nil {
+			target = *body.SystemID
+		}
+		if _, ok := s.applyMeaning(w, body.WorkspaceID, body.Actor, []db.MeaningEdit{{
+			Op: db.MeaningAssign, FileIDs: []string{id}, SystemID: target,
+		}}); !ok {
 			return
 		}
-		if err := db.AssignFileToSystem(sqlDB, id, body.SystemID); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		s.broadcastPatch("file:assigned", map[string]string{"fileId": id, "systemId": body.SystemID, "workspaceId": body.WorkspaceID})
-		jsonOK(w, map[string]string{"fileId": id, "systemId": body.SystemID})
+		jsonOK(w, map[string]any{"fileId": id, "systemId": body.SystemID})
 
 	case r.Method == http.MethodPost && sub == "position":
 		var body struct {

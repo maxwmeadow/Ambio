@@ -67,6 +67,16 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or
   an agent session; the source of Review Changes.
+- **Meaning edits**: every change to what the architecture says - create,
+  rename, nest, group, ungroup, merge systems, and which system a file belongs
+  to - goes through one path, `POST /api/architecture/edits`
+  (`internal/db/meaning.go`). A batch is one transaction; each change writes a
+  journal row with before/after detail and a stated actor (`human`, or a named
+  agent and its work session; never inferred). Touching an inferred (cluster)
+  system adopts it so re-clustering cannot undo the decision. The older
+  `/api/systems` and `/api/files/:id/assign` routes funnel meaning changes
+  through the same path and refuse them without an actor; geometry (position,
+  size, colour) stays presentation and is never journaled.
 - **Roots**: a project can hold several roots (worktrees of one repo); history
   is branch-stamped and collisions between branches are projected onto systems.
 

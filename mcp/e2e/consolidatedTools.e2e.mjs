@@ -134,6 +134,18 @@ test('an agent can curate the architecture map', async () => {
 
   const removed = await client.callTool('edit_systems', { op: 'delete', systemId })
   assert.equal(removed.isError, false, removed.text)
+
+  // Every one of those edits is recorded and attributed to the agent, so the
+  // human can review and undo it.
+  const response = await fetch(`${harness.apiBase}/api/query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId: harness.workspaceId, sql: 'SELECT kind, actor FROM structural_events', params: [] }),
+  })
+  assert.equal(response.status, 200, await response.clone().text())
+  const kinds = (await response.json()).filter(event => event.actor === 'agent').map(event => event.kind)
+  for (const kind of ['system.created', 'system.renamed', 'file.assigned', 'system.ungrouped']) {
+    assert.ok(kinds.includes(kind), `${kind} was not recorded for the agent: ${kinds.join(', ')}`)
+  }
 })
 
 test('sheet ops route correctly', async () => {
@@ -156,8 +168,8 @@ test('an agent finds a sheet, implements nesting, resolves it and restores it', 
     assert.equal(response.status,200,await response.clone().text())
     return response.json()
   }
-  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',source:'user' })
-  await post('/api/systems', { id:'sheet-child',name:'Sheet child',source:'user' })
+  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',actor:{kind:'human'} })
+  await post('/api/systems', { id:'sheet-child',name:'Sheet child',actor:{kind:'human'} })
   const created = await client.callTool('edit_sheet', {op:'create',name:'Checkout structural redesign',members:['sheet-child']})
   assert.equal(created.isError,false,created.text)
   const sheetId = created.payload.created.id

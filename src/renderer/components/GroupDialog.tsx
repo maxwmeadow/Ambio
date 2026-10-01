@@ -3,6 +3,7 @@ import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 import { archdApi } from '../archdEndpoint.ts'
+import { apiEditArchitecture } from '../canvas/arcdApi'
 
 interface GroupDialogProps {
   isOpen: boolean
@@ -66,27 +67,13 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
       } else {
         // Live: call Go REST API
         const workspaceId = currentProject?.id ?? ''
-        const sysRes = await fetch(`${archdApi()}/api/systems`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId,
-            name: name.trim(),
-            description: description.trim() || null,
-            source: 'user',
-          }),
-        })
-        if (!sysRes.ok) throw new Error(await sysRes.text())
-        const sys = await sysRes.json() as { id: string }
-
-        // Assign files one by one
-        await Promise.all(selectedFileIds.map(fileId =>
-          fetch(`${archdApi()}/api/files/${fileId}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemId: sys.id }),
-          })
-        ))
+        // One recorded step: the new system and the files that belong to it.
+        await apiEditArchitecture(workspaceId, [{
+          op: 'create',
+          name: name.trim(),
+          description: description.trim() || null,
+          fileIds: selectedFileIds,
+        }])
 
         // Re-fetch snapshot so canvas reflects the new assignments
         const snapRes = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)

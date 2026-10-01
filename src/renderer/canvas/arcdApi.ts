@@ -99,20 +99,47 @@ export async function apiSaveFloorLayouts(workspaceId: string, layouts: Omit<Flo
   return result.layouts
 }
 
-export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
-  const res = await fetch(`${archdWsHttp()}/api/files/${fileId}/assign`, {
+export type MeaningEdit =
+  | { op: 'create'; systemId?: string; name: string; parentId?: string | null; description?: string | null; fileIds?: string[] }
+  | { op: 'rename'; systemId: string; name: string }
+  | { op: 'describe'; systemId: string; description: string | null }
+  | { op: 'nest'; systemId: string; parentId: string | null }
+  | { op: 'assign'; fileIds: string[]; systemId: string | null }
+  | { op: 'merge'; systemId: string; intoSystemId: string }
+  | { op: 'ungroup'; systemId: string }
+
+export interface MeaningEditResult {
+  changes: Array<{ op: string; systemId?: string; changed: boolean; eventIds?: number[] }>
+}
+
+/**
+ * Change what the architecture says - names, grouping, nesting, which system
+ * a file belongs to. One recorded, attributed, all-or-nothing batch, so the
+ * change shows up in Review Changes and can be undone (docs/PRODUCT.md §2).
+ * Geometry is presentation and never goes through here.
+ */
+export async function apiEditArchitecture(workspaceId: string, edits: MeaningEdit[]): Promise<MeaningEditResult> {
+  const res = await fetch(`${archdWsHttp()}/api/architecture/edits`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemId, workspaceId }),
+    body: JSON.stringify({
+      workspaceId,
+      actor: { kind: 'human' },
+      edits: edits.map(edit => edit.op === 'assign' ? { ...edit, systemId: edit.systemId ?? '' } : edit),
+    }),
   })
-  // Throw rather than log: a caller that rolls back an optimistic move cannot
-  // do so if the failure never reaches it. Swallowing this made a rejected
-  // assignment look exactly like a successful one that then vanished.
+  // Throw rather than log: a caller that rolls back an optimistic change
+  // cannot do so if the failure never reaches it.
   if (!res.ok) {
     const detail = await res.text()
-    console.error('[arcdApi] assignFile failed', { fileId, systemId, status: res.status, detail })
-    throw new Error(`assignFile failed (${res.status}): ${detail}`)
+    console.error('[arcdApi] architecture edit failed', { edits, status: res.status, detail })
+    throw new Error(`Architecture edit failed (${res.status}): ${detail}`)
   }
+  return res.json()
+}
+
+export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
+  await apiEditArchitecture(workspaceId, [{ op: 'assign', fileIds: [fileId], systemId }])
 }
 
 /**
