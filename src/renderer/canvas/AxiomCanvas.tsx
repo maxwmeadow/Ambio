@@ -1770,7 +1770,11 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   // What the next New Sheet starts with: the selection, or one right-clicked node.
   const [sheetSourceIds, setSheetSourceIds] = useState<string[]>([])
   // Review and bin canvases reuse this component; only the live Floor answers.
-  useCommandHandlers({ 'map.newSheet': () => { if (!isolatedScene) setSheetDialogOpen(true) } })
+  useCommandHandlers({ 'map.newSheet': () => {
+    if (isolatedScene) return
+    setSheetSourceIds([...selectedIdsRef.current])
+    setSheetDialogOpen(true)
+  } })
   // ── Sheet overlay (REVISION 2: sheets are layers over the Floor) ─────────
   // The live canvas is the base layer. When a sheet is active: dim non-member
   // live nodes in place (stencil highlight), draw planned UML elements and

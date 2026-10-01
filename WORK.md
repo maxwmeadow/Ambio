@@ -112,7 +112,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `build-plan-panel` **A persistent Build Plan panel** replacing the modal, showing what was sent, who holds it, and realisation live.
 - ⬜ `mcp-prompts-implement` **MCP prompts `/axiom:implement`, `/axiom:propose`, `/axiom:review`** so each host has a one-word way into the loop.
 - ⬜ `midflight-approval` **What happens when you approve, reject or change a plan while the agent is already building.** Define and implement (e.g. the agent is told on its next `update_work`).
-- ⬜ `sheet-markdown` **Sheets ⇄ Markdown specs.** Export a sheet as a Markdown spec (for PRs, AGENTS.md, Spec Kit/Kiro users) and import a Markdown spec as a draft sheet. Research: planning today is text; meeting people there lowers the switching cost.
 - ⬜ `work-order-live-validation` **Validate the loop with real hosts beyond Codex:** Claude Code, Antigravity, Cursor. Record runs; file bugs in the Inbox.
 - ⬜ `work-order-queue-view` **One place for all work orders:** waiting, claimed (by which agent), in review, accepted - across sheets, with filters. Today review is per sheet/inbox.
 - ⬜ `sheet-templates` **Starter sheets:** "Add an endpoint", "Extract a service", "Add a queue consumer", "Split a system" - drawn skeletons that make the first work order fast.
@@ -261,6 +260,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `sheet-markdown` Sheets round-trip through a Markdown spec (Context / Add / Remove / Connections; `api/sheet_markdown.go`): Map → Copy Sheet as Markdown and New Sheet from Markdown… for people, `edit_sheet` export/import for agents (an agent's import arrives as proposals). Lines it cannot read are listed, not fatal. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `work-order-notifications` A system notification when an agent picks up or replies to a work order while Axiom is not focused (`store/workOrderNotice.ts` decides what is news; `app:notify` in main shows it and brings the window forward on click); Settings → General → Notify me about work orders. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `human-decisions-to-agents-more` A person's verdicts on systems in architecture proposals and on proposed infrastructure are journaled as `proposal.decided` like planned elements, so the next agent's `start_work` hears them ("The user dismissed the proposed infrastructure Redis"); MCP `decide_infra` marks the agent's own decisions so they are not told back. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `sheet-from-selection` New Sheet from Selection… on the right-click menu of systems, files and infrastructure, and the selection bar's New Sheet, start a sheet with every selected kind (it used to take files only); agents already could with `edit_sheet create` `members`. (claude/gracious-gauss-1bgdv9)

@@ -63,7 +63,10 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 - **Sheets**: proposals over the Floor (moves, additions, and removals in
   `sheet_removals`, checked as "done once the code is gone") with
   planned elements; revisioned with optimistic concurrency. See
-  [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
+  [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md). A sheet round-trips through a
+  Markdown spec (`internal/api/sheet_markdown.go`, format in its header):
+  `GET /api/sheets/:id/markdown`, `POST /api/sheet-import`, MCP `edit_sheet`
+  export/import, Map → Copy Sheet as Markdown / New Sheet from Markdown…
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or

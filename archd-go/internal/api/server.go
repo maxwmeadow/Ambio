@@ -429,6 +429,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	s.registerArchitectureProposalRoutes(mux)
 	mux.HandleFunc("/api/call-path", s.handleCallPath)
 	mux.HandleFunc("/api/symbols/search", s.handleSymbolSearch)
+	mux.HandleFunc("/api/sheet-import", s.handleSheetImport)
 	mux.HandleFunc("/api/call-trace", s.handleCallTrace)
 	mux.HandleFunc("/api/function-body", s.handleFunctionBody)
 	mux.HandleFunc("/api/data-flow", s.handleDataFlow)

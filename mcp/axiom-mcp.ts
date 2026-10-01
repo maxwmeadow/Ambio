@@ -635,11 +635,11 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Find sheets by name or ID. remove proposes live nodes leave the code (deletes nothing). compare checks nesting, relationships and removals, not pixels. Implement code, bind new nodes, then apply_nesting. Recompare after changes. resolve archives only matching structure using the latest revision/token; it does not verify runtime behavior.',
+    description: 'remove proposes live nodes leave the code (deletes nothing). compare checks nesting, relationships and removals, not pixels. Implement code, bind new nodes, then apply_nesting. Recompare after changes. resolve archives only matching structure using the latest revision/token; it does not verify runtime behavior. export/import Markdown (import reads body).',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', enum: ['list','get','create','add','remove','restore','annotate','compare','bind','apply_nesting','resolve','reopen'] },
+        op: { type: 'string', enum: ['list','get','create','add','remove','restore','annotate','compare','bind','apply_nesting','resolve','reopen','export','import'] },
         sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
         includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
         revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
@@ -2503,6 +2503,31 @@ Steps to execute:
               ? 'Proposal rejected; do not implement it.'
               : 'Approved; implementation may proceed.',
         }
+        break
+      }
+
+      case 'export_sheet_markdown': {
+        const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const res = await fetch(
+          `${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/markdown?workspace=${encodeURIComponent(project.workspaceId)}`
+        )
+        if (!res.ok) throw new Error(`export failed: ${await res.text()}`)
+        result = ((await res.json()) as { markdown: string }).markdown
+        break
+      }
+
+      case 'import_sheet_markdown': {
+        const markdown = String(args.body ?? '')
+        if (!markdown.trim()) throw new Error('import needs the Markdown spec in body')
+        const res = await fetch(`${API_BASE}/api/sheet-import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId, markdown, createdBy: 'agent' }),
+        })
+        if (!res.ok) throw new Error(`import failed: ${await res.text()}`)
+        const data = await res.json() as { sheet: { id: string; name: string }; warnings: string[] }
+        await postAgentActivity(project.workspaceId, `Agent drafted sheet "${data.sheet.name}" from a Markdown spec`, 'success')
+        result = { ...data, note: 'The sheet is a proposal: the user confirms or rejects its elements before they are built.' }
         break
       }
 

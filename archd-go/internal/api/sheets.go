@@ -276,6 +276,25 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, e)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "markdown" && r.Method == http.MethodGet {
+		sqlDB, err := s.dbFor(workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		sheet, err := db.GetSheet(sqlDB, id)
+		if err != nil || sheet == nil || sheet.WorkspaceID != workspaceID {
+			jsonError(w, "sheet not found", 404)
+			return
+		}
+		markdown, err := renderSheetMarkdown(sqlDB, sheet)
+		if err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		jsonOK(w, map[string]any{"sheetId": id, "markdown": markdown})
+		return
+	}
 	if len(parts) == 2 && parts[1] == "buildspec" && r.Method == http.MethodGet {
 		sqlDB, err := s.dbFor(workspaceID)
 		if err != nil {
@@ -1246,4 +1265,37 @@ func (s *Server) recordDecision(sqlDB *sql.DB, record decisionRecord) {
 	}); err != nil {
 		log.Printf("[archd] record proposal decision: %v", err)
 	}
+}
+
+// handleSheetImport creates a draft sheet from a Markdown spec
+// (sheet_markdown.go). POST {workspaceId, markdown, createdBy}
+func (s *Server) handleSheetImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		Markdown    string `json:"markdown"`
+		CreatedBy   string `json:"createdBy"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Markdown) == "" {
+		jsonError(w, "bad request: workspaceId and markdown required", 400)
+		return
+	}
+	if len(body.Markdown) > 1<<20 {
+		jsonError(w, "spec too large (1 MB limit)", 413)
+		return
+	}
+	sqlDB, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	sheet, warnings, err := s.importSheetMarkdown(sqlDB, body.WorkspaceID, body.Markdown, body.CreatedBy)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	jsonOK(w, map[string]any{"sheet": sheet, "warnings": warnings})
 }

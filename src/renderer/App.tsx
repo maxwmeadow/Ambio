@@ -41,6 +41,7 @@ import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
 import { SheetRail } from './components/SheetRail'
+import { SheetMarkdown } from './components/SheetMarkdown'
 import type { ProjectConfig } from '../shared/types'
 import {
   completeSourceBoundaries,
@@ -974,6 +975,7 @@ export default function App() {
         {/* Sheet rail + canvas area */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <SheetRail />
+          <SheetMarkdown />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {/* REVISION 2: sheets are layers over the live canvas, not separate
               views - AxiomCanvas renders the base layer + active sheet overlay. */}

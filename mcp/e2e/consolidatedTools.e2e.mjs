@@ -241,6 +241,18 @@ test('sheet ops route correctly', async () => {
   assert.equal(restored.isError, false, restored.text)
 })
 
+test('an agent drafts a sheet from a Markdown spec and reads it back', async () => {
+  const spec = '# Harness spec\n\nQueue the exports.\n\n## Add\n- service `Export Queue` at `api/export_queue.py` - batches exports\n\n## Remove\n- file `api/serializers.py`\n'
+  const imported = await client.callTool('edit_sheet', { op: 'import', body: spec })
+  assert.equal(imported.isError, false, imported.text)
+  assert.equal(imported.payload?.sheet?.name, 'Harness spec', imported.text)
+  assert.deepEqual(imported.payload?.warnings, [], imported.text)
+  const exported = await client.callTool('edit_sheet', { op: 'export', sheet: 'Harness spec' })
+  assert.equal(exported.isError, false, exported.text)
+  assert.match(exported.text, /service `Export Queue` at `api\/export_queue.py` - batches exports/)
+  assert.match(exported.text, /file `api\/serializers.py`/)
+})
+
 test('an agent finds a sheet, implements nesting, resolves it and restores it', async () => {
   const workspaceId = harness.workspaceId
   const post = async (path, body) => {

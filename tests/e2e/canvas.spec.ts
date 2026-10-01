@@ -2462,6 +2462,37 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
   expect(posted!.createdBy).toBe('user')
 })
 
+test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Markdown', async () => {
+  let imported: { markdown?: string; createdBy?: string } | null = null
+  await page.route(/\/api\/sheet-import$/, async route => {
+    imported = route.request().postDataJSON()
+    await route.fulfill({ json: {
+      sheet: { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: '', kind: 'structure',
+        folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 },
+      warnings: ['line 9 not understood: some prose'],
+    } })
+  })
+  await page.route(/\/api\/sheets\/sheet_runtime\/markdown\?/, route => route.fulfill({ json: { markdown: '# Runtime Draft\n' } }))
+  const runCommand = async (name: string) => {
+    await page.keyboard.press('ControlOrMeta+Shift+P')
+    await page.getByRole('textbox', { name: 'Command' }).fill(name)
+    await page.keyboard.press('Enter')
+  }
+
+  await runCommand('New Sheet from Markdown')
+  const dialog = page.getByRole('dialog', { name: 'New Sheet from Markdown' })
+  await dialog.getByRole('textbox', { name: 'Markdown spec' }).fill('# Runtime Draft\n\n## Add\n- system `Queue`\n')
+  await dialog.getByRole('button', { name: 'Draft Sheet' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect.poll(() => imported?.createdBy).toBe('user')
+  expect(imported!.markdown).toContain('- system `Queue`')
+  await expect(page.getByText('Runtime Draft drafted, with 1 line left out')).toBeVisible()
+
+  await runCommand('Copy Sheet as Markdown')
+  await expect(page.getByText('Sheet copied as Markdown')).toBeVisible()
+  expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('# Runtime Draft\n')
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {

@@ -21,6 +21,8 @@ export type CommandId =
   | 'go.nextSheet'
   | 'go.previousSheet'
   | 'map.newSheet'
+  | 'map.copySheetMarkdown'
+  | 'map.importSheetMarkdown'
   | 'map.addInfra'
   | 'map.lasso'
   | 'map.tidy'
@@ -92,6 +94,8 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'go.nextSheet': { id: 'go.nextSheet', label: 'Next Sheet', accelerator: 'CmdOrCtrl+]', needsProject: true },
   'go.previousSheet': { id: 'go.previousSheet', label: 'Previous Sheet', accelerator: 'CmdOrCtrl+[', needsProject: true },
   'map.newSheet': { id: 'map.newSheet', label: 'New Sheet…', accelerator: 'CmdOrCtrl+T', needsProject: true },
+  'map.importSheetMarkdown': { id: 'map.importSheetMarkdown', label: 'New Sheet from Markdown…', needsProject: true },
+  'map.copySheetMarkdown': { id: 'map.copySheetMarkdown', label: 'Copy Sheet as Markdown', needsProject: true },
   'map.addInfra': { id: 'map.addInfra', label: 'Add Infrastructure…', needsProject: true },
   'map.lasso': { id: 'map.lasso', label: 'Lasso Select', needsProject: true },
   'map.tidy': { id: 'map.tidy', label: 'Tidy Layout', accelerator: 'CmdOrCtrl+Shift+L', needsProject: true },
@@ -206,7 +210,8 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'map', label: 'Map', entries: [
-      command('map.newSheet'), command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
+      command('map.newSheet'), command('map.importSheetMarkdown'), command('map.copySheetMarkdown'), separator,
+      command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
       command('view.reviewChanges'),
     ],
   })

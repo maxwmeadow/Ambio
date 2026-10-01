@@ -8542,3 +8542,11 @@ body:has(.axiom-inbox) .axiom-selection-actions { display: none; }
 .axiom-explorer__empty { padding: 10px; color: #6b766f; }
 
 .axiom-delta__copy { margin-left: auto; padding: 2px 8px; border: 1px solid #8a948f; background: #f7f6f1; color: #1f2a26; font-size: 11px; cursor: pointer; }
+
+.axiom-sheet-markdown__input {
+  min-height: 220px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  resize: vertical;
+}

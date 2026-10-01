@@ -91,6 +91,8 @@ const SHEET_OPS: Record<string, string> = {
   apply_nesting: 'apply_sheet_nesting',
   resolve: 'resolve_sheet',
   reopen: 'reopen_sheet',
+  export: 'export_sheet_markdown',
+  import: 'import_sheet_markdown',
 }
 
 const RUNTIME_OPS: Record<string, string> = {
