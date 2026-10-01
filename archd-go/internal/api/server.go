@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -427,6 +428,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	s.registerSheetRoutes(mux)
 	s.registerArchitectureProposalRoutes(mux)
 	mux.HandleFunc("/api/call-path", s.handleCallPath)
+	mux.HandleFunc("/api/symbols/search", s.handleSymbolSearch)
 	mux.HandleFunc("/api/call-trace", s.handleCallTrace)
 	mux.HandleFunc("/api/function-body", s.handleFunctionBody)
 	mux.HandleFunc("/api/data-flow", s.handleDataFlow)
@@ -918,6 +920,28 @@ func (s *Server) handleCallPath(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	jsonOK(w, map[string]any{"path": path})
+}
+
+// handleSymbolSearch finds symbols by name across the workspace, for ⌘K, the
+// Model Explorer and search_symbols. GET ?workspace=&q=&limit=
+func (s *Server) handleSymbolSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonError(w, "method not allowed", 405)
+		return
+	}
+	query := r.URL.Query()
+	sqlDB, err := s.dbFor(query.Get("workspace"))
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	hits, err := db.SearchSymbols(sqlDB, query.Get("workspace"), query.Get("q"), limit)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	jsonOK(w, map[string]any{"symbols": hits})
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

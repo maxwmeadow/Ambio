@@ -185,6 +185,13 @@ geometry. One command model (`src/shared/appMenu.ts`) drives menus, the
 palette, shortcuts and right-click menus. The renderer is sandboxed under a
 strict CSP; privileged work goes through `electron/preload.ts`.
 
+Finding things by name is one lookup for humans and agents: `⌘K`
+(`components/SearchBar.tsx`, results built in `canvas/searchResults.ts`)
+matches systems, infrastructure and files from the store and asks archd's
+`/api/symbols/search` (`db.SearchSymbols`, ranked exact → prefix → contains)
+for symbols - the same endpoint behind `search_symbols` and the Model
+Explorer's search.
+
 ## Tests and CI
 
 - `npm run test:renderer` - node unit tests for renderer, shared, Electron,

@@ -27,11 +27,16 @@ export interface OutlineInput {
   symbols: Map<string, DbSymbol[]>
   expanded: Set<string>
   query: string
+  /**
+   * Symbols archd found for the query, by file id: shown while searching in
+   * files whose symbols are not loaded, so a search reaches the whole project.
+   */
+  found?: Map<string, Pick<DbSymbol, 'name' | 'kind' | 'lineStart'>[]>
 }
 
 const baseName = (relPath: string) => relPath.split('/').pop() ?? relPath
 
-export function buildOutline({ systems, files, symbols, expanded, query }: OutlineInput): OutlineRow[] {
+export function buildOutline({ systems, files, symbols, expanded, query, found }: OutlineInput): OutlineRow[] {
   const needle = query.trim().toLowerCase()
   const known = new Set(systems.map(system => system.id))
   const childSystems = new Map<string | null, DbSystem[]>()
@@ -49,7 +54,8 @@ export function buildOutline({ systems, files, symbols, expanded, query }: Outli
   for (const list of filesOf.values()) list.sort(byName((file: DbFile) => file.relPath))
 
   const matches = (text: string) => !needle || text.toLowerCase().includes(needle)
-  const symbolMatches = (file: DbFile) => (symbols.get(file.id) ?? []).filter(symbol => matches(symbol.name))
+  const symbolMatches = (file: DbFile) =>
+    (symbols.get(file.id) ?? (needle ? found?.get(file.id) : undefined) ?? []).filter(symbol => matches(symbol.name))
   const fileMatches = (file: DbFile) => matches(file.relPath) || (needle !== '' && symbolMatches(file).length > 0)
   // A system is shown when it, a file in it, or a system inside it matches.
   const memo = new Map<string, boolean>()

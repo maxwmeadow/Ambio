@@ -58,7 +58,7 @@ async function revealFileNode(nodeId: string) {
     }, nodeId)
     expect(relPath, `missing E2E file ${nodeId}`).not.toBeNull()
     await page.keyboard.press('ControlOrMeta+K')
-    const search = page.getByRole('textbox', { name: 'Search project files' })
+    const search = page.getByRole('textbox', { name: 'Search the map' })
     await search.fill(relPath!)
     await page.getByRole('option').first().click()
     await expect(node).toBeAttached()
@@ -1655,8 +1655,8 @@ test('preserves tokenized app chrome geometry and toolbar interaction states', a
 test('searches the project index and navigates to a keyboard-selected file', async () => {
   await page.getByRole('button', { name: 'Search' }).click()
 
-  const searchDialog = page.getByRole('dialog', { name: 'Search files' })
-  const searchInput = searchDialog.getByRole('textbox', { name: 'Search project files' })
+  const searchDialog = page.getByRole('dialog', { name: 'Search the map' })
+  const searchInput = searchDialog.getByRole('textbox', { name: 'Search the map' })
   const searchWindow = searchDialog
   await expect(searchDialog).toBeVisible()
   await expect(searchInput).toBeFocused()
@@ -1680,7 +1680,7 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   })).toEqual({ background: 'rgb(255, 254, 248)', color: 'rgb(24, 37, 31)' })
 
   await searchInput.fill('not-a-real-indexed-path')
-  await expect(searchDialog).toContainText('No matching files')
+  await expect(searchDialog).toContainText('No matches')
 
   await searchInput.fill('src/renderer')
   const results = searchDialog.getByRole('option')
@@ -1701,10 +1701,40 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   await expect(selectedNode).toHaveClass(/selected/)
 
   await page.keyboard.press('ControlOrMeta+K')
-  await expect(page.getByRole('dialog', { name: 'Search files' })).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'Search project files' })).toBeFocused()
+  await expect(page.getByRole('dialog', { name: 'Search the map' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search the map' })).toBeFocused()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Search files' })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Search the map' })).toHaveCount(0)
+})
+
+test('⌘K finds systems, infrastructure and symbols, and a symbol opens its source', async () => {
+  await page.route(/\/api\/symbols\/search\?/, route => route.fulfill({ json: { symbols: [{
+    id: 'symbol_render_canvas', fileId: 'file_canvas', name: 'renderCanvas', kind: 'function',
+    lineStart: 3, lineEnd: 6, relPath: 'src/renderer/canvas/AxiomCanvas.tsx',
+  }] } }))
+  await page.keyboard.press('ControlOrMeta+K')
+  const searchDialog = page.getByRole('dialog', { name: 'Search the map' })
+  const searchInput = searchDialog.getByRole('textbox', { name: 'Search the map' })
+  await searchInput.fill('mcp')
+  const results = searchDialog.getByRole('option')
+  await expect(results.first()).toContainText('MCP Server')
+  await expect(searchDialog).toContainText('Infrastructure')
+  await expect(searchDialog.getByRole('option', { name: /MCP Protocol/ })).toBeVisible()
+  await searchInput.press('Enter')
+  await expect(searchDialog).toHaveCount(0)
+  await expect(page.locator('.react-flow__node[data-id="sys_mcp"]')).toHaveClass(/selected/)
+
+  await page.keyboard.press('ControlOrMeta+K')
+  await searchInput.fill('renderCanv')
+  const symbol = searchDialog.getByRole('option', { name: /renderCanvas/ })
+  await expect(symbol).toContainText('function')
+  await symbol.click()
+  const source = page.getByRole('dialog', { name: /^renderCanvas in / })
+  await expect(source).toBeVisible()
+  await expect(source).toContainText('export function renderCanvas()')
+  await expect(page.locator('.react-flow__node[data-id="file_canvas"]')).toBeAttached()
+  await source.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(source).toHaveCount(0)
 })
 
 test('opens saved investigations and controls replay through the workbench transport', async () => {

@@ -906,15 +906,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const query = args.query as string
         const limit = args.limit ?? 20
         await postAgentActivity(project.workspaceId, `Agent searched symbols for query "${query}"`, 'info')
-        const sql = `
-          SELECT s.id, s.name, s.kind, s.line_start as lineStart, s.line_end as lineEnd, f.rel_path as relPath
-          FROM symbols s
-          JOIN files f ON s.file_id = f.id
-          JOIN roots r ON f.root_id = r.id
-          WHERE r.workspace_id = ? AND s.name LIKE ?
-          LIMIT ?
-        `
-        result = await queryDb(project.workspaceId, sql, [project.workspaceId, `%${query}%`, limit])
+        // The same ranked lookup as ⌘K: exact names, then prefixes, then the rest.
+        const params = new URLSearchParams({ workspace: project.workspaceId, q: query, limit: String(limit) })
+        const res = await fetch(`${API_BASE}/api/symbols/search?${params.toString()}`)
+        if (!res.ok) throw new Error(`Symbol search failed ${res.status}: ${await res.text()}`)
+        result = ((await res.json()) as { symbols: unknown[] }).symbols
         break
       }
 

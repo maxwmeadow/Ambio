@@ -142,7 +142,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `system-kinds` **Colour systems by kind** (backend, frontend, service), assigned by agents.
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
-- ⬜ `search-everything` **Search systems, symbols and infra** from `⌘K`, not only files; jump to and highlight the result.
 - ⬜ `panels-menu` **View → Panels ▸** (sheet rail, detail panel, documents, agent log, status bar) with remembered visibility.
 - ⬜ `html-export` **Share a read-only map:** export a self-contained HTML file of the map (pan, zoom, click through) that anyone can open without Axiom. Research: the popular code-graph tools grow through exactly this.
 - ⬜ `stable-layout-tests` **Layout stability tests:** re-indexing, adding files and renaming systems never move human-placed nodes (design law). Pin it with tests on the frame packing.
@@ -250,7 +249,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `explorer-symbol-search` Model Explorer searches symbols only in files already opened in it; search all symbols through archd's symbol index (`search_symbols`'s endpoint) instead. (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -266,6 +264,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `search-everything` `explorer-symbol-search` ⌘K finds systems, infrastructure, files and symbols (grouped, ranked exact → prefix → contains); a symbol frames its file and opens the source at its lines. archd `/api/symbols/search` (`db.SearchSymbols`) now serves ⌘K, the Model Explorer's search (all files, not only opened ones) and MCP `search_symbols`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `zoom-to-selection` `canvas-context-empty` View → Zoom to Selection (⌘⇧0) frames the selected nodes, or the inspected one; the empty-canvas menu gains Tidy Layout beside New System Here and Fit (no Paste: the map has no node clipboard). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `delta-panel-e2e` Playwright covers Review Changes: a meaning claim with a code disagreement, Copy as Markdown, Make the Code Match… (with the code check attached) and Undo. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `review-shareable` Review Changes has Copy as Markdown: headline, window, what the agents set out to do, and each claim with its first evidence and tags (closes a loop, unexplained, code still disagrees) (`canvas/reviewMarkdown.ts`, tested). (claude/gracious-gauss-1bgdv9)

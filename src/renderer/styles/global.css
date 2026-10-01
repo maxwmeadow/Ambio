@@ -620,6 +620,39 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
+.axiom-search-group {
+  padding: 7px 8px 3px;
+  color: #68736e;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.axiom-search-result[data-kind="system"] .axiom-search-result__icon {
+  width: 10px;
+  height: 8px;
+  border-color: #6d5a2e;
+  background: #c9a95a;
+}
+
+.axiom-search-result[data-kind="infra"] .axiom-search-result__icon {
+  width: 9px;
+  height: 9px;
+  border-color: #4f5d79;
+  border-radius: 50%;
+  background: #8193b5;
+}
+
+.axiom-search-result[data-kind="symbol"] .axiom-search-result__icon {
+  width: 7px;
+  height: 7px;
+  border-color: #6a4f72;
+  background: #a586ad;
+  transform: rotate(45deg);
+}
+
 .axiom-search-result__copy {
   min-width: 0;
 }

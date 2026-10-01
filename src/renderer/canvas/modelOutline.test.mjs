@@ -35,3 +35,12 @@ test('a file whose symbols are not loaded yet can still be opened', () => {
   const stripe = rows({ expanded: new Set(['pay']) }).find(row => row.id === 'stripe')
   assert.equal(stripe.expandable, true)
 })
+
+test('a search shows symbols archd found in files not opened yet', () => {
+  const found = new Map([['f-pay', [{ name: 'chargeCard', kind: 'function', lineStart: 3 }]]])
+  const files = [{ id: 'f-pay', relPath: 'src/pay/stripe.ts', systemId: null }]
+  const rows = buildOutline({ systems: [], files, symbols: new Map(), expanded: new Set(), query: 'charge', found })
+  assert.deepEqual(rows.map(row => `${row.kind}:${row.label}`), ['unsorted:Unsorted', 'file:stripe.ts', 'symbol:chargeCard'])
+  const idle = buildOutline({ systems: [], files, symbols: new Map(), expanded: new Set(), query: '', found })
+  assert.deepEqual(idle.map(row => row.kind), ['unsorted'])
+})

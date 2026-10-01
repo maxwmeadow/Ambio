@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- ⌘K finds systems, infrastructure and functions or classes, not only files;
+  picking a symbol shows its file on the map and opens the code at it. The
+  Model Explorer's search reaches symbols in every file.
 - View → Zoom to Selection (⌘⇧0) frames what you have selected; Tidy Layout
   is in the right-click menu on empty canvas.
 - Command palette, keyboard shortcuts and a shortcut reference; full menus

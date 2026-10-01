@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { fetchFileSymbols } from '../canvas/symbolCache'
+import { searchSymbols } from '../canvas/symbolSearch'
 import { buildOutline, UNSORTED_ID, type OutlineRow } from '../canvas/modelOutline'
 import type { DbSymbol } from '../../shared/types'
 
@@ -22,12 +23,32 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [symbols, setSymbols] = useState<Map<string, DbSymbol[]>>(() => new Map())
+  const [found, setFound] = useState<Map<string, DbSymbol[]>>(() => new Map())
   const [activeId, setActiveId] = useState<string | null>(null)
   const treeRef = useRef<HTMLDivElement>(null)
 
+  // A search reaches symbols in every file, not only the ones opened here.
+  useEffect(() => {
+    const q = query.trim()
+    if (!q || !workspaceId) { setFound(new Map()); return }
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      searchSymbols(workspaceId, q, controller.signal, 100)
+        .then(hits => {
+          const byFile = new Map<string, DbSymbol[]>()
+          for (const hit of hits) {
+            byFile.set(hit.fileId, [...(byFile.get(hit.fileId) ?? []), hit as DbSymbol])
+          }
+          setFound(byFile)
+        })
+        .catch(() => { if (!controller.signal.aborted) setFound(new Map()) })
+    }, 150)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [query, workspaceId])
+
   const rows = useMemo(
-    () => buildOutline({ systems, files, symbols, expanded, query }),
-    [systems, files, symbols, expanded, query],
+    () => buildOutline({ systems, files, symbols, expanded, query, found }),
+    [systems, files, symbols, expanded, query, found],
   )
 
   const loadSymbols = (fileId: string) => {
