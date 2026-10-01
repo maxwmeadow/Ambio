@@ -65,7 +65,8 @@ import { useCommandHandlers } from '../app/commands'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
 import { SheetPalette, STENCILS, type StencilDef } from '../components/SheetPalette'
 import { InfraPickerDialog } from '../components/InfraPickerDialog'
-import { plannedMembers, plannedMetadata, sheetElementMetadata, useSheetStore } from '../store/sheetStore'
+import { untakenSheetName } from '../../shared/sheetNames'
+import { plannedMembers, plannedMetadata, proposeSheetRemoval, restoreSheetRemoval, sheetElementMetadata, useSheetStore } from '../store/sheetStore'
 import type { PlannedNodeKind, PlannedNodeMetadata, SheetLayoutMutation } from '../store/sheetStore'
 import { filenameForLanguage, languageFromFilename } from './languages'
 import {
@@ -93,7 +94,7 @@ import {
 } from './selectionController'
 import { planCanvasDrop } from './dropPersistence'
 import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
-import { raiseFailure, raiseNotice } from '../store/interruptionStore'
+import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
@@ -2670,6 +2671,24 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   // The sheet opens first; the system is placed through the palette's own
   // path once the sheet is the active surface.
   const pendingNewSystem = useRef<{ sheetId: string; point: { x: number; y: number } } | null>(null)
+  // Deleting code is drawn, not done: a sheet proposing the removal, opened
+  // and attached to a work order with the instruction written. Nothing is
+  // deleted until an agent does it, and the comparison checks that it did.
+  const startRemovalSheet = useCallback(async (nodeId: string, label: string, instruction: string) => {
+    const workspaceId = useGraphStore.getState().currentProject?.id
+    if (!workspaceId) return
+    try {
+      const store = useSheetStore.getState()
+      const name = untakenSheetName(store.sheets, `Remove ${label}`)
+      const sheet = await store.createSheet(workspaceId, name, `Take ${label} out of the code`, [])
+      await store.openSheet(workspaceId, sheet.id)
+      await proposeSheetRemoval(workspaceId, sheet.id, nodeId)
+      window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { sheetId: sheet.id, note: instruction } }))
+    } catch (error) {
+      raiseFailure('removal-sheet', 'Could not draw the removal', error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
   const startNewSystemSheet = useCallback(async (point: { x: number; y: number }) => {
     const workspaceId = useGraphStore.getState().currentProject?.id
     if (!workspaceId) return
@@ -3646,8 +3665,11 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
 
       const planned = activePlannedByNodeId.get(selectedNodeId)
-      const element = activeElementByNodeId.get(selectedNodeId)
-      if (!planned && !element) return
+      const graph = useGraphStore.getState()
+      const live = graph.files.find(file => file.id === selectedNodeId)?.relPath
+        ?? graph.systems.find(system => system.id === selectedNodeId)?.name
+        ?? graph.infraNodes.find(node => node.id === selectedNodeId)?.name
+      if (!planned && !live) return
 
       event.preventDefault()
       event.stopPropagation()
@@ -3655,17 +3677,30 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       setInspectedNode(null)
       if (planned?.id === infraPickerNodeId) setInfraPickerNode(null)
       if (planned) {
+        // Sheet-only content is really deleted.
         void useSheetStore.getState().deletePlanned(workspaceIdForOverlay, planned.id)
           .catch(error => console.error('[sheets] failed to delete selected planned node:', error))
-      } else if (element) {
-        void useSheetStore.getState().removeElement(
-          workspaceIdForOverlay, overlaySheetId, element.id,
-        ).catch(error => console.error('[sheets] failed to remove selected live node:', error))
+      } else if (live) {
+        // Live code on a sheet is proposed for removal: gone from this
+        // sheet's picture, listed, restorable, and nothing real changes.
+        const sheetId = overlaySheetId
+        const nodeId = selectedNodeId
+        void proposeSheetRemoval(workspaceIdForOverlay, sheetId, nodeId).then(() => {
+          const id = `sheet-removal-${sheetId}-${nodeId}`
+          raiseNotice(id, `${live} proposed for removal`, 'Only on this sheet. Send the sheet to an agent to remove the code.', [{
+            label: 'Restore',
+            run: () => {
+              resolveInterruption(id)
+              void restoreSheetRemoval(workspaceIdForOverlay, sheetId, nodeId)
+                .catch(error => raiseFailure(`${id}-restore`, "Couldn't restore", String(error)))
+            },
+          }])
+        }).catch(error => raiseFailure('sheet-removal', "Couldn't propose the removal", error instanceof Error ? error.message : String(error)))
       }
     }
     window.addEventListener('keydown', onDeleteSelectedSheetNode)
     return () => window.removeEventListener('keydown', onDeleteSelectedSheetNode)
-  }, [readOnly, overlaySheetId, selectedNodeId, activePlannedByNodeId, activeElementByNodeId, workspaceIdForOverlay, setSelectedNode, setInspectedNode, setInfraPickerNode, infraPickerNodeId])
+  }, [readOnly, overlaySheetId, selectedNodeId, activePlannedByNodeId, workspaceIdForOverlay, setSelectedNode, setInspectedNode, setInfraPickerNode, infraPickerNodeId])
 
   useEffect(() => {
     return () => {
@@ -4557,9 +4592,23 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     },
   } : null, [floorEditable])
 
+  // A removal takes the node out of the sheet's picture only (contract: "a
+  // proposal never touches reality"); what sits inside it goes with it.
+  const sheetRemovedIds = useMemo(() => new Set(
+    overlaySheetId ? visibleLayers.flatMap(layer => (layer.removals ?? []).map(removal => removal.nodeId)) : [],
+  ), [overlaySheetId, visibleLayers])
+
   const renderedNodes = useMemo(() => {
     if (!overlaySheetId) return attentionNodes
+    const parentOf = new Map(attentionNodes.map(n => [n.id, n.parentId]))
+    const removed = (id: string) => {
+      for (let current: string | undefined = id, hops = 0; current && hops < 64; current = parentOf.get(current), hops++) {
+        if (sheetRemovedIds.has(current)) return true
+      }
+      return false
+    }
     return attentionNodes.map(n => {
+      if (sheetRemovedIds.size > 0 && removed(n.id)) return n.hidden ? n : { ...n, hidden: true }
       if (!activeNodeIds.has(n.id)) return n
       const handlers = readOnly ? undefined : getResizeHandlers(n.id, true)
       if (n.data.onResizeStart === handlers?.onResizeStart && n.data.onResizeEnd === handlers?.onResizeEnd) {
@@ -4574,7 +4623,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         },
       }
     })
-  }, [attentionNodes, overlaySheetId, activeNodeIds, readOnly, getResizeHandlers])
+  }, [attentionNodes, overlaySheetId, activeNodeIds, readOnly, getResizeHandlers, sheetRemovedIds])
 
   // A palette click can find a free root slot beyond the viewport. Reveal it
   // after React Flow measures it, so the new node never feels lost.
@@ -5118,10 +5167,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             // Reality changes are never faked on the Floor: they go to an
             // agent as a work order, with the node attached and the
             // instruction already written (docs/PRODUCT.md §2).
-            draftWorkOrder: (nodeId, instruction) => {
-              commitSelection(new Set([nodeId]))
-              window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { note: instruction } }))
-            },
+            removeCode: (nodeId, label, instruction) => { void startRemovalSheet(nodeId, label, instruction) },
             newSystemHere: screen => { void startNewSystemSheet(screenToFlowPosition(screen)) },
           } : undefined}
         />

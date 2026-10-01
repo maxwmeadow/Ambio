@@ -86,6 +86,12 @@ includes its saved resolution context/comparison as well as the current comparis
   types case-insensitively. Unsupported/unproven requirements stay outstanding.
 - Rejected proposals and their edges are excluded. Pending proposals block resolution.
   Empty sheets and deleted/symbol-only references cannot claim structural completion.
+- Removals are explicit: a live file, system or infrastructure node the sheet proposes
+  taking out of the code (`sheet_removals`; `edit_sheet` `remove`/`restore`, or Delete on
+  a live node in the canvas). A removal wins over any placement opinion for that node and
+  is outstanding until the code is gone - a file or infrastructure node no longer
+  indexed, or no file left in or below a system. Done removals stay listed. Removals are
+  frozen into a sent work order and checked by its snapshot comparison too.
 - Objects outside the sheet's scope are untouched. Omission is never a deletion request.
   The comparison does not infer filesystem removals or semantic refactors from pixels.
 

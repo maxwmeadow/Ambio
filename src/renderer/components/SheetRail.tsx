@@ -6,6 +6,7 @@ import { untakenSheetName } from '../../shared/sheetNames'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, type Sheet } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
+import { SheetRemovedList } from './SheetRemovedList'
 
 const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
   structure: 'STR',
@@ -247,6 +248,7 @@ export function SheetRail() {
           )
         })}
       </div>
+      <SheetRemovedList workspaceId={workspaceId} />
       {resolvedSheets.length > 0 && <div className="axiom-sheet-rail__archive">
         <button type="button" aria-expanded={showResolved} onClick={() => setShowResolved(value => !value)}>Resolved sheets ({resolvedSheets.length})</button>
         {showResolved && resolvedSheets.map(sheet => <div key={sheet.id}><span>{sheet.name}</span><button type="button" onClick={() => { void restore(sheet) }}>Restore {sheet.name}</button></div>)}

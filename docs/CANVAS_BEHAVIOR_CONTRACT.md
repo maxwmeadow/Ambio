@@ -297,8 +297,12 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   file stays, with a notice that deleting code goes through a work order.
   Changes that need code start from the right-click menu instead: New
   System Here… draws a planned system on a new sheet, ready to send, and
-  Delete This File… / Delete <system>'s Code… open the send dialog with the
-  instruction written, because sheets cannot yet draw removals.
+  Delete This File… / Delete <system>'s Code… draw the removal on a new
+  "Remove …" sheet and open the send dialog with it attached.
+- On a sheet, the removed node leaves that sheet's picture together with
+  what sits inside it, a notice offers Restore, and the sheet rail lists it
+  under "Removed on this sheet". Once its code is really gone it is marked
+  GONE there, and a work order that carried it counts it as done.
 - When the code disagrees with a meaning edit (the file lives outside its new
   system's folder, or its imports still mostly connect to another system),
   the edit still happens; its notice says where the code disagrees and offers

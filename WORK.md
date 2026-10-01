@@ -56,18 +56,17 @@ collide. Full context for each item is in its section below.
 
 1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
 2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
-3. 🚧 `sheet-removals` - sheets can propose removing live code; Floor delete gestures draw one. [canvas, sheets, archd workorders] (🚧 Claude, claude/gracious-gauss-1bgdv9, 2026-10-01)
-4. ⬜ `ci-e2e` - run the MCP end-to-end and Playwright suites in CI. [.github/workflows]
-5. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
-6. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
-7. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
-8. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
-9. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
-10. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
-11. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
-12. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
-13. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
-14. ⬜ `model-explorer` - outline panel for large maps. [renderer]
+3. ⬜ `ci-e2e` - run the MCP end-to-end and Playwright suites in CI. [.github/workflows]
+4. ⬜ `canvas-undo-redo` - undo and redo on the canvas. [canvas]
+5. ⬜ `headless-watch` - a daemon started by an agent watches files too. [archd cmd/api]
+6. ⬜ `mac-update-manifest` + `actions-node24` - release workflow fixes (one branch). [.github/workflows]
+7. ⬜ `imports-rust-java-ruby-cpp` - import edges for four languages. [archd parser]
+8. ⬜ `rules-and-drift` - standing architecture rules and drift checks (design first; large). [archd, mcp, canvas]
+9. ⬜ `agent-sheet-arrival` - notice and review agent-drawn sheets. [renderer sheets]
+10. ⬜ `runtime-tests` - unit tests for the runtime layer. [archd runtime]
+11. ⬜ `log-noise` + `gofmt-dbquery` + `remove-legacy-archd` - quick cleanup (one branch). [archd, build]
+12. ⬜ `schema-upgrade-tests` + `db-corruption-recovery` - map durability. [archd db, electron]
+13. ⬜ `model-explorer` - outline panel for large maps. [renderer]
 
 ---
 
@@ -110,8 +109,7 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `agents-draw-first` **Agents draw before they build.** The tools exist (`edit_sheet` create/add, `plan_element`) but nothing asks agents to use them. The workflow files Axiom installs per agent (instructions, skills, and hooks where the host supports them) should say: for any structural change - new system, new dependency between systems, moving responsibility - draw it on a sheet first, tell the human, then build; after building, `edit_sheet compare`. Research: MCP tools are rarely chosen spontaneously; the popular code-graph tools install hooks to force use. **Done when:** a fresh Claude Code and Codex session, asked to add a feature that crosses systems, draws a sheet before editing code, in a recorded run. **Start:** `electron/agentInstallers.ts`, the installed workflow/skill files, `mcp/axiom-mcp.ts` tool descriptions.
 - ⬜ `agent-sheet-arrival` **Notice and review agent-drawn sheets.** When an agent creates or changes a sheet, the human needs to see it: a badge on the sheet rail, a notice, and a clear confirm / reject / edit flow for its planned elements. **Done when:** an agent-drawn sheet cannot go unnoticed and each planned element can be confirmed or rejected in one action.
 - ⬜ `agents-see-human-changes` **(Partly done: `get_architecture` scope `changes` lists recent meaning edits.) Agents learn what the human changed.** When you rename, regroup or reject something, the next agent session should know without re-reading the whole map: e.g. `get_architecture` scope `changes_since` (or a section in `start_work`'s response) listing human meaning edits and decisions since that agent's last session. **Done when:** an agent starting work is told "Max moved `billing.ts` from Orders to Payments yesterday".
-- 🚧 `sheet-removals` (🚧 Claude, claude/gracious-gauss-1bgdv9, 2026-10-01) **Sheets can propose removing code.** The canvas contract describes removals on a sheet (a live node marked for removal, kept and marked if it already left), but they are not built: work-order comparison checks additions and nesting only. Today "Delete This File…" and "Delete <system>'s Code…" on the Floor open the send dialog with a written instruction instead of a drawn sheet. **Done when:** a removal can be drawn on a sheet, sent, and verified by comparison, and the Floor delete gestures draw it.
-- ⬜ `floor-more-reality-gestures` (after `sheet-removals`) **The rest of slice 4.** "Remove dependency on X", "Split system…" and dragging a connection between two live nodes should each open a pre-drawn sheet and the send dialog, like New System Here does.
+- ⬜ `floor-more-reality-gestures` **The rest of slice 4.** "Remove dependency on X", "Split system…" and dragging a connection between two live nodes should each open a pre-drawn sheet and the send dialog, like New System Here does.
 - ⬜ `rules-and-drift` **Standing architecture rules.** Sheets cover one piece of work; staying aligned over time needs lasting agreements: "Payments never calls Email directly", "UI never imports the database", layer order. Humans and agents can both write rules; agents check them before and after work (`check_architecture` or a `get_architecture` scope); violations appear as claims in Review Changes. The historical design is "Intent sheets" in [docs/history/UML_UX_PLAN.md](docs/history/UML_UX_PLAN.md) (`ALLOWED`, `NO_DEPENDENCY`, `TRANSIT_INTERCEPT`, `LAYER_ORDER`). Research: drift detection is the one architecture feature teams consistently pay for (vFunction, Structurizr, Archyl). **Done when:** a rule drawn on the canvas blocks nothing but is reported the moment code breaks it, to both the human and the agent.
 - ⬜ `rules-in-ci` (after `rules-and-drift`) **A PR/CI check.** A headless `archd check` that runs the rules and reports new architectural claims on a pull request, so a team sees drift without everyone running Axiom. This is also the most likely paid-team entry point.
 - ⬜ `infra-both-ways` **Human infra edits become work.** Adding "Redis cache for sessions" on the canvas should be sendable as a work order, and the agent's infra edits already show up; make both directions visible in Review Changes (`infra-claims`).
@@ -293,6 +291,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `sheet-removals` Sheets propose removing live code (`db/sheet_removals.go`, schema 4): removal wins over a move, stays listed until restored, is marked done once the code is gone, and is checked by the live comparison, the frozen work-order snapshot and the build spec. Canvas: Delete on a live node on a sheet proposes removal (hidden on that sheet with its contents, Restore in the notice and in the rail's "Removed on this sheet"); Floor Delete This File… / Delete <system>'s Code… draw a "Remove …" sheet and attach it to the order. Agents: `edit_sheet` `remove`/`restore`. Go, MCP e2e and Playwright tests. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `code-fit-follow-through` Files moved on disk keep their identity, system and layout (`indexer/moves.go`: same content or the only vanished file with that name, either event order, 30 s); Review Changes move/group/merge claims carry `codeFit` with Make the Code Match…; `get_architecture` scope `changes` returns `codeDisagrees`; work orders sent with `codeFitFileIds` are re-checked by Axiom (`db/code_checks.go`, schema 3) and show "Checked by Axiom" in the inbox and in the agent's reply result. MCP e2e drives the whole loop through the real watcher. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `make-code-match` After a meaning edit archd checks the files it placed against the code (`db/code_fit.go`: outside the system's home folder, or imports mostly tied to another system) and returns `codeFit`; the canvas notice says where the code disagrees and offers Make the Code Match… (a written work order, since sheets cannot express file moves); agents get `codeDisagrees` in `edit_systems` assign/merge results. Go, unit, MCP e2e and Playwright tests. Follow-up: `code-fit-follow-through`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `floor-reality-to-work-order` Changes that need code start a work order instead of happening on the Floor: right-click open canvas → New System Here… draws a planned system on a new sheet ready to send; right-click a file → Delete This File…, a system → Delete <system>'s Code… open the send dialog with the instruction written (dependency, split and connection gestures moved to `floor-more-reality-gestures`). Playwright covers both. (claude/gracious-gauss-1bgdv9)

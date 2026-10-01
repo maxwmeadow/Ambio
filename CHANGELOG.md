@@ -43,8 +43,12 @@ in the app as "What's New" after updating, so write it for users.
   on a system ungroups it and never touches code. Each change offers Undo.
 - Changes that need code start a work order from the map: right-click open
   canvas for New System Here…, which draws a planned system on a new sheet
-  ready to send, or right-click a file or system to ask an agent to delete
-  its code.
+  ready to send, or right-click a file or system to draw its removal on a
+  new sheet and send it to an agent.
+- Sheets can propose removing code: press Delete on a live file or system on
+  a sheet. It disappears from that sheet only, stays listed with Restore, and
+  a sent work order counts it as done once the code is really gone. Agents
+  can propose removals too.
 - When you move a file on the map and the code disagrees - it lives in
   another system's folder, or still mostly talks to its old system - Axiom
   says so and offers to send an agent the work that makes the code match.

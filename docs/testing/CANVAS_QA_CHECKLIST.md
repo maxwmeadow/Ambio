@@ -147,7 +147,7 @@ Fixed during this pass:
 - [ ] **E-M5** Double-click a system title on the Floor → rename; Review Changes shows the rename
 - [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
 - [ ] **E-M7** Right-click open canvas → New System Here… opens a new sheet with a planned system where you clicked, ready to send
-- [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… open Send to Agent with the instruction written; nothing is deleted until an agent does it
+- [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… opens a new "Remove …" sheet with the removal drawn, and Send to Agent with that sheet attached and the instruction written; nothing is deleted until an agent does it
 - [ ] **E-M9** Move a file into a system whose other files live in another folder → the Undo notice says where the code disagrees and offers Make the Code Match…, which opens Send to Agent with the move written; moving a file that already fits shows no offer
 - [ ] **E-M10** Dismiss that notice → Review Changes shows the move with the same disagreement and Make the Code Match…
 - [ ] **E-M11** Send the order (the composer shows "Axiom checks the code afterwards"), let an agent move the file → the file keeps its system and place on the Floor, and the order shows "Checked by Axiom: it now matches the map"
@@ -202,7 +202,8 @@ Fixed during this pass:
 - [ ] **J4** Planned outlines dashed; realized solid; status colors planned/partial/realized
 - [ ] **J5** Connect two nodes on an active sheet; live nodes are connectable on a sheet too (the connection is a proposal)
 - [ ] **J6** Edit planned element name / path / members inline
-- [ ] **J7** `Delete`/`Backspace` removes the selected sheet node (must not fire while typing)
+- [ ] **J7** `Delete`/`Backspace` deletes a selected planned node; on a selected **live** node it proposes removal instead: the node leaves this sheet's picture (with what is inside it), a notice offers Restore, and the rail lists it under "Removed on this sheet" (must not fire while typing)
+- [ ] **J7b** Leave the sheet → the removed node is on the Floor as before; once its code is really deleted, the Removed list marks it GONE instead of dropping it
 - [ ] **J8** Delete/Backspace on the **Floor**: a selected system is ungrouped (contents move up a level; notice with Undo); a selected file stays and a notice says files are code
 - [ ] **J9** Deactivate the sheet - live identity preserved, nothing orphaned
 - [ ] **J10** Sheet geometry persists across sheet layout mutations

@@ -274,6 +274,23 @@ export interface SheetLayerData {
   planned: PlannedNode[]
   plannedEdges: PlannedEdge[]
   layouts: SheetLayout[]
+  /** Live nodes this sheet proposes taking out of the code. */
+  removals?: SheetRemoval[]
+}
+
+/**
+ * A sheet's proposal that a live node leave the code. It hides the node in
+ * this sheet's picture only, stays listed until restored, and is done once
+ * the code is gone (archd `db/sheet_removals.go`).
+ */
+export interface SheetRemoval {
+  sheetId: string
+  nodeId: string
+  nodeType: 'file' | 'system' | 'infra'
+  label: string
+  createdBy: 'user' | 'agent'
+  createdAt: number
+  done: boolean
 }
 
 function withValidScale<T extends { scale?: number }>(item: T): T {
@@ -293,7 +310,39 @@ async function fetchSheetLayer(workspaceId: string, sheetId: string): Promise<Sh
     planned: (data.planned ?? []).map(withValidScale),
     plannedEdges: data.plannedEdges ?? [],
     layouts: data.layouts ?? [],
+    removals: data.removals ?? [],
   }
+}
+
+/** Propose that a live node leave the code, on this sheet only. */
+export async function proposeSheetRemoval(workspaceId: string, sheetId: string, nodeId: string): Promise<void> {
+  const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/removals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, nodeId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  const removal = await res.json() as SheetRemoval
+  useSheetStore.setState(st => {
+    const layer = st.layersById[sheetId]
+    if (!layer) return st
+    const removals = [...(layer.removals ?? []).filter(item => item.nodeId !== nodeId), removal]
+    return commitSheetLayer(st, sheetId, { ...layer, removals })
+  })
+}
+
+/** Take a proposed removal back off the sheet. */
+export async function restoreSheetRemoval(workspaceId: string, sheetId: string, nodeId: string): Promise<void> {
+  const res = await fetch(
+    `${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/removals/${encodeURIComponent(nodeId)}?workspace=${encodeURIComponent(workspaceId)}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) throw new Error(await res.text())
+  useSheetStore.setState(st => {
+    const layer = st.layersById[sheetId]
+    if (!layer) return st
+    return commitSheetLayer(st, sheetId, { ...layer, removals: (layer.removals ?? []).filter(item => item.nodeId !== nodeId) })
+  })
 }
 
 interface SheetState {
@@ -943,6 +992,15 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
           sheets: st.sheets.filter(x => x.id !== id), layersById, visibleSheetIds, activeSheetId,
           ...(st.activeSheetId === id ? activeLayerProjection(activeSheetId, layersById) : {}),
         }
+      })
+      break
+    }
+    case 'sheet:removals': {
+      const { sheetId, removals } = patch.payload as { sheetId: string; removals?: SheetRemoval[] }
+      if (!s.layersById[sheetId]) break
+      useSheetStore.setState(st => {
+        const layer = st.layersById[sheetId]
+        return layer ? commitSheetLayer(st, sheetId, { ...layer, removals: removals ?? [] }) : st
       })
       break
     }

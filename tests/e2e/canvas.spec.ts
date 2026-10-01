@@ -67,6 +67,13 @@ test.beforeEach(async () => {
     }
     const body = method === 'POST' && /\/api\/sheets$/.test(url.split('?')[0])
       ? newSheet
+      : method === 'POST' && /\/api\/sheets\/[^/]+\/removals$/.test(url.split('?')[0])
+      ? {
+          sheetId: url.split('/api/sheets/')[1].split('/')[0], nodeId: route.request().postDataJSON().nodeId,
+          nodeType: 'file', label: route.request().postDataJSON().nodeId, createdBy: 'user', createdAt: 4, done: false,
+        }
+      : method === 'DELETE' && url.includes('/removals/')
+      ? { restored: true }
       : url.includes('/api/sheets/sheet_new?')
       ? { sheet: newSheet, elements: [], annotations: [], planned: [], plannedEdges: [] }
       : method === 'POST' && url.includes('/api/sheets/sheet_new/planned')
@@ -2182,12 +2189,43 @@ test('Floor edits to meaning are recorded: Delete ungroups a system, its title r
 })
 
 test('a change that needs code opens a work order instead of happening on the Floor', async () => {
+  let proposed: { nodeId?: string } | undefined
+  page.on('request', request => {
+    if (request.url().includes('/api/sheets/sheet_new/removals') && request.method() === 'POST') {
+      proposed = request.postDataJSON() as { nodeId?: string }
+    }
+  })
   const file = await revealFileNode('file_canvas')
   await file.click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Delete This File…' }).click()
+  // The removal is drawn on a new sheet, which goes with the order.
+  await expect.poll(() => proposed?.nodeId).toBe('file_canvas')
   const instruction = page.locator('textarea').first()
   await expect(instruction).toBeVisible()
   await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AxiomCanvas\.tsx\./)
+  await expect(page.getByLabel('Removed on this sheet')).toContainText('file_canvas')
+})
+
+test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
+  let restored = false
+  page.on('request', request => {
+    if (request.url().includes('/removals/sys_shared') && request.method() === 'DELETE') restored = true
+  })
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 900, y: 600 } })
+  await page.getByRole('menuitem', { name: 'New System Here…' }).click()
+  await expect(page.locator('.react-flow__node[data-id^="planned:"]').first()).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.locator('.react-flow__pane').click({ position: { x: 420, y: 420 } })
+  const system = page.locator('.react-flow__node[data-id="sys_shared"]')
+  await system.click()
+  await page.keyboard.press('Delete')
+  await expect(page.getByText(/proposed for removal/).first()).toBeVisible()
+  await expect(system).toBeHidden()
+  const removed = page.getByLabel('Removed on this sheet')
+  await expect(removed).toContainText('sys_shared')
+  await removed.getByRole('button', { name: /^Restore / }).click()
+  await expect.poll(() => restored).toBe(true)
+  await expect(system).toBeVisible()
 })
 
 test('a map change the code disagrees with offers the work order that makes it match', async () => {

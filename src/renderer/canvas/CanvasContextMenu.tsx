@@ -20,8 +20,11 @@ interface Props {
   /** Present only on the live, editable Floor: meaning edits are offered. */
   floorEdits?: {
     groupFiles: (fileId: string) => void
-    /** Changes that need code go to an agent as a work order, never faked here. */
-    draftWorkOrder: (nodeId: string, instruction: string) => void
+    /**
+     * Changes that need code go to an agent as a work order, never faked
+     * here: removing code is drawn as a removal on a new sheet and sent.
+     */
+    removeCode: (nodeId: string, label: string, instruction: string) => void
     newSystemHere: (screen: { x: number; y: number }) => void
   }
 }
@@ -160,7 +163,7 @@ function buildEntries(
       ...(floorEdits ? [{
         label: 'Delete This File…',
         danger: true,
-        run: () => floorEdits.draftWorkOrder(file.id,
+        run: () => floorEdits.removeCode(file.id, file.relPath,
           `Delete ${file.relPath}. Remove anything only it uses, and update whatever imports it so nothing breaks.`),
       }] : []),
       'separator',
@@ -187,7 +190,7 @@ function buildEntries(
         {
           label: `Delete ${system.name}'s Code…`,
           danger: true,
-          run: () => floorEdits.draftWorkOrder(system.id,
+          run: () => floorEdits.removeCode(system.id, system.name,
             `Delete the code in ${system.name}. Remove what only it uses, and update whatever depends on it so nothing breaks.`),
         },
       ] : []),

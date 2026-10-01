@@ -60,7 +60,8 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   search, llm, api, auth, platform, observability, email, scheduler, flags,
   realtime), implementations, contracts (tables, topics, cache keys, flags,
   models) and evidence-carrying relationships. See [INFRA.md](INFRA.md).
-- **Sheets**: proposals over the Floor (moves, additions, removals) with
+- **Sheets**: proposals over the Floor (moves, additions, and removals in
+  `sheet_removals`, checked as "done once the code is gone") with
   planned elements; revisioned with optimistic concurrency. See
   [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
 - **Work orders**: addressed inbox messages with leases, frozen sheet
