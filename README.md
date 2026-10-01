@@ -144,9 +144,9 @@ Languages Axiom reads, and how deeply:
   packages): TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`,
   `.jsx`), Python (`.py`), Go (`.go`).
 - **Nearly full**: C# (`.cs`); imports come from `using` directives.
-- **Symbols and calls, no import edges yet** (the map is coarser): Rust
-  (`.rs`), Java (`.java`), Ruby (`.rb`), C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`,
-  `.hxx`).
+- **Symbols, imports and calls** (no data flow yet): Rust (`.rs`; `mod` and
+  `use`), Java (`.java`; `import`), Ruby (`.rb`; `require`), C++ (`.cpp`,
+  `.cc`, `.cxx`, `.hpp`, `.hxx`; quoted `#include`).
 - **Not yet read**: C (`.c`, `.h`), Kotlin, Swift, PHP. See [WORK.md](WORK.md).
 
 Readable documentation is indexed separately from the architecture canvas:
