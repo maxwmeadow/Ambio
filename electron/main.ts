@@ -1523,7 +1523,7 @@ function setupIPC(): void {
   })
 
   // Help links. A fixed set, so the renderer can never open arbitrary URLs.
-  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source') => {
+  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback') => {
     const base = 'https://github.com/maxwmeadow/Axiom'
     const urls = {
       docs: `${base}#readme`,
@@ -1531,6 +1531,11 @@ function setupIPC(): void {
       license: `${base}/blob/main/LICENSE`,
       releases: `${base}/releases`,
       source: base,
+      // Ideas and impressions, not bugs: no diagnostics are attached.
+      feedback: `${base}/issues/new?${new URLSearchParams({
+        title: 'Feedback: ',
+        body: `**What I was trying to do**\n\n\n**What worked or got in the way**\n\n\n_Axiom ${app.getVersion()}_`,
+      }).toString()}`,
     }
     const url = urls[topic]
     if (url) void shell.openExternal(url)

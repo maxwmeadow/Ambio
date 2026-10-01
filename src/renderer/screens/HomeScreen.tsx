@@ -832,6 +832,8 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
           <span aria-hidden="true">·</span>
         </>
       )}
+      <button type="button" onClick={() => emitCommand('help.feedback')}>Send feedback</button>
+      <span aria-hidden="true">·</span>
       <button type="button" onClick={() => void window.axiom.reportBug()}>Report a bug</button>
       <span aria-hidden="true">·</span>
       <button

@@ -55,6 +55,7 @@ export type CommandId =
   | 'help.guide'
   | 'help.docs'
   | 'help.reportBug'
+  | 'help.feedback'
   | 'help.copyDiagnostics'
   | 'help.openLogs'
   | 'help.privacy'
@@ -132,6 +133,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'help.guide': { id: 'help.guide', label: 'Setup Guide', needsProject: true },
   'help.docs': { id: 'help.docs', label: 'Documentation' },
   'help.reportBug': { id: 'help.reportBug', label: 'Report a Bug…' },
+  'help.feedback': { id: 'help.feedback', label: 'Send Feedback…' },
   'help.copyDiagnostics': { id: 'help.copyDiagnostics', label: 'Copy Diagnostics' },
   'help.openLogs': { id: 'help.openLogs', label: 'Open Logs Folder' },
   'help.privacy': { id: 'help.privacy', label: 'Privacy' },
@@ -257,7 +259,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'help', label: 'Help', entries: [
       command('help.shortcuts'), command('help.guide'), command('help.docs'), command('help.whatsNew'), separator,
-      command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
+      command('help.feedback'), command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
       command('help.privacy'), command('help.license'), command('help.acknowledgements'),
       ...(mac ? [] : [separator, command('app.checkUpdates'), command('app.about')]),
     ],

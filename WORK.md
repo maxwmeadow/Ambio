@@ -182,7 +182,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `windows-cli-path` **`axiom` command on Windows:** add `%USERPROFILE%\.axiom\bin` to the user PATH automatically (today the user is told to do it). **Start:** `electron/cliLauncher.ts`.
 - ⬜ `linux-desktop-integration` **Linux AppImage integration:** register a `.desktop` entry and the `axiom://` handler on first run (AppImages do not install one), so links and the app menu work.
 - ⬜ `tray-presence` **Menu-bar/tray presence** while agents work with the window closed: which agents are active, open work orders, open Axiom.
-- ⬜ `feedback-link` **Send feedback** in Help and on the launcher (a prefilled GitHub discussion or issue), distinct from Report a Bug.
 - ⬜ `startup-performance` **Measure and trim launch time** (window shown, launcher interactive, project open) and memory with many projects; add a budget to CI.
 
 ## Launch, distribution and repo
@@ -245,6 +244,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `feedback-link` Help → Send Feedback… and "Send feedback" on the launcher open a prefilled GitHub issue ("Feedback: ", what you tried, what helped or got in the way; no diagnostics), beside Report a Bug. Switch it to Discussions once `community-space` turns them on. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `trash-orphans` Recently Deleted lists maps whose trash.json was never written, as "Unlabeled map <id>" dated by their folder name; restoring brings the map back without a folder, which the launcher offers to locate (`electron/projectRegistry.ts` `readTrashMeta`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `seed-script-stale` Deleted `scripts/seed-architecture.ts` and `npm run seed-arch`: it seeded one personal project through the removed TS daemon's routes on a fixed port; the `name-architecture` MCP prompt and `edit_systems` sessions do this now. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mcp-surface-sync` `mcp/toolSurface.test.mjs` checks docs/MCP_SURFACE.md: the Core table lists exactly the advertised tools and its count, and each tool's documented ops equal its schema's `op` enum (verified to fail on drift). (claude/gracious-gauss-1bgdv9)

@@ -99,6 +99,7 @@ export function GlobalCommands() {
       })
     },
     'help.reportBug': () => { void window.axiom?.reportBug() },
+    'help.feedback': () => { void window.axiom?.openHelp('feedback') },
     'help.copyDiagnostics': () => { void window.axiom?.copyDiagnostics().then(() => say('Diagnostics copied to the clipboard.')) },
     'help.openLogs': () => { void window.axiom?.openLogsFolder() },
   })

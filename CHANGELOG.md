@@ -8,6 +8,7 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Help → Send Feedback… (also on the launcher).
 - Review Changes counts agent changes nobody explained; click to see them.
 - Ask, Propose or Build when you send to an agent: a question changes
   nothing, a proposal is drawn on a sheet for you to confirm first.

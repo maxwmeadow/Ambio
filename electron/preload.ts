@@ -167,7 +167,7 @@ contextBridge.exposeInMainWorld('axiom', {
   },
   zoom: (action: 'in' | 'out' | 'reset'): Promise<number> => ipcRenderer.invoke('window:zoom', action),
   toggleFullScreen: (): Promise<void> => ipcRenderer.invoke('window:toggle-fullscreen'),
-  openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source'): Promise<void> => ipcRenderer.invoke('help:open', topic),
+  openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback'): Promise<void> => ipcRenderer.invoke('help:open', topic),
   thirdPartyNotices: (): Promise<string> => ipcRenderer.invoke('app:third-party-notices'),
   getAppPaths: (): Promise<{ config: string; data: string; logs: string }> => ipcRenderer.invoke('app:paths'),
   openAppPath: (which: 'config' | 'data' | 'logs'): Promise<string> => ipcRenderer.invoke('shell:open-path', which),
@@ -347,7 +347,7 @@ declare global {
       onMenuCommand: (callback: (id: CommandId) => void) => () => void
       zoom: (action: 'in' | 'out' | 'reset') => Promise<number>
       toggleFullScreen: () => Promise<void>
-      openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source') => Promise<void>
+      openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback') => Promise<void>
       thirdPartyNotices: () => Promise<string>
       getAppPaths: () => Promise<{ config: string; data: string; logs: string }>
       openAppPath: (which: 'config' | 'data' | 'logs') => Promise<string>
