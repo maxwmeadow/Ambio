@@ -194,7 +194,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `commercial-license-page` **Explain commercial licensing** for companies that cannot use AGPL (the CLA allows it): a short section in README or a LICENSING.md, with a contact.
 - ⬜ `community-space` **A place to talk:** GitHub Discussions (on) with categories for ideas, help and show-and-tell; link it from Help and the README.
 - ⬜ `docs-site` **A small docs site** (GitHub Pages) generated from `docs/` user pages, once `user-docs` exists.
-- ⬜ `release-checklist` **A written release checklist** (`docs/RELEASING.md`): version bump, CHANGELOG section, tag, draft release review, notices, smoke test per OS.
 
 ## Quality, tests and CI
 
@@ -244,6 +243,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `release-checklist` docs/RELEASING.md: green main, CHANGELOG section (it is What's New), version matching the tag, schema fixtures, notices, tag, draft review, a smoke test per OS, publish and how to pull a bad release. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `feedback-link` Help → Send Feedback… and "Send feedback" on the launcher open a prefilled GitHub issue ("Feedback: ", what you tried, what helped or got in the way; no diagnostics), beside Report a Bug. Switch it to Discussions once `community-space` turns them on. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `trash-orphans` Recently Deleted lists maps whose trash.json was never written, as "Unlabeled map <id>" dated by their folder name; restoring brings the map back without a folder, which the launcher offers to locate (`electron/projectRegistry.ts` `readTrashMeta`). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `seed-script-stale` Deleted `scripts/seed-architecture.ts` and `npm run seed-arch`: it seeded one personal project through the removed TS daemon's routes on a fixed port; the `name-architecture` MCP prompt and `edit_systems` sessions do this now. (claude/gracious-gauss-1bgdv9)
