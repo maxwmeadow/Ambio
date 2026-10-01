@@ -180,9 +180,11 @@ and truncated. It stays on the local machine in archd's data directory.
   properties) is run uninstrumented, as Node's own stripper requires.
 - **Derived-class constructors** are observed from after a top-level `super()`.
   A conditional `super()` leaves the constructor unobserved.
-- **Python**: a function that catches an exception and then returns `None` is
-  indistinguishable from one that raised. Generators count each resume as a
-  call.
+- **Python**: how a call ended is read from the instruction its frame stopped
+  at, so a function that handles an exception and returns `None` is not
+  mistaken for one that raised. A generator or coroutine is one call however
+  often it resumes; its result reads "yielded 3 values: ...", and `close()` is
+  not a failure.
 - **Go**: the module's files are rewritten for the run and applied with
   `go -overlay` (nothing on disk changes; line numbers are the user's own).
   Functions and methods are recorded, function literals are not. A non-nil
@@ -191,8 +193,11 @@ and truncated. It stays on the local machine in archd's data directory.
   with `-vet=off` during a run (vet reads package folders from disk, where
   the run's recorder package does not exist). Files with `import "C"` and
   generated files run uninstrumented.
-- **Ruby**: methods are recorded, blocks are not. A method that rescues and then returns `nil` looks like one that raised,
-  as in Python. Ruby 2.6 and newer.
+- **Ruby**: methods are recorded, blocks are not. An exception counts against
+  every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
+  event), a method that rescues and then returns `nil` without calling anything
+  looks like one that raised. `StopIteration` ending a loop is not a failure.
+  Ruby 2.6 and newer.
 - **Paths**: symlinked project paths are resolved on both sides. Windows paths
   are normalized for Node's option parser.
 

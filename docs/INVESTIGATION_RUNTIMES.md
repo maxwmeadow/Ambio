@@ -38,7 +38,7 @@ agent reads all of them the same way.
 |---|---|---|
 | JavaScript / TypeScript | `NODE_OPTIONS --require/--import`, source transform | done |
 | Python | `PYTHONPATH` + `sitecustomize`, `sys.settrace` | done |
-| Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods; drift not yet) |
+| Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods, drift; exact rescue tracking on 3.3+) |
 | Java / Kotlin | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on workspace classes | next |
 | C# / .NET | `DOTNET_STARTUP_HOOKS`, method patching in workspace assemblies | after Java |
 | Go | source rewrite applied with `GOFLAGS=-overlay=...`; a recorder package added only in the overlay | done (functions and methods; panics from output) |

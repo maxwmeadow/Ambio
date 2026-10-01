@@ -10,7 +10,12 @@
 # does nothing.
 #
 # Mechanism: TracePoint on :call, :return and :raise - built into every Ruby
-# since 2.0, so there is nothing to install and no debugger. Methods defined
+# since 2.0, so there is nothing to install and no debugger. An exception in
+# flight marks every method it unwinds as having raised; on Ruby 3.3+ the
+# :rescue event ends it exactly where it is handled. Older Rubies have no such
+# event: there a method that rescues and then returns nil without calling
+# anything looks raised. On every version a method call or a non-nil return
+# also ends it. Methods defined
 # outside the workspace (gems, the standard library) are ignored after one
 # cached path check. Blocks are not tracked; methods are what the index knows.
 #
@@ -23,6 +28,13 @@
 require 'json'
 
 module AxiomRecorder
+  # TracePoint's :rescue event arrived in Ruby 3.3.
+  RESCUE_EVENT = begin
+    TracePoint.new(:rescue) {}
+    true
+  rescue ArgumentError
+    false
+  end
   SAMPLE_HEAD = 6
   SAMPLE_TAIL = 4
   MAX_EDGES = 5000
@@ -488,7 +500,20 @@ module AxiomRecorder
       Thread.current[:__axiom_recorder_stack] ||= []
     end
 
+    # The exception currently unwinding this thread, if any.
+    def in_flight
+      Thread.current[:__axiom_recorder_in_flight]
+    end
+
+    def in_flight=(exception)
+      Thread.current[:__axiom_recorder_in_flight] = exception
+    end
+
     def on_call(tp)
+      # Code running again means the exception was handled (or swallowed in
+      # C, which fires no :rescue). An ensure clause that calls a method stops
+      # the marking there; the method that raised is still marked.
+      self.in_flight = nil if in_flight
       path = tp.path
       return unless workspace?(path)
       name = tp.method_id.to_s
@@ -546,8 +571,19 @@ module AxiomRecorder
     end
 
     def on_raise(tp)
+      # Kernel#loop and external enumerators end iteration with StopIteration,
+      # rescued inside C: control flow, not a failure.
+      return if tp.raised_exception.is_a?(StopIteration)
+
+      self.in_flight = tp.raised_exception
       top = stack.last
       top[:exc] = tp.raised_exception if top
+    end
+
+    def on_rescue(_tp)
+      self.in_flight = nil
+      top = stack.last
+      top[:exc] = nil if top
     end
 
     def on_return(tp)
@@ -565,9 +601,12 @@ module AxiomRecorder
         f = state[:f]
         f[5] += ms
         threw = nil
-        if state[:exc] && value.nil?
-          threw = "#{state[:exc].class.name}: #{state[:exc].message.to_s[0, 200]}"
+        exc = state[:exc] || in_flight
+        if exc && value.nil?
+          threw = "#{exc.class.name}: #{exc.message.to_s[0, 200]}"
           f[4] += 1
+        elsif !value.nil?
+          self.in_flight = nil
         end
         w = state[:w]
         record_watch(w, value, threw, ms) if w
@@ -671,12 +710,15 @@ module AxiomRecorder
     end
     rec = Recorder.new(dir, ENV['AXIOM_RUN_ID'].to_s, ENV['AXIOM_WORKSPACE_ROOT'] || Dir.pwd, watches)
     @recorder = rec
-    trace = TracePoint.new(:call, :return, :raise) do |tp|
+    events = %i[call return raise]
+    events << :rescue if RESCUE_EVENT
+    trace = TracePoint.new(*events) do |tp|
       begin
         case tp.event
         when :call then rec.on_call(tp)
         when :return then rec.on_return(tp)
         when :raise then rec.on_raise(tp)
+        when :rescue then rec.on_rescue(tp)
         end
       rescue StandardError
         nil
