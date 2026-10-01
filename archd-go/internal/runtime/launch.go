@@ -326,6 +326,42 @@ func injectRubyEnv(env []string, adapterDir string) []string {
 	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
 }
 
+// FindPHPAdapterDir locates the PHP run recorder (adapters/php).
+func FindPHPAdapterDir() (string, error) {
+	return findAdapterDir("php", phpRecorder)
+}
+
+const phpRecorder = "axiom_recorder.php"
+
+// injectPHPEnv makes every PHP the run starts load the recorder first. PHP
+// reads extra ini files from the folders in PHP_INI_SCAN_DIR, so the run gets
+// an ini of its own (in iniDir) whose auto_prepend_file is the recorder. A
+// leading separator keeps PHP's built-in scan folder, and so the user's own
+// configuration, in effect; a value the user set is kept in front.
+func injectPHPEnv(env []string, adapterDir, iniDir string) ([]string, error) {
+	if err := os.MkdirAll(iniDir, 0o755); err != nil {
+		return nil, err
+	}
+	// Forward slashes: a backslash before the closing quote would escape it.
+	recorder := filepath.ToSlash(filepath.Join(adapterDir, phpRecorder))
+	ini := "; Written by Axiom for one investigation run.\nauto_prepend_file=\"" + recorder + "\"\n"
+	if err := os.WriteFile(filepath.Join(iniDir, "axiom.ini"), []byte(ini), 0o644); err != nil {
+		return nil, err
+	}
+	scan := string(os.PathListSeparator) + iniDir
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(strings.ToUpper(kv), "PHP_INI_SCAN_DIR=") {
+			if v := kv[len("PHP_INI_SCAN_DIR="):]; v != "" {
+				scan = v + string(os.PathListSeparator) + iniDir
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "PHP_INI_SCAN_DIR="+scan), nil
+}
+
 // FindDotnetTargets locates the C# build hook (adapters/dotnet/Axiom.targets),
 // which sits beside the rewriter it runs.
 func FindDotnetTargets() (string, error) {

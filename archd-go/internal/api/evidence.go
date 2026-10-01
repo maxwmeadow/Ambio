@@ -932,7 +932,7 @@ func renderRunReport(rep *RunReport, requestedWatches int) string {
 		}
 		b.WriteString("\n")
 	} else {
-		names := map[string]string{"javascript": "JavaScript/TypeScript", "python": "Python", "ruby": "Ruby", "go": "Go", "java": "Java/Kotlin", "csharp": "C#"}
+		names := map[string]string{"javascript": "JavaScript/TypeScript", "python": "Python", "ruby": "Ruby", "go": "Go", "java": "Java/Kotlin", "csharp": "C#", "php": "PHP"}
 		var shown []string
 		for _, l := range rep.Instrumented {
 			if n, ok := names[l]; ok {

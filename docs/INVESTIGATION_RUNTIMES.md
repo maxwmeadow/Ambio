@@ -25,6 +25,7 @@ What Axiom must ship itself:
 | Python recorder | bundled (`adapters/python`), loaded through `PYTHONPATH` + `sitecustomize`. |
 | Ruby recorder | bundled (`adapters/ruby`), loaded through `RUBYLIB` + `RUBYOPT=-raxiom_recorder`. Added 2026-09-30. |
 | Go recorder | built into archd (`internal/runtime/gorecorder`), applied through the go command's `-overlay`. Added 2026-09-30. |
+| PHP recorder | bundled (`adapters/php`), loaded through a per-run ini (`PHP_INI_SCAN_DIR`, `auto_prepend_file`). Added 2026-10-01. |
 | C# recorder | bundled (`adapters/dotnet`: `Axiom.targets`, a 92 KB rewriter, and the recorder source it compiles into each project). Ships nothing third-party: the rewriter loads Roslyn from the user's own SDK. Prebuilt and committed; `adapters/dotnet/build.mjs` rebuilds it. Added 2026-10-01. |
 | JVM recorder | bundled (`adapters/java/axiom-agent.jar`, 255 KB, ASM relocated inside it), loaded through `JAVA_TOOL_OPTIONS`. Prebuilt and committed, so building Axiom needs no JDK; `adapters/java/build.mjs` rebuilds it. Added 2026-10-01. |
 
@@ -43,6 +44,7 @@ agent reads all of them the same way.
 | Ruby | `RUBYLIB` + `RUBYOPT -r`, `TracePoint` | done (methods, drift; exact rescue tracking on 3.3+) |
 | Java / Kotlin / Scala | `JAVA_TOOL_OPTIONS=-javaagent:axiom-agent.jar`, bytecode advice on classes compiled from workspace sources | done (methods, constructors, drift, suspend functions) |
 | C# | source rewrite applied by MSBuild (`CustomAfterMicrosoftCommonTargets` imports `Axiom.targets`), with a recorder source compiled into each project | done (methods, constructors, local functions, accessors, async results, drift) |
+| PHP | `PHP_INI_SCAN_DIR` + `auto_prepend_file`; files rewritten in memory as they are included, through the `file://` stream wrapper | done (functions, methods, generators, object mutations and drift) |
 | Go | source rewrite applied with `GOFLAGS=-overlay=...`; a recorder package added only in the overlay | done (functions and methods; panics from output) |
 | C / C++ | no in-process hook without a rebuild | debugger fallback (below) |
 

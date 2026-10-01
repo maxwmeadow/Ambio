@@ -63,7 +63,7 @@ var readinessLanguages = map[string]languageSpec{
 	"csharp": {name: "C#", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, recorder: true, install: "the .NET SDK (dot.net)"},
 	"rust":   {name: "Rust", tools: []string{"cargo"}, versionArgs: []string{"--version"}, install: "Rust (rustup.rs)", planned: "no function-level recorder for Rust yet"},
 	"swift":  {name: "Swift", tools: []string{"swift"}, versionArgs: []string{"--version"}, install: "Swift (swift.org)", planned: "no function-level recorder for Swift yet"},
-	"php":    {name: "PHP", tools: []string{"php"}, versionArgs: []string{"--version"}, install: "PHP (php.net)", planned: "a PHP recorder is planned"},
+	"php":    {name: "PHP", tools: []string{"php"}, versionArgs: []string{"--version"}, recorder: true, install: "PHP (php.net)"},
 	"cpp":    {name: "C/C++", tools: []string{"cc", "gcc", "clang", "cl"}, versionArgs: []string{"--version"}, install: "a C/C++ compiler", planned: "debug_runtime can attach gdb or lldb for function-level detail"},
 }
 

@@ -47,6 +47,9 @@ cpSync(join(SRC, 'python'), join(OUT, 'python'), {
 // The Ruby recorder is plain Ruby, loaded by the user's own interpreter.
 cpSync(join(SRC, 'ruby'), join(OUT, 'ruby'), { recursive: true, filter: source => !/\.test\.mjs$/.test(source) })
 
+// The PHP recorder is plain PHP, loaded by the user's own interpreter.
+cpSync(join(SRC, 'php'), join(OUT, 'php'), { recursive: true, filter: source => !/\.test\.mjs$/.test(source) })
+
 // The JVM recorder is a prebuilt agent jar (adapters/java/build.mjs rebuilds
 // it; that needs a JDK, building Axiom does not). ASM ships inside it under
 // its BSD license.

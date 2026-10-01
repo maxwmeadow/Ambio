@@ -315,6 +315,14 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = injectJavaEnv(env, jar)
 		instrumented = append(instrumented, "java")
 	}
+	// PHP: the recorder is prepended to every script and rewrites the
+	// workspace's files as they are included.
+	if dir, err := FindPHPAdapterDir(); err == nil {
+		if withPHP, err := injectPHPEnv(env, dir, filepath.Join(evidenceDir, "php")); err == nil {
+			env = withPHP
+			instrumented = append(instrumented, "php")
+		}
+	}
 	// C#: MSBuild compiles instrumented copies of each project's sources.
 	var dotnetNote string
 	if targets, err := FindDotnetTargets(); err == nil {

@@ -24,6 +24,8 @@ const GO = spawnSync('go', ['version']).status === 0
 // the run does not depend on what archd's own PATH holds.
 const jdkTool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name) : name
 const JDK = spawnSync(jdkTool('javac'), ['-version']).status === 0
+const phpBinary = process.env.PHP_BINARY || 'php'
+const PHP = spawnSync(phpBinary, ['-r', 'exit(PHP_VERSION_ID >= 70100 ? 0 : 1);']).status === 0
 // The .NET SDK from DOTNET_ROOT or the PATH, named in full for the same reason.
 const dotnet = process.env.DOTNET_ROOT ? join(process.env.DOTNET_ROOT, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet') : 'dotnet'
 const dotnetProbe = spawnSync(dotnet, ['--version'], { encoding: 'utf8' })
@@ -82,6 +84,27 @@ test.before(async () => {
     '        }',
     '    }',
     '}',
+    '',
+  ].join('\n'))
+  writeFileSync(join(project, 'cart.php'), [
+    '<?php',
+    'final class Cart { public $total = 0; public $lines = []; }',
+    '',
+    'function addLine(Cart $cart, string $item, int $price): int',
+    '{',
+    '    if ($price < 0) {',
+    "        throw new InvalidArgumentException('negative price');",
+    '    }',
+    '    $cart->lines[] = $item;',
+    '    $cart->total += $price;',
+    '    return $cart->total;',
+    '}',
+    '',
+    '$cart = new Cart();',
+    "addLine($cart, 'tea', 4);",
+    "addLine($cart, 'jam', 6);",
+    "echo $cart->total, PHP_EOL;",
+    "addLine($cart, 'refund', -1);",
     '',
   ].join('\n'))
   mkdirSync(join(project, 'ledger'), { recursive: true })
@@ -300,6 +323,17 @@ test('a Java run shows the shared map, the thrown exception and the crash', { sk
   assert.match(run.text, /`reserve` threw `IllegalArgumentException: not enough widget` on 1 of 4 calls/)
   assert.match(run.text, /Uncaught `IllegalArgumentException: not enough widget` at shop\/Stock\.java:12/)
   assert.doesNotMatch(run.text, /Picked up JAVA_TOOL_OPTIONS/, 'the JVM notice about the agent is not the program\'s output')
+})
+
+// PHP records through its own configuration: an ini file prepends the recorder
+// to every script, and it rewrites the program's files as PHP includes them.
+test('a PHP run shows the mutated object, the exception and the crash', { skip: !PHP && 'no PHP on this machine' }, async () => {
+  const run = await client.callTool('investigation', { op: 'run', command: `"${phpBinary}" cart.php`, watch: ['cart.php:addLine'] }, 60000)
+  assert.equal(run.isError, false, run.text)
+  assert.match(run.text, /`addLine` changes its argument `cart\.total` on 2 of 3 calls: 0 → 4, 4 → 10/)
+  assert.match(run.text, /receives the same `cart` object again on 2 of 3 calls/)
+  assert.match(run.text, /Uncaught `InvalidArgumentException: negative price` at cart\.php:7/)
+  assert.match(run.text, /\n10\n/)
 })
 
 // C# records through the build: MSBuild compiles instrumented copies of the

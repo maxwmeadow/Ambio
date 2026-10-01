@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -87,5 +89,27 @@ func TestDotnetTargetsAreInjectedUnlessTheUserSetTheirOwn(t *testing.T) {
 	env, note = injectDotnetEnv([]string{"CustomAfterMicrosoftCommonTargets=/their/own.targets"}, "/axiom/Axiom.targets")
 	if env != nil || !strings.Contains(note, "already set") {
 		t.Fatalf("env = %q, note = %q", env, note)
+	}
+}
+
+// PHP loads the recorder through an ini file of the run's own; the scan
+// folder PHP was built with, and one the user set, stay in effect.
+func TestPHPRecorderIsPrependedThroughARunIni(t *testing.T) {
+	iniDir := filepath.Join(t.TempDir(), "php")
+	sep := string(os.PathListSeparator)
+	env, err := injectPHPEnv([]string{"HOME=/h"}, filepath.Join("opt", "Axiom Files", "adapters", "php"), iniDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := env[len(env)-1]; got != "PHP_INI_SCAN_DIR="+sep+iniDir {
+		t.Fatalf("a leading separator keeps the built-in scan folder: %q", got)
+	}
+	ini, err := os.ReadFile(filepath.Join(iniDir, "axiom.ini"))
+	if err != nil || !strings.Contains(string(ini), `auto_prepend_file="opt/Axiom Files/adapters/php/axiom_recorder.php"`) {
+		t.Fatalf("ini = %q, err = %v", ini, err)
+	}
+	env, _ = injectPHPEnv([]string{"PHP_INI_SCAN_DIR=/etc/php/conf.d"}, "/a", iniDir)
+	if got := env[len(env)-1]; got != "PHP_INI_SCAN_DIR=/etc/php/conf.d"+sep+iniDir {
+		t.Fatalf("the user's own scan folder comes first: %q", got)
 	}
 }

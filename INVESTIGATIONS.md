@@ -164,8 +164,8 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala) and C#
-  record function-level evidence, each through the user's own toolchain with
+- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala), C#
+  and PHP record function-level evidence, each through the user's own toolchain with
   nothing to install. Others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
   for the plan. The DAP-based live debuggers under `debug_runtime` are
   separate.
@@ -233,6 +233,22 @@ and truncated. It stays on the local machine in archd's data directory.
   no instrumented output stays behind; until then the build output carries a
   recorder that does nothing outside a run. Style analyzers are off for the
   instrumented compile. F# and Visual Basic run with output only.
+- **PHP**: an ini file of the run's own (`PHP_INI_SCAN_DIR`) prepends the
+  recorder to every PHP the command starts: `php script.php`, PHPUnit, `php
+  -S` (one evidence document per request). PHP has no tracing hook for
+  scripts, so the recorder stands in for the `file://` stream wrapper and
+  serves an instrumented copy of each workspace `.php` file as PHP includes
+  it; nothing on disk changes and lines do not move. Each rewrite is checked
+  with PHP's own parser and dropped if it does not parse. Named functions and
+  methods are recorded; closures, arrow functions and property hooks are not.
+  Arrays are values in PHP, so mutation and drift are reported for objects (an
+  array an object holds counts as that object's state). A by-reference return
+  is not captured. Code under `vendor/` is not recorded. The program can see
+  three differences: `get_included_files()` lists the recorder's files, a
+  failed file open adds PHP's "stream_open call failed" warning to the native
+  one, and `get_defined_vars()` inside a recorded function includes `__ax`. An
+  `auto_prepend_file` of the user's own is replaced for the run. PHP 7.1 and
+  newer.
 - **Ruby**: methods are recorded, blocks are not. An exception counts against
   every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
   event), a method that rescues and then returns `nil` without calling anything
