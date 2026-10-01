@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- The Agent inbox shows work orders by stage: waiting, working, to review,
+  accepted and cancelled.
 - View → Panels: show or hide the sheet rail, detail panel and status bar;
   Axiom remembers your choice.
 - Review Changes shows infrastructure changes: "Orders now writes to Redis",

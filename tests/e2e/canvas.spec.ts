@@ -2607,6 +2607,30 @@ test('a map change the code disagrees with offers the work order that makes it m
   await expect(page.getByText('Axiom checked the code: it now matches the map.')).toBeVisible()
 })
 
+test('the inbox shows work orders by stage', async () => {
+  const order = (id: string, note: string, status: string, extra = {}) => ({
+    id, workspaceId: 'demo', sheetId: null, note, selection: '[]', changeSummary: '',
+    sheetContext: '', buildSpec: '', status, createdAt: 5, deliveredTo: null, answerAnnotationId: null, ...extra,
+  })
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: {
+    nextCursor: '', availableCount: 1,
+    messages: [
+      order('wo-wait', 'Add a retry queue', 'queued'),
+      order('wo-done', 'Split the payments module', 'answered', { reply: { agent: 'Codex', body: 'Done.', createdAt: 6 } }),
+    ],
+  } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('axiom:open-agent-dispatch')))
+  const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
+  const stages = inbox.getByRole('group', { name: 'Show work orders' })
+  await expect(stages.getByRole('button', { name: 'To review 1' })).toBeVisible()
+  await expect(inbox).toContainText('Add a retry queue')
+  await stages.getByRole('button', { name: 'To review 1' }).click()
+  await expect(inbox).toContainText('Split the payments module')
+  await expect(inbox).not.toContainText('Add a retry queue')
+  await stages.getByRole('button', { name: 'All 2' }).click()
+  await expect(inbox).toContainText('Add a retry queue')
+})
+
 test('New System Here draws a planned system on a new sheet, ready to send', async () => {
   let planned: { kind?: string } | undefined
   page.on('request', request => {

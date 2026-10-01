@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
-import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff } from './inboxModel'
+import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, workOrderStage, workOrderStageCounts, type WorkOrderStage } from './inboxModel'
 import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
@@ -22,6 +22,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState('')
+  // Which stage of work orders the thread shows; null is all of them.
+  const [stage, setStage] = useState<WorkOrderStage | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -156,11 +158,20 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     }
     finally { sendLock.current = false; setSending(false); requestAnimationFrame(() => textarea.current?.focus()) }
   }
+  const stageCounts = workOrderStageCounts(sheet.messages)
+  const shown = stage ? sheet.messages.filter(message => workOrderStage(message) === stage) : sheet.messages
   return <aside className="axiom-inbox nodrag nowheel" aria-label="Agent inbox">
     <header className="axiom-inbox__header"><span className="axiom-inbox__brand"><InboxIcon name="agent" size={18} /></span><div className="axiom-inbox__heading"><h2>Agent inbox</h2><span title={graph.name}>{graph.name}</span></div>
       <button type="button" className="axiom-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
     {(error || sheet.error) && <div role="alert" className="axiom-inbox__error"><span>{error || sheet.error}</span><button type="button" onClick={() => { setError(null); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
+    {sheet.messages.length > 0 && <div className="axiom-inbox__stages" role="group" aria-label="Show work orders">
+      <button type="button" aria-pressed={stage === null} onClick={() => setStage(null)}>All <span>{sheet.messages.length}</span></button>
+      {WORK_ORDER_STAGES.filter(item => stageCounts[item.stage] > 0 || stage === item.stage).map(item =>
+        <button key={item.stage} type="button" aria-pressed={stage === item.stage} onClick={() => setStage(stage === item.stage ? null : item.stage)}>
+          {item.label} <span>{stageCounts[item.stage]}</span>
+        </button>)}
+    </div>}
     <div className="axiom-inbox__thread">
       <div ref={history} className={`axiom-inbox__history${sheet.messages.length ? ' axiom-inbox__history--messages' : ''}`} aria-label="Messages" onScroll={() => { const el = history.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (nearBottom.current) setUnseen(false) }}>
         {sheet.next && <button className="axiom-inbox__earlier" type="button" disabled={loadingEarlier} onClick={() => {
@@ -168,7 +179,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           void refreshInbox(graph.workspaceId, sheet.next).finally(() => { olderAnchor.current = null; setLoadingEarlier(false) })
         }}>{loadingEarlier ? 'Loading…' : 'Load earlier messages'}</button>}
         {sheet.messages.length === 0 && <div className="axiom-inbox__empty"><h3>No work orders yet</h3><p>Write a request below. Add a sheet or select canvas items for context.</p></div>}
-        {sheet.messages.map(message => <article key={`${graph.workspaceId}:${message.id}`} className="axiom-inbox__message">
+        {stage && shown.length === 0 && <div className="axiom-inbox__empty"><p>No work orders are {WORK_ORDER_STAGES.find(item => item.stage === stage)?.label.toLowerCase()}.</p></div>}
+        {shown.map(message => <article key={`${graph.workspaceId}:${message.id}`} className="axiom-inbox__message">
           <div className="axiom-inbox__user"><span className="axiom-inbox__entry-label">YOU</span><p>{message.note}</p>{chips(messageReferences(message.selection))}
             {message.sheetId && <button type="button" className="axiom-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
             <div className="axiom-inbox__work-order">WORK ORDER <code>{message.id}</code></div>

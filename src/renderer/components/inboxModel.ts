@@ -21,3 +21,30 @@ export function inboxStatus(message: { status: string; agent?: string; delivered
   if (message.review?.decision === 'reopened') return 'Changes requested · waiting for agent'
   return message.leaseExpiresAt ? 'Available again · previous claim expired' : 'Waiting for an agent'
 }
+
+/**
+ * Where a work order stands, for the inbox's stage filter: one bucket per
+ * order, matching what inboxStatus says about it.
+ */
+export type WorkOrderStage = 'waiting' | 'working' | 'review' | 'accepted' | 'cancelled'
+
+export const WORK_ORDER_STAGES: Array<{ stage: WorkOrderStage; label: string }> = [
+  { stage: 'waiting', label: 'Waiting' },
+  { stage: 'working', label: 'Working' },
+  { stage: 'review', label: 'To review' },
+  { stage: 'accepted', label: 'Accepted' },
+  { stage: 'cancelled', label: 'Cancelled' },
+]
+
+export function workOrderStage(message: { status: string; leaseExpiresAt?: number; review?: { decision: string } }, now = Date.now()): WorkOrderStage {
+  if (message.status === 'answered') return message.review?.decision === 'accepted' ? 'accepted' : 'review'
+  if (message.status === 'cancelled') return 'cancelled'
+  if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return 'working'
+  return 'waiting'
+}
+
+export function workOrderStageCounts(messages: Array<Parameters<typeof workOrderStage>[0]>, now = Date.now()): Record<WorkOrderStage, number> {
+  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, cancelled: 0 }
+  for (const message of messages) counts[workOrderStage(message, now)]++
+  return counts
+}

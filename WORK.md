@@ -112,7 +112,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `build-plan-panel` **A persistent Build Plan panel** replacing the modal, showing what was sent, who holds it, and realisation live.
 - ⬜ `midflight-approval` **What happens when you approve, reject or change a plan while the agent is already building.** Define and implement (e.g. the agent is told on its next `update_work`).
 - ⬜ `work-order-live-validation` **Validate the loop with real hosts beyond Codex:** Claude Code, Antigravity, Cursor. Record runs; file bugs in the Inbox.
-- ⬜ `work-order-queue-view` **One place for all work orders:** waiting, claimed (by which agent), in review, accepted - across sheets, with filters. Today review is per sheet/inbox.
 - ⬜ `sheet-templates` **Starter sheets:** "Add an endpoint", "Extract a service", "Add a queue consumer", "Split a system" - drawn skeletons that make the first work order fast.
 - ⬜ `sheet-history` **Sheet revision history** you can browse and restore (sheets are revisioned; there is no UI for past revisions).
 
@@ -255,6 +254,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `work-order-queue-view` The Agent inbox (already workspace-wide, across sheets) gets a stage strip: Waiting, Working, To review, Accepted, Cancelled with counts, filtering the thread (`inboxModel.ts` `workOrderStage`). Filtering by agent is not there yet; each order already says who picked it up. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `panels-menu` View → Panels ▸ groups Agent Log, Documents, Model Explorer, Infrastructure and new Sheet Rail / Detail Panel / Status Bar toggles, remembered per machine (`store/panelStore.ts`). Menus gained a `group` entry (native submenu on macOS, labelled group in the drawn menu bar). The drawn menu shows check marks; the macOS native menu does not yet. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `infra-claims` Review Changes reports code that starts or stops using infrastructure ("Orders now writes to Redis", items as the subtitle, files as evidence), from relationships drawn by hand or by an agent and from detection runs after a root's baseline run (`delta/infra.go`, `api/infra_journal.go`). Not covered: links that appear while archd was not running (the first run after start is the baseline). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `hub-orphan-claims-check` Confirmed built: `system.hub` (a system crossing the hub threshold, exact before/after) and `system.orphaned` (a system losing its last connection) are produced by `delta/claims.go` and covered by `TestHubTransitionRequiresAnExactBeforeAfterThresholdCrossing` and `TestLosingTheFinalConnectionCreatesAnOrphanClaim`; the renderer gives them tones and the Dependencies filter group. Closed, no change. (claude/gracious-gauss-1bgdv9)
