@@ -7,7 +7,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ADAPTER = dirname(fileURLToPath(import.meta.url))
-const PYTHON = ['python3', 'python'].find(cmd => spawnSync(cmd, ['--version'], { timeout: 10_000 }).status === 0)
+// PYTHON_BINARY picks the interpreter, to run these against a particular version.
+const PYTHON = [process.env.PYTHON_BINARY, 'python3', 'python'].filter(Boolean).find(cmd => spawnSync(cmd, ['--version'], { timeout: 10_000 }).status === 0)
 
 /** Run `code` as a workspace file under the recorder; return the evidence. */
 function record(code, watches) {
@@ -31,12 +32,59 @@ function record(code, watches) {
   assert.equal(docs.length, 1, `expected one evidence file; stderr:\n${result.stderr}`)
   const doc = docs[0]
   return {
+    doc,
     watched: symbol => doc.watched.find(w => w.symbol === symbol),
     fn: symbol => doc.functions.find(f => f.name === symbol),
   }
 }
 
 const outcomes = w => w.samples.map(s => s.threw ? `threw ${s.threw}` : s.returned)
+
+test('a Python run records arguments, mutations, shared state, drift and the crash', { skip: !PYTHON && 'no Python' }, () => {
+  const r = record(`
+class Customer:
+    def __init__(self, cid):
+        self.cid = cid
+        self.discount = 10
+
+CACHE = {}
+
+def find(cid):
+    if cid not in CACHE:
+        CACHE[cid] = Customer(cid)
+    return CACHE[cid]
+
+def apply_peak(table):
+    table["peak"] = table.get("peak", 0) + 2.5
+    return table["peak"]
+
+def ship(qty):
+    if qty > 5:
+        raise ValueError("cannot ship %d" % qty)
+    return qty
+
+TABLE = {}
+for _ in range(3):
+    apply_peak(TABLE)
+find("a")
+find("a").discount += 5
+find("a")
+ship(2)
+ship(9)
+`, ['apply_peak', 'find', 'ship'])
+  const peak = r.watched('apply_peak')
+  assert.equal(peak.calls, 3)
+  assert.deepEqual(peak.samples.map(s => `${s.args} -> ${s.returned}`), ['{"table": {}} -> 2.5', '{"table": {"peak": 2.5}} -> 5.0', '{"table": {"peak": 5.0}} -> 7.5'])
+  assert.deepEqual(peak.mutations.find(m => m.path === 'table.peak').examples.map(e => `${e.before}>${e.after}`), ['(absent)>2.5', '2.5>5.0', '5.0>7.5'])
+  assert.deepEqual(peak.shared, [{ param: 'table', calls: 2, firstCall: 1 }])
+  // A cached object someone else changed shows up in what the cache returns.
+  const drift = r.watched('find').drift.find(d => d.path === 'return')
+  assert.ok(drift, JSON.stringify(r.watched('find').drift))
+  assert.deepEqual(drift.examples[0].changes, [{ key: 'discount', before: '10', after: '15' }])
+  const ship = r.watched('ship')
+  assert.deepEqual(ship.samples.map(s => s.threw ?? s.returned), ['2', 'ValueError: cannot ship 9'])
+  assert.equal(ship.errors, 1)
+})
 
 test('a function that handles an exception and returns None did not raise', { skip: !PYTHON && 'no Python' }, () => {
   const r = record(`

@@ -45,31 +45,38 @@ MUTATION_EXAMPLES = 6
 MAX_EXCEPTIONS = 20
 
 # How a frame left, read from the instruction it stopped at: a normal return
-# stops at RETURN_VALUE (RETURN_CONST on 3.12+), a suspended generator or
-# coroutine at YIELD_VALUE (or just before YIELD_FROM on 3.8-3.10), and a frame
-# unwinding at whatever raised. Opcodes are the code object's own, never the
-# specialised or instrumented forms, on every supported version.
+# stops at RETURN_VALUE (RETURN_CONST on 3.12 and 3.13), a suspended generator
+# or coroutine at its yield, and a frame unwinding at whatever raised. Where a
+# suspended frame rests has moved between versions: on YIELD_VALUE, just before
+# YIELD_FROM (3.8-3.10), or on the RESUME that follows the yield (3.13, and
+# 3.14 when an exception is thrown in). Opcodes are the code object's own,
+# never the specialised or instrumented forms. Tested on 3.9 through 3.14.
 _RETURN_OPS = frozenset(dis.opmap[n] for n in ("RETURN_VALUE", "RETURN_CONST") if n in dis.opmap)
 _YIELD_OPS = frozenset(dis.opmap[n] for n in ("YIELD_VALUE",) if n in dis.opmap)
 _YIELD_FROM = dis.opmap.get("YIELD_FROM")
+_RESUME = dis.opmap.get("RESUME")
 _SUSPENDABLE = 0x20 | 0x80 | 0x100 | 0x200  # generator, coroutine, iterable coroutine, async generator
 
 
 def _exit_kind(frame):
-    """"return", "yield" or "raise"; None when the instruction cannot be read."""
+    """("return" | "yield" | "raise", where): how the frame left and, for a
+    yield, the offset of the yield itself, the same on every version. The kind
+    is None when the instruction cannot be read."""
     try:
         code = frame.f_code.co_code
         i = frame.f_lasti
     except Exception:
-        return None
+        return None, -1
     if i < 0 or i >= len(code):
-        return None
+        return None, -1
     op = code[i]
     if op in _RETURN_OPS:
-        return "return"
+        return "return", i
     if op in _YIELD_OPS or (_YIELD_FROM is not None and i + 2 < len(code) and code[i + 2] == _YIELD_FROM):
-        return "yield"
-    return "raise"
+        return "yield", i
+    if op == _RESUME and i >= 2 and code[i - 2] in _YIELD_OPS:
+        return "yield", i - 2
+    return "raise", i
 
 
 _EXCLUDE_PARTS = ("site-packages", "dist-packages", ".venv", "venv", "node_modules", "__pypackages__", ".tox")
@@ -683,7 +690,7 @@ class Recorder:
         return self.local_trace
 
     def _on_return(self, frame, value):
-        kind = _exit_kind(frame)
+        kind, where = _exit_kind(frame)
         with self.lock:
             st = self.frames.get(id(frame))
             if st is None:
@@ -692,9 +699,9 @@ class Recorder:
             if "frame" in st and kind == "yield":
                 # An exception thrown into the generator at the yield it was
                 # paused on leaves from that same instruction.
-                thrown = st["exc"] is not None and value is None and frame.f_lasti == st.get("at")
+                thrown = st["exc"] is not None and value is None and where == st.get("at")
                 if not thrown:
-                    st["at"] = frame.f_lasti
+                    st["at"] = where
                     st["yielded"] += 1
                     if len(st["yields"]) < 3 and st["w"] is not None:
                         st["yields"].append(preview(value))
