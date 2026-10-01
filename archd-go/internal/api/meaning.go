@@ -3,8 +3,8 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
