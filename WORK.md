@@ -132,7 +132,7 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 - ⬜ `light-theme` **Light theme** (end of the list by decision).
 - ⬜ `accessibility` **Accessibility pass:** keyboard navigation of the map, screen reader labels, contrast, reduced motion everywhere (end of the list by decision).
 - ⬜ `html-export` **Share a read-only map:** export a self-contained HTML file of the map (pan, zoom, click through) that anyone can open without Axiom. Research: the popular code-graph tools grow through exactly this.
-- ⬜ `stable-layout-tests` **Layout stability tests:** re-indexing, adding files and renaming systems never move human-placed nodes (design law). Pin it with tests on the frame packing.
+- ⬜ `stable-layout-tests` **Layout stability tests:** pin "human-placed nodes never move" in unit tests on the frame packing once `split-axiom-canvas` makes the layout callable outside the component. (A Playwright test now covers files arriving and a rename.)
 
 ## Agents and MCP
 
@@ -252,6 +252,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `stable-layout-tests` (part) Playwright: a system you placed stays within 1px when a file arrives in another system, a system is renamed and the snapshot is replaced. Unit tests wait on `split-axiom-canvas`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `floor-more-reality-gestures` (part) Split System… on a system's right-click menu draws a "Split <name>" sheet (the system as context, two new systems to name) through the sheet import (`canvas/splitSystem.ts`). Remove dependency remains. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `mermaid-import` New Sheet from Markdown… also takes a Mermaid flowchart: boxes naming live systems or infrastructure become context, new boxes planned systems (cylinders data stores), edges connections with infra verbs kept (`canvas/mermaidImport.ts`, then the same `/api/sheet-import`). Agents can already send a spec through `edit_sheet import`. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `export-diagrams` (part) Map → Copy Map as Mermaid: systems nest as subgraphs, infrastructure as cylinders, file dependencies rolled up per system pair with counts (`canvas/mermaidExport.ts`). PNG/SVG and C4 remain. (claude/gracious-gauss-1bgdv9)

@@ -2584,6 +2584,35 @@ test('Split System… draws the split on a new sheet', async () => {
   await expect(page.getByText('Split MCP Server drawn on a sheet')).toBeVisible()
 })
 
+test('a placed system stays put when files arrive and other systems are renamed', async () => {
+  const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
+  const start = (await system.boundingBox())!
+  await page.mouse.move(start.x + 24, start.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  await page.waitForTimeout(400)
+  const placed = (await system.boundingBox())!
+
+  // What indexing does: a new file appears in another system, a system is
+  // renamed, and the snapshot arrives again with fresh objects.
+  await page.evaluate(() => {
+    const store = (window as any).__axiomGraphStore
+    const state = store.getState()
+    store.setState({
+      files: [...state.files.map((file: object) => ({ ...file })), {
+        ...state.files[0], id: 'file_new', relPath: 'src/shared/newHelper.ts', path: '/axiom/src/shared/newHelper.ts', systemId: 'sys_shared',
+      }],
+      systems: state.systems.map((item: { id: string; name: string }) => ({ ...item, name: item.id === 'sys_canvas' ? 'Canvas' : item.name })),
+    })
+  })
+  await page.waitForTimeout(600)
+  const after = (await system.boundingBox())!
+  expect(Math.abs(after.x - placed.x)).toBeLessThan(1)
+  expect(Math.abs(after.y - placed.y)).toBeLessThan(1)
+})
+
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {
   let restored = false
   page.on('request', request => {
