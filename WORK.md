@@ -201,7 +201,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 ## Quality, tests and CI
 
 - ⬜ `coverage-report` **Coverage numbers** for Go and the node suite, to find the untested areas beyond runtime.
-- ⬜ `ci-windows-mac-go-race` **Run the Go tests with `-race`** in CI on at least Linux; this session found a real ordering bug (open-time backup) that only showed up as a flaky cleanup on macOS.
 - ⬜ `flaky-test-watch` **Track flaky tests:** a note in this file (or a label) for any test that fails once and passes on retry, with the run link, so flakes get root-caused instead of re-run.
 - ⬜ `e2e-real-agent-smoke` **A scheduled smoke test with a real agent** (the opt-in live Codex smoke test exists; run it weekly with a secret, and add Claude Code).
 
@@ -249,6 +248,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `ci-windows-mac-go-race` CI runs `go test -race ./...` for archd on Linux (passes locally). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `agent-explains-change` Review Changes' header shows "N unexplained" when agents changed things without a work session, and clicking it shows only those; claims already carry the session's summary or goal as their reason and the Who filter has Unexplained. The reason is per session, not per claim. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `midflight-approval` Decided: an agent hears on its next `update_work` what the person changed or decided since its previous note (approvals, rejections with reasons, map edits, code disagreements), as `mapChanges`, once (`briefingSince` in `api/map_briefing.go`); the implement prompt tells it to follow them. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `send-dialog-modes` The Agent inbox asks Ask / Propose / Build before sending; Ask and Propose write their contract into the order ("answer, change nothing" / "draw on a sheet and wait for me"), Build sends the order as written (`inboxModel.ts` `workOrderNote`). The mode is in the text, not a stored field, so archd and review do not treat the kinds differently yet. (claude/gracious-gauss-1bgdv9)

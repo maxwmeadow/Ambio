@@ -58,6 +58,13 @@ jobs:
       - name: Test archd
         run: npm run test:archd
 
+      # The race detector found a real ordering bug once; Linux is enough to
+      # keep it honest without tripling the slowest step on every OS.
+      - name: Test archd with the race detector
+        if: runner.os == 'Linux'
+        working-directory: archd-go
+        run: go test -race ./...
+
       # Axiom is AGPL-3.0: every shipped dependency must be compatible.
       - name: Check third-party licenses
         if: runner.os == 'Linux'
