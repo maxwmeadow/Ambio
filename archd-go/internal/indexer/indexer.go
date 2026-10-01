@@ -52,7 +52,7 @@ func nextLivingTraceID() string {
 var sourceExts = map[string]bool{
 	".ts": true, ".tsx": true, ".js": true, ".mjs": true, ".cjs": true,
 	".jsx": true, ".py": true, ".go": true, ".rs": true, ".cs": true,
-	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".rb": true, ".java": true,
+	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".c": true, ".h": true, ".rb": true, ".java": true,
 }
 
 var documentExts = map[string]bool{
@@ -1594,10 +1594,10 @@ func resolveTextImport(imported string, index map[string]string) (ids []string, 
 		return one("lib/"+spec, spec, tailPrefix+spec), true
 	case strings.HasPrefix(imported, parser.ImportCppInc):
 		dir, spec, _ := strings.Cut(strings.TrimPrefix(imported, parser.ImportCppInc), "|")
-		// Headers are not indexed: an include stands for the file that
+		// The header itself when it is indexed; otherwise the file that
 		// implements it, found by the header's name without its extension.
 		stem := strings.TrimSuffix(spec, path.Ext(spec))
-		return one(path.Join(dir, stem), stem, tailPrefix+stem), true
+		return one(path.Join(dir, spec), spec, path.Join(dir, stem), stem, tailPrefix+stem), true
 	}
 	return nil, false
 }

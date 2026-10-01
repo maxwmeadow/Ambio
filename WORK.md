@@ -166,7 +166,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Indexing and languages
 
-- ⬜ `lang-c` **Parse C** (`.c`, `.h`); `.h` headers are not parsed today.
 - ⬜ `lang-kotlin-swift-php` **Kotlin, Swift, PHP.** Not parsed at all.
 - ⬜ `call-resolution` **Fewer false call edges.** Calls are matched by name across the project (`buildCallGraph`), so common names (`get`, `run`) create false edges. Options: import-scoped resolution first, stack-graphs, or LSP where available.
 - ⬜ `index-benchmark` **Benchmark indexing and re-clustering on large repos** (10k, 50k files): time, memory, re-cluster cost (full `git log` read, TF-IDF pairs). Make re-clustering incremental if needed.
@@ -271,6 +270,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `lang-c` C is parsed (`.c`, `.h`; tree-sitter C grammar, C++ symbol rules); headers are indexed and a quoted `#include` resolves to the header itself, falling back to the implementing file; renderer gets a C language entry. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `rules-and-drift` (design only) Proposal in `docs/RULES_AND_DRIFT.md`: four rule kinds over systems (forbid, only_through, layers, allow), written on sheets or by agents (pending review), journaled as meaning edits, checked after indexing settles, reported as Review Changes claims, red edges, and to agents in `start_work`; five slices; four open questions. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `model-explorer` View → Model Explorer (⌘⇧O): a searchable ARIA tree of systems → files → symbols (`canvas/modelOutline.ts`, tested; `components/ModelExplorer.tsx`); choosing a row selects and frames its node, a canvas selection opens the path to its row; arrows/Home/End/Enter/Escape. Symbol search covers files whose symbols are loaded (opened). (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `canvas-undo-redo` Edit → Undo / Redo are app commands (⌘Z / ⌘⇧Z, Ctrl on Windows and Linux; text fields keep their own undo). On the canvas they step through the meaning edits made on the Floor (`canvas/undoStack.ts`): undo reverses the journal rows, redo re-applies the edits; undoing from a notice takes the entry off the stack; the stack resets per project. Sheet removals stay off it (contract). Layout moves are `canvas-undo-redo-layout`. (claude/gracious-gauss-1bgdv9)

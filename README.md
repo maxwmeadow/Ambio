@@ -146,8 +146,9 @@ Languages Axiom reads, and how deeply:
 - **Nearly full**: C# (`.cs`); imports come from `using` directives.
 - **Symbols, imports and calls** (no data flow yet): Rust (`.rs`; `mod` and
   `use`), Java (`.java`; `import`), Ruby (`.rb`; `require`), C++ (`.cpp`,
-  `.cc`, `.cxx`, `.hpp`, `.hxx`; quoted `#include`).
-- **Not yet read**: C (`.c`, `.h`), Kotlin, Swift, PHP. See [WORK.md](WORK.md).
+  `.cc`, `.cxx`, `.hpp`, `.hxx`; quoted `#include`), C (`.c`, `.h`; quoted
+  `#include`).
+- **Not yet read**: Kotlin, Swift, PHP. See [WORK.md](WORK.md).
 
 Readable documentation is indexed separately from the architecture canvas:
 

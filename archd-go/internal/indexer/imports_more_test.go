@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"axiom.local/archd/internal/db"
@@ -79,5 +80,60 @@ func TestImportEdgesForJavaRustRubyCpp(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("import edges:\n got %q\nwant %q", got, want)
 		}
+	}
+}
+
+// C is read too, headers included, and an include lands on the header itself.
+func TestCFilesAndHeaders(t *testing.T) {
+	sqlDB, root, _ := journalFixture(t)
+	files := map[string]string{
+		"src/cart.c":            "#include \"cart.h\"\n#include \"payments/stripe.h\"\n#include <stdio.h>\nint cart_total(int n) { return charge(n); }\n",
+		"src/cart.h":            "int cart_total(int n);\n",
+		"src/payments/stripe.h": "int charge(int amount);\n",
+		"src/payments/stripe.c": "#include \"stripe.h\"\nint charge(int amount) { return amount; }\n",
+	}
+	for rel, body := range files {
+		abs := filepath.Join(root.Path, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := IndexRoot(sqlDB, hub.New(), root, nil); err != nil {
+		t.Fatal(err)
+	}
+	indexed, _ := db.GetFilesByRoot(sqlDB, root.ID)
+	pathOf := map[string]string{}
+	for _, file := range indexed {
+		pathOf[file.ID] = file.RelPath
+		if file.Language != "c" {
+			t.Fatalf("%s indexed as %q", file.RelPath, file.Language)
+		}
+	}
+	if len(indexed) != 4 {
+		t.Fatalf("indexed %d files, want 4 (headers too)", len(indexed))
+	}
+	deps, _ := db.GetDependencies(sqlDB, root.WorkspaceID)
+	got := []string{}
+	for _, dep := range deps {
+		if dep.DependencyType == "IMPORTS" {
+			got = append(got, pathOf[dep.Src]+" → "+pathOf[dep.Dst])
+		}
+	}
+	sort.Strings(got)
+	want := []string{
+		"src/cart.c → src/cart.h",
+		"src/cart.c → src/payments/stripe.h",
+		"src/payments/stripe.c → src/payments/stripe.h",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("include edges:\n got %q\nwant %q", got, want)
+	}
+	cart, _ := db.GetFileByRelPath(sqlDB, root.ID, "src/cart.c")
+	symbols, _ := db.GetSymbolsByFile(sqlDB, cart.ID)
+	if len(symbols) == 0 || symbols[0].Name != "cart_total" {
+		t.Fatalf("C symbols = %+v", symbols)
 	}
 }

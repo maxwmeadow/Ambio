@@ -90,7 +90,7 @@ func extractTextImports(src []byte, lang, relPath string) []string {
 				add(ImportRubyReq + path.Clean(spec))
 			}
 		}
-	case "cpp":
+	case "cpp", "c":
 		for _, match := range cppIncludeRe.FindAllStringSubmatch(text, -1) {
 			add(ImportCppInc + dir + "|" + path.Clean(match[1]))
 		}

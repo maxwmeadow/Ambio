@@ -166,7 +166,7 @@ Verified by a code audit of `main` on 2026-09-30.
 
 | Capability | State |
 |---|---|
-| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ get symbols, imports and calls; C, Kotlin, Swift, PHP not parsed |
+| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP not parsed |
 | Agents propose the architecture; you review and approve | ✅ Chunked proposal sessions that survive restarts |
 | Sheets → addressed work orders → structural comparison | ✅ Real Codex runs pass end to end; delivery is a copy-pasted ID |
 | Agent-drawn sheets and planned elements | ✅ Tools exist; agents are not yet prompted to draw first |

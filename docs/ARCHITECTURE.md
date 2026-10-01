@@ -129,8 +129,8 @@ app's decision.
 | TS/JS, Python, Go | ✅ | ✅ | ✅ | ✅ | ✅ | Node/Python recording; Go via delve |
 | C# | ✅ | via `using` + namespaces | ✅ | - | regex | netcoredbg |
 | Rust, Java, Ruby | ✅ | `mod`/`use`, `import`, `require` | ✅ | - | regex | Ruby rdbg; Java unverified |
-| C++ | ✅ | quoted `#include` (to the implementing file) | ✅ | - | - | gdb DAP |
-| C, Kotlin, Swift, PHP | not parsed | | | | | |
+| C++, C | ✅ | quoted `#include` (the header, or its implementing file) | ✅ | - | - | gdb DAP |
+| Kotlin, Swift, PHP | not parsed | | | | | |
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git

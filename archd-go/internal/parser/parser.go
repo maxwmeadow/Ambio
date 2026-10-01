@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	clang "github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/csharp"
 	"github.com/smacker/go-tree-sitter/golang"
@@ -151,6 +152,8 @@ func detectLanguage(path string) string {
 		return "csharp"
 	case ".cpp", ".cc", ".cxx", ".hpp", ".hxx":
 		return "cpp"
+	case ".c", ".h":
+		return "c"
 	case ".rb":
 		return "ruby"
 	case ".java":
@@ -182,6 +185,8 @@ func grammarFor(lang string) *sitter.Language {
 		return csharp.GetLanguage()
 	case "cpp":
 		return cpp.GetLanguage()
+	case "c":
+		return clang.GetLanguage()
 	case "ruby":
 		return ruby.GetLanguage()
 	case "java":
@@ -292,7 +297,7 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	}
 	// C++: the function name is nested in a declarator chain
 	// (function_definition → declarator: function_declarator → declarator: identifier).
-	if lang == "cpp" {
+	if lang == "cpp" || lang == "c" {
 		if d := node.ChildByFieldName("declarator"); d != nil {
 			if n := cppDeclaratorName(d, src); n != "" {
 				return n
@@ -340,7 +345,7 @@ func extractImports(root *sitter.Node, src []byte, lang, relPath string) []strin
 		return extractPythonImports(root, src)
 	case "go":
 		return extractGoImports(root, src)
-	case "java", "rust", "ruby", "cpp":
+	case "java", "rust", "ruby", "cpp", "c":
 		return extractTextImports(src, lang, relPath)
 	default:
 		return nil
