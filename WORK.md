@@ -228,7 +228,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/watcher` (16%), `internal/runtime` (17%), `internal/infradetect` (32%); see `npm run coverage:archd`. (2026-10-01)
+- ⬜ `coverage-gaps` Raise the lowest Go coverage: `internal/runtime` (17%), `internal/infradetect` (32%), `internal/api` (49%); see `npm run coverage:archd`. (watcher done: 16% → 77%.) (2026-10-01)
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
@@ -243,6 +243,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-01 `coverage-gaps` (watcher) A live watcher test on a real folder and map: saves, files in a new folder, a non-source file and a deletion, plus the settled hook. `internal/watcher` 16% → 77%. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `coverage-report` `npm run coverage:archd` / `coverage:node`. Go statements: watcher 16%, cmd/archd 17%, runtime 17%, infradetect 32%, api 49%, registry 56%, hub 59%, db 61%, cluster 61%, gitworktree 76%, parser 83%, indexer 83%, collision 87%, delta 88%. Node: 91% lines of the modules the unit tests load (React components are covered by Playwright only and not counted). Lowest first: watcher, runtime, infradetect. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `release-checklist` docs/RELEASING.md: green main, CHANGELOG section (it is What's New), version matching the tag, schema fixtures, notices, tag, draft review, a smoke test per OS, publish and how to pull a bad release. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `feedback-link` Help → Send Feedback… and "Send feedback" on the launcher open a prefilled GitHub issue ("Feedback: ", what you tried, what helped or got in the way; no diagnostics), beside Report a Bug. Switch it to Discussions once `community-space` turns them on. (claude/gracious-gauss-1bgdv9)
