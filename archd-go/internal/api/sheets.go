@@ -1209,21 +1209,40 @@ func (s *Server) broadcastSheetRemovals(sqlDB *sql.DB, workspaceID, sheetID stri
 	}
 }
 
-// recordProposalDecision journals a person's verdict on an agent's proposal so
-// the next agent session hears it (api/map_briefing.go) and does not propose
-// the same thing again.
+// recordProposalDecision journals a person's verdict on an agent's planned
+// element so the next agent session hears it (api/map_briefing.go) and does
+// not propose the same thing again.
 func (s *Server) recordProposalDecision(sqlDB *sql.DB, planned *db.PlannedNode, decision, reason string) {
-	sheetName := ""
+	where := ""
 	if sheet, err := db.GetSheet(sqlDB, planned.SheetID); err == nil && sheet != nil {
-		sheetName = sheet.Name
+		where = "on " + sheet.Name
 	}
+	s.recordDecision(sqlDB, decisionRecord{
+		WorkspaceID: planned.WorkspaceID, SubjectID: planned.ID, SubjectLabel: planned.Name,
+		Kind: planned.Kind, Decision: decision, Reason: reason, Where: where, SheetID: planned.SheetID,
+	})
+}
+
+// decisionRecord is one human verdict on something proposed to the map: a
+// planned element, a system in an architecture proposal, or infrastructure.
+type decisionRecord struct {
+	WorkspaceID, SubjectID, SubjectLabel string
+	Kind                                 string // what was proposed: system, file, infrastructure...
+	Decision                             string // confirmed/approved, rejected/dismissed
+	Reason                               string
+	Where                                string // "on Agent Plan", "in an architecture proposal"
+	SheetID                              string
+}
+
+// recordDecision journals the verdict as proposal.decided.
+func (s *Server) recordDecision(sqlDB *sql.DB, record decisionRecord) {
 	detail, _ := json.Marshal(map[string]string{
-		"decision": decision, "reason": strings.TrimSpace(reason), "kind": planned.Kind,
-		"sheetId": planned.SheetID, "sheetName": sheetName,
+		"decision": record.Decision, "reason": strings.TrimSpace(record.Reason), "kind": record.Kind,
+		"where": record.Where, "sheetId": record.SheetID,
 	})
 	if err := db.RecordStructuralEvent(sqlDB, db.StructuralEvent{
-		WorkspaceID: planned.WorkspaceID, Actor: "human", Kind: db.EventProposalDecided,
-		SubjectID: planned.ID, SubjectLabel: planned.Name, Detail: string(detail),
+		WorkspaceID: record.WorkspaceID, Actor: "human", Kind: db.EventProposalDecided,
+		SubjectID: record.SubjectID, SubjectLabel: record.SubjectLabel, Detail: string(detail),
 	}); err != nil {
 		log.Printf("[archd] record proposal decision: %v", err)
 	}

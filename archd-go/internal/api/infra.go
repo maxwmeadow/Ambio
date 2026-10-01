@@ -151,7 +151,8 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 			Name            *string         `json:"name"`
 			Service         *string         `json:"service"` // reskin: re-resolves category/provider
 			Subtype         *string         `json:"subtype"`
-			Status          *string         `json:"status"` // 'proposed'|'confirmed'|'dismissed'
+			Status          *string         `json:"status"`    // 'proposed'|'confirmed'|'dismissed'
+			DecidedBy       string          `json:"decidedBy"` // 'agent' from MCP; a person otherwise
 			Config          json.RawMessage `json:"config"`
 			Implementations json.RawMessage `json:"implementations"`
 			Policies        json.RawMessage `json:"policies"`
@@ -218,6 +219,12 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			s.broadcastInfraRefresh(sqlDB, n.WorkspaceID)
+			if body.DecidedBy != "agent" {
+				s.recordDecision(sqlDB, decisionRecord{
+					WorkspaceID: n.WorkspaceID, SubjectID: n.ID, SubjectLabel: n.Name,
+					Kind: "infrastructure", Decision: n.Status,
+				})
+			}
 		}
 		s.broadcastPatch("infra:upserted", *n)
 		jsonOK(w, n)

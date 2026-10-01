@@ -2239,7 +2239,8 @@ Steps to execute:
         const res = isNode
           ? await fetch(`${API_BASE}/api/infra/${encodeURIComponent(id)}`, {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ workspaceId: project.workspaceId, status }),
+              // An agent's own decision is not news to agents; a person's is (map_briefing.go).
+              body: JSON.stringify({ workspaceId: project.workspaceId, status, decidedBy: 'agent' }),
             })
           : await fetch(`${API_BASE}/api/infra/edge/${encodeURIComponent(id)}`, {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },

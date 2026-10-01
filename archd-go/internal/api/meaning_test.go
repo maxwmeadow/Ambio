@@ -375,3 +375,71 @@ func TestARejectionAndItsReasonReachTheNextAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestAPersonsInfrastructureVerdictReachesTheNextAgentButAnAgentsDoesNot(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	for _, node := range []db.InfraNode{
+		{ID: "redis", WorkspaceID: "ws", Name: "Redis", Category: "cache", Provider: "generic", Status: "proposed"},
+		{ID: "kafka", WorkspaceID: "ws", Name: "Kafka", Category: "queue", Provider: "generic", Status: "proposed"},
+	} {
+		node := node
+		if err := db.UpsertInfraNode(sqlDB, &node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r := send(t, server, http.MethodPut, "/api/infra/redis", map[string]any{"workspaceId": "ws", "status": "dismissed"}); r.Code != http.StatusOK {
+		t.Fatalf("dismiss: %d %s", r.Code, r.Body.String())
+	}
+	if r := send(t, server, http.MethodPut, "/api/infra/kafka", map[string]any{"workspaceId": "ws", "status": "confirmed", "decidedBy": "agent"}); r.Code != http.StatusOK {
+		t.Fatalf("agent confirm: %d %s", r.Code, r.Body.String())
+	}
+	started := send(t, server, http.MethodPost, "/api/work/start", map[string]any{"workspaceId": "ws", "agent": "codex", "goal": "add caching"})
+	if !strings.Contains(started.Body.String(), "The user dismissed the proposed infrastructure Redis") {
+		t.Fatalf("the next session was not told: %s", started.Body.String())
+	}
+	if strings.Contains(started.Body.String(), "Kafka") {
+		t.Fatalf("an agent's own decision was told back as the user's: %s", started.Body.String())
+	}
+}
+
+func TestDecisionSentencesSayWhereAndReadOlderEvents(t *testing.T) {
+	for _, tc := range []struct{ detail, want string }{
+		{`{"decision":"approved","kind":"system","where":"in an architecture proposal"}`, "The user confirmed the proposed system Billing in an architecture proposal"},
+		{`{"decision":"rejected","kind":"system","sheetName":"Agent Plan","reason":"no"}`, "The user rejected the proposed system Billing on Agent Plan: no"},
+	} {
+		if got := decisionSentence(db.StructuralEvent{SubjectLabel: "Billing", Detail: tc.detail}); got != tc.want {
+			t.Fatalf("got %q, want %q", got, tc.want)
+		}
+	}
+}
+
+func TestARejectedArchitectureProposalSystemReachesTheNextAgent(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	fileID, rootID := "billing", "root"
+	proposal, err := db.CreateArchitectureProposal(sqlDB, db.ArchitectureProposal{
+		ID: "proposal", WorkspaceID: "ws", RootID: &rootID, ParentScopeType: "workspace",
+		Round: db.ArchitectureProposalRound{
+			Coverage: "complete",
+			Systems:  []db.ArchitectureProposalSystem{{SystemKey: "core", Name: "Core", ParentRefType: "scope"}},
+			Memberships: []db.ArchitectureProposalMembership{{
+				FileID: &fileID, RootID: rootID, FilePath: "billing.ts", TargetSystemKey: "core", Disposition: "assign",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := send(t, server, http.MethodPost, "/api/architecture-proposals/proposal/systems/core/decision", map[string]any{
+		"workspaceId": "ws", "revision": proposal.CurrentRevision, "decision": "rejected",
+		"rejectionReason": "too broad", "decidedBy": "user",
+	})
+	if r.Code != http.StatusOK {
+		t.Fatalf("reject: %d %s", r.Code, r.Body.String())
+	}
+	started := send(t, server, http.MethodPost, "/api/work/start", map[string]any{"workspaceId": "ws", "agent": "codex", "goal": "group the code"})
+	if want := "The user rejected the proposed system Core in an architecture proposal: too broad"; !strings.Contains(started.Body.String(), want) {
+		t.Fatalf("the next session was not told: %s", started.Body.String())
+	}
+}

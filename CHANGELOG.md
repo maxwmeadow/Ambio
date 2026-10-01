@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Agents starting work also hear which proposed systems and infrastructure you
+  rejected or confirmed, and why.
 - New Sheet from Selection: right-click a system, file or infrastructure node
   to start a sheet with it (or with everything selected).
 - ⌘K finds systems, infrastructure and functions or classes, not only files;

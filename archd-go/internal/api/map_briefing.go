@@ -81,16 +81,21 @@ func mapChangesSince(sqlDB *sql.DB, workspaceID, agent string, now time.Time) *m
 // "The user rejected the proposed system Job Queue on Agent Plan: we use SQS".
 func decisionSentence(ev db.StructuralEvent) string {
 	var detail struct {
-		Decision, Reason, Kind, SheetName string
+		Decision, Reason, Kind, Where string
+		SheetName                     string // events journaled before "where"
 	}
 	_ = json.Unmarshal([]byte(ev.Detail), &detail)
 	verb := "confirmed"
-	if detail.Decision == "rejected" {
-		verb = "rejected"
+	switch detail.Decision {
+	case "rejected", "dismissed":
+		verb = detail.Decision
 	}
 	sentence := "The user " + verb + " the proposed " + strings.TrimSpace(detail.Kind+" "+ev.SubjectLabel)
-	if detail.SheetName != "" {
-		sentence += " on " + detail.SheetName
+	if detail.Where == "" && detail.SheetName != "" {
+		detail.Where = "on " + detail.SheetName
+	}
+	if detail.Where != "" {
+		sentence += " " + detail.Where
 	}
 	if detail.Reason != "" {
 		sentence += ": " + detail.Reason
