@@ -127,12 +127,16 @@ installed toolchain.
 | Python | `.py` | imports (from a monorepo folder's source root too) | calls, arguments, returns, crashes |
 | Ruby | `.rb` | `require_relative`, `require` of project files | calls, arguments, returns, crashes |
 | Go | `.go` | package imports through `go.mod` | calls, arguments, returns, returned errors, panics |
-| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | calls, arguments, returns, crashes (Scala too, through the same JVM recorder) |
+| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | calls, arguments, returns, crashes |
+| Scala / Groovy | `.scala` `.sc` `.groovy` | class and wildcard imports (JVM names) | calls, arguments, returns, crashes (the same JVM recorder) |
 | C# | `.cs` | the types a file uses, from its own namespace and its `using`s | calls, arguments, returns (awaited results for `async`), crashes |
 | Rust | `.rs` | `mod`, and `use` within the crate | exit code and output |
 | C / C++ | `.c` `.h` `.cpp` `.cc` `.cxx` `.c++` `.hpp` `.hxx` `.hh` | `#include` (quoted, and `<dir/file.h>` in the project) | exit code and output |
 | PHP | `.php` | `require`/`include`, `use` (PSR-4 layout) | calls, arguments, returns, crashes |
 | Swift | `.swift` | `import` of a module folder in the project | exit code and output |
+| Lua | `.lua` | `require` of a project module | exit code and output |
+| Shell | `.sh` `.bash` | `source` / `.` of a project script | exit code and output |
+| Elixir | `.ex` `.exs` | `alias`, `import`, `use`, `require` of a project module | exit code and output |
 
 Function-level runs for more languages are planned; see
 `docs/INVESTIGATION_RUNTIMES.md`.

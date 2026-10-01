@@ -17,7 +17,9 @@ import (
 // "from pkg import mod"; Go imports to every file of the imported package.
 // 3: full Python module names; packages and env reads in Java, C#, Ruby, Rust.
 // 4: import links for C/C++, Java, Kotlin, Rust, Ruby, PHP and Swift.
-const DetectionEvidenceVersion = 4
+// 5: C# links by the types a file uses; import links for Scala, Groovy, Lua,
+// shell and Elixir.
+const DetectionEvidenceVersion = 5
 
 // EnsureDetectionEvidence brings a root's detection evidence up to date. An
 // index built by an older archd has none; a full parse pass fills it in and

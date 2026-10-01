@@ -19,6 +19,11 @@ import (
 //	php-file:p   PHP require/include of a path (relative to the file)
 //	php-ns:A\B   PHP `use` of a namespaced class (PSR-4 layout)
 //	swift:Mod    Swift `import Mod` - a module folder in the project
+//	lua:a.b      Lua `require "a.b"` - a/b.lua or a/b/init.lua
+//	sh:path      shell `source path` / `. path`
+//	ex:A.B       Elixir alias/import/use/require of a module (lib/a/b.ex)
+//
+// Scala and Groovy imports name JVM classes and use jvm: too.
 const (
 	SpecIncludeLocal  = `inc"`
 	SpecIncludeSystem = "inc<"
@@ -30,6 +35,9 @@ const (
 	SpecPHPFile       = "php-file:"
 	SpecPHPNamespace  = "php-ns:"
 	SpecSwift         = "swift:"
+	SpecLua           = "lua:"
+	SpecShell         = "sh:"
+	SpecElixir        = "ex:"
 )
 
 var (
@@ -44,6 +52,12 @@ var (
 	phpUse        = regexp.MustCompile(`(?m)^\s*use\s+(?:function\s+|const\s+)?\\?([A-Za-z_][\w\\]*)(?:\s+as\s+\w+)?\s*;`)
 	phpGroupedUse = regexp.MustCompile(`(?m)^\s*use\s+\\?([A-Za-z_][\w\\]*)\\\{([^}]*)\}\s*;`)
 	rustAlias     = regexp.MustCompile(`\s+as\s+\w+`)
+	scalaImport   = regexp.MustCompile(`(?m)^\s*import\s+([^\n;]+)`)
+	groovyImport  = regexp.MustCompile(`(?m)^\s*import\s+(?:static\s+)?([A-Za-z_][\w.]*?)(\.\*)?(?:\s+as\s+\w+)?\s*;?\s*$`)
+	luaRequire    = regexp.MustCompile(`\brequire\s*\(?\s*['"]([^'"\n]+)['"]`)
+	shellSource   = regexp.MustCompile(`(?m)^\s*(?:source|\.)\s+([^\n;&|]+)`)
+	shellPath     = regexp.MustCompile(`[\w./-]*[\w-]+\.(?:sh|bash)\b`)
+	elixirUse     = regexp.MustCompile(`(?m)^\s*(?:alias|import|use|require)\s+([A-Z][\w.]*)(\{[^}]*\})?`)
 	swiftImport   = regexp.MustCompile(`(?m)^\s*(?:@\w+\s+)*import\s+(?:(?:class|struct|enum|protocol|func|var|let|typealias)\s+)?([A-Za-z_]\w*)`)
 )
 
@@ -109,6 +123,77 @@ func extractTextImports(src []byte, lang string) []string {
 		for _, m := range swiftImport.FindAllStringSubmatch(text, -1) {
 			add(SpecSwift + m[1])
 		}
+	case "scala":
+		for _, m := range scalaImport.FindAllStringSubmatch(text, -1) {
+			for _, name := range expandScalaImport(m[1]) {
+				add(SpecJVM + name)
+			}
+		}
+	case "groovy":
+		for _, m := range groovyImport.FindAllStringSubmatch(text, -1) {
+			add(SpecJVM + m[1] + m[2])
+		}
+	case "lua":
+		for _, m := range luaRequire.FindAllStringSubmatch(text, -1) {
+			add(SpecLua + m[1])
+		}
+	case "bash":
+		for _, m := range shellSource.FindAllStringSubmatch(text, -1) {
+			// `source "$DIR/lib/util.sh"`: what follows the variables is the path.
+			if path := shellPath.FindString(m[1]); path != "" {
+				add(SpecShell + strings.TrimPrefix(strings.TrimPrefix(path, "./"), "/"))
+			}
+		}
+	case "elixir":
+		for _, m := range elixirUse.FindAllStringSubmatch(text, -1) {
+			if m[2] == "" {
+				add(SpecElixir + strings.TrimSuffix(m[1], "."))
+				continue
+			}
+			// alias Shop.{Cart, Order}
+			for _, part := range strings.Split(strings.Trim(m[2], "{}"), ",") {
+				if name := strings.TrimSpace(part); name != "" {
+					add(SpecElixir + m[1] + name)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// expandScalaImport turns `a.b.{C, D => E}`, `a.b._` and `a.b.C` into the JVM
+// names they import (a.b.* for a wildcard).
+func expandScalaImport(clause string) []string {
+	if i := strings.Index(clause, "//"); i >= 0 {
+		clause = clause[:i]
+	}
+	clause = strings.TrimSpace(clause)
+	var out []string
+	one := func(prefix, selector string) {
+		// A rename imports the name on the left: `C => D`, `C as D`.
+		for _, sep := range []string{"=>", " as "} {
+			if i := strings.Index(selector, sep); i >= 0 {
+				selector = selector[:i]
+			}
+		}
+		selector = strings.TrimSpace(selector)
+		switch selector {
+		case "":
+		case "_", "*", "given":
+			out = append(out, prefix+".*")
+		default:
+			out = append(out, prefix+"."+selector)
+		}
+	}
+	if open := strings.Index(clause, "{"); open > 0 {
+		prefix := strings.TrimSuffix(strings.TrimSpace(clause[:open]), ".")
+		for _, selector := range strings.Split(strings.Trim(clause[open:], "{} "), ",") {
+			one(prefix, selector)
+		}
+		return out
+	}
+	if dot := strings.LastIndex(clause, "."); dot > 0 {
+		one(clause[:dot], clause[dot+1:])
 	}
 	return out
 }

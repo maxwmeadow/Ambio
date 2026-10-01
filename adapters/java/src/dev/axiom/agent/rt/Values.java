@@ -64,6 +64,9 @@ final class Values {
 
     /** JDK and Kotlin collections are safe to iterate; anything else is read as an object. */
     private static boolean plainCollection(Object v) {
+        if (v instanceof Scala.Seq || v instanceof Scala.Dict) {
+            return true; // the recorder's own copy of a Scala collection
+        }
         String n = v.getClass().getName();
         return n.startsWith("java.") || n.startsWith("kotlin.");
     }
@@ -104,6 +107,20 @@ final class Values {
         }
         Class<?> c = v.getClass();
         String n = c.getName();
+        if (n.startsWith("scala.")) {
+            if (n.equals("scala.None$")) {
+                return new Leaf("value", "None");
+            }
+            if (n.equals("scala.runtime.BoxedUnit")) {
+                return new Leaf("value", "()");
+            }
+            if (n.equals("scala.math.BigInt") || n.equals("scala.math.BigDecimal")) {
+                return new Leaf("value", v.toString());
+            }
+            if (Scala.lazy(v)) {
+                return new Leaf("value", "<" + simpleName(c) + ">"); // reading it would run the program
+            }
+        }
         if (c.isSynthetic() || n.contains("$$Lambda") || n.contains("$Lambda$")) {
             return new Leaf("function", "<lambda>");
         }
@@ -142,6 +159,9 @@ final class Values {
         String n = c.getName();
         int dot = n.lastIndexOf('.');
         String s = dot >= 0 ? n.substring(dot + 1) : n;
+        while (s.length() > 1 && s.endsWith("$")) {
+            s = s.substring(0, s.length() - 1); // a Scala object's class: Pricing$
+        }
         int dollar = s.lastIndexOf('$');
         return dollar >= 0 && dollar < s.length() - 1 ? s.substring(dollar + 1) : s;
     }
@@ -215,6 +235,20 @@ final class Values {
         return v.getClass().isArray() || (v instanceof List && plainCollection(v));
     }
 
+    /**
+     * What to read a value's contents from: the value itself for an array or a
+     * JDK or Kotlin collection, a bounded copy for a Scala one. Identity stays
+     * the original object's.
+     */
+    private static Object contents(Object v) {
+        String n = v.getClass().getName();
+        if (n.startsWith("scala.collection.")) {
+            Object copy = Scala.contents(v);
+            return copy == null ? v : copy;
+        }
+        return v;
+    }
+
     static LinkedHashMap<String, Leaf> flatten(Object root, String prefix) {
         LinkedHashMap<String, Leaf> out = new LinkedHashMap<String, Leaf>();
         try {
@@ -243,6 +277,8 @@ final class Values {
             return;
         }
         seen.put(v, Boolean.TRUE);
+        final Object identity = v;
+        v = contents(v);
         try {
             if (v instanceof Optional) {
                 Optional<?> o = (Optional<?>) v;
@@ -285,7 +321,7 @@ final class Values {
                 }
             }
         } finally {
-            seen.remove(v);
+            seen.remove(identity);
         }
     }
 
@@ -313,6 +349,7 @@ final class Values {
             Optional<?> o = (Optional<?>) v;
             return o.isPresent() ? preview(o.get(), depth) : "Optional.empty";
         }
+        v = contents(v);
         if (v instanceof Map && plainCollection(v)) {
             Map<?, ?> m = (Map<?, ?>) v;
             b.append('{');
@@ -408,6 +445,8 @@ final class Values {
             return;
         }
         seen.put(v, Boolean.TRUE);
+        final Object identity = v;
+        v = contents(v);
         LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>();
         List<Object[]> items = new ArrayList<Object[]>();
         if (v instanceof Optional) {
@@ -448,7 +487,7 @@ final class Values {
             }
         }
         if (!fields.isEmpty()) {
-            nodes.add(new Node(v, p, fields));
+            nodes.add(new Node(identity, p, fields));
         }
         for (Object[] child : children) {
             nodes((Object) child[1], (String) child[0], depth + 1, nodes, seen);

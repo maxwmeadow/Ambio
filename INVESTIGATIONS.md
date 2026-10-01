@@ -207,8 +207,11 @@ and truncated. It stays on the local machine in archd's data directory.
   workers) rewrites classes compiled from workspace sources as they load;
   dependencies are untouched. Java 8 and newer. Parameter names need debug
   info (`-g`, the Maven and Gradle default); without it they read `arg0`.
-  Lambdas, getters and setters, and the methods the compiler writes for
-  records and data classes are not recorded. A Kotlin suspend function is one
+  Lambdas and closures, getters and setters, and the methods the compiler
+  writes for records, data classes and case classes are not recorded. Scala's
+  strict collections are shown by their contents; a lazy one (`LazyList`, a
+  view, an iterator) is named and never read, since reading it would run the
+  program. A Kotlin suspend function is one
   call across its suspensions; one that suspends and is never resumed is
   counted without a result. Values are read field by field; the recorder
   never calls the program's `toString`, getters or `hashCode`, and iterates

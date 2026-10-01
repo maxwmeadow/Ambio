@@ -27,6 +27,11 @@ export const LANGUAGES: LanguageDefinition[] = [
   { id: 'kotlin', label: 'Kotlin', extensions: ['.kt', '.kts'], preferredExtension: '.kt', short: 'KT', color: '#7f52ff', textColor: '#fff', icon: 'kotlin' },
   { id: 'swift', label: 'Swift', extensions: ['.swift'], preferredExtension: '.swift', short: 'SW', color: '#f05138', textColor: '#fff', icon: 'swift' },
   { id: 'php', label: 'PHP', extensions: ['.php'], preferredExtension: '.php', short: 'PHP', color: '#777bb4', textColor: '#fff', icon: 'php' },
+  { id: 'scala', label: 'Scala', extensions: ['.scala', '.sc'], preferredExtension: '.scala', short: 'SC', color: '#dc322f', textColor: '#fff', icon: 'scala' },
+  { id: 'groovy', label: 'Groovy', extensions: ['.groovy'], preferredExtension: '.groovy', short: 'GV', color: '#4298b8', textColor: '#fff', icon: 'apachegroovy' },
+  { id: 'lua', label: 'Lua', extensions: ['.lua'], preferredExtension: '.lua', short: 'LUA', color: '#000080', textColor: '#fff', icon: 'lua' },
+  { id: 'bash', label: 'Shell', extensions: ['.sh', '.bash'], preferredExtension: '.sh', short: 'SH', color: '#4eaa25', textColor: '#fff', icon: 'gnubash' },
+  { id: 'elixir', label: 'Elixir', extensions: ['.ex', '.exs'], preferredExtension: '.ex', short: 'EX', color: '#4b275f', textColor: '#fff', icon: 'elixir' },
   { id: 'markdown', label: 'Markdown', extensions: ['.md', '.mdx'], preferredExtension: '.md', short: 'MD', color: '#5f6f78', textColor: '#fff', icon: 'markdown' },
 ]
 

@@ -14,17 +14,22 @@ import (
 	"sync/atomic"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/bash"
 	"github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/csharp"
+	"github.com/smacker/go-tree-sitter/elixir"
 	"github.com/smacker/go-tree-sitter/golang"
+	"github.com/smacker/go-tree-sitter/groovy"
 	"github.com/smacker/go-tree-sitter/java"
 	"github.com/smacker/go-tree-sitter/javascript"
 	"github.com/smacker/go-tree-sitter/kotlin"
+	"github.com/smacker/go-tree-sitter/lua"
 	"github.com/smacker/go-tree-sitter/php"
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/ruby"
 	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/scala"
 	"github.com/smacker/go-tree-sitter/swift"
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
@@ -171,6 +176,16 @@ func detectLanguage(path string) string {
 		return "ruby"
 	case ".java":
 		return "java"
+	case ".scala", ".sc":
+		return "scala"
+	case ".groovy":
+		return "groovy"
+	case ".lua":
+		return "lua"
+	case ".sh", ".bash":
+		return "bash"
+	case ".ex", ".exs":
+		return "elixir"
 	case ".md", ".mdx":
 		return "markdown"
 	case ".txt", ".rst", ".adoc":
@@ -210,6 +225,16 @@ func grammarFor(lang string) *sitter.Language {
 		return swift.GetLanguage()
 	case "php":
 		return php.GetLanguage()
+	case "scala":
+		return scala.GetLanguage()
+	case "groovy":
+		return groovy.GetLanguage()
+	case "lua":
+		return lua.GetLanguage()
+	case "bash":
+		return bash.GetLanguage()
+	case "elixir":
+		return elixir.GetLanguage()
 	default:
 		return nil
 	}
@@ -269,6 +294,14 @@ var symbolNodeTypes = map[string]string{
 	"init_declaration":              "function",
 	// PHP (function_definition, method_declaration, class/interface shared)
 	"trait_declaration": "class",
+	// Scala (class_definition, function_definition, function_declaration shared)
+	"trait_definition":  "interface",
+	"object_definition": "class",
+	"enum_definition":   "type",
+	// Lua (`function M.name()`, `local function name()`)
+	"function_statement": "function",
+	// Groovy, Bash: class_definition and function_definition, shared above.
+	// Elixir has no declaration nodes: see elixirSymbol.
 }
 
 // containerSymbolTypes are declaration nodes that name a scope we record as a symbol
@@ -286,6 +319,49 @@ var containerSymbolTypes = map[string]bool{
 	"object_declaration":    true, // Kotlin
 	"protocol_declaration":  true, // Swift
 	"trait_declaration":     true, // PHP
+	"trait_definition":      true, // Scala
+	"object_definition":     true, // Scala
+}
+
+// elixirSymbol reads a declaration out of an Elixir call: everything in
+// Elixir is a macro call, so `defmodule Shop.Cart do`, `def total(c)` and
+// `defp helper(x) when x > 0` are all `call` nodes told apart by their target.
+func elixirSymbol(node *sitter.Node, src []byte) (name, kind string, container bool) {
+	target := node.ChildByFieldName("target")
+	if target == nil {
+		return "", "", false
+	}
+	var args *sitter.Node
+	for i := 0; i < int(node.NamedChildCount()); i++ {
+		if child := node.NamedChild(i); child.Type() == "arguments" {
+			args = child
+			break
+		}
+	}
+	if args == nil || args.NamedChildCount() == 0 {
+		return "", "", false
+	}
+	first := args.NamedChild(0)
+	switch target.Content(src) {
+	case "defmodule", "defprotocol", "defimpl":
+		return first.Content(src), "class", true
+	case "def", "defp", "defmacro", "defmacrop", "defguard", "defguardp", "defdelegate":
+		// `def total(c) when c > 0`: the head is the left side of the guard.
+		if first.Type() == "binary_operator" {
+			if left := first.ChildByFieldName("left"); left != nil {
+				first = left
+			}
+		}
+		if first.Type() == "call" {
+			if t := first.ChildByFieldName("target"); t != nil {
+				return t.Content(src), "function", false
+			}
+		}
+		if first.Type() == "identifier" {
+			return first.Content(src), "function", false
+		}
+	}
+	return "", "", false
 }
 
 func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
@@ -293,8 +369,18 @@ func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
 		kind, ok := symbolNodeTypes[node.Type()]
+		name := ""
+		container := containerSymbolTypes[node.Type()]
+		if lang == "elixir" {
+			ok = false
+			if node.Type() == "call" {
+				name, kind, container = elixirSymbol(node, src)
+				ok = name != ""
+			}
+		} else if ok && kind != "" {
+			name = extractName(node, src, lang)
+		}
 		if ok && kind != "" {
-			name := extractName(node, src, lang)
 			if name != "" {
 				bodySum := sha256.Sum256(src[node.StartByte():node.EndByte()])
 				symbols = append(symbols, db.Symbol{
@@ -304,7 +390,7 @@ func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
 					LineEnd:   int(node.EndPoint().Row) + 1,
 					BodyHash:  hex.EncodeToString(bodySum[:]),
 				})
-				if !containerSymbolTypes[node.Type()] {
+				if !container {
 					return // leaf symbol - stop descending into its body
 				}
 				// container (class/interface/struct/record) - fall through to descend
@@ -323,6 +409,19 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	// Use the grammar's named "name" field first - avoids confusing return types
 	// with method names in C# (where return type appears before name in child order).
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+		// Lua: `function M.reserve()` and `function M:reserve()` are named
+		// by a path; the function is its last part.
+		if nameNode.Type() == "function_name" {
+			for i := int(nameNode.NamedChildCount()) - 1; i >= 0; i-- {
+				if part := nameNode.NamedChild(i); part.Type() == "identifier" {
+					return part.Content(src)
+				}
+			}
+		}
+		return nameNode.Content(src)
+	}
+	// Groovy names a method by its "function" field.
+	if nameNode := node.ChildByFieldName("function"); nameNode != nil && lang == "groovy" {
 		return nameNode.Content(src)
 	}
 	// C++: the function name is nested in a declarator chain

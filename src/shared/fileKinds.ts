@@ -6,6 +6,7 @@ const SOURCE_EXTENSIONS = new Set([
   '.cpp', '.cc', '.cxx', '.hpp', '.hxx',
   '.rb', '.java',
   '.c', '.h', '.hh', '.c++', '.kt', '.kts', '.swift', '.php',
+  '.scala', '.sc', '.groovy', '.lua', '.sh', '.bash', '.ex', '.exs',
 ])
 
 const DOCUMENT_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc'])

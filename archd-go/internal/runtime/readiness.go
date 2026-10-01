@@ -59,7 +59,7 @@ var readinessLanguages = map[string]languageSpec{
 	"python": {name: "Python", tools: []string{"python3", "python"}, versionArgs: []string{"--version"}, recorder: true, install: "Python (python.org)"},
 	"ruby":   {name: "Ruby", tools: []string{"ruby"}, versionArgs: []string{"--version"}, recorder: true, install: "Ruby (ruby-lang.org)"},
 	"go":     {name: "Go", tools: []string{"go"}, versionArgs: []string{"version"}, recorder: true, install: "Go (go.dev)"},
-	"java":   {name: "Java/Kotlin", tools: []string{"java"}, versionArgs: []string{"-version"}, recorder: true, install: "a JDK (adoptium.net)"},
+	"java":   {name: "JVM (Java, Kotlin, Scala, Groovy)", tools: []string{"java"}, versionArgs: []string{"-version"}, recorder: true, install: "a JDK (adoptium.net)"},
 	"csharp": {name: "C#", tools: []string{"dotnet"}, versionArgs: []string{"--version"}, recorder: true, install: "the .NET SDK (dot.net)"},
 	"rust":   {name: "Rust", tools: []string{"cargo"}, versionArgs: []string{"--version"}, install: "Rust (rustup.rs)", planned: "no function-level recorder for Rust yet"},
 	"swift":  {name: "Swift", tools: []string{"swift"}, versionArgs: []string{"--version"}, install: "Swift (swift.org)", planned: "no function-level recorder for Swift yet"},
@@ -78,8 +78,8 @@ func languageKey(language string) string {
 		return "ruby"
 	case "go":
 		return "go"
-	case "java", "kotlin":
-		return "java"
+	case "java", "kotlin", "scala", "groovy":
+		return "java" // one recorder: they all run on the JVM
 	case "csharp":
 		return "csharp"
 	case "rust":

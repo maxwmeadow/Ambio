@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, realpathSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, delimiter } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const AGENT = join(dirname(fileURLToPath(import.meta.url)), 'axiom-agent.jar')
@@ -13,8 +13,13 @@ const JDK = spawnSync(exe('javac'), ['-version'], { timeout: 30_000 }).status ==
 const kotlinc = process.env.KOTLIN_HOME ? join(process.env.KOTLIN_HOME, 'bin', 'kotlinc') : 'kotlinc'
 const KOTLIN = JDK && spawnSync(kotlinc, ['-version'], { timeout: 120_000 }).status === 0
 
+// Scala and Groovy are optional too: SCALA_HOME (a Scala 3 distribution) and GROOVY_HOME.
+const jars = (dir, pattern) => existsSync(dir) ? readdirSync(dir, { recursive: true }).filter(f => pattern.test(String(f))).map(f => join(dir, String(f))) : []
+const SCALA = JDK && process.env.SCALA_HOME && existsSync(join(process.env.SCALA_HOME, 'bin', 'scalac')) ? process.env.SCALA_HOME : ''
+const GROOVY = JDK && process.env.GROOVY_HOME && existsSync(join(process.env.GROOVY_HOME, 'bin', 'groovyc')) ? process.env.GROOVY_HOME : ''
+
 /** Compile `files` into a workspace and run `main` under the agent; return the evidence. */
-function record(files, main, watches, { kotlin = false } = {}) {
+function record(files, main, watches, { kotlin = false, scala = false, groovy = false } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'axiom-jvmrec-')))
   const paths = Object.entries(files).map(([rel, code]) => {
     const file = join(root, 'src', rel)
@@ -23,12 +28,25 @@ function record(files, main, watches, { kotlin = false } = {}) {
     return file
   })
   const classes = join(root, 'target', 'classes')
-  const compiled = kotlin
-    ? spawnSync(kotlinc, [...paths, '-include-runtime', '-d', classes + '.jar'], { encoding: 'utf8', timeout: 300_000 })
-    : spawnSync(exe('javac'), ['-g', '-d', classes, ...paths], { encoding: 'utf8' })
-  assert.equal(compiled.status, 0, compiled.stderr)
+  mkdirSync(classes, { recursive: true })
+  const env = { ...process.env, JAVA_HOME: process.env.JAVA_HOME ?? '' }
+  let classpath = classes
+  let compiled
+  if (kotlin) {
+    classpath = classes + '.jar'
+    compiled = spawnSync(kotlinc, [...paths, '-include-runtime', '-d', classpath], { encoding: 'utf8', timeout: 300_000 })
+  } else if (scala) {
+    compiled = spawnSync(join(SCALA, 'bin', 'scalac'), ['-d', classes, ...paths], { encoding: 'utf8', timeout: 300_000, env })
+    classpath = [classes, ...jars(SCALA, /scala3?-library[^/\\]*\.jar$/)].join(delimiter)
+  } else if (groovy) {
+    compiled = spawnSync(join(GROOVY, 'bin', 'groovyc'), ['-d', classes, ...paths], { encoding: 'utf8', timeout: 300_000, env })
+    classpath = [classes, ...jars(join(GROOVY, 'lib'), /^groovy-\d[^/\\]*\.jar$/)].join(delimiter)
+  } else {
+    compiled = spawnSync(exe('javac'), ['-g', '-d', classes, ...paths], { encoding: 'utf8' })
+  }
+  assert.equal(compiled.status, 0, compiled.stdout + compiled.stderr)
   const evidence = join(root, '.evidence')
-  const result = spawnSync(exe('java'), ['-cp', kotlin ? classes + '.jar' : classes, main], {
+  const result = spawnSync(exe('java'), ['-cp', classpath, main], {
     cwd: root,
     encoding: 'utf8',
     timeout: 60_000,
@@ -225,6 +243,87 @@ fun main() {
   for (const generated of ['getItems', 'getCoupon', 'component1', 'copy', 'invokeSuspend', 'invoke']) {
     assert.ok(!names.includes(generated), `${generated} is compiler output, not a function in the source: ${names}`)
   }
+})
+
+// Scala's collections are not java.util's: read as objects they would show
+// hash buckets and cons cells instead of what they hold.
+test('a Scala run shows its collections by their contents', { skip: !SCALA && 'no Scala compiler' }, () => {
+  const r = record({
+    'Pricing.scala': `package shop
+
+import scala.collection.mutable
+
+case class Cart(items: List[Int], coupon: Option[String] = None)
+
+object Pricing {
+  val table: mutable.Map[String, Int] = mutable.Map("base" -> 10)
+
+  def applyPeak(rates: mutable.Map[String, Int], bump: Int = 5): Int = {
+    rates("base") = rates("base") + bump
+    rates("base")
+  }
+
+  def total(cart: Cart, discount: Double): Double = {
+    require(cart.items.nonEmpty, "empty cart")
+    cart.items.sum * (1 - discount)
+  }
+
+  def lazily(xs: LazyList[Int]): Int = 1
+}
+
+@main def run(): Unit = {
+  (1 to 2).foreach(_ => Pricing.applyPeak(Pricing.table))
+  println(Pricing.total(Cart(List(10, 20), Some("X1")), 0.1) + Pricing.lazily(LazyList.from(1)))
+  Pricing.total(Cart(Nil), 0.0)
+}
+`,
+  }, 'shop.run', [['Pricing.scala', 'applyPeak'], ['Pricing.scala', 'total'], ['Pricing.scala', 'lazily']], { scala: true })
+  assert.match(r.stdout, /28\.0/)
+  const peak = r.watched('applyPeak')
+  assert.deepEqual(peak.samples.map(s => `${s.args} -> ${s.returned}`), [
+    '{"rates": {"base": 10}, "bump": 5, "this": Pricing()} -> 15',
+    '{"rates": {"base": 15}, "bump": 5, "this": Pricing()} -> 20',
+  ])
+  assert.equal(peak.mutations[0].path, 'rates.base')
+  const total = r.watched('total')
+  assert.equal(total.samples[0].args, '{"cart": Cart(items=[10, 20], coupon=Some(value="X1")), "discount": 0.1, "this": Pricing()}')
+  assert.equal(total.samples[1].threw, 'IllegalArgumentException: requirement failed: empty cart')
+  assert.equal(r.watched('lazily').samples[0].args, '{"xs": <LazyList>, "this": Pricing()}', 'a lazy collection is named, never read')
+  const names = r.doc.functions.map(f => f.name)
+  for (const generated of ['apply', 'unapply', 'copy', 'productArity', 'canEqual']) assert.ok(!names.includes(generated), `${generated}: ${names}`)
+})
+
+test('a Groovy run records methods and leaves closures out', { skip: !GROOVY && 'no Groovy compiler' }, () => {
+  const r = record({
+    'shop/Stock.groovy': `package shop
+
+class Stock {
+    Map<String, Integer> levels = [widget: 10]
+
+    int reserve(Map<String, Integer> stock, String item, int qty) {
+        int have = stock.getOrDefault(item, 0)
+        if (qty > have) {
+            throw new IllegalArgumentException("not enough \${item}")
+        }
+        stock[item] = have - qty
+        return have - qty
+    }
+
+    static void main(String[] args) {
+        def s = new Stock()
+        3.times { s.reserve(s.levels, 'widget', 3) }
+        s.reserve(s.levels, 'widget', 3)
+    }
+}
+`,
+  }, 'shop.Stock', [['shop/Stock.groovy', 'reserve']], { groovy: true })
+  const reserve = r.watched('reserve')
+  assert.equal(reserve.calls, 4)
+  assert.equal(reserve.samples[0].args, '{"stock": {"widget": 10}, "item": "widget", "qty": 3, "this": Stock(levels={"widget": 10})}')
+  assert.equal(reserve.samples[3].threw, 'IllegalArgumentException: not enough widget')
+  assert.ok(reserve.mutations.some(m => m.path === 'stock.widget'))
+  assert.ok(!r.doc.functions.some(f => f.name === 'doCall'), 'a closure is not a function the index knows')
+  assert.match(r.doc.uncaught[0].stack.split('\n')[0], /at reserve \(.*Stock\.groovy:9:1\)/)
 })
 
 test('without AXIOM_EVIDENCE_DIR the agent does nothing', { skip: !JDK && 'no JDK' }, () => {

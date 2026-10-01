@@ -121,14 +121,14 @@ func resolveTextSpec(file db.File, spec string, index map[string]string, relOf f
 		name := spec[len(parser.SpecJVM):]
 		if strings.HasSuffix(name, ".*") {
 			pkg := strings.ReplaceAll(strings.TrimSuffix(name, ".*"), ".", "/")
-			return filterExt(idsFor(index, dirPrefix+"~"+strings.ToLower(pkg)), relOf, ".java", ".kt", ".kts"), true
+			return filterExt(idsFor(index, dirPrefix+"~"+strings.ToLower(pkg)), relOf, ".java", ".kt", ".kts", ".scala", ".groovy"), true
 		}
 		// a.b.C, or a.b.C.member for a static import: the longest prefix that
 		// names a class file.
 		segments := strings.Split(name, ".")
 		for n := len(segments); n >= 2; n-- {
 			base := strings.Join(segments[:n], "/")
-			for _, ext := range []string{".java", ".kt"} {
+			for _, ext := range []string{".java", ".kt", ".scala", ".groovy"} {
 				if hit := exact(base + ext); hit != nil {
 					return closest(hit, from, relOf), true
 				}
@@ -192,6 +192,35 @@ func resolveTextSpec(file db.File, spec string, index map[string]string, relOf f
 		}
 		return nil, true
 
+	case strings.HasPrefix(spec, parser.SpecLua):
+		// require "shop.util" is shop/util.lua or shop/util/init.lua on the
+		// package path, whose roots are the project's own business.
+		name := strings.ReplaceAll(spec[len(parser.SpecLua):], ".", "/")
+		for _, candidate := range []string{name + ".lua", name + "/init.lua"} {
+			if hits := exact(candidate); hits != nil {
+				return closest(hits, from, relOf), true
+			}
+		}
+		return nil, true
+	case strings.HasPrefix(spec, parser.SpecShell):
+		rel := spec[len(parser.SpecShell):]
+		if hit := relative(rel); hit != nil {
+			return hit, true
+		}
+		return closest(exact(rel), from, relOf), true
+	case strings.HasPrefix(spec, parser.SpecElixir):
+		// Shop.Models.Cart lives at lib/shop/models/cart.ex by convention.
+		segments := strings.Split(spec[len(parser.SpecElixir):], ".")
+		for i, segment := range segments {
+			segments[i] = elixirUnderscore(segment)
+		}
+		for _, ext := range []string{".ex", ".exs"} {
+			if hits := exact(strings.Join(segments, "/") + ext); hits != nil {
+				return closest(hits, from, relOf), true
+			}
+		}
+		return nil, true
+
 	case strings.HasPrefix(spec, parser.SpecSwift):
 		// A Swift module is a target folder (Sources/Name). Foundation and
 		// other system modules match no folder.
@@ -199,6 +228,29 @@ func resolveTextSpec(file db.File, spec string, index map[string]string, relOf f
 		return filterExt(idsFor(index, dirBasePrefix+module), relOf, ".swift"), true
 	}
 	return nil, false
+}
+
+// elixirUnderscore is Macro.underscore for one module segment: HTTPClient ->
+// http_client, MyApp -> my_app.
+func elixirUnderscore(segment string) string {
+	var b strings.Builder
+	runes := []rune(segment)
+	for i, r := range runes {
+		upper := r >= 'A' && r <= 'Z'
+		if upper && i > 0 {
+			prev := runes[i-1]
+			prevLower := (prev >= 'a' && prev <= 'z') || (prev >= '0' && prev <= '9')
+			nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+			if prevLower || (prev >= 'A' && prev <= 'Z' && nextLower) {
+				b.WriteByte('_')
+			}
+		}
+		if upper {
+			r += 'a' - 'A'
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func exactRel(index map[string]string, relOf func(string) string, rel string) []string {

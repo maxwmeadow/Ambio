@@ -53,6 +53,7 @@ var sourceExts = map[string]bool{
 	".jsx": true, ".py": true, ".go": true, ".rs": true, ".cs": true,
 	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".rb": true, ".java": true,
 	".c": true, ".h": true, ".hh": true, ".c++": true, ".kt": true, ".kts": true, ".swift": true, ".php": true,
+	".scala": true, ".sc": true, ".groovy": true, ".lua": true, ".sh": true, ".bash": true, ".ex": true, ".exs": true,
 }
 
 var documentExts = map[string]bool{

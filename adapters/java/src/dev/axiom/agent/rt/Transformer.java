@@ -102,10 +102,11 @@ final class Transformer implements ClassFileTransformer {
             this.version = version & 0xffff;
             this.isEnum = (access & Opcodes.ACC_ENUM) != 0;
             // Kotlin compiles a lambda or a suspend function's state machine
-            // to a class of its own; like a Java lambda, it is not a function
-            // the index knows.
+            // to a class of its own, and Groovy does the same for a closure;
+            // like a Java lambda, it is not a function the index knows.
             this.coroutineInternal = superName != null
-                && (superName.startsWith("kotlin/coroutines/jvm/internal/") || superName.equals("kotlin/jvm/internal/Lambda"));
+                && (superName.startsWith("kotlin/coroutines/jvm/internal/") || superName.equals("kotlin/jvm/internal/Lambda")
+                    || superName.equals("groovy/lang/Closure"));
         }
 
         @Override
@@ -249,12 +250,18 @@ final class Transformer implements ClassFileTransformer {
                 return false;
             }
             return name.equals("equals") || name.equals("hashCode") || name.equals("toString") || name.equals("copy")
-                || (name.startsWith("component") && name.length() > 9 && Character.isDigit(name.charAt(9)));
+                || (name.startsWith("component") && name.length() > 9 && Character.isDigit(name.charAt(9)))
+                // a Scala case class and its companion
+                || name.equals("apply") || name.equals("unapply") || name.equals("canEqual") || name.equals("fromProduct")
+                || name.startsWith("product");
         }
 
         /** A constructor goes by its class's name, as the index names it. */
         private String constructorName() {
             String simple = className.substring(className.lastIndexOf('/') + 1);
+            while (simple.length() > 1 && simple.endsWith("$")) {
+                simple = simple.substring(0, simple.length() - 1); // a Scala object's class: Pricing$
+            }
             String inner = simple.substring(simple.lastIndexOf('$') + 1);
             return inner.isEmpty() || Character.isDigit(inner.charAt(0)) ? "constructor" : inner;
         }
