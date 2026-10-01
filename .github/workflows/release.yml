@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 # Produces the installable artifact for each platform. macOS is split across
-# two runners on purpose: macos-latest is arm64, macos-13 is the last x64
+# two runners on purpose (their update manifests are merged afterwards): macos-latest is arm64, macos-13 is the last x64
 # image, and an Intel build cannot be produced from an Apple Silicon host once
 # native modules are involved.
 # A pushed v* tag publishes every platform's installer to one draft GitHub
@@ -30,14 +30,14 @@ jobs:
           - { os: windows-latest, label: windows-x64 }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # go.mod's `go 1.22` is the minimum language version, not the
           # toolchain. Resolving it gave CI go1.22.12, whose internal linker
@@ -71,7 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: axiom-${{ matrix.label }}
           path: |
@@ -82,3 +82,36 @@ jobs:
             release/*.yml
             release/*.blockmap
           if-no-files-found: error
+
+  # The arm64 and x64 jobs each publish a latest-mac.yml and the last upload
+  # wins, which would leave one architecture without updates. Replace it with
+  # one manifest listing both (scripts/merge-mac-manifest.mjs).
+  merge-mac-manifest:
+    name: macOS update manifest
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: axiom-macos-arm64
+          path: mac-arm64
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: axiom-macos-x64
+          path: mac-x64
+
+      - name: Merge and replace latest-mac.yml
+        run: |
+          node scripts/merge-mac-manifest.mjs mac-arm64/latest-mac.yml mac-x64/latest-mac.yml > latest-mac.yml
+          cat latest-mac.yml
+          gh release upload "$GITHUB_REF_NAME" latest-mac.yml --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
