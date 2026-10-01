@@ -148,6 +148,7 @@ Fixed during this pass:
 - [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
 - [ ] **E-M7** Right-click open canvas → New System Here… opens a new sheet with a planned system where you clicked, ready to send
 - [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… opens a new "Remove …" sheet with the removal drawn, and Send to Agent with that sheet attached and the instruction written; nothing is deleted until an agent does it
+- [ ] **E-M8b** Drag from one live system's edge to another's on the Floor → a new "<A> uses <B>" sheet opens with the dependency drawn from A to B, and Send to Agent opens with it attached
 - [ ] **E-M9** Move a file into a system whose other files live in another folder → the Undo notice says where the code disagrees and offers Make the Code Match…, which opens Send to Agent with the move written; moving a file that already fits shows no offer
 - [ ] **E-M10** Dismiss that notice → Review Changes shows the move with the same disagreement and Make the Code Match…
 - [ ] **E-M11** Send the order (the composer shows "Axiom checks the code afterwards"), let an agent move the file → the file keeps its system and place on the Floor, and the order shows "Checked by Axiom: it now matches the map"

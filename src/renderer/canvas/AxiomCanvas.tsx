@@ -39,6 +39,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   SelectionMode,
+  ConnectionMode,
   Panel,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -2689,6 +2690,29 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     }
   }, [])
 
+  const startDependencySheet = useCallback(async (sourceId: string, targetId: string) => {
+    const graph = useGraphStore.getState()
+    const workspaceId = graph.currentProject?.id
+    if (!workspaceId) return
+    const label = (id: string) => graph.systems.find(system => system.id === id)?.name
+      ?? graph.files.find(file => file.id === id)?.relPath
+      ?? graph.infraNodes.find(node => node.id === id)?.name
+    const from = label(sourceId)
+    const to = label(targetId)
+    if (!from || !to) return
+    try {
+      const store = useSheetStore.getState()
+      const sheet = await store.createSheet(workspaceId, untakenSheetName(store.sheets, `${from} uses ${to}`), `${from} should depend on ${to}`, [])
+      await store.openSheet(workspaceId, sheet.id)
+      await store.createPlannedEdge(workspaceId, sheet.id, { kind: 'DEPENDS_ON', srcLive: sourceId, dstLive: targetId })
+      window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', {
+        detail: { sheetId: sheet.id, note: `Make ${from} use ${to}, as drawn on the attached sheet. Keep the dependency in that direction only.` },
+      }))
+    } catch (error) {
+      raiseFailure('dependency-sheet', 'Could not draw the dependency', error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
   const startNewSystemSheet = useCallback(async (point: { x: number; y: number }) => {
     const workspaceId = useGraphStore.getState().currentProject?.id
     if (!workspaceId) return
@@ -2785,15 +2809,35 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     void createStencil(stencil, pos, target)
   }, [readOnly, overlaySheetId, screenToFlowPosition, onBinnedFileDrop, stencilScene, activeNodeIds, createStencil])
 
-  const onConnectPlanned = useCallback((conn: Connection) => {
+  // The node a connection was drawn FROM is its source, whichever of the
+  // overlapping handles the pointer happened to grab.
+  const connectionOrigin = useRef<string | null>(null)
+  const drawnDirection = (conn: Connection): Connection => {
+    const origin = connectionOrigin.current
+    connectionOrigin.current = null
+    return origin && origin === conn.target ? { ...conn, source: conn.target, target: conn.source } : conn
+  }
+
+  const onConnectPlanned = useCallback((drawn: Connection) => {
+    const conn = drawnDirection(drawn)
     if (!overlaySheetId || !conn.source || !conn.target) return
     const src = conn.source.startsWith('planned:') ? { srcPlanned: conn.source.slice(8) } : { srcLive: conn.source }
     const dst = conn.target.startsWith('planned:') ? { dstPlanned: conn.target.slice(8) } : { dstLive: conn.target }
-    if (!conn.source.startsWith('planned:') && !conn.target.startsWith('planned:')) return
+    // Between two live nodes the connection is a proposal too: "this should
+    // depend on that", met once the code does (relationshipPresent in archd).
+    if (conn.source === conn.target) return
     void useSheetStore.getState().createPlannedEdge(workspaceIdForOverlay, overlaySheetId, {
       kind: 'DEPENDS_ON', ...src, ...dst,
     })
   }, [overlaySheetId, workspaceIdForOverlay])
+
+  // On the Floor a new dependency is code, so drawing one starts a work order:
+  // a sheet proposing it, opened and attached to the send dialog.
+  const onConnectFloor = useCallback((drawn: Connection) => {
+    const conn = drawnDirection(drawn)
+    if (!conn.source || !conn.target || conn.source === conn.target) return
+    void startDependencySheet(conn.source, conn.target)
+  }, [startDependencySheet])
   const [isTidying, setIsTidying] = useState(false)
   // Focused-subgraph mode: when a trace or runtime session is active, dim the
   // nodes that are off the active path so the investigation stays legible on a
@@ -4962,7 +5006,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         defaultEdgeOptions={{ type: 'orthogonal' }}
         onNodesChange={readOnly ? undefined : onNodesChange}
         onEdgesChange={readOnly ? undefined : onEdgesChange}
-        onConnect={readOnly || !overlaySheetId ? undefined : onConnectPlanned}
+        onConnect={readOnly ? undefined : overlaySheetId ? onConnectPlanned : floorEditable ? onConnectFloor : undefined}
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onPaneClick={onPaneClick}
@@ -4987,7 +5031,12 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         // on, and the highlight disagrees with what the next drag picks up.
         multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
         nodesDraggable={!readOnly}
-        nodesConnectable={!readOnly && !!overlaySheetId}
+        nodesConnectable={!readOnly && (!!overlaySheetId || floorEditable)}
+        // Source and target handles share each side, and the target is drawn
+        // on top; loose mode lets a drag from any handle reach any other, with
+        // the node it started from as the source.
+        connectionMode={ConnectionMode.Loose}
+        onConnectStart={(_, params) => { connectionOrigin.current = params.nodeId }}
         deleteKeyCode={null}
         elementsSelectable={!readOnly}
         snapToGrid={false}

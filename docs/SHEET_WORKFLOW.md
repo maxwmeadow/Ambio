@@ -82,8 +82,10 @@ includes its saved resolution context/comparison as well as the current comparis
   need matching indexed realization. Active realized file contracts are rechecked on
   indexing, so later drift can turn an unfinished sheet back into outstanding work.
 - Planned typed relationships require corresponding live relationships. `CONTAINS`
-  can be established by canonical nesting; other relationship kinds match live dependency
-  types case-insensitively. Unsupported/unproven requirements stay outstanding.
+  can be established by canonical nesting; `DEPENDS_ON` is met by any import or call from
+  inside the source to inside the target (systems count the files in and below them);
+  other relationship kinds match live dependency types case-insensitively.
+  Unsupported/unproven requirements stay outstanding.
 - Rejected proposals and their edges are excluded. Pending proposals block resolution.
   Empty sheets and deleted/symbol-only references cannot claim structural completion.
 - Removals are explicit: a live file, system or infrastructure node the sheet proposes

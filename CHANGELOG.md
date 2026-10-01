@@ -45,6 +45,9 @@ in the app as "What's New" after updating, so write it for users.
   canvas for New System Here…, which draws a planned system on a new sheet
   ready to send, or right-click a file or system to draw its removal on a
   new sheet and send it to an agent.
+- Draw a connection between two live systems or files on the map to propose
+  a new dependency; it opens on a sheet ready to send, and counts as done
+  once the code actually depends that way.
 - Sheets can propose removing code: press Delete on a live file or system on
   a sheet. It disappears from that sheet only, stays listed with Restore, and
   a sent work order counts it as done once the code is really gone. Agents
@@ -71,6 +74,8 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- Connections between two live nodes on a sheet were silently dropped, and
+  a drawn dependency could never be confirmed by the code; both work now.
 - A file moved or renamed on disk keeps its system, its place on the map and
   its history instead of arriving as a new, unsorted file.
 - Every change an agent makes to your systems is now recorded and shown in

@@ -74,6 +74,8 @@ test.beforeEach(async () => {
         }
       : method === 'DELETE' && url.includes('/removals/')
       ? { restored: true }
+      : method === 'POST' && url.includes('/api/sheets/sheet_new/planned-edges')
+      ? { id: 'edge_new', sheetId: 'sheet_new', ...route.request().postDataJSON() }
       : url.includes('/api/sheets/sheet_new?')
       ? { sheet: newSheet, elements: [], annotations: [], planned: [], plannedEdges: [] }
       : method === 'POST' && url.includes('/api/sheets/sheet_new/planned')
@@ -2204,6 +2206,26 @@ test('a change that needs code opens a work order instead of happening on the Fl
   await expect(instruction).toBeVisible()
   await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AxiomCanvas\.tsx\./)
   await expect(page.getByLabel('Removed on this sheet')).toContainText('file_canvas')
+})
+
+test('drawing a dependency on the Floor starts a sheet proposing it, ready to send', async () => {
+  let edge: { srcLive?: string; dstLive?: string; kind?: string } | undefined
+  page.on('request', request => {
+    if (request.url().includes('/api/sheets/sheet_new/planned-edges') && request.method() === 'POST') {
+      edge = request.postDataJSON() as typeof edge
+    }
+  })
+  const from = page.locator('.react-flow__node[data-id="sys_shared"] .react-flow__handle[data-handleid="source-right"]')
+  const to = page.locator('.react-flow__node[data-id="sys_mcp"] .react-flow__handle[data-handleid="target-top"]')
+  const start = await from.boundingBox()
+  const end = await to.boundingBox()
+  expect(start && end).toBeTruthy()
+  await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(() => edge).toMatchObject({ kind: 'DEPENDS_ON', srcLive: 'sys_shared', dstLive: 'sys_mcp' })
+  await expect(page.locator('textarea').first()).toHaveValue(/^Make Shared Types use MCP Server/)
 })
 
 test('Delete on a sheet proposes removing live code, listed and restorable', async () => {

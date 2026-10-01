@@ -314,13 +314,7 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 			dst = c.Mappings["planned:"+*e.DstPlanned]
 		}
 		c.Checked++
-		found := src != "" && dst != "" && strings.EqualFold(e.Kind, "CONTAINS") && live[dst].ParentID == src
-		for _, d := range deps {
-			if src != "" && dst != "" && live[src].ID != "" && live[dst].ID != "" && d.Src == src && d.Dst == dst && strings.EqualFold(d.DependencyType, e.Kind) {
-				found = true
-				break
-			}
-		}
+		found := src != "" && dst != "" && live[src].ID != "" && live[dst].ID != "" && relationshipPresent(e.Kind, src, dst, deps, live)
 		if !found {
 			add("relationship", e.ID, e.Kind, src+" → "+dst, "", "Required typed relationship is not present in the live model")
 		}
@@ -468,4 +462,41 @@ func ApplySheetNesting(d *sql.DB, workspace, sheetID, nodeID string, revision in
 		return nil, err
 	}
 	return result, nil
+}
+
+// relationshipPresent reports whether the live model has the relationship a
+// sheet asks for. CONTAINS is nesting. DEPENDS_ON is any code dependency
+// (an import or a call) from inside src to inside dst - systems count the
+// files in and below them, because the code depends file to file. Any other
+// kind must match a live dependency of that type between the two nodes.
+func relationshipPresent(kind, src, dst string, deps []Dependency, live map[string]StructureNode) bool {
+	if strings.EqualFold(kind, "CONTAINS") {
+		return live[dst].ParentID == src
+	}
+	general := strings.EqualFold(kind, "DEPENDS_ON")
+	for _, d := range deps {
+		if d.Src == src && d.Dst == dst && strings.EqualFold(d.DependencyType, kind) {
+			return true
+		}
+		if !general || d.Status == "dismissed" {
+			continue
+		}
+		codeDependency := strings.EqualFold(d.DependencyType, "IMPORTS") || strings.EqualFold(d.DependencyType, "CALLS") ||
+			strings.EqualFold(d.DependencyType, "DEPENDS_ON")
+		if codeDependency && within(live, d.Src, src) && within(live, d.Dst, dst) && !within(live, d.Dst, src) {
+			return true
+		}
+	}
+	return false
+}
+
+// within reports whether node is root or sits anywhere inside it.
+func within(live map[string]StructureNode, node, root string) bool {
+	for hops := 0; node != "" && hops < 64; hops++ {
+		if node == root {
+			return true
+		}
+		node = live[node].ParentID
+	}
+	return false
 }

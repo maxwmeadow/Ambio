@@ -253,13 +253,7 @@ func CompareWorkOrderSnapshot(r Reader, workspace string, message *CanvasMessage
 			add("relationship", edgeID, edge.Kind, edge.SourceID+" → "+edge.TargetID, "", "The sent relationship has an unverified endpoint")
 			continue
 		}
-		found := strings.EqualFold(edge.Kind, "CONTAINS") && live[dst].ParentID == src
-		for _, dependency := range deps {
-			if dependency.Src == src && dependency.Dst == dst && strings.EqualFold(dependency.DependencyType, edge.Kind) {
-				found = true
-				break
-			}
-		}
+		found := relationshipPresent(edge.Kind, src, dst, deps, live)
 		if !found {
 			add("relationship", edgeID, edge.Kind, src+" → "+dst, "", "The sent typed relationship is not present in the live model")
 		}

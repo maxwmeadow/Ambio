@@ -98,3 +98,34 @@ func TestRemovalWinsOverAMoveAndCanBeRestored(t *testing.T) {
 		t.Fatalf("removing something that does not exist: %v", err)
 	}
 }
+
+// "Orders should depend on Payments" is satisfied by the code the way code
+// depends: a file in Orders importing a file in Payments.
+func TestAProposedDependencyBetweenSystemsIsMetByTheirFiles(t *testing.T) {
+	sqlDB := removalFixture(t)
+	must(t, UpsertPlannedEdge(sqlDB, &PlannedEdge{
+		SheetID: "sheet", WorkspaceID: "ws", Kind: "DEPENDS_ON", SrcLive: strPtr("orders"), DstLive: strPtr("payments"),
+	}))
+	relationships := func() int {
+		comparison, err := CompareSheetStructure(sqlDB, "ws", "sheet")
+		must(t, err)
+		count := 0
+		for _, difference := range comparison.Differences {
+			if difference.Kind == "relationship" {
+				count++
+			}
+		}
+		return count
+	}
+	if relationships() != 1 {
+		t.Fatal("the dependency should be open before any code exists")
+	}
+	imports(t, sqlDB, [2]string{"stripe", "cart"}) // the wrong direction does not count
+	if relationships() != 1 {
+		t.Fatal("Payments → Orders satisfied Orders → Payments")
+	}
+	imports(t, sqlDB, [2]string{"cart", "stripe"})
+	if relationships() != 0 {
+		t.Fatal("cart.ts importing stripe.ts did not satisfy Orders depends on Payments")
+	}
+}
