@@ -198,3 +198,10 @@
 .axiom-sheet-rail__archive { padding: 10px; border-top: 1px solid #dce0d6; font-size: 11px; }
 .axiom-sheet-rail__archive button { background: transparent; color: inherit; border: 1px solid #c7cec3; border-radius: 4px; padding: 5px; cursor: pointer; }
 .axiom-sheet-rail__archive > div { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.axiom-inbox__code-checks { margin-top: 6px; padding: 7px 9px; border: 1px solid #a9bbaa; border-left: 3px solid #548b75; background: #f4f3ec; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.axiom-inbox__code-checks p { margin: 4px 0; color: #315d51; }
+.axiom-inbox__code-checks ul { margin: 0; padding-left: 15px; }
+.axiom-inbox__code-checks li strong { font: 700 9px var(--font-mono, monospace); letter-spacing: .03em; text-transform: uppercase; color: #356d5c; }
+.axiom-inbox__code-checks li[data-state="disagrees"] strong { color: #9a4a2f; }
+.axiom-inbox__code-checks li[data-state="map-changed"] strong,
+.axiom-inbox__code-checks li[data-state="file-gone"] strong { color: #6b6b5f; }

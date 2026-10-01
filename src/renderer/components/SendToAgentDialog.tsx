@@ -10,6 +10,7 @@ import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { AgentHandoff } from './AgentHandoff'
 import { WorkOrderReview } from './WorkOrderReview'
+import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
@@ -25,6 +26,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [excluded, setExcluded] = useState<string[]>([])
+  // Files Axiom re-checks against the map after the reply (make the code match).
+  const [codeFitFileIds, setCodeFitFileIds] = useState<string[]>([])
   const textarea = useRef<HTMLTextAreaElement>(null)
   const history = useRef<HTMLDivElement>(null)
   const attachmentArea = useRef<HTMLDivElement>(null)
@@ -33,7 +36,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const [attachedSheetId, setAttachedSheetId] = useState<string | null>(() => { try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:sheet`) ?? 'null'); return typeof saved === 'string' ? saved : null } catch { return null } })
   const attachmentChosen = useRef((() => { try { return localStorage.getItem(`${draftKey}:sheet`) !== null } catch { return false } })())
   const sendLock = useRef(false)
-  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null }>(undefined)
+  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; codeFitFileIds?: string[] }>(undefined)
   const restored = useRef(false)
   if (!restored.current) {
     restored.current = true
@@ -54,13 +57,15 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   }
   useEffect(() => {
     const attach = (event: Event) => {
-      const detail = (event as CustomEvent<{ sheetId?: string; note?: string }>).detail
+      const detail = (event as CustomEvent<{ sheetId?: string; note?: string; codeFitFileIds?: string[] }>).detail
       if (retry.current || sendLock.current) return
       if (detail?.sheetId) attachSheet(detail.sheetId)
       // A gesture that needs the code to change arrives with its instruction
       // written (docs/PRODUCT.md §2); a draft already here is kept above it.
       const drafted = detail?.note
       if (drafted) setNote(current => current.trim() ? `${current.trimEnd()}\n\n${drafted}` : drafted)
+      const checks = detail?.codeFitFileIds
+      if (checks?.length) setCodeFitFileIds(current => [...new Set([...current, ...checks])])
     }
     window.addEventListener('axiom:open-agent-dispatch', attach)
     return () => window.removeEventListener('axiom:open-agent-dispatch', attach)
@@ -134,12 +139,12 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     if (sendLock.current || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100) return
     if (!retry.current && attachedSheetId && !attachedSheet) { setError('This attached sheet is no longer available. Remove it before sending.'); return }
     sendLock.current = true; setSending(true); setError(null); setPickerOpen(false)
-    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: attachedSheetId }
+    if (!retry.current) retry.current = { id: crypto.randomUUID(), note: note.trim(), selection, sheetId: attachedSheetId, codeFitFileIds }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
       const pending = retry.current
-      await sheet.send(graph.workspaceId, pending.note, pending.selection, pending.sheetId, pending.id)
-      setNote(''); retry.current = undefined; nearBottom.current = true
+      await sheet.send(graph.workspaceId, pending.note, pending.selection, pending.sheetId, pending.id, pending.codeFitFileIds)
+      setNote(''); setCodeFitFileIds([]); retry.current = undefined; nearBottom.current = true
       try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
     } catch (err) {
       const status = (err as { status?: number }).status
@@ -176,6 +181,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           {message.reply && <div className="axiom-inbox__reply"><div className="axiom-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{message.reply.agent}</strong></div><AgentMessageContent text={message.reply.body} /><button type="button" className="axiom-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div>}
           {message.status === 'answered' && !message.reply && <p className="axiom-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="axiom-inbox__notice">Cancelled. Ask the agent to stop if work began.</p>}
+          {message.codeChecks && message.codeChecks.length > 0 && <WorkOrderCodeChecks checks={message.codeChecks} />}
           <WorkOrderReview message={message} workspaceId={graph.workspaceId} currentSheet={sheet.sheets.find(item => item.id === message.sheetId)} />
         </article>)}
       </div>
@@ -185,7 +191,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       <AgentHandoff workspaceId={graph.workspaceId} projectRoot={graph.rootPath} onManageConnections={onManageConnections} />
       {effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="axiom-inbox__compose" onSubmit={submit}>
-        {(effectiveSheetId || effectiveSelection.length > 0) && <div className="axiom-inbox__attachments">
+        {(effectiveSheetId || effectiveSelection.length > 0 || codeFitFileIds.length > 0) && <div className="axiom-inbox__attachments">
+          {codeFitFileIds.length > 0 && <div className="axiom-inbox__attachment" title="After the agent replies, Axiom checks that the code agrees with where the map puts these files"><span className="axiom-inbox__sheet-icon"><InboxIcon name="check" size={16} /></span><span><strong>Axiom checks the code afterwards</strong><small>{codeFitFileIds.length === 1 ? '1 file' : `${codeFitFileIds.length} files`}</small></span><button className="axiom-inbox__icon" type="button" disabled={locked} aria-label="Don't check the code afterwards" onClick={() => setCodeFitFileIds([])}><InboxIcon name="close" size={13} /></button></div>}
           {effectiveSheetId && <div className="axiom-inbox__attachment" title={attachedSheet ? `${attachedSheet.name} · revision ${attachedSheet.revision} · snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="axiom-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="axiom-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}

@@ -113,6 +113,7 @@ func (s *Server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		summary.Claims,
 		dispatchedIntents(sqlDB, workspaceID),
 	)
+	summary.Claims = attachCodeFit(sqlDB, workspaceID, summary.Claims)
 	if sessions, err := db.GetWorkSessionsForRoot(
 		sqlDB, workspaceID, root.ID, root.Branch, since,
 	); err == nil {

@@ -70,6 +70,8 @@ type meaningDetail struct {
 	ToSystemName   string  `json:"toSystemName"`
 	ParentID       *string `json:"parentId"`
 	ParentName     string  `json:"parentName"`
+	// MovedFileIDs are the files a merge or ungroup moved.
+	MovedFileIDs []string `json:"movedFileIds"`
 }
 
 func parseMeaning(ev db.StructuralEvent) meaningDetail {
@@ -208,6 +210,9 @@ func (m *meaningAccumulator) add(ev db.StructuralEvent) bool {
 		change := &MeaningChange{
 			Kind: kind, SubjectID: ev.SubjectID, SubjectLabel: ev.SubjectLabel,
 			ToID: ev.ObjectID, ToLabel: ev.ObjectLabel, Undoable: true,
+		}
+		if kind == "merged" {
+			change.FileIDs = detail.MovedFileIDs
 		}
 		m.touch(change, ev, detail)
 		m.others = append(m.others, change)

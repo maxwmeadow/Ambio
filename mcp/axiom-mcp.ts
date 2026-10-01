@@ -2258,7 +2258,9 @@ Steps to execute:
           `${API_BASE}/api/architecture/changes?workspace=${encodeURIComponent(project.workspaceId)}${since}`
         )
         if (!res.ok) throw new Error(`changes failed: ${await res.text()}`)
-        const body = await res.json() as { since: number; changes: Array<Record<string, unknown>> }
+        const body = await res.json() as {
+          since: number; changes: Array<Record<string, unknown>>; codeDisagrees?: Array<{ where: string; toFix: string }>
+        }
         result = {
           since: body.since,
           changes: body.changes.map(change => ({
@@ -2266,7 +2268,11 @@ Steps to execute:
             to: change.toLabel || undefined, by: change.actor === 'human' ? 'the user' : (change.agent || change.actor),
             files: change.fileLabels, at: change.ts,
           })),
-          note: 'Moves and renames by the user are decisions: build on them, and ask before reversing one.',
+          ...(body.codeDisagrees?.length ? { codeDisagrees: body.codeDisagrees } : {}),
+          note: 'Moves and renames by the user are decisions: build on them, and ask before reversing one.' +
+            (body.codeDisagrees?.length
+              ? ' codeDisagrees lists where the code does not yet match those decisions; fix them only when asked.'
+              : ''),
         }
         break
       }

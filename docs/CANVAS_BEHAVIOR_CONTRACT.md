@@ -303,7 +303,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   system's folder, or its imports still mostly connect to another system),
   the edit still happens; its notice says where the code disagrees and offers
   Make the Code Match…, a work order with the fix written. It is never done
-  for you.
+  for you. The offer stays on the change in Review Changes while the code
+  disagrees, and the sent order shows what Axiom found when it re-checked the
+  code ("Checked by Axiom"), separate from the agent's own report.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed

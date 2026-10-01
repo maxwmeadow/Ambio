@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"axiom.local/archd/internal/db"
+	"axiom.local/archd/internal/delta"
 	"axiom.local/archd/internal/hub"
 	"axiom.local/archd/internal/runtime"
 )
@@ -192,5 +193,68 @@ func TestAnEditReportsWhereTheCodeDisagrees(t *testing.T) {
 	}
 	if len(result.CodeFit) != 1 || result.CodeFit[0].SuggestedPath != "src/payments/cart.ts" {
 		t.Fatalf("code fit = %+v", result.CodeFit)
+	}
+}
+
+func TestTheCodeDisagreementFollowsTheChangeAndItsWorkOrder(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	payments := "payments"
+	for _, file := range []db.File{
+		{ID: "stripe", RelPath: "src/payments/stripe.ts", SystemID: &payments},
+		{ID: "invoice", RelPath: "src/payments/invoice.ts", SystemID: &payments},
+		{ID: "cart", RelPath: "src/orders/cart.ts"},
+	} {
+		file.RootID, file.Path, file.Language = "root", "/s/"+file.RelPath, "typescript"
+		if err := db.UpsertFile(sqlDB, file); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": map[string]any{"kind": "human"},
+		"edits": []map[string]any{{"op": "assign", "fileIds": []string{"cart"}, "systemId": "payments"}},
+	})
+
+	// An agent starting work hears about it.
+	changes := send(t, server, http.MethodGet, "/api/architecture/changes?workspace=ws", nil)
+	if !bytes.Contains(changes.Body.Bytes(), []byte(`"toFix":"Move src/orders/cart.ts to src/payments/cart.ts`)) {
+		t.Fatalf("changes do not say where the code disagrees: %s", changes.Body.String())
+	}
+
+	// The review keeps the offer.
+	events, err := db.GetStructuralEvents(sqlDB, "ws", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := delta.Aggregate(events, 0, 1<<62)
+	claims := attachCodeFit(sqlDB, "ws", delta.BuildClaims(summary, nil))
+	found := false
+	for _, claim := range claims {
+		if claim.Kind == delta.ClaimMoved && len(claim.CodeFit) == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the move claim does not carry the disagreement: %+v", claims)
+	}
+
+	// A work order sent to fix it is checked by Axiom.
+	sent := send(t, server, http.MethodPost, "/api/canvas/send", map[string]any{
+		"workspaceId": "ws", "note": "make the code match", "selection": "[]",
+		"codeFitFileIds": []string{"cart"},
+	})
+	if sent.Code != http.StatusOK {
+		t.Fatalf("send: %d %s", sent.Code, sent.Body.String())
+	}
+	history := send(t, server, http.MethodGet, "/api/canvas/history?workspace=ws", nil)
+	if !bytes.Contains(history.Body.Bytes(), []byte(`"state":"disagrees"`)) {
+		t.Fatalf("history has no code check: %s", history.Body.String())
+	}
+	if _, err := sqlDB.Exec(`UPDATE files SET rel_path = 'src/payments/cart.ts' WHERE id = 'cart'`); err != nil {
+		t.Fatal(err)
+	}
+	history = send(t, server, http.MethodGet, "/api/canvas/history?workspace=ws", nil)
+	if !bytes.Contains(history.Body.Bytes(), []byte(`"state":"agrees"`)) {
+		t.Fatalf("the check did not follow the code: %s", history.Body.String())
 	}
 }

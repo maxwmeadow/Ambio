@@ -15,6 +15,7 @@ import {
 import type { DeltaClaim } from '../../shared/types'
 import { raiseInvitation, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
+import { codeFitNoticeBody, openMakeCodeMatch } from '../canvas/codeFit.ts'
 
 /** One id, so a refreshed delta replaces its invitation instead of stacking. */
 const DELTA_INVITATION = 'delta-review'
@@ -127,6 +128,20 @@ function ClaimRow({
               </button>
             )}
           {undo?.status === 'error' && <span className="axiom-delta__undo-error" role="alert">{undo.message}</span>}
+        </div>
+      )}
+
+      {claim.codeFit && claim.codeFit.length > 0 && undo?.status !== 'done' && (
+        <div className="axiom-delta__code-fit">
+          <span>{codeFitNoticeBody(claim.codeFit)}</span>
+          <button
+            type="button"
+            className="axiom-delta__undo"
+            onClick={() => openMakeCodeMatch(claim.codeFit!)}
+            title="Send an agent the work that makes the code agree with the map"
+          >
+            Make the Code Match…
+          </button>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useGraphStore } from '../store/graphStore'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiEditArchitecture, apiUndoArchitecture, type MeaningEdit } from './arcdApi.ts'
-import { codeFitInstruction, codeFitNoticeBody } from './codeFit.ts'
+import { codeFitNoticeBody, openMakeCodeMatch } from './codeFit.ts'
 
 /**
  * Apply meaning edits made on the canvas: show them at once, record them in
@@ -41,9 +41,7 @@ export async function commitMeaningEdits(
           label: 'Make the Code Match…',
           run: () => {
             resolveInterruption(id)
-            window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', {
-              detail: { note: codeFitInstruction(codeFit) },
-            }))
+            openMakeCodeMatch(codeFit)
           },
         })
       }

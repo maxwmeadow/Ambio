@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"axiom.local/archd/internal/db"
 )
 
 // A Claim is the unit of architectural review.
@@ -109,6 +111,9 @@ type Claim struct {
 	// UndoEventIDs are the journal rows a meaning claim came from. Passing
 	// them to /api/architecture/undo reverses the change.
 	UndoEventIDs []int64 `json:"undoEventIds,omitempty"`
+	// CodeFit lists where the code still disagrees with a meaning claim's
+	// files (db/code_fit.go), checked when the review is read.
+	CodeFit []db.CodeFitFinding `json:"codeFit,omitempty"`
 	// IntentStatus is retained only for the command-deck aggregate while that
 	// read-only surface migrates. It is intentionally excluded from the API.
 	IntentStatus string `json:"-"`

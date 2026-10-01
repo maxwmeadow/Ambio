@@ -89,6 +89,13 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   returned as `codeFit` with a sentence and an instruction. The canvas offers
   it as a work order ("Make the Code Match…"); agents get it in the
   `edit_systems` result as `codeDisagrees`. The map change stands either way.
+  The same check runs when a review is read (move, grouping and merge claims
+  carry `codeFit`) and in `GET /api/architecture/changes` (`codeDisagrees`).
+  A work order sent with `codeFitFileIds` freezes those disagreements in
+  `work_order_code_checks` (`internal/db/code_checks.go`); history and the
+  reply re-check them against the indexed code (`codeChecks`: agrees,
+  disagrees, map-changed, file-gone), so "the code now matches" is verified by
+  Axiom, not reported by the agent.
   Agents read recent meaning changes with `get_architecture` scope `changes`
   (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history
@@ -103,7 +110,11 @@ and environment reads → call graph → clustering → infra detection. fsnotif
 watches with a 150 ms file debounce and a 1.5 s re-cluster debounce; hitting
 the OS watch limit degrades loudly. Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
-make reconcile after a closed period exact.
+make reconcile after a closed period exact. A file moved on disk arrives as a
+delete and a create in either order; the new path takes over the vanished
+file's identity (same content, or the only vanished file with that name,
+within 30 s), so it keeps its system, layout and history
+(`internal/indexer/moves.go`).
 
 **Language depth:**
 

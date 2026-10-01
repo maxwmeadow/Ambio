@@ -141,6 +141,31 @@ func journalFileChange(
 	})
 }
 
+// journalFileMoved records a file that moved on disk and kept its identity
+// (moves.go). It reads as an update to the file at its new path.
+func journalFileMoved(
+	sqlDB *sql.DB, root db.Root, labeler *systemLabeler,
+	file *db.File, from, actor, traceID string,
+) {
+	if isQuietPath(root.ID, file.RelPath) {
+		return
+	}
+	systemID, systemName := labeler.systemOf(file.ID)
+	recordRootEvent(sqlDB, root, db.StructuralEvent{
+		Actor:        actor,
+		TraceID:      traceID,
+		Kind:         db.EventFileUpdated,
+		SubjectID:    file.ID,
+		SubjectLabel: file.RelPath,
+		Detail: encodeDetail(map[string]string{
+			"language":   file.Language,
+			"systemId":   systemID,
+			"systemName": systemName,
+			"movedFrom":  from,
+		}),
+	})
+}
+
 // journalFileDeleted records a tombstone. The label and last known system are
 // captured here because the file row is already gone by review time.
 func journalFileDeleted(

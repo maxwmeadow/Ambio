@@ -19,6 +19,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -859,6 +860,9 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		Note         string  `json:"note"`
 		Selection    string  `json:"selection"`
 		DeliveryMode string  `json:"deliveryMode"`
+		// CodeFitFileIDs asks Axiom to verify, after the reply, that the code
+		// agrees with where the map puts these files (make the code match).
+		CodeFitFileIDs []string `json:"codeFitFileIds"`
 	}
 	if !decodeInbox(w, r, &input) {
 		return
@@ -999,9 +1003,22 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "sheet context exceeds 2 MB; dispatch a smaller sheet", 413)
 		return
 	}
+	if len(input.CodeFitFileIDs) > 200 {
+		jsonError(w, "codeFitFileIds is limited to 200 files", 400)
+		return
+	}
 	if err := db.EnqueueCanvasMessage(sqlDB, &m); err != nil {
 		inboxError(w, err)
 		return
+	}
+	if len(input.CodeFitFileIDs) > 0 {
+		findings, fitErr := db.CodeFit(sqlDB, m.WorkspaceID, input.CodeFitFileIDs)
+		if fitErr == nil {
+			fitErr = db.SaveWorkOrderCodeChecks(sqlDB, m.ID, findings)
+		}
+		if fitErr != nil {
+			log.Printf("[archd] code checks for work order %s: %v", m.ID, fitErr)
+		}
 	}
 	s.publishInbox(db.InboxItem{CanvasMessage: m})
 	jsonOK(w, m)
@@ -1104,5 +1121,8 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 	}
 	s.publishInbox(*item)
 	item.LeaseToken = ""
+	if checks, checkErr := db.WorkOrderCodeChecks(d, body.WorkspaceID, []string{item.ID}); checkErr == nil {
+		item.CodeChecks = checks[item.ID]
+	}
 	jsonOK(w, map[string]any{"message": item})
 }

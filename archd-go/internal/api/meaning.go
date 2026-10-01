@@ -114,7 +114,64 @@ func (s *Server) handleArchitectureChanges(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	summary := delta.Aggregate(meaningEvents, since, now)
-	jsonOK(w, map[string]any{"since": since, "changes": summary.Meaning})
+	fileIDs := []string{}
+	for _, change := range summary.Meaning {
+		fileIDs = append(fileIDs, meaningChangeFiles(change)...)
+	}
+	disagrees := []map[string]string{}
+	if findings, fitErr := db.CodeFit(sqlDB, workspaceID, fileIDs); fitErr == nil {
+		for _, finding := range findings {
+			disagrees = append(disagrees, map[string]string{"where": finding.Summary, "toFix": finding.Ask})
+		}
+	}
+	jsonOK(w, map[string]any{"since": since, "changes": summary.Meaning, "codeDisagrees": disagrees})
+}
+
+// meaningChangeFiles are the files a meaning change placed somewhere.
+func meaningChangeFiles(change delta.MeaningChange) []string {
+	switch change.Kind {
+	case "moved":
+		return []string{change.SubjectID}
+	case "grouped", "merged":
+		return change.FileIDs
+	}
+	return nil
+}
+
+// attachCodeFit marks the meaning claims in a review whose files the code
+// still disagrees with, so an offer missed in the moment is not lost.
+func attachCodeFit(sqlDB *sql.DB, workspaceID string, claims []delta.Claim) []delta.Claim {
+	fileIDs := []string{}
+	for _, claim := range claims {
+		if claimPlacesFiles(claim.Kind) {
+			fileIDs = append(fileIDs, claim.FocusFileIDs...)
+		}
+	}
+	if len(fileIDs) == 0 {
+		return claims
+	}
+	findings, err := db.CodeFit(sqlDB, workspaceID, fileIDs)
+	if err != nil {
+		log.Printf("[archd] code fit for review: %v", err)
+		return claims
+	}
+	byFile := map[string][]db.CodeFitFinding{}
+	for _, finding := range findings {
+		byFile[finding.FileID] = append(byFile[finding.FileID], finding)
+	}
+	for i := range claims {
+		if !claimPlacesFiles(claims[i].Kind) {
+			continue
+		}
+		for _, fileID := range claims[i].FocusFileIDs {
+			claims[i].CodeFit = append(claims[i].CodeFit, byFile[fileID]...)
+		}
+	}
+	return claims
+}
+
+func claimPlacesFiles(kind delta.ClaimKind) bool {
+	return kind == delta.ClaimMoved || kind == delta.ClaimGrouped || kind == delta.ClaimMerged
 }
 
 func meaningStatus(err error) int {

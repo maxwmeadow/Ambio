@@ -158,7 +158,7 @@ Endpoints (all require the local bearer token):
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId, deliveryMode: "addressed"}`; omitted mode remains legacy `open` |
+| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId, deliveryMode: "addressed", codeFitFileIds?}`; omitted mode remains legacy `open`. `codeFitFileIds` (≤200) freezes where the code disagrees with the map for those files; history and the reply then carry `codeChecks`, re-checked against the indexed code |
 | `POST /api/canvas/claim` | Claim/renew using `{workspaceId, connectionId, agent, messageId?}`; no ID sees only `open` work |
 | `POST /api/canvas/context` | Read a context page using `{workspaceId, msgId, leaseToken, offset}` |
 | `POST /api/canvas/reply` | Resolve using `{workspaceId, msgId, leaseToken, body}` |

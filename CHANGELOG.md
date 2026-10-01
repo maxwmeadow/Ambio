@@ -53,6 +53,9 @@ in the app as "What's New" after updating, so write it for users.
   systems, systems renamed, nested, merged, ungrouped or newly grouped, by
   you or by an agent - and each one can be undone. Agents can ask what
   changed, so they build on your decisions instead of reversing them.
+- Review Changes keeps offering to make the code match while it still
+  disagrees, and a sent order shows whether Axiom found the code now matches,
+  checked against the code rather than taken from the agent's reply.
 
 ### Changed
 - Axiom runs its agent connection on its own bundled runtime; Node.js no
@@ -64,6 +67,8 @@ in the app as "What's New" after updating, so write it for users.
   `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Fixed
+- A file moved or renamed on disk keeps its system, its place on the map and
+  its history instead of arriving as a new, unsorted file.
 - Every change an agent makes to your systems is now recorded and shown in
   Review Changes; before, agents could rename, regroup or delete systems
   without a trace.

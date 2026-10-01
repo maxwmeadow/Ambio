@@ -2,7 +2,7 @@
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
 import { create } from 'zustand'
-import type { DeltaWorkSession, FloorLayout } from '../../shared/types'
+import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
 import { raiseFailure } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
 
@@ -98,6 +98,8 @@ export interface CanvasMessage {
   reviews?: { id: string; decision: 'accepted' | 'reopened'; note: string; createdAt: number }[]
   changes?: { kind: string; subjectLabel: string; objectLabel?: string; count: number; at: number }[]
   sessions?: DeltaWorkSession[]
+  /** A make-the-code-match order's disagreements, re-checked by Axiom. */
+  codeChecks?: CodeCheckResult[]
   deliveredTo: string | null
   answerAnnotationId: string | null
   createdAt: number
@@ -320,7 +322,7 @@ interface SheetState {
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   updateElementMetadata: (workspaceId: string, elementId: string, metadata: PlannedNodeMetadata) => Promise<void>
   removeElement: (workspaceId: string, sheetId: string, elementId: string) => Promise<void>
-  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string) => Promise<void>
+  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string, codeFitFileIds?: string[]) => Promise<void>
   lastCreatedPlannedId: string | null   // node enters inline name-edit on mount
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
@@ -885,7 +887,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
   },
 
-  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID()) => {
+  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID(), codeFitFileIds = []) => {
     const res = await fetch(`${archdApi()}/api/canvas/send`, {
       method: 'POST',
       signal: AbortSignal.timeout(15000),
@@ -893,6 +895,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       body: JSON.stringify({
         id, workspaceId, note, sheetId, deliveryMode: 'addressed',
         selection: JSON.stringify(selection),
+        // Axiom re-checks these files against the map after the reply.
+        ...(codeFitFileIds.length > 0 ? { codeFitFileIds } : {}),
       }),
     })
     if (!res.ok) throw Object.assign(new Error(await res.text()), { status: res.status })

@@ -301,6 +301,20 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	relPath = filepath.ToSlash(relPath)
 	existing, _ := buildExistingMap(sqlDB, root.ID)
 
+	// A new path may be a file that moved: it keeps its identity and system
+	// (moves.go).
+	movedFrom := ""
+	var movedSystemID *string
+	if _, known := existing[relPath]; !known {
+		moveMu.Lock()
+		if moved, from, ok := adoptMovedFile(sqlDB, root, relPath, absPath, existing); ok {
+			movedFrom, movedSystemID = from, moved.SystemID
+			delete(existing, from)
+			existing[relPath] = moved
+		}
+		moveMu.Unlock()
+	}
+
 	// Snapshot the pre-edit state for activity weighting (live edit tracking).
 	var prev *db.File
 	var prevSyms []db.Symbol
@@ -320,17 +334,21 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	if err := indexOneFile(sqlDB, root, relPath, absPath, existing, nil); err != nil {
 		return err
 	}
+	if movedFrom != "" {
+		restoreMovedSystem(sqlDB, existing[relPath].ID, movedSystemID)
+	}
 	file, err := db.GetFileByRelPath(sqlDB, root.ID, relPath)
 	if err != nil || file == nil {
 		return err
 	}
 	newSyms, _ := db.GetSymbolsByFile(sqlDB, file.ID)
 	actor, contentChanged := recordActivity(sqlDB, root.WorkspaceID, prev, prevSyms, file, absPath)
-	resolutionChanged := prev == nil || symbolResolutionChanged(prevSyms, newSyms)
+	resolutionChanged := prev == nil || movedFrom != "" || symbolResolutionChanged(prevSyms, newSyms)
 
-	// A new file can satisfy imports that were previously external/unresolved.
-	// Existing-file edits only need their own outgoing import set rebuilt.
-	if prev == nil {
+	// A new file can satisfy imports that were previously external/unresolved,
+	// and a moved one changes how every import of it resolves. Existing-file
+	// edits only need their own outgoing import set rebuilt.
+	if prev == nil || movedFrom != "" {
 		if err := buildImportDependencies(sqlDB, root); err != nil {
 			log.Printf("indexer: rebuild project dependencies after creating %s: %v", relPath, err)
 		}
@@ -400,13 +418,17 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	if actor == "" {
 		actor = activity.ActorFor(root.WorkspaceID)
 	}
-	if contentChanged || prev == nil {
+	if contentChanged || prev == nil || movedFrom != "" {
 		labeler := newSystemLabeler(sqlDB, root)
 		kind := db.EventFileUpdated
 		if prev == nil {
 			kind = db.EventFileCreated
 		}
-		journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
+		if movedFrom != "" {
+			journalFileMoved(sqlDB, root, labeler, file, movedFrom, actor, traceID)
+		} else {
+			journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
+		}
 		journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
 	}
 
@@ -441,10 +463,15 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	traceID := nextLivingTraceID()
 	relPath, _ := filepath.Rel(root.Path, absPath)
 	relPath = filepath.ToSlash(relPath)
+	moveMu.Lock()
 	file, err := db.GetFileByRelPath(sqlDB, root.ID, relPath)
 	if err != nil || file == nil {
+		moveMu.Unlock()
 		return err
 	}
+	// Claimable by a create at another path for a moment: it may be a move.
+	rememberRemoval(root.ID, *file)
+	moveMu.Unlock()
 
 	beforeDeps, err := projectFileDependencies(sqlDB, root.ID)
 	if err != nil {

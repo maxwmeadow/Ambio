@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -65,6 +66,7 @@ func (s *Server) handleInboxHistory(w http.ResponseWriter, r *http.Request) {
 	if len(items) == limit {
 		next = items[len(items)-1].ID
 	}
+	withCodeChecks(d, r.URL.Query().Get("workspace"), items)
 	available, err := db.CountQueuedCanvasMessages(d, r.URL.Query().Get("workspace"))
 	if err != nil {
 		inboxError(w, err)
@@ -72,6 +74,24 @@ func (s *Server) handleInboxHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOK(w, map[string]any{"messages": items, "nextCursor": next, "availableCount": available})
 }
+
+// withCodeChecks re-checks make-the-code-match orders against the code now.
+// A failed check leaves the orders as they are.
+func withCodeChecks(d *sql.DB, workspaceID string, items []db.InboxItem) {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	checks, err := db.WorkOrderCodeChecks(d, workspaceID, ids)
+	if err != nil {
+		log.Printf("[archd] work order code checks: %v", err)
+		return
+	}
+	for i := range items {
+		items[i].CodeChecks = checks[items[i].ID]
+	}
+}
+
 func (s *Server) handleInboxSnapshot(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)

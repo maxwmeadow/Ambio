@@ -24,3 +24,13 @@ test('the work order lists every ask and keeps the map as decided', () => {
   assert.ok(text.includes('- Untangle it.'))
   assert.match(text, /Do not change what the map says/)
 })
+
+test('a checked work order says whether the code now matches', async () => {
+  const { codeCheckHeadline } = await import('./codeFit.ts')
+  const agrees = { sent: folder, state: 'agrees', now: 'ok' }
+  const disagrees = { sent: folder, state: 'disagrees', now: 'no' }
+  const changed = { sent: folder, state: 'map-changed', now: 'moved' }
+  assert.equal(codeCheckHeadline([agrees]), 'Axiom checked the code: it now matches the map.')
+  assert.equal(codeCheckHeadline([agrees, disagrees]), 'Axiom checked the code: 1 of 2 still disagrees with the map.')
+  assert.match(codeCheckHeadline([agrees, changed]), /map changed since/)
+})

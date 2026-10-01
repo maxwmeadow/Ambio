@@ -2211,6 +2211,31 @@ test('a map change the code disagrees with offers the work order that makes it m
   const instruction = page.locator('textarea').first()
   await expect(instruction).toBeVisible()
   await expect(instruction).toHaveValue(/make the code match it\.[\s\S]*Move src\/renderer\/canvas\/AxiomCanvas\.tsx to src\/shared\/AxiomCanvas\.tsx/)
+
+  // Axiom keeps the file to check, and shows the check on the sent order.
+  await expect(page.getByText('Axiom checks the code afterwards')).toBeVisible()
+  let sent: { codeFitFileIds?: string[]; id?: string; note?: string } | undefined
+  await page.route(/\/api\/canvas\/send$/, async route => {
+    sent = route.request().postDataJSON()
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...sent, workspaceId: 'demo', status: 'queued', createdAt: 5 }) })
+  })
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      nextCursor: '', availableCount: 0,
+      messages: sent ? [{
+        id: sent.id, workspaceId: 'demo', sheetId: null, note: sent.note, selection: '[]', changeSummary: '',
+        sheetContext: '', buildSpec: '', status: 'answered', createdAt: 5,
+        codeChecks: [{
+          state: 'agrees', now: 'src/shared/AxiomCanvas.tsx now lives with the rest of Shared',
+          sent: { kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared', summary: '', ask: '' },
+        }],
+      }] : [],
+    }),
+  }))
+  await instruction.press('Enter')
+  await expect.poll(() => sent?.codeFitFileIds).toEqual(['file_canvas'])
+  await expect(page.getByText('Axiom checked the code: it now matches the map.')).toBeVisible()
 })
 
 test('New System Here draws a planned system on a new sheet, ready to send', async () => {
