@@ -80,6 +80,9 @@ type MeaningResult struct {
 	UpsertedSystems  []System               `json:"upsertedSystems"`
 	DeletedSystemIDs []string               `json:"deletedSystemIds"`
 	Assignments      []FileAssignmentChange `json:"assignments"`
+	// CodeFit lists where the code now disagrees with the map (code_fit.go).
+	// Filled in by the caller after the batch commits.
+	CodeFit []CodeFitFinding `json:"codeFit,omitempty"`
 }
 
 // ErrMeaningEdit marks a request that cannot be applied as asked (unknown

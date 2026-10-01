@@ -2190,6 +2190,29 @@ test('a change that needs code opens a work order instead of happening on the Fl
   await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AxiomCanvas\.tsx\./)
 })
 
+test('a map change the code disagrees with offers the work order that makes it match', async () => {
+  await page.route(/\/api\/architecture\/edits$/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      changes: [{ op: 'assign', changed: true, eventIds: [7] }],
+      codeFit: [{
+        kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx',
+        systemId: 'sys_shared', systemName: 'Shared',
+        summary: 'AxiomCanvas.tsx belongs to Shared, but the rest of Shared is in src/shared/',
+        ask: 'Move src/renderer/canvas/AxiomCanvas.tsx to src/shared/AxiomCanvas.tsx and update every import of it.',
+      }],
+    }),
+  }))
+  const file = await revealFileNode('file_canvas')
+  await file.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /^Take Out of / }).click()
+  await expect(page.getByText('the rest of Shared is in src/shared/')).toBeVisible()
+  await page.getByRole('button', { name: 'Make the Code Match…' }).click()
+  const instruction = page.locator('textarea').first()
+  await expect(instruction).toBeVisible()
+  await expect(instruction).toHaveValue(/make the code match it\.[\s\S]*Move src\/renderer\/canvas\/AxiomCanvas\.tsx to src\/shared\/AxiomCanvas\.tsx/)
+})
+
 test('New System Here draws a planned system on a new sheet, ready to send', async () => {
   let planned: { kind?: string } | undefined
   page.on('request', request => {

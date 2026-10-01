@@ -82,6 +82,7 @@ interface MeaningEdit {
 
 async function applyMeaningEdits(workspaceId: string, edits: MeaningEdit[]): Promise<{
   changes: Array<{ op: string; systemId?: string; changed: boolean }>
+  codeFit?: Array<{ summary: string; ask: string }>
 }> {
   const session = soleWorkSession(workspaceId)
   const res = await fetch(`${API_BASE}/api/architecture/edits`, {
@@ -95,6 +96,21 @@ async function applyMeaningEdits(workspaceId: string, edits: MeaningEdit[]): Pro
   })
   if (!res.ok) throw new Error(`Architecture edit failed: ${await res.text()}`)
   return res.json()
+}
+
+/**
+ * Where the code now disagrees with a map change the agent just made, for its
+ * tool result. The map change stands either way; this is information, not an
+ * instruction to refactor.
+ */
+function codeDisagreements(result: { codeFit?: Array<{ summary: string; ask: string }> }) {
+  const findings = result.codeFit ?? []
+  if (findings.length === 0) return {}
+  return {
+    codeDisagrees: findings.slice(0, 10).map(finding => ({ where: finding.summary, toFix: finding.ask })),
+    ...(findings.length > 10 ? { codeDisagreesMore: findings.length - 10 } : {}),
+    codeDisagreesNote: 'The map change is recorded. Change the code to match only if the user asked for code changes; otherwise mention it to them.',
+  }
 }
 
 // Helper: Retrieve the active project metadata
@@ -1227,12 +1243,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         await postAgentActivity(project.workspaceId, `Assigning ${idsToAssign.length} files to system "${sysLabel}"`, 'info')
 
-        if (idsToAssign.length > 0) {
-          await applyMeaningEdits(project.workspaceId, [{ op: 'assign', fileIds: idsToAssign, systemId: systemId || '' }])
-        }
+        const assigned = idsToAssign.length > 0
+          ? await applyMeaningEdits(project.workspaceId, [{ op: 'assign', fileIds: idsToAssign, systemId: systemId || '' }])
+          : { changes: [] }
 
         await postAgentActivity(project.workspaceId, `Assigned ${idsToAssign.length} files to system "${sysLabel}" successfully`, 'success')
-        result = { status: 'success', assignedCount: idsToAssign.length }
+        result = { status: 'success', assignedCount: idsToAssign.length, ...codeDisagreements(assigned) }
         break
       }
 
@@ -1252,10 +1268,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         await postAgentActivity(project.workspaceId, `Merging system "${sourceLabel}" into "${targetLabel}"`, 'info')
         
         // One atomic, recorded step: files and child systems move, the source goes.
-        await applyMeaningEdits(project.workspaceId, [{ op: 'merge', systemId: sourceId, intoSystemId: targetId }])
+        const merged = await applyMeaningEdits(project.workspaceId, [{ op: 'merge', systemId: sourceId, intoSystemId: targetId }])
 
         await postAgentActivity(project.workspaceId, `System "${sourceLabel}" merged into "${targetLabel}" successfully`, 'success')
-        result = { status: 'success' }
+        result = { status: 'success', ...codeDisagreements(merged) }
         break
       }
 

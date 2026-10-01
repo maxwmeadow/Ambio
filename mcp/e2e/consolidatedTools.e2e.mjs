@@ -147,6 +147,19 @@ test('an agent can curate the architecture map', async () => {
     assert.ok(kinds.includes(kind), `${kind} was not recorded for the agent: ${kinds.join(', ')}`)
   }
 
+  // An agent that puts a file where the code disagrees is told so.
+  const storage = files.filter(file => file.relPath.startsWith('storage/')).map(file => file.id)
+  const handler = files.find(file => file.relPath === 'api/handlers.py')
+  const home = await client.callTool('edit_systems', { op: 'create', name: 'HarnessStorage' })
+  const homeId = home.payload?.systemId
+  await client.callTool('edit_systems', { op: 'assign', systemId: homeId, fileIds: storage })
+  const misplaced = await client.callTool('edit_systems', { op: 'assign', systemId: homeId, fileIds: [handler.id] })
+  assert.equal(misplaced.isError, false, misplaced.text)
+  assert.ok(
+    misplaced.payload?.codeDisagrees?.some(item => item.toFix.includes('storage/handlers.py')),
+    `no code disagreement reported: ${misplaced.text}`,
+  )
+
   // And any agent can read back what changed on the map.
   const changes = await client.callTool('get_architecture', { scope: 'changes' })
   assert.equal(changes.isError, false, changes.text)

@@ -45,6 +45,10 @@ in the app as "What's New" after updating, so write it for users.
   canvas for New System Here…, which draws a planned system on a new sheet
   ready to send, or right-click a file or system to ask an agent to delete
   its code.
+- When you move a file on the map and the code disagrees - it lives in
+  another system's folder, or still mostly talks to its old system - Axiom
+  says so and offers to send an agent the work that makes the code match.
+  Agents that move files are told the same.
 - Review Changes shows changes to the map itself - files moved between
   systems, systems renamed, nested, merged, ungrouped or newly grouped, by
   you or by an agent - and each one can be undone. Agents can ask what

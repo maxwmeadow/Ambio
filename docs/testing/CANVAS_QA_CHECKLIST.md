@@ -148,6 +148,7 @@ Fixed during this pass:
 - [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
 - [ ] **E-M7** Right-click open canvas → New System Here… opens a new sheet with a planned system where you clicked, ready to send
 - [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… open Send to Agent with the instruction written; nothing is deleted until an agent does it
+- [ ] **E-M9** Move a file into a system whose other files live in another folder → the Undo notice says where the code disagrees and offers Make the Code Match…, which opens Send to Agent with the move written; moving a file that already fits shows no offer
 
 
 ## F. Tidy and layout

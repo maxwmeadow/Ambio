@@ -1,7 +1,9 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -146,7 +148,26 @@ func (s *Server) applyMeaning(
 		return db.MeaningResult{}, false
 	}
 	s.broadcastMeaning(workspaceID, result)
+	result.CodeFit = codeFitAfter(sqlDB, workspaceID, result)
 	return result, true
+}
+
+// codeFitAfter checks the files a batch placed in a system against the code,
+// so whoever made the edit is offered the work that would make the code agree.
+// A failed check never fails the edit, which has already been recorded.
+func codeFitAfter(sqlDB *sql.DB, workspaceID string, result db.MeaningResult) []db.CodeFitFinding {
+	fileIDs := []string{}
+	for _, assignment := range result.Assignments {
+		if assignment.SystemID != nil {
+			fileIDs = append(fileIDs, assignment.FileID)
+		}
+	}
+	findings, err := db.CodeFit(sqlDB, workspaceID, fileIDs)
+	if err != nil {
+		log.Printf("[archd] code fit after meaning edit: %v", err)
+		return nil
+	}
+	return findings
 }
 
 func (s *Server) broadcastMeaning(workspaceID string, result db.MeaningResult) {

@@ -1,11 +1,14 @@
 import { useGraphStore } from '../store/graphStore'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiEditArchitecture, apiUndoArchitecture, type MeaningEdit } from './arcdApi.ts'
+import { codeFitInstruction, codeFitNoticeBody } from './codeFit.ts'
 
 /**
  * Apply meaning edits made on the canvas: show them at once, record them in
  * archd (attributed to you, undoable from Review Changes), and offer Undo
- * right here. A refused edit is rolled back and explained.
+ * right here. When the code now disagrees with the map, the notice also
+ * offers the work order that would make it match. A refused edit is rolled
+ * back and explained.
  *
  * Resolves true when the edits were recorded.
  */
@@ -23,7 +26,8 @@ export async function commitMeaningEdits(
     const eventIds = (result.changes ?? []).flatMap(change => change.eventIds ?? [])
     if (eventIds.length > 0) {
       const id = `meaning-edit-${eventIds[0]}`
-      raiseNotice(id, confirmation, undefined, [{
+      const codeFit = result.codeFit ?? []
+      const actions = [{
         label: 'Undo',
         run: () => {
           resolveInterruption(id)
@@ -31,7 +35,19 @@ export async function commitMeaningEdits(
             raiseFailure(`${id}-undo`, "Couldn't undo", error instanceof Error ? error.message : String(error))
           })
         },
-      }])
+      }]
+      if (codeFit.length > 0) {
+        actions.push({
+          label: 'Make the Code Match…',
+          run: () => {
+            resolveInterruption(id)
+            window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', {
+              detail: { note: codeFitInstruction(codeFit) },
+            }))
+          },
+        })
+      }
+      raiseNotice(id, confirmation, codeFitNoticeBody(codeFit), actions)
     }
     return true
   } catch (error) {

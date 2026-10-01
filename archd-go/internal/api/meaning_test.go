@@ -167,3 +167,30 @@ func TestUndoFromTheReviewAndChangesForAgents(t *testing.T) {
 		t.Fatalf("want 409 for an undo over later work, got %d %s", conflict.Code, conflict.Body.String())
 	}
 }
+
+func TestAnEditReportsWhereTheCodeDisagrees(t *testing.T) {
+	server := meaningServer(t)
+	sqlDB := mustDB(t, server)
+	payments := "payments"
+	for _, file := range []db.File{
+		{ID: "stripe", RelPath: "src/payments/stripe.ts", SystemID: &payments},
+		{ID: "invoice", RelPath: "src/payments/invoice.ts", SystemID: &payments},
+		{ID: "cart", RelPath: "src/orders/cart.ts"},
+	} {
+		file.RootID, file.Path, file.Language = "root", "/s/"+file.RelPath, "typescript"
+		if err := db.UpsertFile(sqlDB, file); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recorder := send(t, server, http.MethodPost, "/api/architecture/edits", map[string]any{
+		"workspaceId": "ws", "actor": map[string]any{"kind": "human"},
+		"edits": []map[string]any{{"op": "assign", "fileIds": []string{"cart"}, "systemId": "payments"}},
+	})
+	var result db.MeaningResult
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.CodeFit) != 1 || result.CodeFit[0].SuggestedPath != "src/payments/cart.ts" {
+		t.Fatalf("code fit = %+v", result.CodeFit)
+	}
+}

@@ -299,6 +299,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   System Here… draws a planned system on a new sheet, ready to send, and
   Delete This File… / Delete <system>'s Code… open the send dialog with the
   instruction written, because sheets cannot yet draw removals.
+- When the code disagrees with a meaning edit (the file lives outside its new
+  system's folder, or its imports still mostly connect to another system),
+  the edit still happens; its notice says where the code disagrees and offers
+  Make the Code Match…, a work order with the fix written. It is never done
+  for you.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed

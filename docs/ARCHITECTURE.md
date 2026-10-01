@@ -83,6 +83,12 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   (`internal/db/meaning_undo.go`): the inverse is itself a recorded edit that
   names the row it reverses, it is refused with 409 when later work would be
   overwritten, and an edit and its undo in the same window cancel out.
+  After a batch commits, archd checks the files it placed against the code
+  (`internal/db/code_fit.go`): a file outside the folder that holds most of
+  its system, or one whose imports mostly connect to another system, is
+  returned as `codeFit` with a sentence and an instruction. The canvas offers
+  it as a work order ("Make the Code Match…"); agents get it in the
+  `edit_systems` result as `codeDisagrees`. The map change stands either way.
   Agents read recent meaning changes with `get_architecture` scope `changes`
   (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history

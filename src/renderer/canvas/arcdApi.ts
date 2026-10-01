@@ -7,6 +7,7 @@ import type {
   ParallelCommandDeckStatus,
 } from '../../shared/types'
 import { archdWsHttp } from '../archdEndpoint.ts'
+import type { CodeFitFinding } from './codeFit.ts'
 
 
 /**
@@ -110,6 +111,8 @@ export type MeaningEdit =
 
 export interface MeaningEditResult {
   changes: Array<{ op: string; systemId?: string; changed: boolean; eventIds?: number[] }>
+  /** Where the code now disagrees with the map (archd `db/code_fit.go`). */
+  codeFit?: CodeFitFinding[]
 }
 
 /**
