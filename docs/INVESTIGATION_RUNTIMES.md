@@ -112,6 +112,28 @@ What the sweep found: Python 3.13 rests a suspended generator one instruction
 past its yield, which read as a raise; Ruby and Go did not follow returned
 objects for drift. Both are fixed. Not yet run on Windows or Linux.
 
+## Real projects each recorder has run
+
+Each recorder was run on real projects' own test suites, with and without
+recording, comparing results (2026-10-01/02):
+
+| Recorder | Project (suite) | Result | Time, ordinary -> recorded |
+|---|---|---|---|
+| Python 3.12 | pallets/click (pytest, 2,240 tests) | same | 7.3 s -> 17.1 s |
+| Ruby 4.0 | ruby/rake (test-unit, 606 tests, 71 processes) | same | 12.4 s -> 19.2 s |
+| JVM (Maven) | google/gson (JUnit, 4,673 tests) | same | 5.6 s -> 6.9 s |
+| JVM (Gradle, Kotlin) | michaelbull/kotlin-result (387 tests) | same | about the same |
+| C# | FluentValidation (xUnit, 888 tests) | same | 3 s -> 5.2 s |
+| PHP 8.5 | nikic/FastRoute (PHPUnit, 359 tests) | same | 0.18 s -> 0.26 s |
+| Rust | dtolnay/semver, rust-itertools/itertools (400+ tests) | same | 2.65 s -> 3.33 s (worst binary) |
+| Go | gorilla/mux, spf13/cobra, uber-go/zap | same | - |
+
+What these found, now fixed: Rust took a global lock per call (100x slower
+on itertools) and Cargo reused crates built with an older recorder; a C#
+source generator that copies method bodies broke the instrumented build;
+Go's flush goroutine failed zap's leak check, and its result capture renamed
+the user's closures.
+
 ## Why C# is rewritten at build time, not patched at run time
 
 The obvious .NET hook is `DOTNET_STARTUP_HOOKS` plus a method-patching library

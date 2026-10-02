@@ -215,9 +215,9 @@ and truncated. It stays on the local machine in archd's data directory.
   call across its suspensions; one that suspends and is never resumed is
   counted without a result. Values are read field by field; the recorder
   never calls the program's `toString`, getters or `hashCode`, and iterates
-  only the JDK's and Kotlin's own collections. A Gradle daemon already
-  running keeps its own environment: stop it (`gradle --stop`) or run with
-  `--no-daemon` if a run shows no JVM evidence.
+  only the JDK's and Kotlin's own collections. Gradle passes the run's
+  environment to its daemon and the test workers it forks, so a daemon that
+  was already running records too.
 - **C#**: recorded through the build. Every project the command builds
   (`dotnet run`, `dotnet test`, `dotnet build`) imports a targets file, which
   compiles instrumented copies of the project's `.cs` files kept under
