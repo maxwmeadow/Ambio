@@ -370,7 +370,9 @@ async function investigationPost(workspaceId: string, op: string, body: Record<s
   // daemonFetch gives up after 15s, which suits a lookup but not a run: a run
   // lasts as long as the command it executes (up to 10 minutes). Wait for
   // archd's own deadline plus room to stop the process and write the report.
-  const runSeconds = Math.min(600, Number(body.timeoutSec) > 0 ? Number(body.timeoutSec) : 60)
+  // Without a timeoutSec archd picks the deadline (longer for a command that
+  // builds first), so wait for its longest.
+  const runSeconds = Math.min(600, Number(body.timeoutSec) > 0 ? Number(body.timeoutSec) : 600)
   const signal = op === 'run' ? AbortSignal.timeout((runSeconds + 30) * 1000) : undefined
   const res = await fetch(`${API_BASE}/api/investigation/${op}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

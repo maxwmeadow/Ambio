@@ -33,10 +33,13 @@ import (
 
 const (
 	DefaultRunTimeout = 60 * time.Second
-	MaxRunTimeout     = 10 * time.Minute
-	runOutputHead     = 12 * 1024
-	runOutputTail     = 48 * 1024
-	killGrace         = 2 * time.Second
+	// A command that compiles first (cargo test, dotnet test, mvn test) spends
+	// its first run building, under the recorder, before any of it runs.
+	BuildRunTimeout = 5 * time.Minute
+	MaxRunTimeout   = 10 * time.Minute
+	runOutputHead   = 12 * 1024
+	runOutputTail   = 48 * 1024
+	killGrace       = 2 * time.Second
 )
 
 // RunWatch is one function (or, with Symbol "*", every function in a file)
@@ -267,7 +270,10 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		return nil, fmt.Errorf("command is required")
 	}
 	if spec.Timeout <= 0 {
-		spec.Timeout = DefaultRunTimeout
+		spec.Timeout = defaultTimeout(spec.Command)
+		if spec.Server != "" && defaultTimeout(spec.Server) > spec.Timeout {
+			spec.Timeout = BuildRunTimeout
+		}
 	}
 	if spec.Timeout > MaxRunTimeout {
 		spec.Timeout = MaxRunTimeout
@@ -565,4 +571,26 @@ func shellCommand(line string) *exec.Cmd {
 func pythonAdapterRecords(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "axiom_adapter", "recorder.py"))
 	return err == nil
+}
+
+// buildTools compile before they run; their runs get BuildRunTimeout.
+var buildTools = map[string]bool{"cargo": true, "dotnet": true, "mvn": true, "mvnw": true, "gradle": true, "gradlew": true, "sbt": true}
+
+// defaultTimeout is the deadline for a command that did not ask for one.
+func defaultTimeout(command string) time.Duration {
+	for _, word := range strings.FieldsFunc(command, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == ';' || r == '&' || r == '|' || r == '(' || r == ')'
+	}) {
+		word = strings.Trim(word, `"'`)
+		// The program's name after its folder: either slash, whatever this system uses.
+		if i := strings.LastIndexAny(word, `/\\`); i >= 0 {
+			word = word[i+1:]
+		}
+		name := strings.TrimSuffix(strings.ToLower(word), ".exe")
+		name = strings.TrimSuffix(strings.TrimSuffix(name, ".cmd"), ".bat")
+		if buildTools[name] {
+			return BuildRunTimeout
+		}
+	}
+	return DefaultRunTimeout
 }

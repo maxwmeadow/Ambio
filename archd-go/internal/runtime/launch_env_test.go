@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNodeOptionsSurviveWindowsAndUnicodePaths(t *testing.T) {
@@ -125,5 +126,21 @@ func TestRustWrapperIsArchdUnlessTheUserSetTheirOwn(t *testing.T) {
 	env, note = injectRustEnv([]string{"RUSTC_WORKSPACE_WRAPPER=/usr/bin/sccache"}, "/axiom/archd")
 	if env != nil || !strings.Contains(note, "already set") {
 		t.Fatalf("env = %q, note = %q", env, note)
+	}
+}
+
+// A command that compiles first gets time to build; anything else the usual minute.
+func TestDefaultTimeoutAllowsBuilds(t *testing.T) {
+	for command, want := range map[string]time.Duration{
+		"cargo test": BuildRunTimeout,
+		`"C:\\Program Files\\dotnet\\dotnet.exe" test`: BuildRunTimeout,
+		"./mvnw -q test":                 BuildRunTimeout,
+		"cd app && ./gradlew test":       BuildRunTimeout,
+		"node repro.js":                  DefaultRunTimeout,
+		"python -m pytest -k cargo_fees": DefaultRunTimeout,
+	} {
+		if got := defaultTimeout(command); got != want {
+			t.Errorf("%s: %v, want %v", command, got, want)
+		}
 	}
 }
