@@ -91,11 +91,14 @@ func setup() {
 		return
 	}
 	// A killed process (timeout) never reaches the last flush; save often.
-	go func() {
-		for range time.Tick(time.Second) {
-			save()
-		}
-	}()
+	// A timer that re-arms itself, not a goroutine that loops: tests that
+	// check for leaked goroutines (goleak) would find a loop still running.
+	var tick func()
+	tick = func() {
+		save()
+		time.AfterFunc(time.Second, tick)
+	}
+	time.AfterFunc(time.Second, tick)
 }
 
 func canonical(p string) string {
@@ -257,6 +260,19 @@ func (c *Call) Args(names []string, values ...interface{}) {
 }
 
 // After records the arguments' state at return (mutations) and the results.
+// AfterRefs is After with the values read through their addresses: the
+// deferred call takes them on entry and reads them on the way out.
+func (c *Call) AfterRefs(refs ...interface{}) {
+	if c.w == nil {
+		return
+	}
+	values := make([]interface{}, len(refs))
+	for i, ref := range refs {
+		values[i] = reflect.ValueOf(ref).Elem().Interface()
+	}
+	c.After(values...)
+}
+
 func (c *Call) After(values ...interface{}) {
 	if c.w == nil {
 		return

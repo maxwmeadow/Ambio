@@ -83,9 +83,9 @@ func TestInstrumentKeepsEveryLineAndParses(t *testing.T) {
 		`func split(s string) (head, tail string) { __axiomT`,
 		`func pair() (axiom_r0 int, axiom_r1 error) {`,
 		`func total(prices ...int) (axiom_r0 int) {`,
-		`__axiomT.After(c, sku, n)`,
-		`__axiomT.After(prices, axiom_r0)`,
-		`__axiomT.After(n)`, // blank result: results are not captured
+		`__axiomT.AfterRefs(&c, &sku, &n)`,
+		`__axiomT.AfterRefs(&prices, &axiom_r0)`,
+		`__axiomT.AfterRefs(&n)`, // blank result: results are not captured
 		`axiomrec.Register("/work/shop/cart.go", "Add:7", "Kind:9"`,
 	} {
 		if !strings.Contains(text, want) {
@@ -213,5 +213,59 @@ func main() {
 		if !strings.Contains(text, want) {
 			t.Errorf("evidence lacks %s:\n%s", want, text)
 		}
+	}
+}
+
+// A real module's own test suite, under the overlay: the same results, and
+// evidence for its code. Run with AXIOM_REAL_GO_MODULE=<module folder>.
+func TestRealModuleUnderTheOverlay(t *testing.T) {
+	root := os.Getenv("AXIOM_REAL_GO_MODULE")
+	if root == "" {
+		t.Skip("set AXIOM_REAL_GO_MODULE to a module folder")
+	}
+	run := func(env ...string) string {
+		cmd := exec.Command("go", "test", "-count=1", "./...")
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), env...)
+		out, err := cmd.CombinedOutput()
+		if err != nil && !strings.Contains(string(out), "\nok") && !strings.HasPrefix(string(out), "ok") {
+			t.Logf("go test: %v\n%s", err, out)
+		}
+		var kept []string
+		for _, line := range strings.Split(string(out), "\n") {
+			if f := strings.Fields(line); len(f) >= 2 && (f[0] == "ok" || f[0] == "FAIL" || f[0] == "---") {
+				kept = append(kept, f[0]+" "+f[1])
+			}
+		}
+		return strings.Join(kept, "\n")
+	}
+	plain := run()
+	overlay, files, err := Build(root, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := t.TempDir()
+	recorded := run("GOFLAGS=-overlay="+overlay+" -vet=off", "AXIOM_EVIDENCE_DIR="+evidence, "AXIOM_WATCHES=[]")
+	if recorded != plain {
+		t.Fatalf("results differ.\nordinary:\n%s\nrecorded:\n%s", plain, recorded)
+	}
+	docs, _ := filepath.Glob(filepath.Join(evidence, "*.json"))
+	t.Logf("%d files instrumented; %d evidence documents; results:\n%s", files, len(docs), plain)
+	if len(docs) == 0 {
+		t.Fatal("no evidence")
+	}
+}
+
+// Go names a function's closures by their order (handler.func1, func2). The
+// rewrite must not add one, or every closure the user wrote is renamed in
+// panics and stack traces.
+func TestInstrumentAddsNoClosure(t *testing.T) {
+	src := []byte("package p\n\nfunc handler(n int) (int, error) {\n\tf := func() int { return n }\n\treturn f(), nil\n}\n")
+	out, ok, err := Instrument(src, "/w/p.go", "example.com/p/axiomrecgen")
+	if err != nil || !ok {
+		t.Fatalf("instrument: %v %v", ok, err)
+	}
+	if got := strings.Count(string(out), "func("); got != strings.Count(string(src), "func(") {
+		t.Fatalf("a function literal was added:\n%s", out)
 	}
 }

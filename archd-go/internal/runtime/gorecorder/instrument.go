@@ -123,10 +123,17 @@ func Instrument(src []byte, absPath, importPath string) (out []byte, ok bool, er
 				quoted[i] = strconv.Quote(p)
 			}
 		}
-		values := append(append([]string{}, params...), results...)
+		// The values at exit are read through their addresses, taken by the
+		// deferred call itself: no closure is added, because Go names a
+		// function's closures by their order and an added one would rename
+		// every closure the user wrote (main.handler.func1 in a panic).
+		var refs []string
+		for _, v := range append(append([]string{}, params...), results...) {
+			refs = append(refs, "&"+v)
+		}
 		var b strings.Builder
-		fmt.Fprintf(&b, " __axiomT := axiomrec.Enter(%s + %d); defer __axiomT.Exit(); if __axiomT.Watched() { __axiomT.Args([]string{%s}%s); defer func() { __axiomT.After(%s) }() };",
-			base, index, strings.Join(quoted, ", "), prefixed(params), strings.Join(values, ", "))
+		fmt.Fprintf(&b, " __axiomT := axiomrec.Enter(%s + %d); defer __axiomT.Exit(); if __axiomT.Watched() { __axiomT.Args([]string{%s}%s); defer __axiomT.AfterRefs(%s) };",
+			base, index, strings.Join(quoted, ", "), prefixed(params), strings.Join(refs, ", "))
 		edits = append(edits, edit{at: offset(fd.Body.Lbrace) + 1, text: b.String()})
 	}
 	if len(specs) == 0 {
