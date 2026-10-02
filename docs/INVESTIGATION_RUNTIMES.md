@@ -119,6 +119,7 @@ recording, comparing results (2026-10-01/02):
 
 | Recorder | Project (suite) | Result | Time, ordinary -> recorded |
 |---|---|---|---|
+| Node 22 | npm/node-semver (tap, 51 suites, 9,182 assertions, 89 processes) | same | 6.4 s -> 8.8 s |
 | Python 3.12 | pallets/click (pytest, 2,240 tests) | same | 7.3 s -> 17.1 s |
 | Ruby 4.0 | ruby/rake (test-unit, 606 tests, 71 processes) | same | 12.4 s -> 19.2 s |
 | JVM (Maven) | google/gson (JUnit, 4,673 tests) | same | 5.6 s -> 6.9 s |
