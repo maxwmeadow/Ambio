@@ -18,6 +18,15 @@
   <Target Name="AxiomInstrument" BeforeTargets="_GenerateCompileDependencyCache"
           DependsOnTargets="ResolveAssemblyReferences;FindReferenceAssembliesForReferences"
           Condition="'$(Language)' == 'C#' and '$(MSBuildRuntimeType)' == 'Core' and '$(AXIOM_EVIDENCE_DIR)' != '' and '@(Compile)' != ''">
+    <!-- An analyzer or a source generator is part of the build, not of the
+         program: it runs inside the compiler. Recording it would put the
+         recorder in the compiler's process and the build's own work in the
+         evidence. (Item lists can only be read inside a target.) -->
+    <PropertyGroup>
+      <_AxiomRecord>true</_AxiomRecord>
+      <_AxiomRecord Condition="'$(IsRoslynComponent)' == 'true'">false</_AxiomRecord>
+      <_AxiomRecord Condition="'$(TargetFramework)' == 'netstandard2.0' and '@(PackageReference->WithMetadataValue('Identity', 'Microsoft.CodeAnalysis.CSharp'))' != ''">false</_AxiomRecord>
+    </PropertyGroup>
     <PropertyGroup>
       <_AxiomDir>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'axiom'))</_AxiomDir>
       <_AxiomInputs>$([System.IO.Path]::Combine('$(_AxiomDir)', 'inputs.txt'))</_AxiomInputs>
@@ -34,12 +43,17 @@
       <_AxiomLine Include="defines=$([MSBuild]::Escape('$(DefineConstants)'))" />
       <_AxiomLine Include="@(Compile->'compile=%(FullPath)')" />
       <_AxiomLine Include="@(ReferencePathWithRefAssemblies->'reference=%(FullPath)')" />
+      <!-- The project's source generators and what they read, so the rewriter
+           can check its work against the code they generate. -->
+      <_AxiomLine Include="@(Analyzer->'analyzer=%(FullPath)')" />
+      <_AxiomLine Include="@(AdditionalFiles->'additional=%(FullPath)')" />
+      <_AxiomLine Include="@(EditorConfigFiles->'editorconfig=%(FullPath)')" />
     </ItemGroup>
-    <MakeDir Directories="$(_AxiomDir)" ContinueOnError="true" />
-    <WriteLinesToFile File="$(_AxiomInputs)" Lines="@(_AxiomLine)" Overwrite="true" ContinueOnError="true" />
-    <Exec Command="&quot;$(_AxiomHost)&quot; exec &quot;$(MSBuildThisFileDirectory)AxiomRewriter.dll&quot; &quot;$(_AxiomInputs)&quot;"
+    <MakeDir Directories="$(_AxiomDir)" ContinueOnError="true" Condition="'$(_AxiomRecord)' == 'true'" />
+    <WriteLinesToFile File="$(_AxiomInputs)" Lines="@(_AxiomLine)" Overwrite="true" ContinueOnError="true" Condition="'$(_AxiomRecord)' == 'true'" />
+    <Exec Condition="'$(_AxiomRecord)' == 'true'" Command="&quot;$(_AxiomHost)&quot; exec &quot;$(MSBuildThisFileDirectory)AxiomRewriter.dll&quot; &quot;$(_AxiomInputs)&quot;"
           ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" />
-    <ReadLinesFromFile File="$(_AxiomCompileList)" Condition="Exists('$(_AxiomCompileList)')">
+    <ReadLinesFromFile File="$(_AxiomCompileList)" Condition="'$(_AxiomRecord)' == 'true' and Exists('$(_AxiomCompileList)')">
       <Output TaskParameter="Lines" ItemName="_AxiomCompile" />
     </ReadLinesFromFile>
     <ItemGroup Condition="'@(_AxiomCompile)' != ''">

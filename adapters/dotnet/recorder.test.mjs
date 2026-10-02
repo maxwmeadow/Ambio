@@ -47,9 +47,13 @@ function workspace(files) {
     const docs = existsSync(evidence)
       ? readdirSync(evidence).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(evidence, f), 'utf8')))
       : []
-    const doc = docs[0] ?? { functions: [], watched: [], edges: [], uncaught: [] }
+    // Usually one process; `docs` has them all when a run starts several.
+    const doc = {
+      functions: docs.flatMap(d => d.functions), watched: docs.flatMap(d => d.watched),
+      edges: docs.flatMap(d => d.edges), uncaught: docs.flatMap(d => d.uncaught),
+    }
     return {
-      doc, status: result.status, stdout: result.stdout, stderr: result.stderr, output: result.stdout + result.stderr,
+      doc, docs, status: result.status, stdout: result.stdout, stderr: result.stderr, output: result.stdout + result.stderr,
       watched: symbol => doc.watched.find(w => w.symbol === symbol),
       fn: name => doc.functions.find(f => f.name === name),
     }
@@ -271,4 +275,93 @@ test('the instrumented build behaves like the ordinary one across the language',
   const rebuilt = ws.run([], { record: false, args: ['build'] })
   assert.equal(rebuilt.status, 0, rebuilt.output)
   assert.ok(!readFileSync(join(ws.app, 'bin', 'Debug', `net${SDK}.0`, 'App.dll')).includes('__AxiomRec'))
+})
+
+// A source generator that copies a method's body into the code it writes
+// copies the recorder's added code too, into a method that does not have the
+// same parameters. The rewriter runs the project's generators itself and gives
+// such a file back as written; the rest of the project is still recorded.
+const GENERATOR = `using System.Linq;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+[Generator]
+public sealed class SyncCopies : ISourceGenerator
+{
+    public void Initialize(GeneratorInitializationContext context) { }
+
+    public void Execute(GeneratorExecutionContext context)
+    {
+        foreach (var tree in context.Compilation.SyntaxTrees)
+        {
+            foreach (var method in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
+            {
+                if (!method.AttributeLists.ToString().Contains("SyncCopy") || method.Body == null) continue;
+                var owner = (ClassDeclarationSyntax)method.Parent;
+                // The copy drops the last parameter and keeps the body, text and all.
+                var kept = string.Join(", ", method.ParameterList.Parameters.Take(method.ParameterList.Parameters.Count - 1).Select(p => p.ToString()));
+                var source = new StringBuilder();
+                source.Append("public static partial class ").Append(owner.Identifier.Text).Append(" { public static ").Append(method.ReturnType).Append(' ')
+                    .Append(method.Identifier.Text).Append("Sync(").Append(kept).Append(") ").Append(method.Body.ToString()).Append(" }");
+                context.AddSource(owner.Identifier.Text + "." + method.Identifier.Text + ".g.cs", source.ToString());
+            }
+        }
+    }
+}
+`
+
+test('a file whose code a source generator copies is compiled as written; the rest is recorded', { skip }, () => {
+  const ws = workspace({
+    'Copied.cs': `public sealed class SyncCopyAttribute : System.Attribute { }
+
+public static partial class Copied
+{
+    [SyncCopy]
+    public static int Twice(int x, string note)
+    {
+        return x * 2;
+    }
+}
+`,
+    'Plain.cs': `public static class Plain
+{
+    public static int Add(int a, int b) { return a + b; }
+}
+`,
+    'Program.cs': 'System.Console.WriteLine(Copied.Twice(2, "n") + Copied.TwiceSync(3) + Plain.Add(1, 2));\n',
+  })
+  const generator = join(ws.root, 'Gen')
+  mkdirSync(generator)
+  writeFileSync(join(generator, 'Gen.csproj'), `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <EnforceExtendedAnalyzerRules>false</EnforceExtendedAnalyzerRules>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.0.1" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
+`)
+  writeFileSync(join(generator, 'SyncCopies.cs'), GENERATOR)
+  writeFileSync(join(ws.app, 'App.csproj'), PROJECT.replace('</Project>', `  <ItemGroup>
+    <ProjectReference Include="../Gen/Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>`))
+
+  const plain = ws.run([], { record: false })
+  assert.equal(plain.status, 0, plain.output)
+  assert.equal(plain.stdout.trim().split('\n').pop(), '13')
+
+  const r = ws.run([['Plain.cs', 'Add'], ['Copied.cs', 'Twice']])
+  assert.equal(r.status, 0, r.output)
+  assert.equal(r.stdout.trim().split('\n').pop(), '13')
+  assert.doesNotMatch(r.output, /error|warning/i)
+  assert.ok(r.watched('Add'), `Plain.cs is still recorded: ${JSON.stringify(r.doc)}`)
+  assert.equal(r.watched('Add').samples[0].args, '{"a": 1, "b": 2}')
+  assert.ok(!r.fn('Twice'), 'the copied file is left as written rather than risk the generated code')
+  // The generator is build tooling: it runs in the compiler, and is not recorded.
+  assert.deepEqual(r.doc.functions.map(f => f.name).sort(), ['Add'])
+  assert.equal(r.docs.length, 1)
 })

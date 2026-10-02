@@ -31,12 +31,18 @@ internal static class Instrumenter
             nullableContextOptions: inputs.Nullable.Equals("enable", StringComparison.OrdinalIgnoreCase) ? NullableContextOptions.Enable : NullableContextOptions.Disable);
         var original = CSharpCompilation.Create(inputs.Assembly, trees, references, options);
 
+        // With the code the project's generators add: a type or a member they
+        // declare is then known while deciding what each function can record.
+        var generators = Generators.Load(inputs, parse);
+        int generatedProblems;
+        CSharpCompilation withGenerated = generators.Run(original, out generatedProblems);
+
         // Rewrite every file of the user's own source.
         var rewritten = new Dictionary<SyntaxTree, SyntaxTree>();
         foreach (SyntaxTree tree in trees)
         {
             if (!Instrumentable(tree.FilePath, inputs.Root, tree)) continue;
-            string text = new FileRewriter(original.GetSemanticModel(tree), tree, recorder, inputs.Assembly).Rewrite();
+            string text = new FileRewriter(withGenerated.GetSemanticModel(tree), tree, recorder, inputs.Assembly).Rewrite();
             if (text != null) rewritten[tree] = CSharpSyntaxTree.ParseText(text, parse, tree.FilePath);
         }
         if (rewritten.Count == 0) return;
@@ -47,14 +53,52 @@ internal static class Instrumenter
         string recorderPath = Path.Combine(inputs.Out, recorder + ".cs");
         string recorderSource = Inputs.RecorderSource(recorder);
         SyntaxTree recorderTree = CSharpSyntaxTree.ParseText(recorderSource, parse, recorderPath);
-        CSharpCompilation after = original.AddSyntaxTrees(recorderTree);
-        foreach (var pair in rewritten) after = after.ReplaceSyntaxTree(pair.Key, pair.Value);
-        if (Problems(after, recorderTree) > 0) return;
+        Func<ICollection<SyntaxTree>, CSharpCompilation> with = kept =>
+        {
+            CSharpCompilation c = original.AddSyntaxTrees(recorderTree);
+            foreach (SyntaxTree tree in kept) c = c.ReplaceSyntaxTree(tree, rewritten[tree]);
+            return c;
+        };
+        if (Problems(with(new SyntaxTree[0]), recorderTree) > 0) return;
+
+        // A generator that copies a function's body into the code it writes
+        // copies the added code with it, into a function it does not fit.
+        // Which rewritten files make the generated code worse? Halve until
+        // each is found, and give those back as written.
+        if (generators.Any)
+        {
+            Func<List<SyntaxTree>, bool> worse = kept =>
+            {
+                int problems;
+                generators.Run(with(kept), out problems);
+                return problems > generatedProblems;
+            };
+            Func<List<SyntaxTree>, List<SyntaxTree>> culprits = null;
+            culprits = set =>
+            {
+                if (set.Count == 0 || !worse(set)) return new List<SyntaxTree>();
+                if (set.Count == 1) return set;
+                var found = culprits(set.GetRange(0, set.Count / 2));
+                found.AddRange(culprits(set.GetRange(set.Count / 2, set.Count - set.Count / 2)));
+                // Neither half alone: the trouble needs both. Rare enough to give up the pair.
+                return found.Count > 0 ? found : set;
+            };
+            foreach (SyntaxTree tree in culprits(rewritten.Keys.ToList()))
+            {
+                if (Environment.GetEnvironmentVariable("AXIOM_RECORDER_DEBUG") != null) Console.Error.WriteLine("[axiom] not recording " + tree.FilePath + ": a source generator copies its code");
+                rewritten.Remove(tree);
+            }
+            if (rewritten.Count == 0) return;
+        }
+
+        int ignored;
+        CSharpCompilation before = withGenerated;
+        CSharpCompilation after = generators.Run(with(rewritten.Keys.ToList()), out ignored);
         var reverted = new ConcurrentBag<SyntaxTree>();
         Parallel.ForEach(rewritten, pair =>
         {
             int now = Problems(after, pair.Value);
-            if (now > 0 && now > Problems(original, pair.Key)) reverted.Add(pair.Key);
+            if (now > 0 && now > Problems(before, pair.Key)) reverted.Add(pair.Key);
         });
         foreach (SyntaxTree tree in reverted)
         {

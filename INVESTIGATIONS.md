@@ -226,7 +226,11 @@ and truncated. It stays on the local machine in archd's data directory.
   stack traces, line numbers and the debugger see the user's source. The
   rewriter uses the SDK's own compiler (.NET SDK 6 or newer, C# 6 or newer)
   and keeps a file only if its rewrite adds no error and no warning; anything
-  else compiles as written. Methods, constructors, local functions and
+  else compiles as written. It runs the project's source generators too: a
+  generator that copies a method's body into the code it writes would copy
+  the added code with it, so a file whose rewrite makes generated code worse
+  is compiled as written. Analyzer and generator projects in the workspace
+  are build tooling and are not recorded. Methods, constructors, local functions and
   property accessors that do more than read or write a field are recorded;
   lambdas, operators, indexers and top-level statements are not. An `async`
   method's result is what it returned, not the `Task`. An iterator's items, a

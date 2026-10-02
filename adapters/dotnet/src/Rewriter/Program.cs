@@ -58,6 +58,7 @@ internal sealed class Inputs
 {
     public string Roslyn = "", Out = "", Assembly = "", LangVersion = "", Nullable = "", Root = "";
     public List<string> Defines = new List<string>(), Compile = new List<string>(), References = new List<string>();
+    public List<string> Analyzers = new List<string>(), Additional = new List<string>(), EditorConfigs = new List<string>();
 
     public static Inputs Read(string file)
     {
@@ -77,6 +78,9 @@ internal sealed class Inputs
                 case "defines": inputs.Defines.AddRange(value.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries).Select(d => d.Trim())); break;
                 case "compile": inputs.Compile.Add(value); break;
                 case "reference": inputs.References.Add(value); break;
+                case "analyzer": inputs.Analyzers.Add(value); break;
+                case "additional": inputs.Additional.Add(value); break;
+                case "editorconfig": inputs.EditorConfigs.Add(value); break;
             }
         }
         string root = Environment.GetEnvironmentVariable("AXIOM_WORKSPACE_ROOT");
