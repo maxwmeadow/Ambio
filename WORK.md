@@ -189,7 +189,12 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `mac-signing` (after `apple-developer`) Sign and notarize macOS builds; then `mac-auto-install`: turn on macOS auto-install in `electron/updates.ts`.
 - ⬜ `windows-signing` (after `signpath`) Sign Windows builds via SignPath.
 - ⬜ `linux-packages` **deb/rpm** alongside the AppImage.
-- ⬜ `rename-mechanics` (after `rename`) The mechanical rename across paths, IDs and docs.
+- ⬜ `rename-mechanics` (after `rename`) The mechanical rename across paths, IDs and docs. Inventory (2026-10-03, ~5,300 mentions):
+  - **User-visible, rename:** `productName`/`appId` (`com.axiom.app`) and `name` in package.json; window titles, menus, docs, README, CHANGELOG, PRIVACY/SECURITY/CLA; the `axiom://` scheme (21); the `axiom` CLI command; the MCP server name `axiom` and `/axiom:*` prompts (agents see these); the GitHub repo (GitHub redirects the old URL).
+  - **Users' data, migrate, don't rename blindly:** `~/.axiom` (maps, settings, registry, trash, backups; ~2,500 mentions mostly in tests). On first launch, move `~/.axiom` to the new folder if the new one does not exist. Agent installers must remove the old `axiom` MCP entry when writing the new one, or hosts end up with both.
+  - **Compatibility:** read `AXIOM_*` env vars (137) as a fallback for one release; keep `axiom://` registered as an alias for one release. No release is published yet, so `appId` and the update channel can change freely - do it before the first release.
+  - **Internal, optional:** the `axiom-` CSS prefix (~3,500), `__axiom*` test hooks (106), and the Go module path `axiom.local/archd` (208) are invisible to users; renaming them is churn with no user value. Recommendation: leave them, or do them in a separate mechanical commit.
+  - **Done when:** a fresh install and an upgraded install (with an existing `~/.axiom`) both open their projects under the new name, a reinstalled agent sees only the new MCP server, and the full test suites pass.
 - ⬜ `launch-plan` **A launch plan:** Show HN, r/programming and agent-tool communities, the README video, a comparison page, a short docs site. Lead with the bidirectional loop, not "see your codebase".
 - ⬜ `commercial-license-page` **Explain commercial licensing** for companies that cannot use AGPL (the CLA allows it): a short section in README or a LICENSING.md, with a contact.
 - ⬜ `community-space` **A place to talk:** GitHub Discussions (on) with categories for ideas, help and show-and-tell; link it from Help and the README.
