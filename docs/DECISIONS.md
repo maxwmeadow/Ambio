@@ -116,6 +116,32 @@ steering *live* structure; free as a GitHub org and on npm; no developer-tool
 trademark collision. Next step: shortlist 3, check USPTO/EUIPO classes 9 and
 42, check GitHub org and npm, say them out loud.
 
+### Second pass (2026-10-03)
+
+Checked by RDAP (.com Verisign, .dev/.app Google Registry) and the npm
+registry; conflicts by web search. GitHub org names and trademarks were not
+checked.
+
+Framing: the name should carry the thesis (a two-way architecture contract
+between you and your agents, kept honest by the code), not the live map,
+and read clearly on a resume next to one line.
+
+| Candidate | Idea | .dev | .app | npm | Conflicts |
+|---|---|---|---|---|---|
+| **Archpact** (recommended) | architecture pact: the two-way contract | free | free | free | none found ("ArchiPAC" is unrelated) |
+| Truemap | the map that stays true | free | free | free | none exact (TruckMap, True Maps nearby) |
+| Keyplan | architects' key plan: where one drawing sits in the whole | free | taken | free | Keyplan 3D, Objective Keyplan, a CAD command |
+| Twinplan | one plan for you and your agent | free | free | free | none found |
+| Codeterrain | (first pass) | free | free | free | none found |
+
+Taken in every TLD checked: Plumbline, Plumb, Parti, Tracery, Charrette,
+Formwork, Countersign, Signoff, Cosign, Sightline, Lockstep, Ratify, Strukt,
+Planar, Blueline, Redline, Keyframe. Free but weak: Coprint, Mirrorplan,
+Archtrue, Planyard, Truesheet, Twinprint, Liveprint.
+
+Risks for Archpact: "Arch" may read as Arch Linux; "pact" is formal. Next:
+USPTO classes 9 and 42, github.com/archpact, say it aloud, then decide.
+
 ---
 
 ## 4. Agents when Axiom is closed ✅ (2026-09-30)
