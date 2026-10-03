@@ -5,10 +5,10 @@
 // build's upgrade test replays (schema_upgrade_test.go). It lives in testdata
 // so the current module never builds it. To regenerate a fixture:
 //
-//	git worktree add /tmp/axiom-old <commit>
-//	mkdir -p /tmp/axiom-old/archd-go/cmd/schemagen
-//	cp testdata/schemagen/main.go /tmp/axiom-old/archd-go/cmd/schemagen/
-//	(cd /tmp/axiom-old/archd-go && go run ./cmd/schemagen) > testdata/schema-vN.sql
+//	git worktree add /tmp/ambio-old <commit>
+//	mkdir -p /tmp/ambio-old/archd-go/cmd/schemagen
+//	cp testdata/schemagen/main.go /tmp/ambio-old/archd-go/cmd/schemagen/
+//	(cd /tmp/ambio-old/archd-go && go run ./cmd/schemagen) > testdata/schema-vN.sql
 //
 // Only functions that have existed since schema v0 are used.
 package main
@@ -20,7 +20,7 @@ import (
 	"os"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func must(err error) {

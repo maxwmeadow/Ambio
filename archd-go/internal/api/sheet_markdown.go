@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Sheets as Markdown specs (WORK sheet-markdown). Planning mostly happens in
 // text - PR descriptions, AGENTS.md, Spec Kit and Kiro specs - so a sheet can
-// leave Axiom as Markdown and come back in as a draft sheet. The export is
+// leave Ambio as Markdown and come back in as a draft sheet. The export is
 // also the import format, so a sheet survives the round trip:
 //
 //	# Payment flow

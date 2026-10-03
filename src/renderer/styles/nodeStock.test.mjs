@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
  * stock - using the same token names.
  *
  * These tests exist because of a bug that produced no error and no warning:
- * sheet-mode tokens were set on the `.axiom-sheet-mode` container, but
+ * sheet-mode tokens were set on the `.ambio-sheet-mode` container, but
  * `.react-flow` declares the same tokens on ITSELF, and a custom property
  * declared on a closer ancestor always beats one inherited from further up.
  * The override silently did nothing, so sheet headers stayed Floor-grey while
@@ -55,15 +55,15 @@ function tokenValue(selector, token) {
   return match ? match[1].trim() : null
 }
 
-const PLANNED = ".axiom-sheet-mode .react-flow__node[data-id^='planned:']"
+const PLANNED = ".ambio-sheet-mode .react-flow__node[data-id^='planned:']"
 
 test('sheet stock is declared inside .react-flow, not on the container', () => {
-  // The original bug in one assertion. Setting these on `.axiom-sheet-mode`
+  // The original bug in one assertion. Setting these on `.ambio-sheet-mode`
   // alone is a no-op, because .react-flow redeclares them for its own subtree.
   assert.ok(tokenValue(PLANNED, '--card-head'), 'sheet stock must be declared inside .react-flow')
 
   assert.equal(
-    /--card-head:/.test(ruleBody('.axiom-sheet-mode')),
+    /--card-head:/.test(ruleBody('.ambio-sheet-mode')),
     false,
     'node tokens on the bare container are shadowed by .react-flow and do nothing',
   )
@@ -74,13 +74,13 @@ test('sheet stock reaches PLANNED elements only, never live code', () => {
   // live file that changed appearance between views would turn one trusted map
   // into two drawings of it.
   assert.equal(
-    css.includes('.axiom-sheet-mode .react-flow {'),
+    css.includes('.ambio-sheet-mode .react-flow {'),
     false,
     'a blanket sheet override would restyle live code too',
   )
   assert.match(
     css,
-    /\.axiom-sheet-mode \.react-flow__node\[data-id\^='planned:'\] \.axiom-shape-texture/,
+    /\.ambio-sheet-mode \.react-flow__node\[data-id\^='planned:'\] \.ambio-shape-texture/,
     'paper is applied to planned elements only',
   )
 })
@@ -97,8 +97,8 @@ test('leaving a sheet lands exactly on Floor stock', () => {
   // as a subtle mis-landing rather than an obvious snap.
   const floor = tokenValue('.react-flow', '--card-head')
   const exiting = tokenValue(
-    ".axiom-sheet-mode[data-sheet-phase='entering'] .react-flow__node[data-id^='planned:'],\n" +
-      ".axiom-sheet-mode[data-sheet-phase='leaving'] .react-flow__node[data-id^='planned:']",
+    ".ambio-sheet-mode[data-sheet-phase='entering'] .react-flow__node[data-id^='planned:'],\n" +
+      ".ambio-sheet-mode[data-sheet-phase='leaving'] .react-flow__node[data-id^='planned:']",
     '--card-head',
   )
   assert.equal(exiting, floor, 'the exit target must equal the Floor value')
@@ -107,11 +107,11 @@ test('leaving a sheet lands exactly on Floor stock', () => {
 test('sheet presence stays on the container, where the chrome reads it', () => {
   // --sheet-presence is NOT redeclared by .react-flow, so it inherits cleanly
   // and belongs with the pseudo-elements that use it.
-  assert.ok(/--sheet-presence:\s*1/.test(ruleBody('.axiom-sheet-mode')))
+  assert.ok(/--sheet-presence:\s*1/.test(ruleBody('.ambio-sheet-mode')))
 })
 
 test('the blueprint board is still the mode signal', () => {
   // Nodes stop carrying the mode, so the BOARD has to keep carrying it.
-  assert.match(css, /\.axiom-sheet-mode \.react-flow__pane::before/)
+  assert.match(css, /\.ambio-sheet-mode \.react-flow__pane::before/)
   assert.match(css, /blueprint\.jpg/)
 })

@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"log"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
 )
 
 // Journaling runs alongside the live broadcast, not instead of it. A
 // graph:patch only reaches a renderer that is currently attached; the journal
-// is what lets you close Axiom, let agents work overnight, and still be shown
+// is what lets you close Ambio, let agents work overnight, and still be shown
 // the architectural diff in the morning.
 //
 // Journal failures never fail an index. Losing a delta row is a degraded

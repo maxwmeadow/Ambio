@@ -5,10 +5,10 @@ import type { UpdateStatus } from '../../electron/preload'
 export function useUpdateStatus(): UpdateStatus {
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
   useEffect(() => {
-    if (!window.axiom?.onUpdateStatus) return
+    if (!window.ambio?.onUpdateStatus) return
     let active = true
-    void window.axiom.getUpdateStatus().then(current => { if (active) setStatus(current) })
-    const unsubscribe = window.axiom.onUpdateStatus(setStatus)
+    void window.ambio.getUpdateStatus().then(current => { if (active) setStatus(current) })
+    const unsubscribe = window.ambio.onUpdateStatus(setStatus)
     return () => { active = false; unsubscribe() }
   }, [])
   return status

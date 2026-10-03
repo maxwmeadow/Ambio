@@ -10,14 +10,14 @@ let e2eHome: string
 /**
  * Every run gets its own home folder: the app's project registry, settings
  * and window state are read from there, so the suite neither depends on nor
- * writes to the developer's real ~/.axiom. The fixture project is registered
+ * writes to the developer's real ~/.ambio. The fixture project is registered
  * and has a small real folder for the setup screen to browse.
  */
 function isolatedHome(): { home: string; root: string } {
-  const home = mkdtempSync(join(tmpdir(), 'axiom-e2e-home-'))
-  const root = join(home, 'axiom-e2e')
+  const home = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
+  const root = join(home, 'ambio-e2e')
   for (const dir of ['src/renderer', 'docs', 'electron']) mkdirSync(join(root, dir), { recursive: true })
-  writeFileSync(join(root, 'package.json'), '{ "name": "axiom-e2e" }\n')
+  writeFileSync(join(root, 'package.json'), '{ "name": "ambio-e2e" }\n')
   writeFileSync(join(root, 'ARCHITECTURE.md'), '# Architecture\n\nThe renderer consumes indexed source only.\n')
   writeFileSync(join(root, 'electron.vite.config.ts'), 'export default {}\n')
   writeFileSync(join(root, 'src/renderer/App.tsx'), 'export const App = () => null\n')
@@ -25,16 +25,16 @@ function isolatedHome(): { home: string; root: string } {
     id, name, rootPath: root, ignoredPaths: [], languageOverrides: {},
     layoutPreferences: { zoom: 1, panX: 0, panY: 0 }, openedAt,
   })
-  mkdirSync(join(home, '.axiom'), { recursive: true })
-  writeFileSync(join(home, '.axiom', 'projects.json'), JSON.stringify([
-    project('demo', 'Axiom Canvas Fixture', 2),
+  mkdirSync(join(home, '.ambio'), { recursive: true })
+  writeFileSync(join(home, '.ambio', 'projects.json'), JSON.stringify([
+    project('demo', 'Ambio Canvas Fixture', 2),
     project('fixture-shopfront', 'shopfront', 1),
   ], null, 2))
   return { home, root }
 }
 
 async function expectResizeChrome(nodeId: string) {
-  const handles = page.locator(`.axiom-node-resizer[data-node-id="${nodeId}"] .axiom-floating-resize-handle`)
+  const handles = page.locator(`.ambio-node-resizer[data-node-id="${nodeId}"] .ambio-floating-resize-handle`)
   await expect(handles).toHaveCount(8)
   for (const handle of await handles.all()) {
     const hitBox = await handle.boundingBox()
@@ -52,8 +52,8 @@ async function revealFileNode(nodeId: string) {
   if (await node.count() === 0) {
     const relPath = await page.evaluate(id => {
       const graphStore = (window as unknown as {
-        __axiomGraphStore: { getState: () => { files: Array<{ id: string; relPath: string }> } }
-      }).__axiomGraphStore
+        __ambioGraphStore: { getState: () => { files: Array<{ id: string; relPath: string }> } }
+      }).__ambioGraphStore
       return graphStore.getState().files.find(file => file.id === id)?.relPath ?? null
     }, nodeId)
     expect(relPath, `missing E2E file ${nodeId}`).not.toBeNull()
@@ -68,11 +68,11 @@ async function revealFileNode(nodeId: string) {
   if (!box) return node
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   for (let index = 0; index < 15; index += 1) {
-    if (!await node.evaluate(element => element.classList.contains('axiom-node-hidden'))) break
+    if (!await node.evaluate(element => element.classList.contains('ambio-node-hidden'))) break
     await page.mouse.wheel(0, -100)
     await page.waitForTimeout(30)
   }
-  await expect(node).not.toHaveClass(/axiom-node-hidden/)
+  await expect(node).not.toHaveClass(/ambio-node-hidden/)
   // Wheel zoom is smoothed with requestAnimationFrame. The semantic class can
   // flip before the camera reaches its target, so interaction measurements
   // must wait for that final frame.
@@ -86,7 +86,7 @@ test.beforeEach(async () => {
   e2eHome = isolated.home
   app = await electron.launch({
     args: ['.'],
-    env: { ...env, AXIOM_E2E: '1', AXIOM_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home },
+    env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home },
   })
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
@@ -163,7 +163,7 @@ test.beforeEach(async () => {
       : url.includes('/api/files/file_canvas/source?')
         ? {
             fileId: 'file_canvas',
-            relPath: 'src/renderer/canvas/AxiomCanvas.tsx',
+            relPath: 'src/renderer/canvas/AmbioCanvas.tsx',
             language: 'tsx',
             lineCount: 7,
             content: [
@@ -245,14 +245,14 @@ test.beforeEach(async () => {
   // Reload after routing so even the fixture's initial layout persistence is
   // deterministic and cannot race a refused localhost request.
   await page.evaluate(() => {
-    localStorage.removeItem('axiom:inbox-draft:demo')
-    localStorage.removeItem('axiom:inbox-draft:demo:pending')
-    localStorage.removeItem('axiom:inbox-draft:demo:sheet')
+    localStorage.removeItem('ambio:inbox-draft:demo')
+    localStorage.removeItem('ambio:inbox-draft:demo:pending')
+    localStorage.removeItem('ambio:inbox-draft:demo:sheet')
   })
   await page.reload()
-  await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
+  await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
-  await expect(page.locator('.axiom-canvas-minimap')).toBeVisible()
+  await expect(page.locator('.ambio-canvas-minimap')).toBeVisible()
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
   // Measure interactions only after both have reached their authored frame.
   await expect(page.locator('.layout-transition')).toHaveCount(0)
@@ -275,7 +275,7 @@ test('renders the deterministic Floor baseline', async () => {
 test('autofits complete system names while their contents are covered', async () => {
   const longName = 'Longitudinal Tracking and Trend Persistence'
   const targetId = await page.evaluate(name => {
-    const graphStore = (window as any).__axiomGraphStore
+    const graphStore = (window as any).__ambioGraphStore
     const state = graphStore.getState()
     const target = state.systems.find((system: any) => system.parentId == null) ?? state.systems[0]
     graphStore.getState().applySnapshot({
@@ -316,7 +316,7 @@ test('autofits complete system names while their contents are covered', async ()
 
 test('defers and virtualizes an 805-file fresh-project overview', async () => {
   const fixture = await page.evaluate(() => {
-    const graphStore = (window as any).__axiomGraphStore
+    const graphStore = (window as any).__ambioGraphStore
     const state = graphStore.getState()
     const baseProject = state.currentProject
     const fileTemplate = state.files[0]
@@ -351,7 +351,7 @@ test('defers and virtualizes an 805-file fresh-project overview', async () => {
   await expect(page.locator('.react-flow__node')).toHaveCount(0)
 
   await page.evaluate(({ systems, files }) => {
-    const state = (window as any).__axiomGraphStore.getState()
+    const state = (window as any).__ambioGraphStore.getState()
     state.applyClassification({
       systems,
       files: files.map((file: any, index: number) => ({
@@ -367,7 +367,7 @@ test('defers and virtualizes an 805-file fresh-project overview', async () => {
   await expect(page.getByRole('status')).toHaveCount(0)
   await expect(page.locator('.react-flow__node[data-id="perf-system-0"]')).toBeVisible()
   await expect.poll(() => page.evaluate(() => {
-    const state = (window as any).__axiomGraphStore.getState()
+    const state = (window as any).__ambioGraphStore.getState()
     return state.files.length
   })).toBe(805)
   await expect.poll(() => page.locator('.react-flow__node').count()).toBeLessThanOrEqual(24)
@@ -391,13 +391,13 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
   // the regression exercises a real path as well as the inspection handoff.
   await page.evaluate(() => {
     const graphStore = (window as unknown as {
-      __axiomGraphStore: {
+      __ambioGraphStore: {
         getState: () => {
           files: Array<Record<string, unknown>>
           applyDbPatch: (patch: unknown) => void
         }
       }
-    }).__axiomGraphStore
+    }).__ambioGraphStore
     const state = graphStore.getState()
     for (const [id, positionX, positionY] of [
       ['file_systemnode', 48, 72],
@@ -419,13 +419,13 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
   const emitUpdate = async (traceId: string, lineCount: number) => {
     await page.evaluate(({ traceId, lineCount }) => {
       const graphStore = (window as unknown as {
-        __axiomGraphStore: {
+        __ambioGraphStore: {
           getState: () => {
             files: Array<Record<string, unknown>>
             applyDbPatch: (patch: unknown) => void
           }
         }
-      }).__axiomGraphStore
+      }).__ambioGraphStore
       const state = graphStore.getState()
       const file = state.files.find(candidate => candidate.id === 'file_systemnode')
       if (!file) throw new Error('missing E2E living target')
@@ -456,27 +456,27 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
   }
 
   const assertTopFlow = async (traceId: string) => {
-    const overlay = page.locator('.axiom-living-flow-overlay')
-    const flow = overlay.locator('.axiom-living-flow')
+    const overlay = page.locator('.ambio-living-flow-overlay')
+    const flow = overlay.locator('.ambio-living-flow')
     await expect(flow).toHaveCount(1)
     await expect(flow).toHaveAttribute('data-living-flow-source', 'file_systemnode')
     await expect(flow).toHaveAttribute('data-living-flow-target', 'file_filenode')
     await expect(page.locator('.react-flow')).toBeVisible()
     // The edited file sits inside a collapsed system: the system names it on
     // its lower-right rail instead of popping the card out over its title.
-    await expect(page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')).toContainText('EDITED')
+    await expect(page.locator('.ambio-living-window-label[data-living-window-label="file_systemnode"]')).toContainText('EDITED')
     await expect(
-      page.locator('.react-flow__node[data-id="file_systemnode"] .axiom-living-file-signal'),
+      page.locator('.react-flow__node[data-id="file_systemnode"] .ambio-living-file-signal'),
     ).toHaveCount(0)
     await expect.poll(() => overlay.evaluate(element => getComputedStyle(element).zIndex))
       .toBe('2147483000')
     // The route is drawn faintly while the pulse travels it; it leaves with
     // the flow (the flow count returns to zero below), never as wiring.
-    await expect(flow.locator('.axiom-living-flow__track')).toHaveCount(1)
-    await expect.poll(() => flow.locator('.axiom-living-flow__pulse').evaluate(
+    await expect(flow.locator('.ambio-living-flow__track')).toHaveCount(1)
+    await expect.poll(() => flow.locator('.ambio-living-flow__pulse').evaluate(
       path => (path as SVGGeometryElement).getTotalLength(),
     )).toBeGreaterThan(0)
-    const renderedBoundaryHit = await flow.locator('.axiom-living-flow__pulse').evaluate(path => {
+    const renderedBoundaryHit = await flow.locator('.ambio-living-flow__pulse').evaluate(path => {
       const geometry = path as SVGGeometryElement
       const endpoint = geometry.getPointAtLength(geometry.getTotalLength())
       const screenMatrix = geometry.getScreenCTM()
@@ -506,17 +506,17 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
       expect(renderedBoundaryHit.edgeDistance).toBeLessThanOrEqual(1)
       expect(renderedBoundaryHit.projectsOntoBoundary).toBe(true)
     }
-    await expect.poll(() => flow.locator('.axiom-living-flow__pulse').evaluate(path =>
+    await expect.poll(() => flow.locator('.ambio-living-flow__pulse').evaluate(path =>
       getComputedStyle(path).animationTimingFunction
     )).toBe('linear')
     await expect.poll(() => page.evaluate(activeTraceId => {
       const diagnostics = (window as unknown as {
-        __axiomLivingFlowLog?: Array<{
+        __ambioLivingFlowLog?: Array<{
           traceId: string
           stage: string
           paintAttempt?: number
         }>
-      }).__axiomLivingFlowLog ?? []
+      }).__ambioLivingFlowLog ?? []
       const trace = diagnostics.filter(entry => entry.traceId === activeTraceId)
       return {
         scheduled: trace.filter(entry => entry.stage === 'renderer-scheduled').length,
@@ -537,45 +537,45 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
 
   await emitUpdate('E2E-LIVING-1', 156)
   await assertTopFlow('E2E-LIVING-1')
-  const continuousInspectionLayer = page.locator('.axiom-living-inspection-layer').first()
+  const continuousInspectionLayer = page.locator('.ambio-living-inspection-layer').first()
   await expect(continuousInspectionLayer).toBeVisible()
   await continuousInspectionLayer.evaluate(element => {
     element.setAttribute('data-choreography-instance', 'origin-window')
   })
   await expect(
-    page.locator('.axiom-living-window-label[data-living-window-label="file_filenode"]'),
+    page.locator('.ambio-living-window-label[data-living-window-label="file_filenode"]'),
   ).toContainText('IMPACT', { timeout: 2_500 })
   await expect(continuousInspectionLayer).toHaveAttribute(
     'data-choreography-instance',
     'origin-window',
   )
-  await expect(page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')).toHaveCount(0)
+  await expect(page.locator('.ambio-living-window-label[data-living-window-label="file_systemnode"]')).toHaveCount(0)
   await expect(continuousInspectionLayer).toHaveAttribute(
     'data-choreography-instance',
     'origin-window',
   )
-  await expect(page.locator('.axiom-living-flow')).toHaveCount(0, { timeout: 4_000 })
+  await expect(page.locator('.ambio-living-flow')).toHaveCount(0, { timeout: 4_000 })
   await expect(page.locator('.react-flow')).toBeVisible()
 
   await emitUpdate('E2E-LIVING-2', 155)
   await assertTopFlow('E2E-LIVING-2')
   await expect(
-    page.locator('.axiom-living-window-label[data-living-window-label="file_filenode"]'),
+    page.locator('.ambio-living-window-label[data-living-window-label="file_filenode"]'),
   ).toContainText('IMPACT', { timeout: 2_500 })
-  await expect(page.locator('.axiom-living-flow')).toHaveCount(0, { timeout: 4_000 })
+  await expect(page.locator('.ambio-living-flow')).toHaveCount(0, { timeout: 4_000 })
   await expect(page.locator('.react-flow')).toBeVisible()
   await expect.poll(() => page.locator('.react-flow__node').count()).toBe(baselineNodeCount)
 
   // Simulate a delayed JavaScript expiry timer. CSS animations may finish
   // independently, but an active signal must never go blank or leave its
   // inspection system visually empty while state is still active.
-  await expect(page.locator('.axiom-living-window-label')).toHaveCount(0, { timeout: 3_000 })
+  await expect(page.locator('.ambio-living-window-label')).toHaveCount(0, { timeout: 3_000 })
   await page.evaluate(() => {
     const graphStore = (window as unknown as {
-      __axiomGraphStore: {
+      __ambioGraphStore: {
         setState: (state: unknown) => void
       }
-    }).__axiomGraphStore
+    }).__ambioGraphStore
     graphStore.setState({
       nodeFx: {
         file_systemnode: {
@@ -586,7 +586,7 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
       },
     })
   })
-  const delayedSignal = page.locator('.axiom-living-window-label[data-living-window-label="file_systemnode"]')
+  const delayedSignal = page.locator('.ambio-living-window-label[data-living-window-label="file_systemnode"]')
   await expect(delayedSignal).toContainText('EDITED')
   await page.waitForTimeout(1_700)
   await expect(delayedSignal).toBeVisible()
@@ -594,20 +594,20 @@ test('keeps repeated hidden-node flows above every canvas node without clearing 
     Number(getComputedStyle(element.parentElement!).opacity) * Number(getComputedStyle(element).opacity)
   )).toBeGreaterThan(0.9)
   await expect.poll(visibleNodeCount).toBeGreaterThanOrEqual(baselineVisibleNodeCount)
-  for (const layer of await page.locator('.axiom-living-inspection-layer').all()) {
+  for (const layer of await page.locator('.ambio-living-inspection-layer').all()) {
     await expect.poll(() => layer.evaluate(element =>
       Number(getComputedStyle(element).opacity)
     )).toBeGreaterThan(0.9)
     await expect.poll(() => layer.locator('xpath=..').locator(
-      '.axiom-system-node__shell',
+      '.ambio-system-node__shell',
     ).evaluate(element => getComputedStyle(element).filter)).toBe('none')
   }
   await page.evaluate(() => {
     const graphStore = (window as unknown as {
-      __axiomGraphStore: {
+      __ambioGraphStore: {
         setState: (state: unknown) => void
       }
-    }).__axiomGraphStore
+    }).__ambioGraphStore
     graphStore.setState({ nodeFx: {} })
   })
   await expect(delayedSignal).toHaveCount(0)
@@ -634,10 +634,10 @@ test('never commits an empty canvas frame during rapid save and resync bursts', 
       blankFrames: 0,
       minimumVisibleNodeCount: Number.POSITIVE_INFINITY,
     }
-    ;(window as any).__axiomSceneFrameMonitor = monitor
+    ;(window as any).__ambioSceneFrameMonitor = monitor
     const sample = () => {
       if (!monitor.active) return
-      const graphStore = (window as any).__axiomGraphStore
+      const graphStore = (window as any).__ambioGraphStore
       const state = graphStore.getState()
       const canonicalCount = state.systems.length + state.files.length + state.infraNodes.length
       if (canonicalCount > 0) {
@@ -663,7 +663,7 @@ test('never commits an empty canvas frame during rapid save and resync bursts', 
 
   for (let index = 0; index < 36; index++) {
     await page.evaluate((iteration) => {
-      const graphStore = (window as any).__axiomGraphStore
+      const graphStore = (window as any).__ambioGraphStore
       const state = graphStore.getState()
       const edited = state.files.find((file: any) => file.id === 'file_systemnode')
       const dependency = state.dependencies.find((item: any) =>
@@ -722,7 +722,7 @@ test('never commits an empty canvas frame during rapid save and resync bursts', 
 
   await page.waitForTimeout(1_800)
   const monitor = await page.evaluate(() => {
-    const value = (window as any).__axiomSceneFrameMonitor
+    const value = (window as any).__ambioSceneFrameMonitor
     value.active = false
     return value
   })
@@ -732,7 +732,7 @@ test('never commits an empty canvas frame during rapid save and resync bursts', 
   await expect(page.locator('.react-flow__node')).toHaveCount(baselineNodeCount)
   await expect(page.locator('.react-flow')).toBeVisible()
 
-  // React Flow is an interaction renderer, not the owner of Axiom's semantic
+  // React Flow is an interaction renderer, not the owner of Ambio's semantic
   // nodes. Its default deletion shortcut must never erase the controlled Floor.
   await page.locator('.react-flow__node[data-id="sys_shared"]').click({ force: true })
   await page.keyboard.press('Delete')
@@ -746,13 +746,13 @@ test('presents project navigation as a desktop workbench launcher', async () => 
   launcherUrl.searchParams.set('home', '1')
   await page.goto(launcherUrl.toString())
 
-  const launcher = page.locator('.axiom-launcher')
-  const titlebar = page.locator('.axiom-launcher__titlebar')
-  const body = page.locator('.axiom-launcher__body')
+  const launcher = page.locator('.ambio-launcher')
+  const titlebar = page.locator('.ambio-launcher__titlebar')
+  const body = page.locator('.ambio-launcher__body')
   const openCodebase = page.getByRole('button', { name: 'Open Codebase' })
 
   await expect(launcher).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Axiom', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Ambio', level: 1 })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Command Deck' })).toBeVisible()
   await expect(openCodebase).toBeVisible()
   await expect(page.getByText('Living code topology')).toBeVisible()
@@ -765,10 +765,10 @@ test('presents project navigation as a desktop workbench launcher', async () => 
   expect(bodyBox?.width).toBeGreaterThan(900)
   expect(bodyBox?.height).toBeGreaterThan(700)
   const launcherType = await page.evaluate(() => ({
-    description: parseFloat(getComputedStyle(document.querySelector('.axiom-launcher__description')!).fontSize),
-    workspaceHeading: parseFloat(getComputedStyle(document.querySelector('.axiom-launcher__workspace-heading h2')!).fontSize),
-    actionLabel: parseFloat(getComputedStyle(document.querySelector('.axiom-launcher__fork-copy strong')!).fontSize),
-    actionHeight: document.querySelector('.axiom-launcher__fork')!.getBoundingClientRect().height,
+    description: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__description')!).fontSize),
+    workspaceHeading: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__workspace-heading h2')!).fontSize),
+    actionLabel: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__fork-copy strong')!).fontSize),
+    actionHeight: document.querySelector('.ambio-launcher__fork')!.getBoundingClientRect().height,
   }))
   expect(launcherType.description).toBeGreaterThanOrEqual(15)
   expect(launcherType.workspaceHeading).toBeGreaterThanOrEqual(26)
@@ -793,7 +793,7 @@ test('navigates recent projects via search and keyboard flow', async () => {
   launcherUrl.searchParams.set('home', '1')
   await page.goto(launcherUrl.toString())
 
-  const searchBox = page.locator('.axiom-launcher__search-box input')
+  const searchBox = page.locator('.ambio-launcher__search-box input')
   await expect(searchBox).toBeVisible()
 
   // Pressing '/' focuses search
@@ -801,26 +801,26 @@ test('navigates recent projects via search and keyboard flow', async () => {
   await expect(searchBox).toBeFocused()
 
   // Read first project name dynamically from the rendered list
-  const firstProjectName = (await page.locator('.axiom-launcher__project-copy strong').first().textContent())?.trim() ?? 'shopfront'
+  const firstProjectName = (await page.locator('.ambio-launcher__project-copy strong').first().textContent())?.trim() ?? 'shopfront'
 
   // Typing filters recent projects
   await searchBox.fill(firstProjectName)
-  await expect(page.locator('.axiom-launcher__recent-item')).toHaveCount(1)
-  await expect(page.locator('.axiom-launcher__project-copy strong')).toHaveText(firstProjectName)
+  await expect(page.locator('.ambio-launcher__recent-item')).toHaveCount(1)
+  await expect(page.locator('.ambio-launcher__project-copy strong')).toHaveText(firstProjectName)
 
   // ArrowDown navigates and highlights active item
   await page.keyboard.press('ArrowDown')
-  await expect(page.locator('.axiom-launcher__recent-item--active')).toHaveCount(1)
+  await expect(page.locator('.ambio-launcher__recent-item--active')).toHaveCount(1)
 
   // Escape clears search query and restores list
   await page.keyboard.press('Escape')
   await expect(searchBox).toHaveValue('')
-  const totalCount = await page.locator('.axiom-launcher__recent-item').count()
+  const totalCount = await page.locator('.ambio-launcher__recent-item').count()
   expect(totalCount).toBeGreaterThanOrEqual(1)
 
   // A highlighted recent project must not steal Enter from a focused action.
   await page.keyboard.press('ArrowDown')
-  await page.locator('.axiom-launcher__fork--new').focus()
+  await page.locator('.ambio-launcher__fork--new').focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('dialog', { name: 'Create a model from scratch' })).toBeVisible()
 })
@@ -830,8 +830,8 @@ test('chooses project sources in a folder-first file browser', async () => {
   setupUrl.searchParams.set('setup', '1')
   await page.goto(setupUrl.toString())
 
-  await expect(page.getByRole('heading', { name: 'Set up Axiom Canvas Fixture' })).toBeVisible()
-  await expect(page.getByText('Choose what Axiom reads')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Set up Ambio Canvas Fixture' })).toBeVisible()
+  await expect(page.getByText('Choose what Ambio reads')).toBeVisible()
   const sourceTree = page.getByRole('tree', { name: 'Project files and folders' })
   await expect(sourceTree).toBeVisible()
   await expect(sourceTree.getByText('package.json', { exact: true })).toBeVisible()
@@ -839,7 +839,7 @@ test('chooses project sources in a folder-first file browser', async () => {
   const startIndexing = page.getByRole('button', { name: /Index this project/ })
   await expect(startIndexing).toBeEnabled()
 
-  const rootKinds = await sourceTree.locator(':scope > .axiom-setup-tree__branch').evaluateAll(branches =>
+  const rootKinds = await sourceTree.locator(':scope > .ambio-setup-tree__branch').evaluateAll(branches =>
     branches.map(branch => branch.getAttribute('data-kind')),
   )
   const firstNonFolder = rootKinds.findIndex(kind => kind !== 'folder')
@@ -848,33 +848,33 @@ test('chooses project sources in a folder-first file browser', async () => {
   expect(rootKinds.slice(firstNonFolder).every(kind => kind !== 'folder')).toBe(true)
 
   const packageCheckbox = page.getByLabel('Include package.json', { exact: true })
-  const packageRow = packageCheckbox.locator('xpath=ancestor::div[contains(@class, "axiom-setup-tree__row")]')
-  await expect(packageRow.locator('.axiom-setup-tree__kind')).toHaveText('Unsupported')
-  await expect(packageRow.locator('.axiom-setup-tree__state-label')).toHaveText('Skipped')
+  const packageRow = packageCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
+  await expect(packageRow.locator('.ambio-setup-tree__kind')).toHaveText('Unsupported')
+  await expect(packageRow.locator('.ambio-setup-tree__state-label')).toHaveText('Skipped')
   await expect(packageCheckbox).toBeDisabled()
 
   const documentCheckbox = page.getByLabel('Include ARCHITECTURE.md', { exact: true })
-  const documentRow = documentCheckbox.locator('xpath=ancestor::div[contains(@class, "axiom-setup-tree__row")]')
-  await expect(documentRow.locator('.axiom-setup-tree__kind')).toHaveText('Document')
-  await expect(documentRow.locator('.axiom-setup-tree__state-label')).toHaveText('Documents')
+  const documentRow = documentCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
+  await expect(documentRow.locator('.ambio-setup-tree__kind')).toHaveText('Document')
+  await expect(documentRow.locator('.ambio-setup-tree__state-label')).toHaveText('Documents')
   await expect(documentCheckbox).toBeChecked()
 
   const sourceCheckbox = page.getByLabel('Include electron.vite.config.ts', { exact: true })
-  const sourceRow = sourceCheckbox.locator('xpath=ancestor::div[contains(@class, "axiom-setup-tree__row")]')
-  await expect(sourceRow.locator('.axiom-setup-tree__kind')).toHaveText('Source')
+  const sourceRow = sourceCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
+  await expect(sourceRow.locator('.ambio-setup-tree__kind')).toHaveText('Source')
   await sourceCheckbox.click()
   await expect(sourceCheckbox).not.toBeChecked()
-  await expect(sourceRow.locator('.axiom-setup-tree__state-label')).toHaveText('Excluded')
+  await expect(sourceRow.locator('.ambio-setup-tree__state-label')).toHaveText('Excluded')
 
-  const screenBox = await page.locator('.axiom-source-setup').boundingBox()
+  const screenBox = await page.locator('.ambio-source-setup').boundingBox()
   expect(screenBox?.width).toBeGreaterThan(1200)
   expect(screenBox?.height).toBeGreaterThan(780)
   const setupScale = await page.evaluate(() => ({
-    bodyCopy: parseFloat(getComputedStyle(document.querySelector('.axiom-source-setup__description')!).fontSize),
-    treeLabel: parseFloat(getComputedStyle(document.querySelector('.axiom-setup-tree__name')!).fontSize),
-    rowHeight: document.querySelector('.axiom-setup-tree__row')!.getBoundingClientRect().height,
-    checkboxSize: document.querySelector('.axiom-setup-tree__check')!.getBoundingClientRect().width,
-    primaryHeight: document.querySelector('.axiom-source-setup__submit')!.getBoundingClientRect().height,
+    bodyCopy: parseFloat(getComputedStyle(document.querySelector('.ambio-source-setup__description')!).fontSize),
+    treeLabel: parseFloat(getComputedStyle(document.querySelector('.ambio-setup-tree__name')!).fontSize),
+    rowHeight: document.querySelector('.ambio-setup-tree__row')!.getBoundingClientRect().height,
+    checkboxSize: document.querySelector('.ambio-setup-tree__check')!.getBoundingClientRect().width,
+    primaryHeight: document.querySelector('.ambio-source-setup__submit')!.getBoundingClientRect().height,
   }))
   expect(setupScale.bodyCopy).toBeGreaterThanOrEqual(14)
   expect(setupScale.treeLabel).toBeGreaterThanOrEqual(15)
@@ -886,7 +886,7 @@ test('chooses project sources in a folder-first file browser', async () => {
 
 test('keeps documentation in its library and off the architecture canvas', async () => {
   await page.evaluate(() => {
-    const graphStore = (window as any).__axiomGraphStore
+    const graphStore = (window as any).__ambioGraphStore
     const state = graphStore.getState()
     const template = state.files[0]
     graphStore.getState().applySnapshot({
@@ -897,7 +897,7 @@ test('keeps documentation in its library and off the architecture canvas', async
         {
           ...template,
           id: 'file_docs',
-          path: '/axiom-e2e/docs/ARCHITECTURE.md',
+          path: '/ambio-e2e/docs/ARCHITECTURE.md',
           relPath: 'docs/ARCHITECTURE.md',
           language: 'markdown',
           systemId: null,
@@ -943,10 +943,10 @@ test('uses two-step agent setup for blank projects without changing codebase set
   connectUrl.searchParams.set('blank', '1')
   await page.goto(connectUrl.toString())
 
-  const card = page.locator('.axiom-connect__card')
+  const card = page.locator('.ambio-connect__card')
   await expect(card).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Bring an agent into Axiom' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Add Axiom to your agent' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Bring an agent into Ambio' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add Ambio to your agent' })).toBeVisible()
 
   const steps = page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')
   await expect(steps).toHaveCount(2)
@@ -957,16 +957,16 @@ test('uses two-step agent setup for blank projects without changing codebase set
   // with Claude Desktop, and Copilot's extension with its CLI.
   await expect(agents.locator(':scope > li')).toHaveCount(8)
   await expect(agents.getByText('found on this machine')).toHaveCount(0)
-  await expect(agents.getByText(/Axiom configured|workflow missing|connected now/)).toHaveCount(0)
-  await expect(agents.locator('.axiom-connect__host-signal')).toHaveCount(8)
-  await expect(agents.locator('.axiom-connect__host-signal[data-state="live"]')).toHaveCount(1)
-  const mascot = page.locator('.axiom-connect__mascot .axiom-final-gemini')
+  await expect(agents.getByText(/Ambio configured|workflow missing|connected now/)).toHaveCount(0)
+  await expect(agents.locator('.ambio-connect__host-signal')).toHaveCount(8)
+  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(1)
+  const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
   await expect(mascot).toHaveAttribute('data-state', 'connected')
 
   const readStableFrame = () => page.evaluate(() => {
-    const screen = document.querySelector('.axiom-connect')!
-    const card = document.querySelector('.axiom-connect__card')!.getBoundingClientRect()
-    const stage = document.querySelector('.axiom-connect__workspace')!.getBoundingClientRect()
+    const screen = document.querySelector('.ambio-connect')!
+    const card = document.querySelector('.ambio-connect__card')!.getBoundingClientRect()
+    const stage = document.querySelector('.ambio-connect__workspace')!.getBoundingClientRect()
     return {
       cardWidth: Math.round(card.width),
       cardHeight: Math.round(card.height),
@@ -980,7 +980,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await steps.getByText('Connect').click()
   await expect(page.getByRole('heading', { name: /Connect/ })).toBeVisible()
   expect(await readStableFrame()).toEqual(firstFrame)
-  await expect(page.getByText('Waiting for the agent to verify Axiom tools')).toBeVisible()
+  await expect(page.getByText('Waiting for the agent to verify Ambio tools')).toBeVisible()
   const openCanvas = page.getByRole('button', { name: /Open canvas/ })
   await expect(openCanvas).toBeDisabled()
   await page.getByRole('button', { name: 'Copy check' }).click()
@@ -1000,7 +1000,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
 
   agentConnected = false
   await expect(mascot).toHaveAttribute('data-state', 'sleeping', { timeout: 5_000 })
-  await expect(agents.locator('.axiom-connect__host-signal[data-state="live"]')).toHaveCount(0)
+  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(0)
   await expect(openCanvas).toBeDisabled()
 
   agentConnected = true
@@ -1015,7 +1015,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
 
 test('reviews the proposed system hierarchy in the unified workbench workflow', async () => {
   const indexedSnapshot = await page.evaluate(() => {
-    const state = (window as any).__axiomGraphStore.getState()
+    const state = (window as any).__ambioGraphStore.getState()
     return {
       workspaceId: state.currentProject.id,
       systems: state.systems,
@@ -1047,7 +1047,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
       ],
       memberships: [
         {
-          id: 'member-a', fileId: 'file_canvas', rootId: 'root_demo', filePath: 'src/renderer/canvas/AxiomCanvas.tsx',
+          id: 'member-a', fileId: 'file_canvas', rootId: 'root_demo', filePath: 'src/renderer/canvas/AmbioCanvas.tsx',
           targetSystemKey: 'canvas', disposition: 'assign', rationale: '',
         },
         {
@@ -1186,28 +1186,28 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await expect(proposalPanel).toBeVisible()
   await expect(proposalPanel.getByText('Living Canvas', { exact: true })).toBeVisible()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
-  await expect(page.locator('.axiom-review__canvas').getByText('AxiomCanvas.tsx', { exact: true }).first()).toBeVisible()
+  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Done Reviewing' })).toBeVisible()
-  await expect(page.locator('.axiom-review__canvas .react-flow')).toBeVisible()
-  await expect(page.locator('.axiom-review__canvas .react-flow__background')).toHaveCount(1)
-  await expect(page.locator('.axiom-review__canvas .axiom-canvas-review')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .react-flow')).toBeVisible()
+  await expect(page.locator('.ambio-review__canvas .react-flow__background')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .ambio-canvas-review')).toHaveCount(1)
   await expect(page.getByText('PROPOSED SYSTEM FLOOR')).toBeVisible()
   // A review starts by freezing the same complete generated frame that the
   // live Floor freezes. No gesture may be the first sparse layout write.
   await expect.poll(() => proposalLayoutSaves).toBe(1)
-  await expect(page.locator('.axiom-review__canvas .axiom-canvas-review-ready')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .ambio-canvas-review-ready')).toHaveCount(1)
   expect(new Set(proposalLayoutWriteKeys[0]))
     .toEqual(new Set(['system:canvas', 'system:zoom', 'file:member-a', 'file:member-b']))
 
-  const panelBox = await page.locator('.axiom-review__panel').boundingBox()
-  const canvasBox = await page.locator('.axiom-review__canvas').boundingBox()
+  const panelBox = await page.locator('.ambio-review__panel').boundingBox()
+  const canvasBox = await page.locator('.ambio-review__canvas').boundingBox()
   expect(panelBox?.width).toBeGreaterThanOrEqual(560)
   expect(canvasBox?.width).toBeGreaterThan(760)
   const reviewScale = await page.evaluate(() => ({
-    heading: parseFloat(getComputedStyle(document.querySelector('.axiom-review__heading h1')!).fontSize),
-    purpose: parseFloat(getComputedStyle(document.querySelector('.axiom-proposal__purpose')!).fontSize),
-    systemName: parseFloat(getComputedStyle(document.querySelector('.axiom-proposal__name')!).fontSize),
-    decisionHeight: document.querySelector('.axiom-proposal__approve')!.getBoundingClientRect().height,
+    heading: parseFloat(getComputedStyle(document.querySelector('.ambio-review__heading h1')!).fontSize),
+    purpose: parseFloat(getComputedStyle(document.querySelector('.ambio-proposal__purpose')!).fontSize),
+    systemName: parseFloat(getComputedStyle(document.querySelector('.ambio-proposal__name')!).fontSize),
+    decisionHeight: document.querySelector('.ambio-proposal__approve')!.getBoundingClientRect().height,
   }))
   expect(reviewScale.heading).toBeGreaterThanOrEqual(28)
   expect(reviewScale.purpose).toBeGreaterThanOrEqual(14)
@@ -1220,19 +1220,19 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await proposalPanel.getByRole('button', { name: 'Expand Living Canvas' }).click()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
 
-  await page.locator('.axiom-review__canvas .react-flow__node-system')
+  await page.locator('.ambio-review__canvas .react-flow__node-system')
     .filter({ hasText: 'Semantic Zoom' }).click({ position: { x: 10, y: 10 } })
-  await expect(proposalPanel.locator('.axiom-proposal__item').filter({ hasText: 'Semantic Zoom' }))
+  await expect(proposalPanel.locator('.ambio-proposal__item').filter({ hasText: 'Semantic Zoom' }))
     .toHaveAttribute('data-active', 'true')
-  await expect(page.locator('.axiom-review__canvas .react-flow__node')).toHaveCount(4)
+  await expect(page.locator('.ambio-review__canvas .react-flow__node')).toHaveCount(4)
 
-  // Review uses AxiomCanvas itself. Persisting a node drag must update only the
+  // Review uses AmbioCanvas itself. Persisting a node drag must update only the
   // proposal geometry; it must not refit the camera or relayout its siblings.
-  const draggedNode = page.locator('.axiom-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-a"]')
-  const nestedSystem = page.locator('.axiom-review__canvas .react-flow__node[data-id="proposal:proposal-e2e:zoom"]')
-  const viewport = page.locator('.axiom-review__canvas .react-flow__viewport')
+  const draggedNode = page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-a"]')
+  const nestedSystem = page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal:proposal-e2e:zoom"]')
+  const viewport = page.locator('.ambio-review__canvas .react-flow__viewport')
   const stableNodes = page.locator(
-    '.axiom-review__canvas .react-flow__node:not([data-id="proposal-file:proposal-e2e:member-a"])',
+    '.ambio-review__canvas .react-flow__node:not([data-id="proposal-file:proposal-e2e:member-a"])',
   )
   const [dragBox, nestedLocalBefore, stableGeometryBefore, cameraBefore] = await Promise.all([
     draggedNode.boundingBox(),
@@ -1263,15 +1263,15 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   expect(pointerStart).not.toBeNull()
   await draggedNode.evaluate(element => {
     const state = window as typeof window & {
-      __axiomReviewDragTransforms?: string[]
-      __axiomReviewDragObserver?: MutationObserver
+      __ambioReviewDragTransforms?: string[]
+      __ambioReviewDragObserver?: MutationObserver
     }
-    state.__axiomReviewDragTransforms = [(element as HTMLElement).style.transform]
-    state.__axiomReviewDragObserver?.disconnect()
-    state.__axiomReviewDragObserver = new MutationObserver(() => {
-      state.__axiomReviewDragTransforms!.push((element as HTMLElement).style.transform)
+    state.__ambioReviewDragTransforms = [(element as HTMLElement).style.transform]
+    state.__ambioReviewDragObserver?.disconnect()
+    state.__ambioReviewDragObserver = new MutationObserver(() => {
+      state.__ambioReviewDragTransforms!.push((element as HTMLElement).style.transform)
     })
-    state.__axiomReviewDragObserver.observe(element, {
+    state.__ambioReviewDragObserver.observe(element, {
       attributes: true,
       attributeFilter: ['style'],
     })
@@ -1282,11 +1282,11 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   const [dragSamples, liveDragBox] = await Promise.all([
     draggedNode.evaluate(() => {
       const state = window as typeof window & {
-        __axiomReviewDragTransforms?: string[]
-        __axiomReviewDragObserver?: MutationObserver
+        __ambioReviewDragTransforms?: string[]
+        __ambioReviewDragObserver?: MutationObserver
       }
-      state.__axiomReviewDragObserver?.disconnect()
-      return (state.__axiomReviewDragTransforms ?? []).flatMap(transform => {
+      state.__ambioReviewDragObserver?.disconnect()
+      return (state.__ambioReviewDragTransforms ?? []).flatMap(transform => {
         const match = transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/)
         return match ? [{ x: Number(match[1]), y: Number(match[2]) }] : []
       })
@@ -1321,7 +1321,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   // A held resize is also a controlled React Flow interaction. The fixed
   // opposite edge may not oscillate while proposal state is being previewed.
   const resizedSystem = page.locator(
-    '.axiom-review__canvas .react-flow__node[data-id="proposal:proposal-e2e:canvas"]',
+    '.ambio-review__canvas .react-flow__node[data-id="proposal:proposal-e2e:canvas"]',
   )
   await resizedSystem.click({ position: { x: 18, y: 18 }, force: true })
   await expect(resizedSystem).toHaveClass(/selected/)
@@ -1335,20 +1335,20 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   expect(resizeHandleBox).not.toBeNull()
   await resizedSystem.evaluate(element => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{
+      __ambioReviewResizeFrames?: Array<{
         left: number
         right: number
         width: number
         bodyRight: number
         outlineRight: number
       }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeObserver?: MutationObserver
     }
     const sample = () => {
       const rect = element.getBoundingClientRect()
-      const body = element.querySelector<SVGElement>('.axiom-system-node__shell > svg')?.getBoundingClientRect()
-      const outline = element.querySelector<HTMLElement>('.axiom-node-resizer')?.getBoundingClientRect()
-      state.__axiomReviewResizeFrames!.push({
+      const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+      const outline = element.querySelector<HTMLElement>('.ambio-node-resizer')?.getBoundingClientRect()
+      state.__ambioReviewResizeFrames!.push({
         left: rect.left,
         right: rect.right,
         width: rect.width,
@@ -1356,11 +1356,11 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
         outlineRight: outline?.right ?? Number.NaN,
       })
     }
-    state.__axiomReviewResizeFrames = []
+    state.__ambioReviewResizeFrames = []
     sample()
-    state.__axiomReviewResizeObserver?.disconnect()
-    state.__axiomReviewResizeObserver = new MutationObserver(sample)
-    state.__axiomReviewResizeObserver.observe(element, {
+    state.__ambioReviewResizeObserver?.disconnect()
+    state.__ambioReviewResizeObserver = new MutationObserver(sample)
+    state.__ambioReviewResizeObserver.observe(element, {
       attributes: true,
       attributeFilter: ['style'],
     })
@@ -1383,17 +1383,17 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   const resizeFrames = await resizedSystem.evaluate(() => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{
+      __ambioReviewResizeFrames?: Array<{
         left: number
         right: number
         width: number
         bodyRight: number
         outlineRight: number
       }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeObserver?: MutationObserver
     }
-    state.__axiomReviewResizeObserver?.disconnect()
-    return state.__axiomReviewResizeFrames ?? []
+    state.__ambioReviewResizeObserver?.disconnect()
+    return state.__ambioReviewResizeFrames ?? []
   })
   expect(resizeFrames.length).toBeGreaterThan(2)
   for (let index = 1; index < resizeFrames.length; index++) {
@@ -1417,20 +1417,20 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   expect(leftResizeHandleBox).not.toBeNull()
   await resizedSystem.evaluate(element => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{
+      __ambioReviewResizeFrames?: Array<{
         left: number
         right: number
         width: number
         bodyRight: number
         outlineRight: number
       }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeObserver?: MutationObserver
     }
     const sample = () => {
       const rect = element.getBoundingClientRect()
-      const body = element.querySelector<SVGElement>('.axiom-system-node__shell > svg')?.getBoundingClientRect()
-      const outline = element.querySelector<HTMLElement>('.axiom-node-resizer')?.getBoundingClientRect()
-      state.__axiomReviewResizeFrames!.push({
+      const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+      const outline = element.querySelector<HTMLElement>('.ambio-node-resizer')?.getBoundingClientRect()
+      state.__ambioReviewResizeFrames!.push({
         left: rect.left,
         right: rect.right,
         width: rect.width,
@@ -1438,11 +1438,11 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
         outlineRight: outline?.right ?? Number.NaN,
       })
     }
-    state.__axiomReviewResizeFrames = []
+    state.__ambioReviewResizeFrames = []
     sample()
-    state.__axiomReviewResizeObserver?.disconnect()
-    state.__axiomReviewResizeObserver = new MutationObserver(sample)
-    state.__axiomReviewResizeObserver.observe(element, {
+    state.__ambioReviewResizeObserver?.disconnect()
+    state.__ambioReviewResizeObserver = new MutationObserver(sample)
+    state.__ambioReviewResizeObserver.observe(element, {
       attributes: true,
       attributeFilter: ['style'],
     })
@@ -1465,17 +1465,17 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   const westResizeFrames = await resizedSystem.evaluate(() => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{
+      __ambioReviewResizeFrames?: Array<{
         left: number
         right: number
         width: number
         bodyRight: number
         outlineRight: number
       }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeObserver?: MutationObserver
     }
-    state.__axiomReviewResizeObserver?.disconnect()
-    return state.__axiomReviewResizeFrames ?? []
+    state.__ambioReviewResizeObserver?.disconnect()
+    return state.__ambioReviewResizeFrames ?? []
   })
   expect(westResizeFrames.length).toBeGreaterThan(2)
   for (let index = 1; index < westResizeFrames.length; index++) {
@@ -1521,18 +1521,18 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   expect(nestedHandleBox).not.toBeNull()
   await nestedSystem.evaluate(element => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{ left: number; right: number; width: number }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeFrames?: Array<{ left: number; right: number; width: number }>
+      __ambioReviewResizeObserver?: MutationObserver
     }
     const sample = () => {
       const rect = element.getBoundingClientRect()
-      state.__axiomReviewResizeFrames!.push({ left: rect.left, right: rect.right, width: rect.width })
+      state.__ambioReviewResizeFrames!.push({ left: rect.left, right: rect.right, width: rect.width })
     }
-    state.__axiomReviewResizeFrames = []
+    state.__ambioReviewResizeFrames = []
     sample()
-    state.__axiomReviewResizeObserver?.disconnect()
-    state.__axiomReviewResizeObserver = new MutationObserver(sample)
-    state.__axiomReviewResizeObserver.observe(element, {
+    state.__ambioReviewResizeObserver?.disconnect()
+    state.__ambioReviewResizeObserver = new MutationObserver(sample)
+    state.__ambioReviewResizeObserver.observe(element, {
       attributes: true,
       attributeFilter: ['style'],
     })
@@ -1549,11 +1549,11 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   const nestedWestFrames = await nestedSystem.evaluate(() => {
     const state = window as typeof window & {
-      __axiomReviewResizeFrames?: Array<{ left: number; right: number; width: number }>
-      __axiomReviewResizeObserver?: MutationObserver
+      __ambioReviewResizeFrames?: Array<{ left: number; right: number; width: number }>
+      __ambioReviewResizeObserver?: MutationObserver
     }
-    state.__axiomReviewResizeObserver?.disconnect()
-    return state.__axiomReviewResizeFrames ?? []
+    state.__ambioReviewResizeObserver?.disconnect()
+    return state.__ambioReviewResizeFrames ?? []
   })
   expect(nestedWestFrames.length).toBeGreaterThan(2)
   for (let index = 1; index < nestedWestFrames.length; index++) {
@@ -1576,9 +1576,9 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   // the live Floor mounts, including semantic nesting, memberships, and layout.
   await page.getByRole('button', { name: 'Done Reviewing' }).click()
   await expect.poll(() => proposalFinalizations).toBe(1)
-  await expect(page.locator('.axiom-toolbar')).toBeVisible()
+  await expect(page.locator('.ambio-toolbar')).toBeVisible()
   const committed = await page.evaluate(() => {
-    const state = (window as any).__axiomGraphStore.getState()
+    const state = (window as any).__ambioGraphStore.getState()
     return {
       systems: state.systems.map((system: any) => ({ id: system.id, name: system.name, parentId: system.parentId })),
       memberships: state.files
@@ -1604,9 +1604,9 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
 })
 
 test('preserves tokenized app chrome geometry and toolbar interaction states', async () => {
-  const toolbar = page.locator('.axiom-toolbar')
-  const rail = page.locator('.axiom-sheet-rail')
-  const status = page.locator('.axiom-status-bar')
+  const toolbar = page.locator('.ambio-toolbar')
+  const rail = page.locator('.ambio-sheet-rail')
+  const status = page.locator('.ambio-status-bar')
   const [toolbarBox, railBox, statusBox] = await Promise.all([
     toolbar.boundingBox(),
     rail.boundingBox(),
@@ -1617,8 +1617,8 @@ test('preserves tokenized app chrome geometry and toolbar interaction states', a
   expect(railBox?.width).toBeCloseTo(176, 0)
   expect(statusBox?.height).toBeCloseTo(28, 0)
 
-  const connection = status.locator('.axiom-status-bar__connection')
-  const metrics = status.locator('.axiom-status-bar__metric')
+  const connection = status.locator('.ambio-status-bar__connection')
+  const metrics = status.locator('.ambio-status-bar__metric')
   await expect(connection).toHaveAttribute('data-connection-state', 'connected')
   await expect(connection).toContainText('archd connected')
   await expect(metrics).toHaveCount(3)
@@ -1692,7 +1692,7 @@ test('searches the project index and navigates to a keyboard-selected file', asy
   await expect(results.nth(1)).toHaveAttribute('aria-selected', 'true')
   const resultId = await results.nth(1).getAttribute('id')
   expect(resultId).toBeTruthy()
-  const fileId = resultId!.replace('axiom-search-result-', '')
+  const fileId = resultId!.replace('ambio-search-result-', '')
   await searchInput.press('Enter')
 
   await expect(searchDialog).toHaveCount(0)
@@ -1710,7 +1710,7 @@ test('searches the project index and navigates to a keyboard-selected file', asy
 test('⌘K finds systems, infrastructure and symbols, and a symbol opens its source', async () => {
   await page.route(/\/api\/symbols\/search\?/, route => route.fulfill({ json: { symbols: [{
     id: 'symbol_render_canvas', fileId: 'file_canvas', name: 'renderCanvas', kind: 'function',
-    lineStart: 3, lineEnd: 6, relPath: 'src/renderer/canvas/AxiomCanvas.tsx',
+    lineStart: 3, lineEnd: 6, relPath: 'src/renderer/canvas/AmbioCanvas.tsx',
   }] } }))
   await page.keyboard.press('ControlOrMeta+K')
   const searchDialog = page.getByRole('dialog', { name: 'Search the map' })
@@ -1749,7 +1749,7 @@ test('opens saved investigations and controls replay through the workbench trans
   await expect(capture).toContainText('2 events')
   await expect(capture).toContainText('fix/checkout@9fc31ab')
 
-  const toolbarBox = await page.locator('.axiom-toolbar').boundingBox()
+  const toolbarBox = await page.locator('.ambio-toolbar').boundingBox()
   const menuBox = await menu.boundingBox()
   expect(menuBox?.y).toBeGreaterThan(toolbarBox!.height - 12)
   expect(menuBox?.height).toBeGreaterThan(120)
@@ -1815,7 +1815,7 @@ test('opens saved investigations and controls replay through the workbench trans
 })
 
 test('keeps canvas utility chrome screen-sized, legible, and interactive', async () => {
-  const minimap = page.locator('.axiom-canvas-minimap')
+  const minimap = page.locator('.ambio-canvas-minimap')
   const infraTab = page.getByRole('button', { name: 'Open infrastructure' })
   const viewport = page.locator('.react-flow__viewport')
   const zoomOf = () => viewport.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
@@ -1864,17 +1864,17 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
 
   await runtime.click()
   await expect(runtime).toHaveAttribute('aria-current', 'page')
-  await expect(page.locator('.axiom-surface-readout')).toContainText('Runtime Draft')
+  await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
   await expect(rail.getByRole('button', { name: 'Hide Runtime Draft' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.axiom-sheet-layer-indicator')).toContainText('Sheet Layer Active')
-  await expect(page.locator('.axiom-sheet-palette')).toBeVisible()
-  await expect(page.locator('.axiom-sheet-palette__item')).toHaveCount(6)
+  await expect(page.locator('.ambio-sheet-layer-indicator')).toContainText('Sheet Layer Active')
+  await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
+  await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)
 
   await floor.click()
   await expect(floor).toHaveAttribute('aria-current', 'page')
   await expect(rail.getByRole('button', { name: 'Show Runtime Draft' })).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.locator('.axiom-sheet-layer-indicator')).toHaveCount(0)
-  await expect(page.locator('.axiom-sheet-palette')).toHaveCount(0)
+  await expect(page.locator('.ambio-sheet-layer-indicator')).toHaveCount(0)
+  await expect(page.locator('.ambio-sheet-palette')).toHaveCount(0)
   await expect.poll(() => runtime.evaluate(element => {
     const style = getComputedStyle(element)
     return { color: style.color, background: style.backgroundColor }
@@ -1923,9 +1923,9 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await page.mouse.click(storePoint.x, storePoint.y)
   await page.keyboard.up(additiveModifier)
 
-  const selectionActions = page.locator('.axiom-selection-actions')
+  const selectionActions = page.locator('.ambio-selection-actions')
   await expect(selectionActions).toBeVisible()
-  await expect(selectionActions.locator('.axiom-selection-actions__summary')).toContainText(/\d+\s*items selected/i)
+  await expect(selectionActions.locator('.ambio-selection-actions__summary')).toContainText(/\d+\s*items selected/i)
   await expect.poll(() => selectionActions.evaluate(element => {
     const style = getComputedStyle(element)
     return { border: style.borderColor, radius: style.borderRadius }
@@ -1934,7 +1934,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   const newSheetButton = page.getByRole('button', { name: 'New Sheet', exact: true })
   await expect(newSheetButton).toBeVisible()
   await newSheetButton.click()
-  const backdrop = page.locator('.axiom-dialog-backdrop')
+  const backdrop = page.locator('.ambio-dialog-backdrop')
   const surface = page.getByRole('dialog', { name: 'New Sheet' })
   await expect(surface).toBeVisible()
   await expect(surface.getByRole('heading', { name: 'New Sheet' })).toBeVisible()
@@ -1952,7 +1952,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
       borderRadius: style.borderRadius,
     }
   })
-  const contentStyle = await surface.locator('.axiom-dialog-content').evaluate(element => {
+  const contentStyle = await surface.locator('.ambio-dialog-content').evaluate(element => {
     const style = getComputedStyle(element)
     return { color: style.color, padding: style.padding }
   })
@@ -1995,8 +1995,8 @@ test('opens the categorized infrastructure browser from the infrastructure sideb
 
   const picker = page.getByRole('dialog', { name: 'Choose infrastructure' })
   await expect(picker).toBeVisible()
-  const catalogWindow = picker.locator('.axiom-infra-picker__window')
-  const catalog = picker.locator('.axiom-infra-picker__catalog')
+  const catalogWindow = picker.locator('.ambio-infra-picker__window')
+  const catalog = picker.locator('.ambio-infra-picker__catalog')
   const search = picker.getByRole('textbox', { name: 'Search infrastructure catalog' })
   await expect(search).toBeFocused()
   await expect(picker.getByRole('button', { name: 'Database', exact: true })).toBeVisible()
@@ -2053,7 +2053,7 @@ test('opens the workbench properties inspector without changing canvas selection
 
   const inspector = page.getByRole('complementary', { name: 'File properties' })
   await expect(inspector).toBeVisible()
-  await expect(inspector.getByRole('heading', { name: 'AxiomCanvas.tsx' })).toBeVisible()
+  await expect(inspector.getByRole('heading', { name: 'AmbioCanvas.tsx' })).toBeVisible()
   await expect(inspector.getByRole('heading', { name: 'General' })).toBeVisible()
   await expect(inspector).toContainText('Language')
   await expect(inspector).toContainText('420')
@@ -2092,7 +2092,7 @@ test('opens source symbols in the workbench code preview without losing syntax c
   await expect(symbol).toBeVisible()
   await symbol.click()
 
-  const preview = page.getByRole('dialog', { name: /renderCanvas in src\/renderer\/canvas\/AxiomCanvas\.tsx/ })
+  const preview = page.getByRole('dialog', { name: /renderCanvas in src\/renderer\/canvas\/AmbioCanvas\.tsx/ })
   const code = preview.locator('.source-preview-code')
   await expect(preview).toBeVisible()
   await expect(preview.getByText('function renderCanvas · lines 3–6')).toBeVisible()
@@ -2268,7 +2268,7 @@ test('a change that needs code opens a work order instead of happening on the Fl
   await expect.poll(() => proposed?.nodeId).toBe('file_canvas')
   const instruction = page.locator('textarea').first()
   await expect(instruction).toBeVisible()
-  await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AxiomCanvas\.tsx\./)
+  await expect(instruction).toHaveValue(/^Delete src\/renderer\/canvas\/AmbioCanvas\.tsx\./)
   await expect(page.getByLabel('Removed on this sheet')).toContainText('file_canvas')
 })
 
@@ -2313,17 +2313,17 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...proposal, approvalStatus: decided?.decision }) })
   })
   await page.evaluate(sheet => {
-    (window as unknown as { __axiomGraphStore: { getState: () => { applyDbPatch: (patch: unknown) => void } } })
-      .__axiomGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet })
+    (window as unknown as { __ambioGraphStore: { getState: () => { applyDbPatch: (patch: unknown) => void } } })
+      .__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet })
   }, agentSheet)
 
   await expect(page.getByText('An agent drew a sheet: Agent Plan')).toBeVisible()
-  await expect(page.locator('.axiom-sheet-rail__new')).toBeVisible()
+  await expect(page.locator('.ambio-sheet-rail__new')).toBeVisible()
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Job Queue')
   await expect(page.locator('.react-flow__node[data-id="planned:plan_queue"]')).toHaveAttribute('data-proposal', 'pending')
-  await expect(page.locator('.axiom-sheet-rail__new')).toHaveCount(0)
+  await expect(page.locator('.ambio-sheet-rail__new')).toHaveCount(0)
   await review.getByRole('button', { name: 'Reject Job Queue' }).click()
   await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
   await review.getByRole('button', { name: 'Reject', exact: true }).click()
@@ -2362,15 +2362,15 @@ test('Model Explorer outlines the map, filters it and follows the selection', as
   await expect(tree.getByRole('treeitem', { name: /Canvas Renderer/ })).toBeVisible()
 
   // Filtering opens the path to every match.
-  await explorer.getByLabel('Filter systems, files and symbols').fill('AxiomCanvas')
-  const fileRow = tree.getByRole('treeitem', { name: /AxiomCanvas\.tsx/ })
+  await explorer.getByLabel('Filter systems, files and symbols').fill('AmbioCanvas')
+  const fileRow = tree.getByRole('treeitem', { name: /AmbioCanvas\.tsx/ })
   await expect(fileRow).toBeVisible()
 
   // Choosing a row selects that node on the canvas.
   await fileRow.click()
   await expect.poll(() => page.evaluate(() =>
-    (window as unknown as { __axiomGraphStore: { getState: () => { selectedNodeId: string | null } } })
-      .__axiomGraphStore.getState().selectedNodeId)).toBe('file_canvas')
+    (window as unknown as { __ambioGraphStore: { getState: () => { selectedNodeId: string | null } } })
+      .__ambioGraphStore.getState().selectedNodeId)).toBe('file_canvas')
   await expect(fileRow).toHaveAttribute('aria-selected', 'true')
 
   // Keyboard: the tree answers arrows and Escape closes it.
@@ -2390,34 +2390,34 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
   })
   const counts = { filesCreated: 0, filesUpdated: 0, filesDeleted: 0, edgesAdded: 0, edgesRemoved: 0, systemsAdded: 0, systemsRemoved: 0, crossBoundary: 0, agentFiles: 0, humanFiles: 0 }
   const moved = {
-    id: 'claim:moved', kind: 'meaning.moved', title: 'AxiomCanvas.tsx moved from Canvas Renderer to Shared Types',
+    id: 'claim:moved', kind: 'meaning.moved', title: 'AmbioCanvas.tsx moved from Canvas Renderer to Shared Types',
     subtitle: 'by you', severity: 3, score: 1, actor: 'human', ts: 2, createsCycle: false, internal: false,
     focusSystemIds: ['sys_shared'], focusFileIds: ['file_canvas'],
-    evidence: [{ kind: 'file.moved', label: 'AxiomCanvas.tsx', detail: 'Canvas Renderer → Shared Types', fileIds: ['file_canvas'] }],
+    evidence: [{ kind: 'file.moved', label: 'AmbioCanvas.tsx', detail: 'Canvas Renderer → Shared Types', fileIds: ['file_canvas'] }],
     undoEventIds: [41],
     codeFit: [{
-      kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared Types',
-      summary: 'AxiomCanvas.tsx belongs to Shared Types, but the rest of Shared Types is in src/shared/',
-      ask: 'Move src/renderer/canvas/AxiomCanvas.tsx to src/shared/AxiomCanvas.tsx and update every import of it.',
+      kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AmbioCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared Types',
+      summary: 'AmbioCanvas.tsx belongs to Shared Types, but the rest of Shared Types is in src/shared/',
+      ask: 'Move src/renderer/canvas/AmbioCanvas.tsx to src/shared/AmbioCanvas.tsx and update every import of it.',
     }],
   }
   await page.evaluate(summary => {
-    const store = (window as unknown as { __axiomGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__axiomGraphStore
+    const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
     store.setState({ delta: summary })
     store.getState().startDeltaReview()
   }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
-  await expect(panel).toContainText('AxiomCanvas.tsx moved from Canvas Renderer to Shared Types')
+  await expect(panel).toContainText('AmbioCanvas.tsx moved from Canvas Renderer to Shared Types')
   await expect(panel).toContainText('the rest of Shared Types is in src/shared/')
 
   await panel.getByRole('button', { name: 'Copy as Markdown' }).click()
   await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
-    .toContain('- AxiomCanvas.tsx moved from Canvas Renderer to Shared Types _(by you)_ - code still disagrees')
+    .toContain('- AmbioCanvas.tsx moved from Canvas Renderer to Shared Types _(by you)_ - code still disagrees')
 
   await panel.getByRole('button', { name: 'Make the Code Match…' }).click()
-  await expect(page.locator('textarea').first()).toHaveValue(/Move src\/renderer\/canvas\/AxiomCanvas\.tsx to src\/shared/)
-  await expect(page.getByText('Axiom checks the code afterwards')).toBeVisible()
+  await expect(page.locator('textarea').first()).toHaveValue(/Move src\/renderer\/canvas\/AmbioCanvas\.tsx to src\/shared/)
+  await expect(page.getByText('Ambio checks the code afterwards')).toBeVisible()
 
   await panel.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect.poll(() => undone).toEqual([41])
@@ -2431,13 +2431,13 @@ test('Review Changes narrows by who made a change and hides what you have seen',
     { ...base, id: 'claim:agent', kind: 'system.coupling', title: 'MCP Server now depends on Shared Types', actor: 'agent', focusSystemIds: ['sys_mcp', 'sys_shared'] },
   ]
   await page.evaluate(summary => {
-    const store = (window as unknown as { __axiomGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__axiomGraphStore
+    const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
     store.setState({ delta: summary })
     store.getState().startDeltaReview()
   }, { since: 1, until: 4, files: [], edges: [], systems: [], claims, sessions: [], counts, empty: false })
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
-  const titles = panel.locator('.axiom-delta__claim-title')
+  const titles = panel.locator('.ambio-delta__claim-title')
   await expect(titles).toHaveCount(2)
   await panel.getByRole('combobox', { name: 'Who filter' }).selectOption({ label: 'Unexplained (1)' })
   await expect(titles).toHaveText(['MCP Server now depends on Shared Types'])
@@ -2603,11 +2603,11 @@ test('a placed system stays put when files arrive and other systems are renamed'
   // What indexing does: a new file appears in another system, a system is
   // renamed, and the snapshot arrives again with fresh objects.
   await page.evaluate(() => {
-    const store = (window as any).__axiomGraphStore
+    const store = (window as any).__ambioGraphStore
     const state = store.getState()
     store.setState({
       files: [...state.files.map((file: object) => ({ ...file })), {
-        ...state.files[0], id: 'file_new', relPath: 'src/shared/newHelper.ts', path: '/axiom/src/shared/newHelper.ts', systemId: 'sys_shared',
+        ...state.files[0], id: 'file_new', relPath: 'src/shared/newHelper.ts', path: '/ambio/src/shared/newHelper.ts', systemId: 'sys_shared',
       }],
       systems: state.systems.map((item: { id: string; name: string }) => ({ ...item, name: item.id === 'sys_canvas' ? 'Canvas' : item.name })),
     })
@@ -2646,10 +2646,10 @@ test('a map change the code disagrees with offers the work order that makes it m
     body: JSON.stringify({
       changes: [{ op: 'assign', changed: true, eventIds: [7] }],
       codeFit: [{
-        kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx',
+        kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AmbioCanvas.tsx',
         systemId: 'sys_shared', systemName: 'Shared',
-        summary: 'AxiomCanvas.tsx belongs to Shared, but the rest of Shared is in src/shared/',
-        ask: 'Move src/renderer/canvas/AxiomCanvas.tsx to src/shared/AxiomCanvas.tsx and update every import of it.',
+        summary: 'AmbioCanvas.tsx belongs to Shared, but the rest of Shared is in src/shared/',
+        ask: 'Move src/renderer/canvas/AmbioCanvas.tsx to src/shared/AmbioCanvas.tsx and update every import of it.',
       }],
     }),
   }))
@@ -2660,10 +2660,10 @@ test('a map change the code disagrees with offers the work order that makes it m
   await page.getByRole('button', { name: 'Make the Code Match…' }).click()
   const instruction = page.locator('textarea').first()
   await expect(instruction).toBeVisible()
-  await expect(instruction).toHaveValue(/make the code match it\.[\s\S]*Move src\/renderer\/canvas\/AxiomCanvas\.tsx to src\/shared\/AxiomCanvas\.tsx/)
+  await expect(instruction).toHaveValue(/make the code match it\.[\s\S]*Move src\/renderer\/canvas\/AmbioCanvas\.tsx to src\/shared\/AmbioCanvas\.tsx/)
 
-  // Axiom keeps the file to check, and shows the check on the sent order.
-  await expect(page.getByText('Axiom checks the code afterwards')).toBeVisible()
+  // Ambio keeps the file to check, and shows the check on the sent order.
+  await expect(page.getByText('Ambio checks the code afterwards')).toBeVisible()
   let sent: { codeFitFileIds?: string[]; id?: string; note?: string } | undefined
   await page.route(/\/api\/canvas\/send$/, async route => {
     sent = route.request().postDataJSON()
@@ -2677,15 +2677,15 @@ test('a map change the code disagrees with offers the work order that makes it m
         id: sent.id, workspaceId: 'demo', sheetId: null, note: sent.note, selection: '[]', changeSummary: '',
         sheetContext: '', buildSpec: '', status: 'answered', createdAt: 5,
         codeChecks: [{
-          state: 'agrees', now: 'src/shared/AxiomCanvas.tsx now lives with the rest of Shared',
-          sent: { kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AxiomCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared', summary: '', ask: '' },
+          state: 'agrees', now: 'src/shared/AmbioCanvas.tsx now lives with the rest of Shared',
+          sent: { kind: 'folder', fileId: 'file_canvas', filePath: 'src/renderer/canvas/AmbioCanvas.tsx', systemId: 'sys_shared', systemName: 'Shared', summary: '', ask: '' },
         }],
       }] : [],
     }),
   }))
   await instruction.press('Enter')
   await expect.poll(() => sent?.codeFitFileIds).toEqual(['file_canvas'])
-  await expect(page.getByText('Axiom checked the code: it now matches the map.')).toBeVisible()
+  await expect(page.getByText('Ambio checked the code: it now matches the map.')).toBeVisible()
 })
 
 test('the inbox shows work orders by stage', async () => {
@@ -2700,7 +2700,7 @@ test('the inbox shows work orders by stage', async () => {
       order('wo-done', 'Split the payments module', 'answered', { reply: { agent: 'Codex', body: 'Done.', createdAt: 6 } }),
     ],
   } }))
-  await page.evaluate(() => window.dispatchEvent(new Event('axiom:open-agent-dispatch')))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
   const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
   const stages = inbox.getByRole('group', { name: 'Show work orders' })
   await expect(stages.getByRole('button', { name: 'To review 1' })).toBeVisible()
@@ -2718,7 +2718,7 @@ test('asking a question tells the agent not to change anything', async () => {
     sent = route.request().postDataJSON()
     await route.fulfill({ json: { ...sent, workspaceId: 'demo', status: 'queued', createdAt: 5 } })
   })
-  await page.evaluate(() => window.dispatchEvent(new Event('axiom:open-agent-dispatch')))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
   const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
   await inbox.getByRole('radio', { name: 'Ask' }).click()
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Why does checkout call the MCP server?')

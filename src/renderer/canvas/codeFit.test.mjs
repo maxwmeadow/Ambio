@@ -30,7 +30,7 @@ test('a checked work order says whether the code now matches', async () => {
   const agrees = { sent: folder, state: 'agrees', now: 'ok' }
   const disagrees = { sent: folder, state: 'disagrees', now: 'no' }
   const changed = { sent: folder, state: 'map-changed', now: 'moved' }
-  assert.equal(codeCheckHeadline([agrees]), 'Axiom checked the code: it now matches the map.')
-  assert.equal(codeCheckHeadline([agrees, disagrees]), 'Axiom checked the code: 1 of 2 still disagrees with the map.')
+  assert.equal(codeCheckHeadline([agrees]), 'Ambio checked the code: it now matches the map.')
+  assert.equal(codeCheckHeadline([agrees, disagrees]), 'Ambio checked the code: 1 of 2 still disagrees with the map.')
   assert.match(codeCheckHeadline([agrees, changed]), /map changed since/)
 })

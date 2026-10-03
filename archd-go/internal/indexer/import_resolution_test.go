@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestPythonImportResolutionUsesModulesNotDirectoryMembership(t *testing.T) {

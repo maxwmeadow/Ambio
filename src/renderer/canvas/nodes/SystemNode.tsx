@@ -6,7 +6,7 @@ import { useInfraService } from '../../store/registryStore'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
-import { AxiomNodeResizer } from './AxiomNodeResizer'
+import { AmbioNodeResizer } from './AmbioNodeResizer'
 import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
@@ -353,7 +353,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         }}>{totalCount}</span>
       )}
       {isDeploymentBoundary && totalCount === 0 && (
-        <span className="axiom-platform-hint" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>
+        <span className="ambio-platform-hint" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>
           Drop a system here to show it runs on {name}
         </span>
       )}
@@ -464,7 +464,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           reveal scale, and blur. Interaction chrome (resizer, connection
           handles) lives outside on the raw node frame so selection outlines
           never shift, teleport, or get clipped by the shell's overflow. */}
-      <div className="axiom-system-node__shell" style={{
+      <div className="ambio-system-node__shell" style={{
         position: 'absolute',
         inset: 0,
         // The folder SVG owns ALL chrome - a rect background/border here would
@@ -479,7 +479,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         // contents are inset and never bleed past the silhouette.
         overflow: 'visible',
         // Live choreography: a newly-clustered system materializes onto the Floor.
-        animation: d.fx?.kind === 'enter' ? 'axiomMaterialize 0.6s cubic-bezier(0.22,1,0.36,1) both' : undefined,
+        animation: d.fx?.kind === 'enter' ? 'ambioMaterialize 0.6s cubic-bezier(0.22,1,0.36,1) both' : undefined,
       }}>
       {/* Semantic systems use a package outline; hosting uses a compute chassis. */}
       <svg
@@ -501,7 +501,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
             files in, so it is heavier board with grain running the other way -
             the material says "container" before any label does. */}
         <path
-          className="axiom-shape-texture"
+          className="ambio-shape-texture"
           data-stock="card"
           d={shellPath}
           stroke="none"
@@ -579,11 +579,11 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         const summary = kinds.size === 1
           ? `${[...kinds][0]} · ${windows.length} files`
           : `${windows.length} files changed`
-        const closing = livingWindowsClosing ? ' axiom-living-inspection-layer--closing' : ''
+        const closing = livingWindowsClosing ? ' ambio-living-inspection-layer--closing' : ''
         return (
           <>
             <svg
-              className={`axiom-living-inspection-layer${closing}`}
+              className={`ambio-living-inspection-layer${closing}`}
               width={shellSize.w}
               height={shellSize.h}
               style={{
@@ -601,7 +601,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
                 fill="none"
                 stroke={primaryColor}
                 strokeWidth={Math.max(1.5, 2 * presentationScale)}
-                className="axiom-system-telemetry-glow"
+                className="ambio-system-telemetry-glow"
                 // The glow's drop-shadow uses currentColor; without this it
                 // inherited the dark ink and cast a grey shadow.
                 style={{ color: primaryColor }}
@@ -622,7 +622,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
                       stroke={windowColor}
                       strokeOpacity={0.35}
                       strokeWidth={1}
-                      className="axiom-living-inspection-window"
+                      className="ambio-living-inspection-window"
                     />
                     {/* Precision corner registration ticks */}
                     <path
@@ -644,7 +644,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
                 of the centred identity and the tab band. The outlines above
                 mark where; this says what. */}
             <div
-              className={`axiom-living-window-rail${closing ? ' axiom-living-window-rail--closing' : ''}`}
+              className={`ambio-living-window-rail${closing ? ' ambio-living-window-rail--closing' : ''}`}
               style={{
                 right: Math.max(10, 12 * presentationScale),
                 bottom: Math.max(8, 10 * presentationScale),
@@ -653,16 +653,16 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
               {(summarise ? [{ ...windows[0], originId: 'summary', label: undefined }] : windows).map(window => (
                 <div
                   key={`label-${window.originId}-${window.key}`}
-                  className="axiom-living-window-label"
+                  className="ambio-living-window-label"
                   data-living-window-label={window.originId}
                   style={{ '--living-label-color': livingActivityColor(window.kind) } as React.CSSProperties}
                 >
-                  <span className="axiom-living-window-label__dot" />
-                  <span className="axiom-living-window-label__verb">
+                  <span className="ambio-living-window-label__dot" />
+                  <span className="ambio-living-window-label__verb">
                     {summarise ? summary : livingActivityLabel(window.kind)}
                   </span>
                   {!summarise && window.label && (
-                    <span className="axiom-living-window-label__name">{window.label}</span>
+                    <span className="ambio-living-window-label__name">{window.label}</span>
                   )}
                 </div>
               ))}
@@ -673,7 +673,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       {surfacedFx && (
         <div
           key={`surface-fx-${surfacedFx.key}`}
-          className="axiom-surface-activity-peek axiom-surface-activity-pill"
+          className="ambio-surface-activity-peek ambio-surface-activity-pill"
           style={{
             position: 'absolute',
             right: Math.max(10, 12 * presentationScale),
@@ -690,7 +690,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
             color: 'var(--text-primary)',
             padding: `${Math.max(4, titleFont * 0.24)}px ${Math.max(8, titleFont * 0.42)}px`,
             fontFamily: 'var(--font-mono)',
-            animation: 'axiomSurfaceActivityPill 1.4s cubic-bezier(0.16, 1, 0.3, 1) both',
+            animation: 'ambioSurfaceActivityPill 1.4s cubic-bezier(0.16, 1, 0.3, 1) both',
           }}
         >
           <div style={{
@@ -725,7 +725,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         </div>
       )}
       {selected && (
-        <AxiomNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
+        <AmbioNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
           isResizable={typeof onResizeStart === 'function' && typeof onResizeEnd === 'function'}
           minWidth={d.minResizeWidth ?? 1}
           minHeight={d.minResizeHeight ?? 1}

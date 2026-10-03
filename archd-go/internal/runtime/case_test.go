@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/hub"
 )
 
 // An investigation is a case file: hypotheses, the runs that test them, and a

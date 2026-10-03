@@ -15,20 +15,20 @@ for (const creation of ['drag', 'click']) {
       expect(response.ok).toBe(true)
       const sheet = await response.json()
       const readSheet = async () => (await harnessFetch(`${harness.apiBase}/api/sheets/${sheet.id}?workspace=demo`)).json()
-      app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+      app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
       const page = await app.firstWindow()
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
         const url = new URL(route.request().url())
         const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
-          headers: { ...route.request().headers(), Authorization: 'Bearer axiom-isolated-test-token-for-mcp-harness' } })
+          headers: { ...route.request().headers(), Authorization: 'Bearer ambio-isolated-test-token-for-mcp-harness' } })
         await route.fulfill({ response: result })
       })
       await page.reload()
       await expect(page.locator('.react-flow__node').first()).toBeAttached()
       await expect(page.locator('.layout-transition')).toHaveCount(0)
       await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
-      const palette = page.locator('.axiom-sheet-palette')
+      const palette = page.locator('.ambio-sheet-palette')
       await expect(palette).toBeVisible()
 
       const dropStencil = async (label, point) => {

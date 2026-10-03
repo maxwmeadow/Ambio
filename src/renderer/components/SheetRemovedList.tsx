@@ -11,14 +11,14 @@ export function SheetRemovedList({ workspaceId }: { workspaceId: string }) {
   const removals = useSheetStore(s => (s.activeSheetId ? s.layersById[s.activeSheetId]?.removals : undefined))
   if (!sheetId || !removals?.length) return null
   return (
-    <section className="axiom-sheet-rail__removed" aria-label="Removed on this sheet">
-      <div className="axiom-sheet-rail__removed-heading">Removed on this sheet · {removals.length}</div>
+    <section className="ambio-sheet-rail__removed" aria-label="Removed on this sheet">
+      <div className="ambio-sheet-rail__removed-heading">Removed on this sheet · {removals.length}</div>
       <ul>
         {removals.map(removal => (
           <li key={removal.nodeId} data-done={removal.done ? 'true' : undefined}>
-            <span className="axiom-sheet-rail__removed-label" title={removal.label}>{removal.label}</span>
+            <span className="ambio-sheet-rail__removed-label" title={removal.label}>{removal.label}</span>
             {removal.done
-              ? <span className="axiom-sheet-rail__removed-done" title="This code is gone">GONE</span>
+              ? <span className="ambio-sheet-rail__removed-done" title="This code is gone">GONE</span>
               : (
                 <button
                   type="button"

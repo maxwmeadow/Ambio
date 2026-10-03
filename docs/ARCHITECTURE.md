@@ -1,4 +1,4 @@
-# Axiom - architecture
+# Ambio - architecture
 
 How the code is put together today. Verified against `main` on 2026-09-30.
 What the product is: [PRODUCT.md](PRODUCT.md). Open work: [../WORK.md](../WORK.md).
@@ -14,8 +14,8 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   main process: windows, menus,       |
   project registry, installers,       |  stdio MCP
   updates, logs, file access          v
-  renderer (src/renderer): React   MCP server (mcp/axiom-mcp.ts), run by
-  + React Flow canvas               `archd mcp-run` on Axiom's bundled Electron Node
+  renderer (src/renderer): React   MCP server (mcp/ambio-mcp.ts), run by
+  + React Flow canvas               `archd mcp-run` on Ambio's bundled Electron Node
         |  HTTP + WebSocket              |  HTTP
         v                                v
             archd (archd-go/): the Go daemon on 127.0.0.1
@@ -25,8 +25,8 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 
 - **archd** listens only on loopback (API `7743`, WebSocket `7744`, runtime
   adapters `7745`), moving to free ports when those are taken and publishing
-  the ports it uses in `~/.axiom/data/daemon.json`. Every request carries the
-  token from `~/.axiom/data/api-token` (0600); non-loopback `Host` headers are
+  the ports it uses in `~/.ambio/data/daemon.json`. Every request carries the
+  token from `~/.ambio/data/api-token` (0600); non-loopback `Host` headers are
   refused. An OS lock on the data folder allows one daemon per machine.
 - The **app** starts archd, or attaches to one already running (an agent can
   start it headless while the app is closed; a headless daemon exits when idle).
@@ -35,15 +35,20 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 
 ## Data
 
-- One SQLite database per project: `~/.axiom/data/<project id>/axiom.db`
+- One SQLite database per project: `~/.ambio/data/<project id>/ambio.db`
   (cgo `mattn/go-sqlite3`, WAL, bounded pool). `PRAGMA user_version` carries
   `db.SchemaVersion` (currently 2); a newer database is refused. **Bump
   `SchemaVersion` whenever a migration changes the schema.**
 - Daily backups (`backups/`, seven kept; a map failing `PRAGMA quick_check`
   on open is never backed up and the app offers its newest backup instead),
   a 30-day trash (`data/.trash`), and
-  `.axiommap` export/import (a SQLite snapshot plus a manifest table).
-- The project registry, settings and window state are JSON in `~/.axiom`.
+  `.ambiomap` export/import (a SQLite snapshot plus a manifest table).
+- The project registry, settings and window state are JSON in `~/.ambio`.
+- Before the rename the folder was `~/.axiom` and maps were `axiom.db`.
+  archd, the Electron main process and the MCP server each move `~/.axiom`
+  to `~/.ambio` when the new one does not exist yet (whichever starts
+  first), and archd renames old map and backup files in place
+  (`db/legacy_name.go`); nothing is ever overwritten.
 
 ## The model
 
@@ -103,7 +108,7 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   `work_order_code_checks` (`internal/db/code_checks.go`); history and the
   reply re-check them against the indexed code (`codeChecks`: agrees,
   disagrees, map-changed, file-gone), so "the code now matches" is verified by
-  Axiom, not reported by the agent.
+  Ambio, not reported by the agent.
   `start_work` hands the agent `mapChanges`: the person's meaning edits since
   that agent's previous session (or the last week), as claim sentences, with
   where the code still disagrees, and `decisions`: the person's verdicts with
@@ -190,8 +195,8 @@ legacy tool names still route but are not advertised. Budget and merge rules:
 ## Renderer
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
-`src/renderer/canvas/` (~21k lines; `AxiomCanvas.tsx` alone is ~5k and is
-work item `split-axiom-canvas`). Semantic zoom reveals contents by on-screen
+`src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is
+work item `split-ambio-canvas`). Semantic zoom reveals contents by on-screen
 size; layout is deterministic frame packing that never moves persisted
 geometry. One command model (`src/shared/appMenu.ts`) drives menus, the
 palette, shortcuts and right-click menus. The renderer is sandboxed under a

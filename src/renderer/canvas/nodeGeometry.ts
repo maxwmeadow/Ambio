@@ -132,7 +132,7 @@ export interface WorldGap {
 }
 
 /**
- * The spacing Axiom LEAVES between occupants of `target` when it arranges them
+ * The spacing Ambio LEAVES between occupants of `target` when it arranges them
  * itself - a pack, a tidy, a newly indexed node, or the tidy resting distance a
  * hand-dropped node is offered when it has to move at all.
  *

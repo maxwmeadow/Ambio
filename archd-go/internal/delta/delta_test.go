@@ -3,7 +3,7 @@ package delta
 import (
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func fileEvent(ts int64, kind, id, relPath, actor, detail string) db.StructuralEvent {

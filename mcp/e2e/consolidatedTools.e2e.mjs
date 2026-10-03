@@ -168,7 +168,7 @@ test('an agent can curate the architecture map', async () => {
   assert.ok(changes.payload.changes.some(change => change.kind === 'ungrouped'), changes.text)
 })
 
-test('making the code match the map is verified by Axiom, and the moved file keeps its place', async () => {
+test('making the code match the map is verified by Ambio, and the moved file keeps its place', async () => {
   const files = harness.snapshot.files ?? []
   const storage = files.filter(file => file.relPath.startsWith('storage/')).map(file => file.id)
   const routes = files.find(file => file.relPath === 'api/routes.py')
@@ -176,7 +176,7 @@ test('making the code match the map is verified by Axiom, and the moved file kee
   const systemId = created.payload?.systemId
   await client.callTool('edit_systems', { op: 'assign', systemId, fileIds: [...storage, routes.id] })
 
-  // The human sends the order the notice offers; Axiom keeps the files to check.
+  // The human sends the order the notice offers; Ambio keeps the files to check.
   const id = 'make-code-match-e2e'
   const sent = await fetch(`${harness.apiBase}/api/canvas/send`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -203,7 +203,7 @@ test('making the code match the map is verified by Axiom, and the moved file kee
     await new Promise(resolve => setTimeout(resolve, 250))
     state = (await history()).codeChecks?.[0]?.state
   }
-  assert.equal(state, 'agrees', `Axiom never saw the code agree: ${JSON.stringify((await history()).codeChecks)}`)
+  assert.equal(state, 'agrees', `Ambio never saw the code agree: ${JSON.stringify((await history()).codeChecks)}`)
 
   const moved = await fetch(`${harness.apiBase}/api/query`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -413,7 +413,7 @@ test('the loop prompts are advertised and filled in', async () => {
 
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
-  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }
+  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`ambio://file/${file.id}?label=Original%20file`]) }
   const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
   for (let i = 0; i < 2; i++) {
     const sent = await post('send', body)
@@ -473,7 +473,7 @@ test('agent actions are logged with targets the canvas can light up', async () =
   assert.ok(architecture, `expected a get_architecture entry, got: ${
     actions.map(a => a.tool).join(', ')}`)
   assert.equal(architecture.rootId, harness.snapshot.files[0].rootId)
-  assert.equal(architecture.agent, 'axiom-harness')
+  assert.equal(architecture.agent, 'ambio-harness')
   assert.equal(architecture.kind, 'read')
   assert.ok(
     architecture.targets.includes(files[0].id),
@@ -498,7 +498,7 @@ test('the running MCP process renews a harness-tagged presence lease', async () 
 
   assert.equal(presence?.connected, true)
   assert.ok(
-    presence.connections.some(connection => connection.hostId === 'axiom-harness'),
+    presence.connections.some(connection => connection.hostId === 'ambio-harness'),
     `missing tagged harness presence: ${JSON.stringify(presence)}`,
   )
 })

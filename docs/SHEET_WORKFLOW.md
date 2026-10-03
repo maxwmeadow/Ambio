@@ -2,7 +2,7 @@
 
 A sheet is a scoped structural target, not a screenshot to reproduce. The inbox
 connects the user's instruction to that target; the agent's own harness edits
-code, while Axiom compares the authored requirements against its indexed live model.
+code, while Ambio compares the authored requirements against its indexed live model.
 
 ## Canvas workflow
 
@@ -47,7 +47,7 @@ Restoration creates a new revision; historical resolution evidence remains store
    words. Ambiguous matches fail with candidates; the agent must ask rather than guess.
 2. `edit_sheet({op:"compare",sheet:sheetId})` returns the current revision, comparison
    token, requirements, planned-to-live mappings, and remaining differences.
-3. Implement the requested code using the harness; use existing Axiom architecture
+3. Implement the requested code using the harness; use existing Ambio architecture
    tools to curate the real map. Indexing provides file/contract realization evidence.
 4. Bind a new live system or infrastructure node to its planned identity with
    `edit_sheet({op:"bind",sheet:sheetId,plannedId,liveId,revision})`. The node must be
@@ -134,7 +134,7 @@ edges, pending approvals, missing implementation, contract drift, workspace isol
 stale resolution refusal, retry idempotency, archival and restoration. The real stdio
 MCP harness exercises lookup through resolution; Electron exercises direct attachment,
 Floor navigation, live comparison refresh, archival, and restoration.
-The opt-in `AXIOM_LIVE_HOST_TEST=1` Electron suite runs real Codex sessions against
+The opt-in `AMBIO_LIVE_HOST_TEST=1` Electron suite runs real Codex sessions against
 isolated demo projects. It covers project and Sheet handoffs, source changes,
 reported checks, an independently executed function, replies, and acceptance.
 The Sheet case changes the current contract after submission and checks that the

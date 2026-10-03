@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Protecting maps. A map is weeks of curation - systems, placement, sheets,
@@ -26,7 +26,7 @@ const (
 	backupDirName  = "backups"
 	backupsKept    = 7
 	backupInterval = 24 * time.Hour
-	exportManifest = "axiom_export_manifest"
+	exportManifest = "ambio_export_manifest"
 )
 
 // trashWorkspace closes a workspace and moves its folder to data/.trash, where
@@ -94,7 +94,7 @@ func (s *Server) damagedMap(workspaceID, detail string, checked bool) *damagedMa
 	if err != nil {
 		return nil
 	}
-	if _, err := os.Stat(filepath.Join(projectDir, "axiom.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(projectDir, "ambio.db")); err != nil {
 		return nil
 	}
 	lower := strings.ToLower(detail)
@@ -161,7 +161,7 @@ func backupIfDue(sqlDB *sql.DB, projectDir string, now time.Time) (bool, error) 
 	if len(backups) > 0 && now.Sub(time.UnixMilli(backups[0].CreatedAt)) < backupInterval {
 		return false, nil
 	}
-	name := fmt.Sprintf("axiom-%s.db", now.Format("20060102-150405"))
+	name := fmt.Sprintf("ambio-%s.db", now.Format("20060102-150405"))
 	if err := snapshotDatabase(sqlDB, filepath.Join(projectDir, backupDirName, name)); err != nil {
 		return false, err
 	}
@@ -212,7 +212,7 @@ func (s *Server) handleWorkspaceRestoreBackup(w http.ResponseWriter, r *http.Req
 		jsonError(w, "backup not found", http.StatusNotFound)
 		return
 	}
-	live := filepath.Join(projectDir, "axiom.db")
+	live := filepath.Join(projectDir, "ambio.db")
 	stamp := time.Now().Format("20060102-150405")
 	safety := filepath.Join(projectDir, backupDirName, fmt.Sprintf("before-restore-%s.db", stamp))
 	sqlDB, openErr := s.dbFor(req.WorkspaceID)
@@ -332,11 +332,11 @@ func readExportManifest(path string) (map[string]string, int, error) {
 	defer file.Close()
 	var version int
 	if err := file.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
-		return nil, 0, fmt.Errorf("not an Axiom map file")
+		return nil, 0, fmt.Errorf("not an Ambio map file")
 	}
 	rows, err := file.Query(`SELECT key, value FROM ` + exportManifest)
 	if err != nil {
-		return nil, 0, fmt.Errorf("not an Axiom map file")
+		return nil, 0, fmt.Errorf("not an Ambio map file")
 	}
 	defer rows.Close()
 	manifest := map[string]string{}
@@ -351,7 +351,7 @@ func readExportManifest(path string) (map[string]string, int, error) {
 }
 
 // handleWorkspaceImport installs an exported map under its own workspace id.
-// It refuses maps from a newer Axiom, and an id that already exists unless
+// It refuses maps from a newer Ambio, and an id that already exists unless
 // the caller chose to replace it (the existing map goes to the trash).
 func (s *Server) handleWorkspaceImport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -379,7 +379,7 @@ func (s *Server) handleWorkspaceImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	replacedTrashPath := ""
-	if _, err := os.Stat(filepath.Join(projectDir, "axiom.db")); err == nil {
+	if _, err := os.Stat(filepath.Join(projectDir, "ambio.db")); err == nil {
 		if !req.Replace {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
@@ -397,7 +397,7 @@ func (s *Server) handleWorkspaceImport(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	live := filepath.Join(projectDir, "axiom.db")
+	live := filepath.Join(projectDir, "ambio.db")
 	if err := copyFile(req.Path, live); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return

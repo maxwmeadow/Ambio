@@ -22,11 +22,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/cluster"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/parser"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/cluster"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/parser"
 )
 
 var skipDirs = map[string]bool{
@@ -179,7 +179,7 @@ func ClusterOnly(sqlDB *sql.DB, root db.Root) error {
 		return fmt.Errorf("rebuild semantic evidence: %w", err)
 	}
 	// A classifier-contract migration reshapes systems wholesale. That is a
-	// change in how Axiom reads the code, not a change in the code, so it must
+	// change in how Ambio reads the code, not a change in the code, so it must
 	// never appear in the user's delta as if their agents did it.
 	if err := clusterAndAssign(sqlDB, root, false); err != nil {
 		return err
@@ -635,7 +635,7 @@ func normalizedChurn(sqlDB *sql.DB, workspaceID, fileID string) (float64, error)
 
 // Shape is only inferred from STRUCTURE the parser proved (the symbol table)
 // - never from filename/path heuristics; guessing "cylinder" off a directory
-// name is exactly the dumb-tool behavior Axiom exists to replace. Cylinder/
+// name is exactly the dumb-tool behavior Ambio exists to replace. Cylinder/
 // hexagon exist on live files only via explicit shape_override (user/agent),
 // where they are declared, not guessed.
 func inferShape(relPath string, symbols []db.Symbol) (shape, displayName string) {
@@ -794,7 +794,7 @@ func aggregateVarRefs(fileID string, refs []parser.VarRef) []db.VarRefRow {
 //  3. Ambiguous match: multiple files define the same name → use import/using relationships as a
 //     tiebreaker. If imports narrow it to one file, record that. Otherwise skip to avoid noise.
 //
-// This deliberately avoids language-specific logic so it extends to any language Axiom supports.
+// This deliberately avoids language-specific logic so it extends to any language Ambio supports.
 func rebuildCallGraphForFile(sqlDB *sql.DB, root db.Root, file db.File) error {
 	result, err := parser.ParseFile(file.Path, file.RelPath)
 	if err != nil {

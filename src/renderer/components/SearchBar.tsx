@@ -123,7 +123,7 @@ export function SearchBar({ onClose }: SearchBarProps) {
 
   return createPortal(
     <div
-      className="axiom-search-backdrop nodrag nopan nowheel"
+      className="ambio-search-backdrop nodrag nopan nowheel"
       role="presentation"
       onPointerDown={event => {
         event.stopPropagation()
@@ -131,24 +131,24 @@ export function SearchBar({ onClose }: SearchBarProps) {
       }}
       onWheel={event => event.stopPropagation()}
     >
-      <section className="axiom-search-window" role="dialog" aria-modal="true" aria-label="Search the map">
-        <header className="axiom-search-header">
+      <section className="ambio-search-window" role="dialog" aria-modal="true" aria-label="Search the map">
+        <header className="ambio-search-header">
           <div>
             <h2>Find in project</h2>
             <p>Systems, infrastructure, files and symbols</p>
           </div>
-          <button type="button" className="axiom-search-close" onClick={onClose} aria-label="Close search">×</button>
+          <button type="button" className="ambio-search-close" onClick={onClose} aria-label="Close search">×</button>
         </header>
 
-        <div className="axiom-search-query">
+        <div className="ambio-search-query">
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
           </svg>
           <input
             ref={inputRef}
-            aria-activedescendant={results[activeIdx] ? `axiom-search-result-${results[activeIdx].id}` : undefined}
-            aria-controls="axiom-search-results"
+            aria-activedescendant={results[activeIdx] ? `ambio-search-result-${results[activeIdx].id}` : undefined}
+            aria-controls="ambio-search-results"
             aria-label="Search the map"
             autoComplete="off"
             value={query}
@@ -159,14 +159,14 @@ export function SearchBar({ onClose }: SearchBarProps) {
           <kbd>Esc</kbd>
         </div>
 
-        <div className="axiom-search-body">
+        <div className="ambio-search-body">
           {results.length > 0 && (
             <>
-              <div className="axiom-search-results-header">
+              <div className="ambio-search-results-header">
                 <span>Results</span>
                 <output>{results.length} {results.length === 1 ? 'match' : 'matches'}</output>
               </div>
-              <div className="axiom-search-results" id="axiom-search-results" role="listbox" aria-label="Search results">
+              <div className="ambio-search-results" id="ambio-search-results" role="listbox" aria-label="Search results">
                 {results.map((result, index) => {
                   const active = index === activeIdx
                   const systemName = result.kind === 'file' && result.file.systemId ? systemNames.get(result.file.systemId) : null
@@ -176,26 +176,26 @@ export function SearchBar({ onClose }: SearchBarProps) {
                   return (
                     <React.Fragment key={result.id}>
                       {(index === 0 || results[index - 1].kind !== result.kind) && (
-                        <div className="axiom-search-group" role="presentation">{SEARCH_GROUP_LABELS[result.kind]}</div>
+                        <div className="ambio-search-group" role="presentation">{SEARCH_GROUP_LABELS[result.kind]}</div>
                       )}
                       <button
                         ref={active ? activeResultRef : undefined}
-                        id={`axiom-search-result-${result.id}`}
+                        id={`ambio-search-result-${result.id}`}
                         type="button"
-                        className="axiom-search-result"
+                        className="ambio-search-result"
                         data-kind={result.kind}
                         aria-selected={active}
                         role="option"
                         onClick={() => navigate(result)}
                         onMouseEnter={() => setActiveIdx(index)}
                       >
-                        <span className="axiom-search-result__icon" aria-hidden="true" />
-                        <span className="axiom-search-result__copy">
+                        <span className="ambio-search-result__icon" aria-hidden="true" />
+                        <span className="ambio-search-result__copy">
                           <strong><HighlightedMatch query={query} text={result.title} /></strong>
                           <span><HighlightedMatch query={query} text={result.detail} /></span>
                         </span>
-                        {systemName && <span className="axiom-search-result__system">{systemName}</span>}
-                        <span className="axiom-search-result__language">{badge}</span>
+                        {systemName && <span className="ambio-search-result__system">{systemName}</span>}
+                        <span className="ambio-search-result__language">{badge}</span>
                       </button>
                     </React.Fragment>
                   )
@@ -205,21 +205,21 @@ export function SearchBar({ onClose }: SearchBarProps) {
           )}
 
           {query && results.length === 0 && (
-            <div className="axiom-search-empty">
+            <div className="ambio-search-empty">
               <strong>No matches</strong>
               <span>No system, file or symbol is named like “{query}”.</span>
             </div>
           )}
 
           {!query && (
-            <div className="axiom-search-empty axiom-search-empty--idle">
+            <div className="ambio-search-empty ambio-search-empty--idle">
               <strong>Search the project index</strong>
               <span>Start with a system, a filename or path fragment, or a function or class name.</span>
             </div>
           )}
         </div>
 
-        <footer className="axiom-search-footer" aria-label="Search keyboard shortcuts">
+        <footer className="ambio-search-footer" aria-label="Search keyboard shortcuts">
           <span><kbd>↑</kbd><kbd>↓</kbd> select</span>
           <span><kbd>Enter</kbd> show on canvas</span>
           <span><kbd>Esc</kbd> close</span>

@@ -26,7 +26,7 @@ The full ID remains visible and selectable on the message if clipboard access fa
 The agent calls `get_inbox({messageId: "…", expectedWorkspaceId: "…"})` to claim
 exactly that request. A mismatched MCP workspace fails before any claim. This is
 the universal route for two different harnesses, or two chats in the same harness:
-MCP does not tell Axiom which human chat owns a connection. The request ID selects
+MCP does not tell Ambio which human chat owns a connection. The request ID selects
 the task; a connection lease prevents a different connector from claiming it at
 the same time. The ID is routing information, not an access-control secret or proof
 of the chat's identity. A connector already holding a lease can renew that request.
@@ -39,14 +39,14 @@ converted. New addressed work does **not** appear in an unspecific inbox check o
 legacy outbox read. It waits until the user gives its ID to a chat. The handoff asks
 the agent to handle only that work order; it does not invite queue draining. There is
 no automatic delivery or reliable cross-harness hook. Installers that support skills
-also install `axiom-inbox` beside `axiom-map`;
+also install `ambio-inbox` beside `ambio-map`;
 manual language remains the universal entry point. Installing is optional for an already
 connected agent. No hook, slash-command convention, or permanent polling loop is required.
 
 After a send, the request card exposes its ID and a copyable project-named prompt
 to paste into the agent's own chat. **Connections** reopens setup without leaving the
 project. The signal distinguishes an MCP process currently online from one that has
-successfully called an Axiom tool in this workspace. A configuration found on disk,
+successfully called an Ambio tool in this workspace. A configuration found on disk,
 an incomplete installer workflow, and unavailable status have separate states.
 Blank-project setup provides a copyable `get_inbox({verifyOnly: true,
 expectedWorkspaceId: "…"})` check and opens the canvas after the selected host
@@ -76,7 +76,7 @@ signal and a successful claim/reply are the stronger end-to-end checks.
 The panel distinguishes waiting, picked up, submitted for review, accepted,
 changes requested, cancelled, and expired claims.
 Picked up means the connector claimed the instruction, not proof of ongoing model work.
-Replies remain visible after restarting Axiom or deleting the originating canvas objects.
+Replies remain visible after restarting Ambio or deleting the originating canvas objects.
 Cancellation prevents acceptance of a later reply; it cannot stop an external coding
 process. The panel tells the user to stop that agent separately if necessary.
 
@@ -86,7 +86,7 @@ process. The panel tells the user to stop that agent separately if necessary.
 lists a commit, changed files, checks with outcomes, and remaining gaps. These are
 **agent-reported claims**, not independently verified test results. The work-order
 details show linked sessions and the current live sheet comparison separately;
-the comparison is an Axiom structural check of the current graph, not proof of
+the comparison is an Ambio structural check of the current graph, not proof of
 runtime behavior or the graph at the moment of submission.
 
 The user can **Accept result** or **Request changes** with feedback. Acceptance is a
@@ -139,7 +139,7 @@ before expiry and check ownership before continuing after interruption.
 
 This provides at-least-once delivery and idempotent final replies. It does not guarantee
 exactly-once edits in an external repository. A stale agent can still modify files outside
-Axiom. Claim tokens fence Axiom replies, not third-party tools or shell commands.
+Ambio. Claim tokens fence Ambio replies, not third-party tools or shell commands.
 
 ## Storage and HTTP
 
@@ -187,20 +187,20 @@ change does not claim stronger hardware-level durability than the project's data
 
 Each MCP process binds once after its first successful resolution:
 
-1. `AXIOM_WORKSPACE_ID`, if explicitly configured.
-2. An explicit `AXIOM_ACTIVE_PROJECT` file (used by isolated harnesses).
+1. `AMBIO_WORKSPACE_ID`, if explicitly configured.
+2. An explicit `AMBIO_ACTIVE_PROJECT` file (used by isolated harnesses).
 3. Otherwise the longest registered root containing the process working directory,
    including persisted worktree roots. Equal matches in different projects fail visibly.
 
 For a host without a meaningful working directory, configure a workspace ID, or explicitly
-opt into the desktop pointer with `AXIOM_USE_ACTIVE_PROJECT=1`. The pointer is still read
+opt into the desktop pointer with `AMBIO_USE_ACTIVE_PROJECT=1`. The pointer is still read
 only at binding time; start a new MCP connection to choose another workspace. Changing
 the desktop's project cannot redirect a running agent's calls or replies.
 
 The daemon generates a local random capability in `<data>/api-token` (0600 on POSIX).
 Electron adds it from the main process to its own daemon requests; page scripts never
 receive it through IPC. MCP reads the same file and uses a 15-second request deadline.
-Overrides are `AXIOM_API_TOKEN` or `AXIOM_API_TOKEN_FILE`; `AXIOM_API_URL` must remain
+Overrides are `AMBIO_API_TOKEN` or `AMBIO_API_TOKEN_FILE`; `AMBIO_API_URL` must remain
 loopback HTTP. The token protects against unrelated browser pages and unauthenticated
 clients, not another process already running with the user's filesystem permissions.
 
@@ -249,9 +249,9 @@ throwaway indexed project. The canvas drawing is a deterministic E2E fixture;
 the inbox requests, daemon, MCP calls, agent edit, and review are live. It
 requires an authenticated Codex CLI and invokes
 that CLI with automatic approval review and a workspace-write sandbox for the
-disposable project; it does not change the user's Codex settings. After building Axiom and
+disposable project; it does not change the user's Codex settings. After building Ambio and
 archd, run:
 
 ```sh
-AXIOM_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
+AMBIO_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
 ```

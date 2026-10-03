@@ -9,12 +9,12 @@ const STATE_LABEL: Record<CodeCheckResult['state'], string> = {
 }
 
 /**
- * What Axiom found when it re-checked a make-the-code-match order against the
- * indexed code. Verified by Axiom, unlike the agent's own report below it.
+ * What Ambio found when it re-checked a make-the-code-match order against the
+ * indexed code. Verified by Ambio, unlike the agent's own report below it.
  */
 export function WorkOrderCodeChecks({ checks }: { checks: CodeCheckResult[] }) {
-  return <section className="axiom-inbox__code-checks" aria-label="Code checked by Axiom">
-    <div className="axiom-inbox__evidence-label">Checked by Axiom <span>· against the indexed code</span></div>
+  return <section className="ambio-inbox__code-checks" aria-label="Code checked by Ambio">
+    <div className="ambio-inbox__evidence-label">Checked by Ambio <span>· against the indexed code</span></div>
     <p>{codeCheckHeadline(checks)}</p>
     <ul>{checks.map((check, index) => <li key={`${check.sent.fileId}:${check.sent.kind}:${index}`} data-state={check.state}>
       <strong>{STATE_LABEL[check.state]}</strong> {check.now}

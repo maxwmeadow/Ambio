@@ -58,35 +58,35 @@ export function Toolbar({
   })
 
   useEffect(() => {
-    void window.axiom?.setTitleBarHeight?.(34)
+    void window.ambio?.setTitleBarHeight?.(34)
     const openDispatch = () => setAgentMsgOpen(true)
-    window.addEventListener('axiom:open-agent-dispatch', openDispatch)
-    return () => window.removeEventListener('axiom:open-agent-dispatch', openDispatch)
+    window.addEventListener('ambio:open-agent-dispatch', openDispatch)
+    return () => window.removeEventListener('ambio:open-agent-dispatch', openDispatch)
   }, [])
 
   return (
     <>
-      <header className="axiom-toolbar">
-      <div className="axiom-title-strip">
-        <div className="axiom-title-strip__identity">
-          <AxiomLogo />
+      <header className="ambio-toolbar">
+      <div className="ambio-title-strip">
+        <div className="ambio-title-strip__identity">
+          <AmbioLogo />
           <AppMenuBar />
-          <strong>Axiom Architecture Workbench</strong>
+          <strong>Ambio Architecture Workbench</strong>
           {projectName && (
             <>
-              <span className="axiom-title-strip__divider">-</span>
-              <span className="axiom-title-strip__project">{projectName}</span>
+              <span className="ambio-title-strip__divider">-</span>
+              <span className="ambio-title-strip__project">{projectName}</span>
             </>
           )}
         </div>
-        <div className={isIndexing ? 'axiom-title-strip__status axiom-title-strip__status--busy' : 'axiom-title-strip__status'}>
+        <div className={isIndexing ? 'ambio-title-strip__status ambio-title-strip__status--busy' : 'ambio-title-strip__status'}>
           {isIndexing ? 'INDEXING SOURCE…' : 'INDEX CLEAN'}
         </div>
         <WindowControls />
       </div>
 
-      <div className="axiom-command-strip">
-        <div className="axiom-command-group" data-onboarding-target="dispatch">
+      <div className="ambio-command-strip">
+        <div className="ambio-command-group" data-onboarding-target="dispatch">
           <ChromeButton
             onClick={() => setSelectionMode(!selectionMode)}
             label={selectionMode ? 'Lasso Active' : 'Lasso Select'}
@@ -105,9 +105,9 @@ export function Toolbar({
           </ChromeButton>
         </div>
 
-        <div className="axiom-command-separator" />
+        <div className="ambio-command-separator" />
 
-        <div className="axiom-command-group">
+        <div className="ambio-command-group">
           <RecordingControl workspaceId={workspaceId} />
           <InvestigationsMenu workspaceId={workspaceId} />
           <ChromeButton
@@ -123,9 +123,9 @@ export function Toolbar({
           </ChromeButton>
         </div>
 
-        <div className="axiom-command-separator" />
+        <div className="ambio-command-separator" />
 
-        <div className="axiom-command-group">
+        <div className="ambio-command-group">
           <ChromeButton
             onClick={() => setAgentMsgOpen(true)}
             label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} queued)` : 'Message agent'}
@@ -135,18 +135,18 @@ export function Toolbar({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            {queuedMsgs > 0 && <span className="axiom-command-badge">{queuedMsgs}</span>}
+            {queuedMsgs > 0 && <span className="ambio-command-badge">{queuedMsgs}</span>}
           </ChromeButton>
         </div>
 
-        <div className="axiom-surface-readout">
+        <div className="ambio-surface-readout">
           <span>{surfaceName}</span>
           <strong>{surfaceKind}</strong>
         </div>
 
-        <div className="axiom-command-spacer" />
+        <div className="ambio-command-spacer" />
 
-        <div className="axiom-command-group axiom-command-group--navigation">
+        <div className="ambio-command-group ambio-command-group--navigation">
           {/* The one way out, and the only project-switching control there
               needs to be. The launcher it returns to already offers the folder
               picker this used to sit beside, plus New Project and your recents
@@ -175,7 +175,7 @@ export function Toolbar({
   )
 }
 
-function AxiomLogo() {
+function AmbioLogo() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
       <polygon points="10,1 19,6 19,14 10,19 1,14 1,6" fill="color-mix(in srgb, var(--workbench-accent) 16%, transparent)" stroke="var(--workbench-accent)" strokeWidth="1.5"/>

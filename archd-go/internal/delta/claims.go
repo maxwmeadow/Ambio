@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // A Claim is the unit of architectural review.

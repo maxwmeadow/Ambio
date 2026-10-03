@@ -1,7 +1,7 @@
 type FocusTarget = Pick<Window, 'addEventListener' | 'removeEventListener'>
 
 /**
- * Refresh the durable Morning Delta whenever the user returns to Axiom.
+ * Refresh the durable Morning Delta whenever the user returns to Ambio.
  * The store owns request coalescing and review/ack sequencing; this adapter
  * only translates browser focus into the domain action.
  */

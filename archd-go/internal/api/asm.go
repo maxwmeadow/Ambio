@@ -1,4 +1,4 @@
-// ASM - Axiom Sheet Markup: the textual rendering of a sheet for agents,
+// ASM - Ambio Sheet Markup: the textual rendering of a sheet for agents,
 // who cannot see the canvas (docs/history/UML_UX_PLAN.md "How agents see sheets").
 // Durable URI refs (file://relpath, sys://name-path, infra://service/name),
 // containment by indentation, health as bracket tags, notes block-indented.
@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 type agentPlacement struct {
@@ -700,7 +700,7 @@ func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {
 	}
 
 	fmt.Fprintf(&b, "\n%d element(s) awaiting realization. Use Sheet containment and the live Floor context "+
-		"to place the design; Axiom reconciles automatically as code appears and the user watches members turn green.\n", open)
+		"to place the design; Ambio reconciles automatically as code appears and the user watches members turn green.\n", open)
 	if awaitingApproval > 0 {
 		fmt.Fprintf(&b, "%d agent proposal(s) are awaiting user approval and are intentionally excluded from this work order.\n", awaitingApproval)
 	}

@@ -61,13 +61,13 @@ export function NewSheetDialog({ isOpen, onClose, nodeIds, onSuccess }: NewSheet
           <DialogField label="Sheet name">
             <input
               type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder='e.g. "Payment flow"' className="axiom-dialog-input" autoFocus
+              placeholder='e.g. "Payment flow"' className="ambio-dialog-input" autoFocus
             />
           </DialogField>
           <DialogField label="Purpose" optional="optional - shown in the title block">
             <input
               type="text" value={purpose} onChange={e => setPurpose(e.target.value)}
-              placeholder="What story does this sheet tell?" className="axiom-dialog-input"
+              placeholder="What story does this sheet tell?" className="ambio-dialog-input"
             />
           </DialogField>
           <DialogNote>

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/hub"
 )
 
 // A watched C++ function, traced through gdb's DAP mode: every call is counted

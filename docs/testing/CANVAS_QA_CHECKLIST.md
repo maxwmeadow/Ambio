@@ -65,7 +65,7 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 - [x] **C5** Lasso-drag no longer lags. Root cause: the `transition: none` guard
   keyed off React Flow's `.dragging` class, which a **box-selection drag never
   sets** (it moves nodes through the separate selection-rect path). Now keyed
-  off `.axiom-dragging`, set by Axiom for any drag gesture;
+  off `.ambio-dragging`, set by Ambio for any drag gesture;
   `onSelectionDragStart/Stop` were unwired entirely.
 - [x] **C5b** Resizing one node of a multi-selection scales the whole selection as
   one frame (`selectionResize.ts`). Members sharing the anchor's parent only;
@@ -121,7 +121,7 @@ Fixed during this pass:
   for editable chrome). Disabling `draggable` alone then made it *swallow* the
   pointer instead - the click fell through to whatever was painted behind, and
   since React Flow renders node wrappers as **siblings**, that was the outer
-  depth-0 container. Now `.axiom-node-hidden` kills pointer events on the node
+  depth-0 container. Now `.ambio-node-hidden` kills pointer events on the node
   and every descendant, plus React Flow's `draggable`/`selectable` flags as a
   second layer for keyboard/programmatic paths.
 - [x] **Stuck-to-cursor drag.** The drag-start visibility override sat *after*
@@ -152,7 +152,7 @@ Fixed during this pass:
 - [ ] **E-M8c** Make two meaning edits on the Floor, press ⌘Z twice → both undone in reverse order; ⌘⇧Z redoes; ⌘Z while renaming a system undoes typing only
 - [ ] **E-M9** Move a file into a system whose other files live in another folder → the Undo notice says where the code disagrees and offers Make the Code Match…, which opens Send to Agent with the move written; moving a file that already fits shows no offer
 - [ ] **E-M10** Dismiss that notice → Review Changes shows the move with the same disagreement and Make the Code Match…
-- [ ] **E-M11** Send the order (the composer shows "Axiom checks the code afterwards"), let an agent move the file → the file keeps its system and place on the Floor, and the order shows "Checked by Axiom: it now matches the map"
+- [ ] **E-M11** Send the order (the composer shows "Ambio checks the code afterwards"), let an agent move the file → the file keeps its system and place on the Floor, and the order shows "Checked by Ambio: it now matches the map"
 
 
 ## F. Tidy and layout

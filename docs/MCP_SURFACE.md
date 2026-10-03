@@ -1,11 +1,11 @@
-# Axiom MCP tool surface
+# Ambio MCP tool surface
 
 Status: consolidated 2026-07-30. 59 advertised tools → 15 core (+1 debug).
 
 ## Why this is a budget, not a detail
 
 The tool listing is sent on **every request an agent makes**, before it has
-read a line of code. Axiom's 59 tools cost roughly **9,600 tokens** per
+read a line of code. Ambio's 59 tools cost roughly **9,600 tokens** per
 request. That is both a context tax and a selection problem: a model choosing
 between `get_neighbors`, `get_family`, `get_node` and `get_systems_with_files`
 is choosing between four spellings of one question.
@@ -75,7 +75,7 @@ The inbox lifecycle, workspace binding, local authentication, and migration
 contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 Structural sheet implementation and archival are documented in [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
 
-Set `AXIOM_MCP_PROFILE=debug` to advertise:
+Set `AMBIO_MCP_PROFILE=debug` to advertise:
 
 | Tool | Absorbs |
 |---|---|

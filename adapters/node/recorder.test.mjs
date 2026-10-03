@@ -10,7 +10,7 @@ const ADAPTER = dirname(fileURLToPath(import.meta.url))
 
 /** Run `code` as a workspace file under the recorder; return the merged evidence. */
 function record(code, watches, name = 'app.js') {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'axiom-rec-')))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'ambio-rec-')))
   const evidence = join(root, '.evidence')
   const file = join(root, name)
   writeFileSync(file, code)
@@ -20,10 +20,10 @@ function record(code, watches, name = 'app.js') {
     env: {
       ...process.env,
       NODE_OPTIONS: `--require ${JSON.stringify(join(ADAPTER, 'cjs-bootstrap.cjs'))} --import ${JSON.stringify(pathToFileURL(join(ADAPTER, 'esm-bootstrap.mjs')).href)}`,
-      AXIOM_RUNTIME_PORT: '1', // nothing listens: the recorder must not care
-      AXIOM_WORKSPACE_ROOT: root,
-      AXIOM_EVIDENCE_DIR: evidence,
-      AXIOM_WATCHES: JSON.stringify(watches.map(w => ({ absPath: file, symbol: w }))),
+      AMBIO_RUNTIME_PORT: '1', // nothing listens: the recorder must not care
+      AMBIO_WORKSPACE_ROOT: root,
+      AMBIO_EVIDENCE_DIR: evidence,
+      AMBIO_WATCHES: JSON.stringify(watches.map(w => ({ absPath: file, symbol: w }))),
     },
   })
   const docs = readdirSync(evidence).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(evidence, f), 'utf8')))

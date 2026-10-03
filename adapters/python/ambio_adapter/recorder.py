@@ -1,6 +1,6 @@
 """Run recorder for `investigation run` - the Python twin of recorder.cjs.
 
-archd launches the command with AXIOM_EVIDENCE_DIR set and this directory on
+archd launches the command with AMBIO_EVIDENCE_DIR set and this directory on
 PYTHONPATH; sitecustomize starts the recorder before any user code runs. At
 exit it writes one JSON document per process, in exactly the shape the Node
 recorder writes, so archd analyses both the same way.
@@ -779,16 +779,16 @@ def start():
     global _recorder
     if _recorder is not None:
         return _recorder
-    directory = os.environ.get("AXIOM_EVIDENCE_DIR")
+    directory = os.environ.get("AMBIO_EVIDENCE_DIR")
     if not directory:
         return None
     try:
-        watches = json.loads(os.environ.get("AXIOM_WATCHES") or "[]")
+        watches = json.loads(os.environ.get("AMBIO_WATCHES") or "[]")
     except Exception:
         watches = []
     try:
-        rec = Recorder(directory, os.environ.get("AXIOM_RUN_ID", ""),
-                       os.environ.get("AXIOM_WORKSPACE_ROOT") or os.getcwd(), watches)
+        rec = Recorder(directory, os.environ.get("AMBIO_RUN_ID", ""),
+                       os.environ.get("AMBIO_WORKSPACE_ROOT") or os.getcwd(), watches)
     except Exception:
         return None
     _recorder = rec
@@ -813,7 +813,7 @@ def start():
             time.sleep(1.0)
             rec.write()
 
-    threading.Thread(target=flusher, name="axiom-recorder-flush", daemon=True).start()
+    threading.Thread(target=flusher, name="ambio-recorder-flush", daemon=True).start()
     threading.settrace(rec.global_trace)
     sys.settrace(rec.global_trace)
     return rec

@@ -1,6 +1,6 @@
 import type { CanvasSnapshot } from '../../shared/types'
 
-// Synthetic demo graph representing the Axiom codebase itself.
+// Synthetic demo graph representing the Ambio codebase itself.
 // Used in browser mode (no Electron, no archd running).
 
 export const DEMO_WORKSPACE_ID = 'demo'
@@ -106,30 +106,30 @@ export const demoSnapshot: CanvasSnapshot = {
 
   files: [
     // ── Canvas Renderer ──────────────────────────────────────────────────
-    { id: 'file_canvas', rootId: 'root_demo', path: '/axiom/src/renderer/canvas/AxiomCanvas.tsx', relPath: 'src/renderer/canvas/AxiomCanvas.tsx', language: 'tsx', systemId: 'sys_canvas', lineCount: 420, churnScore: 0.85, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_store', rootId: 'root_demo', path: '/axiom/src/renderer/store/graphStore.ts', relPath: 'src/renderer/store/graphStore.ts', language: 'typescript', systemId: 'sys_canvas', lineCount: 112, churnScore: 0.6, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_layerzoom', rootId: 'root_demo', path: '/axiom/src/renderer/canvas/hooks/useLayerZoom.ts', relPath: 'src/renderer/canvas/hooks/useLayerZoom.ts', language: 'typescript', systemId: 'sys_canvas', lineCount: 48, churnScore: 0.2, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_canvas', rootId: 'root_demo', path: '/ambio/src/renderer/canvas/AmbioCanvas.tsx', relPath: 'src/renderer/canvas/AmbioCanvas.tsx', language: 'tsx', systemId: 'sys_canvas', lineCount: 420, churnScore: 0.85, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_store', rootId: 'root_demo', path: '/ambio/src/renderer/store/graphStore.ts', relPath: 'src/renderer/store/graphStore.ts', language: 'typescript', systemId: 'sys_canvas', lineCount: 112, churnScore: 0.6, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_layerzoom', rootId: 'root_demo', path: '/ambio/src/renderer/canvas/hooks/useLayerZoom.ts', relPath: 'src/renderer/canvas/hooks/useLayerZoom.ts', language: 'typescript', systemId: 'sys_canvas', lineCount: 48, churnScore: 0.2, positionX: 0, positionY: 0, indexedAt: 0 },
 
     // ── Node Components (subsystem of Canvas) ────────────────────────────
-    { id: 'file_systemnode', rootId: 'root_demo', path: '/axiom/src/renderer/canvas/nodes/SystemNode.tsx', relPath: 'src/renderer/canvas/nodes/SystemNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 155, churnScore: 0.7, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_filenode', rootId: 'root_demo', path: '/axiom/src/renderer/canvas/nodes/FileNode.tsx', relPath: 'src/renderer/canvas/nodes/FileNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 183, churnScore: 0.3, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_infranode', rootId: 'root_demo', path: '/axiom/src/renderer/canvas/nodes/InfraNode.tsx', relPath: 'src/renderer/canvas/nodes/InfraNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 64, churnScore: 0.1, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_systemnode', rootId: 'root_demo', path: '/ambio/src/renderer/canvas/nodes/SystemNode.tsx', relPath: 'src/renderer/canvas/nodes/SystemNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 155, churnScore: 0.7, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_filenode', rootId: 'root_demo', path: '/ambio/src/renderer/canvas/nodes/FileNode.tsx', relPath: 'src/renderer/canvas/nodes/FileNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 183, churnScore: 0.3, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_infranode', rootId: 'root_demo', path: '/ambio/src/renderer/canvas/nodes/InfraNode.tsx', relPath: 'src/renderer/canvas/nodes/InfraNode.tsx', language: 'tsx', systemId: 'sys_nodes', lineCount: 64, churnScore: 0.1, positionX: 0, positionY: 0, indexedAt: 0 },
 
     // ── archd Daemon ─────────────────────────────────────────────────────
-    { id: 'file_main', rootId: 'root_demo', path: '/axiom/archd-go/cmd/archd/main.go', relPath: 'archd-go/cmd/archd/main.go', language: 'go', systemId: 'sys_daemon', lineCount: 130, churnScore: 0.4, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_indexer', rootId: 'root_demo', path: '/axiom/archd-go/internal/indexer/indexer.go', relPath: 'archd-go/internal/indexer/indexer.go', language: 'go', systemId: 'sys_daemon', lineCount: 220, churnScore: 0.6, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_parser', rootId: 'root_demo', path: '/axiom/archd-go/internal/parser/parser.go', relPath: 'archd-go/internal/parser/parser.go', language: 'go', systemId: 'sys_daemon', lineCount: 195, churnScore: 0.5, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_watcher', rootId: 'root_demo', path: '/axiom/archd-go/internal/watcher/watcher.go', relPath: 'archd-go/internal/watcher/watcher.go', language: 'go', systemId: 'sys_daemon', lineCount: 92, churnScore: 0.2, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_main', rootId: 'root_demo', path: '/ambio/archd-go/cmd/archd/main.go', relPath: 'archd-go/cmd/archd/main.go', language: 'go', systemId: 'sys_daemon', lineCount: 130, churnScore: 0.4, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_indexer', rootId: 'root_demo', path: '/ambio/archd-go/internal/indexer/indexer.go', relPath: 'archd-go/internal/indexer/indexer.go', language: 'go', systemId: 'sys_daemon', lineCount: 220, churnScore: 0.6, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_parser', rootId: 'root_demo', path: '/ambio/archd-go/internal/parser/parser.go', relPath: 'archd-go/internal/parser/parser.go', language: 'go', systemId: 'sys_daemon', lineCount: 195, churnScore: 0.5, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_watcher', rootId: 'root_demo', path: '/ambio/archd-go/internal/watcher/watcher.go', relPath: 'archd-go/internal/watcher/watcher.go', language: 'go', systemId: 'sys_daemon', lineCount: 92, churnScore: 0.2, positionX: 0, positionY: 0, indexedAt: 0 },
 
     // ── Database Layer (subsystem of archd) ──────────────────────────────
-    { id: 'file_dbgo', rootId: 'root_demo', path: '/axiom/archd-go/internal/db/db.go', relPath: 'archd-go/internal/db/db.go', language: 'go', systemId: 'sys_db', lineCount: 182, churnScore: 0.3, positionX: 0, positionY: 0, indexedAt: 0 },
-    { id: 'file_store_go', rootId: 'root_demo', path: '/axiom/archd-go/internal/db/store.go', relPath: 'archd-go/internal/db/store.go', language: 'go', systemId: 'sys_db', lineCount: 480, churnScore: 0.7, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_dbgo', rootId: 'root_demo', path: '/ambio/archd-go/internal/db/db.go', relPath: 'archd-go/internal/db/db.go', language: 'go', systemId: 'sys_db', lineCount: 182, churnScore: 0.3, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_store_go', rootId: 'root_demo', path: '/ambio/archd-go/internal/db/store.go', relPath: 'archd-go/internal/db/store.go', language: 'go', systemId: 'sys_db', lineCount: 480, churnScore: 0.7, positionX: 0, positionY: 0, indexedAt: 0 },
 
     // ── MCP Server ────────────────────────────────────────────────────────
-    { id: 'file_mcp', rootId: 'root_demo', path: '/axiom/mcp/axiom-mcp.ts', relPath: 'mcp/axiom-mcp.ts', language: 'typescript', systemId: 'sys_mcp', lineCount: 280, churnScore: 0.4, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_mcp', rootId: 'root_demo', path: '/ambio/mcp/ambio-mcp.ts', relPath: 'mcp/ambio-mcp.ts', language: 'typescript', systemId: 'sys_mcp', lineCount: 280, churnScore: 0.4, positionX: 0, positionY: 0, indexedAt: 0 },
 
     // ── Shared Types ──────────────────────────────────────────────────────
-    { id: 'file_types', rootId: 'root_demo', path: '/axiom/src/shared/types.ts', relPath: 'src/shared/types.ts', language: 'typescript', systemId: 'sys_shared', lineCount: 230, churnScore: 0.9, positionX: 0, positionY: 0, indexedAt: 0 },
+    { id: 'file_types', rootId: 'root_demo', path: '/ambio/src/shared/types.ts', relPath: 'src/shared/types.ts', language: 'typescript', systemId: 'sys_shared', lineCount: 230, churnScore: 0.9, positionX: 0, positionY: 0, indexedAt: 0 },
   ],
 
   infraNodes: [

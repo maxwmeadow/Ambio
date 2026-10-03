@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 func meaningServer(t *testing.T) *Server {
@@ -240,7 +240,7 @@ func TestTheCodeDisagreementFollowsTheChangeAndItsWorkOrder(t *testing.T) {
 		t.Fatalf("the move claim does not carry the disagreement: %+v", claims)
 	}
 
-	// A work order sent to fix it is checked by Axiom.
+	// A work order sent to fix it is checked by Ambio.
 	sent := send(t, server, http.MethodPost, "/api/canvas/send", map[string]any{
 		"workspaceId": "ws", "note": "make the code match", "selection": "[]",
 		"codeFitFileIds": []string{"cart"},

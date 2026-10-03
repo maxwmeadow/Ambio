@@ -3,7 +3,7 @@ import type { AgentAction, AgentActionKind } from '../../shared/types.ts'
 /**
  * Who is allowed to animate what.
  *
- * Axiom now has two live streams arriving at the canvas at the same time:
+ * Ambio now has two live streams arriving at the canvas at the same time:
  *
  *   1. The SEMANTIC stream - `graph:patch`, `call:trace`, `data:flow`,
  *      `runtime:*`, `planned:upserted`. This is consequence: something in the

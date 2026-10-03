@@ -2,7 +2,7 @@ import type { CanvasMessage } from './sheetStore'
 
 /**
  * What an OS notification says when a work order moves on the agent's side
- * while Axiom is in the background: picked up, or answered. Everything the
+ * while Ambio is in the background: picked up, or answered. Everything the
  * person did themselves (sending, accepting, reopening) and repeats of an
  * update already seen say nothing. Pure, so the rules are tested.
  */
@@ -33,7 +33,7 @@ export function workOrderNotice(previous: CanvasMessage | undefined, next: Canva
     const firstLine = next.reply.body.split('\n').find(line => line.trim())?.trim() ?? ''
     return {
       title: `${agentName(next)} replied to ${orderName(next)}`,
-      body: firstLine.length > BODY_LIMIT ? `${firstLine.slice(0, BODY_LIMIT - 1)}…` : (firstLine || 'Open Axiom to review it.'),
+      body: firstLine.length > BODY_LIMIT ? `${firstLine.slice(0, BODY_LIMIT - 1)}…` : (firstLine || 'Open Ambio to review it.'),
       tag,
     }
   }

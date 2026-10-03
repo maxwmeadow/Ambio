@@ -131,13 +131,13 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <aside className="axiom-explorer" aria-label="Model Explorer">
-      <header className="axiom-explorer__header">
+    <aside className="ambio-explorer" aria-label="Model Explorer">
+      <header className="ambio-explorer__header">
         <strong>Model Explorer</strong>
         <button type="button" aria-label="Close Model Explorer" onClick={onClose}>×</button>
       </header>
       <input
-        className="axiom-explorer__search"
+        className="ambio-explorer__search"
         type="search"
         aria-label="Filter systems, files and symbols"
         placeholder="Filter systems, files, symbols…"
@@ -149,8 +149,8 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
           if (event.key === 'Escape') onClose()
         }}
       />
-      <div ref={treeRef} className="axiom-explorer__tree" role="tree" aria-label="Systems, files and symbols" tabIndex={0} onKeyDown={onKeyDown}>
-        {rows.length === 0 && <p className="axiom-explorer__empty">{query ? 'Nothing matches.' : 'The map is empty.'}</p>}
+      <div ref={treeRef} className="ambio-explorer__tree" role="tree" aria-label="Systems, files and symbols" tabIndex={0} onKeyDown={onKeyDown}>
+        {rows.length === 0 && <p className="ambio-explorer__empty">{query ? 'Nothing matches.' : 'The map is empty.'}</p>}
         {rows.map(row => (
           <div
             key={row.id}
@@ -159,20 +159,20 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
             aria-level={row.depth + 1}
             aria-expanded={row.expandable ? row.expanded : undefined}
             aria-selected={row.nodeId !== null && row.nodeId === selectedNodeId && row.kind !== 'symbol'}
-            className="axiom-explorer__row"
+            className="ambio-explorer__row"
             data-kind={row.kind}
             data-active={row.id === activeId ? 'true' : undefined}
             style={{ paddingLeft: 8 + row.depth * 14 }}
             onClick={() => select(row)}
           >
             <span
-              className="axiom-explorer__twisty"
+              className="ambio-explorer__twisty"
               aria-hidden="true"
               onClick={event => { event.stopPropagation(); toggle(row) }}
             >
               {row.expandable ? (row.expanded ? '▾' : '▸') : ''}
             </span>
-            <span className="axiom-explorer__label" title={row.detail && row.kind === 'file' ? row.detail : row.label}>{row.label}</span>
+            <span className="ambio-explorer__label" title={row.detail && row.kind === 'file' ? row.detail : row.label}>{row.label}</span>
             {row.detail && row.kind !== 'file' && <small>{row.detail}</small>}
           </div>
         ))}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/hub"
 )
 
 // A debugger reports where it stopped in its own words; these map that back

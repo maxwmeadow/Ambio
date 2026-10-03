@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"sync"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
 )
 
-// Changing which folders Axiom reads is not a change to the code. A re-scope
+// Changing which folders Ambio reads is not a change to the code. A re-scope
 // still has to add newly included files to the map and drop newly excluded
 // ones, but none of that belongs in the Morning Delta: "you excluded vendor/"
 // must never read as "an agent deleted 300 files".

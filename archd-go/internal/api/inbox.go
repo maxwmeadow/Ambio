@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func decodeInbox(w http.ResponseWriter, r *http.Request, v any) bool {

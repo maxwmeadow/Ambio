@@ -14,10 +14,10 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/infradetect"
 )
 
 var skipDirs = map[string]bool{

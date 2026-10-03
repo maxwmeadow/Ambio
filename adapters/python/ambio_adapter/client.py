@@ -29,7 +29,7 @@ HEARTBEAT_IDLE = 5.0
 QUEUE_MAX = 1000
 
 
-class AxiomClient:
+class AmbioClient:
     def __init__(self, port: int, workspace_id: str, monitor, injector=None):
         self.port = port
         self.workspace_id = workspace_id
@@ -44,7 +44,7 @@ class AxiomClient:
         if self._started:
             return
         self._started = True
-        threading.Thread(target=self._run, name="axiom-adapter", daemon=True).start()
+        threading.Thread(target=self._run, name="ambio-adapter", daemon=True).start()
 
     # Called from sys.monitoring callbacks - must be fast and never raise.
     def enqueue_event(self, event: dict) -> None:
@@ -80,7 +80,7 @@ class AxiomClient:
             "runtimeVersion": f"cpython {sys.version.split()[0]}",
         })
         threading.Thread(
-            target=self._reader, args=(sock,), name="axiom-adapter-rx", daemon=True
+            target=self._reader, args=(sock,), name="ambio-adapter-rx", daemon=True
         ).start()
 
         # Sender loop: forward events; heartbeat when idle.

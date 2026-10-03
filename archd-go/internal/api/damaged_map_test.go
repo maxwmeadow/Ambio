@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 // A damaged map is reported with what it can be restored from, is never
@@ -62,7 +62,7 @@ func TestADamagedMapIsReportedAndRestored(t *testing.T) {
 				t.Fatal(err)
 			}
 			server.closeDB("ws")
-			if err := damage(filepath.Join(projectDir, "axiom.db")); err != nil {
+			if err := damage(filepath.Join(projectDir, "ambio.db")); err != nil {
 				t.Fatal(err)
 			}
 

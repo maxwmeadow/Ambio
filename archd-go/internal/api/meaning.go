@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // Meaning edits: one recorded path for every change to what the architecture

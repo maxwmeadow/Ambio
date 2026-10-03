@@ -29,7 +29,7 @@ Card payments move out of Orders.
 - \`Orders\` DEPENDS_ON \`Payments\``
 
 function copyText(text: string) {
-  if (window.axiom?.copyText) return window.axiom.copyText(text)
+  if (window.ambio?.copyText) return window.ambio.copyText(text)
   return navigator.clipboard?.writeText(text)
 }
 
@@ -121,7 +121,7 @@ function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
         {error && <DialogError>{error}</DialogError>}
         <DialogField label="Start from" optional="optional - a starter sheet to edit">
           <select
-            className="axiom-dialog-input"
+            className="ambio-dialog-input"
             aria-label="Start from"
             defaultValue=""
             onChange={event => {
@@ -138,7 +138,7 @@ function ImportDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
             value={markdown}
             onChange={event => setMarkdown(event.target.value)}
             placeholder={PLACEHOLDER}
-            className="axiom-dialog-input axiom-sheet-markdown__input"
+            className="ambio-dialog-input ambio-sheet-markdown__input"
             rows={14}
             spellCheck={false}
             autoFocus

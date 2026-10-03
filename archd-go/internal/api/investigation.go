@@ -5,7 +5,7 @@
 //	POST   /api/investigation/note    {workspaceId, text}    - annotate timeline
 //	POST   /api/investigation/stop    {workspaceId}          - finalize + persist
 //	GET    /api/investigation/list?workspace=                - saved investigations
-//	GET    /api/investigation/<id>                           - full AxiomTrace doc
+//	GET    /api/investigation/<id>                           - full AmbioTrace doc
 //	DELETE /api/investigation/<id>?workspace=                - delete
 package api
 
@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/runtime"
 )
 
 func (s *Server) registerInvestigationRoutes(mux *http.ServeMux) {
@@ -52,7 +52,7 @@ func (s *Server) handleInvestigationStart(w http.ResponseWriter, r *http.Request
 	if origin == "" {
 		origin = "agent"
 	}
-	// Axiom may already be recording because it saw this agent start tracing.
+	// Ambio may already be recording because it saw this agent start tracing.
 	// Adopt that rather than replacing it, so the work leading up to this call
 	// stays in the capture.
 	adopted := false
@@ -68,7 +68,7 @@ func (s *Server) handleInvestigationStart(w http.ResponseWriter, r *http.Request
 	note := "Recording started. All traces, watches, values, perturbations, and notes are now captured. " +
 		"Add a note at each finding, and call stop when you have the answer - stop saves a shareable capture."
 	if adopted {
-		note = "Axiom had already started recording when it saw you investigating, so this " +
+		note = "Ambio had already started recording when it saw you investigating, so this " +
 			"continues that capture - the work you did before this call is already in it. " +
 			"Add a note at each finding, and call stop when you have the answer."
 	}
@@ -279,7 +279,7 @@ func (s *Server) runInvestigationFlusher(interval time.Duration) {
 func (s *Server) flushActiveInvestigations() {
 	{
 		for _, workspaceID := range s.runtime.ActiveInvestigationWorkspaces() {
-			// A recording Axiom started ends when the agent stops working.
+			// A recording Ambio started ends when the agent stops working.
 			if idle, origin, recording := s.runtime.InvestigationIdleFor(workspaceID); recording &&
 				origin == "auto" && idle > s.autoCaptureIdleStop {
 				_, _ = s.finalizeInvestigation(workspaceID)
@@ -308,7 +308,7 @@ const (
 	// rather than incidentally tracing one thing while building a feature.
 	autoCaptureWindow    = 90 * time.Second
 	autoCaptureThreshold = 2
-	// A recording Axiom started closes itself once the agent moves on. One that
+	// A recording Ambio started closes itself once the agent moves on. One that
 	// was explicitly asked for never does - ending it is the caller's decision.
 	autoCaptureIdleStopDefault = 3 * time.Minute
 )

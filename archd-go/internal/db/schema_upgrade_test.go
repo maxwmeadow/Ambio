@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// A map written by any earlier Axiom opens with this one: the data survives
+// A map written by any earlier Ambio opens with this one: the data survives
 // and today's features work on it. The fixtures were written by the older
 // versions' own code (testdata/schemagen).
 func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
@@ -18,7 +18,7 @@ func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			raw, err := sql.Open("sqlite3", filepath.Join(dir, "axiom.db"))
+			raw, err := sql.Open("sqlite3", filepath.Join(dir, "ambio.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +38,7 @@ func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
 				t.Fatalf("upgraded to v%d, want v%d", version, SchemaVersion)
 			}
 
-			// What the older Axiom wrote is still there.
+			// What the older Ambio wrote is still there.
 			systems, err := GetSystems(sqlDB, "ws")
 			must(t, err)
 			files, err := GetFiles(sqlDB, "ws")

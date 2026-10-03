@@ -11,7 +11,7 @@ export interface PanelVisibility {
   statusBar: boolean
 }
 
-const KEY = 'axiom.panels'
+const KEY = 'ambio.panels'
 const ALL_SHOWN: PanelVisibility = { sheetRail: true, detailPanel: true, statusBar: true }
 
 function load(): PanelVisibility {

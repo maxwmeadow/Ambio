@@ -55,7 +55,7 @@ export function SheetRail() {
   const [restoreError, setRestoreError] = useState('')
   // Agent-drawn sheets you have not opened yet are marked NEW. Remembered per
   // viewer only; losing it just shows the mark again.
-  const seenKey = `axiom:seen-agent-sheets:${workspaceId}`
+  const seenKey = `ambio:seen-agent-sheets:${workspaceId}`
   const [seenAgentSheets, setSeenAgentSheets] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(seenKey) ?? '[]') as string[] } catch { return [] }
   })
@@ -127,41 +127,41 @@ export function SheetRail() {
   }
 
   const railButtonClass = (active: boolean) => [
-    'axiom-sheet-rail__button',
-    active ? 'axiom-sheet-rail__button--active' : '',
+    'ambio-sheet-rail__button',
+    active ? 'ambio-sheet-rail__button--active' : '',
   ].filter(Boolean).join(' ')
 
   return (
-    <aside className="axiom-sheet-rail" aria-label="Drawings">
-      <header className="axiom-sheet-rail__titlebar">
+    <aside className="ambio-sheet-rail" aria-label="Drawings">
+      <header className="ambio-sheet-rail__titlebar">
         <span>Drawings</span>
-        <span className="axiom-sheet-rail__title-meta" aria-label={`${activeSheets.length} overlay sheets`}>
+        <span className="ambio-sheet-rail__title-meta" aria-label={`${activeSheets.length} overlay sheets`}>
           {String(activeSheets.length).padStart(2, '0')} SHEETS
         </span>
       </header>
 
-      <div className="axiom-sheet-rail__section-label">
+      <div className="ambio-sheet-rail__section-label">
         <span>Live model</span>
-        <span className="axiom-sheet-rail__section-rule" />
+        <span className="ambio-sheet-rail__section-rule" />
       </div>
 
       {/* The Floor - the live master canvas, always pinned. */}
       <button
-        className={`${railButtonClass(activeSheetId === null)} axiom-sheet-rail__button--floor`}
+        className={`${railButtonClass(activeSheetId === null)} ambio-sheet-rail__button--floor`}
         aria-current={activeSheetId === null ? 'page' : undefined}
         onClick={() => void openSheet(workspaceId, null)}
       >
-        <span className="axiom-sheet-rail__document-icon"><FloorIcon /></span>
-        <span className="axiom-sheet-rail__name">The Floor</span>
-        <span className="axiom-sheet-rail__live">Live</span>
+        <span className="ambio-sheet-rail__document-icon"><FloorIcon /></span>
+        <span className="ambio-sheet-rail__name">The Floor</span>
+        <span className="ambio-sheet-rail__live">Live</span>
       </button>
 
-      <div className="axiom-sheet-rail__section-label axiom-sheet-rail__section-label--overlays">
+      <div className="ambio-sheet-rail__section-label ambio-sheet-rail__section-label--overlays">
         <span>Overlay sheets</span>
-        <span className="axiom-sheet-rail__section-rule" />
+        <span className="ambio-sheet-rail__section-rule" />
         <button
           type="button"
-          className="axiom-sheet-rail__add-sheet"
+          className="ambio-sheet-rail__add-sheet"
           aria-label="Create new overlay sheet"
           aria-expanded={creating}
           disabled={creating}
@@ -171,14 +171,14 @@ export function SheetRail() {
         </button>
       </div>
 
-      <div className="axiom-sheet-rail__list">
+      <div className="ambio-sheet-rail__list">
         {creating && (
-          <form className="axiom-sheet-rail__row axiom-sheet-rail__row--creating" onSubmit={submitNewSheet}>
-            <span className="axiom-sheet-rail__visibility-slot" aria-hidden="true" />
-            <span className="axiom-sheet-rail__document-icon"><SheetIcon /></span>
+          <form className="ambio-sheet-rail__row ambio-sheet-rail__row--creating" onSubmit={submitNewSheet}>
+            <span className="ambio-sheet-rail__visibility-slot" aria-hidden="true" />
+            <span className="ambio-sheet-rail__document-icon"><SheetIcon /></span>
             <input
               ref={newNameInput}
-              className="axiom-sheet-rail__name-input"
+              className="ambio-sheet-rail__name-input"
               aria-label="New sheet name"
               value={newName}
               disabled={submitting}
@@ -193,14 +193,14 @@ export function SheetRail() {
                 if (event.key === 'Escape') cancelCreating()
               }}
             />
-            <span className="axiom-sheet-rail__commit-hint" aria-hidden="true">
+            <span className="ambio-sheet-rail__commit-hint" aria-hidden="true">
               {submitting ? '…' : '↵'}
             </span>
           </form>
         )}
 
         {creating && createError && (
-          <p className="axiom-sheet-rail__create-error" role="alert">{createError}</p>
+          <p className="ambio-sheet-rail__create-error" role="alert">{createError}</p>
         )}
 
         {activeSheets.map(sheet => {
@@ -210,15 +210,15 @@ export function SheetRail() {
             <div
               key={sheet.id}
               className={[
-                'axiom-sheet-rail__row',
-                active ? 'axiom-sheet-rail__row--active' : '',
+                'ambio-sheet-rail__row',
+                active ? 'ambio-sheet-rail__row--active' : '',
               ].filter(Boolean).join(' ')}
             >
               <button
                 type="button"
                 className={[
-                  'axiom-sheet-rail__visibility',
-                  visible ? 'axiom-sheet-rail__visibility--visible' : '',
+                  'ambio-sheet-rail__visibility',
+                  visible ? 'ambio-sheet-rail__visibility--visible' : '',
                 ].filter(Boolean).join(' ')}
                 title={visible ? 'Hide layer' : 'Show layer'}
                 aria-label={visible ? `Hide ${sheet.name}` : `Show ${sheet.name}`}
@@ -234,22 +234,22 @@ export function SheetRail() {
 
               <button
                 type="button"
-                className={`${railButtonClass(active)} axiom-sheet-rail__button--sheet`}
+                className={`${railButtonClass(active)} ambio-sheet-rail__button--sheet`}
                 aria-current={active ? 'page' : undefined}
                 onClick={() => void openSheet(workspaceId, sheet.id)}
               >
-                <span className="axiom-sheet-rail__document-icon"><SheetIcon /></span>
-                <span className="axiom-sheet-rail__name" title={sheet.name}>{sheet.name}</span>
-                <span className="axiom-sheet-rail__kind">{SHEET_KIND_LABELS[sheet.kind]}</span>
-                {sheet.createdBy === 'agent' && <span className="axiom-sheet-rail__agent" title="Created by agent">AI</span>}
-                {sheet.createdBy === 'agent' && !active && !seenAgentSheets.includes(sheet.id) && <span className="axiom-sheet-rail__new" title="Drawn by an agent; not opened yet">NEW</span>}
+                <span className="ambio-sheet-rail__document-icon"><SheetIcon /></span>
+                <span className="ambio-sheet-rail__name" title={sheet.name}>{sheet.name}</span>
+                <span className="ambio-sheet-rail__kind">{SHEET_KIND_LABELS[sheet.kind]}</span>
+                {sheet.createdBy === 'agent' && <span className="ambio-sheet-rail__agent" title="Created by agent">AI</span>}
+                {sheet.createdBy === 'agent' && !active && !seenAgentSheets.includes(sheet.id) && <span className="ambio-sheet-rail__new" title="Drawn by an agent; not opened yet">NEW</span>}
               </button>
 
-              {active && <button type="button" className="axiom-sheet-rail__attach" aria-label={`Attach ${sheet.name} to agent message`} title="Discuss or implement this sheet" onClick={() => window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { sheetId: sheet.id } }))}>↗</button>}
+              {active && <button type="button" className="ambio-sheet-rail__attach" aria-label={`Attach ${sheet.name} to agent message`} title="Discuss or implement this sheet" onClick={() => window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: sheet.id } }))}>↗</button>}
               {active && (
                 <button
                   type="button"
-                  className="axiom-sheet-rail__delete"
+                  className="ambio-sheet-rail__delete"
                   aria-label={`Delete ${sheet.name}`}
                   title="Delete sheet"
                   onClick={() => {
@@ -265,7 +265,7 @@ export function SheetRail() {
       </div>
       <SheetProposalReview workspaceId={workspaceId} />
       <SheetRemovedList workspaceId={workspaceId} />
-      {resolvedSheets.length > 0 && <div className="axiom-sheet-rail__archive">
+      {resolvedSheets.length > 0 && <div className="ambio-sheet-rail__archive">
         <button type="button" aria-expanded={showResolved} onClick={() => setShowResolved(value => !value)}>Resolved sheets ({resolvedSheets.length})</button>
         {showResolved && resolvedSheets.map(sheet => <div key={sheet.id}><span>{sheet.name}</span><button type="button" onClick={() => { void restore(sheet) }}>Restore {sheet.name}</button></div>)}
         {restoreError && <p role="alert">{restoreError}</p>}

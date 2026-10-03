@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
 )
 
 // Java, Rust, Ruby and C++ files get import edges, so they cluster by what

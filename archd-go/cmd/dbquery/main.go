@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	dbPath := flag.String("db", "", "path to axiom.db")
+	dbPath := flag.String("db", "", "path to ambio.db")
 	flag.Parse()
 	if *dbPath == "" {
 		fmt.Fprintln(os.Stderr, "usage: dbquery -db <path>")

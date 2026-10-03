@@ -1,4 +1,4 @@
-# Axiom Ruby runtime-layer spike target.
+# Ambio Ruby runtime-layer spike target.
 #
 # Several threads each call process_payment so the rdbg-DAP tracer can be
 # exercised for call attribution + argument reading. Run:  ruby app.rb

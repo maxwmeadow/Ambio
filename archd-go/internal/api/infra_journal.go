@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"log"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // Journal rows for code starting or stopping to use infrastructure

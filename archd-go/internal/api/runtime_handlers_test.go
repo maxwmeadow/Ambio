@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Watching a function over HTTP: it resolves against the index (preferring a

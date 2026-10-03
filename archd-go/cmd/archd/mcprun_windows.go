@@ -20,7 +20,7 @@ func execRuntime(runtimePath string, args []string) int {
 		if errors.As(err, &exit) {
 			return exit.ExitCode()
 		}
-		fmt.Fprintf(os.Stderr, "Axiom's MCP server could not start: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Ambio's MCP server could not start: %v\n", err)
 		return 1
 	}
 	return 0

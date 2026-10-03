@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 // investigationServer returns a server with one open workspace.
@@ -163,7 +163,7 @@ func TestAutoCaptureDoesNotDisturbARecordingAlreadyRunning(t *testing.T) {
 	}
 }
 
-// A recording Axiom started ends when the agent moves on. One that was asked
+// A recording Ambio started ends when the agent moves on. One that was asked
 // for does not - ending it is the caller's decision.
 func TestAnIdleSelfStartedRecordingClosesItselfButAnAskedForOneDoesNot(t *testing.T) {
 	server, _ := investigationServer(t)
@@ -200,10 +200,10 @@ func TestAnIdleSelfStartedRecordingClosesItselfButAnAskedForOneDoesNot(t *testin
 	}
 }
 
-// The ordinary sequence: Axiom notices the agent tracing and starts recording,
+// The ordinary sequence: Ambio notices the agent tracing and starts recording,
 // then the agent calls start itself. Replacing would throw away the traces that
 // prompted the investigation in the first place.
-func TestAnExplicitStartAdoptsTheRecordingAxiomAlreadyBegan(t *testing.T) {
+func TestAnExplicitStartAdoptsTheRecordingAmbioAlreadyBegan(t *testing.T) {
 	server, _ := investigationServer(t)
 
 	postAction(t, server, "trace_calls", "trace", "")

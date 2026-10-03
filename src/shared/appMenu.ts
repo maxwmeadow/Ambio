@@ -81,7 +81,7 @@ export interface CommandSpec {
 }
 
 export const COMMANDS: Record<CommandId, CommandSpec> = {
-  'app.about': { id: 'app.about', label: 'About Axiom' },
+  'app.about': { id: 'app.about', label: 'About Ambio' },
   'app.settings': { id: 'app.settings', label: 'Settings…', accelerator: 'CmdOrCtrl+,' },
   'app.checkUpdates': { id: 'app.checkUpdates', label: 'Check for Updates…' },
   // Text fields keep their own undo; on the canvas these step through map changes.
@@ -180,12 +180,12 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   if (mac) {
     sections.push({
-      id: 'app', label: 'Axiom', entries: [
+      id: 'app', label: 'Ambio', entries: [
         command('app.about'), separator,
         command('app.settings'), command('app.checkUpdates'), separator,
         role('services', 'Services'), separator,
-        role('hide', 'Hide Axiom', 'Cmd+H'), role('hideOthers', 'Hide Others', 'Cmd+Alt+H'), role('unhide', 'Show All'), separator,
-        role('quit', 'Quit Axiom', 'Cmd+Q'),
+        role('hide', 'Hide Ambio', 'Cmd+H'), role('hideOthers', 'Hide Others', 'Cmd+Alt+H'), role('unhide', 'Show All'), separator,
+        role('quit', 'Quit Ambio', 'Cmd+Q'),
       ],
     })
   }

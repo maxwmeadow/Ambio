@@ -65,7 +65,7 @@ type Investigation struct {
 	DurationMs  int64  `json:"durationMs"`
 	Status      string `json:"status"` // 'recording' | 'saved'
 	// Origin says who began it: an agent that asked, the human pressing record,
-	// or Axiom noticing the agent had started investigating. A recording Axiom
+	// or Ambio noticing the agent had started investigating. A recording Ambio
 	// started closes itself once activity stops; one that was asked for never
 	// does - ending it is the caller's decision, not a timeout's.
 	Origin string `json:"origin"` // 'agent' | 'human' | 'auto'
@@ -263,7 +263,7 @@ func (m *Manager) ActiveInvestigationWorkspaces() []string {
 }
 
 // InvestigationIdleFor reports how long the active recording has gone without
-// capturing anything, and who started it. A recording Axiom began on its own
+// capturing anything, and who started it. A recording Ambio began on its own
 // uses this to close itself once the agent has moved on.
 func (m *Manager) InvestigationIdleFor(workspaceID string) (time.Duration, string, bool) {
 	m.captureMu.Lock()
@@ -280,10 +280,10 @@ func (m *Manager) InvestigationIdleFor(workspaceID string) (time.Duration, strin
 	return sinceLast, inv.Origin, true
 }
 
-// AdoptAutoInvestigation turns a recording Axiom started on its own into an
+// AdoptAutoInvestigation turns a recording Ambio started on its own into an
 // explicitly requested one, keeping everything captured so far.
 //
-// Without this, the ordinary sequence loses data: Axiom notices the agent
+// Without this, the ordinary sequence loses data: Ambio notices the agent
 // tracing and starts recording, the agent then calls start itself, and
 // StartInvestigation replaces the in-progress recording - discarding exactly
 // the traces that led the agent to investigate. Returns nil when the active

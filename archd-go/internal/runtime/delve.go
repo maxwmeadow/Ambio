@@ -191,7 +191,7 @@ func (s *DelveSession) setStatus(status string) {
 
 func (s *DelveSession) handshake() error {
 	if _, err := s.client.request("initialize", map[string]any{
-		"clientID":        "axiom",
+		"clientID":        "ambio",
 		"adapterID":       "go",
 		"linesStartAt1":   true,
 		"columnsStartAt1": true,
@@ -399,7 +399,7 @@ func (s *DelveSession) inspect(threadID int) (string, string, json.RawMessage) {
 			}
 		}
 	}
-	if os.Getenv("AXIOM_DLV_DEBUG") == "1" {
+	if os.Getenv("AMBIO_DLV_DEBUG") == "1" {
 		names := make([]string, 0)
 		for _, sc := range scopes.Scopes {
 			names = append(names, fmt.Sprintf("%s(ref=%d)", sc.Name, sc.VariablesReference))
@@ -576,7 +576,7 @@ func killAndReap(cmd *exec.Cmd) {
 }
 
 func findDelve() (string, error) {
-	if p := os.Getenv("AXIOM_DLV_PATH"); p != "" {
+	if p := os.Getenv("AMBIO_DLV_PATH"); p != "" {
 		return p, nil
 	}
 	if p, err := exec.LookPath("dlv"); err == nil {
@@ -591,7 +591,7 @@ func findDelve() (string, error) {
 			return cand + ".exe", nil
 		}
 	}
-	return "", fmt.Errorf("delve (dlv) not found - install with: go install github.com/go-delve/delve/cmd/dlv@latest, or set AXIOM_DLV_PATH")
+	return "", fmt.Errorf("delve (dlv) not found - install with: go install github.com/go-delve/delve/cmd/dlv@latest, or set AMBIO_DLV_PATH")
 }
 
 func freeTCPPort() (int, error) {

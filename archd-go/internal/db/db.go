@@ -26,13 +26,13 @@ const (
 // SchemaVersion identifies what this build's migrations produce. It is
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
-// older Axiom can recognise a database written by a newer one.
+// older Ambio can recognise a database written by a newer one.
 const SchemaVersion = 4 // 3: work_order_code_checks, 4: sheet_removals
 
-// ErrNewerSchema reports a database written by a newer Axiom. Opening it
+// ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
 // refused rather than migrated.
-var ErrNewerSchema = errors.New("this project was last opened by a newer version of Axiom; update Axiom to open it")
+var ErrNewerSchema = errors.New("this project was last opened by a newer version of Ambio; update Ambio to open it")
 
 // Open creates (or opens) the SQLite database at the given path and runs
 // all schema migrations. Returns a ready-to-use *sql.DB.
@@ -41,7 +41,7 @@ func Open(dataDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	dbPath := filepath.Join(dataDir, "axiom.db")
+	dbPath := filepath.Join(dataDir, "ambio.db")
 	dsn := fmt.Sprintf(
 		"%s?_foreign_keys=on&_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=%d&_txlock=immediate",
 		dbPath,
@@ -102,7 +102,7 @@ func migrate(db *sql.DB) error {
 
 	schema := `
 	-- ─── Workspace ────────────────────────────────────────────────────────────
-	-- One workspace = one Axiom project. Can span multiple code roots.
+	-- One workspace = one Ambio project. Can span multiple code roots.
 	CREATE TABLE IF NOT EXISTS workspaces (
 		id          TEXT PRIMARY KEY,
 		name        TEXT NOT NULL,
@@ -232,7 +232,7 @@ func migrate(db *sql.DB) error {
 
 	-- ─── Investigation captures (Phase 8) ─────────────────────────────────────
 	-- A recorded agent investigation: the full ordered event timeline serialized
-	-- as JSON (the 'data' column is the AxiomTrace document), linked to the git
+	-- as JSON (the 'data' column is the AmbioTrace document), linked to the git
 	-- commit it was captured against so replay renders the right code version.
 	CREATE TABLE IF NOT EXISTS investigations (
 		id            TEXT PRIMARY KEY,               -- short id (shareable)
@@ -243,7 +243,7 @@ func migrate(db *sql.DB) error {
 		created_at    INTEGER NOT NULL,
 		duration_ms   INTEGER NOT NULL DEFAULT 0,
 		event_count   INTEGER NOT NULL DEFAULT 0,
-		data          TEXT NOT NULL                   -- full AxiomTrace JSON
+		data          TEXT NOT NULL                   -- full AmbioTrace JSON
 	);
 	CREATE INDEX IF NOT EXISTS investigations_ws ON investigations(workspace_id);
 

@@ -1,5 +1,5 @@
 /**
- * AxiomCanvas - Infinity-zoom codebase graph.
+ * AmbioCanvas - Infinity-zoom codebase graph.
  *
  * Everything is a node. Zoom controls opacity only - layout never rebuilds on zoom.
  *
@@ -148,7 +148,7 @@ const DELTA_REVIEW_PADDING = 0.5
 
 /** Opt-in pointer/geometry drag tracing. Off by default: it is expensive. */
 function dragTraceEnabled(): boolean {
-  return (globalThis as { __axiomDragTrace?: boolean }).__axiomDragTrace === true
+  return (globalThis as { __ambioDragTrace?: boolean }).__ambioDragTrace === true
 }
 
 // ─── Node type registry ────────────────────────────────────────────────────
@@ -1356,7 +1356,7 @@ function buildFloorFrameLayout(
 
 // ─── Main component ────────────────────────────────────────────────────────
 
-interface AxiomCanvasProps {
+interface AmbioCanvasProps {
   readOnly?: boolean
   reviewScene?: {
     id: string
@@ -1407,11 +1407,11 @@ function pointerOf(event: React.MouseEvent | MouseEvent | TouchEvent): { x: numb
 
 /**
  * Bin drag diagnostics. Off by default; turn them on from the devtools console
- * with `window.__axiomBinDragDebug = true` and repeat the gesture - read at
+ * with `window.__ambioBinDragDebug = true` and repeat the gesture - read at
  * call time so no rebuild is needed.
  */
 function binDragDebug(): boolean {
-  return (window as unknown as { __axiomBinDragDebug?: boolean }).__axiomBinDragDebug !== false
+  return (window as unknown as { __ambioBinDragDebug?: boolean }).__ambioBinDragDebug !== false
 }
 
 /** Stable identities, so the bin canvas does not rebuild its layout every render. */
@@ -1440,7 +1440,7 @@ function pushFloorLayoutUndo(
   if (entry) pushUndo(entry)
 }
 
-export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCanvasProps = {}) {
+export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCanvasProps = {}) {
   const reviewMode = reviewScene !== undefined
   const binMode = binScene !== undefined
   // Both modes swap the scene data and cut every live subscription. The Floor
@@ -2715,7 +2715,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       const sheet = await store.createSheet(workspaceId, name, `Take ${label} out of the code`, [])
       await store.openSheet(workspaceId, sheet.id)
       await proposeSheetRemoval(workspaceId, sheet.id, nodeId)
-      window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', { detail: { sheetId: sheet.id, note: instruction } }))
+      window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: sheet.id, note: instruction } }))
     } catch (error) {
       raiseFailure('removal-sheet', 'Could not draw the removal', error instanceof Error ? error.message : String(error))
     }
@@ -2736,7 +2736,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       const sheet = await store.createSheet(workspaceId, untakenSheetName(store.sheets, `${from} uses ${to}`), `${from} should depend on ${to}`, [])
       await store.openSheet(workspaceId, sheet.id)
       await store.createPlannedEdge(workspaceId, sheet.id, { kind: 'DEPENDS_ON', srcLive: sourceId, dstLive: targetId })
-      window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', {
+      window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {
         detail: { sheetId: sheet.id, note: `Make ${from} use ${to}, as drawn on the attached sheet. Keep the dependency in that direction only.` },
       }))
     } catch (error) {
@@ -2784,7 +2784,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
 
   // Stencil creation and existing-node moves share one placement engine.
   const onOverlayDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/axiom-stencil')) {
+    if (e.dataTransfer.types.includes('application/ambio-stencil')) {
       e.preventDefault()
       e.stopPropagation()
       e.dataTransfer.dropEffect = 'copy'
@@ -2823,7 +2823,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
   const onOverlayDrop = useCallback((e: React.DragEvent) => {
     if (readOnly) return
     if (onBinnedFileDrop(e)) return
-    const raw = e.dataTransfer.getData('application/axiom-stencil')
+    const raw = e.dataTransfer.getData('application/ambio-stencil')
     if (!raw || !overlaySheetId) return
     e.preventDefault()
     e.stopPropagation()
@@ -2954,7 +2954,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       // Fit the view to show the new layout
       queueCameraFit(100, { padding: 0.2, duration: 900, maxZoom: 1.0 })
     } catch (err) {
-      console.error('[AxiomCanvas] Tidy layout failed', err)
+      console.error('[AmbioCanvas] Tidy layout failed', err)
     } finally {
       setIsTidying(false)
     }
@@ -3090,7 +3090,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       }
       queueCameraFit(80, { padding: 0.2, duration: 900, maxZoom: 1.0 })
     } catch (error) {
-      console.error('[AxiomCanvas] tidy frame failed', error)
+      console.error('[AmbioCanvas] tidy frame failed', error)
     } finally {
       setIsTidying(false)
     }
@@ -3209,7 +3209,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       })
       if (plan.updates.every(update => reviewEditableNodeIds?.has(update.nodeId))) {
         void saveReviewLayouts(plan.updates).catch(error => {
-          console.error('[AxiomCanvas] proposal resize failed', error)
+          console.error('[AmbioCanvas] proposal resize failed', error)
         })
       }
       return
@@ -3262,7 +3262,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     void apiSaveFloorLayouts(workspaceId, plan.updates).then(() => {
       pushFloorLayoutUndo(workspaceId, 'Resize', plan.previousLayouts, plan.updates)
     }).catch(error => {
-      console.error('[AxiomCanvas] floor resize failed', error)
+      console.error('[AmbioCanvas] floor resize failed', error)
       useGraphStore.setState(state => ({
         floorLayouts: replaceFloorLayouts(state.floorLayouts, plan.previousLayouts, plan.changedKeys),
       }))
@@ -3393,7 +3393,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           reviewLayoutPersistingSceneRef.current = projectId
           void saveReviewLayouts(updates)
             .catch(error => {
-              console.error('[AxiomCanvas] initial proposal layout failed', error)
+              console.error('[AmbioCanvas] initial proposal layout failed', error)
             })
             .finally(() => {
               if (reviewLayoutPersistingSceneRef.current === projectId) {
@@ -3411,7 +3411,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       const optimistic = initialLayouts.map(item => ({ ...item, workspaceId: currentProject.id, updatedAt: Date.now() }))
       useGraphStore.setState({ floorLayouts: optimistic })
       void apiSaveFloorLayouts(currentProject.id, initialLayouts).catch(error => {
-        console.error('[AxiomCanvas] initial Floor layout failed', error)
+        console.error('[AmbioCanvas] initial Floor layout failed', error)
         initialFloorPersistRef.current = null
         useGraphStore.setState({ floorLayouts: [] })
       })
@@ -3450,7 +3450,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             floorLayouts: replaceFloorLayouts(state.floorLayouts, optimistic, changedKeys),
           }))
           void apiSaveFloorLayouts(currentProject.id, updates).catch(error => {
-            console.error('[AxiomCanvas] incremental Floor reconciliation failed', error)
+            console.error('[AmbioCanvas] incremental Floor reconciliation failed', error)
             useGraphStore.setState(state => ({
               floorLayouts: replaceFloorLayouts(state.floorLayouts, previousLayouts, changedKeys),
             }))
@@ -3829,7 +3829,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     if (scrollElement) {
       // Consume it outright. Native scrolling is unreliable inside a
       // transform-scaled node, and any other wheel listener acting on the same
-      // event would fight Axiom's zoom.
+      // event would fight Ambio's zoom.
       e.preventDefault()
       e.stopPropagation()
       wheelLatchRef.current = { element: scrollElement, lastEventAt: now }
@@ -3905,7 +3905,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     currentZoomRef.current = zoom
     // Activity badges counter-scale against this so they stay readable when
     // the camera pulls back. One style write per frame, no React render.
-    canvasRootRef.current?.style.setProperty('--axiom-zoom', String(zoom))
+    canvasRootRef.current?.style.setProperty('--ambio-zoom', String(zoom))
     // Keep the conservative overview tier throughout the entrance animation.
     // Once fitView settles, its completion handler applies the final zoom once.
     const visibilityZoom = pendingInitialFitProjectRef.current
@@ -4119,7 +4119,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     // selection, before anything reads the group this gesture will move. A drag
     // never silently carries along whatever was selected beforehand. React Flow
     // reaches the same conclusion through its own select changes; committing it
-    // here keeps Axiom's authoritative set from lagging a frame behind them.
+    // here keeps Ambio's authoritative set from lagging a frame behind them.
     //
     // Held modifier means the press was building a selection, not starting a
     // fresh gesture - including a press that just toggled this node OUT. Reset
@@ -4147,7 +4147,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     // a wide row on every pointer move, forcing synchronous layout mid-drag.
     // That is a debugging instrument, not drag behavior: leaving it hot costs
     // frames on every drag, and a multi-node drag pays it per moved node.
-    // Enable with `window.__axiomDragTrace = true` when investigating drags.
+    // Enable with `window.__ambioDragTrace = true` when investigating drags.
     if (!dragTraceEnabled()) {
       dragTraceRef.current = null
       return
@@ -4183,7 +4183,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       changeRows: [],
     }
     const traceState = useSheetStore.getState()
-    console.info(`[AxiomMoveTrace #${session}] start`, {
+    console.info(`[AmbioMoveTrace #${session}] start`, {
       id: node.id,
       type: node.type,
       callbackPosition: node.position,
@@ -4329,7 +4329,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       moveTrace.previousNodeY = node.position.y
       if (now - moveTrace.lastLiveLogAt >= 250) {
         moveTrace.lastLiveLogAt = now
-        console.debug(`[AxiomMoveTrace #${moveTrace.session}] live sample ${row.sample}`, row)
+        console.debug(`[AmbioMoveTrace #${moveTrace.session}] live sample ${row.sample}`, row)
       }
     }
 
@@ -4445,7 +4445,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           y: (finalPosition.y - moveTrace.startNodeY) * viewport.zoom,
         },
       }
-      console.groupCollapsed(`[AxiomMoveTrace #${moveTrace.session}] COMPLETE - ${node.id}`)
+      console.groupCollapsed(`[AmbioMoveTrace #${moveTrace.session}] COMPLETE - ${node.id}`)
       console.info('Summary and unit conversion', summary)
       console.info('Drag callback samples - pointer input compared with node output')
       console.table(moveTrace.callbackRows)
@@ -4560,7 +4560,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           setIsTransitioningLayout(true)
           requestAnimationFrame(() => {
             void saveReviewLayouts(plan.updates).catch(error => {
-              console.error('[AxiomCanvas] proposal group drop failed', error)
+              console.error('[AmbioCanvas] proposal group drop failed', error)
             })
             window.setTimeout(() => setIsTransitioningLayout(false), LAYOUT_TRANSITION_MS)
           })
@@ -4631,7 +4631,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
                 // undo; only a plain move is undone as placement.
                 if (meaningEdits.length === 0) pushFloorLayoutUndo(workspaceId, 'Move', plan.previousLayouts, plan.updates)
               }).catch(error => {
-                console.error('[AxiomCanvas] floor group drop failed', error)
+                console.error('[AmbioCanvas] floor group drop failed', error)
                 restoreLayouts()
               })
             })
@@ -4801,7 +4801,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     const signature = `${cursor}|${ancestry.join('>')}|${selectionMode}|${overlaySheetId ?? 'floor'}`
     if (cursorTraceSignatureRef.current === signature) return
     cursorTraceSignatureRef.current = signature
-    console.warn('[AxiomCursorTrace]', {
+    console.warn('[AmbioCursorTrace]', {
       cursor,
       element: ancestry[0],
       ancestry,
@@ -4835,9 +4835,9 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         const id = element.dataset.id ?? ''
         const rect = element.getBoundingClientRect()
         const node = displayNodesRef.current.find(candidate => candidate.id === id)
-        const resizer = [...(canvasRootRef.current?.querySelectorAll<HTMLElement>('.axiom-node-resizer') ?? [])]
+        const resizer = [...(canvasRootRef.current?.querySelectorAll<HTMLElement>('.ambio-node-resizer') ?? [])]
           .find(candidate => candidate.dataset.nodeId === id) ?? null
-        const handles = resizer ? [...resizer.querySelectorAll<HTMLElement>('.axiom-floating-resize-handle')] : []
+        const handles = resizer ? [...resizer.querySelectorAll<HTMLElement>('.ambio-floating-resize-handle')] : []
         return {
           id,
           selected: element.classList.contains('selected'),
@@ -4874,17 +4874,17 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       return `${node.id}[selected=${node.selected},rect=${node.rectWidth.toFixed(1)}x${node.rectHeight.toFixed(1)},handles=${handles}]`
     }).join(' | ') || 'none'
     console.warn(
-      `[AxiomHitTraceSummary] point=${point.x},${point.y} zoom=${payload.viewport.zoom} ` +
+      `[AmbioHitTraceSummary] point=${point.x},${point.y} zoom=${payload.viewport.zoom} ` +
       `target=${payload.target?.className ?? payload.target?.tag ?? 'none'} claiming=${flatNodes}`,
     )
-    console.warn('[AxiomHitTrace]', payload)
+    console.warn('[AmbioHitTrace]', payload)
     window.setTimeout(() => {
       const selected = [...(canvasRootRef.current?.querySelectorAll<HTMLElement>('.react-flow__node.selected') ?? [])]
         .map(element => {
           const rect = element.getBoundingClientRect()
-          const resizer = [...(canvasRootRef.current?.querySelectorAll<HTMLElement>('.axiom-node-resizer') ?? [])]
+          const resizer = [...(canvasRootRef.current?.querySelectorAll<HTMLElement>('.ambio-node-resizer') ?? [])]
             .find(candidate => candidate.dataset.nodeId === element.dataset.id)
-          const firstHandle = resizer?.querySelector<HTMLElement>('.axiom-floating-resize-handle') ?? null
+          const firstHandle = resizer?.querySelector<HTMLElement>('.ambio-floating-resize-handle') ?? null
           const firstVisual = firstHandle?.firstElementChild as HTMLElement | null
           const hitRect = firstHandle?.getBoundingClientRect()
           const visualRect = firstVisual?.getBoundingClientRect()
@@ -4892,7 +4892,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             `hit=${hitRect ? `${hitRect.width.toFixed(1)}x${hitRect.height.toFixed(1)}` : 'none'},` +
             `visual=${visualRect ? `${visualRect.width.toFixed(1)}x${visualRect.height.toFixed(1)}` : 'none'}]`
         })
-      console.warn(`[AxiomPostClickSummary] selected=${selected.join(' | ') || 'none'}`)
+      console.warn(`[AmbioPostClickSummary] selected=${selected.join(' | ') || 'none'}`)
     }, 100)
   }, [getViewport])
 
@@ -4945,7 +4945,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
     const frameIds = new Set(platforms.map(platform => platform.id))
     const parents = new Set(plan.parentOf.values())
     const outermost = [...parents].filter(id => !plan.parentOf.has(id))
-    const storageKey = (id: string) => `axiom:hosting-arranged:${workspaceId}:${id}`
+    const storageKey = (id: string) => `ambio:hosting-arranged:${workspaceId}:${id}`
     const remembered = (id: string) => {
       try { return window.localStorage.getItem(storageKey(id)) === '1' } catch { return false }
     }
@@ -5003,7 +5003,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           rows.map(row => ({ ...row, workspaceId, updatedAt: Date.now() })), changedKeys),
       }))
       void apiSaveFloorLayouts(workspaceId, rows).catch(error => {
-        console.error('[AxiomCanvas] hosting arrangement failed', error)
+        console.error('[AmbioCanvas] hosting arrangement failed', error)
         useGraphStore.setState(state => ({
           floorLayouts: replaceFloorLayouts(state.floorLayouts, previousLayouts, changedKeys),
         }))
@@ -5016,15 +5016,15 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       ref={canvasRootRef}
       {...{ [CANVAS_SCOPE_ATTR]: '' }}
       className={[
-        reviewMode ? 'axiom-canvas-review' : '',
-        reviewMode && reviewLayoutReady ? 'axiom-canvas-review-ready' : '',
+        reviewMode ? 'ambio-canvas-review' : '',
+        reviewMode && reviewLayoutReady ? 'ambio-canvas-review-ready' : '',
         isTransitioningLayout ? 'layout-transition' : '',
-        isDraggingScene ? 'axiom-dragging' : '',
+        isDraggingScene ? 'ambio-dragging' : '',
         // Sheet mode is signalled by the SURFACE, not by degrading the nodes.
         // The architecture stays at full fidelity because a sheet is where you
         // work on it; the environment is what tells you edits are a proposal.
         // Driven by phase, not by the raw id, so leaving animates too.
-        sheetPhase.phase ? 'axiom-sheet-mode' : '',
+        sheetPhase.phase ? 'ambio-sheet-mode' : '',
       ].filter(Boolean).join(' ') || undefined}
       data-sheet-phase={sheetPhase.phase ?? undefined}
       onDragOverCapture={onOverlayDragOver}
@@ -5064,7 +5064,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
         selectionOnDrag={readOnly ? false : selectionMode}
         selectionMode={selectionMode ? SelectionMode.Partial : SelectionMode.Full}
         // Must match what the click handler treats as "add to my selection", or
-        // React Flow collapses the selection on the same click Axiom extends it
+        // React Flow collapses the selection on the same click Ambio extends it
         // on, and the highlight disagrees with what the next drag picks up.
         multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
         nodesDraggable={!readOnly}
@@ -5085,7 +5085,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             .react-flow__background CSS; this component just provides the element. */}
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
         <MiniMap
-          className="axiom-canvas-minimap"
+          className="ambio-canvas-minimap"
           position="top-right"
           // Top-right, leaving the bottom-right corner to the bins. They are
           // drop targets and the minimap is not, so the corner belongs to the
@@ -5112,7 +5112,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
           visibilityOptions={livingVisibilityOptions}
         />
         {deferCanvasMaterialization && (
-          <Panel position="top-center" className="axiom-canvas-materializing">
+          <Panel position="top-center" className="ambio-canvas-materializing">
             <div role="status" aria-live="polite">
               <span aria-hidden="true" />
               <div>
@@ -5122,15 +5122,15 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             </div>
           </Panel>
         )}
-        <Panel position="top-left" className="axiom-canvas-toolbar">
+        <Panel position="top-left" className="ambio-canvas-toolbar">
           {focusFileIds.size > 0 && (
             <button
               type="button"
               onClick={() => setFocusEnabled(v => !v)}
               title="Dim nodes that are off the active trace / runtime path"
               className={focusEnabled
-                ? 'axiom-canvas-command axiom-canvas-command--trace-active'
-                : 'axiom-canvas-command'}
+                ? 'ambio-canvas-command ambio-canvas-command--trace-active'
+                : 'ambio-canvas-command'}
             >
               <svg style={{ width: '14px', height: '14px' }} viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -5145,7 +5145,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             than hidden in CSS, so the inner canvas never subscribes to a
             bin it is itself the inside of. */}
         {!binMode && (
-          <Panel position="bottom-right" className="axiom-canvas-bins-panel">
+          <Panel position="bottom-right" className="ambio-canvas-bins-panel">
             <CanvasBins
               documents={bins.documents}
               unclassified={binsHoldUnclassified ? bins.unclassified : []}
@@ -5177,21 +5177,21 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       )}
 
       {!reviewMode && selectedIdsRef.current.size > 1 && (
-        <div className="axiom-selection-actions">
-          <span className="axiom-selection-actions__summary">
+        <div className="ambio-selection-actions">
+          <span className="ambio-selection-actions__summary">
             <strong>{selectedIdsRef.current.size}</strong>
             <span>items selected</span>
           </span>
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new Event('axiom:open-agent-dispatch'))}
-            className="axiom-selection-action"
+            onClick={() => window.dispatchEvent(new Event('ambio:open-agent-dispatch'))}
+            className="ambio-selection-action"
           >Message agent</button>
           <button
             type="button"
             onClick={() => setGroupDialogOpen(true)}
             disabled={selectedFileIds.length < 2}
-            className="axiom-selection-action axiom-selection-action--primary"
+            className="ambio-selection-action ambio-selection-action--primary"
           >
             Group into System
           </button>
@@ -5199,14 +5199,14 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
             type="button"
             onClick={() => { setSheetSourceIds([...selectedIdsRef.current]); setSheetDialogOpen(true) }}
             title="Curate the selection onto a named sheet - a live diagram telling one story"
-            className="axiom-selection-action"
+            className="ambio-selection-action"
           >
             New Sheet
           </button>
           <button
             type="button"
             onClick={() => setSelectionMode(false)}
-            className="axiom-selection-action axiom-selection-action--ghost"
+            className="ambio-selection-action ambio-selection-action--ghost"
           >
             Cancel
           </button>
@@ -5228,7 +5228,7 @@ export function AxiomCanvas({ readOnly = false, reviewScene, binScene }: AxiomCa
       {overlaySheetId && (
         <>
           <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
-          <div className="axiom-sheet-layer-indicator">
+          <div className="ambio-sheet-layer-indicator">
             <span aria-hidden="true" />
             Sheet Layer Active
           </div>

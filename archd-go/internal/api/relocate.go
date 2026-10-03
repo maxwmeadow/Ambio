@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/indexer"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/indexer"
 )
 
 type relocateWorkspaceReq struct {
@@ -41,7 +41,7 @@ func (s *Server) handleWorkspaceRelocate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// A project that was never indexed has nothing to carry over.
-	if _, err := os.Stat(filepath.Join(s.dataDir, req.WorkspaceID, "axiom.db")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(s.dataDir, req.WorkspaceID, "ambio.db")); os.IsNotExist(err) {
 		jsonOK(w, map[string]any{"relocated": false})
 		return
 	}
@@ -109,7 +109,7 @@ func (s *Server) handleWorkspaceReindex(w http.ResponseWriter, r *http.Request) 
 	}
 	s.mu.Unlock()
 	if len(roots) == 0 {
-		jsonError(w, "open the project in Axiom first", http.StatusConflict)
+		jsonError(w, "open the project in Ambio first", http.StatusConflict)
 		return
 	}
 	for _, root := range roots {

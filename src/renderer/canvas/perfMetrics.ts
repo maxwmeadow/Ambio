@@ -1,6 +1,6 @@
 // In-memory performance metrics harness for diagnostic tracing and automated benchmarks.
 
-export interface AxiomPerfMetrics {
+export interface AmbioPerfMetrics {
   resizerMounts: number
   resizerRenderCount: number
   symbolFetches: number
@@ -8,7 +8,7 @@ export interface AxiomPerfMetrics {
   symbolDeduplicatedRequests: number
 }
 
-const metrics: AxiomPerfMetrics = {
+const metrics: AmbioPerfMetrics = {
   resizerMounts: 0,
   resizerRenderCount: 0,
   symbolFetches: 0,
@@ -17,10 +17,10 @@ const metrics: AxiomPerfMetrics = {
 }
 
 if (typeof globalThis !== 'undefined') {
-  ;(globalThis as any).__axiomPerfMetrics = metrics
+  ;(globalThis as any).__ambioPerfMetrics = metrics
 }
 
-export function getPerfMetrics(): AxiomPerfMetrics {
+export function getPerfMetrics(): AmbioPerfMetrics {
   return metrics
 }
 

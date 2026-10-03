@@ -1,4 +1,4 @@
-# Releasing Axiom
+# Releasing Ambio
 
 The release workflow (`.github/workflows/release.yml`) builds every platform
 from a `v*` tag into one **draft** GitHub Release. Nothing reaches users until

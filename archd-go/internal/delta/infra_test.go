@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func infraEvent(kind, fileID, path, infraID, infraName, relationship, item, actor string, ts int64) db.StructuralEvent {

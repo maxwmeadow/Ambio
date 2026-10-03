@@ -595,7 +595,7 @@ export interface CodeFitFinding {
   ask: string
 }
 
-/** A make-the-code-match work order's disagreement, re-checked by Axiom. */
+/** A make-the-code-match work order's disagreement, re-checked by Ambio. */
 export interface CodeCheckResult {
   sent: CodeFitFinding
   state: 'agrees' | 'disagrees' | 'map-changed' | 'file-gone'

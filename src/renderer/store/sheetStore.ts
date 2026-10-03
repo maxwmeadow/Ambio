@@ -100,7 +100,7 @@ export interface CanvasMessage {
   reviews?: { id: string; decision: 'accepted' | 'reopened'; note: string; createdAt: number }[]
   changes?: { kind: string; subjectLabel: string; objectLabel?: string; count: number; at: number }[]
   sessions?: DeltaWorkSession[]
-  /** A make-the-code-match order's disagreements, re-checked by Axiom. */
+  /** A make-the-code-match order's disagreements, re-checked by Ambio. */
   codeChecks?: CodeCheckResult[]
   deliveredTo: string | null
   answerAnnotationId: string | null
@@ -948,7 +948,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       body: JSON.stringify({
         id, workspaceId, note, sheetId, deliveryMode: 'addressed',
         selection: JSON.stringify(selection),
-        // Axiom re-checks these files against the map after the reply.
+        // Ambio re-checks these files against the map after the reply.
         ...(codeFitFileIds.length > 0 ? { codeFitFileIds } : {}),
       }),
     })
@@ -1155,7 +1155,7 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
       if (m.workspaceId === s.workspaceId) {
         // Told outside the window only while you are elsewhere (workOrderNotice.ts).
         const notice = workOrderNotice(s.messages.find(message => message.id === m.id), m)
-        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.axiom?.notify?.(notice)
+        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.ambio?.notify?.(notice)
         void refreshInbox(m.workspaceId)
       }
       break

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // FileVec is a sparse TF-IDF vector for a single file.

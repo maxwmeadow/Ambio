@@ -6,7 +6,7 @@ import { startHarness, harnessFetch } from './mcpHarness.mjs'
  * Proves the debugging loop an agent actually drives.
  *
  * Every piece of this was individually present and collectively unreachable:
- * `investigation` was advertised only behind AXIOM_MCP_PROFILE=debug, which
+ * `investigation` was advertised only behind AMBIO_MCP_PROFILE=debug, which
  * nothing set, so no agent could see the tool at all. These tests assert the
  * whole path - that it is advertised, that a session records, that work done
  * in between is captured without being asked for, and that stopping yields a

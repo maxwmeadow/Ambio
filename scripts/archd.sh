@@ -55,7 +55,7 @@ case "${1:-build}" in
   build)
     # The app compares this with its own version before attaching to a
     # daemon that is already running (for instance one an agent started).
-    go build -ldflags "-X main.version=${AXIOM_VERSION:-dev}" -o "$BIN" ./cmd/archd
+    go build -ldflags "-X main.version=${AMBIO_VERSION:-dev}" -o "$BIN" ./cmd/archd
     # A binary that cannot answer -h is not a successful build.
     "./$BIN" -h >/dev/null
     echo "Done - $ROOT/archd-go/$BIN"
@@ -69,7 +69,7 @@ case "${1:-build}" in
     ;;
   dbquery)
     shift
-    go run ./cmd/dbquery/main.go -db "${AXIOM_DB_PATH:-$HOME/.axiom/data/axiom.db}" "$@"
+    go run ./cmd/dbquery/main.go -db "${AMBIO_DB_PATH:-$HOME/.ambio/data/ambio.db}" "$@"
     ;;
   *)
     echo "usage: archd.sh [build|test|vet|dbquery]" >&2

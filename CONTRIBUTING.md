@@ -6,12 +6,12 @@ welcome.
 ## Reporting bugs
 
 Open an issue with the **Bug report** template. The fastest way to include
-what we need is **Copy diagnostics** at the bottom of the Axiom launcher; check what it
+what we need is **Copy diagnostics** at the bottom of the Ambio launcher; check what it
 contains before pasting.
 
 ## Development setup
 
-Everything you need to build and run Axiom is in the
+Everything you need to build and run Ambio is in the
 [README](README.md#development-setup): Node (see `.nvmrc`), Go, Git and a C
 toolchain.
 
@@ -53,7 +53,7 @@ decision first, so ask before building them. Found something new? Add it to the
 | Doc | What it is |
 |---|---|
 | [WORK.md](WORK.md) | Everything still to do |
-| [docs/PRODUCT.md](docs/PRODUCT.md) | What Axiom is and the rules it keeps |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | What Ambio is and the rules it keeps |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decisions made, with dates and reasons |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code fits together |
 | [docs/CANVAS_BEHAVIOR_CONTRACT.md](docs/CANVAS_BEHAVIOR_CONTRACT.md) | Canvas behaviour that must not regress |
@@ -65,9 +65,9 @@ decision first, so ask before building them. Found something new? Add it to the
 
 ## License and contributor agreement
 
-Axiom is licensed under the [GNU AGPL v3.0](LICENSE). Before your first
+Ambio is licensed under the [GNU AGPL v3.0](LICENSE). Before your first
 contribution is merged, a bot will ask you on the pull request to accept the
 [Contributor License Agreement](CLA.md) by posting one comment. You keep the
-copyright in your work; the agreement lets the project also offer Axiom under
+copyright in your work; the agreement lets the project also offer Ambio under
 other terms (for example to organizations that cannot use the AGPL), which is
 how it stays open and sustainable.

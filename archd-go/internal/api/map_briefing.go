@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // mapBriefing is what a person changed about the map since this agent last

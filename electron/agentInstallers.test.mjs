@@ -17,12 +17,12 @@ function hostWith(locations) {
   return { serverLocations: () => locations, triggerKind: 'slash command' }
 }
 
-test('detects Axiom in JSON server maps without mistaking another server for it', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-agent-json-'))
+test('detects Ambio in JSON server maps without mistaking another server for it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agent-json-'))
   try {
     const configured = path.join(root, 'configured.json')
     const unrelated = path.join(root, 'unrelated.json')
-    fs.writeFileSync(configured, JSON.stringify({ mcpServers: { axiom: { command: 'node' } } }))
+    fs.writeFileSync(configured, JSON.stringify({ mcpServers: { ambio: { command: 'node' } } }))
     fs.writeFileSync(unrelated, JSON.stringify({ mcpServers: { github: { command: 'node' } } }))
 
     const status = inspectHostConfiguration(hostWith([
@@ -39,11 +39,11 @@ test('detects Axiom in JSON server maps without mistaking another server for it'
 })
 
 test('checks nested project configuration and deduplicates a shared file path', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-agent-project-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agent-project-'))
   try {
     const configPath = path.join(root, 'config.json')
     fs.writeFileSync(configPath, JSON.stringify({
-      projects: { [root]: { mcpServers: { axiom: { command: 'node' } } } },
+      projects: { [root]: { mcpServers: { ambio: { command: 'node' } } } },
     }))
 
     const status = inspectHostConfiguration(hostWith([
@@ -59,12 +59,12 @@ test('checks nested project configuration and deduplicates a shared file path', 
 })
 
 test('detects exact Codex TOML tables but ignores comments and child tables', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-agent-toml-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agent-toml-'))
   try {
     const configured = path.join(root, 'configured.toml')
     const unrelated = path.join(root, 'unrelated.toml')
-    fs.writeFileSync(configured, '[mcp_servers."axiom"]\ncommand = "node"\n')
-    fs.writeFileSync(unrelated, '# [mcp_servers.axiom]\n[mcp_servers.axiom.env]\nA = "B"\n')
+    fs.writeFileSync(configured, '[mcp_servers."ambio"]\ncommand = "node"\n')
+    fs.writeFileSync(unrelated, '# [mcp_servers.ambio]\n[mcp_servers.ambio.env]\nA = "B"\n')
 
     assert.equal(inspectHostConfiguration(hostWith([
       { format: 'toml', path: configured },
@@ -78,7 +78,7 @@ test('detects exact Codex TOML tables but ignores comments and child tables', ()
 })
 
 test('reports malformed existing JSON as unreadable instead of unconfigured', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-agent-broken-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agent-broken-'))
   try {
     const configPath = path.join(root, 'broken.json')
     fs.writeFileSync(configPath, '{ not valid json')
@@ -95,7 +95,7 @@ test('reports malformed existing JSON as unreadable instead of unconfigured', ()
 })
 
 test('Codex install and reinstall preserve TOML, write a skill, and tag the harness', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-codex-install-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-codex-install-'))
   try {
     const codex = buildHosts(home).find(host => host.id === 'codex')
     assert.ok(codex)
@@ -105,7 +105,7 @@ test('Codex install and reinstall preserve TOML, write a skill, and tag the harn
     fs.writeFileSync(configPath, [
       'model = "gpt-5.6"',
       '',
-      '[mcp_servers."axiom"]',
+      '[mcp_servers."ambio"]',
       'command = "old-node"',
       'args = ["old-script", "--old-option"]',
       '',
@@ -114,24 +114,24 @@ test('Codex install and reinstall preserve TOML, write a skill, and tag the harn
       '',
     ].join('\n'))
 
-    const result = codex.install('node', ['C:/Axiom/mcp/axiom-mcp.js'], '# Map this codebase')
+    const result = codex.install('node', ['C:/Ambio/mcp/ambio-mcp.js'], '# Map this codebase')
     assert.equal(result.ok, true)
-    assert.equal(codex.command, '$axiom-map')
+    assert.equal(codex.command, '$ambio-map')
 
-    const reinstall = codex.install('node', ['C:/Axiom/mcp/axiom-mcp.js'], '# Map this codebase')
+    const reinstall = codex.install('node', ['C:/Ambio/mcp/ambio-mcp.js'], '# Map this codebase')
     assert.equal(reinstall.ok, true)
 
     const config = fs.readFileSync(configPath, 'utf8')
-    assert.match(config, /--axiom-host=codex/)
-    assert.equal((config.match(/^\[mcp_servers\.axiom\]$/gm) ?? []).length, 1)
+    assert.match(config, /--ambio-host=codex/)
+    assert.equal((config.match(/^\[mcp_servers\.ambio\]$/gm) ?? []).length, 1)
     assert.doesNotMatch(config, /old-script|--old-option/)
     assert.match(config, /model = "gpt-5\.6"/)
     assert.match(config, /\[mcp_servers\.github\]\ncommand = "github-server"/)
 
-    const skillPath = path.join(home, '.agents', 'skills', 'axiom-map', 'SKILL.md')
-    const inboxSkillPath = path.join(home, '.agents', 'skills', 'axiom-inbox', 'SKILL.md')
+    const skillPath = path.join(home, '.agents', 'skills', 'ambio-map', 'SKILL.md')
+    const inboxSkillPath = path.join(home, '.agents', 'skills', 'ambio-inbox', 'SKILL.md')
     const skill = fs.readFileSync(skillPath, 'utf8')
-    assert.match(skill, /^---\nname: axiom-map\ndescription:/)
+    assert.match(skill, /^---\nname: ambio-map\ndescription:/)
     assert.match(skill, /# Map this codebase/)
     assert.ok(result.paths.includes(inboxSkillPath), 'install result lists the inbox skill it wrote')
     assert.match(fs.readFileSync(inboxSkillPath, 'utf8'), /start_work/)
@@ -148,7 +148,7 @@ test('Codex install and reinstall preserve TOML, write a skill, and tag the harn
 })
 
 test('every harness installs its workflow and MCP in current supported locations', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-modern-installers-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-modern-installers-'))
   const home = path.join(root, 'home')
   const appData = path.join(root, 'appdata')
   const project = path.join(root, 'project')
@@ -162,17 +162,17 @@ test('every harness installs its workflow and MCP in current supported locations
   delete process.env.XDG_CONFIG_HOME
 
   try {
-    const legacyCopilotPrompt = path.join(project, '.github', 'prompts', 'axiom-map.prompt.md')
+    const legacyCopilotPrompt = path.join(project, '.github', 'prompts', 'ambio-map.prompt.md')
     fs.mkdirSync(path.dirname(legacyCopilotPrompt), { recursive: true })
     fs.writeFileSync(legacyCopilotPrompt, brief)
     const legacyAntigravityConfig = path.join(home, '.gemini', 'antigravity-ide', 'mcp_config.json')
     fs.mkdirSync(path.dirname(legacyAntigravityConfig), { recursive: true })
-    fs.writeFileSync(legacyAntigravityConfig, JSON.stringify({ mcpServers: { axiom: { command: 'old' } } }))
+    fs.writeFileSync(legacyAntigravityConfig, JSON.stringify({ mcpServers: { ambio: { command: 'old' } } }))
 
     const expectations = {
       'claude-code': {
-        command: '/axiom-map',
-        skill: path.join(home, '.claude', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '/ambio-map',
+        skill: path.join(home, '.claude', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.claude.json'),
       },
       'claude-desktop': {
@@ -180,33 +180,33 @@ test('every harness installs its workflow and MCP in current supported locations
         config: path.join(appData, 'Claude', 'claude_desktop_config.json'),
       },
       codex: {
-        command: '$axiom-map',
-        skill: path.join(home, '.agents', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '$ambio-map',
+        skill: path.join(home, '.agents', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.codex', 'config.toml'),
       },
       cursor: {
-        command: '/axiom-map',
-        skill: path.join(home, '.cursor', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '/ambio-map',
+        skill: path.join(home, '.cursor', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.cursor', 'mcp.json'),
       },
       copilot: {
-        command: '/axiom-map',
-        skill: path.join(home, '.copilot', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '/ambio-map',
+        skill: path.join(home, '.copilot', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(appData, 'Code', 'User', 'mcp.json'),
       },
       'copilot-cli': {
-        command: '/axiom-map',
-        skill: path.join(home, '.copilot', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '/ambio-map',
+        skill: path.join(home, '.copilot', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.copilot', 'mcp-config.json'),
       },
       windsurf: {
-        command: '/axiom-map',
-        skill: path.join(home, '.codeium', 'windsurf', 'skills', 'axiom-map', 'SKILL.md'),
+        command: '/ambio-map',
+        skill: path.join(home, '.codeium', 'windsurf', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.codeium', 'windsurf', 'mcp_config.json'),
       },
       antigravity: {
-        command: 'Use the axiom-map skill',
-        skill: path.join(home, '.gemini', 'config', 'skills', 'axiom-map', 'SKILL.md'),
+        command: 'Use the ambio-map skill',
+        skill: path.join(home, '.gemini', 'config', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.gemini', 'config', 'mcp_config.json'),
       },
       jetbrains: {
@@ -227,15 +227,15 @@ test('every harness installs its workflow and MCP in current supported locations
       const expected = expectations[host.id]
       assert.ok(expected, `missing expectation for ${host.id}`)
 
-      const result = host.install('node', ['C:/Axiom/mcp/axiom-mcp.js'], brief, project)
+      const result = host.install('node', ['C:/Ambio/mcp/ambio-mcp.js'], brief, project)
       assert.equal(result.ok, true, `${host.id}: ${result.detail}`)
       assert.equal(host.command, expected.command)
       if (expected.skill) {
         assert.equal(host.commandPath?.(project), expected.skill)
         assert.equal(fs.existsSync(expected.skill), true, `${host.id} skill missing`)
-        assert.match(fs.readFileSync(expected.skill, 'utf8'), /^---\nname: axiom-map\ndescription:/)
-        const inboxSkill = path.join(expected.skill, '..', '..', 'axiom-inbox', 'SKILL.md')
-        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /^---\nname: axiom-inbox\ndescription:/)
+        assert.match(fs.readFileSync(expected.skill, 'utf8'), /^---\nname: ambio-map\ndescription:/)
+        const inboxSkill = path.join(expected.skill, '..', '..', 'ambio-inbox', 'SKILL.md')
+        assert.match(fs.readFileSync(inboxSkill, 'utf8'), /^---\nname: ambio-inbox\ndescription:/)
         assert.match(fs.readFileSync(inboxSkill, 'utf8'), /reply_to_canvas\(messageHandle, body\)/)
       }
       assert.equal(fs.existsSync(expected.config), true, `${host.id} current MCP config missing`)
@@ -251,7 +251,7 @@ test('every harness installs its workflow and MCP in current supported locations
       'legacy Cascade remains configured alongside current Devin Local',
     )
     assert.equal(fs.existsSync(legacyCopilotPrompt), false, 'generated Copilot prompt was migrated to a skill')
-    assert.match(fs.readFileSync(legacyAntigravityConfig, 'utf8'), /--axiom-host=antigravity/)
+    assert.match(fs.readFileSync(legacyAntigravityConfig, 'utf8'), /--ambio-host=antigravity/)
   } finally {
     if (previousXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME
     else process.env.XDG_CONFIG_HOME = previousXdgConfigHome
@@ -260,7 +260,7 @@ test('every harness installs its workflow and MCP in current supported locations
 })
 
 test('installFamily installs all detected modalities in Claude family at once', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-family-install-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-family-install-'))
   const home = path.join(root, 'home')
   const appData = path.join(root, 'appdata')
   const brief = '# Map this codebase'
@@ -270,11 +270,11 @@ test('installFamily installs all detected modalities in Claude family at once', 
     fs.mkdirSync(path.join(home, '.claude'), { recursive: true })
     fs.mkdirSync(path.join(appData, 'Claude'), { recursive: true })
 
-    const result = installFamily('claude', 'node', ['axiom-mcp.js'], brief, undefined, home, appData)
+    const result = installFamily('claude', 'node', ['ambio-mcp.js'], brief, undefined, home, appData)
     assert.equal(result.ok, true)
     assert.equal(fs.existsSync(path.join(home, '.claude.json')), true)
     assert.equal(fs.existsSync(path.join(appData, 'Claude', 'claude_desktop_config.json')), true)
-    assert.equal(fs.existsSync(path.join(home, '.claude', 'skills', 'axiom-map', 'SKILL.md')), true)
+    assert.equal(fs.existsSync(path.join(home, '.claude', 'skills', 'ambio-map', 'SKILL.md')), true)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
@@ -328,7 +328,7 @@ test('Intelligent light system correctly aggregates family and child status', ()
     workflowInstalled: false,
     workflowPath: null,
     configPath: '/home/.claude.json',
-    command: '/axiom-map',
+    command: '/ambio-map',
     triggerKind: 'slash command',
     restartAction: 'Restart',
     restartDetail: 'Detail',
@@ -403,11 +403,11 @@ test('Intelligent light system correctly aggregates family and child status', ()
 })
 
 test('JetBrains XML escapes every value it interpolates', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-jbxml-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-jbxml-'))
   const file = path.join(dir, 'llm.mcpServers.xml')
   // A home directory really can contain these characters.
   const command = '/Users/Tom & Jerry/<node>/bin/node'
-  const result = upsertJetBrainsXml(file, command, ['/path/with "quotes"/axiom-mcp.mjs'])
+  const result = upsertJetBrainsXml(file, command, ['/path/with "quotes"/ambio-mcp.mjs'])
 
   assert.equal(result.ok, true)
   const xml = fs.readFileSync(file, 'utf8')
@@ -419,20 +419,20 @@ test('JetBrains XML escapes every value it interpolates', () => {
 })
 
 test('JetBrains XML inserts, then replaces rather than duplicating', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-jbxml2-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-jbxml2-'))
   const file = path.join(dir, 'llm.mcpServers.xml')
 
   assert.equal(upsertJetBrainsXml(file, '/usr/bin/node', ['/a.mjs']).ok, true)
   assert.equal(upsertJetBrainsXml(file, '/usr/local/bin/node', ['/b.mjs']).ok, true)
 
   const xml = fs.readFileSync(file, 'utf8')
-  assert.equal(xml.split('<entry key="axiom">').length - 1, 1, 'reinstall must not stack entries')
+  assert.equal(xml.split('<entry key="ambio">').length - 1, 1, 'reinstall must not stack entries')
   assert.ok(xml.includes('/usr/local/bin/node'), 'the newer command should win')
   assert.ok(!xml.includes('/a.mjs'), 'the stale args should be gone')
 })
 
 test('JetBrains XML reports a document it cannot update instead of claiming success', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-jbxml3-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-jbxml3-'))
   const file = path.join(dir, 'llm.mcpServers.xml')
   // No <map> and no </component>: every branch is a replace that matches nothing.
   const original = '<application>\n  <component name="Other" />\n</application>\n'

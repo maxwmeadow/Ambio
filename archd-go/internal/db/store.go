@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
+	"ambio.local/archd/internal/activity"
 )
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -938,7 +938,7 @@ type InvestigationMeta struct {
 }
 
 // SaveInvestigation persists a captured investigation. `data` is the full
-// AxiomTrace JSON document.
+// AmbioTrace JSON document.
 func SaveInvestigation(db *sql.DB, id, workspaceID, name, commit, branch, status, origin string, createdAt, durationMs int64, eventCount int, data []byte) error {
 	_, err := db.Exec(`
 		INSERT OR REPLACE INTO investigations
@@ -968,7 +968,7 @@ func ListInvestigations(db *sql.DB, workspaceID string) ([]InvestigationMeta, er
 	return out, rows.Err()
 }
 
-// GetInvestigation returns the full AxiomTrace JSON for one investigation, or
+// GetInvestigation returns the full AmbioTrace JSON for one investigation, or
 // nil if not found.
 func GetInvestigation(db *sql.DB, id string) (json.RawMessage, error) {
 	var data string

@@ -1,11 +1,11 @@
-// archd - Axiom parser daemon.
+// archd - Ambio parser daemon.
 //
 // Usage:
 //
 //	archd -data <dir> [-ws-port 7744] [-api-port 7743]
 //
 // The daemon:
-//  1. Opens (or creates) the SQLite graph database at <data>/axiom.db
+//  1. Opens (or creates) the SQLite graph database at <data>/ambio.db
 //  2. Starts an HTTP server on api-port (REST API + WebSocket on /ws)
 //  3. Reads JSON commands from stdin (sent by Electron main process via IPC pipe)
 //  4. On receiving an "open:project" command, indexes the root and watches for changes
@@ -25,9 +25,10 @@ import (
 	"syscall"
 	"time"
 
-	"axiom.local/archd/internal/api"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/api"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 func main() {
@@ -35,7 +36,7 @@ func main() {
 		runMCP(os.Args[2:])
 		return
 	}
-	dataDir := flag.String("data", "", "directory for axiom.db (required)")
+	dataDir := flag.String("data", "", "directory for ambio.db (required)")
 	wsPort := flag.Int("ws-port", 7744, "WebSocket port")
 	apiPort := flag.Int("api-port", 7743, "HTTP API port")
 	runtimePort := flag.Int("runtime-port", 7745, "runtime adapter TCP port")
@@ -54,6 +55,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "archd: -data flag required")
 		os.Exit(1)
 	}
+	// Maps made while the project was called Axiom move to the Ambio names.
+	if home, err := os.UserHomeDir(); err == nil {
+		db.MigrateLegacyHome(home)
+	}
+	db.AdoptLegacyMaps(*dataDir)
 
 	// One daemon per data folder. A second one - two agents starting archd at
 	// the same moment, or an app racing an agent - would share the databases
@@ -75,8 +81,8 @@ func main() {
 	// Language adapters running inside target processes connect here over TCP
 	// (newline-delimited JSON) to stream call/return events.
 	rt := runtime.NewManager(h)
-	if os.Getenv("AXIOM_AUTO_CONFIRM_INJECT") == "1" {
-		log.Println("archd: AXIOM_AUTO_CONFIRM_INJECT=1 - injections skip user confirmation")
+	if os.Getenv("AMBIO_AUTO_CONFIRM_INJECT") == "1" {
+		log.Println("archd: AMBIO_AUTO_CONFIRM_INJECT=1 - injections skip user confirmation")
 		rt.SetAutoConfirm(true)
 	}
 	// The port is often still held for a moment by the archd this one
@@ -112,7 +118,7 @@ func main() {
 	}
 
 	// ── HTTP server ───────────────────────────────────────────────────────────
-	// Each project gets its own database at <dataDir>/<workspaceId>/axiom.db,
+	// Each project gets its own database at <dataDir>/<workspaceId>/ambio.db,
 	// opened on demand when POST /api/workspace is called. No global DB here.
 	srv := api.NewServer(*dataDir, h, rt)
 	mux := http.NewServeMux()

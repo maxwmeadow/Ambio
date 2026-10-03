@@ -1,6 +1,6 @@
 // Where the app should land on launch.
 //
-// Axiom opened on a project launcher every time, so reaching your own codebase
+// Ambio opened on a project launcher every time, so reaching your own codebase
 // cost a click through a list you had already chosen from yesterday. A tool you
 // are meant to open every morning should not ask which project you meant when
 // it watched you work in one for six hours.

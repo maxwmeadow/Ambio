@@ -1,6 +1,6 @@
 /**
  * One-word ways into the loop for every host that shows MCP prompts as slash
- * commands (/axiom:propose, /axiom:implement, /axiom:review). Each is the
+ * commands (/ambio:propose, /ambio:implement, /ambio:review). Each is the
  * workflow the tools already support, written as an instruction, so an agent
  * does not have to discover the order of calls on its own:
  *
@@ -40,7 +40,7 @@ export function loopPromptText(name: string, args: Record<string, string | undef
     case 'propose': {
       const goal = quoted(args.goal) || 'the change the user describes'
       return [
-        `Propose ${goal} on the Axiom map before writing any code.`,
+        `Propose ${goal} on the Ambio map before writing any code.`,
         '',
         '1. Read the map: get_architecture (overview, then systems or neighbors for the parts this touches). Note what already exists so you draw changes, not duplicates.',
         '2. Create a sheet named after the goal: edit_sheet op "create" with name and purpose, and members for the live systems and files it involves.',
@@ -54,7 +54,7 @@ export function loopPromptText(name: string, args: Record<string, string | undef
     case 'implement': {
       const sheet = quoted(args.sheet)
       return [
-        `Implement the Axiom sheet ${sheet || 'the user names'}.`,
+        `Implement the Ambio sheet ${sheet || 'the user names'}.`,
         '',
         `1. Read it: get_build_plan with sheet ${sheet || '<name>'} for what to build, where it lives and what must be removed. Only confirmed elements are part of the order; proposals still awaiting the user are not.`,
         '2. start_work with a one-sentence goal before editing. Read the mapChanges and decisions it returns: they are what the user changed or decided since you last worked here.',
@@ -67,7 +67,7 @@ export function loopPromptText(name: string, args: Record<string, string | undef
     }
     case 'review':
       return [
-        'Review whether the code and the Axiom map still agree.',
+        'Review whether the code and the Ambio map still agree.',
         '',
         '1. get_architecture scope "changes": what people and agents changed on the map recently.',
         '2. edit_sheet op "list", then op "compare" on each open sheet: what is drawn but not built, and what was built differently.',

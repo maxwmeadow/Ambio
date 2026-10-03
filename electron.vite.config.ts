@@ -23,7 +23,7 @@ export const RENDERER_CSP = [
 
 function contentSecurityPolicy(): Plugin {
   return {
-    name: 'axiom-content-security-policy',
+    name: 'ambio-content-security-policy',
     apply: 'build',
     transformIndexHtml(html) {
       return html.replace('<head>', `<head>\n  <meta http-equiv="Content-Security-Policy" content="${RENDERER_CSP}" />`)

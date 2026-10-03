@@ -12,7 +12,7 @@ import type { CodeFitFinding } from './codeFit.ts'
 
 /**
  * Fetching a delta never acknowledges it. The watermark only moves on
- * apiAckDelta, so closing Axiom mid-review leaves the delta waiting.
+ * apiAckDelta, so closing Ambio mid-review leaves the delta waiting.
  */
 export async function apiGetDelta(workspaceId: string, signal?: AbortSignal): Promise<DeltaSummary> {
   return apiGetDeltaForRoot(workspaceId, undefined, undefined, signal)
@@ -282,7 +282,7 @@ export async function apiStartInvestigation(workspaceId: string, name: string): 
   const res = await fetch(`${archdWsHttp()}/api/investigation/start`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     // Pressing record is the human path; an agent asking gets 'agent', and a
-    // recording Axiom starts by noticing gets 'auto'.
+    // recording Ambio starts by noticing gets 'auto'.
     body: JSON.stringify({ workspaceId, name, origin: 'human' }),
   })
   if (!res.ok) throw new Error(await res.text() || 'Unable to start recording')

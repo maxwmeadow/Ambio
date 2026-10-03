@@ -3,9 +3,9 @@
 // environment injection - zero changes to the user's codebase.
 //
 // For Python: the adapter directory (containing sitecustomize.py and the
-// axiom_adapter package) is prepended to PYTHONPATH. CPython's site module
+// ambio_adapter package) is prepended to PYTHONPATH. CPython's site module
 // imports sitecustomize automatically on interpreter startup, which connects
-// the adapter back to this manager using AXIOM_RUNTIME_PORT / AXIOM_WORKSPACE_ID.
+// the adapter back to this manager using AMBIO_RUNTIME_PORT / AMBIO_WORKSPACE_ID.
 package runtime
 
 import (
@@ -284,8 +284,8 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 	}
 	out = append(out,
 		"PYTHONPATH="+pythonPath,
-		fmt.Sprintf("AXIOM_RUNTIME_PORT=%d", port),
-		"AXIOM_WORKSPACE_ID="+workspaceID,
+		fmt.Sprintf("AMBIO_RUNTIME_PORT=%d", port),
+		"AMBIO_WORKSPACE_ID="+workspaceID,
 		// Without this, Python block-buffers stdout into a pipe and the live
 		// target log stays empty until 8KB accumulates.
 		"PYTHONUNBUFFERED=1",
@@ -294,28 +294,28 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 }
 
 // injectNodeEnv wires the Node adapter in via NODE_OPTIONS (--require for CJS,
-// --import for ESM), preserving any existing NODE_OPTIONS. AXIOM_WORKSPACE_ROOT
+// --import for ESM), preserving any existing NODE_OPTIONS. AMBIO_WORKSPACE_ROOT
 // scopes instrumentation to the user's files (node_modules is skipped).
 func injectNodeEnv(env []string, adapterDir string, port int, workspaceID, workspaceRoot string) []string {
 	cjs := filepath.Join(adapterDir, "cjs-bootstrap.cjs")
 	// --import needs a file: URL; --require takes a path.
-	axiomOpts := "--require " + nodeOptionQuote(cjs) + " --import " + nodeOptionQuote(fileURL(filepath.Join(adapterDir, "esm-bootstrap.mjs")))
+	ambioOpts := "--require " + nodeOptionQuote(cjs) + " --import " + nodeOptionQuote(fileURL(filepath.Join(adapterDir, "esm-bootstrap.mjs")))
 
 	out := make([]string, 0, len(env)+4)
 	for _, kv := range env {
 		if strings.HasPrefix(strings.ToUpper(kv), "NODE_OPTIONS=") {
 			if v := kv[len("NODE_OPTIONS="):]; v != "" {
-				axiomOpts = v + " " + axiomOpts
+				ambioOpts = v + " " + ambioOpts
 			}
 			continue
 		}
 		out = append(out, kv)
 	}
 	out = append(out,
-		"NODE_OPTIONS="+axiomOpts,
-		fmt.Sprintf("AXIOM_RUNTIME_PORT=%d", port),
-		"AXIOM_WORKSPACE_ID="+workspaceID,
-		"AXIOM_WORKSPACE_ROOT="+workspaceRoot,
+		"NODE_OPTIONS="+ambioOpts,
+		fmt.Sprintf("AMBIO_RUNTIME_PORT=%d", port),
+		"AMBIO_WORKSPACE_ID="+workspaceID,
+		"AMBIO_WORKSPACE_ROOT="+workspaceRoot,
 	)
 	return out
 }
@@ -348,7 +348,7 @@ func FindNodeAdapterDir() (string, error) {
 // findAdapterDir searches standard locations for adapters/<sub>/<marker>.
 func findAdapterDir(sub, marker string) (string, error) {
 	var candidates []string
-	if envDir := os.Getenv("AXIOM_ADAPTERS_DIR"); envDir != "" {
+	if envDir := os.Getenv("AMBIO_ADAPTERS_DIR"); envDir != "" {
 		candidates = append(candidates, filepath.Join(envDir, sub))
 	}
 	if exe, err := os.Executable(); err == nil {
@@ -373,16 +373,16 @@ func findAdapterDir(sub, marker string) (string, error) {
 			return c, nil
 		}
 	}
-	return "", fmt.Errorf("%s adapter not found (searched %s); set AXIOM_ADAPTERS_DIR", sub, strings.Join(candidates, ", "))
+	return "", fmt.Errorf("%s adapter not found (searched %s); set AMBIO_ADAPTERS_DIR", sub, strings.Join(candidates, ", "))
 }
 
 // FindPythonAdapterDir locates the bundled Python adapter. Search order:
-//  1. AXIOM_ADAPTERS_DIR env var (expects <dir>/python)
+//  1. AMBIO_ADAPTERS_DIR env var (expects <dir>/python)
 //  2. adapters/python next to the archd executable (packaged layout)
 //  3. walking up from the executable to a repo root containing adapters/python (dev layout)
 func FindPythonAdapterDir() (string, error) {
 	var candidates []string
-	if envDir := os.Getenv("AXIOM_ADAPTERS_DIR"); envDir != "" {
+	if envDir := os.Getenv("AMBIO_ADAPTERS_DIR"); envDir != "" {
 		candidates = append(candidates, filepath.Join(envDir, "python"))
 	}
 	if exe, err := os.Executable(); err == nil {
@@ -400,5 +400,5 @@ func FindPythonAdapterDir() (string, error) {
 			return c, nil
 		}
 	}
-	return "", fmt.Errorf("python adapter not found (searched %s); set AXIOM_ADAPTERS_DIR", strings.Join(candidates, ", "))
+	return "", fmt.Errorf("python adapter not found (searched %s); set AMBIO_ADAPTERS_DIR", strings.Join(candidates, ", "))
 }

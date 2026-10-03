@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/registry"
 )
 
 // Load gathers detection inputs for one root from the index and the disk.

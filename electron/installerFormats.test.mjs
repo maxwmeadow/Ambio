@@ -15,7 +15,7 @@ import { readOverrides, setOverride, clearOverride } from './agentOverrides.ts'
  * ignored. Here the shape on disk is asserted directly.
  */
 const NODE = '/usr/bin/node'
-const MCP = '/opt/axiom/mcp/axiom-mcp.mjs'
+const MCP = '/opt/ambio/mcp/ambio-mcp.mjs'
 
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'))
 
@@ -62,30 +62,30 @@ for (const platform of ['darwin', 'win32', 'linux']) {
     // VS Code keys MCP servers under "servers". Using mcpServers there - the
     // Claude/Cursor spelling - produces a file VS Code ignores.
     const vscode = readJson(byId.copilot.configPath)
-    assert.ok(vscode.servers?.axiom, 'VS Code must use the servers key')
+    assert.ok(vscode.servers?.ambio, 'VS Code must use the servers key')
     assert.equal(vscode.mcpServers, undefined, 'VS Code must NOT use mcpServers')
 
     // Zed skips any context server that does not declare source: "custom".
     const zed = readJson(byId.zed.configPath)
-    assert.equal(zed.context_servers?.axiom?.source, 'custom',
+    assert.equal(zed.context_servers?.ambio?.source, 'custom',
       'Zed ignores a manually added server without source: "custom"')
-    assert.equal(zed.context_servers.axiom.command, NODE)
+    assert.equal(zed.context_servers.ambio.command, NODE)
 
     // Everything else in this set documents an mcpServers object.
     for (const id of ['claude-code', 'claude-desktop', 'copilot-cli', 'cursor', 'windsurf', 'antigravity']) {
       const config = readJson(byId[id].configPath)
-      assert.ok(config.mcpServers?.axiom, `${id} must write mcpServers.axiom`)
-      assert.equal(config.mcpServers.axiom.command, NODE, `${id} command`)
-      assert.ok(config.mcpServers.axiom.args.includes(MCP), `${id} args must carry the MCP path`)
+      assert.ok(config.mcpServers?.ambio, `${id} must write mcpServers.ambio`)
+      assert.equal(config.mcpServers.ambio.command, NODE, `${id} command`)
+      assert.ok(config.mcpServers.ambio.args.includes(MCP), `${id} args must carry the MCP path`)
     }
 
-    // Codex is TOML, and the table is [mcp_servers.axiom].
+    // Codex is TOML, and the table is [mcp_servers.ambio].
     const codex = fs.readFileSync(byId.codex.configPath, 'utf8')
-    assert.match(codex, /^\s*\[mcp_servers\.axiom\]/m, 'Codex must declare [mcp_servers.axiom]')
+    assert.match(codex, /^\s*\[mcp_servers\.ambio\]/m, 'Codex must declare [mcp_servers.ambio]')
 
     // JetBrains is XML, and every interpolated value must be escaped.
     const jetbrains = fs.readFileSync(byId.jetbrains.configPath, 'utf8')
-    assert.match(jetbrains, /<entry key="axiom">/, 'JetBrains must declare an axiom entry')
+    assert.match(jetbrains, /<entry key="ambio">/, 'JetBrains must declare an ambio entry')
     assert.ok(!/&(?!amp;|lt;|gt;|quot;|apos;)/.test(jetbrains), 'JetBrains XML must stay escaped')
     })
   })
@@ -140,7 +140,7 @@ test('a located config moves detection and the install together', () => {
   assert.equal(result.ok, true, result.detail)
 
   const written = JSON.parse(fs.readFileSync(located, 'utf8'))
-  assert.ok(written.mcpServers.axiom, 'the install must land in the located file')
+  assert.ok(written.mcpServers.ambio, 'the install must land in the located file')
   assert.ok(written.mcpServers.existing, 'and must not discard what was already there')
 
   const defaultPath = path.join(appData, 'Claude', 'claude_desktop_config.json')

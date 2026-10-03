@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/hub"
 )
 
 // A watched Ruby method, traced through rdbg: every call is counted (Ruby is
@@ -17,17 +17,17 @@ func TestRdbgCountsEveryCallToAWatchedRubyMethod(t *testing.T) {
 	if _, err := langConfigs["ruby"].findDebugger(); err != nil {
 		t.Skip(err)
 	}
-	if os.Getenv("AXIOM_RDBG_PATH") == "" {
+	if os.Getenv("AMBIO_RDBG_PATH") == "" {
 		out, err := exec.Command("gem", "contents", "debug").Output()
 		if err != nil {
 			t.Skip("the debug gem is not installed")
 		}
 		for _, line := range strings.Split(string(out), "\n") {
 			if strings.HasSuffix(line, "/exe/rdbg") {
-				t.Setenv("AXIOM_RDBG_PATH", line)
+				t.Setenv("AMBIO_RDBG_PATH", line)
 			}
 		}
-		if os.Getenv("AXIOM_RDBG_PATH") == "" {
+		if os.Getenv("AMBIO_RDBG_PATH") == "" {
 			t.Skip("rdbg not found in the debug gem")
 		}
 	}

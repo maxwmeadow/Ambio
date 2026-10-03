@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func (s *Server) broadcastSheetLayoutState(sqlDB *sql.DB, sheetID string) ([]db.SheetElement, []db.PlannedNode, *db.Sheet) {
@@ -895,7 +895,7 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		Note         string  `json:"note"`
 		Selection    string  `json:"selection"`
 		DeliveryMode string  `json:"deliveryMode"`
-		// CodeFitFileIDs asks Axiom to verify, after the reply, that the code
+		// CodeFitFileIDs asks Ambio to verify, after the reply, that the code
 		// agrees with where the map puts these files (make the code match).
 		CodeFitFileIDs []string `json:"codeFitFileIds"`
 	}
@@ -950,8 +950,8 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, ref := range refs {
 		u, e := url.Parse(ref)
-		if e != nil || len(ref) > 2048 || u.Scheme != "axiom" {
-			jsonError(w, "selection requires canonical axiom references", 400)
+		if e != nil || len(ref) > 2048 || u.Scheme != "ambio" {
+			jsonError(w, "selection requires canonical ambio references", 400)
 			return
 		}
 		table := ""

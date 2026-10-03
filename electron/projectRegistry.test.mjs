@@ -23,7 +23,7 @@ import {
 } from './projectRegistry.ts'
 
 test('resume pointer persists and clears independently from browser storage', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-resume-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-resume-'))
   const settings = path.join(dir, 'settings.json')
   try {
     assert.equal(readResumeProjectId(settings), null)
@@ -39,12 +39,12 @@ test('resume pointer persists and clears independently from browser storage', ()
 })
 
 test('an older indexed project gains a durable workbench marker without daemon access', () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-legacy-index-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-legacy-index-'))
   const project = { id: 'legacy', rootPath: '/repo', openedAt: 123 }
   try {
     assert.equal(migrateIndexedProjectLifecycle(project, dataDir), project)
     fs.mkdirSync(path.join(dataDir, project.id))
-    fs.writeFileSync(path.join(dataDir, project.id, 'axiom.db'), '')
+    fs.writeFileSync(path.join(dataDir, project.id, 'ambio.db'), '')
     assert.equal(migrateIndexedProjectLifecycle(project, dataDir).workbenchOpenedAt, 123)
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true })
@@ -52,7 +52,7 @@ test('an older indexed project gains a durable workbench marker without daemon a
 })
 
 test('an existing recent path keeps its project lifetime but a removed path gets a new id', () => {
-  const rootPath = path.join(os.tmpdir(), 'axiom-project-lifetime')
+  const rootPath = path.join(os.tmpdir(), 'ambio-project-lifetime')
   const existing = { id: 'old-id', rootPath }
   assert.equal(findProjectByRoot([existing], rootPath)?.id, 'old-id')
   assert.notEqual(createProjectId(), createProjectId())
@@ -60,7 +60,7 @@ test('an existing recent path keeps its project lifetime but a removed path gets
 })
 
 test('project disk state follows the current folder contents without losing its launcher origin', () => {
-  const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-project-state-'))
+  const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-project-state-'))
   const project = {
     id: 'workspace-1',
     name: 'Blank project',
@@ -77,11 +77,11 @@ test('project disk state follows the current folder contents without losing its 
 })
 
 test('project removal verifies data deletion and clears the active MCP pointer', async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-project-delete-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-project-delete-'))
   const projectId = 'workspace-1'
   const projectDir = path.join(dataDir, projectId)
   fs.mkdirSync(projectDir)
-  fs.writeFileSync(path.join(projectDir, 'axiom.db'), 'stale proposal')
+  fs.writeFileSync(path.join(projectDir, 'ambio.db'), 'stale proposal')
   fs.writeFileSync(
     path.join(dataDir, 'active_project.json'),
     JSON.stringify({ workspaceId: projectId, rootPath: 'C:/repo' }),
@@ -101,7 +101,7 @@ test('project removal verifies data deletion and clears the active MCP pointer',
 })
 
 test('a daemon refusal is surfaced and never pretends the project was removed', async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-project-refusal-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-project-refusal-'))
   const projectDir = path.join(dataDir, 'workspace-1')
   fs.mkdirSync(projectDir)
   try {
@@ -121,7 +121,7 @@ test('a daemon refusal is surfaced and never pretends the project was removed', 
 })
 
 test('a moved folder is reported missing, an existing one is not', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-missing-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-missing-'))
   try {
     assert.equal(refreshProjectDiskState({ rootPath: dir }).rootMissing, false)
     assert.equal(refreshProjectDiskState({ rootPath: path.join(dir, 'gone') }).rootMissing, true)
@@ -145,14 +145,14 @@ test('relocating a project rebases its exclusions and keeps its identity', () =>
 })
 
 test('a trashed map is listed, restored once, and purged after 30 days', async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-trash-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-trash-'))
   const config = { id: 'p1', name: 'app', rootPath: '/repo' }
   try {
     fs.mkdirSync(path.join(dataDir, 'p1'))
-    fs.writeFileSync(path.join(dataDir, 'p1', 'axiom.db'), 'map')
+    fs.writeFileSync(path.join(dataDir, 'p1', 'ambio.db'), 'map')
     const unreachable = async () => { throw new TypeError('fetch failed') }
     const trashPath = await removeProjectData({ projectId: 'p1', dataDir, apiPort: 1, request: unreachable, trash: true })
-    assert.ok(trashPath && fs.existsSync(path.join(trashPath, 'axiom.db')))
+    assert.ok(trashPath && fs.existsSync(path.join(trashPath, 'ambio.db')))
     assert.equal(fs.existsSync(path.join(dataDir, 'p1')), false)
     writeTrashMeta(trashPath, config, 1000)
     const [entry] = listTrash(dataDir)
@@ -164,7 +164,7 @@ test('a trashed map is listed, restored once, and purged after 30 days', async (
     assert.throws(() => restoreTrash(dataDir, entry.trashId), /already has a map/)
     fs.rmSync(path.join(dataDir, 'p1'), { recursive: true })
     assert.equal(restoreTrash(dataDir, entry.trashId).id, 'p1')
-    assert.equal(fs.readFileSync(path.join(dataDir, 'p1', 'axiom.db'), 'utf8'), 'map')
+    assert.equal(fs.readFileSync(path.join(dataDir, 'p1', 'ambio.db'), 'utf8'), 'map')
     assert.equal(fs.existsSync(path.join(dataDir, 'p1', 'trash.json')), false)
     assert.deepEqual(listTrash(dataDir), [])
 
@@ -186,7 +186,7 @@ test('a trashed map is listed, restored once, and purged after 30 days', async (
 })
 
 test('archd reports where it put a trashed map', async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-trash-api-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-trash-api-'))
   try {
     const request = async (url) => {
       assert.match(url, /\/api\/workspace\/p1\?trash=1$/)
@@ -228,11 +228,11 @@ test('an exported map imports with its settings, pointed at the code on this com
 })
 
 test('a map trashed without its label is still listed and restorable', () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-trash-orphan-'))
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-trash-orphan-'))
   try {
     const orphan = path.join(dataDir, '.trash', 'proj-42-1700000000000')
     fs.mkdirSync(orphan, { recursive: true })
-    fs.writeFileSync(path.join(orphan, 'axiom.db'), 'map')
+    fs.writeFileSync(path.join(orphan, 'ambio.db'), 'map')
     fs.mkdirSync(path.join(dataDir, '.trash', 'not-ours'))
     const [entry, ...rest] = listTrash(dataDir)
     assert.deepEqual(rest, [])
@@ -241,7 +241,7 @@ test('a map trashed without its label is still listed and restorable', () => {
     assert.equal(entry.config.rootPath, '')
     assert.equal(entry.deletedAt, 1700000000000)
     assert.equal(restoreTrash(dataDir, entry.trashId).id, 'proj-42')
-    assert.equal(fs.readFileSync(path.join(dataDir, 'proj-42', 'axiom.db'), 'utf8'), 'map')
+    assert.equal(fs.readFileSync(path.join(dataDir, 'proj-42', 'ambio.db'), 'utf8'), 'map')
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true })
   }

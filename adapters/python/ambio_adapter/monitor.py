@@ -32,14 +32,14 @@ MAX_CALLS_PER_SEC = 100
 # tuple of (watch_id, trace_id, start_perf_ns). contextvars propagate across
 # `await` boundaries, giving async-correct parent/child trace linkage.
 _call_stack: contextvars.ContextVar[tuple] = contextvars.ContextVar(
-    "axiom_call_stack", default=()
+    "ambio_call_stack", default=()
 )
 
 # Set by an injection wrapper (inject.py) for the duration of the perturbed
 # call - stamps every event in the perturbed subtree with the injection id so
 # the canvas can color downstream paths green/red.
 _active_inject: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "axiom_active_inject", default=""
+    "ambio_active_inject", default=""
 )
 
 
@@ -129,13 +129,13 @@ class Monitor:
         # Never take DEBUGGER_ID - the user's IDE debugger keeps working.
         for tid in (mon.OPTIMIZER_ID, mon.PROFILER_ID, mon.COVERAGE_ID):
             try:
-                mon.use_tool_id(tid, "axiom")
+                mon.use_tool_id(tid, "ambio")
                 self._tool_id = tid
                 break
             except ValueError:
                 continue
         if self._tool_id is None:
-            print("[axiom] no free sys.monitoring tool id - watches disabled", file=sys.stderr)
+            print("[ambio] no free sys.monitoring tool id - watches disabled", file=sys.stderr)
             return False
         mon.register_callback(self._tool_id, mon.events.PY_START, self._on_start)
         mon.register_callback(self._tool_id, mon.events.PY_RETURN, self._on_return)

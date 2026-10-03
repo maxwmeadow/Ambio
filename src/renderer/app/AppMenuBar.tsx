@@ -7,7 +7,7 @@ import { currentPlatform, emitCommand, requestOpenRecent } from './commands'
 import type { ProjectConfig } from '../../shared/types'
 
 /**
- * The menu bar on Windows and Linux, drawn inside Axiom's custom title bar.
+ * The menu bar on Windows and Linux, drawn inside Ambio's custom title bar.
  * macOS uses the native menu bar instead, so this renders nothing there.
  */
 export function AppMenuBar() {
@@ -26,8 +26,8 @@ export function AppMenuBar() {
 
   // Open Recent is read fresh each time the File menu opens.
   useEffect(() => {
-    if (open !== 'file' || !window.axiom) return
-    void window.axiom.listRecentProjects().then(projects => setRecent(
+    if (open !== 'file' || !window.ambio) return
+    void window.ambio.listRecentProjects().then(projects => setRecent(
       projects
         .filter(project => !project.hiddenFromRecents && !project.rootMissing)
         .sort((left, right) => (right.openedAt ?? 0) - (left.openedAt ?? 0))
@@ -36,9 +36,9 @@ export function AppMenuBar() {
   }, [open])
 
   useEffect(() => {
-    if (!window.axiom) return
-    void window.axiom.developerMenuEnabled().then(setDeveloper)
-    return window.axiom.onSettingsChanged(() => { void window.axiom.developerMenuEnabled().then(setDeveloper) })
+    if (!window.ambio) return
+    void window.ambio.developerMenuEnabled().then(setDeveloper)
+    return window.ambio.onSettingsChanged(() => { void window.ambio.developerMenuEnabled().then(setDeveloper) })
   }, [])
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function AppMenuBar() {
         return
       }
       const target = event.target as HTMLElement | null
-      if (!target?.closest('.axiom-menubar, .axiom-menubar__dropdown')) setOpen(null)
+      if (!target?.closest('.ambio-menubar, .ambio-menubar__dropdown')) setOpen(null)
     }
     window.addEventListener('mousedown', close)
     window.addEventListener('keydown', close)
@@ -59,7 +59,7 @@ export function AppMenuBar() {
     }
   }, [open])
 
-  if (platform === 'darwin' || !window.axiom) return null
+  if (platform === 'darwin' || !window.ambio) return null
   const sections = buildMenu(platform, { developer })
 
   const show = (id: MenuSection['id'], button: HTMLElement) => {
@@ -72,7 +72,7 @@ export function AppMenuBar() {
 
   return (
     <>
-      <div className="axiom-menubar" ref={bar} role="menubar" aria-label="Application menu">
+      <div className="ambio-menubar" ref={bar} role="menubar" aria-label="Application menu">
         {sections.map(item => (
           <button
             key={item.id}
@@ -80,7 +80,7 @@ export function AppMenuBar() {
             role="menuitem"
             aria-haspopup="menu"
             aria-expanded={open === item.id}
-            className={open === item.id ? 'axiom-menubar__top axiom-menubar__top--open' : 'axiom-menubar__top'}
+            className={open === item.id ? 'ambio-menubar__top ambio-menubar__top--open' : 'ambio-menubar__top'}
             onMouseDown={event => {
               event.preventDefault()
               if (open === item.id) setOpen(null)
@@ -101,7 +101,7 @@ export function AppMenuBar() {
       {/* Portalled out of the title bar so its text styles cannot leak in. */}
       {section && createPortal(
         <div
-          className="axiom-menubar__dropdown"
+          className="ambio-menubar__dropdown"
           role="menu"
           aria-label={section.label}
           style={{ left: anchor.left, top: anchor.top }}
@@ -110,9 +110,9 @@ export function AppMenuBar() {
             if (entry.kind === 'separator') return <hr key={`separator-${index}`} />
             if (entry.kind === 'recent') {
               return (
-                <div key="recent" className="axiom-menubar__recent" role="group" aria-label="Open Recent">
-                  <span className="axiom-menubar__group-label">Open Recent</span>
-                  {recent.length === 0 && <span className="axiom-menubar__empty">No recent projects</span>}
+                <div key="recent" className="ambio-menubar__recent" role="group" aria-label="Open Recent">
+                  <span className="ambio-menubar__group-label">Open Recent</span>
+                  {recent.length === 0 && <span className="ambio-menubar__empty">No recent projects</span>}
                   {recent.map(project => (
                     <button
                       key={project.id}
@@ -129,7 +129,7 @@ export function AppMenuBar() {
                     <button
                       type="button"
                       role="menuitem"
-                      className="axiom-menubar__subtle"
+                      className="ambio-menubar__subtle"
                       onMouseDown={event => event.preventDefault()}
                       onClick={() => { setOpen(null); emitCommand('project.clearRecent') }}
                     >
@@ -141,8 +141,8 @@ export function AppMenuBar() {
             }
             if (entry.kind === 'group') {
               return (
-                <div key={`group-${entry.label}`} className="axiom-menubar__recent" role="group" aria-label={entry.label}>
-                  <span className="axiom-menubar__group-label">{entry.label}</span>
+                <div key={`group-${entry.label}`} className="ambio-menubar__recent" role="group" aria-label={entry.label}>
+                  <span className="ambio-menubar__group-label">{entry.label}</span>
                   {entry.entries.map(id => {
                     const spec = COMMANDS[id]
                     const panel = PANEL_COMMANDS[id as keyof typeof PANEL_COMMANDS]
@@ -171,7 +171,7 @@ export function AppMenuBar() {
                   type="button"
                   role="menuitem"
                   onMouseDown={event => event.preventDefault()}
-                  onClick={() => { setOpen(null); void window.axiom.runMenuRole(entry.role) }}
+                  onClick={() => { setOpen(null); void window.ambio.runMenuRole(entry.role) }}
                 >
                   <span>{entry.label}</span>
                   {entry.accelerator && <kbd>{formatAccelerator(entry.accelerator, platform)}</kbd>}

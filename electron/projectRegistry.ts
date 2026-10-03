@@ -26,7 +26,7 @@ export function writeResumeProjectId(settingsFile: string, projectId: string | n
 export function migrateIndexedProjectLifecycle(config: ProjectConfig, dataDir: string): ProjectConfig {
   if (config.workbenchOpenedAt || config.reviewCompletedAt) return config
   if (!/^[A-Za-z0-9._-]{1,128}$/.test(config.id) || config.id === '.' || config.id === '..') return config
-  if (!fs.existsSync(join(dataDir, config.id, 'axiom.db'))) return config
+  if (!fs.existsSync(join(dataDir, config.id, 'ambio.db'))) return config
   return { ...config, workbenchOpenedAt: config.openedAt || Date.now() }
 }
 
@@ -53,7 +53,7 @@ export function createProjectId(): string {
 /**
  * Refresh the part of project setup state that the filesystem owns. Keeping
  * this on the persisted project record lets the renderer distinguish a blank
- * project created by Axiom from a codebase opened through the launcher, while
+ * project created by Ambio from a codebase opened through the launcher, while
  * still switching to the codebase journey as soon as files appear.
  */
 export function refreshProjectDiskState(config: ProjectConfig): ProjectConfig {
@@ -105,7 +105,7 @@ function validatedProjectDataDir(dataDir: string, projectId: string): string {
   const target = resolve(base, projectId)
   const rel = relative(base, target)
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || dirname(target) !== base) {
-    throw new Error('Project data path escapes Axiom\'s data directory.')
+    throw new Error('Project data path escapes Ambio\'s data directory.')
   }
   return target
 }
@@ -248,7 +248,7 @@ export async function removeProjectData({
     )
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
-      throw new Error(`Axiom could not delete the project data (${response.status})${detail ? `: ${detail}` : '.'}`)
+      throw new Error(`Ambio could not delete the project data (${response.status})${detail ? `: ${detail}` : '.'}`)
     }
     if (trash) {
       // archd moved the folder into the trash and reports where.
@@ -258,7 +258,7 @@ export async function removeProjectData({
   } catch (error) {
     // HTTP responses are authoritative failures. Connection failures mean the
     // daemon is down, so there can be no daemon-owned SQLite lock to release.
-    if (error instanceof Error && error.message.startsWith('Axiom could not delete')) throw error
+    if (error instanceof Error && error.message.startsWith('Ambio could not delete')) throw error
     daemonUnavailable = true
   }
 
@@ -274,13 +274,13 @@ export async function removeProjectData({
     }
   }
   if (fs.existsSync(projectDataDir)) {
-    throw new Error('Axiom could not verify that the project data was deleted.')
+    throw new Error('Ambio could not verify that the project data was deleted.')
   }
   clearActiveProjectPointer(dataDir, projectId)
   return trashPath
 }
 
-/** What an exported .axiommap carries besides the map itself. */
+/** What an exported .ambiomap carries besides the map itself. */
 export function exportManifest(config: ProjectConfig, appVersion: string): Record<string, string> {
   const { id: _id, rootMissing: _missing, hiddenFromRecents: _hidden, ...portable } = config
   return { name: config.name, rootPath: config.rootPath, appVersion, config: JSON.stringify(portable) }

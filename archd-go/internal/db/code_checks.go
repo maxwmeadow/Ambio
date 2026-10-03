@@ -8,9 +8,9 @@ import (
 )
 
 // Work-order code checks. A "make the code match" work order carries the
-// disagreements it was sent to fix (code_fit.go). Axiom re-checks them against
+// disagreements it was sent to fix (code_fit.go). Ambio re-checks them against
 // the indexed code whenever the order is read, so whether the code now agrees
-// is something Axiom verified, not something the agent reported.
+// is something Ambio verified, not something the agent reported.
 
 const (
 	CodeCheckAgrees     = "agrees"

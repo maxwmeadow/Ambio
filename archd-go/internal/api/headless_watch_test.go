@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/runtime"
 )
 
 // An agent that starts archd while the app is closed gets a live map: what
@@ -46,7 +46,7 @@ func TestAProjectOpenedWithoutTheAppIsWatched(t *testing.T) {
 	}
 	first.closeDB("ws")
 
-	// Changed while Axiom was closed.
+	// Changed while Ambio was closed.
 	write("billing.py", "def charge():\n    return 2\n")
 
 	// An agent's daemon answers its first request.

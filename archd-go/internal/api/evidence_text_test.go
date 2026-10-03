@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/runtime"
 )
 
 // The sentences an agent reads about a watched function's return values.

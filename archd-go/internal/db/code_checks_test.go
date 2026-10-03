@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// A make-the-code-match order is verified by Axiom against the code, not taken
+// A make-the-code-match order is verified by Ambio against the code, not taken
 // on the agent's word.
 
 func TestACodeCheckFollowsTheCode(t *testing.T) {

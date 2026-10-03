@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // File moves. A file moved on disk reaches the indexer as a delete and a

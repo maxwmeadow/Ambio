@@ -6,14 +6,14 @@ import { readFileSync } from 'node:fs'
  * Guards the size of the advertised tool surface.
  *
  * The listing is paid for on every request an agent makes, so it is a budget,
- * not a detail. Axiom previously advertised 59 tools costing ~9,600 tokens
+ * not a detail. Ambio previously advertised 59 tools costing ~9,600 tokens
  * before the agent had read a line of code. These tests exist so that cost
  * cannot creep back without someone deciding to raise the limit on purpose.
  */
 
 // Normalized on read: git checks this file out with CRLF on Windows, and a
 // regex anchored to "\n" silently matches nothing rather than failing loudly.
-const source = readFileSync(new URL('./axiom-mcp.ts', import.meta.url), 'utf8')
+const source = readFileSync(new URL('./ambio-mcp.ts', import.meta.url), 'utf8')
   .replace(/\r\n/g, '\n')
 
 function sliceBetween(start, end) {
@@ -52,7 +52,7 @@ test('the schema cost stays within budget', () => {
 })
 
 test('debug tooling is not advertised by default', () => {
-  assert.match(source, /AXIOM_MCP_PROFILE/)
+  assert.match(source, /AMBIO_MCP_PROFILE/)
   assert.match(source, /DEBUG_PROFILE_ENABLED \? \[\.\.\.CORE_TOOLS, \.\.\.DEBUG_PROFILE_TOOLS\] : CORE_TOOLS/)
 })
 

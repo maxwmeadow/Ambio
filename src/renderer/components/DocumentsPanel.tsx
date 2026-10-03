@@ -69,7 +69,7 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
       .then(source => setContent(source.content))
       .catch(reason => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'Axiom could not read this document.')
+          setError(reason instanceof Error ? reason.message : 'Ambio could not read this document.')
         }
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
@@ -86,7 +86,7 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <FloatingWindow
-      className="axiom-docs"
+      className="ambio-docs"
       title="Documents"
       subtitle={`${documents.length} kept off the canvas`}
       onClose={onClose}
@@ -95,10 +95,10 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
       minWidth={420}
       minHeight={320}
     >
-      <div className="axiom-docs__layout" data-browsing={browsing || undefined}>
+      <div className="ambio-docs__layout" data-browsing={browsing || undefined}>
         {browsing && (
-          <nav className="axiom-docs__list" aria-label="Documentation files">
-            <label className="axiom-docs__search">
+          <nav className="ambio-docs__list" aria-label="Documentation files">
+            <label className="ambio-docs__search">
               <input
                 type="search"
                 value={query}
@@ -108,7 +108,7 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
               />
             </label>
             {visible.length === 0 ? (
-              <p className="axiom-docs__empty">
+              <p className="ambio-docs__empty">
                 {documents.length === 0
                   ? 'No readable documentation was indexed.'
                   : 'Nothing matches that search.'}
@@ -117,7 +117,7 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
               <button
                 key={file.id}
                 type="button"
-                className="axiom-docs__item"
+                className="ambio-docs__item"
                 data-active={file.id === selectedId || undefined}
                 onClick={() => open(file)}
               >
@@ -128,32 +128,32 @@ export function DocumentsPanel({ onClose }: { onClose: () => void }) {
           </nav>
         )}
 
-        <section className="axiom-docs__reader" aria-live="polite">
-          <div className="axiom-docs__readerbar">
+        <section className="ambio-docs__reader" aria-live="polite">
+          <div className="ambio-docs__readerbar">
             <button
               type="button"
-              className="axiom-docs__browse"
+              className="ambio-docs__browse"
               onClick={() => setBrowsing(value => !value)}
               aria-expanded={browsing}
             >
               {browsing ? '‹ Hide list' : '☰ All documents'}
             </button>
-            {selected && <span className="axiom-docs__path">{selected.relPath}</span>}
+            {selected && <span className="ambio-docs__path">{selected.relPath}</span>}
           </div>
 
-          <div className="axiom-docs__content">
+          <div className="ambio-docs__content">
             {!selected ? (
-              <p className="axiom-docs__message">Choose a document to read it.</p>
+              <p className="ambio-docs__message">Choose a document to read it.</p>
             ) : loading ? (
-              <p className="axiom-docs__message">Reading {fileName(selected.relPath)}…</p>
+              <p className="ambio-docs__message">Reading {fileName(selected.relPath)}…</p>
             ) : error ? (
-              <p className="axiom-docs__message axiom-docs__message--error">{error}</p>
+              <p className="ambio-docs__message ambio-docs__message--error">{error}</p>
             ) : isMarkdown ? (
               <MarkdownView source={content} />
             ) : (
               // Plain text is already the document. Rendering it as prose would
               // reflow logs and transcripts whose line breaks carry meaning.
-              <pre className="axiom-docs__plain">{content}</pre>
+              <pre className="ambio-docs__plain">{content}</pre>
             )}
           </div>
         </section>

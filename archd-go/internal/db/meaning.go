@@ -13,7 +13,7 @@ import (
 
 // Meaning edits change what the architecture says without touching code:
 // naming, grouping and nesting systems, and which system a file belongs to.
-// Systems are Axiom's interpretation of the code, so a human or an agent may
+// Systems are Ambio's interpretation of the code, so a human or an agent may
 // change them freely - but every change is atomic, attributed and journaled,
 // which is what makes it reviewable and undoable (docs/PRODUCT.md §2).
 //

@@ -8,7 +8,7 @@ const safeScale = (scale: number): number => Number.isFinite(scale) && scale > 0
  * React Flow's default 5px minimum is expressed in world coordinates. At
  * 100x zoom that becomes a 500px invisible hit target, which can cover the
  * entire node and steal dragging/resizing. Stamp the complete geometry inline
- * so both the visible shape and its hit target follow Axiom presentation size.
+ * so both the visible shape and its hit target follow Ambio presentation size.
  */
 export function connectionHandleProps(
   isConnectable: boolean,

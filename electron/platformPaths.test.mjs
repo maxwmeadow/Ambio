@@ -75,7 +75,7 @@ test('Zed uses ~/.config on macOS and Linux, and honours XDG on Linux', () => {
 })
 
 test('JetBrains discovery lists product directories and survives a missing root', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-jb-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-jb-'))
   const appData = path.join(home, 'AppData')
   assert.deepEqual(findJetBrainsDirectories(home, 'linux', appData), [], 'no JetBrains root yet')
 
@@ -100,20 +100,20 @@ test('node resolution finds each version manager layout, not just fnm', () => {
     return file
   }
 
-  const nvmHome = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-nvm-'))
+  const nvmHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-nvm-'))
   makeNode(nvmHome, '.nvm', 'versions', 'node', 'v18.20.0', 'bin', 'node')
   const newest = makeNode(nvmHome, '.nvm', 'versions', 'node', 'v22.5.1', 'bin', 'node')
   assert.equal(resolveNodeCommand(nvmHome, 'linux'), newest, 'nvm must resolve, and to its newest version')
 
-  const voltaHome = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-volta-'))
+  const voltaHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-volta-'))
   const volta = makeNode(voltaHome, '.volta', 'bin', 'node')
   assert.equal(resolveNodeCommand(voltaHome, 'linux'), volta)
 
-  const asdfHome = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-asdf-'))
+  const asdfHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-asdf-'))
   const asdf = makeNode(asdfHome, '.asdf', 'shims', 'node')
   assert.equal(resolveNodeCommand(asdfHome, 'linux'), asdf)
 
-  const fnmHome = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-fnm-'))
+  const fnmHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-fnm-'))
   const fnm = makeNode(fnmHome, '.local', 'share', 'fnm', 'aliases', 'default', 'bin', 'node')
   assert.equal(resolveNodeCommand(fnmHome, 'linux'), fnm)
 })

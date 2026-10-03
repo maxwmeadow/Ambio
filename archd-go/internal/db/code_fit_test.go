@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// After you move a file on the map, Axiom says whether the code agrees, and
+// After you move a file on the map, Ambio says whether the code agrees, and
 // stays quiet when it does.
 
 func fitFixture(t *testing.T) *sql.DB {

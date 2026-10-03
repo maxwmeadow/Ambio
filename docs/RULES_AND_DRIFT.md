@@ -3,7 +3,7 @@
 Status: **proposal, needs decisions** (WORK `rules-and-drift`, questions at the
 end). Nothing here is built. The historical version is "Intent sheets" in
 [history/UML_UX_PLAN.md](history/UML_UX_PLAN.md) §4; this revision fits it to
-what Axiom is now.
+what Ambio is now.
 
 ## Why
 
@@ -118,7 +118,7 @@ rule_violations (id, rule_id, src_file_id, dst_file_id, dependency_type,
   and survive regrouping; systems are the shared vocabulary and follow your
   curation.
 - **Q2. Where rules live.** In the map database only (simple; per machine), or
-  also exported to the repo as `.axiom/rules.json` so teammates and CI share
+  also exported to the repo as `.ambio/rules.json` so teammates and CI share
   them (needed for `rules-in-ci`, and the history plan's answer)?
 - **Q3. Existing violations.** When a rule is written that the code already
   breaks: report all of it as debt (one "N existing violations" claim), or

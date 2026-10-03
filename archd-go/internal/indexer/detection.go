@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"log"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/parser"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/parser"
 )
 
 // DetectionEvidenceVersion is bumped whenever the parser learns to extract new

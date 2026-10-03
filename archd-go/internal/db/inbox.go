@@ -26,7 +26,7 @@ type WorkCheck struct {
 	Outcome string `json:"outcome"`
 }
 
-// Result fields are reported by the agent. Axiom's independent checks are
+// Result fields are reported by the agent. Ambio's independent checks are
 // displayed separately, rather than silently promoting these claims to proof.
 type WorkResult struct {
 	Commit       string      `json:"commit,omitempty"`

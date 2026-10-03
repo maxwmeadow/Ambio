@@ -15,7 +15,7 @@ import (
 	"os"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // maxBodyLines caps a single returned function body so a pathological symbol

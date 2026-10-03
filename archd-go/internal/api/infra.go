@@ -24,14 +24,14 @@ import (
 	"sync"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/infradetect"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/registry"
 )
 
 // reloadRegistry re-resolves the layered registry with all known workspace
-// roots so <root>/.axiom/services/ definitions are picked up.
+// roots so <root>/.ambio/services/ definitions are picked up.
 func (s *Server) reloadRegistry() {
 	s.mu.RLock()
 	paths := make([]string, 0, len(s.roots))

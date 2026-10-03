@@ -65,7 +65,7 @@ interface ResizeSession {
   cancel: () => void
 }
 
-export interface AxiomNodeResizerProps {
+export interface AmbioNodeResizerProps {
   nodeId: string
   isVisible: boolean
   presentationScale: number
@@ -124,12 +124,12 @@ function traceEvent(event: PointerEvent, target: Element): unknown {
  */
 import { recordResizerRender } from '../perfMetrics'
 
-export function AxiomNodeResizer(props: AxiomNodeResizerProps) {
+export function AmbioNodeResizer(props: AmbioNodeResizerProps) {
   if (!props.isVisible) return null
-  return <AxiomNodeResizerActive {...props} />
+  return <AmbioNodeResizerActive {...props} />
 }
 
-function AxiomNodeResizerActive({
+function AmbioNodeResizerActive({
   nodeId,
   isVisible,
   presentationScale,
@@ -145,7 +145,7 @@ function AxiomNodeResizerActive({
   maxHeight = Number.MAX_VALUE,
   onResizeStart,
   onResizeEnd,
-}: AxiomNodeResizerProps) {
+}: AmbioNodeResizerProps) {
   recordResizerRender()
   const store = useStoreApi()
   const sessionRef = useRef<ResizeSession | null>(null)
@@ -415,7 +415,7 @@ function AxiomNodeResizerActive({
       // unmount the node, and no listener may survive that state transition.
       sessionRef.current = null
       session.cleanup()
-      nodeElement?.classList.remove('axiom-resizing')
+      nodeElement?.classList.remove('ambio-resizing')
       if (handle.hasPointerCapture(session.pointerId)) {
         try { handle.releasePointerCapture(session.pointerId) } catch { /* capture was already revoked */ }
       }
@@ -466,7 +466,7 @@ function AxiomNodeResizerActive({
     window.addEventListener('pointercancel', onPointerCancel, true)
     window.addEventListener('blur', onWindowBlur)
     handle.addEventListener('lostpointercapture', onLostPointerCapture)
-    nodeElement?.classList.add('axiom-resizing')
+    nodeElement?.classList.add('ambio-resizing')
     try { handle.setPointerCapture(event.pointerId) } catch { /* window listeners remain authoritative */ }
 
     traceResizeStart(traceEvent(event.nativeEvent, handle), start, nodeId, scale)
@@ -482,7 +482,7 @@ function AxiomNodeResizerActive({
     if (!isVisible) return
     const frame = requestAnimationFrame(() => {
       const root = rootRef.current
-      const handle = root?.querySelector<SVGGElement>('.axiom-floating-resize-handle')
+      const handle = root?.querySelector<SVGGElement>('.ambio-floating-resize-handle')
       const visual = handle?.firstElementChild as SVGGraphicsElement | null
       const nodeElement = findNodeElement(store.getState().domNode, nodeId)
       if (!root || !handle || !visual || !nodeElement) return
@@ -502,12 +502,12 @@ function AxiomNodeResizerActive({
         Math.abs(rootRect.width - nodeRect.width) > 1 || Math.abs(rootRect.height - nodeRect.height) > 1
       if (!suspicious) return
       console.warn(
-        `[AxiomResizeChromeSummary] node=${nodeId} zoom=${viewportZoom} ` +
+        `[AmbioResizeChromeSummary] node=${nodeId} zoom=${viewportZoom} ` +
         `node=${nodeRect.width.toFixed(2)}x${nodeRect.height.toFixed(2)} ` +
         `visual=${visualRect.width.toFixed(2)}x${visualRect.height.toFixed(2)} ` +
         `hit=${handleRect.width.toFixed(2)}x${handleRect.height.toFixed(2)}`,
       )
-      console.warn('[AxiomResizeChromeDiagnostic]', {
+      console.warn('[AmbioResizeChromeDiagnostic]', {
         nodeId,
         viewportZoom,
         presentationScale,
@@ -552,7 +552,7 @@ function AxiomNodeResizerActive({
   return (
     <div
       ref={rootRef}
-      className="axiom-node-resizer"
+      className="ambio-node-resizer"
       data-viewport-zoom={viewportZoom}
       data-node-id={nodeId}
       style={{
@@ -586,7 +586,7 @@ function AxiomNodeResizerActive({
           return (
             <g
               key={direction.name}
-              className={`axiom-floating-resize-handle nodrag nopan ${direction.vertical ?? ''} ${direction.horizontal ?? ''}`}
+              className={`ambio-floating-resize-handle nodrag nopan ${direction.vertical ?? ''} ${direction.horizontal ?? ''}`}
               data-resize-direction={direction.name}
               onPointerDown={event => onPointerDown(event, direction)}
               onClick={event => { event.preventDefault(); event.stopPropagation() }}

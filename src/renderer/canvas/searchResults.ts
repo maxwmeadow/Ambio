@@ -86,7 +86,7 @@ export function buildSearchResults(input: {
       kind: 'infra', id: node.id, nodeId: node.id, title: node.name,
       detail: [node.provider, node.category].filter(Boolean).join(' · '),
     }))
-  // A path fragment like "canvas/Axiom" matches the path; the name ranks first.
+  // A path fragment like "canvas/Ambio" matches the path; the name ranks first.
   const files = ranked(input.files, file => {
     const byName = matchRank(fileName(file.relPath), needle)
     if (byName >= 0) return byName

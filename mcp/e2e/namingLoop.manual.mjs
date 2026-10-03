@@ -10,7 +10,7 @@ const API = 'http://127.0.0.1:7743'
 const WS = process.env.LOOP_WS ?? 'efddf5c5f623397c'
 // The scratch workspace this runs against is machine-specific; override with
 // LOOP_ROOT rather than editing the file.
-const ROOT = process.env.LOOP_ROOT ?? join(homedir(), 'axiom-loop-test')
+const ROOT = process.env.LOOP_ROOT ?? join(homedir(), 'ambio-loop-test')
 
 const pass = []
 const fail = []
@@ -38,11 +38,11 @@ const liveSystemsBefore = snap.systems.length
 // ── 2. the agent proposes, over real MCP stdio ────────────────────────────
 // Runs the MCP server from this checkout. LOOP_ACTIVE_PROJECT points it at an
 // active-project file for the scratch workspace when one is needed.
-const child = spawn('node', ['mcp/axiom-mcp.ts'], {
+const child = spawn('node', ['mcp/ambio-mcp.ts'], {
   cwd: fileURLToPath(new URL('../..', import.meta.url)),
   stdio: ['pipe', 'pipe', 'pipe'],
   env: process.env.LOOP_ACTIVE_PROJECT
-    ? { ...process.env, AXIOM_ACTIVE_PROJECT: process.env.LOOP_ACTIVE_PROJECT }
+    ? { ...process.env, AMBIO_ACTIVE_PROJECT: process.env.LOOP_ACTIVE_PROJECT }
     : process.env,
 })
 let buf = ''

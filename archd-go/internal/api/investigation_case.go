@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/runtime"
 )
 
 func (s *Server) registerCaseRoutes(mux *http.ServeMux) {

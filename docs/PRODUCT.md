@@ -1,15 +1,15 @@
-# Axiom - the product
+# Ambio - the product
 
-Status: living definition of what Axiom is and the rules it keeps. Decisions and
+Status: living definition of what Ambio is and the rules it keeps. Decisions and
 their reasoning: [DECISIONS.md](DECISIONS.md). Open work: [../WORK.md](../WORK.md).
 Observable canvas behaviour: [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md).
-Updated 2026-09-30. ("Axiom" is a working name; see DECISIONS §3.)
+Updated 2026-10-03. (Named Ambio, from Latin *ambo*, "both"; see DECISIONS §3.)
 
 ---
 
 ## 1. The thesis
 
-**Axiom is the bidirectional architecture layer between you and your coding
+**Ambio is the bidirectional architecture layer between you and your coding
 agents.** It keeps a developer and their agents on the same page about the
 architecture, in both directions, all the time.
 
@@ -19,11 +19,11 @@ drawn by hand go stale in a day; diagrams generated once are out of date the
 next time an agent runs. So people stop looking at architecture at all and
 review 40-file diffs instead.
 
-Axiom closes that gap:
+Ambio closes that gap:
 
 - **You → agent.** Draw or change the architecture - a new system, a moved
   responsibility, a relationship that should not exist - and hand it to your
-  agent as a work order. Axiom checks what was built against what you drew.
+  agent as a work order. Ambio checks what was built against what you drew.
 - **Agent → you.** Your agent draws what it thinks the architecture is, what
   it plans to build, or what it just changed, on the same surface. You confirm,
   correct or reject it before or after the code moves.
@@ -37,7 +37,7 @@ write.
 
 ### Every tool is bidirectional
 
-This is the product's first rule. For every artifact Axiom shows - systems,
+This is the product's first rule. For every artifact Ambio shows - systems,
 relationships, infrastructure, sheets, plans, rules - both parties can create
 and change it, and each sees the other's changes:
 
@@ -89,7 +89,7 @@ Edits on the Floor come in three kinds, and each is handled differently:
    Always free and not recorded: it changes how the map looks, never what it
    says.
 2. **Meaning** - what a system is called, which files belong to which system,
-   how systems nest, grouping and ungrouping. Systems are Axiom's
+   how systems nest, grouping and ungrouping. Systems are Ambio's
    interpretation of the code, not the code, so changing them does not lie
    about reality. Allowed on the Floor for you and your agents; every meaning
    edit is journaled, attributed (you or a named agent), visible to the other
@@ -106,7 +106,7 @@ Edits on the Floor come in three kinds, and each is handled differently:
    offers **Draft as a work order**, which opens a sheet with the change
    already drawn, ready to send.
 
-After a meaning edit, Axiom may also ask "Make the code match?" - for example
+After a meaning edit, Ambio may also ask "Make the code match?" - for example
 when a file moved into Payments still imports half of Orders - which drafts the
 same kind of sheet. This keeps the Floor honest without making it read-only,
 and without forcing a sheet for every rename.

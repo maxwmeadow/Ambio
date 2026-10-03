@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Meaning claims report changes to what the architecture says - a file moved
@@ -45,7 +45,7 @@ type MeaningChange struct {
 	SessionID    string   `json:"sessionId,omitempty"`
 	TS           int64    `json:"ts"`
 	EventIDs     []int64  `json:"eventIds"`
-	// Undoable is false for changes Axiom cannot reverse from the review
+	// Undoable is false for changes Ambio cannot reverse from the review
 	// (a restored system, or a change with conflicting sessions).
 	Undoable bool `json:"undoable"`
 

@@ -24,13 +24,13 @@ function surfaceTooltip(host: AgentHostInfo, state: AgentHostState): string {
       return `Configured in ${host.configPath}`
     case 'repair':
       return host.unreadablePaths.length > 0
-        ? `Axiom could not read ${host.unreadablePaths.join(', ')}, so it will not overwrite it.`
-        : `Axiom is configured in ${host.configPath}, but its mapping or inbox workflow is missing.`
+        ? `Ambio could not read ${host.unreadablePaths.join(', ')}, so it will not overwrite it.`
+        : `Ambio is configured in ${host.configPath}, but its mapping or inbox workflow is missing.`
     case 'available':
-      return `Found on this machine. Axiom will write to ${host.configPath}`
+      return `Found on this machine. Ambio will write to ${host.configPath}`
     default:
-      return `Not found on this machine. Axiom looked for ${host.configPath}. `
-        + 'Already have this installed? It may live somewhere Axiom does not check yet - use Rescan after opening it once.'
+      return `Not found on this machine. Ambio looked for ${host.configPath}. `
+        + 'Already have this installed? It may live somewhere Ambio does not check yet - use Rescan after opening it once.'
   }
 }
 
@@ -71,12 +71,12 @@ interface AgentFamilyGroup {
 }
 
 const BLANK_PROJECT_STEPS: Array<{ id: SetupStep; label: string }> = [
-  { id: 1, label: 'Add Axiom' },
+  { id: 1, label: 'Add Ambio' },
   { id: 2, label: 'Connect' },
 ]
 
 const CODEBASE_STEPS: Array<{ id: SetupStep; label: string }> = [
-  { id: 1, label: 'Add Axiom' },
+  { id: 1, label: 'Add Ambio' },
   { id: 2, label: 'Restart' },
   { id: 3, label: 'Map project' },
   { id: 4, label: 'Review' },
@@ -125,7 +125,7 @@ export function ConnectAgentScreen({
   }, [])
 
   useEffect(() => {
-    void window.axiom.listAgentHosts(project.rootPath).then(showHosts)
+    void window.ambio.listAgentHosts(project.rootPath).then(showHosts)
     return () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }
   }, [project.rootPath, showHosts])
 
@@ -225,7 +225,7 @@ export function ConnectAgentScreen({
     setRescanning(true)
     const startedAt = Date.now()
     try {
-      showHosts(await window.axiom.listAgentHosts(project.rootPath))
+      showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } finally {
       // Scanning is a handful of existsSync calls and finishes far too fast to
       // see. Without a floor the button appears inert, and the user cannot
@@ -238,10 +238,10 @@ export function ConnectAgentScreen({
 
   // Detection is guesswork about paths; this is how a user corrects it.
   const locateHost = useCallback(async (host: AgentHostInfo) => {
-    const outcome = await window.axiom.locateAgentHost(host.id)
+    const outcome = await window.ambio.locateAgentHost(host.id)
     if (outcome.ok) {
       setLocateNotices(previous => ({ ...previous, [host.id]: outcome.detail }))
-      showHosts(await window.axiom.listAgentHosts(project.rootPath))
+      showHosts(await window.ambio.listAgentHosts(project.rootPath))
       return
     }
     // A cancelled dialog is not an error worth reporting back.
@@ -251,9 +251,9 @@ export function ConnectAgentScreen({
   }, [showHosts, project.rootPath])
 
   const clearHostOverride = useCallback(async (host: AgentHostInfo) => {
-    const outcome = await window.axiom.clearAgentHostOverride(host.id)
+    const outcome = await window.ambio.clearAgentHostOverride(host.id)
     setLocateNotices(previous => ({ ...previous, [host.id]: outcome.detail }))
-    showHosts(await window.axiom.listAgentHosts(project.rootPath))
+    showHosts(await window.ambio.listAgentHosts(project.rootPath))
   }, [showHosts, project.rootPath])
 
   const chooseHost = (hostId: string) => {
@@ -266,15 +266,15 @@ export function ConnectAgentScreen({
     userSelectedHost.current = true
     setInstalling(candidate.id)
     try {
-      const outcome = await window.axiom.installAgent(candidate.id, project.rootPath)
+      const outcome = await window.ambio.installAgent(candidate.id, project.rootPath)
       setResults(current => ({ ...current, [candidate.id]: outcome }))
-      if (outcome.ok) showHosts(await window.axiom.listAgentHosts(project.rootPath))
+      if (outcome.ok) showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } catch (error) {
       setResults(current => ({
         ...current,
         [candidate.id]: {
           ok: false,
-          detail: error instanceof Error ? error.message : 'Axiom could not inspect the updated configuration.',
+          detail: error instanceof Error ? error.message : 'Ambio could not inspect the updated configuration.',
           paths: [],
         },
       }))
@@ -286,9 +286,9 @@ export function ConnectAgentScreen({
   const removeHost = async (candidate: AgentHostInfo) => {
     setInstalling(candidate.id)
     try {
-      const outcome = await window.axiom.uninstallAgent(candidate.id, project.rootPath)
+      const outcome = await window.ambio.uninstallAgent(candidate.id, project.rootPath)
       setResults(current => ({ ...current, [candidate.id]: outcome }))
-      showHosts(await window.axiom.listAgentHosts(project.rootPath))
+      showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } finally {
       setInstalling(null)
     }
@@ -297,7 +297,7 @@ export function ConnectAgentScreen({
   const installFamily = async (family: AgentFamilyGroup) => {
     setInstalling(family.id)
     try {
-      const outcome = await window.axiom.installFamily(family.id, project.rootPath)
+      const outcome = await window.ambio.installFamily(family.id, project.rootPath)
       setResults(current => {
         const next = { ...current }
         for (const m of family.modalities) {
@@ -305,7 +305,7 @@ export function ConnectAgentScreen({
         }
         return next
       })
-      if (outcome.ok) showHosts(await window.axiom.listAgentHosts(project.rootPath))
+      if (outcome.ok) showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Could not install family.'
       setResults(current => {
@@ -325,7 +325,7 @@ export function ConnectAgentScreen({
     try {
       // The main process writes reliably; the web clipboard refuses when the
       // window is not focused, and the copy then silently does nothing.
-      if (window.axiom?.copyText) await window.axiom.copyText(text)
+      if (window.ambio?.copyText) await window.ambio.copyText(text)
       else await navigator.clipboard.writeText(text)
       setCopied(true)
       if (copiedTimer.current) clearTimeout(copiedTimer.current)
@@ -350,30 +350,30 @@ export function ConnectAgentScreen({
   const stepLabels = blankProject ? BLANK_PROJECT_STEPS : CODEBASE_STEPS
 
   return (
-    <div className="axiom-connect">
+    <div className="ambio-connect">
       <WorkbenchTitleBar
-        className="axiom-connect__titlebar"
+        className="ambio-connect__titlebar"
         context={`${project.name} / Agent Setup`}
         status={indexing ? 'INDEXING' : 'AGENT SETUP'}
         statusTone={indexing ? 'busy' : 'ready'}
       />
 
-      <main className="axiom-connect__card">
-        <header className="axiom-connect__header">
-          <button type="button" className="axiom-connect__back" onClick={onBack}>{backLabel}</button>
-          <div className="axiom-connect__identity">
+      <main className="ambio-connect__card">
+        <header className="ambio-connect__header">
+          <button type="button" className="ambio-connect__back" onClick={onBack}>{backLabel}</button>
+          <div className="ambio-connect__identity">
             <div>
-              <p className="axiom-connect__eyebrow">{project.name}</p>
-              <h1>Bring an agent into Axiom</h1>
+              <p className="ambio-connect__eyebrow">{project.name}</p>
+              <h1>Bring an agent into Ambio</h1>
             </div>
-            <span className="axiom-connect__indexed">
+            <span className="ambio-connect__indexed">
               {indexing ? 'Reading source…' : `${fileCount} source ${fileCount === 1 ? 'file' : 'files'}`}
             </span>
           </div>
         </header>
 
         <nav
-          className="axiom-connect__step-nav"
+          className="ambio-connect__step-nav"
           data-mode={blankProject ? 'blank' : 'codebase'}
           aria-label="Agent setup steps"
           role="tablist"
@@ -394,40 +394,40 @@ export function ConnectAgentScreen({
           ))}
         </nav>
 
-        <div className="axiom-connect__workspace">
-          <section id="agent-setup-stage" className="axiom-connect__stage" role="tabpanel">
+        <div className="ambio-connect__workspace">
+          <section id="agent-setup-stage" className="ambio-connect__stage" role="tabpanel">
             {activeStep === 1 && (
-              <div className="axiom-connect__step-panel">
-                <p className="axiom-connect__step-kicker">Step 1 of {blankProject ? 2 : 4}</p>
-                <h2>Add Axiom to your agent</h2>
-                <p className="axiom-connect__step-copy">
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 1 of {blankProject ? 2 : 4}</p>
+                <h2>Add Ambio to your agent</h2>
+                <p className="ambio-connect__step-copy">
                   {blankProject
-                    ? 'Choose the agent and harness you use. Axiom adds its MCP connection and reusable workflows.'
-                    : 'Choose the agent and harness you use. Axiom adds its MCP connection, canvas inbox, and mapping workflow.'}
+                    ? 'Choose the agent and harness you use. Ambio adds its MCP connection and reusable workflows.'
+                    : 'Choose the agent and harness you use. Ambio adds its MCP connection, canvas inbox, and mapping workflow.'}
                 </p>
 
-                <div className="axiom-connect__list-bar">
-                  <span className="axiom-connect__list-hint">
-                    Axiom scans the machine it is running on. Installed something since this screen opened?
+                <div className="ambio-connect__list-bar">
+                  <span className="ambio-connect__list-hint">
+                    Ambio scans the machine it is running on. Installed something since this screen opened?
                   </span>
                   <button
                     type="button"
-                    className="axiom-connect__rescan"
+                    className="ambio-connect__rescan"
                     onClick={() => void rescan()}
                     disabled={rescanning}
                     aria-label="Rescan"
                     aria-busy={rescanning}
                   >
-                    <span className="axiom-connect__rescan-label" data-busy={rescanning}>
+                    <span className="ambio-connect__rescan-label" data-busy={rescanning}>
                       Rescan
                     </span>
                     {rescanning && (
-                      <span className="axiom-connect__rescan-spinner" aria-hidden="true" />
+                      <span className="ambio-connect__rescan-spinner" aria-hidden="true" />
                     )}
                   </button>
                 </div>
 
-                <ul className="axiom-connect__families" aria-label="Supported agents and modalities">
+                <ul className="ambio-connect__families" aria-label="Supported agents and modalities">
                   {families.map(family => {
                     const familyPres = presentAgentFamily(
                       family.id,
@@ -442,7 +442,7 @@ export function ConnectAgentScreen({
                     return (
                       <li
                         key={family.id}
-                        className="axiom-connect__family-card"
+                        className="ambio-connect__family-card"
                         data-state={familyPres.state}
                         data-expanded={isExpanded}
                       >
@@ -451,7 +451,7 @@ export function ConnectAgentScreen({
                             action is always in the same place. */}
                         <button
                           type="button"
-                          className="axiom-connect__family-row"
+                          className="ambio-connect__family-row"
                           aria-expanded={isExpanded}
                           aria-controls={`surfaces-${family.id}`}
                           onClick={() => setExpandedFamilies(previous => {
@@ -462,24 +462,24 @@ export function ConnectAgentScreen({
                           })}
                         >
                           <span
-                            className="axiom-connect__host-signal"
+                            className="ambio-connect__host-signal"
                             data-state={familyPres.state}
                             data-tooltip={familyPres.detail}
                             aria-label={`${family.label} status: ${familyPres.detail}`}
                           />
                           <strong>{family.label}</strong>
-                          <span className="axiom-connect__family-summary">
+                          <span className="ambio-connect__family-summary">
                             {familyPres.installedCount > 0
                               ? `${familyPres.installedCount} of ${familyPres.totalCount} configured`
                               : familyPres.detectedCount > 0
                                 ? `${familyPres.detectedCount} detected`
                                 : 'Not found'}
                           </span>
-                          <span className="axiom-connect__family-chevron" aria-hidden="true" />
+                          <span className="ambio-connect__family-chevron" aria-hidden="true" />
                         </button>
 
                         {isExpanded && (
-                          <div id={`surfaces-${family.id}`} className="axiom-connect__surfaces">
+                          <div id={`surfaces-${family.id}`} className="ambio-connect__surfaces">
                             {family.modalities.map(modality => {
                               const pres = presentAgentHost(
                                 modality,
@@ -491,26 +491,26 @@ export function ConnectAgentScreen({
                               return (
                                 <Fragment key={modality.id}>
                                 <div
-                                  className="axiom-connect__surface"
+                                  className="ambio-connect__surface"
                                   data-state={pres.state}
                                 >
                                   <span
-                                    className="axiom-connect__modality-dot"
+                                    className="ambio-connect__modality-dot"
                                     data-state={pres.state}
                                     title={surfaceTooltip(modality, pres.state)}
                                   />
-                                  <span className="axiom-connect__surface-label">
+                                  <span className="ambio-connect__surface-label">
                                     {modality.modalityLabel || modality.label}
                                   </span>
-                                  <span className="axiom-connect__surface-actions">
+                                  <span className="ambio-connect__surface-actions">
                                     {pres.action === 'none' ? (
-                                      <span className="axiom-connect__surface-state">
+                                      <span className="ambio-connect__surface-state">
                                         {SURFACE_STATE_LABEL[pres.state]}
                                       </span>
                                     ) : (
                                       <button
                                         type="button"
-                                        className="axiom-connect__install"
+                                        className="ambio-connect__install"
                                         disabled={busy}
                                         onClick={() => {
                                           chooseHost(modality.id)
@@ -530,9 +530,9 @@ export function ConnectAgentScreen({
                                     {(pres.state === 'live' || pres.state === 'installed' || pres.state === 'repair') && (
                                       <button
                                         type="button"
-                                        className="axiom-connect__surface-locate"
+                                        className="ambio-connect__surface-locate"
                                         disabled={busy}
-                                        title={`Remove Axiom's connection and workflow from ${modality.modalityLabel || modality.label}`}
+                                        title={`Remove Ambio's connection and workflow from ${modality.modalityLabel || modality.label}`}
                                         onClick={() => void removeHost(modality)}
                                       >
                                         Remove
@@ -541,11 +541,11 @@ export function ConnectAgentScreen({
 
                                     {/* "Not found" should never be the end of
                                         the conversation - the tool may simply
-                                        live somewhere Axiom does not know. */}
+                                        live somewhere Ambio does not know. */}
                                     {modality.configOverride ? (
                                       <button
                                         type="button"
-                                        className="axiom-connect__surface-locate"
+                                        className="ambio-connect__surface-locate"
                                         onClick={() => void clearHostOverride(modality)}
                                       >
                                         Clear
@@ -553,7 +553,7 @@ export function ConnectAgentScreen({
                                     ) : pres.state === 'missing' ? (
                                       <button
                                         type="button"
-                                        className="axiom-connect__surface-locate"
+                                        className="ambio-connect__surface-locate"
                                         onClick={() => void locateHost(modality)}
                                       >
                                         Locate…
@@ -562,19 +562,19 @@ export function ConnectAgentScreen({
                                   </span>
 
                                   {modality.configOverride && (
-                                    <span className="axiom-connect__surface-override">
+                                    <span className="ambio-connect__surface-override">
                                       Using {modality.configOverride}
                                     </span>
                                   )}
 
                                   {locateNotices[modality.id] && (
-                                    <span className="axiom-connect__surface-override">
+                                    <span className="ambio-connect__surface-override">
                                       {locateNotices[modality.id]}
                                     </span>
                                   )}
                                   {modalityResult && (
                                     <p
-                                      className="axiom-connect__install-result"
+                                      className="ambio-connect__install-result"
                                       data-ok={modalityResult.ok}
                                     >
                                       {modalityResult.detail}
@@ -585,18 +585,18 @@ export function ConnectAgentScreen({
                                 {modality.sharedSurfaces.map(surface => (
                                   <div
                                     key={surface.id}
-                                    className="axiom-connect__surface axiom-connect__surface--shared"
+                                    className="ambio-connect__surface ambio-connect__surface--shared"
                                     data-state={pres.state}
                                   >
                                     <span
-                                      className="axiom-connect__modality-dot"
+                                      className="ambio-connect__modality-dot"
                                       data-state={pres.state}
                                       title={surfaceTooltip(modality, pres.state)}
                                     />
-                                    <span className="axiom-connect__surface-label">
+                                    <span className="ambio-connect__surface-label">
                                       {surface.label}
                                     </span>
-                                    <span className="axiom-connect__surface-state">
+                                    <span className="ambio-connect__surface-state">
                                       Uses the {modality.modalityLabel} configuration
                                     </span>
                                   </div>
@@ -606,10 +606,10 @@ export function ConnectAgentScreen({
                             })}
 
                             {showBatch && (
-                              <div className="axiom-connect__surfaces-footer">
+                              <div className="ambio-connect__surfaces-footer">
                                 <button
                                   type="button"
-                                  className="axiom-connect__install axiom-connect__install--batch"
+                                  className="ambio-connect__install ambio-connect__install--batch"
                                   disabled={installing === family.id}
                                   onClick={() => void installFamily(family)}
                                 >
@@ -637,47 +637,47 @@ export function ConnectAgentScreen({
             )}
 
             {activeStep === 2 && blankProject && (
-              <div className="axiom-connect__step-panel">
-                <p className="axiom-connect__step-kicker">Step 2 of 2</p>
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 2 of 2</p>
                 <h2>Connect {selectedHost?.modalityLabel || selectedHost?.label || 'your agent'}</h2>
                 {selectedVerified ? (
                   <>
-                    <p className="axiom-connect__step-copy">
-                      {selectedHost?.modalityLabel || selectedHost?.label} called Axiom from this project. The inbox connection is verified.
+                    <p className="ambio-connect__step-copy">
+                      {selectedHost?.modalityLabel || selectedHost?.label} called Ambio from this project. The inbox connection is verified.
                     </p>
-                    <div className="axiom-connect__waiting-line" data-state="connected" aria-live="polite">
+                    <div className="ambio-connect__waiting-line" data-state="connected" aria-live="polite">
                       <span aria-hidden="true" /> Inbox access verified
                     </div>
                   </>
                 ) : selectedOnline ? (
                   <>
-                    <p className="axiom-connect__step-copy">
+                    <p className="ambio-connect__step-copy">
                       The MCP process is online. Ask the agent to check inbox access before opening the canvas.
                     </p>
-                    <div className="axiom-connect__command" data-kind="connection check">
+                    <div className="ambio-connect__command" data-kind="connection check">
                       <span>{connectionCheckPrompt(project)}</span>
                       <button type="button" onClick={() => void copyText(connectionCheckPrompt(project))}>{copied ? 'Copied ✓' : 'Copy check'}</button>
                     </div>
-                    <div className="axiom-connect__waiting-line" aria-live="polite">
-                      <span aria-hidden="true" /> Waiting for the agent to verify Axiom tools
+                    <div className="ambio-connect__waiting-line" aria-live="polite">
+                      <span aria-hidden="true" /> Waiting for the agent to verify Ambio tools
                     </div>
                   </>
                 ) : selectedReady ? (
                   <>
-                    <p className="axiom-connect__step-copy">
+                    <p className="ambio-connect__step-copy">
                       {selectedHost?.restartDetail || 'Restart it and open a new session. Agents load MCP connections at startup.'}
                     </p>
-                    <div className="axiom-connect__instruction-card">
+                    <div className="ambio-connect__instruction-card">
                       <span aria-hidden="true">↻</span>
-                      <p><strong>{selectedHost?.restartAction || 'Start fresh.'}</strong> Keep Axiom open while the agent connects.</p>
+                      <p><strong>{selectedHost?.restartAction || 'Start fresh.'}</strong> Keep Ambio open while the agent connects.</p>
                     </div>
-                    <div className="axiom-connect__waiting-line" aria-live="polite">
+                    <div className="ambio-connect__waiting-line" aria-live="polite">
                       <span aria-hidden="true" /> Waiting for a live agent
                     </div>
                   </>
                 ) : (
-                  <p className="axiom-connect__step-copy">
-                    Select an available agent and finish installing Axiom before restarting it.
+                  <p className="ambio-connect__step-copy">
+                    Select an available agent and finish installing Ambio before restarting it.
                   </p>
                 )}
                 <StepActions
@@ -691,18 +691,18 @@ export function ConnectAgentScreen({
             )}
 
             {activeStep === 2 && !blankProject && (
-              <div className="axiom-connect__step-panel">
-                <p className="axiom-connect__step-kicker">Step 2 of 4</p>
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 2 of 4</p>
                 <h2>{selectedHost?.restartAction || `Restart ${selectedHost?.modalityLabel || selectedHost?.label}`}</h2>
 
                 {/* Modality switcher if multiple are in this family */}
                 {selectedFamily && selectedFamily.modalities.length > 1 && (
-                  <div className="axiom-connect__step-tabs" role="tablist">
+                  <div className="ambio-connect__step-tabs" role="tablist">
                     {selectedFamily.modalities.map(m => (
                       <button
                         key={m.id}
                         type="button"
-                        className="axiom-connect__step-tab"
+                        className="ambio-connect__step-tab"
                         data-selected={selectedHostId === m.id}
                         onClick={() => chooseHost(m.id)}
                       >
@@ -714,17 +714,17 @@ export function ConnectAgentScreen({
 
                 {selectedReady ? (
                   <>
-                    <p className="axiom-connect__step-copy">
+                    <p className="ambio-connect__step-copy">
                       {selectedHost?.restartDetail || 'Close its existing session and open a new one. Agents load MCP connections and workflows at startup.'}
                     </p>
-                    <div className="axiom-connect__instruction-card">
+                    <div className="ambio-connect__instruction-card">
                       <span aria-hidden="true">↻</span>
                       <p><strong>{selectedHost?.restartAction || 'Restart'}:</strong> {selectedHost?.restartDetail}</p>
                     </div>
                   </>
                 ) : (
-                  <p className="axiom-connect__step-copy">
-                    Select an available agent and finish installing Axiom before restarting it.
+                  <p className="ambio-connect__step-copy">
+                    Select an available agent and finish installing Ambio before restarting it.
                   </p>
                 )}
                 <StepActions
@@ -737,18 +737,18 @@ export function ConnectAgentScreen({
             )}
 
             {activeStep === 3 && !blankProject && (
-              <div className="axiom-connect__step-panel">
-                <p className="axiom-connect__step-kicker">Step 3 of 4</p>
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 3 of 4</p>
                 <h2>Ask {selectedHost?.modalityLabel || selectedHost?.label} to map this project</h2>
 
                 {/* Modality switcher if multiple are in this family */}
                 {selectedFamily && selectedFamily.modalities.length > 1 && (
-                  <div className="axiom-connect__step-tabs" role="tablist">
+                  <div className="ambio-connect__step-tabs" role="tablist">
                     {selectedFamily.modalities.map(m => (
                       <button
                         key={m.id}
                         type="button"
-                        className="axiom-connect__step-tab"
+                        className="ambio-connect__step-tab"
                         data-selected={selectedHostId === m.id}
                         onClick={() => chooseHost(m.id)}
                       >
@@ -760,35 +760,35 @@ export function ConnectAgentScreen({
 
                 {selectedHost?.triggerKind === 'chat prompt' ? (
                   <>
-                    <p className="axiom-connect__step-copy">
+                    <p className="ambio-connect__step-copy">
                       In {selectedHost.modalityLabel || selectedHost.label}, paste this instruction into the chat:
                     </p>
-                    <div className="axiom-connect__command" data-kind="chat prompt">
+                    <div className="ambio-connect__command" data-kind="chat prompt">
                       <span>{selectedHost.promptText || selectedHost.command}</span>
                       <button type="button" onClick={() => void copyText(selectedHost.promptText || selectedHost.command)}>
                         {copied ? 'Copied ✓' : 'Copy prompt'}
                       </button>
                     </div>
-                    <p className="axiom-connect__command-note">
-                      This prompts {selectedHost.modalityLabel || selectedHost.label} to use Axiom&apos;s tools to map the codebase.
+                    <p className="ambio-connect__command-note">
+                      This prompts {selectedHost.modalityLabel || selectedHost.label} to use Ambio&apos;s tools to map the codebase.
                     </p>
                   </>
                 ) : selectedHost?.command ? (
                   <>
-                    <p className="axiom-connect__step-copy">
-                      {selectedReady ? 'In the new session, run' : 'Once Axiom is installed, run'} this {commandKind(selectedHost.command, selectedHost.triggerKind)} exactly as shown.
+                    <p className="ambio-connect__step-copy">
+                      {selectedReady ? 'In the new session, run' : 'Once Ambio is installed, run'} this {commandKind(selectedHost.command, selectedHost.triggerKind)} exactly as shown.
                     </p>
-                    <div className="axiom-connect__command" data-kind={commandKind(selectedHost.command, selectedHost.triggerKind)}>
+                    <div className="ambio-connect__command" data-kind={commandKind(selectedHost.command, selectedHost.triggerKind)}>
                       <span>{selectedHost.command}</span>
                       <button type="button" onClick={() => void copyText(selectedHost.command)}>{copied ? 'Copied ✓' : 'Copy'}</button>
                     </div>
-                    <p className="axiom-connect__command-note">
-                      The workflow carries Axiom’s mapping brief. You do not need to paste any extra prompt.
+                    <p className="ambio-connect__command-note">
+                      The workflow carries Ambio’s mapping brief. You do not need to paste any extra prompt.
                     </p>
                   </>
                 ) : (
-                  <p className="axiom-connect__step-copy">
-                    {selectedHost?.modalityLabel || selectedHost?.label} is not ready yet. Return to step 1 and install or repair Axiom first.
+                  <p className="ambio-connect__step-copy">
+                    {selectedHost?.modalityLabel || selectedHost?.label} is not ready yet. Return to step 1 and install or repair Ambio first.
                   </p>
                 )}
                 <StepActions
@@ -801,20 +801,20 @@ export function ConnectAgentScreen({
             )}
 
             {activeStep === 4 && !blankProject && (
-              <div className="axiom-connect__step-panel">
-                <p className="axiom-connect__step-kicker">Step 4 of 4</p>
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 4 of 4</p>
                 <h2>{phase === 'proposed' ? 'Your architecture is ready' : 'Wait for the proposal'}</h2>
-                <p className="axiom-connect__step-copy">
+                <p className="ambio-connect__step-copy">
                   {phase === 'proposed'
                     ? 'Your agent finished mapping the codebase. Review its systems, nesting, and file placement before anything becomes canonical.'
                     : hasLivePresence
-                      ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected and working. Axiom will light this step when the proposal arrives.`
-                      : 'Keep Axiom open while the agent maps the project. You can return to any earlier step without losing progress.'}
+                      ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected and working. Ambio will light this step when the proposal arrives.`
+                      : 'Keep Ambio open while the agent maps the project. You can return to any earlier step without losing progress.'}
                 </p>
                 {phase === 'proposed' ? (
-                  <button type="button" className="axiom-connect__review" onClick={onReview}>Review architecture →</button>
+                  <button type="button" className="ambio-connect__review" onClick={onReview}>Review architecture →</button>
                 ) : (
-                  <div className="axiom-connect__waiting-line" aria-live="polite">
+                  <div className="ambio-connect__waiting-line" aria-live="polite">
                     <span aria-hidden="true" /> Waiting for a mapping proposal
                   </div>
                 )}
@@ -824,13 +824,13 @@ export function ConnectAgentScreen({
             )}
           </section>
 
-          <aside className="axiom-connect__mascot">
+          <aside className="ambio-connect__mascot">
             <AgentMascot state={mascotState} hostLabel={selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
           </aside>
         </div>
 
         {!blankProject && (
-          <footer className="axiom-connect__footer">
+          <footer className="ambio-connect__footer">
             <span>Steps are always available; you can move back and forth at any time.</span>
             <button type="button" onClick={onSkip}>Open canvas without mapping</button>
           </footer>
@@ -855,9 +855,9 @@ function StepActions({
 }) {
   if (!onBack && !onNext) return null
   return (
-    <div className="axiom-connect__step-actions">
-      {onBack && <button type="button" className="axiom-connect__secondary" onClick={onBack}>{backLabel}</button>}
-      {onNext && <button type="button" className="axiom-connect__primary" onClick={onNext} disabled={nextDisabled}>{nextLabel} →</button>}
+    <div className="ambio-connect__step-actions">
+      {onBack && <button type="button" className="ambio-connect__secondary" onClick={onBack}>{backLabel}</button>}
+      {onNext && <button type="button" className="ambio-connect__primary" onClick={onNext} disabled={nextDisabled}>{nextLabel} →</button>}
     </div>
   )
 }

@@ -41,8 +41,8 @@ function StencilGlyph({ shape }: { shape: StencilDef['shape'] }) {
 
 export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stencil: StencilDef) => void; disabled?: boolean }) {
   return (
-    <div className="axiom-sheet-palette" aria-label="Sheet stencils" data-onboarding-target="stencils">
-      <div className="axiom-sheet-palette__title">Stencils</div>
+    <div className="ambio-sheet-palette" aria-label="Sheet stencils" data-onboarding-target="stencils">
+      <div className="ambio-sheet-palette__title">Stencils</div>
       {STENCILS.map(stencil => (
         <button
           type="button"
@@ -53,16 +53,16 @@ export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stenci
           title={`${stencil.hint} · click to add to the selected system, or drag to place`}
           draggable={!disabled}
           onDragStart={event => {
-            event.dataTransfer.setData('application/axiom-stencil', JSON.stringify(stencil))
+            event.dataTransfer.setData('application/ambio-stencil', JSON.stringify(stencil))
             event.dataTransfer.effectAllowed = 'copy'
           }}
-          className="axiom-sheet-palette__item"
+          className="ambio-sheet-palette__item"
         >
           <StencilGlyph shape={stencil.shape} />
           <span>{stencil.label}</span>
         </button>
       ))}
-      <div className="axiom-sheet-palette__hint">
+      <div className="ambio-sheet-palette__hint">
         click to add · drag to place · double-click to rename
       </div>
     </div>

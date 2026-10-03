@@ -74,7 +74,7 @@ jobs:
         working-directory: archd-go
         run: go test -race ./...
 
-      # Axiom is AGPL-3.0: every shipped dependency must be compatible.
+      # Ambio is AGPL-3.0: every shipped dependency must be compatible.
       - name: Check third-party licenses
         if: runner.os == 'Linux'
         run: node scripts/third-party-notices.mjs --check

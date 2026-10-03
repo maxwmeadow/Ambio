@@ -25,7 +25,7 @@ export function ChromeButton({
   return (
     <button
       type="button"
-      className={active ? 'axiom-chrome-button axiom-chrome-button--active' : 'axiom-chrome-button'}
+      className={active ? 'ambio-chrome-button ambio-chrome-button--active' : 'ambio-chrome-button'}
       onClick={onClick}
       title={shortcut ? `${label} (${shortcut})` : label}
       aria-label={label}
@@ -34,8 +34,8 @@ export function ChromeButton({
       aria-haspopup={ariaHasPopup}
     >
       {children}
-      <span className="axiom-chrome-button__label">{visualLabel ?? label}</span>
-      {shortcut && <kbd className="axiom-chrome-button__shortcut">{shortcut}</kbd>}
+      <span className="ambio-chrome-button__label">{visualLabel ?? label}</span>
+      {shortcut && <kbd className="ambio-chrome-button__shortcut">{shortcut}</kbd>}
     </button>
   )
 }

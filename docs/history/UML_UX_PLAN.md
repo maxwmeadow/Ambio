@@ -1,11 +1,11 @@
-# Axiom - UML Experience Layer: Sheets, Intent, and the Living Model
+# Ambio - UML Experience Layer: Sheets, Intent, and the Living Model
 
 > **Historical design plan (July 2026).** Kept for its reasoning. It is not a
 > description of the current product. Current behaviour lives in
 > [../PRODUCT.md](../PRODUCT.md), [../CANVAS_BEHAVIOR_CONTRACT.md](../CANVAS_BEHAVIOR_CONTRACT.md),
 > [../SHEET_WORKFLOW.md](../SHEET_WORKFLOW.md) and [../INBOX_PROTOCOL.md](../INBOX_PROTOCOL.md);
 > open work lives in [../../WORK.md](../../WORK.md). Superseded here:
-> sheets stored as `.axiom/sheets/` JSON in the repo (sheets live in the local
+> sheets stored as `.ambio/sheets/` JSON in the repo (sheets live in the local
 > SQLite map; committing maps is an open decision), the outbox drain,
 > piggyback trailer and `await_canvas` long-poll (replaced by addressed work
 > orders), dimming the Floor while a sheet is active (live nodes stay at full
@@ -38,7 +38,7 @@ edges - for code that does not exist yet. Then the drawing becomes the spec.
 
 This is visual **spec-driven development**, the dominant 2026 agent workflow
 ("the spec declares intent; the code realizes it"), with tldraw's Make Real as
-prior art for drawn-design→agent-build. Axiom's unfair advantage over both: the
+prior art for drawn-design→agent-build. Ambio's unfair advantage over both: the
 same canvas already knows reality, so the drawn spec can *reconcile* against
 what the agent actually builds.
 
@@ -101,7 +101,7 @@ the base layer; sheets are Photoshop-style overlays stacked on it:**
 - The rail becomes a **layer panel**: eye toggles (multiple sheets visible,
   stacked), opacity, active-layer-only editing, z-order
 - Everything stays spatially connected to reality - you see your design *in
-  the context of* the system it extends, which is the entire reason Axiom
+  the context of* the system it extends, which is the entire reason Ambio
   exists
 
 Consequences: `sheet_elements` per-sheet x/y applies only to planned/floating
@@ -153,7 +153,7 @@ anchor dies - mitigated by the disconnected-anchor badge and snap-to-free.
 
 ## Revision 2b - Unified Node Architecture (canvas/node system convergence)
 
-Verdict after code-grounded review (Gemini, deep pass over AxiomCanvas +
+Verdict after code-grounded review (Gemini, deep pass over AmbioCanvas +
 all node components): **no full rebuild.** The layout engine (grid nesting,
 depth scaling, snap previews, barrier drag) only manipulates ReactFlow
 position/size metadata - it has zero dependency on node visuals, which live
@@ -196,11 +196,11 @@ box** while expanded and returns to its shape when collapsed.
 
 ## Vision
 
-Axiom exists because UML fell away exactly when it became most needed: codebases now change faster than any hand-maintained diagram can follow. Every classic UML tool eventually produced the same artifact - a diagram that was true the day it was drawn and a lie six weeks later.
+Ambio exists because UML fell away exactly when it became most needed: codebases now change faster than any hand-maintained diagram can follow. Every classic UML tool eventually produced the same artifact - a diagram that was true the day it was drawn and a lie six weeks later.
 
 The classic tools' deepest idea was right: **one model, many diagrams.** Enterprise Architect, Visual Paradigm, MagicDraw, and Structurizr all separate the *model* (the single source of truth about elements and relationships) from *diagrams/views* (curated, arranged projections of it). What killed them was the model half: humans had to author it, and round-trip engineering - the promised code↔model sync - reliably broke down after two or three iterations, leaving model and code drifting apart forever.
 
-**Axiom inverts the authorship.** The model is *derived*: archd parses, clusters, watches, and traces, so the model is always true by construction. What the human (and the agent) authors is everything the code cannot say about itself:
+**Ambio inverts the authorship.** The model is *derived*: archd parses, clusters, watches, and traces, so the model is always true by construction. What the human (and the agent) authors is everything the code cannot say about itself:
 
 1. **Views** - which subset of the model matters for this story, arranged this way ("Sheets")
 2. **Intent** - what the architecture is *supposed* to be, so reality can be checked against it
@@ -226,22 +226,22 @@ This is the UML experience with the fatal flaw removed. You never redraw a class
 | **ArchUnit / dependency-cruiser / go-arch-lint** | **Architecture as executable constraints** ("UI must not import DB") - fitness functions that fail CI on drift | Text rules divorced from any visual model |
 | **CodeSee / Sourcetrail** (dead) | Auto-derived code maps | Read-only: nothing to author, so nothing to care about; no agent era yet |
 
-**The C4 model** (Context → Containers → Components → Code) matters most: it won modern architecture documentation *by restricting vocabulary* - four zoom levels, boxes and arrows, no 150-element UML palette. Axiom's existing hierarchy maps onto it almost perfectly:
+**The C4 model** (Context → Containers → Components → Code) matters most: it won modern architecture documentation *by restricting vocabulary* - four zoom levels, boxes and arrows, no 150-element UML palette. Ambio's existing hierarchy maps onto it almost perfectly:
 
-| C4 level | Axiom equivalent | Derived from |
+| C4 level | Ambio equivalent | Derived from |
 |---|---|---|
 | **L1 System Context** | Workspace + Infra nodes | Roots + infra layer |
 | **L2 Containers** | Top-level Systems (+ platform/db infra) | Clustering + user/agent curation |
 | **L3 Components** | Sub-systems and Files | Clustering + assignments |
 | **L4 Code** | Symbols (classes/functions) + call graph | Tree-sitter symbol table |
 
-Axiom is, in effect, **a C4 tool whose model populates itself.**
+Ambio is, in effect, **a C4 tool whose model populates itself.**
 
 ---
 
 ## Core Concept: The Floor and the Sheets
 
-Today Axiom has exactly one view: the live master canvas. That view is sacred - it must always show everything as it is. The UML experience adds authored views *beside* it, never instead of it. Drafting-room vocabulary, matching the existing aesthetic:
+Today Ambio has exactly one view: the live master canvas. That view is sacred - it must always show everything as it is. The UML experience adds authored views *beside* it, never instead of it. Drafting-room vocabulary, matching the existing aesthetic:
 
 ### The Floor (exists today)
 The live master canvas. Every system, file, infra node, live heat, runtime traces. Always complete, always current, never editable in content - you arrange it, but you can't lie on it.
@@ -273,7 +273,7 @@ A sheet stores its member set explicitly (user dragged these things on) **plus**
 
 ## The Four Diagram Experiences
 
-Instead of UML's 14 diagram types, four experiences that cover what people actually drew - each one powered by data Axiom already has:
+Instead of UML's 14 diagram types, four experiences that cover what people actually drew - each one powered by data Ambio already has:
 
 ### 1. Structure sheets (≈ component / package / C4 L2-L3)
 The bread and butter. Systems, files, infra as boxes; import/call/infra edges. This is the existing canvas vocabulary, curated. Edge display per sheet: observed edges (derived, solid, weighted) can be shown, filtered, or hidden per sheet.
@@ -284,7 +284,7 @@ Drop a *file* onto a sheet and expand it to **symbol level**: the classic three-
 Honest scoping: field/attribute extraction and type relationships (inheritance, implements) vary by language and parser depth - ship methods/functions first, enrich per language.
 
 ### 3. Sequence sheets (≈ sequence diagram - the AppMap move)
-**Never hand-drawn. Always generated.** Axiom already captures runtime traces with args, returns, exceptions, and investigation recordings linked to commits. A sequence sheet is a projection: participants (files or symbols) as lifelines, observed calls as ordered arrows, real argument values on hover. Sources:
+**Never hand-drawn. Always generated.** Ambio already captures runtime traces with args, returns, exceptions, and investigation recordings linked to commits. A sequence sheet is a projection: participants (files or symbols) as lifelines, observed calls as ordered arrows, real argument values on hover. Sources:
 - a recorded investigation (replay → sequence view)
 - a live watch session ("record the next 30 seconds")
 - static fallback: a `get_call_path` result rendered as a *potential* sequence (visually distinct from observed)
@@ -315,7 +315,7 @@ A left-edge vertical rail (drafting-cabinet drawer labels): The Floor pinned at 
 
 ### Creating and populating sheets
 - **Lasso → "New sheet from selection"** - the existing lasso flow gains a second action beside "New System"
-- **Blank sheet + Model Explorer** - a new left panel (VP's best idea): the model as a searchable tree (Systems → files → symbols; Infra; Investigations). Drag anything onto the sheet. This finally gives Axiom a text-first navigation surface alongside the spatial one
+- **Blank sheet + Model Explorer** - a new left panel (VP's best idea): the model as a searchable tree (Systems → files → symbols; Infra; Investigations). Drag anything onto the sheet. This finally gives Ambio a text-first navigation surface alongside the spatial one
 - **From an investigation** - "Open as sequence sheet" on any recorded investigation
 - **By an agent** - "draw me the payment flow" (below)
 
@@ -404,12 +404,12 @@ archd keeps a per-workspace **canvas outbox**. The canvas "Send to agent"
 action enqueues a message; the MCP server drains it. Two complementary
 delivery paths:
 
-1. **Piggyback delivery (the trick that makes it feel live).** Axiom owns one
+1. **Piggyback delivery (the trick that makes it feel live).** Ambio owns one
    channel into every agent's context on every host: *its own tool results*.
-   Every axiom MCP tool response gets a one-line trailer appended when the
+   Every ambio MCP tool response gets a one-line trailer appended when the
    outbox is non-empty:
    `⚑ 1 unread canvas message from the user - call get_canvas_updates`.
-   An agent that is using Axiom at all (tracing, watching, editing systems -
+   An agent that is using Ambio at all (tracing, watching, editing systems -
    which is constantly, in this product) receives the user's prompt within one
    tool call, with zero host-specific machinery. No polling loop, no config.
 2. **Long-poll collaboration mode.** An `await_canvas(timeoutSeconds≤45)` tool
@@ -424,7 +424,7 @@ delivery paths:
 ### Tier 2 - MCP Prompt (native, for interactive hosts)
 
 The server exposes a `review-canvas` **MCP Prompt**. In hosts with prompt
-support the user types `/axiom:review-canvas` (Claude Code renders it as a
+support the user types `/ambio:review-canvas` (Claude Code renders it as a
 slash command automatically) and the server injects the pending note + change
 summary, perfectly formatted. This is the built-in way to *start* a session
 from canvas state.
@@ -458,7 +458,7 @@ The payload is never raw coordinates. The canvas composes:
   the exchange is spatially anchored where the question lives
 - Unanswered queued messages surface in the sheet-rail health chips
 
-### How agents see sheets: ASM (Axiom Sheet Markup)
+### How agents see sheets: ASM (Ambio Sheet Markup)
 
 Agents can't see the canvas, so every sheet feature must round-trip through
 text. `get_sheet` renders **ASM** - a compact markdown-like format (~300–800
@@ -637,7 +637,7 @@ closure. `exclude` globs keep tests and mocks from flooding violations.
 ### Storage: Git-colocated, SQLite-cached (hostile-review fix)
 Sheets locked in a local SQLite file can't follow branches or reach teammates -
 the exact CodeSee failure. Authored artifacts (sheets, rules, annotations,
-intent policies) live in **`.axiom/sheets/` as JSON files in the repo**, one
+intent policies) live in **`.ambio/sheets/` as JSON files in the repo**, one
 file per sheet, referencing elements by durable keys (rel_path for files,
 system name-path for systems, service+name for infra). archd watches the
 directory and syncs into SQLite (the runtime cache/join layer); canvas edits
@@ -670,7 +670,7 @@ Schema (sheets, sheet_elements, annotations), CRUD API + WS patches, sheet rail 
 Tombstone/ghost lifecycle (triggers + acknowledge UX), sheet rules ("members of system X"), sheet health chip, Model Explorer panel with drag-to-sheet, alignment guides.
 
 ### Phase U3 - Intent + drift (2 wks)
-intent_edges/boundaries/violations schema, drawn intent edges + boundary bands on sheets, the checker + Floor/sheet badges, drift panel. MCP: declare_intent, declare_boundary, check_architecture, get_drift_report. *This is the phase that makes Axiom UML rather than a diagram viewer.*
+intent_edges/boundaries/violations schema, drawn intent edges + boundary bands on sheets, the checker + Floor/sheet badges, drift panel. MCP: declare_intent, declare_boundary, check_architecture, get_drift_report. *This is the phase that makes Ambio UML rather than a diagram viewer.*
 
 ### Phase U4 - Class sheets (1–1.5 wks)
 SymbolNode with compartments from the symbol table, expand-file-to-symbols on sheets, symbol-level call edges, per-language enrichment as parser allows.
@@ -684,7 +684,7 @@ Mermaid/PlantUML/SVG export with title block; auto-layout suite (flow/layered/ra
 ### Phase U-C - Canvas-to-Agent channel (1–1.5 wks; parallel-safe, can ship right after U1)
 canvas_outbox schema + API, note composer + delivery states on canvas,
 `get_canvas_updates`/`await_canvas`/`reply_to_canvas` tools, the piggyback
-trailer on all axiom tool responses, `review-canvas` MCP Prompt, Claude Code
+trailer on all ambio tool responses, `review-canvas` MCP Prompt, Claude Code
 Stop-hook snippet. Depends only on U1 (notes/annotations for replies) - this
 is deliberately early because it multiplies the value of every later phase.
 
@@ -700,7 +700,7 @@ Gemini challenged the draft at deep thinking depth; seven issues, all resolved i
 4. **Checker vs the single write connection** (high) - inline checking stalls the canvas. → Dedicated read-only connection, async + debounced; transit checks on demand; exclude globs for tests/mocks.
 5. **ReactFlow projection switching** (medium) - shared instance = sliding nodes, viewport/selection bleed. → Keyed remount + per-sheet persisted viewport.
 6. **Tombstone/ghost fatigue** (medium) - refactors flood sheets with chores. → Auto-prune uninvested tombstones, aggregate ghosts into tray banners, bulk review.
-7. **Local-only sheets can't collaborate or branch** (medium) - → Git-colocated `.axiom/sheets/` JSON as source of truth, SQLite as cache; agents amend sheets inside code PRs.
+7. **Local-only sheets can't collaborate or branch** (medium) - → Git-colocated `.ambio/sheets/` JSON as source of truth, SQLite as cache; agents amend sheets inside code PRs.
 
 Plus one flaw the review missed, found by code inspection: **the watcher never subscribed to Remove/Rename events**, so deletions are invisible to the live model today. Fixed as a U2 prerequisite (with content-hash rename remapping that preserves element identity).
 

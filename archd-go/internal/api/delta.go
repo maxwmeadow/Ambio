@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // firstReviewLookbackMs bounds the very first delta a workspace ever shows.

@@ -4,7 +4,7 @@ import type { CodeCheckResult, CodeFitFinding } from '../../shared/types'
  * Where the code disagrees with a meaning edit you just made (archd
  * `db/code_fit.go`). The map change is already recorded; making the code match
  * is real work, so it is offered as a work order, never done for you. The
- * order names the files, and Axiom re-checks them after the agent replies.
+ * order names the files, and Ambio re-checks them after the agent replies.
  */
 export type { CodeCheckResult, CodeFitFinding }
 
@@ -31,7 +31,7 @@ export function codeFitInstruction(findings: CodeFitFinding[]): string {
 
 /** Open Send to Agent with the make-the-code-match order written. */
 export function openMakeCodeMatch(findings: CodeFitFinding[]): void {
-  window.dispatchEvent(new CustomEvent('axiom:open-agent-dispatch', {
+  window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {
     detail: {
       note: codeFitInstruction(findings),
       codeFitFileIds: [...new Set(findings.map(finding => finding.fileId))],
@@ -39,11 +39,11 @@ export function openMakeCodeMatch(findings: CodeFitFinding[]): void {
   }))
 }
 
-/** One line for a work order: what Axiom found when it checked the code. */
+/** One line for a work order: what Ambio found when it checked the code. */
 export function codeCheckHeadline(checks: CodeCheckResult[]): string {
   const agree = checks.filter(check => check.state === 'agrees').length
   const open = checks.filter(check => check.state === 'disagrees').length
-  if (open === 0 && agree === checks.length) return 'Axiom checked the code: it now matches the map.'
-  if (open === 0) return 'Axiom checked the code: nothing left disagrees, but the map changed since this was sent.'
-  return `Axiom checked the code: ${open} of ${checks.length} still ${open === 1 ? 'disagrees' : 'disagree'} with the map.`
+  if (open === 0 && agree === checks.length) return 'Ambio checked the code: it now matches the map.'
+  if (open === 0) return 'Ambio checked the code: nothing left disagrees, but the map changed since this was sent.'
+  return `Ambio checked the code: ${open} of ${checks.length} still ${open === 1 ? 'disagrees' : 'disagree'} with the map.`
 }

@@ -9,33 +9,38 @@ import {
   type InstallResult,
 } from './agentInstallers.ts'
 
-// Undo what the installers wrote: the `axiom` MCP entry in each place a host
-// reads, and the axiom-map / axiom-inbox workflow files. Nothing else in a
-// host's configuration is touched, and a file Axiom cannot parse is left
+// Undo what the installers wrote: the `ambio` MCP entry in each place a host
+// reads, and the ambio-map / ambio-inbox workflow files. Nothing else in a
+// host's configuration is touched, and a file Ambio cannot parse is left
 // alone and reported rather than rewritten.
 
-const AXIOM_TOML_TABLE = /^\s*\[\s*mcp_servers\s*\.\s*(?:axiom|"axiom"|'axiom')(?:\s*\.[^\]]*)?\s*\]\s*(?:#.*)?$/
 const TOML_TABLE = /^\s*\[[^\]]+\]\s*(?:#.*)?$/
+const tomlServerTable = (name: string) =>
+  new RegExp(`^\\s*\\[\\s*mcp_servers\\s*\\.\\s*(?:${name}|"${name}"|'${name}')(?:\\s*\\.[^\\]]*)?\\s*\\]\\s*(?:#.*)?$`)
 
-/** A TOML document without Axiom's `[mcp_servers.axiom]` table (and subtables). */
-export function removeTomlAxiomTable(source: string): string {
+/** The server name agents knew before the rename (DECISIONS §3). */
+export const LEGACY_SERVER_NAME = 'axiom'
+
+/** A TOML document without Ambio's `[mcp_servers.ambio]` table (and subtables). */
+export function removeTomlAmbioTable(source: string, name = 'ambio'): string {
+  const serverTable = tomlServerTable(name)
   const newline = source.includes('\r\n') ? '\r\n' : '\n'
   const lines = source.split(/\r?\n/)
   const kept: string[] = []
   let skipping = false
   for (const line of lines) {
-    if (TOML_TABLE.test(line)) skipping = AXIOM_TOML_TABLE.test(line)
+    if (TOML_TABLE.test(line)) skipping = serverTable.test(line)
     if (!skipping) kept.push(line)
   }
   return kept.join(newline).replace(/(\r?\n){3,}/g, `${newline}${newline}`)
 }
 
-/** A JetBrains MCP server XML document without the `axiom` entry. */
-export function removeXmlAxiomEntry(source: string): string {
-  return source.replace(/[ \t]*<entry key="axiom">[\s\S]*?<\/entry>\r?\n?/, '')
+/** A JetBrains MCP server XML document without the `ambio` entry. */
+export function removeXmlAmbioEntry(source: string, name = 'ambio'): string {
+  return source.replace(new RegExp(`[ \\t]*<entry key="${name}">[\\s\\S]*?<\\/entry>\\r?\\n?`), '')
 }
 
-function removeJsonEntry(path: string, keyPath: string[]): 'removed' | 'absent' | 'unreadable' {
+function removeJsonEntry(path: string, keyPath: string[], name = 'ambio'): 'removed' | 'absent' | 'unreadable' {
   const config = readJson(path)
   if (config === null) return 'unreadable'
   let servers: unknown = config
@@ -44,21 +49,21 @@ function removeJsonEntry(path: string, keyPath: string[]): 'removed' | 'absent' 
     servers = (servers as Record<string, unknown>)[key]
   }
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return 'absent'
-  if (!Object.prototype.hasOwnProperty.call(servers, 'axiom')) return 'absent'
-  delete (servers as Record<string, unknown>).axiom
+  if (!Object.prototype.hasOwnProperty.call(servers, name)) return 'absent'
+  delete (servers as Record<string, unknown>)[name]
   writeJson(path, config)
   return 'removed'
 }
 
-function removeWorkflowFile(path: string): boolean {
-  // Only files in Axiom's own skill folders, and only if they still look like
+function removeWorkflowFile(path: string, name = 'ambio'): boolean {
+  // Only files in our own skill folders, and only if they still look like
   // ours - a user who rewrote the file keeps it.
-  if (!/axiom-(map|inbox)/.test(path) || !fs.existsSync(path)) return false
+  if (!new RegExp(`${name}-(map|inbox)`).test(path) || !fs.existsSync(path)) return false
   try {
-    if (!/axiom/i.test(fs.readFileSync(path, 'utf8'))) return false
+    if (!new RegExp(name, 'i').test(fs.readFileSync(path, 'utf8'))) return false
     fs.rmSync(path)
     const folder = dirname(path)
-    if (/axiom-(map|inbox)$/.test(folder) && fs.readdirSync(folder).length === 0) fs.rmdirSync(folder)
+    if (new RegExp(`${name}-(map|inbox)$`).test(folder) && fs.readdirSync(folder).length === 0) fs.rmdirSync(folder)
     return true
   } catch {
     return false
@@ -66,7 +71,7 @@ function removeWorkflowFile(path: string): boolean {
 }
 
 /**
- * Remove Axiom from one agent. `others` are the remaining hosts: a workflow
+ * Remove Ambio from one agent. `others` are the remaining hosts: a workflow
  * folder shared with a host that is still configured (Copilot's VS Code and
  * CLI surfaces share one) is kept.
  */
@@ -89,7 +94,7 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
         if (outcome === 'unreadable') unreadable.push(location.path)
       } else {
         const source = fs.readFileSync(location.path, 'utf8')
-        const next = location.format === 'toml' ? removeTomlAxiomTable(source) : removeXmlAxiomEntry(source)
+        const next = location.format === 'toml' ? removeTomlAmbioTable(source) : removeXmlAmbioEntry(source)
         if (next !== source) {
           fs.writeFileSync(location.path, next, 'utf8')
           removed.push(location.path)
@@ -113,21 +118,23 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
     }
   }
 
+  removed.push(...removeLegacyServer(host, projectRoot))
+
   if (unreadable.length > 0) {
     return {
       ok: false,
-      detail: `Removed Axiom where it could, but could not read ${unreadable.join(', ')}; remove the "axiom" entry there by hand.`,
+      detail: `Removed Ambio where it could, but could not read ${unreadable.join(', ')}; remove the "ambio" entry there by hand.`,
       paths: [...removed, ...unreadable],
     }
   }
   return {
     ok: true,
-    detail: removed.length > 0 ? `Removed Axiom from ${host.modalityLabel || host.label}.` : `Axiom was not installed in ${host.modalityLabel || host.label}.`,
+    detail: removed.length > 0 ? `Removed Ambio from ${host.modalityLabel || host.label}.` : `Ambio was not installed in ${host.modalityLabel || host.label}.`,
     paths: removed,
   }
 }
 
-/** Remove Axiom from every agent it knows about. */
+/** Remove Ambio from every agent it knows about. */
 export function uninstallAll(hosts: HostDescriptor[], projectRoot?: string): InstallResult {
   const results = hosts.map((host, index) => ({ host, result: uninstallHost(host, projectRoot, hosts.slice(index + 1)) }))
   const failed = results.filter(entry => !entry.result.ok)
@@ -137,8 +144,43 @@ export function uninstallAll(hosts: HostDescriptor[], projectRoot?: string): Ins
     detail: failed.length > 0
       ? failed.map(entry => entry.result.detail).join(' ')
       : touched.length > 0
-        ? `Removed Axiom from ${touched.map(entry => entry.host.modalityLabel || entry.host.label).join(', ')}.`
-        : 'Axiom was not installed in any agent.',
+        ? `Removed Ambio from ${touched.map(entry => entry.host.modalityLabel || entry.host.label).join(', ')}.`
+        : 'Ambio was not installed in any agent.',
     paths: results.flatMap(entry => entry.result.paths),
   }
+}
+
+/**
+ * Remove what installers wrote under the name from before the rename (the
+ * `axiom` MCP entry and axiom-map / axiom-inbox skills), so an agent that is
+ * set up again does not end up with two servers. Runs on install and
+ * uninstall; returns the files it changed.
+ */
+export function removeLegacyServer(host: HostDescriptor, projectRoot: string | undefined): string[] {
+  const changed: string[] = []
+  for (const location of host.serverLocations(projectRoot)) {
+    if (!fs.existsSync(location.path)) continue
+    try {
+      if (location.format === 'json') {
+        if (removeJsonEntry(location.path, location.keyPath, LEGACY_SERVER_NAME) === 'removed') changed.push(location.path)
+      } else {
+        const source = fs.readFileSync(location.path, 'utf8')
+        const next = location.format === 'toml'
+          ? removeTomlAmbioTable(source, LEGACY_SERVER_NAME)
+          : removeXmlAmbioEntry(source, LEGACY_SERVER_NAME)
+        if (next !== source) {
+          fs.writeFileSync(location.path, next, 'utf8')
+          changed.push(location.path)
+        }
+      }
+    } catch { /* unreadable: leave it */ }
+  }
+  const workflow = host.commandPath?.(projectRoot)
+  if (workflow) {
+    const legacy = (file: string) => file.replace(/ambio-(map|inbox)/g, `${LEGACY_SERVER_NAME}-$1`)
+    for (const file of [legacy(workflow), legacy(inboxSkillPath(workflow))]) {
+      if (removeWorkflowFile(file, LEGACY_SERVER_NAME)) changed.push(file)
+    }
+  }
+  return changed
 }

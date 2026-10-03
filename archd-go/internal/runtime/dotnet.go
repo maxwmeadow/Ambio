@@ -136,7 +136,7 @@ func (s *DotnetSession) setStatus(status string) {
 
 func (s *DotnetSession) handshake() error {
 	if _, err := s.client.request("initialize", map[string]any{
-		"clientID":        "axiom",
+		"clientID":        "ambio",
 		"adapterID":       "coreclr",
 		"linesStartAt1":   true,
 		"columnsStartAt1": true,
@@ -492,7 +492,7 @@ func truncateRunes(s string, max int) string {
 }
 
 func findNetcoredbg() (string, error) {
-	if p := os.Getenv("AXIOM_NETCOREDBG_PATH"); p != "" {
+	if p := os.Getenv("AMBIO_NETCOREDBG_PATH"); p != "" {
 		return p, nil
 	}
 	if p, err := exec.LookPath("netcoredbg"); err == nil {
@@ -509,5 +509,5 @@ func findNetcoredbg() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("netcoredbg not found - install it (winget install Samsung.netcoredbg) or set AXIOM_NETCOREDBG_PATH")
+	return "", fmt.Errorf("netcoredbg not found - install it (winget install Samsung.netcoredbg) or set AMBIO_NETCOREDBG_PATH")
 }

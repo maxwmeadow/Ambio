@@ -13,7 +13,7 @@ test('every advertised loop prompt has instructions, and they name real tools', 
 })
 
 test('arguments are woven into the instruction', () => {
-  assert.match(loopPromptText('propose', { goal: 'add a job queue' }), /^Propose "add a job queue" on the Axiom map/)
+  assert.match(loopPromptText('propose', { goal: 'add a job queue' }), /^Propose "add a job queue" on the Ambio map/)
   assert.match(loopPromptText('implement', { sheet: 'Payment flow' }), /get_build_plan with sheet "Payment flow"/)
   assert.match(loopPromptText('implement', {}), /the user names/)
 })

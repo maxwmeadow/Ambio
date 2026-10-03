@@ -75,7 +75,7 @@ type StructuralEvent struct {
 // A WorkSession is an agent's own account of what it set out to do.
 //
 // Structural facts alone are true but thin: "Handlers now depends on Record"
-// says the topology moved without saying why anyone moved it. Axiom is meant
+// says the topology moved without saying why anyone moved it. Ambio is meant
 // to be bidirectional, so the agent doing the work writes its intent INTO the
 // map rather than leaving the map to infer meaning it cannot know. Claims are
 // then read under the goal that produced them.

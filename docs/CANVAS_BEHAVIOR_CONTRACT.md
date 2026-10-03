@@ -1,4 +1,4 @@
-# Axiom Canvas Behavior Contract
+# Ambio Canvas Behavior Contract
 
 Status: preservation baseline for the renderer refactor  
 Baseline commit: `7e55a2a` (`Canvas: stabilize extreme-zoom resize interactions`)  
@@ -17,7 +17,7 @@ explicitly revises this contract.
 
 The contract protects the current Floor, sheet overlay, semantic zoom, node
 presentation, selection, resize, drag, connection, and persistence behavior
-while `AxiomCanvas` is decomposed and the application visual system is rebuilt.
+while `AmbioCanvas` is decomposed and the application visual system is rebuilt.
 
 ## Refactor rule
 
@@ -40,7 +40,7 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Automatic live-growth reframes are debounced through classification and
   animate pan and zoom as one camera move. A pending reframe yields while the
   user is navigating instead of being discarded or fighting manual movement.
-- React Flow's wheel zoom is disabled. Axiom owns wheel zoom.
+- React Flow's wheel zoom is disabled. Ambio owns wheel zoom.
 - Each wheel step multiplies or divides the target zoom by `1.15`.
 - Zoom eases toward its target by `15%` per animation frame.
 - The flow coordinate beneath the pointer remains beneath the pointer while
@@ -322,8 +322,8 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   the edit still happens; its notice says where the code disagrees and offers
   Make the Code Match…, a work order with the fix written. It is never done
   for you. The offer stays on the change in Review Changes while the code
-  disagrees, and the sent order shows what Axiom found when it re-checked the
-  code ("Checked by Axiom"), separate from the agent's own report.
+  disagrees, and the sent order shows what Ambio found when it re-checked the
+  code ("Checked by Ambio"), separate from the agent's own report.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed
@@ -360,7 +360,7 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - The BOARD still changes with the mode, because the board is the mode. The
   nodes are not.
 - Sheet stock MUST be scoped to `.react-flow` itself, never to the
-  `.axiom-sheet-mode` container that wraps it. `.react-flow` declares these
+  `.ambio-sheet-mode` container that wraps it. `.react-flow` declares these
   tokens on itself, and a custom property declared on a closer ancestor always
   beats one inherited from further up - so setting them on the container is
   silently a no-op. This produced a real bug with no error and no warning:
@@ -446,13 +446,13 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   a cross-boundary claim.
 - A project's first index is its baseline, not a delta. Classifier-contract
   migrations reshape systems without entering the delta for the same reason:
-  they change how Axiom reads the code, not the code.
+  they change how Ambio reads the code, not the code.
 - Reopening a project reconciles the tree against disk through the same
-  reindex path the watcher uses, so work done while Axiom was closed produces
+  reindex path the watcher uses, so work done while Ambio was closed produces
   a true delta. Once the catch-up burst settles, the guarded live classifier
   may place new unclassified peers; authored systems and existing Floor
   layouts remain untouched.
-- Returning focus to an open Axiom window reloads the delta, so work performed
+- Returning focus to an open Ambio window reloads the delta, so work performed
   while the app was unattended surfaces without reopening the project.
 
 ### Claims are the unit of review
@@ -529,7 +529,7 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   illegibly, and a ceiling so a two-system claim never fills the viewport with
   one box.
 - Reading a delta never acknowledges it. The watermark moves only on an
-  explicit accept, and it never moves backwards, so closing Axiom mid-review
+  explicit accept, and it never moves backwards, so closing Ambio mid-review
   leaves the delta waiting.
 - An active review is a stable snapshot. A focus refresh waits until review
   ends rather than replacing claims or moving the cursor under the reader.
@@ -613,6 +613,6 @@ changing their behavior:
 6. Resize persistence controller.
 7. Layout persistence and optimistic update boundary.
 
-`AxiomCanvas` remains the integration shell until each extracted module has
+`AmbioCanvas` remains the integration shell until each extracted module has
 characterization coverage. Node components, `frameGeometry`, `packing`, and
 the resize SVG remain protected until the harness covers their contracts.

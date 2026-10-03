@@ -22,9 +22,9 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 | 2026-09-29 | **Name:** "Axiom" was a placeholder. Rename **before** launch (it is baked into `~/.axiom`, `com.axiom.app`, the `axiom` MCP server entry and `/axiom-map`). See §3. |
 | 2026-09-29 | **What a project is:** usually one git repo, but multi-repo, multi-worktree and plain folders must all work. (archd already models several roots per workspace.) |
 | 2026-09-29 | **No project limit.** The registry is unlimited; the launcher shows a short recent list with "Show all". |
-| 2026-09-29 | **Moved folders** are detected and the user is offered to locate them. Axiom repoints its own records; it never moves user files. |
+| 2026-09-29 | **Moved folders** are detected and the user is offered to locate them. Ambio repoints its own records; it never moves user files. |
 | 2026-09-29 | **Remove vs delete (decided by Claude, per "up to you"):** the row's ⋯ menu offers *Hide from recents* (non-destructive; searchable, "Show all" still lists it) and *Delete project map…* (destructive, confirmation focuses Cancel, Enter no longer confirms). |
-| 2026-09-29 | **Agents when Axiom is closed:** must be graceful in every way. See §4. |
+| 2026-09-29 | **Agents when Ambio is closed:** must be graceful in every way. See §4. |
 | 2026-09-29 | **One install, nothing else to set up.** The MCP server should run on Electron's bundled Node; investigations' toolchain needs (MSYS2 etc.) become a separate track. |
 | 2026-09-29 | **Accessibility and light theme:** wanted, end of the list. |
 | 2026-09-29 | **Sample/demo project:** not now. |
@@ -32,10 +32,11 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 | 2026-09-30 | **Menus and Settings:** build the standard basics now; specifics later. |
 | 2026-09-30 | **Name:** on hold. |
 | 2026-09-30 | **Keyboard:** the map owns the plain zoom keys (`⌘0` fit, `⌘=`/`⌘-` zoom); interface zoom is `⌥⌘=`/`⌥⌘-`/`⌥⌘0`; Tidy Layout `⇧⌘L`; Infrastructure `⇧⌘E`; Agent Log `⇧⌘A`. All commands live in `src/shared/appMenu.ts`. |
-| 2026-09-30 | **Positioning:** Axiom is the bidirectional architecture layer between a developer and their agents - not a codebase visualizer. Every tool works in both directions: you change the architecture and your agent builds it; your agent changes or proposes architecture and you see it. The map is how the architecture stays true, not the pitch. See [PRODUCT.md](PRODUCT.md). |
+| 2026-09-30 | **Positioning:** Ambio is the bidirectional architecture layer between a developer and their agents - not a codebase visualizer. Every tool works in both directions: you change the architecture and your agent builds it; your agent changes or proposes architecture and you see it. The map is how the architecture stays true, not the pitch. See [PRODUCT.md](PRODUCT.md). |
 | 2026-09-30 | **UML bet:** semantic architecture (systems, relationships, infrastructure, plans) is the primary diagram. Classic class/sequence UML will fade as agents write the code; it is worth having, generated algorithmically, scoped to a selection and live, but it is not the centre of the product. |
 | 2026-09-30 | **One work list:** all open work - features, bugs, ideas, launch tasks - lives in [../WORK.md](../WORK.md). Agent sessions pick work from it and add what they find to it. Stray briefs and plans were consolidated into `docs/`. |
 | 2026-10-01 | **Floor edit rules:** presentation (position, size, tidy) is free and unrecorded; meaning (rename, group, ungroup, nest, move files between systems) is allowed on the Floor for humans and agents, always journaled, attributed and undoable; reality (anything that needs code to change) never happens on the Floor and becomes a work order instead. **Dragging a node into another system changes what it belongs to** - placement is architecture, and overlapping a node with another has no visual use. Delete on a system ungroups it (contents move up a level, code untouched). Agent meaning edits apply immediately (an approve-only mode is a someday item). See [PRODUCT.md §2](PRODUCT.md). |
+| 2026-10-03 | **Name: Ambio** (Latin *ambo*, "both": the two-way loop between you and your agents). Renamed everywhere; existing `~/.axiom` data, maps and agent connections migrate on first launch. See §3. |
 
 ---
 
@@ -142,15 +143,37 @@ Archtrue, Planyard, Truesheet, Twinprint, Liveprint.
 Risks for Archpact: "Arch" may read as Arch Linux; "pact" is formal. Next:
 USPTO classes 9 and 42, github.com/archpact, say it aloud, then decide.
 
+### Decision: Ambio (2026-10-03)
+
+**Ambio**, from Latin *ambo*, "both": the product's whole idea is the loop
+that runs both ways between a developer and their agents. Short, says the
+same in any language, and reads cleanly on a resume. Chosen over Archpact
+and the second-pass list for being short and memorable; a `.com` was the
+main constraint.
+
+- **Domains (RDAP, 2026-10-03):** `ambio.dev` free; `ambio.com` registered
+  and listed for sale; `useambio.com`, `tryambio.com`, `joinambio.com` and
+  `ambioai.com` free.
+- **Known uses of the name:** Ambio Materials, an Ambio biotech, the journal
+  *Ambio* (environmental science, Springer); "Ambi" nearby. None is a
+  developer tool.
+- **Not yet checked:** USPTO/EUIPO classes 9 and 42, the `ambio` GitHub
+  org.
+- **Migration:** archd renames `~/.axiom` to `~/.ambio` (and the app and
+  MCP server do too, whichever starts first) and old map files
+  (`axiom.db`, backups) to the new names, never overwriting; installing or
+  removing an agent also removes its old `axiom` MCP entry and
+  `axiom-map`/`axiom-inbox` skills.
+
 ---
 
-## 4. Agents when Axiom is closed ✅ (2026-09-30)
+## 4. Agents when Ambio is closed ✅ (2026-09-30)
 
-**Built:** archd writes `~/.axiom/data/daemon.json` (pid, version, ports,
+**Built:** archd writes `~/.ambio/data/daemon.json` (pid, version, ports,
 headless) while it runs. In packaged builds the MCP server knows where archd
-is (`archd mcp-run` passes `AXIOM_ARCHD_PATH`); when archd does not answer it
+is (`archd mcp-run` passes `AMBIO_ARCHD_PATH`); when archd does not answer it
 starts it with `-headless`, waits for it and retries, and otherwise tells the
-agent "Axiom is not running. Open the Axiom app, then try again." A headless
+agent "Ambio is not running. Open the Ambio app, then try again." A headless
 daemon exits after 15 minutes with no requests and no open windows. When the
 app starts it attaches to a running daemon of its own version, asks one from
 another version to stop (`POST /api/daemon/shutdown`), and polls an attached
@@ -166,7 +189,7 @@ Original design notes:
 How it works today: the agent (Claude Code, Cursor, …) launches the MCP
 server itself as a separate process over stdio. The MCP server talks HTTP to
 archd on `127.0.0.1:7743`, and archd only runs while the desktop app is open.
-So with Axiom closed, the agent still *connects* to the MCP server, and every
+So with Ambio closed, the agent still *connects* to the MCP server, and every
 tool call then fails with a network or token error.
 
 Target design, graceful in every case:
@@ -180,7 +203,7 @@ Target design, graceful in every case:
    no window), so agent work is still recorded, and the Morning Delta shows
    it next time the app opens.
 3. **If archd cannot start,** tool calls return one clear, actionable
-   sentence ("Axiom isn't running - open Axiom and retry"), never a stack
+   sentence ("Ambio isn't running - open Ambio and retry"), never a stack
    trace.
 4. **Version handshake:** an MCP server or app newer than the running daemon
    restarts it cleanly after an update.
@@ -195,7 +218,7 @@ Target design, graceful in every case:
 **Built (2026-09-30):** one command model (`src/shared/appMenu.ts`) drives
 the native macOS menu bar, the title-bar menu bar on Windows/Linux, the
 command palette (`⇧⌘P` / `Ctrl+Shift+P`), keyboard shortcuts and the
-Keyboard Shortcuts reference (`⌘/`). Menus: Axiom (macOS), File, Edit, View,
+Keyboard Shortcuts reference (`⌘/`). Menus: Ambio (macOS), File, Edit, View,
 Agent, Window (macOS), Help. Settings (`⌘,`): General (reopen last project,
 automatic update checks, check now), Appearance (interface zoom, reduce
 motion), Agents, Privacy & Data (data/log folders, diagnostics), Advanced
@@ -215,7 +238,7 @@ Zoom to System, Copy Name, Message Agent), infrastructure, and empty canvas
 original brainstorm those will come from.
 
 Desktop apps share a grammar. Users expect standard items in standard places;
-Axiom-specific commands go in their own menus. This is a proposal to react
+Ambio-specific commands go in their own menus. This is a proposal to react
 to, not a decision.
 
 On **macOS** the menu bar is native. On **Windows/Linux** the window uses a
@@ -225,12 +248,12 @@ Keyboard accelerators then work everywhere.
 
 `⌘` means Ctrl on Windows/Linux.
 
-### Axiom (macOS only; on Windows/Linux these items move to File and Help)
-- About Axiom
+### Ambio (macOS only; on Windows/Linux these items move to File and Help)
+- About Ambio
 - Check for Updates…
 - Settings… `⌘,`
-- Services, Hide Axiom `⌘H`, Hide Others, Show All
-- Quit Axiom `⌘Q`
+- Services, Hide Ambio `⌘H`, Hide Others, Show All
+- Quit Ambio `⌘Q`
 
 ### File
 - New Project… `⌘N`
@@ -242,7 +265,7 @@ Keyboard accelerators then work everywhere.
 - Reveal Project in Finder/Explorer
 - Re-index Project
 - ---
-- Export Map… / Import Map… (`.axiommap`, §6 Protecting maps)
+- Export Map… / Import Map… (`.ambiomap`, §6 Protecting maps)
 - Export ▸ Canvas as PNG / SVG, Architecture as Markdown / Mermaid *(later)*
 - ---
 - Close Project `⇧⌘W` (back to the launcher)
@@ -278,7 +301,7 @@ Keyboard accelerators then work everywhere.
 - Next Change `J`, Previous Change `K` (delta review)
 - All Projects `⇧⌘H`
 
-### Map (Axiom-specific)
+### Map (Ambio-specific)
 - New Sheet… `⌘T`, New System…, Add Infrastructure…
 - Lasso Select `L`, Tidy Layout
 - Review Proposal…
@@ -292,7 +315,7 @@ Keyboard accelerators then work everywhere.
 - ---
 - Connect an Agent… (today's Connect screen)
 - Repair Agent Connections
-- Remove Axiom from Agents… (uninstall: the MCP entries and skills Axiom wrote)
+- Remove Ambio from Agents… (uninstall: the MCP entries and skills Ambio wrote)
 
 ### Window
 - Minimize `⌘M`, Zoom, Bring All to Front
@@ -324,7 +347,7 @@ Keyboard accelerators then work everywhere.
 - **Canvas:** edge style, semantic-zoom thresholds, show churn heat, snap to grid
 - **Agents:** connected agents, default agent, repair, remove from agents
 - **Indexing:** global exclude patterns, max file size, languages, docs indexing
-- **Privacy:** crash reports on/off, open logs, clear all Axiom data
+- **Privacy:** crash reports on/off, open logs, clear all Ambio data
 - **Advanced:** data folder, ports (until auto-discovery lands), developer
   tools, reset onboarding
 - **Shortcuts:** view and rebind *(later)*
@@ -347,11 +370,11 @@ and why. Open launch items moved to [../WORK.md](../WORK.md).
 - ✅ Release workflow publishes tagged builds to a draft GitHub Release with `latest*.yml`; fails fast if the tag and `package.json` version differ
 - ✅ MCP server runs on Electron's bundled Node via `archd mcp-run` (no system Node needed). Existing agent configs keep working on system Node; reinstalling from Connect an Agent moves them over.
 
-### Opening Axiom (2026-09-30)
-- ✅ `axiom .` terminal command (Settings → Advanced → Command-line launcher): installs into a writable folder on PATH, or gives the one command to run
+### Opening Ambio (2026-09-30)
+- ✅ `ambio .` terminal command (Settings → Advanced → Command-line launcher): installs into a writable folder on PATH, or gives the one command to run
 - ✅ Drop a folder (or a file inside a project) on the window, or on the macOS dock icon
 - ✅ Recent projects in the macOS dock menu, the Windows jump list, and the OS recent-documents lists
-- ✅ `axiom://open?path=…` and `axiom://project/<id>` links; a link to a folder Axiom does not know asks before adding it
+- ✅ `ambio://open?path=…` and `ambio://project/<id>` links; a link to a folder Ambio does not know asks before adding it
 - ✅ A path inside a known project opens that project (most specific wins); launching with a path skips resuming the last project
 
 ### Large projects (2026-09-30)
@@ -363,16 +386,16 @@ and why. Open launch items moved to [../WORK.md](../WORK.md).
 
 ### Security and privacy (2026-09-30)
 - ✅ Renderer sandboxed; production Content Security Policy (own scripts + WebAssembly, loopback connections only); no new windows, navigation, web views or device permissions; links open in the browser (http/https only)
-- ✅ Fonts bundled: Axiom no longer requests Google Fonts on every launch (a privacy leak and an offline failure)
+- ✅ Fonts bundled: Ambio no longer requests Google Fonts on every launch (a privacy leak and an offline failure)
 - ✅ "Open in Editor" opens source in the detected code editor (Settings → General → Open files in), never through the OS default handler that can execute scripts; file open/reveal/list only inside registered projects
 - ✅ archd rejects non-loopback Host headers (DNS rebinding); older token files tightened to 0600
 - ✅ SECURITY.md documents the security model and its one known boundary (the runtime-adapter port)
 
 ### Protecting maps (2026-09-30)
 A map holds hours of human and agent work (systems, layout, sheets, history) that re-indexing cannot recreate.
-- ✅ Recently Deleted: deleting a project map moves it to `~/.axiom/data/.trash` for 30 days (archd `DELETE /api/workspace/:id?trash=1`, or a local move when archd is down). The launcher lists them (Import a map · Recently deleted (n)) with Restore and Delete Forever; expired entries are purged at startup. Restoring refuses to take over a folder another project now owns
+- ✅ Recently Deleted: deleting a project map moves it to `~/.ambio/data/.trash` for 30 days (archd `DELETE /api/workspace/:id?trash=1`, or a local move when archd is down). The launcher lists them (Import a map · Recently deleted (n)) with Restore and Delete Forever; expired entries are purged at startup. Restoring refuses to take over a folder another project now owns
 - ✅ Daily backups: when a project opens, archd takes a `VACUUM INTO` snapshot if the last one is over 24 h old, keeping 7 (`<project>/backups/`). Project Settings → Map backups lists them; Restore snapshots the current map first (`before-restore-*`), so a restore can be undone
-- ✅ Export / Import: File → Export Map… writes a `.axiommap` (a SQLite snapshot plus a manifest table: project id, name, folder, settings, app and schema version). Import refuses maps from a newer schema, asks before replacing an existing map (the old one goes to Recently Deleted), uses the exported folder when it exists here or asks where the code lives, and rebases exclusions. Moves a project to a new computer; also a manual backup
+- ✅ Export / Import: File → Export Map… writes a `.ambiomap` (a SQLite snapshot plus a manifest table: project id, name, folder, settings, app and schema version). Import refuses maps from a newer schema, asks before replacing an existing map (the old one goes to Recently Deleted), uses the exported folder when it exists here or asks where the code lives, and rebases exclusions. Moves a project to a new computer; also a manual backup
 - Not covered: backups live in the same data folder as the map, so a lost disk loses both. Export is the off-machine answer until sync exists
 
 ### First launch
@@ -401,14 +424,14 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 
 ### Staying current
 - ✅ Auto-update via electron-updater + GitHub Releases: Windows and AppImage download and install on restart; macOS and non-AppImage Linux are told a version is available and linked to it
-- ✅ CHANGELOG.md (Keep a Changelog) ships with the app; after an update Axiom shows that version's section once as What's New (Help → What's New any time); contributors add a line per user-visible change
+- ✅ CHANGELOG.md (Keep a Changelog) ships with the app; after an update Ambio shows that version's section once as What's New (Help → What's New any time); contributors add a line per user-visible change
 - ✅ Database downgrade guard: `PRAGMA user_version` stamped with `db.SchemaVersion`; a newer database is refused with a clear message. **Bump `SchemaVersion` whenever `migrate` changes.**
 
 ### When it breaks
 - ✅ archd auto-restarts with backoff (5 in 60s), the open project is re-registered, and the UI says what is happening; gives up loudly with "Try again"
 - ✅ Port-in-use and repeated crashes explained in plain language
 - ✅ Launch-failure dialog written for users (build instructions only in dev)
-- ✅ Log files (main, archd, renderer warnings/errors) in `~/.axiom/logs`, 2 MB × 3 each
+- ✅ Log files (main, archd, renderer warnings/errors) in `~/.ambio/logs`, 2 MB × 3 each
 - ✅ Report a Bug / Copy Diagnostics / Open Logs on the launcher, the archd failure notice and the crash screen (Help menu later)
 - ✅ Crash screen rewritten for users: code and map are safe, Try again, report, details folded
 - ✅ Crashes captured locally (Electron minidumps, never uploaded) and counted in diagnostics; uncaught errors in the main process and the window are logged
@@ -416,19 +439,19 @@ A map holds hours of human and agent work (systems, layout, sheets, history) tha
 - ✅ Ports: archd prefers 7743-7745 and, when another program holds one, binds a free port and publishes it in `daemon.json`; the app, renderer and MCP server follow it. archd also takes an OS lock on its data folder, so two daemons can never share the databases
 
 ### Leaving
-- ✅ "Remove Axiom from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `axiom` entry and Axiom's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
-- ✅ Settings → Privacy & Data → Delete all Axiom data (native confirmation, stops archd, restarts fresh)
+- ✅ "Remove Ambio from agents": per agent on Connect an Agent, or all at once in Settings → Agents. Removes only the `ambio` entry and Ambio's workflow files; leaves files it cannot parse untouched, and keeps config or skill folders another still-installed agent shares
+- ✅ Settings → Privacy & Data → Delete all Ambio data (native confirmation, stops archd, restarts fresh)
 - ✅ Uninstall per OS documented in the README
 
 ## 7. Design notes (not built; the work items are in WORK.md)
 
-### Maps committed to the repo (`.axiom/` in the project)
+### Maps committed to the repo (`.ambio/` in the project)
 The question: should a project's map live in the repository, so cloning a repo brings its architecture with it?
 
-- **For:** teams and open-source projects share one map; the map is versioned with the code it describes; agents on CI or another machine read the same systems; strong growth loop (a public repo's `.axiom/` advertises Axiom).
+- **For:** teams and open-source projects share one map; the map is versioned with the code it describes; agents on CI or another machine read the same systems; strong growth loop (a public repo's `.ambio/` advertises Ambio).
 - **Against:** SQLite does not merge. Two branches that both move a node conflict as a binary file. A text format (one JSON/YAML file per system and sheet, stable ordering, positions rounded) would merge, but it means a serialization layer and a merge story for every table. Index data (symbols, edges) is derived and must stay out of git; only human intent (systems, names, layout, sheets, decisions) belongs in the repo.
-- **Business overlap:** shared maps are the core of the paid collaboration tier. A committed `.axiom/` is free collaboration through git. That is fine and probably good for adoption (it is how people will first share maps), as long as the paid tier offers what git cannot: live presence, comments, review workflows, cross-repo maps, hosted agents, org history. Decide deliberately before building either.
-- **Suggested shape if pursued:** `.axiom/map/` text files for intent only, written on save and read on open; the local SQLite stays the working copy and index; a `.gitattributes` merge driver later. Opt-in per project ("Share this map with the repo"). Start read-only (import a committed map) before write-back.
+- **Business overlap:** shared maps are the core of the paid collaboration tier. A committed `.ambio/` is free collaboration through git. That is fine and probably good for adoption (it is how people will first share maps), as long as the paid tier offers what git cannot: live presence, comments, review workflows, cross-repo maps, hosted agents, org history. Decide deliberately before building either.
+- **Suggested shape if pursued:** `.ambio/map/` text files for intent only, written on save and read on open; the local SQLite stays the working copy and index; a `.gitattributes` merge driver later. Opt-in per project ("Share this map with the repo"). Start read-only (import a committed map) before write-back.
 
 ### Multiple windows
 Today one window shows one project; opening another replaces it.

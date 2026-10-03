@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/registry"
 )
 
-// TestPantryDetection runs detection on the pantry lab (~/dev/axiom-lab):
+// TestPantryDetection runs detection on the pantry lab (~/dev/ambio-lab):
 // a TypeScript API, a Python worker and a Go service, written without looking
 // at the detector, scored against its answer key. It skips when the lab is
 // absent.
 func TestPantryDetection(t *testing.T) {
 	home, _ := os.UserHomeDir()
-	rootPath := filepath.Join(home, "dev", "axiom-lab", "pantry")
+	rootPath := filepath.Join(home, "dev", "ambio-lab", "pantry")
 	if _, err := os.Stat(filepath.Join(rootPath, "README.md")); err != nil {
 		t.Skip("pantry lab project not present")
 	}

@@ -29,8 +29,8 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
     }
   }
   return (
-    <section className="axiom-sheet-rail__review" aria-label="Agent proposals to review">
-      <div className="axiom-sheet-rail__review-heading">
+    <section className="ambio-sheet-rail__review" aria-label="Agent proposals to review">
+      <div className="ambio-sheet-rail__review-heading">
         <span>To review · {pending.length}</span>
         {pending.length > 1 && (
           <button type="button" disabled={busy} onClick={() => void run(pending.map(node => node.id), 'approved')}>Confirm All</button>
@@ -39,14 +39,14 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       <ul>
         {pending.map(node => (
           <li key={node.id}>
-            <span className="axiom-sheet-rail__review-label" title={node.declaredPath || node.name}>
+            <span className="ambio-sheet-rail__review-label" title={node.declaredPath || node.name}>
               <small>{node.kind}</small> {node.name}
             </span>
             <button type="button" disabled={busy} aria-label={`Confirm ${node.name}`} title="Confirm: part of the plan" onClick={() => void run([node.id], 'approved')}>✓</button>
             <button type="button" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => { setRejecting(node.id); setReason('') }}>✕</button>
             {rejecting === node.id && (
               <form
-                className="axiom-sheet-rail__review-reason"
+                className="ambio-sheet-rail__review-reason"
                 onSubmit={event => { event.preventDefault(); void run([node.id], 'rejected', reason) }}
               >
                 <input

@@ -239,7 +239,7 @@ CREATE TABLE investigations (
 		created_at    INTEGER NOT NULL,
 		duration_ms   INTEGER NOT NULL DEFAULT 0,
 		event_count   INTEGER NOT NULL DEFAULT 0,
-		data          TEXT NOT NULL                   -- full AxiomTrace JSON
+		data          TEXT NOT NULL                   -- full AmbioTrace JSON
 	, status TEXT NOT NULL DEFAULT 'saved', origin TEXT NOT NULL DEFAULT 'agent');
 CREATE TABLE planned_edges (
 		id           TEXT PRIMARY KEY,

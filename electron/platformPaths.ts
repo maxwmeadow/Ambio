@@ -229,7 +229,7 @@ export function resolveNodeCommand(
     if (existsSync(candidate)) return candidate
   }
 
-  // Last resort. This only helps when Axiom was launched from a shell that
+  // Last resort. This only helps when Ambio was launched from a shell that
   // already had node on PATH - in which case bare `node` would have worked
   // anyway - but it costs nothing and covers layouts not listed above.
   try {

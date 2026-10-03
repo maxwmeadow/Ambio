@@ -7,7 +7,7 @@ interface Viewport {
 }
 
 /** Marks a canvas root as something WASD can be aimed at. */
-export const CANVAS_SCOPE_ATTR = 'data-axiom-canvas'
+export const CANVAS_SCOPE_ATTR = 'data-ambio-canvas'
 
 /**
  * Where the pointer last was. One listener for every canvas, because the answer
@@ -49,7 +49,7 @@ export interface WasdScope {
   fallback: boolean
 }
 
-/** The one keyboard-panning implementation shared by every Axiom canvas. */
+/** The one keyboard-panning implementation shared by every Ambio canvas. */
 export function useCanvasWasdPan(
   getViewport: () => Viewport,
   setViewport: (viewport: Viewport) => void | Promise<boolean>,

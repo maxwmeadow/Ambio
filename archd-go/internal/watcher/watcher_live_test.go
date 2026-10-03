@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
 )
 
 // The watcher end to end: real fsnotify events on a real folder, indexed into

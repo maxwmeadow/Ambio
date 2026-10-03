@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func applyFixture(t *testing.T) *sql.DB {

@@ -115,21 +115,21 @@ export function ReplayBar() {
   }
 
   return (
-    <section className="axiom-replay" aria-label={`Investigation replay: ${replay.name}`}>
-      <header className="axiom-replay__header">
-        <div className="axiom-replay__identity">
-          <span className="axiom-replay__mode">Replay</span>
+    <section className="ambio-replay" aria-label={`Investigation replay: ${replay.name}`}>
+      <header className="ambio-replay__header">
+        <div className="ambio-replay__identity">
+          <span className="ambio-replay__mode">Replay</span>
           <strong title={replay.name}>{replay.name}</strong>
         </div>
-        <code className="axiom-replay__revision">
+        <code className="ambio-replay__revision">
           {replay.branch}@{replay.commit ? replay.commit.slice(0, 8) : '-'}
         </code>
-        <button type="button" className="axiom-replay__close" onClick={close} aria-label="Exit replay">×</button>
+        <button type="button" className="ambio-replay__close" onClick={close} aria-label="Exit replay">×</button>
       </header>
 
-      <div className="axiom-replay__body">
+      <div className="ambio-replay__body">
         <input
-          className="axiom-replay__timeline"
+          className="ambio-replay__timeline"
           type="range"
           min={-1}
           max={Math.max(0, events.length - 1)}
@@ -142,17 +142,17 @@ export function ReplayBar() {
           }}
         />
 
-        <div className="axiom-replay__progress">
+        <div className="ambio-replay__progress">
           <span>{cursor + 1}/{events.length}</span>
           <strong title={currentLabel}>{currentLabel}</strong>
           <output>{Math.round(percent)}%</output>
         </div>
 
-        <div className="axiom-replay__transport">
-          <button type="button" className="axiom-replay__button" onClick={restart}>Restart</button>
+        <div className="ambio-replay__transport">
+          <button type="button" className="ambio-replay__button" onClick={restart}>Restart</button>
           <button
             type="button"
-            className="axiom-replay__button axiom-replay__button--primary"
+            className="ambio-replay__button ambio-replay__button--primary"
             data-playing={playing || undefined}
             disabled={atEnd}
             onClick={() => {
@@ -163,7 +163,7 @@ export function ReplayBar() {
           </button>
           <button
             type="button"
-            className="axiom-replay__button"
+            className="ambio-replay__button"
             disabled={atEnd}
             onClick={() => {
               setPlaying(false)
@@ -174,14 +174,14 @@ export function ReplayBar() {
           </button>
           <button
             type="button"
-            className="axiom-replay__button"
+            className="ambio-replay__button"
             aria-label={`Playback speed ${speed}×, click to change`}
             onClick={() => setSpeed(current => SPEEDS[(SPEEDS.indexOf(current) + 1) % SPEEDS.length])}
           >
             {speed}×
           </button>
-          {lastNote && <aside className="axiom-replay__note" title={lastNote}>{lastNote}</aside>}
-          <span className="axiom-replay__live-notice">
+          {lastNote && <aside className="ambio-replay__note" title={lastNote}>{lastNote}</aside>}
+          <span className="ambio-replay__live-notice">
             Live activity is paused while you replay
           </span>
         </div>

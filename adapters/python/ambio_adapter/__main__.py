@@ -1,7 +1,7 @@
-"""Launcher: run a Python program with the Axiom adapter pre-loaded.
+"""Launcher: run a Python program with the Ambio adapter pre-loaded.
 
-    python -m axiom_adapter run app.py [args...]
-    python -m axiom_adapter run -m mypackage.server [args...]
+    python -m ambio_adapter run app.py [args...]
+    python -m ambio_adapter run -m mypackage.server [args...]
 
 The target runs in THIS process (via runpy) with sys.argv rewritten, so it
 behaves exactly as if launched directly - no subprocess, no code changes.
@@ -13,8 +13,8 @@ import runpy
 import sys
 
 USAGE = (
-    "usage: python -m axiom_adapter run <script.py> [args...]\n"
-    "       python -m axiom_adapter run -m <module> [args...]"
+    "usage: python -m ambio_adapter run <script.py> [args...]\n"
+    "       python -m ambio_adapter run -m <module> [args...]"
 )
 
 
@@ -25,8 +25,8 @@ def main() -> None:
         sys.exit(2)
     argv = argv[1:]
 
-    import axiom_adapter
-    axiom_adapter.init()
+    import ambio_adapter
+    ambio_adapter.init()
 
     if argv[0] == "-m":
         if len(argv) < 2:

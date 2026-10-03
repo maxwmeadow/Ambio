@@ -1,7 +1,7 @@
 /**
  * MCP tool consolidation.
  *
- * Axiom exposed 59 tools, whose schemas cost roughly 9,600 tokens on EVERY
+ * Ambio exposed 59 tools, whose schemas cost roughly 9,600 tokens on EVERY
  * request an agent makes, before it has read a line of code. That is both a
  * context tax and a selection problem: a model choosing between
  * `get_neighbors`, `get_family`, `get_node` and `get_systems_with_files` is

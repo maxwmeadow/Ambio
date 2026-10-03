@@ -36,12 +36,12 @@ interface Item { label: string; run: () => void; danger?: boolean }
 type Entry = Item | 'separator'
 
 function revealLabel(): string {
-  const platform = window.axiom?.platform
+  const platform = window.ambio?.platform
   return platform === 'darwin' ? 'Reveal in Finder' : platform === 'win32' ? 'Show in Explorer' : 'Open Containing Folder'
 }
 
 function copy(text: string) {
-  if (window.axiom?.copyText) void window.axiom.copyText(text)
+  if (window.ambio?.copyText) void window.ambio.copyText(text)
   else void navigator.clipboard?.writeText(text)
 }
 
@@ -84,7 +84,7 @@ export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoom
   return (
     <div
       ref={menu}
-      className="axiom-context-menu"
+      className="ambio-context-menu"
       role="menu"
       style={{ left: position.left, top: position.top }}
       onContextMenu={event => event.preventDefault()}
@@ -104,7 +104,7 @@ export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoom
             key={entry.label}
             type="button"
             role="menuitem"
-            className={entry.danger ? 'axiom-context-menu__danger' : undefined}
+            className={entry.danger ? 'ambio-context-menu__danger' : undefined}
             onClick={() => { onClose(); entry.run() }}
           >
             {entry.label}
@@ -128,7 +128,7 @@ function buildEntries(
   }
   const messageAgent: Item = {
     label: 'Message Agent About This…',
-    run: () => window.dispatchEvent(new Event('axiom:open-agent-dispatch')),
+    run: () => window.dispatchEvent(new Event('ambio:open-agent-dispatch')),
   }
 
   if (target.kind === 'pane') {
@@ -154,12 +154,12 @@ function buildEntries(
       {
         label: 'Open in Editor',
         run: () => {
-          void window.axiom?.openFile(file.path).then(result => {
+          void window.ambio?.openFile(file.path).then(result => {
             if (!result.ok) raiseNotice('open-in-editor', 'Could not open in an editor', result.detail)
           })
         },
       },
-      { label: revealLabel(), run: () => window.axiom?.showInFolder(file.path) },
+      { label: revealLabel(), run: () => window.ambio?.showInFolder(file.path) },
       'separator',
       { label: 'Copy Path', run: () => copy(file.path) },
       { label: 'Copy Relative Path', run: () => copy(file.relPath) },

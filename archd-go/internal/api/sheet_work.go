@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Comparison and checked archival share one SQLite transaction. A resolution

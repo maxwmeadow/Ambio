@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
 )
 
 func TestReindexFileBroadcastsOnlyTruthfulCrossFileCallChanges(t *testing.T) {

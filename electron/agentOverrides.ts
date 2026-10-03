@@ -3,11 +3,11 @@ import { join } from 'path'
 import type { ConfigOverrides } from './agentInstallers'
 
 /**
- * Where the user has told Axiom a host actually keeps its configuration.
+ * Where the user has told Ambio a host actually keeps its configuration.
  *
  * Detection is a set of educated guesses about paths, and it will be wrong:
  * tools move, ship second installers, or get installed somewhere unusual.
- * Rather than treat "not found" as final, a user can point Axiom at the file
+ * Rather than treat "not found" as final, a user can point Ambio at the file
  * and that answer is remembered here.
  */
 const OVERRIDES_FILE = 'agent-config-overrides.json'
@@ -55,12 +55,12 @@ export function setOverride(configDir: string, hostId: string, configPath: strin
   const overrides = readOverrides(configDir)
   overrides[hostId] = configPath
   writeOverrides(configDir, overrides)
-  return { ok: true, detail: `Axiom will use ${configPath} for this agent.`, path: configPath }
+  return { ok: true, detail: `Ambio will use ${configPath} for this agent.`, path: configPath }
 }
 
 export function clearOverride(configDir: string, hostId: string): OverrideResult {
   const overrides = readOverrides(configDir)
   delete overrides[hostId]
   writeOverrides(configDir, overrides)
-  return { ok: true, detail: 'Axiom will detect this agent on its own again.' }
+  return { ok: true, detail: 'Ambio will detect this agent on its own again.' }
 }

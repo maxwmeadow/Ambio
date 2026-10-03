@@ -1,8 +1,8 @@
-"""Axiom runtime-layer demo target.
+"""Ambio runtime-layer demo target.
 
 A tiny payment service with a seeded validation bug: negative amounts slip
 through validate_amount and blow up (or silently corrupt state) downstream.
-Run it under Axiom (launch_target MCP tool or `python -m axiom_adapter run
+Run it under Ambio (launch_target MCP tool or `python -m ambio_adapter run
 app.py`), watch process_payment / validate_amount, and follow the calls on
 the canvas.
 """

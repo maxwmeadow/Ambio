@@ -10,7 +10,7 @@ import (
 
 // Code fit: after a meaning edit says where a file belongs, does the code
 // agree? A map decision is free; making the code match it is real work, so
-// Axiom only reports the disagreement and offers it as a work order
+// Ambio only reports the disagreement and offers it as a work order
 // (docs/PRODUCT.md §2, WORK `make-code-match`).
 //
 // Two signals, both deliberately conservative so the offer is rare and right:

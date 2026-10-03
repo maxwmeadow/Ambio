@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 type createArchitectureProposalRequest struct {

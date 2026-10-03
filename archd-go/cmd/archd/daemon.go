@@ -112,7 +112,7 @@ func registerDaemonRoutes(mux *http.ServeMux, info daemonInfo, stop chan<- os.Si
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(info)
 	})
-	// The app asks a daemon from another Axiom version to step aside.
+	// The app asks a daemon from another Ambio version to step aside.
 	mux.HandleFunc("/api/daemon/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.NotFound(w, r)

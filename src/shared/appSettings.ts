@@ -1,8 +1,8 @@
-// User preferences. Stored in ~/.axiom/settings.json beside other app state
+// User preferences. Stored in ~/.ambio/settings.json beside other app state
 // (the resume marker lives there too), so unknown keys are always preserved.
 
 export interface AppSettings {
-  /** Open the project you last had open when Axiom starts. */
+  /** Open the project you last had open when Ambio starts. */
   reopenLastProject: boolean
   /** Look for new versions on GitHub Releases in the background. */
   checkForUpdates: boolean
@@ -14,7 +14,7 @@ export interface AppSettings {
   developerMenu: boolean
   /** Where "Open in Editor" opens source files: 'auto' or an editor id. */
   editor: string
-  /** A system notification when an agent picks up or answers a work order while Axiom is in the background. */
+  /** A system notification when an agent picks up or answers a work order while Ambio is in the background. */
   workOrderNotifications: boolean
 }
 

@@ -1,6 +1,6 @@
 # Instructions for coding agents
 
-You are working on Axiom (a working name): the bidirectional architecture
+You are working on Ambio (a working name): the bidirectional architecture
 layer between a developer and their coding agents. Read
 [docs/PRODUCT.md](docs/PRODUCT.md) once to understand what it is for.
 

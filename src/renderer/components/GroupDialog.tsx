@@ -37,7 +37,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
     setError(null)
 
     try {
-      const isDemo = !window.axiom
+      const isDemo = !window.ambio
 
       if (isDemo) {
         // Demo mode: mutate store directly
@@ -109,7 +109,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Auth & Session Management"
-              className="axiom-dialog-input"
+              className="ambio-dialog-input"
               autoFocus
             />
           </DialogField>
@@ -120,7 +120,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
               onChange={e => setDescription(e.target.value)}
               placeholder="What this system is responsible for..."
               rows={3}
-              className="axiom-dialog-input axiom-dialog-input--textarea"
+              className="ambio-dialog-input ambio-dialog-input--textarea"
             />
           </DialogField>
 

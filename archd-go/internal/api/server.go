@@ -35,14 +35,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/gitworktree"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/infradetect"
-	"axiom.local/archd/internal/registry"
-	"axiom.local/archd/internal/runtime"
-	"axiom.local/archd/internal/watcher"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/registry"
+	"ambio.local/archd/internal/runtime"
+	"ambio.local/archd/internal/watcher"
 )
 
 var upgrader = websocket.Upgrader{
@@ -138,7 +138,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		agentPresenceTTL:    15 * time.Second,
 	}
 	// Adapters started outside the launcher (PYTHONPATH opt-in) have no
-	// AXIOM_WORKSPACE_ID; map them to a workspace by their working directory.
+	// AMBIO_WORKSPACE_ID; map them to a workspace by their working directory.
 	rt.SetWorkspaceResolver(s.workspaceForCwd)
 	// Recordings are only in memory until stop; flush them so a crash cannot
 	// discard an investigation silently.
@@ -167,7 +167,7 @@ func (s *Server) workspaceForCwd(cwd string) string {
 	return best
 }
 
-// openDB opens (or creates) the per-project database at <dataDir>/<workspaceID>/axiom.db.
+// openDB opens (or creates) the per-project database at <dataDir>/<workspaceID>/ambio.db.
 // Safe to call concurrently; returns the existing connection if already open.
 func (s *Server) openDB(workspaceID string) (*sql.DB, error) {
 	s.mu.Lock()
@@ -506,7 +506,7 @@ func (s *Server) handleWorkspaceScope(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "workspace id is required", http.StatusBadRequest)
 		return
 	}
-	dbPath := filepath.Join(s.dataDir, workspaceID, "axiom.db")
+	dbPath := filepath.Join(s.dataDir, workspaceID, "ambio.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		jsonOK(w, map[string]any{
 			"indexed":                    false,

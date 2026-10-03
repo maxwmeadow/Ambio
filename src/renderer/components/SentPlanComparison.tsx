@@ -32,7 +32,7 @@ export function SentPlanComparison({ workspaceId, messageId }: { workspaceId: st
         const response = await fetch(`${archdApi()}/api/canvas/snapshot-comparison?workspace=${encodeURIComponent(workspaceId)}&messageId=${encodeURIComponent(messageId)}`, { signal: AbortSignal.timeout(15000) })
         if (!response.ok) throw new Error(await response.text())
         const result = await response.json() as SentComparison
-        if (!Array.isArray(result.differences) || typeof result.equivalent !== 'boolean') throw new Error('Sent-plan comparison is unavailable; update the Axiom daemon.')
+        if (!Array.isArray(result.differences) || typeof result.equivalent !== 'boolean') throw new Error('Sent-plan comparison is unavailable; update the Ambio daemon.')
         if (alive) { setComparison(result); setError('') }
       } catch (reason) {
         if (alive) setError(reason instanceof Error ? reason.message : 'Could not compare the sent plan.')
@@ -51,11 +51,11 @@ export function SentPlanComparison({ workspaceId, messageId }: { workspaceId: st
         : unverifiable ? 'Sent structure has unverified requirements'
           : `${comparison.differences.length} sent-plan structural ${comparison.differences.length === 1 ? 'difference' : 'differences'}`
 
-  return <section className="axiom-inbox__sent-check" data-state={state} aria-label="Sent plan versus live architecture">
+  return <section className="ambio-inbox__sent-check" data-state={state} aria-label="Sent plan versus live architecture">
     <button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
       <strong>{headline}</strong><span>{expanded ? 'Hide details' : 'Details'}</span>
     </button>
-    {expanded && <div className="axiom-inbox__sent-check-detail">
+    {expanded && <div className="ambio-inbox__sent-check-detail">
       {comparison && <p>{comparison.checked} sent structural {comparison.checked === 1 ? 'requirement' : 'requirements'} checked against the current indexed model.</p>}
       {error && <p role="alert">{error}</p>}
       {!!comparison?.differences.length && <ul>{comparison.differences.slice(0, 100).map((difference, index) => <li key={`${difference.nodeId}:${difference.kind}:${index}`}><strong>{difference.name} · {difference.kind}</strong><span>{difference.detail}</span></li>)}</ul>}

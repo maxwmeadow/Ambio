@@ -39,6 +39,6 @@ export function reviewMarkdown(input: {
     }
     lines.push('')
   }
-  lines.push('_From Axiom Review Changes._')
+  lines.push('_From Ambio Review Changes._')
   return `${lines.join('\n')}\n`
 }

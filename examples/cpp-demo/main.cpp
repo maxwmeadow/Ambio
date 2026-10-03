@@ -1,4 +1,4 @@
-// Axiom C++ runtime-layer spike target.
+// Ambio C++ runtime-layer spike target.
 //
 // Several worker threads each call process_payment so the gdb-DAP tracer can be
 // exercised for call attribution + argument reading. Build with debug info:

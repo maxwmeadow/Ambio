@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/infradetect"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/registry"
 )
 
 // Detection end to end on a small project: index it, load the inputs,
