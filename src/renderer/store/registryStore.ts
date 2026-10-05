@@ -1,6 +1,6 @@
 // Infra service registry - fetched once from archd so the renderer and daemon
 // can never disagree on a service definition (docs/INFRA.md). Layered
-// resolution (embedded + ~/.config/axiom + workspace .axiom/) happens in Go;
+// resolution (embedded + ~/.config/ambio + workspace .ambio/) happens in Go;
 // the renderer only ever sees the resolved result.
 import { create } from 'zustand'
 import type { InfraRegistry, InfraService, InfraCategory } from '../../shared/types'

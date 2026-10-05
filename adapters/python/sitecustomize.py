@@ -1,8 +1,8 @@
-"""Axiom auto-bootstrap.
+"""Ambio auto-bootstrap.
 
 CPython's site module imports `sitecustomize` automatically at interpreter
-startup. When Axiom launches a target app (or the user opts in by putting this
-directory on PYTHONPATH), the presence of AXIOM_RUNTIME_PORT activates the
+startup. When Ambio launches a target app (or the user opts in by putting this
+directory on PYTHONPATH), the presence of AMBIO_RUNTIME_PORT activates the
 adapter. Without that variable this module does nothing, so leaving the
 directory on PYTHONPATH permanently is harmless.
 
@@ -20,17 +20,17 @@ def _bootstrap() -> None:
     # It needs no socket and works on every Python, so it skips the streaming
     # adapter (3.12+ only), whose version warning would land in the user's
     # program output.
-    if os.environ.get("AXIOM_EVIDENCE_DIR"):
+    if os.environ.get("AMBIO_EVIDENCE_DIR"):
         try:
-            from axiom_adapter import recorder
+            from ambio_adapter import recorder
             recorder.start()
         except Exception:
             pass
         return
-    if os.environ.get("AXIOM_RUNTIME_PORT") or os.environ.get("AXIOM_WORKSPACE_ID"):
+    if os.environ.get("AMBIO_RUNTIME_PORT") or os.environ.get("AMBIO_WORKSPACE_ID"):
         try:
-            import axiom_adapter
-            axiom_adapter.init()
+            import ambio_adapter
+            ambio_adapter.init()
         except Exception:
             pass
 

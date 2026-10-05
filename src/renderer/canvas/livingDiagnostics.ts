@@ -30,7 +30,7 @@ export interface LivingFlowDiagnostic {
 }
 
 type LivingDiagnosticGlobal = typeof globalThis & {
-  __axiomLivingFlowLog?: LivingFlowDiagnostic[]
+  __ambioLivingFlowLog?: LivingFlowDiagnostic[]
 }
 
 const MAX_DIAGNOSTICS = 500
@@ -58,7 +58,7 @@ function diagnosticSummary(entry: LivingFlowDiagnostic): string {
 /**
  * Structured, bounded diagnostics for the one pipeline that can create a
  * visible travelling pulse. In DevTools, run:
- *   copy(window.__axiomLivingFlowLog)
+ *   copy(window.__ambioLivingFlowLog)
  * to capture the complete correlated lifecycle without unrelated canvas logs.
  */
 export function recordLivingFlowDiagnostic(
@@ -74,12 +74,12 @@ export function recordLivingFlowDiagnostic(
     ...fields,
   }
   const owner = diagnosticGlobal()
-  const log = owner.__axiomLivingFlowLog ?? []
+  const log = owner.__ambioLivingFlowLog ?? []
   log.push(entry)
   if (log.length > MAX_DIAGNOSTICS) {
     log.splice(0, log.length - MAX_DIAGNOSTICS)
   }
-  owner.__axiomLivingFlowLog = log
+  owner.__ambioLivingFlowLog = log
   console.info(diagnosticSummary(entry))
   return entry
 }

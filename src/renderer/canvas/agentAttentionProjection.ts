@@ -8,7 +8,7 @@ import { livingVisibilityIndex, type LivingVisibilityOptions } from './livingVis
  * Kept separate from the signal logic in `agentActionVisual.ts` so that module
  * stays free of canvas concerns and testable on plain objects.
  *
- * Like every other live signal in Axiom this is a PROJECTION, never canvas
+ * Like every other live signal in Ambio this is a PROJECTION, never canvas
  * state: layout, selection, zoom and sheet passes cannot overwrite an in-flight
  * attention glow, and when the signal expires the untouched nodes return.
  */

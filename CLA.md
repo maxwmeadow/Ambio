@@ -1,6 +1,6 @@
 # Individual Contributor License Agreement
 
-Thank you for contributing to Axiom (the "Project"), maintained by Max Meadow
+Thank you for contributing to Ambio (the "Project"), maintained by Max Meadow
 (the "Maintainer"). This agreement clarifies the rights you grant in your
 contributions. It does not transfer ownership: you keep the copyright in what
 you write and can use it however you like.

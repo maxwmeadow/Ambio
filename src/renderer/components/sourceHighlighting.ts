@@ -11,10 +11,10 @@ export interface HighlightedSource {
   background?: string
 }
 
-export type AxiomHighlightLanguage = 'typescript' | 'tsx' | 'javascript' | 'jsx' | 'python' |
+export type AmbioHighlightLanguage = 'typescript' | 'tsx' | 'javascript' | 'jsx' | 'python' |
   'go' | 'rust' | 'csharp' | 'c' | 'cpp' | 'ruby' | 'java'
 
-const LANGUAGE_ALIASES: Record<string, AxiomHighlightLanguage> = {
+const LANGUAGE_ALIASES: Record<string, AmbioHighlightLanguage> = {
   typescript: 'typescript',
   ts: 'typescript',
   tsx: 'tsx',
@@ -37,13 +37,13 @@ const LANGUAGE_ALIASES: Record<string, AxiomHighlightLanguage> = {
   java: 'java',
 }
 
-const EXTENSION_LANGUAGES: Record<string, AxiomHighlightLanguage> = {
+const EXTENSION_LANGUAGES: Record<string, AmbioHighlightLanguage> = {
   ts: 'typescript', tsx: 'tsx', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'jsx',
   py: 'python', go: 'go', rs: 'rust', cs: 'csharp', c: 'c', cc: 'cpp', cpp: 'cpp', cxx: 'cpp',
   h: 'cpp', hpp: 'cpp', hxx: 'cpp', rb: 'ruby', java: 'java',
 }
 
-function shikiLanguage(language: string, path: string): AxiomHighlightLanguage | null {
+function shikiLanguage(language: string, path: string): AmbioHighlightLanguage | null {
   const normalized = language.trim().toLowerCase()
   const mapped = LANGUAGE_ALIASES[normalized]
   if (mapped) return mapped
@@ -54,7 +54,7 @@ function shikiLanguage(language: string, path: string): AxiomHighlightLanguage |
 /**
  * Shiki's singleton shorthand lazily imports and caches the requested TextMate
  * grammar and theme. Keeping this behind a dynamic import also leaves the
- * highlighter out of Axiom's initial renderer chunk.
+ * highlighter out of Ambio's initial renderer chunk.
  */
 export async function highlightSource(content: string, language: string, path: string): Promise<HighlightedSource> {
   const lang = shikiLanguage(language, path)

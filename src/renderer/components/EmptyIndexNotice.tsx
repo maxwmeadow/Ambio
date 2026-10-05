@@ -58,14 +58,14 @@ export function EmptyIndexNotice({
     const timer = setTimeout(() => {
       // State the observation, and name a cause only when one is actually
       // established. An empty graph can equally mean the repository holds no
-      // language Axiom can parse, or that indexing failed - asserting
+      // language Ambio can parse, or that indexing failed - asserting
       // "everything is excluded" when nothing is excluded is just wrong.
       raiseInvitation(
         ID,
         'Indexing finished without finding any source files',
         hasExclusions
           ? 'Some folders are excluded from this project. Check whether the ones holding your code are among them.'
-          : 'Nothing here is excluded, so this may be a repository with no language Axiom can parse yet.',
+          : 'Nothing here is excluded, so this may be a repository with no language Ambio can parse yet.',
         [{
           label: 'Choose folders',
           primary: true,

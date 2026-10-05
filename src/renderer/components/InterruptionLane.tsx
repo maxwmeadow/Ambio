@@ -66,28 +66,28 @@ export function InterruptionLane() {
 
   return (
     <aside
-      className="axiom-lane"
+      className="ambio-lane"
       data-kind={current.kind}
       role={current.kind === 'decision' ? 'alertdialog' : 'status'}
       aria-live={current.kind === 'decision' ? 'assertive' : 'polite'}
       aria-label={`${KIND_LABEL[current.kind]}: ${current.title}`}
     >
-      <span className="axiom-lane__kind">{KIND_LABEL[current.kind]}</span>
+      <span className="ambio-lane__kind">{KIND_LABEL[current.kind]}</span>
 
-      <div className="axiom-lane__copy">
-        <strong className="axiom-lane__title">{current.title}</strong>
-        {current.body && <span className="axiom-lane__body">{current.body}</span>}
+      <div className="ambio-lane__copy">
+        <strong className="ambio-lane__title">{current.title}</strong>
+        {current.body && <span className="ambio-lane__body">{current.body}</span>}
       </div>
 
-      <div className="axiom-lane__actions">
+      <div className="ambio-lane__actions">
         {current.actions?.map(action => (
           <button
             key={action.label}
             type="button"
             className={
               action.primary
-                ? 'axiom-lane__button axiom-lane__button--primary'
-                : 'axiom-lane__button'
+                ? 'ambio-lane__button ambio-lane__button--primary'
+                : 'ambio-lane__button'
             }
             disabled={busy}
             onClick={() => void runAction(action)}
@@ -97,7 +97,7 @@ export function InterruptionLane() {
         ))}
 
         {waiting > 0 && (
-          <span className="axiom-lane__waiting" title="Shown one at a time, most urgent first">
+          <span className="ambio-lane__waiting" title="Shown one at a time, most urgent first">
             +{waiting}
           </span>
         )}
@@ -105,7 +105,7 @@ export function InterruptionLane() {
         {dismissible && (
           <button
             type="button"
-            className="axiom-lane__dismiss"
+            className="ambio-lane__dismiss"
             onClick={() => {
               // Dismissal is the raiser's to define. Removing the entry without
               // telling them means a "not now" that is neither remembered nor

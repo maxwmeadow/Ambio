@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// MaxSourceFileBytes is the largest file Axiom parses. Anything bigger is
+// MaxSourceFileBytes is the largest file Ambio parses. Anything bigger is
 // almost always generated - a bundle, a vendored amalgamation, a lockfile-like
 // data table - and parsing it costs seconds and memory while adding nothing
 // a person would call architecture.

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 export function WindowControls() {
-  const platform = window.axiom?.platform
+  const platform = window.ambio?.platform
     || (typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac')
       ? 'darwin'
       : typeof navigator !== 'undefined' && navigator.userAgent.includes('Win')
@@ -12,10 +12,10 @@ export function WindowControls() {
 
   useEffect(() => {
     if (platform !== 'linux') return
-    void window.axiom?.isMaximized?.().then(max => {
+    void window.ambio?.isMaximized?.().then(max => {
       if (typeof max === 'boolean') setIsMaximized(max)
     })
-    const unsubscribe = window.axiom?.onMaximizedChange?.(max => {
+    const unsubscribe = window.ambio?.onMaximizedChange?.(max => {
       setIsMaximized(max)
     })
     return () => {
@@ -27,13 +27,13 @@ export function WindowControls() {
   if (platform !== 'linux') return null
 
   return (
-    <div className="axiom-window-controls" role="group" aria-label="Window controls">
+    <div className="ambio-window-controls" role="group" aria-label="Window controls">
       <button
         type="button"
-        className="axiom-window-control axiom-window-control--minimize"
+        className="ambio-window-control ambio-window-control--minimize"
         title="Minimize"
         aria-label="Minimize"
-        onClick={() => void window.axiom?.minimize?.()}
+        onClick={() => void window.ambio?.minimize?.()}
       >
         <svg width="10" height="1" viewBox="0 0 10 1" fill="none" aria-hidden="true">
           <rect width="10" height="1" fill="currentColor" />
@@ -42,10 +42,10 @@ export function WindowControls() {
 
       <button
         type="button"
-        className="axiom-window-control axiom-window-control--maximize"
+        className="ambio-window-control ambio-window-control--maximize"
         title={isMaximized ? 'Restore' : 'Maximize'}
         aria-label={isMaximized ? 'Restore' : 'Maximize'}
-        onClick={() => void window.axiom?.maximize?.()}
+        onClick={() => void window.ambio?.maximize?.()}
       >
         {isMaximized ? (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
@@ -61,10 +61,10 @@ export function WindowControls() {
 
       <button
         type="button"
-        className="axiom-window-control axiom-window-control--close"
+        className="ambio-window-control ambio-window-control--close"
         title="Close"
         aria-label="Close"
-        onClick={() => void window.axiom?.close?.()}
+        onClick={() => void window.ambio?.close?.()}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
           <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />

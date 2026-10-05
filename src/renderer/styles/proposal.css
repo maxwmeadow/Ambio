@@ -3,7 +3,7 @@
    file guaranteed to conflict between long-running worktrees. Loaded from
    main.tsx alongside the other per-track sheets. */
 
-.axiom-proposal {
+.ambio-proposal {
   --proposal-ink:      #1f2a26;
   --proposal-ink-soft: #55635d;
   --proposal-paper:    #eceae3;
@@ -20,7 +20,7 @@
   font-family: var(--font-mono);
 }
 
-.axiom-proposal--panel {
+.ambio-proposal--panel {
   top: 14px;
   right: 14px;
   bottom: 14px;
@@ -32,7 +32,7 @@
   border-top: 2px solid var(--proposal-green);
 }
 
-.axiom-proposal--embedded {
+.ambio-proposal--embedded {
   position: relative;
   inset: auto;
   display: flex;
@@ -47,63 +47,63 @@
   box-shadow: 2px 2px 0 rgba(31, 42, 38, 0.2);
 }
 
-.axiom-proposal--embedded .axiom-proposal__header {
+.ambio-proposal--embedded .ambio-proposal__header {
   gap: 16px;
   padding: 15px 16px;
 }
 
-.axiom-proposal--embedded .axiom-proposal__mode {
+.ambio-proposal--embedded .ambio-proposal__mode {
   font-size: 11px;
 }
 
-.axiom-proposal--embedded .axiom-proposal__progress {
+.ambio-proposal--embedded .ambio-proposal__progress {
   font-size: 14px;
   text-align: right;
 }
 
-.axiom-proposal--embedded .axiom-proposal__rationale {
+.ambio-proposal--embedded .ambio-proposal__rationale {
   display: none;
 }
 
-.axiom-proposal--embedded .axiom-proposal__item {
+.ambio-proposal--embedded .ambio-proposal__item {
   padding-top: 16px;
   padding-right: 18px;
   padding-bottom: 17px;
 }
 
-.axiom-proposal--embedded .axiom-proposal__name {
+.ambio-proposal--embedded .ambio-proposal__name {
   font-family: var(--font-sans);
   font-size: 18px;
   line-height: 1.25;
 }
 
-.axiom-proposal--embedded .axiom-proposal__count {
+.ambio-proposal--embedded .ambio-proposal__count {
   font-size: 12px;
 }
 
-.axiom-proposal--embedded .axiom-proposal__purpose {
+.ambio-proposal--embedded .ambio-proposal__purpose {
   margin-top: 6px;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.55;
 }
 
-.axiom-proposal--embedded .axiom-proposal__actions {
+.ambio-proposal--embedded .ambio-proposal__actions {
   margin-top: 11px;
 }
 
-.axiom-proposal--embedded button {
+.ambio-proposal--embedded button {
   min-height: 40px;
   padding: 8px 14px;
   font-size: 13px;
 }
 
-.axiom-proposal--embedded .axiom-proposal__footer {
+.ambio-proposal--embedded .ambio-proposal__footer {
   padding: 12px 16px;
   font-size: 12px;
 }
 
-.axiom-proposal__header {
+.ambio-proposal__header {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -115,19 +115,19 @@
   color: #f2f1eb;
 }
 
-.axiom-proposal__mode {
+.ambio-proposal__mode {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.75;
 }
 
-.axiom-proposal__progress {
+.ambio-proposal__progress {
   flex: 1 1 auto;
   font-size: 12px;
 }
 
-.axiom-proposal__close {
+.ambio-proposal__close {
   border: none;
   background: none;
   color: inherit;
@@ -136,13 +136,13 @@
   line-height: 1;
   padding: 2px 4px;
 }
-.axiom-proposal__close:focus-visible,
-.axiom-proposal button:focus-visible {
+.ambio-proposal__close:focus-visible,
+.ambio-proposal button:focus-visible {
   outline: 2px solid var(--proposal-green);
   outline-offset: 1px;
 }
 
-.axiom-proposal__rationale {
+.ambio-proposal__rationale {
   flex: 0 0 auto;
   margin: 0;
   padding: 11px 14px;
@@ -152,7 +152,7 @@
   line-height: 1.5;
 }
 
-.axiom-proposal__error {
+.ambio-proposal__error {
   margin: 0;
   padding: 10px 14px;
   background: #f2e2da;
@@ -160,7 +160,7 @@
   font-size: 12px;
 }
 
-.axiom-proposal__list {
+.ambio-proposal__list {
   flex: 1 1 auto;
   margin: 0;
   padding: 0;
@@ -168,36 +168,36 @@
   list-style: none;
 }
 
-.axiom-proposal__item {
+.ambio-proposal__item {
   padding: 10px 14px 12px;
   border-bottom: 1px solid var(--proposal-rule);
   cursor: default;
 }
-.axiom-proposal__item[data-active] {
+.ambio-proposal__item[data-active] {
   background: #e2e6df;
   box-shadow: inset 3px 0 0 var(--proposal-green);
 }
 /* A decided system stays visible and stays quiet: removing it would make the
    list jump under the cursor mid-review, and hide the record of what you just
    did. */
-.axiom-proposal__item[data-decision='approved'] { opacity: 0.62; }
-.axiom-proposal__item[data-decision='rejected'] { opacity: 0.62; }
-.axiom-proposal__item[data-decision='approved'] .axiom-proposal__name::after {
+.ambio-proposal__item[data-decision='approved'] { opacity: 0.62; }
+.ambio-proposal__item[data-decision='rejected'] { opacity: 0.62; }
+.ambio-proposal__item[data-decision='approved'] .ambio-proposal__name::after {
   content: ' ✓';
   color: var(--proposal-green);
 }
-.axiom-proposal__item[data-decision='rejected'] .axiom-proposal__name::after {
+.ambio-proposal__item[data-decision='rejected'] .ambio-proposal__name::after {
   content: ' ↩';
   color: var(--proposal-amber);
 }
 
-.axiom-proposal__row {
+.ambio-proposal__row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.axiom-proposal .axiom-proposal__toggle {
+.ambio-proposal .ambio-proposal__toggle {
   display: inline-grid;
   flex: 0 0 28px;
   width: 28px;
@@ -211,46 +211,46 @@
   font-weight: 700;
 }
 
-.axiom-proposal__toggle-spacer {
+.ambio-proposal__toggle-spacer {
   flex: 0 0 28px;
   width: 28px;
 }
 
-.axiom-proposal__name {
+.ambio-proposal__name {
   flex: 1 1 auto;
   font-size: 14px;
   font-weight: 600;
 }
 
-.axiom-proposal__count {
+.ambio-proposal__count {
   color: var(--proposal-ink-soft);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.axiom-proposal__purpose {
+.ambio-proposal__purpose {
   margin: 5px 0 0;
   color: var(--proposal-ink-soft);
   font-size: 12px;
   line-height: 1.45;
 }
 
-.axiom-proposal__sentback {
+.ambio-proposal__sentback {
   margin: 6px 0 0;
   color: var(--proposal-amber);
   font-size: 11.5px;
   line-height: 1.45;
 }
 
-.axiom-proposal__actions,
-.axiom-proposal__reject-actions {
+.ambio-proposal__actions,
+.ambio-proposal__reject-actions {
   display: flex;
   gap: 8px;
   margin-top: 9px;
 }
 
-.axiom-proposal button {
+.ambio-proposal button {
   border: 1px solid #6d7a75;
   border-radius: 2px;
   background: #f7f6f1;
@@ -260,15 +260,15 @@
   font-size: 11.5px;
   padding: 4px 10px;
 }
-.axiom-proposal button:disabled { cursor: not-allowed; opacity: 0.5; }
+.ambio-proposal button:disabled { cursor: not-allowed; opacity: 0.5; }
 
-.axiom-proposal__approve {
+.ambio-proposal__approve {
   border-color: var(--proposal-green);
   background: var(--proposal-green);
   color: #f4f7f4;
 }
 
-.axiom-proposal__reject textarea {
+.ambio-proposal__reject textarea {
   width: 100%;
   min-height: 58px;
   margin-top: 9px;
@@ -282,14 +282,14 @@
   resize: vertical;
 }
 
-.axiom-proposal__refusal {
+.ambio-proposal__refusal {
   margin: 8px 0 0;
   color: #7a3c22;
   font-size: 11.5px;
   line-height: 1.45;
 }
 
-.axiom-proposal__footer {
+.ambio-proposal__footer {
   flex: 0 0 auto;
   padding: 8px 12px;
   border-top: 1px solid #1d2925;
@@ -300,5 +300,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .axiom-proposal * { transition: none !important; }
+  .ambio-proposal * { transition: none !important; }
 }

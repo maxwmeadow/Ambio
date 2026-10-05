@@ -62,7 +62,7 @@ export function OrthogonalEdge({
           ...style,
           stroke,
           animation: isLiving
-            ? `axiomLivingFlowTravel ${livingTravelMs}ms cubic-bezier(0.22, 1, 0.36, 1) both`
+            ? `ambioLivingFlowTravel ${livingTravelMs}ms cubic-bezier(0.22, 1, 0.36, 1) both`
             : isTraced ? 'traceFlow 0.6s linear infinite' : undefined,
           animationDelay: isLiving ? `${livingDelayMs}ms` : undefined,
           filter: isLiving

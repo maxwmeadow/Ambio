@@ -13,10 +13,9 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"],
-      "@renderer/*": ["src/renderer/*"],
-      "@archd/*": ["archd/*"]
+      "@renderer/*": ["src/renderer/*"]
     }
   },
-  "include": ["src", "electron", "archd", "mcp"],
+  "include": ["src", "electron", "mcp"],
   "exclude": ["node_modules", "dist", "dist-electron", "release"]
 }

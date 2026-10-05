@@ -5,7 +5,7 @@ async function main() {
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env
   const app = await electron.launch({
     args: ['.'],
-    env: { ...env, AXIOM_E2E: '1' },
+    env: { ...env, AMBIO_E2E: '1' },
   })
 
   try {
@@ -22,11 +22,11 @@ async function main() {
       })
     })
     await page.reload()
-    await page.getByText('Axiom Canvas Fixture').waitFor()
+    await page.getByText('Ambio Canvas Fixture').waitFor()
     await page.locator('.react-flow__node[data-id="file_canvas"]').waitFor()
     await page.waitForTimeout(1000)
     await page.screenshot({
-      path: path.join(__dirname, 'axiom-actual-toolbar.png'),
+      path: path.join(__dirname, 'ambio-actual-toolbar.png'),
       animations: 'disabled',
     })
   } finally {

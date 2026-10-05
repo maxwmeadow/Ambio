@@ -7,7 +7,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>csharp-demo</AssemblyName>
     <!-- Full PDBs + no optimization so netcoredbg binds file:line breakpoints
-         and reads clean argument values (Axiom traces Debug builds). -->
+         and reads clean argument values (Ambio traces Debug builds). -->
     <DebugType>portable</DebugType>
     <Optimize>false</Optimize>
   </PropertyGroup>

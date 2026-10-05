@@ -1,7 +1,7 @@
 /** One contract for installed host instructions and the MCP connection. */
-export const DRAW_FIRST_WORKFLOW = `## Axiom: draw structural changes before code
+export const DRAW_FIRST_WORKFLOW = `## Ambio: draw structural changes before code
 
-When Axiom tools are available for this project, use this workflow for a new system, a new dependency between systems, or moving responsibility across a boundary. Bug fixes, tests, documentation and edits inside an existing boundary need no new sheet.
+When Ambio tools are available for this project, use this workflow for a new system, a new dependency between systems, or moving responsibility across a boundary. Bug fixes, tests, documentation and edits inside an existing boundary need no new sheet.
 
 1. Read the relevant code and get_architecture overview/cross_dependencies. Confirm the connected workspace belongs to this project; if tools are unavailable or bound elsewhere, say so and do not pretend a plan was saved.
 2. Reuse the sheet supplied by the user or work order: read edit_sheet(get) and edit_sheet(compare), and the approved get_build_plan(sheet). Do not create a duplicate or replace the frozen work-order scope. Otherwise find a matching active sheet with edit_sheet(list), or create a small, named sheet with edit_sheet(create, name, purpose, members) using existing file paths/system IDs for context.
@@ -10,4 +10,4 @@ When Axiom tools are available for this project, use this workflow for a new sys
 5. Build only the authorized scope. Call start_work before editing, carrying messageHandle for a claimed request; use its sessionId with update_work. After indexing, call edit_sheet(compare), bind approved planned nodes to their real counterparts and apply intended nesting using the latest revision/token. Report remaining structural differences and the actual checks you ran. Resolve only when equivalent, implementation checks pass, and completion was requested; never force a plan to match by changing the Floor. If scope changes, draw and review the addition first. Resume by reading the existing sheet and current approvals rather than redrawing it.
 `
 
-export const DRAW_FIRST_SKILL_DESCRIPTION = 'Plan structural code changes in Axiom before editing: new systems, dependencies between systems, or moved responsibility. Use for features/refactors that cross architecture boundaries, even when the user does not explicitly ask for a diagram.'
+export const DRAW_FIRST_SKILL_DESCRIPTION = 'Plan structural code changes in Ambio before editing: new systems, dependencies between systems, or moved responsibility. Use for features/refactors that cross architecture boundaries, even when the user does not explicitly ask for a diagram.'

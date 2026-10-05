@@ -1,7 +1,7 @@
 /**
  * Does this map say anything?
  *
- * Axiom used to ask only "are any files unclassified", which is a question about
+ * Ambio used to ask only "are any files unclassified", which is a question about
  * coverage, not meaning. A workspace whose every file sat in an auto-generated
  * pile answered "no problem here" while the canvas read Bar, Lane, Phase and
  * Cochange - labels chosen by symbol frequency, which describe nothing a person

@@ -10,7 +10,7 @@ const DISPLAY = [{ x: 0, y: 0, width: 1920, height: 1080 }]
 const MIN = { width: 900, height: 600 }
 
 test('window state round-trips and rejects malformed files', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-window-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-window-'))
   const file = path.join(dir, 'window-state.json')
   try {
     assert.equal(readWindowState(file), null)

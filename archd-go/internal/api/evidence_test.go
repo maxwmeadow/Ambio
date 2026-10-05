@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/runtime"
 )
 
 func testIndex() *fileIndex {

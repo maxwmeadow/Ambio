@@ -27,7 +27,7 @@ import './styles/drafts.css'
 import './styles/appChrome.css'
 
 // Uncaught errors reach the log (warnings and errors are kept in
-// ~/.axiom/logs/renderer.log) instead of vanishing with the console.
+// ~/.ambio/logs/renderer.log) instead of vanishing with the console.
 window.addEventListener('error', event => {
   console.error('[renderer] uncaught error:', event.error ?? event.message)
 })
@@ -35,13 +35,13 @@ window.addEventListener('unhandledrejection', event => {
   console.error('[renderer] unhandled rejection:', event.reason)
 })
 
-const detectedPlatform = window.axiom?.platform
+const detectedPlatform = window.ambio?.platform
   || (navigator.userAgent.includes('Mac') ? 'darwin' : navigator.userAgent.includes('Win') ? 'win32' : 'linux')
 document.documentElement.dataset.platform = detectedPlatform
 
 const root = document.getElementById('root')
 if (!root) {
-  console.error('[axiom] #root element not found - check index.html')
+  console.error('[ambio] #root element not found - check index.html')
 } else {
   ReactDOM.createRoot(root).render(
     <React.StrictMode>

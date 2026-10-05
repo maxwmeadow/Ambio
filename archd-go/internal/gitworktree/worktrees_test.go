@@ -7,10 +7,10 @@ import (
 
 func TestParsePorcelainPreservesOrderAndBranchIdentity(t *testing.T) {
 	input := []byte(
-		"worktree C:/code/Axiom\x00" +
+		"worktree C:/code/Ambio\x00" +
 			"HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00" +
 			"branch refs/heads/main\x00\x00" +
-			"worktree C:/code/Axiom feature\x00" +
+			"worktree C:/code/Ambio feature\x00" +
 			"HEAD bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\x00" +
 			"branch refs/heads/feature/agents\x00" +
 			"locked reason with spaces\x00\x00" +
@@ -32,7 +32,7 @@ func TestParsePorcelainPreservesOrderAndBranchIdentity(t *testing.T) {
 	if worktrees[1].Primary || worktrees[1].Branch != "feature/agents" {
 		t.Fatalf("linked worktree = %#v", worktrees[1])
 	}
-	if worktrees[1].Path != filepath.Clean(filepath.FromSlash("C:/code/Axiom feature")) {
+	if worktrees[1].Path != filepath.Clean(filepath.FromSlash("C:/code/Ambio feature")) {
 		t.Fatalf("path with spaces = %q", worktrees[1].Path)
 	}
 	if worktrees[2].Branch != DetachedBranch {
@@ -43,7 +43,7 @@ func TestParsePorcelainPreservesOrderAndBranchIdentity(t *testing.T) {
 func TestParsePorcelainRejectsIncompleteAndEmptyRecords(t *testing.T) {
 	for name, input := range map[string][]byte{
 		"empty":        nil,
-		"missing head": []byte("worktree C:/code/Axiom\x00\x00"),
+		"missing head": []byte("worktree C:/code/Ambio\x00\x00"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := parsePorcelain(input); err == nil {

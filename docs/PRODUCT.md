@@ -1,15 +1,15 @@
-# Axiom - the product
+# Ambio - the product
 
-Status: living definition of what Axiom is and the rules it keeps. Decisions and
+Status: living definition of what Ambio is and the rules it keeps. Decisions and
 their reasoning: [DECISIONS.md](DECISIONS.md). Open work: [../WORK.md](../WORK.md).
 Observable canvas behaviour: [CANVAS_BEHAVIOR_CONTRACT.md](CANVAS_BEHAVIOR_CONTRACT.md).
-Updated 2026-09-30. ("Axiom" is a working name; see DECISIONS §3.)
+Updated 2026-10-03. (Named Ambio, from Latin *ambo*, "both"; see DECISIONS §3.)
 
 ---
 
 ## 1. The thesis
 
-**Axiom is the bidirectional architecture layer between you and your coding
+**Ambio is the bidirectional architecture layer between you and your coding
 agents.** It keeps a developer and their agents on the same page about the
 architecture, in both directions, all the time.
 
@@ -19,11 +19,11 @@ drawn by hand go stale in a day; diagrams generated once are out of date the
 next time an agent runs. So people stop looking at architecture at all and
 review 40-file diffs instead.
 
-Axiom closes that gap:
+Ambio closes that gap:
 
 - **You → agent.** Draw or change the architecture - a new system, a moved
   responsibility, a relationship that should not exist - and hand it to your
-  agent as a work order. Axiom checks what was built against what you drew.
+  agent as a work order. Ambio checks what was built against what you drew.
 - **Agent → you.** Your agent draws what it thinks the architecture is, what
   it plans to build, or what it just changed, on the same surface. You confirm,
   correct or reject it before or after the code moves.
@@ -37,7 +37,7 @@ write.
 
 ### Every tool is bidirectional
 
-This is the product's first rule. For every artifact Axiom shows - systems,
+This is the product's first rule. For every artifact Ambio shows - systems,
 relationships, infrastructure, sheets, plans, rules - both parties can create
 and change it, and each sees the other's changes:
 
@@ -81,26 +81,32 @@ Systems are clustered from real topology, never from folders.
 - **A sheet** is a proposal about the architecture: moves, additions and
   removals. A proposal never touches reality until someone builds it.
 
-### What you may change on the Floor (proposed rule, `floor-edit-rules` in WORK.md)
+### What you may change on the Floor (decided 2026-10-01)
 
 Edits on the Floor come in three kinds, and each is handled differently:
 
-1. **Presentation** - position, size, collapse, colour, pinning. Always free.
-   It changes how the map looks, never what it says. (Today: dragging on the
-   Floor never rewrites ownership.)
+1. **Presentation** - position within the same parent, size, collapse, tidy.
+   Always free and not recorded: it changes how the map looks, never what it
+   says.
 2. **Meaning** - what a system is called, which files belong to which system,
-   how systems nest. Systems are Axiom's interpretation of the code, not the
-   code, so changing them does not lie about reality. Allowed on the Floor, but
-   every meaning edit is journaled, attributed (you or an agent), visible to
-   agents, and undoable from Review Changes. (Today: placing unsorted files
-   from the bins; not journaled yet.)
-3. **Reality** - anything that needs the code to change: a new system that has
-   no code yet, removing a relationship, splitting a module so files move,
-   deleting a system's code. The Floor cannot fake these. The gesture instead
+   how systems nest, grouping and ungrouping. Systems are Ambio's
+   interpretation of the code, not the code, so changing them does not lie
+   about reality. Allowed on the Floor for you and your agents; every meaning
+   edit is journaled, attributed (you or a named agent), visible to the other
+   side and undoable from Review Changes. **Placement is meaning:** dragging a
+   file into another system moves it there, dragging a system into another
+   nests it, and dragging either out onto empty canvas lifts it to the top
+   level. (Overlapping one node with another has no visual use, so a drop
+   onto a system always means "belongs here".) Delete on a system ungroups it:
+   its contents move up a level and no code is touched. Agent meaning edits
+   apply immediately.
+3. **Reality** - anything that needs the code to change: deleting a file, a
+   new system that has no code yet, removing a relationship, splitting a
+   module so files move. The Floor cannot fake these. The gesture instead
    offers **Draft as a work order**, which opens a sheet with the change
    already drawn, ready to send.
 
-After a meaning edit, Axiom may also ask "Make the code match?" - for example
+After a meaning edit, Ambio may also ask "Make the code match?" - for example
 when a file moved into Payments still imports half of Orders - which drafts the
 same kind of sheet. This keeps the Floor honest without making it read-only,
 and without forcing a sheet for every rename.
@@ -160,7 +166,7 @@ Verified by a code audit of `main` on 2026-09-30.
 
 | Capability | State |
 |---|---|
-| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ get symbols and calls but no import edges; C, Kotlin, Swift, PHP not parsed |
+| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP not parsed |
 | Agents propose the architecture; you review and approve | ✅ Chunked proposal sessions that survive restarts |
 | Sheets → addressed work orders → structural comparison | ✅ Real Codex runs pass end to end; delivery is a copy-pasted ID |
 | Agent-drawn sheets and planned elements | ✅ Draw-first skills, project reminders and MCP guidance across supported hosts; live model behavior still needs authenticated trials |

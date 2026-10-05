@@ -170,7 +170,7 @@ export function ShapeBackdrop({
     >
       <path
         ref={pathRef}
-        className="axiom-shape-backdrop-path"
+        className="ambio-shape-backdrop-path"
         d={shellPath(shape, initialW, initialH)}
         fill={fill}
         stroke={stroke}
@@ -183,7 +183,7 @@ export function ShapeBackdrop({
           Sits above the fill and below the head band and content. */}
       <path
         ref={textureRef}
-        className="axiom-shape-texture"
+        className="ambio-shape-texture"
         data-stock={stock}
         d={shellPath(shape, initialW, initialH)}
         stroke="none"
@@ -266,7 +266,7 @@ export function NodeShell({
             STOCK block: a sheet's material marks what is PROPOSED, so live
             code must look identical whichever surface you view it on. */}
         <path
-          className="axiom-shape-texture"
+          className="ambio-shape-texture"
           data-stock="paper"
           d={shellPath(shape, w, h)}
           stroke="none"

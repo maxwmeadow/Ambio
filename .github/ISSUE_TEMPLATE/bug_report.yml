@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Axiom does not work the way it should.
+description: Something in Ambio does not work the way it should.
 labels: [bug]
 body:
   - type: textarea
@@ -24,7 +24,7 @@ body:
       label: Diagnostics
       description: >
         Use "Copy diagnostics" on the launcher and
-        paste it here. It includes your Axiom version, OS and recent log lines
+        paste it here. It includes your Ambio version, OS and recent log lines
         with your home directory replaced by ~. Read it before pasting and
         remove anything you would rather not share.
       render: markdown

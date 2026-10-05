@@ -35,20 +35,20 @@ function ActionRow({
 }) {
   const focusable = action.targets.length > 0
   return (
-    <li className="axiom-agentlog__row" data-kind={action.kind} data-status={action.status}>
+    <li className="ambio-agentlog__row" data-kind={action.kind} data-status={action.status}>
       <button
         type="button"
-        className="axiom-agentlog__entry"
+        className="ambio-agentlog__entry"
         disabled={!focusable}
         title={focusable ? 'Show on the map' : undefined}
         onClick={() => onFocus(action.targets)}
       >
-        <span className="axiom-agentlog__kind">{KIND_LABEL[action.kind]}</span>
-        <span className="axiom-agentlog__summary">{action.summary}</span>
-        <span className="axiom-agentlog__time">{timeOf(action.ts)}</span>
+        <span className="ambio-agentlog__kind">{KIND_LABEL[action.kind]}</span>
+        <span className="ambio-agentlog__summary">{action.summary}</span>
+        <span className="ambio-agentlog__time">{timeOf(action.ts)}</span>
       </button>
       {action.status === 'error' && (
-        <span className="axiom-agentlog__error" title={action.error}>{action.error}</span>
+        <span className="ambio-agentlog__error" title={action.error}>{action.error}</span>
       )}
     </li>
   )
@@ -98,24 +98,24 @@ export function AgentLogPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <aside className="axiom-agentlog" aria-label="Agent activity log">
-      <header className="axiom-agentlog__header">
-        <span className="axiom-agentlog__mode">Agent</span>
-        <div className="axiom-agentlog__identity">
+    <aside className="ambio-agentlog" aria-label="Agent activity log">
+      <header className="ambio-agentlog__header">
+        <span className="ambio-agentlog__mode">Agent</span>
+        <div className="ambio-agentlog__identity">
           <strong>{actions.length} action{actions.length === 1 ? '' : 's'}</strong>
           <span>{sessions.length > 0 ? `${sessions.length} working now` : 'idle'}</span>
         </div>
-        <button type="button" className="axiom-agentlog__close" aria-label="Close agent log" onClick={onClose}>
+        <button type="button" className="ambio-agentlog__close" aria-label="Close agent log" onClick={onClose}>
           ×
         </button>
       </header>
 
-      <div className="axiom-agentlog__filters" role="group" aria-label="Filter by kind">
+      <div className="ambio-agentlog__filters" role="group" aria-label="Filter by kind">
         {(['all', 'read', 'trace', 'write', 'plan', 'debug'] as const).map(kind => (
           <button
             key={kind}
             type="button"
-            className="axiom-agentlog__filter"
+            className="ambio-agentlog__filter"
             aria-pressed={kindFilter === kind}
             data-active={kindFilter === kind || undefined}
             onClick={() => setKindFilter(kind)}
@@ -126,17 +126,17 @@ export function AgentLogPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="axiom-agentlog__empty">
-          Nothing yet. Connect an agent through the Axiom MCP and its work appears here as it happens.
+        <p className="ambio-agentlog__empty">
+          Nothing yet. Connect an agent through the Ambio MCP and its work appears here as it happens.
         </p>
       ) : (
-        <div className="axiom-agentlog__scroll">
+        <div className="ambio-agentlog__scroll">
           {groups.map(([sessionId, entries]) => (
-            <section key={sessionId || 'none'} className="axiom-agentlog__group">
-              <h3 className="axiom-agentlog__goal" data-unattributed={!sessionId || undefined}>
+            <section key={sessionId || 'none'} className="ambio-agentlog__group">
+              <h3 className="ambio-agentlog__goal" data-unattributed={!sessionId || undefined}>
                 {goalFor(sessionId)}
               </h3>
-              <ol className="axiom-agentlog__rows">
+              <ol className="ambio-agentlog__rows">
                 {entries.map(action => (
                   <ActionRow key={action.id} action={action} onFocus={focus} />
                 ))}

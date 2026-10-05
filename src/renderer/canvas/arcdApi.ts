@@ -7,11 +7,12 @@ import type {
   ParallelCommandDeckStatus,
 } from '../../shared/types'
 import { archdWsHttp } from '../archdEndpoint.ts'
+import type { CodeFitFinding } from './codeFit.ts'
 
 
 /**
  * Fetching a delta never acknowledges it. The watermark only moves on
- * apiAckDelta, so closing Axiom mid-review leaves the delta waiting.
+ * apiAckDelta, so closing Ambio mid-review leaves the delta waiting.
  */
 export async function apiGetDelta(workspaceId: string, signal?: AbortSignal): Promise<DeltaSummary> {
   return apiGetDeltaForRoot(workspaceId, undefined, undefined, signal)
@@ -99,20 +100,66 @@ export async function apiSaveFloorLayouts(workspaceId: string, layouts: Omit<Flo
   return result.layouts
 }
 
-export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
-  const res = await fetch(`${archdWsHttp()}/api/files/${fileId}/assign`, {
+export type MeaningEdit =
+  | { op: 'create'; systemId?: string; name: string; parentId?: string | null; description?: string | null; fileIds?: string[] }
+  | { op: 'rename'; systemId: string; name: string }
+  | { op: 'describe'; systemId: string; description: string | null }
+  | { op: 'nest'; systemId: string; parentId: string | null }
+  | { op: 'assign'; fileIds: string[]; systemId: string | null }
+  | { op: 'merge'; systemId: string; intoSystemId: string }
+  | { op: 'ungroup'; systemId: string }
+
+export interface MeaningEditResult {
+  changes: Array<{ op: string; systemId?: string; changed: boolean; eventIds?: number[] }>
+  /** Where the code now disagrees with the map (archd `db/code_fit.go`). */
+  codeFit?: CodeFitFinding[]
+}
+
+/**
+ * Change what the architecture says - names, grouping, nesting, which system
+ * a file belongs to. One recorded, attributed, all-or-nothing batch, so the
+ * change shows up in Review Changes and can be undone (docs/PRODUCT.md §2).
+ * Geometry is presentation and never goes through here.
+ */
+export async function apiEditArchitecture(workspaceId: string, edits: MeaningEdit[]): Promise<MeaningEditResult> {
+  const res = await fetch(`${archdWsHttp()}/api/architecture/edits`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemId, workspaceId }),
+    body: JSON.stringify({
+      workspaceId,
+      actor: { kind: 'human' },
+      edits: edits.map(edit => edit.op === 'assign' ? { ...edit, systemId: edit.systemId ?? '' } : edit),
+    }),
   })
-  // Throw rather than log: a caller that rolls back an optimistic move cannot
-  // do so if the failure never reaches it. Swallowing this made a rejected
-  // assignment look exactly like a successful one that then vanished.
+  // Throw rather than log: a caller that rolls back an optimistic change
+  // cannot do so if the failure never reaches it.
   if (!res.ok) {
     const detail = await res.text()
-    console.error('[arcdApi] assignFile failed', { fileId, systemId, status: res.status, detail })
-    throw new Error(`assignFile failed (${res.status}): ${detail}`)
+    console.error('[arcdApi] architecture edit failed', { edits, status: res.status, detail })
+    throw new Error(`Architecture edit failed (${res.status}): ${detail}`)
   }
+  return res.json()
+}
+
+/**
+ * Reverse meaning edits from Review Changes. Refused (409) when the map has
+ * changed since in a way the undo would overwrite; the message says what.
+ */
+export async function apiUndoArchitecture(workspaceId: string, eventIds: number[]): Promise<void> {
+  const res = await fetch(`${archdWsHttp()}/api/architecture/undo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, actor: { kind: 'human' }, eventIds }),
+  })
+  if (!res.ok) {
+    let message = await res.text()
+    try { message = (JSON.parse(message) as { error?: string }).error ?? message } catch { /* plain text */ }
+    throw new Error(message.replace(/^changed since: /, ''))
+  }
+}
+
+export async function apiAssignFile(fileId: string, systemId: string | null, workspaceId: string): Promise<void> {
+  await apiEditArchitecture(workspaceId, [{ op: 'assign', fileIds: [fileId], systemId }])
 }
 
 /**
@@ -235,7 +282,7 @@ export async function apiStartInvestigation(workspaceId: string, name: string): 
   const res = await fetch(`${archdWsHttp()}/api/investigation/start`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     // Pressing record is the human path; an agent asking gets 'agent', and a
-    // recording Axiom starts by noticing gets 'auto'.
+    // recording Ambio starts by noticing gets 'auto'.
     body: JSON.stringify({ workspaceId, name, origin: 'human' }),
   })
   if (!res.ok) throw new Error(await res.text() || 'Unable to start recording')

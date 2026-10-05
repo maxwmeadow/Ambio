@@ -7,11 +7,11 @@ const ready = (...ids) => new Set(ids)
 test('quitting inside a finished project reopens it', () => {
   assert.deepEqual(
     resumeDecision({
-      resumeProjectId: 'axiom',
-      recentIds: ['axiom', 'other'],
-      readyIds: ready('axiom', 'other'),
+      resumeProjectId: 'ambio',
+      recentIds: ['ambio', 'other'],
+      readyIds: ready('ambio', 'other'),
     }),
-    { kind: 'resume', projectId: 'axiom' },
+    { kind: 'resume', projectId: 'ambio' },
   )
 })
 
@@ -19,8 +19,8 @@ test('deliberately backing out to the launcher is respected next launch', () => 
   assert.deepEqual(
     resumeDecision({
       resumeProjectId: null,
-      recentIds: ['axiom'],
-      readyIds: ready('axiom'),
+      recentIds: ['ambio'],
+      readyIds: ready('ambio'),
     }),
     { kind: 'home' },
   )
@@ -30,8 +30,8 @@ test('a project removed while we were closed cannot be resumed', () => {
   assert.deepEqual(
     resumeDecision({
       resumeProjectId: 'deleted',
-      recentIds: ['axiom'],
-      readyIds: ready('axiom', 'deleted'),
+      recentIds: ['ambio'],
+      readyIds: ready('ambio', 'deleted'),
     }),
     { kind: 'home' },
   )

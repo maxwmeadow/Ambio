@@ -3,7 +3,7 @@ package indexer
 import (
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestDiffRelationshipChangesFunctionLifecycle(t *testing.T) {

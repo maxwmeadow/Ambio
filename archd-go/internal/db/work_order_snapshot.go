@@ -44,8 +44,13 @@ type frozenSheetContext struct {
 		Name     string `json:"name"`
 		Revision int    `json:"revision"`
 	} `json:"sheet"`
-	Nodes            []frozenSheetNode `json:"nodes"`
-	Edges            []frozenSheetEdge `json:"edges"`
+	Nodes    []frozenSheetNode `json:"nodes"`
+	Edges    []frozenSheetEdge `json:"edges"`
+	Removals []struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		Name string `json:"name"`
+	} `json:"removals"`
 	ComparisonAtSend struct {
 		Nodes    []StructureNode   `json:"nodes"`
 		Mappings map[string]string `json:"mappings"`
@@ -218,6 +223,12 @@ func CompareWorkOrderSnapshot(r Reader, workspace string, message *CanvasMessage
 			add("nesting", desired.ID, desired.Name, parent, actual.ParentID, "Match the sent parent and containment: "+desired.Containment+" (live: "+actual.Containment+")")
 		}
 	}
+	for _, removal := range frozen.Removals {
+		c.Checked++
+		if removalPending(live, files, removal.ID, removal.Type) {
+			add("removal", removal.ID, removal.Name, "removed", removal.Type, removalDetail(removal.Type))
+		}
+	}
 	for index, edge := range frozen.Edges {
 		if !edge.Planned {
 			continue
@@ -242,13 +253,7 @@ func CompareWorkOrderSnapshot(r Reader, workspace string, message *CanvasMessage
 			add("relationship", edgeID, edge.Kind, edge.SourceID+" → "+edge.TargetID, "", "The sent relationship has an unverified endpoint")
 			continue
 		}
-		found := strings.EqualFold(edge.Kind, "CONTAINS") && live[dst].ParentID == src
-		for _, dependency := range deps {
-			if dependency.Src == src && dependency.Dst == dst && strings.EqualFold(dependency.DependencyType, edge.Kind) {
-				found = true
-				break
-			}
-		}
+		found := relationshipPresent(edge.Kind, src, dst, deps, live)
 		if !found {
 			add("relationship", edgeID, edge.Kind, src+" → "+dst, "", "The sent typed relationship is not present in the live model")
 		}

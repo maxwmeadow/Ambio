@@ -105,7 +105,7 @@ export function collectExcluded(nodes: TreeNode[]): string[] {
   const result: string[] = []
   const visit = (branch: TreeNode[]) => {
     for (const node of branch) {
-      // Unsupported files are rejected by Axiom's global file policy. They are
+      // Unsupported files are rejected by Ambio's global file policy. They are
       // not project-specific ignore choices and must not bloat ignoredPaths.
       if (node.kind === 'unsupported') continue
       if (node.excluded) {

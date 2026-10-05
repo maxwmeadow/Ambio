@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/registry"
 )
 
 // harborResult indexes the harbor lab project (docs/INFRA.md L0) and
@@ -19,7 +19,7 @@ import (
 func harborResult(t *testing.T) (Result, map[string]string) {
 	t.Helper()
 	home, _ := os.UserHomeDir()
-	rootPath := filepath.Join(home, "dev", "axiom-lab", "harbor")
+	rootPath := filepath.Join(home, "dev", "ambio-lab", "harbor")
 	if _, err := os.Stat(filepath.Join(rootPath, "package.json")); err != nil {
 		t.Skip("harbor lab project not present")
 	}

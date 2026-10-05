@@ -5,7 +5,7 @@ import type { DbFile } from '../../shared/types.ts'
  * Which files belong on the canvas, and which belong in a bin.
  *
  * Three populations, and the distinction between the last two is the whole
- * point. A *document* is not architecture and never was - Axiom holds it so you
+ * point. A *document* is not architecture and never was - Ambio holds it so you
  * can read it, not so you can place it. An *unclassified* file is architecture
  * that nobody has placed yet: it belongs on the map, and the bin is a holding
  * pen it should eventually leave.

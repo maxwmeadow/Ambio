@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestWorkspaceScopeReportsLegacyIndexedProject(t *testing.T) {
@@ -37,7 +37,7 @@ func TestWorkspaceScopeReportsLegacyIndexedProject(t *testing.T) {
 	}
 
 	eventHub := hub.New()
-	server := NewServer(dataDir, eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(dataDir, eventHub, ambioruntime.NewManager(eventHub))
 	t.Cleanup(func() { server.closeDB("ws") })
 	request := httptest.NewRequest(
 		http.MethodGet,

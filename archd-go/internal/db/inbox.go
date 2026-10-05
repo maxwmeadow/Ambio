@@ -26,7 +26,7 @@ type WorkCheck struct {
 	Outcome string `json:"outcome"`
 }
 
-// Result fields are reported by the agent. Axiom's independent checks are
+// Result fields are reported by the agent. Ambio's independent checks are
 // displayed separately, rather than silently promoting these claims to proof.
 type WorkResult struct {
 	Commit       string      `json:"commit,omitempty"`
@@ -60,6 +60,9 @@ type InboxItem struct {
 	Reviews           []InboxReview     `json:"reviews,omitempty"`
 	Sessions          []WorkSession     `json:"sessions,omitempty"`
 	Changes           []WorkOrderChange `json:"changes,omitempty"`
+	// CodeChecks are a make-the-code-match order's disagreements, re-checked
+	// against the code when the order is read (code_checks.go).
+	CodeChecks []CodeCheckResult `json:"codeChecks,omitempty"`
 }
 
 func migrateInbox(d *sql.DB) error {

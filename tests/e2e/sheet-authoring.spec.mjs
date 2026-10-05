@@ -15,20 +15,20 @@ for (const creation of ['drag', 'click']) {
       expect(response.ok).toBe(true)
       const sheet = await response.json()
       const readSheet = async () => (await harnessFetch(`${harness.apiBase}/api/sheets/${sheet.id}?workspace=demo`)).json()
-      app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+      app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
       const page = await app.firstWindow()
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
         const url = new URL(route.request().url())
         const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
-          headers: { ...route.request().headers(), Authorization: 'Bearer axiom-isolated-test-token-for-mcp-harness' } })
+          headers: { ...route.request().headers(), Authorization: 'Bearer ambio-isolated-test-token-for-mcp-harness' } })
         await route.fulfill({ response: result })
       })
       await page.reload()
       await expect(page.locator('.react-flow__node').first()).toBeAttached()
       await expect(page.locator('.layout-transition')).toHaveCount(0)
       await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
-      const palette = page.locator('.axiom-sheet-palette')
+      const palette = page.locator('.ambio-sheet-palette')
       await expect(palette).toBeVisible()
 
       const dropStencil = async (label, point) => {
@@ -92,8 +92,21 @@ for (const creation of ['drag', 'click']) {
       expect(rootFile).toBeTruthy()
       const fileNode = page.locator(`.react-flow__node[data-id="planned:${rootFile.id}"]`)
       await expect(fileNode).toBeVisible()
-      const from = await fileNode.boundingBox()
-      const to = await systemNode.boundingBox()
+      // A new node animates into place; drag from where it settles, not from
+      // where it was mid-flight.
+      const settled = async locator => {
+        let previous = null
+        for (let attempt = 0; attempt < 40; attempt++) {
+          const box = await locator.boundingBox()
+          if (previous && box && Math.abs(box.x - previous.x) < 0.5 && Math.abs(box.y - previous.y) < 0.5 &&
+            Math.abs(box.width - previous.width) < 0.5) return box
+          previous = box
+          await page.waitForTimeout(100)
+        }
+        return previous
+      }
+      const from = await settled(fileNode)
+      const to = await settled(systemNode)
       await page.mouse.move(from.x + from.width / 2, from.y + 12)
       await page.mouse.down()
       await page.mouse.move(to.x + to.width * 0.6, to.y + to.height * 0.7, { steps: 20 })

@@ -150,6 +150,12 @@ func (s *DelveSession) start(dlvPath string) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	cmd := exec.Command(dlvPath, "dap", "--listen", addr)
+	// Build where the program lives: from archd's own directory, go refuses a
+	// package outside its module ("Build error" with nothing else said).
+	cmd.Dir = s.Program
+	if info, err := os.Stat(s.Program); err != nil || !info.IsDir() {
+		cmd.Dir = filepath.Dir(s.Program)
+	}
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start dlv dap: %w", err)
@@ -185,7 +191,7 @@ func (s *DelveSession) setStatus(status string) {
 
 func (s *DelveSession) handshake() error {
 	if _, err := s.client.request("initialize", map[string]any{
-		"clientID":        "axiom",
+		"clientID":        "ambio",
 		"adapterID":       "go",
 		"linesStartAt1":   true,
 		"columnsStartAt1": true,
@@ -212,7 +218,9 @@ func (s *DelveSession) handshake() error {
 	}()
 
 	// Wait for the "initialized" event, then send breakpoints + configurationDone.
-	if err := s.waitForInitialized(); err != nil {
+	// A launch delve refuses (the program does not build, the path is wrong)
+	// answers before any initialized event; its error is the one to report.
+	if err := s.waitForInitialized(launchDone); err != nil {
 		return err
 	}
 	if err := s.setBreakpoints(); err != nil {
@@ -237,9 +245,16 @@ func (s *DelveSession) handshake() error {
 	return nil
 }
 
-func (s *DelveSession) waitForInitialized() error {
+func (s *DelveSession) waitForInitialized(launchDone chan error) error {
 	for {
 		select {
+		case err := <-launchDone:
+			if err != nil {
+				return fmt.Errorf("dlv could not launch %s: %w", s.Program, err)
+			}
+			// Launched without error: keep waiting, and let handshake see it.
+			launchDone <- nil
+			launchDone = nil
 		case ev := <-s.client.events:
 			if ev.Event == "initialized" {
 				return nil
@@ -384,7 +399,7 @@ func (s *DelveSession) inspect(threadID int) (string, string, json.RawMessage) {
 			}
 		}
 	}
-	if os.Getenv("AXIOM_DLV_DEBUG") == "1" {
+	if os.Getenv("AMBIO_DLV_DEBUG") == "1" {
 		names := make([]string, 0)
 		for _, sc := range scopes.Scopes {
 			names = append(names, fmt.Sprintf("%s(ref=%d)", sc.Name, sc.VariablesReference))
@@ -561,7 +576,7 @@ func killAndReap(cmd *exec.Cmd) {
 }
 
 func findDelve() (string, error) {
-	if p := os.Getenv("AXIOM_DLV_PATH"); p != "" {
+	if p := os.Getenv("AMBIO_DLV_PATH"); p != "" {
 		return p, nil
 	}
 	if p, err := exec.LookPath("dlv"); err == nil {
@@ -576,7 +591,7 @@ func findDelve() (string, error) {
 			return cand + ".exe", nil
 		}
 	}
-	return "", fmt.Errorf("delve (dlv) not found - install with: go install github.com/go-delve/delve/cmd/dlv@latest, or set AXIOM_DLV_PATH")
+	return "", fmt.Errorf("delve (dlv) not found - install with: go install github.com/go-delve/delve/cmd/dlv@latest, or set AMBIO_DLV_PATH")
 }
 
 func freeTCPPort() (int, error) {

@@ -102,7 +102,7 @@ export function LivingFlowOverlay({
   return (
     <ViewportPortal>
       <svg
-        className="axiom-living-flow-overlay"
+        className="ambio-living-flow-overlay"
         width="1"
         height="1"
         aria-hidden="true"
@@ -110,7 +110,7 @@ export function LivingFlowOverlay({
         {flows.map(flow => (
             <g
               key={flow.event.key}
-              className={`axiom-living-flow axiom-living-flow--${flow.event.change}`}
+              className={`ambio-living-flow ambio-living-flow--${flow.event.change}`}
               data-living-flow-key={flow.event.key}
               data-living-flow-trace={flow.event.traceId ?? 'legacy'}
               data-living-flow-source={flow.sourceId}
@@ -130,12 +130,12 @@ export function LivingFlowOverlay({
                   came from or where it was going. */}
               <path
                 d={flow.path}
-                className="axiom-living-flow__track"
+                className="ambio-living-flow__track"
                 vectorEffect="non-scaling-stroke"
               />
               <path
                 d={flow.path}
-                className="axiom-living-flow__pulse"
+                className="ambio-living-flow__pulse"
                 pathLength={1}
                 vectorEffect="non-scaling-stroke"
                 onAnimationStart={animationEvent => {

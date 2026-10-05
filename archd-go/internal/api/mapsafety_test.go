@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 func post(t *testing.T, handler func(http.ResponseWriter, *http.Request), path string, body any) *httptest.ResponseRecorder {
@@ -54,7 +54,7 @@ func TestMapsSurviveTrashBackupExportAndImport(t *testing.T) {
 	}
 
 	// Export.
-	exportPath := filepath.Join(t.TempDir(), "shop.axiommap")
+	exportPath := filepath.Join(t.TempDir(), "shop.ambiomap")
 	recorder := post(t, server.handleWorkspaceExport, "/api/workspace-export", exportReq{
 		WorkspaceID: "ws", Path: exportPath, Manifest: map[string]string{"name": "shop", "rootPath": "/old/shop"},
 	})
@@ -71,7 +71,7 @@ func TestMapsSurviveTrashBackupExportAndImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(trashPath, "axiom.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(trashPath, "ambio.db")); err != nil {
 		t.Fatalf("trashed map is gone: %v", err)
 	}
 	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
@@ -112,7 +112,7 @@ func TestMapsSurviveTrashBackupExportAndImport(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &replaced); err != nil || replaced.ReplacedTrashPath == "" {
 		t.Fatalf("replace import did not report where the old map went: %s", recorder.Body.String())
 	}
-	if _, err := os.Stat(filepath.Join(replaced.ReplacedTrashPath, "axiom.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(replaced.ReplacedTrashPath, "ambio.db")); err != nil {
 		t.Fatalf("replaced map is not in the trash: %v", err)
 	}
 

@@ -19,15 +19,15 @@ function Inline({ nodes }: { nodes: MdInline[] }): ReactNode {
   return nodes.map((node, index) => {
     switch (node.kind) {
       case 'text': return <span key={index}>{node.value}</span>
-      case 'code': return <code key={index} className="axiom-md__code">{node.value}</code>
+      case 'code': return <code key={index} className="ambio-md__code">{node.value}</code>
       case 'strong': return <strong key={index}><Inline nodes={node.children} /></strong>
       case 'em': return <em key={index}><Inline nodes={node.children} /></em>
       case 'strike': return <s key={index}><Inline nodes={node.children} /></s>
       case 'link': {
         if (!isSafeHref(node.href)) {
-          // A link Axiom will not follow still shows its words - dropping it
+          // A link Ambio will not follow still shows its words - dropping it
           // would silently remove text the document meant to say.
-          return <span key={index} className="axiom-md__deadlink"><Inline nodes={node.children} /></span>
+          return <span key={index} className="ambio-md__deadlink"><Inline nodes={node.children} /></span>
         }
         return (
           <a key={index} href={node.href} target="_blank" rel="noreferrer noopener">
@@ -51,13 +51,13 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
   }, [value, language])
 
   if (!highlighted) {
-    return <pre className="axiom-md__pre"><code>{value}</code></pre>
+    return <pre className="ambio-md__pre"><code>{value}</code></pre>
   }
   return (
-    <pre className="axiom-md__pre">
+    <pre className="ambio-md__pre">
       <code>
         {highlighted.tokens.map((line, lineIndex) => (
-          <span key={lineIndex} className="axiom-md__line">
+          <span key={lineIndex} className="ambio-md__line">
             {line.map((token, tokenIndex) => (
               <span key={tokenIndex} style={token.color ? { color: token.color } : undefined}>
                 {token.content}
@@ -75,32 +75,32 @@ function Block({ block }: { block: MdBlock }): ReactNode {
   switch (block.kind) {
     case 'heading': {
       const Tag = `h${block.level}` as 'h1'
-      return <Tag className="axiom-md__heading"><Inline nodes={block.children} /></Tag>
+      return <Tag className="ambio-md__heading"><Inline nodes={block.children} /></Tag>
     }
     case 'paragraph':
-      return <p className="axiom-md__p"><Inline nodes={block.children} /></p>
+      return <p className="ambio-md__p"><Inline nodes={block.children} /></p>
     case 'codeblock':
       return <CodeBlock language={block.language} value={block.value} />
     case 'rule':
-      return <hr className="axiom-md__rule" />
+      return <hr className="ambio-md__rule" />
     case 'quote':
       return (
-        <blockquote className="axiom-md__quote">
+        <blockquote className="ambio-md__quote">
           {block.children.map((child, index) => <Block key={index} block={child} />)}
         </blockquote>
       )
     case 'list': {
       const Tag = block.ordered ? 'ol' : 'ul'
       return (
-        <Tag className="axiom-md__list">
+        <Tag className="ambio-md__list">
           {block.items.map((item, index) => <li key={index}><Inline nodes={item} /></li>)}
         </Tag>
       )
     }
     case 'table':
       return (
-        <div className="axiom-md__tablewrap">
-          <table className="axiom-md__table">
+        <div className="ambio-md__tablewrap">
+          <table className="ambio-md__table">
             <thead>
               <tr>{block.header.map((cell, index) => <th key={index}><Inline nodes={cell} /></th>)}</tr>
             </thead>
@@ -120,7 +120,7 @@ function Block({ block }: { block: MdBlock }): ReactNode {
 export function MarkdownView({ source }: { source: string }) {
   const blocks = useMemo(() => parseMarkdown(source), [source])
   return (
-    <article className="axiom-md">
+    <article className="ambio-md">
       {blocks.map((block, index) => <Block key={index} block={block} />)}
     </article>
   )

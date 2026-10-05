@@ -29,8 +29,8 @@ import (
 	"strconv"
 	"strings"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/runtime"
 )
 
 // ─── file index ───────────────────────────────────────────────────────────────

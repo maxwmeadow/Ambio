@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // Reconciliation stands in for the watcher across the window when archd was

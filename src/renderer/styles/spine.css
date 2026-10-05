@@ -16,7 +16,7 @@
 
    Colour carries urgency and nothing else does: amber demands an answer, red
    reports a break, sage invites, graphite confirms. */
-.axiom-lane {
+.ambio-lane {
   position: absolute;
   top: 14px;
   left: 50%;
@@ -37,12 +37,12 @@
   font-size: 12px;
 }
 
-.axiom-lane[data-kind='decision'] { border-left-color: #d7a844; }
-.axiom-lane[data-kind='failure']  { border-left-color: #c2635a; }
-.axiom-lane[data-kind='invitation'] { border-left-color: #4f8279; }
-.axiom-lane[data-kind='notice']   { border-left-color: #8b968f; }
+.ambio-lane[data-kind='decision'] { border-left-color: #d7a844; }
+.ambio-lane[data-kind='failure']  { border-left-color: #c2635a; }
+.ambio-lane[data-kind='invitation'] { border-left-color: #4f8279; }
+.ambio-lane[data-kind='notice']   { border-left-color: #8b968f; }
 
-.axiom-lane__kind {
+.ambio-lane__kind {
   flex: 0 0 auto;
   padding: 3px 6px;
   border: 1px solid currentColor;
@@ -53,33 +53,33 @@
   letter-spacing: 0.08em;
 }
 
-.axiom-lane[data-kind='decision'] .axiom-lane__kind { color: #f0cd82; }
-.axiom-lane[data-kind='failure']  .axiom-lane__kind { color: #eba49c; }
-.axiom-lane[data-kind='invitation'] .axiom-lane__kind { color: #a8ccc4; }
-.axiom-lane[data-kind='notice']   .axiom-lane__kind { color: #b9c2bd; }
+.ambio-lane[data-kind='decision'] .ambio-lane__kind { color: #f0cd82; }
+.ambio-lane[data-kind='failure']  .ambio-lane__kind { color: #eba49c; }
+.ambio-lane[data-kind='invitation'] .ambio-lane__kind { color: #a8ccc4; }
+.ambio-lane[data-kind='notice']   .ambio-lane__kind { color: #b9c2bd; }
 
-.axiom-lane__copy {
+.ambio-lane__copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 2px;
 }
 
-.axiom-lane__title {
+.ambio-lane__title {
   color: #fffdf5;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.25;
 }
 
-.axiom-lane__body {
+.ambio-lane__body {
   color: #c3cec9;
   font-size: 11px;
   line-height: 1.4;
 }
 
 /* A decision usually carries a code fragment naming what is being overridden. */
-.axiom-lane__body code {
+.ambio-lane__body code {
   padding: 0 3px;
   border-radius: 2px;
   background: rgba(12, 18, 16, 0.4);
@@ -88,7 +88,7 @@
   font-size: 10.5px;
 }
 
-.axiom-lane__actions {
+.ambio-lane__actions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -96,7 +96,7 @@
   margin-left: auto;
 }
 
-.axiom-lane__button {
+.ambio-lane__button {
   min-height: 28px;
   padding: 5px 12px;
   border: 1px solid #7f8984;
@@ -111,7 +111,7 @@
   letter-spacing: 0.03em;
 }
 
-.axiom-lane__button:not(:disabled):hover {
+.ambio-lane__button:not(:disabled):hover {
   border-color: #61736d;
   background: linear-gradient(180deg, #fffef8 0%, #dad8d1 100%);
 }
@@ -119,39 +119,39 @@
 /* The primary rule has to out-specify the hover above it, or the label goes
    near-white on cream and vanishes under the cursor. That exact bug shipped
    once already on the delta panel's Review button. */
-.axiom-lane__button--primary,
-.axiom-lane__button--primary:not(:disabled):hover {
+.ambio-lane__button--primary,
+.ambio-lane__button--primary:not(:disabled):hover {
   border-color: #285a53;
   color: #fffdf6;
   text-shadow: 0 1px 0 #1d443f;
 }
 
-.axiom-lane__button--primary {
+.ambio-lane__button--primary {
   background: linear-gradient(180deg, #527f77 0%, #356b63 100%);
 }
 
-.axiom-lane__button--primary:not(:disabled):hover {
+.ambio-lane__button--primary:not(:disabled):hover {
   background: linear-gradient(180deg, #5f8e85 0%, #3d7a71 100%);
 }
 
-.axiom-lane[data-kind='decision'] .axiom-lane__button--primary,
-.axiom-lane[data-kind='decision'] .axiom-lane__button--primary:not(:disabled):hover {
+.ambio-lane[data-kind='decision'] .ambio-lane__button--primary,
+.ambio-lane[data-kind='decision'] .ambio-lane__button--primary:not(:disabled):hover {
   border-color: #8a6826;
   color: #241a06;
   text-shadow: none;
 }
 
-.axiom-lane[data-kind='decision'] .axiom-lane__button--primary {
+.ambio-lane[data-kind='decision'] .ambio-lane__button--primary {
   background: linear-gradient(180deg, #e2b658 0%, #c9992f 100%);
 }
 
-.axiom-lane[data-kind='decision'] .axiom-lane__button--primary:not(:disabled):hover {
+.ambio-lane[data-kind='decision'] .ambio-lane__button--primary:not(:disabled):hover {
   background: linear-gradient(180deg, #eec36a 0%, #d8a63c 100%);
 }
 
 /* How many are queued behind this one. Present so "one at a time" reads as
    ordering rather than concealment. */
-.axiom-lane__waiting {
+.ambio-lane__waiting {
   padding: 3px 7px;
   border: 1px solid #6b7a74;
   border-radius: 2px;
@@ -161,7 +161,7 @@
   font-weight: 700;
 }
 
-.axiom-lane__dismiss {
+.ambio-lane__dismiss {
   width: 24px;
   height: 24px;
   border: 1px solid #66746f;
@@ -173,18 +173,18 @@
   line-height: 1;
 }
 
-.axiom-lane__dismiss:hover {
+.ambio-lane__dismiss:hover {
   border-color: #7fb3a8;
   color: #fffdf5;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .axiom-lane {
-    animation: axiom-lane-enter 140ms ease-out;
+  .ambio-lane {
+    animation: ambio-lane-enter 140ms ease-out;
   }
 }
 
-@keyframes axiom-lane-enter {
+@keyframes ambio-lane-enter {
   from { opacity: 0; transform: translate(-50%, -6px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
@@ -194,7 +194,7 @@
    same colour as the board: a spinner here would advertise a wait that is
    normally a single frame, and painting the launcher first only to yank it
    away reads as a glitch. */
-.axiom-resume-hold {
+.ambio-resume-hold {
   width: 100vw;
   height: 100vh;
   background: var(--bg-deep);

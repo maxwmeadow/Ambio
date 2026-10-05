@@ -5,13 +5,13 @@ import (
 	"os"
 )
 
-// mcpRunCommand is the subcommand agent configs invoke to start Axiom's MCP
+// mcpRunCommand is the subcommand agent configs invoke to start Ambio's MCP
 // server:
 //
 //	archd mcp-run <runtime> <script> [args...]
 //
-// <runtime> is the Axiom application executable itself. Electron runs as a
-// plain Node process when ELECTRON_RUN_AS_NODE=1, so Axiom ships its own Node
+// <runtime> is the Ambio application executable itself. Electron runs as a
+// plain Node process when ELECTRON_RUN_AS_NODE=1, so Ambio ships its own Node
 // and users never install one. That variable has to be set by whoever starts
 // the process, and every agent host spells environment configuration
 // differently (JSON, TOML, XML) - some not at all. This launcher sets it
@@ -20,10 +20,10 @@ const mcpRunCommand = "mcp-run"
 
 func mcpRunEnv() []string {
 	env := append(os.Environ(), "ELECTRON_RUN_AS_NODE=1")
-	// The MCP server starts this same binary headless when Axiom is closed,
+	// The MCP server starts this same binary headless when Ambio is closed,
 	// so agents keep working without the app open.
 	if self, err := os.Executable(); err == nil {
-		env = append(env, "AXIOM_ARCHD_PATH="+self)
+		env = append(env, "AMBIO_ARCHD_PATH="+self)
 	}
 	return env
 }
@@ -35,8 +35,8 @@ func runMCP(args []string) {
 	}
 	runtimePath := args[0]
 	if _, err := os.Stat(runtimePath); err != nil {
-		fmt.Fprintf(os.Stderr, "Axiom's MCP server could not start: the Axiom app was not found at %s. "+
-			"Reinstall Axiom, or open it and use Connect an Agent to repair this agent's configuration.\n", runtimePath)
+		fmt.Fprintf(os.Stderr, "Ambio's MCP server could not start: the Ambio app was not found at %s. "+
+			"Reinstall Ambio, or open it and use Connect an Agent to repair this agent's configuration.\n", runtimePath)
 		os.Exit(1)
 	}
 	os.Exit(execRuntime(runtimePath, args[1:]))

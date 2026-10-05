@@ -22,7 +22,7 @@ const ARRIVAL_PULSE_MS = 1400
  * open a small canvas you can drag out of.
  */
 
-export const BINNED_FILE_MIME = 'application/axiom-binned-file'
+export const BINNED_FILE_MIME = 'application/ambio-binned-file'
 
 interface CanvasBinsProps {
   documents: readonly DbFile[]
@@ -79,7 +79,7 @@ export function CanvasBins({
   const showUnclassified = !readOnly || unclassified.length > 0
 
   return (
-    <div className="axiom-bins" data-drag-active={dragActive || undefined}>
+    <div className="ambio-bins" data-drag-active={dragActive || undefined}>
       {/* FloatingWindow portals itself out of the Floor's DOM tree - see the
           note there for why that is load-bearing rather than cosmetic. */}
       {openBin === 'unclassified' && workspaceId && (
@@ -90,12 +90,12 @@ export function CanvasBins({
         />
       )}
 
-      <div className="axiom-bins__row">
+      <div className="ambio-bins__row">
         {showUnclassified && (
           <button
             key={pulseKey}
             type="button"
-            className="axiom-bin axiom-bin--unclassified"
+            className="ambio-bin ambio-bin--unclassified"
             data-arriving={pulseKey > 0 || undefined}
             data-open={openBin === 'unclassified' || undefined}
             data-receiving={dragActive || undefined}
@@ -104,20 +104,20 @@ export function CanvasBins({
             // Named for what it holds rather than for its count, which changes.
             aria-label="Unsorted files"
             aria-expanded={openBin === 'unclassified'}
-            title="Files Axiom indexed but nobody has placed yet"
+            title="Files Ambio indexed but nobody has placed yet"
           >
             <BinGlyph />
-            <span className="axiom-bin__count" data-empty={unclassified.length === 0 || undefined}>
+            <span className="ambio-bin__count" data-empty={unclassified.length === 0 || undefined}>
               {unclassified.length}
             </span>
-            <span className="axiom-bin__label">Unsorted</span>
+            <span className="ambio-bin__label">Unsorted</span>
           </button>
         )}
 
         {documents.length > 0 && (
           <button
             type="button"
-            className="axiom-bin axiom-bin--documents"
+            className="ambio-bin ambio-bin--documents"
             onClick={onToggleDocuments}
             data-open={documentsOpen || undefined}
             aria-label="Project documents"
@@ -125,8 +125,8 @@ export function CanvasBins({
             title="Readable documentation kept off the architecture map"
           >
             <DocumentGlyph />
-            <span className="axiom-bin__count">{documents.length}</span>
-            <span className="axiom-bin__label">Documents</span>
+            <span className="ambio-bin__count">{documents.length}</span>
+            <span className="ambio-bin__label">Documents</span>
           </button>
         )}
       </div>

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Third-party notices and license policy.
 //
-// Axiom is AGPL-3.0. Everything it ships - the npm packages in the app and
+// Ambio is AGPL-3.0. Everything it ships - the npm packages in the app and
 // MCP bundles, and the Go modules linked into archd - must be under a license
 // the AGPL can include, and most of those licenses require their notice to
 // travel with the software. This script checks the first and produces the
@@ -94,7 +94,7 @@ function goModules() {
   const found = new Map()
   for (const line of lines) {
     const [modulePath, version, dir] = line.trim().split('|')
-    if (!modulePath || modulePath.startsWith('axiom.local') || found.has(modulePath)) continue
+    if (!modulePath || modulePath.startsWith('ambio.local') || found.has(modulePath)) continue
     const texts = licenseTexts(dir)
     found.set(modulePath, {
       name: modulePath, version, texts, source: 'go',
@@ -125,7 +125,7 @@ function main() {
   const header = [
     'THIRD-PARTY SOFTWARE NOTICES',
     '',
-    'Axiom is free software under the GNU Affero General Public License v3.0.',
+    'Ambio is free software under the GNU Affero General Public License v3.0.',
     'It includes the third-party components listed below, each under its own license.',
     'Electron and Chromium notices ship alongside the application as',
     'LICENSE.electron.txt and LICENSES.chromium.html.',

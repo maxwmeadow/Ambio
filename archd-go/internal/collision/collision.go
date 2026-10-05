@@ -1,10 +1,10 @@
-// Package collision projects branch divergence onto Axiom's semantic systems.
+// Package collision projects branch divergence onto Ambio's semantic systems.
 package collision
 
 import (
 	"sort"
 
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/delta"
 )
 
 type Boundary struct {

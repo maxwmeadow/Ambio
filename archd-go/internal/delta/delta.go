@@ -17,7 +17,7 @@ import (
 	"encoding/json"
 	"sort"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // Change classifications in the delta.
@@ -128,7 +128,13 @@ type Summary struct {
 	Files   []FileChange   `json:"files"`
 	Edges   []EdgeChange   `json:"edges"`
 	Systems []SystemChange `json:"systems"`
-	Claims  []Claim        `json:"claims"`
+	// Meaning is what people and agents changed about what the architecture
+	// says: files moved between systems, systems renamed, nested, merged,
+	// ungrouped or newly grouped (meaning.go).
+	Meaning []MeaningChange `json:"meaning"`
+	// Infra is code that started or stopped using infrastructure (infra.go).
+	Infra  []InfraChange `json:"infra"`
+	Claims []Claim       `json:"claims"`
 	// Sessions are the agents' own accounts of the work in this window.
 	Sessions []db.WorkSession `json:"sessions"`
 	Counts   Counts           `json:"counts"`
@@ -219,8 +225,19 @@ func Aggregate(events []db.StructuralEvent, since, until int64) Summary {
 	edgeOrder := []string{}
 	systems := map[string]*systemState{}
 	systemOrder := []string{}
+	meaning := newMeaningAccumulator()
+	infra := newInfraAccumulator()
+	events = withoutUndonePairs(events)
 
 	for _, ev := range events {
+		if infra.add(ev) {
+			continue
+		}
+		// A grouping also counts as a system birth below; every other meaning
+		// edit is reported only as meaning.
+		if meaning.add(ev) && ev.Kind != db.EventSystemCreated {
+			continue
+		}
 		switch ev.Kind {
 		case db.EventFileCreated, db.EventFileUpdated, db.EventFileDeleted:
 			state, ok := files[ev.SubjectID]
@@ -324,6 +341,8 @@ func Aggregate(events []db.StructuralEvent, since, until int64) Summary {
 		Files:    []FileChange{},
 		Edges:    []EdgeChange{},
 		Systems:  []SystemChange{},
+		Meaning:  meaning.changes(),
+		Infra:    infra.changes(),
 		Claims:   []Claim{},
 		Sessions: []db.WorkSession{},
 	}
@@ -413,6 +432,7 @@ func Aggregate(events []db.StructuralEvent, since, until int64) Summary {
 	})
 
 	summary.Empty = len(summary.Files) == 0 &&
-		len(summary.Edges) == 0 && len(summary.Systems) == 0
+		len(summary.Edges) == 0 && len(summary.Systems) == 0 && len(summary.Meaning) == 0 &&
+		len(summary.Infra) == 0
 	return summary
 }

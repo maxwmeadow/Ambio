@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig, TrashedProject } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
-import { AxiomMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
+import { AmbioMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { handleLauncherKey, launcherProjects } from './homeScreenModel'
 import { useUpdateStatus } from '../useUpdateStatus'
 import { emitCommand } from '../app/commands'
@@ -147,8 +147,8 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
 
   useEffect(() => {
     let active = true
-    if (window.axiom) {
-      void window.axiom.listRecentProjects()
+    if (window.ambio) {
+      void window.ambio.listRecentProjects()
         .then(projects => { if (active) setRecentProjects(projects) })
         .catch(() => { if (active) setRecentProjects([]) })
     }
@@ -159,7 +159,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   // left every later row reading "READING MAP…" forever.
   const requestedStatus = useRef(new Set<string>())
   useEffect(() => {
-    if (!window.axiom) return
+    if (!window.ambio) return
     const pending = filteredProjects.filter(project =>
       !project.rootMissing && !requestedStatus.current.has(project.id))
     if (pending.length === 0) return
@@ -192,7 +192,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     if (!menuProjectId) return
     const close = (event: Event) => {
       if (event instanceof KeyboardEvent && event.key !== 'Escape') return
-      if (event instanceof MouseEvent && (event.target as HTMLElement | null)?.closest('.axiom-launcher__row-menu')) return
+      if (event instanceof MouseEvent && (event.target as HTMLElement | null)?.closest('.ambio-launcher__row-menu')) return
       setMenuProjectId(null)
     }
     window.addEventListener('mousedown', close)
@@ -207,24 +207,24 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     setRecentProjects(previous => previous.map(project => project.id === updated.id ? updated : project))
 
   const locateProject = async (project: ProjectConfig) => {
-    if (!window.axiom) return
+    if (!window.ambio) return
     setLocating(true)
     setRemoveError(null)
     try {
-      const updated = await window.axiom.relocateProject(project.id)
+      const updated = await window.ambio.relocateProject(project.id)
       if (!updated) return
       replaceProject(updated)
       setMissingProject(null)
       onOpenProject(updated)
     } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : 'Axiom could not use that folder.')
+      setRemoveError(error instanceof Error ? error.message : 'Ambio could not use that folder.')
     } finally {
       setLocating(false)
     }
   }
 
   const refreshTrash = () => {
-    void window.axiom?.listTrash?.().then(setTrash).catch(() => setTrash([]))
+    void window.ambio?.listTrash?.().then(setTrash).catch(() => setTrash([]))
   }
   useEffect(refreshTrash, [])
 
@@ -232,12 +232,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     setTrashBusy(entry.trashId)
     setTrashError(null)
     try {
-      const restored = await window.axiom.restoreTrash(entry.trashId)
+      const restored = await window.ambio.restoreTrash(entry.trashId)
       setRecentProjects(previous => [restored, ...previous.filter(project => project.id !== restored.id)])
       setTrash(previous => previous.filter(item => item.trashId !== entry.trashId))
       setShowAll(true)
     } catch (error) {
-      setTrashError(error instanceof Error ? error.message : 'Axiom could not restore that map.')
+      setTrashError(error instanceof Error ? error.message : 'Ambio could not restore that map.')
     } finally {
       setTrashBusy(null)
     }
@@ -247,10 +247,10 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     setTrashBusy(entry.trashId)
     setTrashError(null)
     try {
-      await window.axiom.purgeTrash(entry.trashId)
+      await window.ambio.purgeTrash(entry.trashId)
       setTrash(previous => previous.filter(item => item.trashId !== entry.trashId))
     } catch (error) {
-      setTrashError(error instanceof Error ? error.message : 'Axiom could not delete that map.')
+      setTrashError(error instanceof Error ? error.message : 'Ambio could not delete that map.')
     } finally {
       setTrashBusy(null)
     }
@@ -261,30 +261,30 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     setRemoveError(null)
     setMapNotice(null)
     try {
-      const path = await window.axiom.exportMap(project.id)
+      const path = await window.ambio.exportMap(project.id)
       if (path) setMapNotice(`Exported the map for ${project.name} to ${path}`)
     } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : 'Axiom could not export that map.')
+      setRemoveError(error instanceof Error ? error.message : 'Ambio could not export that map.')
     }
   }
 
   const setHidden = async (project: ProjectConfig, hidden: boolean) => {
     setMenuProjectId(null)
-    if (!window.axiom) return
+    if (!window.ambio) return
     try {
-      replaceProject(await window.axiom.setProjectHidden(project.id, hidden))
+      replaceProject(await window.ambio.setProjectHidden(project.id, hidden))
     } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : 'Axiom could not update the project list.')
+      setRemoveError(error instanceof Error ? error.message : 'Ambio could not update the project list.')
     }
   }
 
-  const revealLabel = window.axiom?.platform === 'darwin'
+  const revealLabel = window.ambio?.platform === 'darwin'
     ? 'Reveal in Finder'
-    : window.axiom?.platform === 'win32' ? 'Show in Explorer' : 'Open containing folder'
+    : window.ambio?.platform === 'win32' ? 'Show in Explorer' : 'Open containing folder'
 
   const confirmDelete = async () => {
     if (!projectToDelete) return
-    if (!window.axiom) {
+    if (!window.ambio) {
       setRecentProjects(previous => previous.filter(project => project.id !== projectToDelete.id))
       setProjectToDelete(null)
       return
@@ -292,7 +292,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     setRemovingProjectId(projectToDelete.id)
     setRemoveError(null)
     try {
-      await window.axiom.removeProject(projectToDelete.id)
+      await window.ambio.removeProject(projectToDelete.id)
       // Deleting is deleting. The database goes with the project; so does every
       // local hint keyed to it, or reopening the same folder later inherits
       // "you already reviewed this" from a workspace that no longer exists.
@@ -303,14 +303,14 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
     } catch (error) {
       setRemoveError(error instanceof Error
         ? error.message
-        : 'Axiom could not delete this project. Nothing was removed from the project list.')
+        : 'Ambio could not delete this project. Nothing was removed from the project list.')
     } finally {
       setRemovingProjectId(null)
     }
   }
 
   const openDialog = () => {
-    if (window.axiom) { onOpenDialog(); return }
+    if (window.ambio) { onOpenDialog(); return }
     // Browser demo fallback
     onOpenProject({
       id: 'demo', name: 'Demo Project', rootPath: '/demo', ignoredPaths: [],
@@ -319,7 +319,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   }
 
   const startNew = () => {
-    if (!window.axiom) {
+    if (!window.ambio) {
       onCreateProject({
         id: 'demo-new', name: 'Untitled Model', rootPath: '/demo-new', ignoredPaths: [],
         languageOverrides: {}, layoutPreferences: { zoom: 1, panX: 0, panY: 0 }, openedAt: Date.now(),
@@ -330,16 +330,16 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   }
 
   const chooseLocation = async () => {
-    if (!window.axiom) return
-    const dir = await window.axiom.chooseDirectory()
+    if (!window.ambio) return
+    const dir = await window.ambio.chooseDirectory()
     if (dir) { setNewLocation(dir); setCreateError(null) }
   }
 
   const confirmCreate = async () => {
-    if (!window.axiom || !newLocation || !safeFolderName(newName)) return
+    if (!window.ambio || !newLocation || !safeFolderName(newName)) return
     setCreateBusy(true); setCreateError(null)
     try {
-      const config = await window.axiom.createProject(newLocation, newName)
+      const config = await window.ambio.createProject(newLocation, newName)
       onCreateProject(config)
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Could not create the project.')
@@ -358,25 +358,25 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   const canCreate = !!newLocation && !!safeName && !createBusy
 
   return (
-    <main className="axiom-launcher">
-      <WorkbenchTitleBar className="axiom-launcher__titlebar" context="Project Navigator" status="READY" />
+    <main className="ambio-launcher">
+      <WorkbenchTitleBar className="ambio-launcher__titlebar" context="Project Navigator" status="READY" />
 
-      <div className="axiom-launcher__body">
-        <section className="axiom-launcher__introduction" aria-labelledby="axiom-launcher-title">
-          <div className="axiom-launcher__eyebrow">SPATIAL ARCHITECTURE WORKBENCH</div>
-          <AxiomMark />
-          <h1 id="axiom-launcher-title">Axiom</h1>
-          <p className="axiom-launcher__statement">
+      <div className="ambio-launcher__body">
+        <section className="ambio-launcher__introduction" aria-labelledby="ambio-launcher-title">
+          <div className="ambio-launcher__eyebrow">SPATIAL ARCHITECTURE WORKBENCH</div>
+          <AmbioMark />
+          <h1 id="ambio-launcher-title">Ambio</h1>
+          <p className="ambio-launcher__statement">
             See your entire codebase.<br />
             Steer what your agents build.
           </p>
-          <p className="axiom-launcher__description">
+          <p className="ambio-launcher__description">
             A live architecture canvas wired directly to your repository and AI coding agents.
             Explore real system topology, sketch new features as visual blueprints, and review
             agent changes spatially instead of reading 40-file diffs.
           </p>
 
-          <ol className="axiom-launcher__capabilities">
+          <ol className="ambio-launcher__capabilities">
             {WORKBENCH_CAPABILITIES.map(capability => (
               <li key={capability.index}>
                 <span>{capability.index}</span>
@@ -389,44 +389,44 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
           </ol>
         </section>
 
-        <section className="axiom-launcher__workspace" aria-labelledby="axiom-workspace-title">
-          <div className="axiom-launcher__workspace-heading">
+        <section className="ambio-launcher__workspace" aria-labelledby="ambio-workspace-title">
+          <div className="ambio-launcher__workspace-heading">
             <span>START</span>
             <div>
-              <h2 id="axiom-workspace-title">Command Deck</h2>
+              <h2 id="ambio-workspace-title">Command Deck</h2>
               <p>See what changed, what agents are doing, and what intent is still open — then enter the canvas.</p>
             </div>
           </div>
 
-          <div className="axiom-launcher__forks">
-            <button className="axiom-launcher__fork axiom-launcher__fork--new" onClick={startNew}>
-              <span className="axiom-launcher__fork-glyph" aria-hidden="true">＋</span>
-              <span className="axiom-launcher__fork-copy">
+          <div className="ambio-launcher__forks">
+            <button className="ambio-launcher__fork ambio-launcher__fork--new" onClick={startNew}>
+              <span className="ambio-launcher__fork-glyph" aria-hidden="true">＋</span>
+              <span className="ambio-launcher__fork-copy">
                 <strong>New Project</strong>
                 <small>Create an empty workspace and sketch architecture for agents to build.</small>
               </span>
-              <span className="axiom-launcher__fork-arrow" aria-hidden="true">→</span>
+              <span className="ambio-launcher__fork-arrow" aria-hidden="true">→</span>
             </button>
 
-            <button className="axiom-launcher__fork axiom-launcher__fork--open" onClick={openDialog}>
-              <span className="axiom-launcher__fork-glyph" aria-hidden="true">▤</span>
-              <span className="axiom-launcher__fork-copy">
+            <button className="ambio-launcher__fork ambio-launcher__fork--open" onClick={openDialog}>
+              <span className="ambio-launcher__fork-glyph" aria-hidden="true">▤</span>
+              <span className="ambio-launcher__fork-copy">
                 <strong>Open Codebase</strong>
                 <small>Index an existing repository into a living, agent-connected architecture map.</small>
               </span>
-              <span className="axiom-launcher__fork-arrow" aria-hidden="true">→</span>
+              <span className="ambio-launcher__fork-arrow" aria-hidden="true">→</span>
             </button>
           </div>
 
           {recentProjects.length > 0 && (
-            <div className="axiom-launcher__recent">
-              <div className="axiom-launcher__section-label">
+            <div className="ambio-launcher__recent">
+              <div className="ambio-launcher__section-label">
                 <span>{projectList.mode === 'search' ? 'MATCHING PROJECTS' : projectList.mode === 'all' ? 'ALL PROJECTS' : 'RECENTLY OPENED'}</span>
                 <small>{filteredProjects.length} OF {recentProjects.length} PROJECTS</small>
               </div>
 
-              <div className="axiom-launcher__search-box">
-                <span className="axiom-launcher__search-icon" aria-hidden="true">⌕</span>
+              <div className="ambio-launcher__search-box">
+                <span className="ambio-launcher__search-icon" aria-hidden="true">⌕</span>
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -444,7 +444,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                 {searchQuery ? (
                   <button
                     type="button"
-                    className="axiom-launcher__search-clear"
+                    className="ambio-launcher__search-clear"
                     onClick={() => {
                       setSearchQuery('')
                       setActiveIndex(null)
@@ -455,19 +455,19 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                     ×
                   </button>
                 ) : (
-                  <kbd className="axiom-launcher__search-shortcut" title="Press / to focus search">/</kbd>
+                  <kbd className="ambio-launcher__search-shortcut" title="Press / to focus search">/</kbd>
                 )}
               </div>
 
               {removeError && (
-                <div className="axiom-launcher__remove-error" role="alert">{removeError}</div>
+                <div className="ambio-launcher__remove-error" role="alert">{removeError}</div>
               )}
               {mapNotice && !removeError && (
-                <div className="axiom-launcher__map-notice" role="status">{mapNotice}</div>
+                <div className="ambio-launcher__map-notice" role="status">{mapNotice}</div>
               )}
 
               {filteredProjects.length === 0 ? (
-                <div className="axiom-launcher__empty-search" role="status">
+                <div className="ambio-launcher__empty-search" role="status">
                   No projects matching &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
@@ -480,34 +480,34 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                         key={project.id}
                         data-project-index={index}
                         className={[
-                          'axiom-launcher__recent-item',
-                          isActive ? 'axiom-launcher__recent-item--active' : '',
-                          project.rootMissing ? 'axiom-launcher__recent-item--missing' : '',
+                          'ambio-launcher__recent-item',
+                          isActive ? 'ambio-launcher__recent-item--active' : '',
+                          project.rootMissing ? 'ambio-launcher__recent-item--missing' : '',
                         ].filter(Boolean).join(' ')}
                         onMouseEnter={() => setActiveIndex(index)}
                       >
                         <button
-                          className={`axiom-launcher__recent-open${isActive ? ' axiom-launcher__recent-open--active' : ''}`}
+                          className={`ambio-launcher__recent-open${isActive ? ' ambio-launcher__recent-open--active' : ''}`}
                           onClick={() => openOrLocate(project)}
                           aria-label={project.rootMissing ? `Locate the folder for ${project.name}` : `Open ${project.name}`}
                         >
-                          <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
-                          <span className="axiom-launcher__project-copy">
+                          <span className="ambio-launcher__project-index" aria-hidden="true">◆</span>
+                          <span className="ambio-launcher__project-copy">
                             <strong>{project.name}</strong>
                             <small title={project.rootPath}>{project.rootPath}</small>
                             {project.rootMissing
                               ? (
-                                <span className="axiom-launcher__deck-signals">
-                                  <span className="axiom-launcher__deck-signal axiom-launcher__deck-signal--attention">FOLDER NOT FOUND · LOCATE</span>
+                                <span className="ambio-launcher__deck-signals">
+                                  <span className="ambio-launcher__deck-signal ambio-launcher__deck-signal--attention">FOLDER NOT FOUND · LOCATE</span>
                                 </span>
                               )
                               : <ProjectDeckSignals status={deckStatus[project.id]} />}
                           </span>
                           <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
                         </button>
-                        <div className="axiom-launcher__row-menu">
+                        <div className="ambio-launcher__row-menu">
                           <button
-                            className="axiom-launcher__recent-remove"
+                            className="ambio-launcher__recent-remove"
                             onClick={() => setMenuProjectId(menuOpen ? null : project.id)}
                             disabled={removingProjectId !== null}
                             aria-haspopup="menu"
@@ -518,12 +518,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                             {removingProjectId === project.id ? '…' : '⋯'}
                           </button>
                           {menuOpen && (
-                            <div className="axiom-launcher__menu" role="menu" aria-label={`${project.name} actions`}>
+                            <div className="ambio-launcher__menu" role="menu" aria-label={`${project.name} actions`}>
                               <button role="menuitem" autoFocus onClick={() => { setMenuProjectId(null); openOrLocate(project) }}>
                                 {project.rootMissing ? 'Locate folder…' : 'Open'}
                               </button>
                               {!project.rootMissing && (
-                                <button role="menuitem" onClick={() => { setMenuProjectId(null); window.axiom?.showInFolder(project.rootPath) }}>
+                                <button role="menuitem" onClick={() => { setMenuProjectId(null); window.ambio?.showInFolder(project.rootPath) }}>
                                   {revealLabel}
                                 </button>
                               )}
@@ -546,7 +546,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                               <hr />
                               <button
                                 role="menuitem"
-                                className="axiom-launcher__menu-danger"
+                                className="ambio-launcher__menu-danger"
                                 onClick={() => {
                                   setMenuProjectId(null)
                                   setRemoveError(null)
@@ -567,7 +567,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
               {!searchQuery && (projectList.notShown > 0 || showAll) && (
                 <button
                   type="button"
-                  className="axiom-launcher__show-all"
+                  className="ambio-launcher__show-all"
                   onClick={() => { setShowAll(value => !value); setActiveIndex(null) }}
                 >
                   {showAll ? 'Show recent projects only' : `Show all ${recentProjects.length} projects`}
@@ -576,24 +576,24 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             </div>
           )}
 
-          <footer className="axiom-launcher__local-note">
+          <footer className="ambio-launcher__local-note">
             <span aria-hidden="true" />
             <p><strong>LOCAL WORKSPACE</strong> Project indexes and layout state remain on this machine.</p>
           </footer>
-          {window.axiom && <SupportLinks trashCount={trash.length} onOpenTrash={() => { setTrashError(null); setTrashOpen(true) }} />}
+          {window.ambio && <SupportLinks trashCount={trash.length} onOpenTrash={() => { setTrashError(null); setTrashOpen(true) }} />}
         </section>
       </div>
 
       {projectToDelete && (
         <div
-          className="axiom-create__scrim"
+          className="ambio-create__scrim"
           onClick={() => removingProjectId === null && setProjectToDelete(null)}
         >
           <div
-            className="axiom-remove-modal"
+            className="ambio-remove-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="axiom-remove-title"
+            aria-labelledby="ambio-remove-title"
             onClick={event => event.stopPropagation()}
             onKeyDown={event => {
               if (event.key === 'Escape' && removingProjectId === null) {
@@ -602,11 +602,11 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             }}
             tabIndex={-1}
           >
-            <div className="axiom-remove-modal__head">
-              <span className="axiom-remove-modal__kicker">DELETE PROJECT MAP</span>
-              <h3 id="axiom-remove-title">Delete the map for &ldquo;{projectToDelete.name}&rdquo;?</h3>
+            <div className="ambio-remove-modal__head">
+              <span className="ambio-remove-modal__kicker">DELETE PROJECT MAP</span>
+              <h3 id="ambio-remove-title">Delete the map for &ldquo;{projectToDelete.name}&rdquo;?</h3>
               <button
-                className="axiom-remove-modal__close"
+                className="ambio-remove-modal__close"
                 onClick={() => setProjectToDelete(null)}
                 aria-label="Cancel"
                 disabled={removingProjectId !== null}
@@ -615,17 +615,17 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
               </button>
             </div>
 
-            <p className="axiom-remove-modal__body">
-              Axiom will forget this project: its systems, layout, sheets, and change history move to Recently Deleted,
+            <p className="ambio-remove-modal__body">
+              Ambio will forget this project: its systems, layout, sheets, and change history move to Recently Deleted,
               where you can restore them for 30 days. Your code on disk is not touched. To only tidy this list, use
               Hide from recents instead.
             </p>
 
-            {removeError && <div className="axiom-create__error" role="alert">{removeError}</div>}
+            {removeError && <div className="ambio-create__error" role="alert">{removeError}</div>}
 
-            <div className="axiom-remove-modal__actions">
+            <div className="ambio-remove-modal__actions">
               <button
-                className="axiom-remove-modal__cancel"
+                className="ambio-remove-modal__cancel"
                 onClick={() => setProjectToDelete(null)}
                 disabled={removingProjectId !== null}
                 autoFocus
@@ -633,7 +633,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                 Cancel
               </button>
               <button
-                className="axiom-remove-modal__danger"
+                className="ambio-remove-modal__danger"
                 onClick={() => void confirmDelete()}
                 disabled={removingProjectId !== null}
               >
@@ -645,45 +645,45 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
       )}
 
       {trashOpen && (
-        <div className="axiom-create__scrim" onClick={() => !trashBusy && setTrashOpen(false)}>
+        <div className="ambio-create__scrim" onClick={() => !trashBusy && setTrashOpen(false)}>
           <div
-            className="axiom-remove-modal axiom-trash-modal"
+            className="ambio-remove-modal ambio-trash-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="axiom-trash-title"
+            aria-labelledby="ambio-trash-title"
             onClick={event => event.stopPropagation()}
             onKeyDown={event => { if (event.key === 'Escape' && !trashBusy) setTrashOpen(false) }}
             tabIndex={-1}
           >
-            <div className="axiom-remove-modal__head">
-              <span className="axiom-remove-modal__kicker">RECENTLY DELETED</span>
-              <h3 id="axiom-trash-title">Deleted project maps</h3>
-              <button className="axiom-remove-modal__close" onClick={() => setTrashOpen(false)} aria-label="Close" disabled={trashBusy !== null}>×</button>
+            <div className="ambio-remove-modal__head">
+              <span className="ambio-remove-modal__kicker">RECENTLY DELETED</span>
+              <h3 id="ambio-trash-title">Deleted project maps</h3>
+              <button className="ambio-remove-modal__close" onClick={() => setTrashOpen(false)} aria-label="Close" disabled={trashBusy !== null}>×</button>
             </div>
-            <p className="axiom-remove-modal__body">
-              Maps stay here for 30 days after you delete them, then Axiom removes them for good.
+            <p className="ambio-remove-modal__body">
+              Maps stay here for 30 days after you delete them, then Ambio removes them for good.
             </p>
-            {trashError && <div className="axiom-create__error" role="alert">{trashError}</div>}
+            {trashError && <div className="ambio-create__error" role="alert">{trashError}</div>}
             {trash.length === 0
-              ? <p className="axiom-trash-modal__empty">Nothing here.</p>
+              ? <p className="ambio-trash-modal__empty">Nothing here.</p>
               : (
-                <ul className="axiom-trash-modal__list" aria-label="Deleted project maps">
+                <ul className="ambio-trash-modal__list" aria-label="Deleted project maps">
                   {trash.map(entry => (
                     <li key={entry.trashId}>
-                      <span className="axiom-trash-modal__copy">
+                      <span className="ambio-trash-modal__copy">
                         <strong>{entry.config.name}</strong>
                         <small title={entry.config.rootPath}>{entry.config.rootPath}</small>
                         <small>Deleted {timeAgo(entry.deletedAt)} · {daysLeft(entry.expiresAt)}</small>
                       </span>
                       <button
-                        className="axiom-remove-modal__cancel"
+                        className="ambio-remove-modal__cancel"
                         onClick={() => void purgeFromTrash(entry)}
                         disabled={trashBusy !== null}
                       >
                         Delete Forever
                       </button>
                       <button
-                        className="axiom-create__go"
+                        className="ambio-create__go"
                         onClick={() => void restoreFromTrash(entry)}
                         disabled={trashBusy !== null}
                       >
@@ -698,21 +698,21 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
       )}
 
       {missingProject && (
-        <div className="axiom-create__scrim" onClick={() => !locating && setMissingProject(null)}>
+        <div className="ambio-create__scrim" onClick={() => !locating && setMissingProject(null)}>
           <div
-            className="axiom-remove-modal"
+            className="ambio-remove-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="axiom-missing-title"
+            aria-labelledby="ambio-missing-title"
             onClick={event => event.stopPropagation()}
             onKeyDown={event => { if (event.key === 'Escape' && !locating) setMissingProject(null) }}
             tabIndex={-1}
           >
-            <div className="axiom-remove-modal__head">
-              <span className="axiom-remove-modal__kicker">FOLDER NOT FOUND</span>
-              <h3 id="axiom-missing-title">Where did &ldquo;{missingProject.name}&rdquo; go?</h3>
+            <div className="ambio-remove-modal__head">
+              <span className="ambio-remove-modal__kicker">FOLDER NOT FOUND</span>
+              <h3 id="ambio-missing-title">Where did &ldquo;{missingProject.name}&rdquo; go?</h3>
               <button
-                className="axiom-remove-modal__close"
+                className="ambio-remove-modal__close"
                 onClick={() => setMissingProject(null)}
                 aria-label="Cancel"
                 disabled={locating}
@@ -720,21 +720,21 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                 ×
               </button>
             </div>
-            <p className="axiom-remove-modal__body">
-              Axiom can&rsquo;t find <code>{missingProject.rootPath}</code>. If you moved or renamed the folder, point
-              Axiom at its new location and the map, layout, and history come with it. Your files stay where they are.
+            <p className="ambio-remove-modal__body">
+              Ambio can&rsquo;t find <code>{missingProject.rootPath}</code>. If you moved or renamed the folder, point
+              Ambio at its new location and the map, layout, and history come with it. Your files stay where they are.
             </p>
-            {removeError && <div className="axiom-create__error" role="alert">{removeError}</div>}
-            <div className="axiom-remove-modal__actions">
+            {removeError && <div className="ambio-create__error" role="alert">{removeError}</div>}
+            <div className="ambio-remove-modal__actions">
               <button
-                className="axiom-remove-modal__cancel"
+                className="ambio-remove-modal__cancel"
                 onClick={() => { const project = missingProject; setMissingProject(null); setProjectToDelete(project) }}
                 disabled={locating}
               >
                 Delete Map
               </button>
               <button
-                className="axiom-create__go"
+                className="ambio-create__go"
                 onClick={() => void locateProject(missingProject)}
                 disabled={locating}
                 autoFocus
@@ -747,21 +747,21 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
       )}
 
       {creating && (
-        <div className="axiom-create__scrim" onClick={() => !createBusy && setCreating(false)}>
+        <div className="ambio-create__scrim" onClick={() => !createBusy && setCreating(false)}>
           <div
-            className="axiom-create"
+            className="ambio-create"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="axiom-create-title"
+            aria-labelledby="ambio-create-title"
             onClick={event => event.stopPropagation()}
           >
-            <div className="axiom-create__head">
-              <span className="axiom-create__kicker">NEW PROJECT</span>
-              <h3 id="axiom-create-title">Create a model from scratch</h3>
-              <button className="axiom-create__close" onClick={() => setCreating(false)} aria-label="Cancel" disabled={createBusy}>×</button>
+            <div className="ambio-create__head">
+              <span className="ambio-create__kicker">NEW PROJECT</span>
+              <h3 id="ambio-create-title">Create a model from scratch</h3>
+              <button className="ambio-create__close" onClick={() => setCreating(false)} aria-label="Cancel" disabled={createBusy}>×</button>
             </div>
 
-            <label className="axiom-create__field">
+            <label className="ambio-create__field">
               <span>PROJECT NAME</span>
               <input
                 autoFocus
@@ -773,9 +773,9 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
               />
             </label>
 
-            <label className="axiom-create__field">
+            <label className="ambio-create__field">
               <span>LOCATION</span>
-              <button type="button" className="axiom-create__location" onClick={() => void chooseLocation()}>
+              <button type="button" className="ambio-create__location" onClick={() => void chooseLocation()}>
                 {newLocation
                   ? <code title={newLocation}>{newLocation}</code>
                   : <em>Choose a parent folder…</em>}
@@ -784,16 +784,16 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             </label>
 
             {newLocation && safeName && (
-              <p className="axiom-create__preview">
+              <p className="ambio-create__preview">
                 Creates <code>{newLocation}{newLocation.includes('\\') ? '\\' : '/'}{safeName}</code>
               </p>
             )}
 
-            {createError && <div className="axiom-create__error" role="alert">{createError}</div>}
+            {createError && <div className="ambio-create__error" role="alert">{createError}</div>}
 
-            <div className="axiom-create__actions">
-              <button className="axiom-create__cancel" onClick={() => setCreating(false)} disabled={createBusy}>Cancel</button>
-              <button className="axiom-create__go" onClick={() => void confirmCreate()} disabled={!canCreate}>
+            <div className="ambio-create__actions">
+              <button className="ambio-create__cancel" onClick={() => setCreating(false)} disabled={createBusy}>Cancel</button>
+              <button className="ambio-create__go" onClick={() => void confirmCreate()} disabled={!canCreate}>
                 {createBusy ? 'Creating…' : 'Create & Open'} <span aria-hidden="true">→</span>
               </button>
             </div>
@@ -813,13 +813,13 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
   const [copied, setCopied] = useState(false)
   const update = useUpdateStatus()
   return (
-    <nav className="axiom-launcher__support" aria-label="Help and support">
+    <nav className="ambio-launcher__support" aria-label="Help and support">
       {update.state !== 'idle' && (
         <>
-          <button type="button" className="axiom-launcher__update" onClick={() => void window.axiom.installUpdate()}>
+          <button type="button" className="ambio-launcher__update" onClick={() => void window.ambio.installUpdate()}>
             {update.state === 'ready'
               ? `Restart to update to ${update.version}`
-              : `Download Axiom ${update.version}`}
+              : `Download Ambio ${update.version}`}
           </button>
           <span aria-hidden="true">·</span>
         </>
@@ -832,12 +832,14 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
           <span aria-hidden="true">·</span>
         </>
       )}
-      <button type="button" onClick={() => void window.axiom.reportBug()}>Report a bug</button>
+      <button type="button" onClick={() => emitCommand('help.feedback')}>Send feedback</button>
+      <span aria-hidden="true">·</span>
+      <button type="button" onClick={() => void window.ambio.reportBug()}>Report a bug</button>
       <span aria-hidden="true">·</span>
       <button
         type="button"
         onClick={() => {
-          void window.axiom.copyDiagnostics().then(() => {
+          void window.ambio.copyDiagnostics().then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
           })
@@ -846,7 +848,7 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
         {copied ? 'Diagnostics copied' : 'Copy diagnostics'}
       </button>
       <span aria-hidden="true">·</span>
-      <button type="button" onClick={() => void window.axiom.openLogsFolder()}>Open logs</button>
+      <button type="button" onClick={() => void window.ambio.openLogsFolder()}>Open logs</button>
       <span aria-hidden="true">·</span>
       <button type="button" onClick={() => emitCommand('app.settings')}>Settings</button>
     </nav>
@@ -855,10 +857,10 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
 
 function ProjectDeckSignals({ status }: { status?: CommandDeckStatus }) {
   if (!status) {
-    return <span className="axiom-launcher__deck-signals axiom-launcher__deck-signals--loading">READING MAP…</span>
+    return <span className="ambio-launcher__deck-signals ambio-launcher__deck-signals--loading">READING MAP…</span>
   }
   if (!status.indexed) {
-    return <span className="axiom-launcher__deck-signals">NOT INDEXED</span>
+    return <span className="ambio-launcher__deck-signals">NOT INDEXED</span>
   }
   const signals: Array<{ label: string; tone?: string }> = []
   if (status.activeWork.length > 0) {
@@ -886,13 +888,13 @@ function ProjectDeckSignals({ status }: { status?: CommandDeckStatus }) {
     signals.push({ label: `${status.systems} SYSTEMS · MAP CLEAN`, tone: 'clean' })
   }
   return (
-    <span className="axiom-launcher__deck-signals">
+    <span className="ambio-launcher__deck-signals">
       {signals.slice(0, 3).map(signal => (
         <span
           key={signal.label}
           className={signal.tone
-            ? `axiom-launcher__deck-signal axiom-launcher__deck-signal--${signal.tone}`
-            : 'axiom-launcher__deck-signal'}
+            ? `ambio-launcher__deck-signal ambio-launcher__deck-signal--${signal.tone}`
+            : 'ambio-launcher__deck-signal'}
         >
           {signal.label}
         </span>

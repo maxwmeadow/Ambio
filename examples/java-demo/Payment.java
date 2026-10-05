@@ -1,4 +1,4 @@
-// Axiom Java runtime-layer spike target.
+// Ambio Java runtime-layer spike target.
 //
 // Several worker threads each call processPayment (synchronous) so the
 // java-debug DAP tracer can be exercised for call attribution + arg reading.

@@ -16,7 +16,7 @@ const COPY: Record<OnboardingStage, {
   baseline: {
     eyebrow: 'REVERSE SYNC',
     title: 'Your codebase is materializing',
-    body: 'Axiom is turning the repository into live files, systems, and relationships. The first index is a baseline, not a fake change.',
+    body: 'Ambio is turning the repository into live files, systems, and relationships. The first index is a baseline, not a fake change.',
   },
   sheet: {
     eyebrow: 'FORWARD SYNC · 1 OF 3',
@@ -36,7 +36,7 @@ const COPY: Record<OnboardingStage, {
   build: {
     eyebrow: 'LIVE REALIZATION',
     title: 'Now watch the plan go green',
-    body: 'Your agent can drain the canvas queue through Axiom MCP. As matching code appears, the planned node moves through partial to realized.',
+    body: 'Your agent can drain the canvas queue through Ambio MCP. As matching code appears, the planned node moves through partial to realized.',
   },
   complete: {
     eyebrow: 'LOOP CLOSED',
@@ -176,8 +176,8 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
   const finish = () => complete()
 
   return (
-    <aside className={`axiom-onboarding-guide axiom-onboarding-guide--${stage}`} aria-live="polite">
-      <div className="axiom-onboarding-guide__rail" aria-hidden="true">
+    <aside className={`ambio-onboarding-guide ambio-onboarding-guide--${stage}`} aria-live="polite">
+      <div className="ambio-onboarding-guide__rail" aria-hidden="true">
         {['sheet', 'draw', 'dispatch', 'build'].map((item, index) => (
           <span
             key={item}
@@ -190,21 +190,21 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
         ))}
       </div>
       <button
-        className="axiom-onboarding-guide__close"
+        className="ambio-onboarding-guide__close"
         onClick={dismiss}
         aria-label="Hide the setup guide"
         title="Hide - reopen from the status bar"
       >
         ×
       </button>
-      <span className="axiom-onboarding-guide__eyebrow">{copy.eyebrow}</span>
+      <span className="ambio-onboarding-guide__eyebrow">{copy.eyebrow}</span>
       <h2>{copy.title}</h2>
       <p>{copy.body}</p>
 
-      {error && <div className="axiom-onboarding-guide__error" role="alert">{error}</div>}
+      {error && <div className="ambio-onboarding-guide__error" role="alert">{error}</div>}
 
-      <div className="axiom-onboarding-guide__actions">
-        {stage === 'baseline' && <span className="axiom-onboarding-guide__waiting">INDEXING LIVE SOURCE…</span>}
+      <div className="ambio-onboarding-guide__actions">
+        {stage === 'baseline' && <span className="ambio-onboarding-guide__waiting">INDEXING LIVE SOURCE…</span>}
         {stage === 'sheet' && (
           <button onClick={() => void createFirstIncrement()} disabled={busy}>
             {busy ? 'Creating…' : 'Create First Increment'}
@@ -216,15 +216,15 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
           </button>
         )}
         {stage === 'draw' && activeSheetId === sheet?.id && (
-          <span className="axiom-onboarding-guide__waiting">DRAG A STENCIL FROM THE LEFT</span>
+          <span className="ambio-onboarding-guide__waiting">DRAG A STENCIL FROM THE LEFT</span>
         )}
         {stage === 'dispatch' && (
-          <button onClick={() => window.dispatchEvent(new Event('axiom:open-agent-dispatch'))}>
+          <button onClick={() => window.dispatchEvent(new Event('ambio:open-agent-dispatch'))}>
             Dispatch Increment
           </button>
         )}
         {stage === 'build' && (
-          <span className="axiom-onboarding-guide__waiting">
+          <span className="ambio-onboarding-guide__waiting">
             {plan?.status === 'partial' ? 'PARTIAL · KEEP BUILDING' : 'AWAITING AGENT BUILD'}
           </span>
         )}

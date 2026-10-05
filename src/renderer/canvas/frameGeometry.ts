@@ -1,5 +1,5 @@
 /**
- * Canonical geometry for Axiom's nested canvas.
+ * Canonical geometry for Ambio's nested canvas.
  *
  * Positions and sizes are always stored in the immediate parent's coordinate
  * system. `scale` is uniform and applies to the node and its full subtree.
@@ -89,7 +89,7 @@ export const FRAME_ROOT_GAP = 96
 /**
  * The only spacing a HAND-PLACED node has to respect.
  *
- * The gaps above are how Axiom arranges things when it is the one deciding -
+ * The gaps above are how Ambio arranges things when it is the one deciding -
  * a fresh pack, a tidy, a newly indexed file. They are preferences about how a
  * machine-authored layout should look. They are NOT laws, and treating them as
  * laws is what made a dropped node fly a hundred units away from a system it

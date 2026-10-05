@@ -2,7 +2,7 @@
 // AST instrumentation - the heart of the Node adapter.
 //
 // Every function in a watched workspace file is rewritten at load time to call
-// into the main-thread runtime (globalThis.__axiom) on entry, return, throw,
+// into the main-thread runtime (globalThis.__ambio) on entry, return, throw,
 // and exit. Instrumentation is UNCONDITIONAL (all functions), but the enter
 // hook returns a shared inactive context in O(1) when the function isn't
 // watched, so unwatched code stays near-native. Watches (and injections) can
@@ -25,7 +25,7 @@ const acorn = require('acorn')
 const MagicString = require('magic-string')
 const { loadSourceMap, originalPosition } = require('./sourcemap.cjs')
 
-const G = 'globalThis.__axiom'
+const G = 'globalThis.__ambio'
 
 // Instrumentable function node types.
 const FN_TYPES = new Set([
@@ -338,7 +338,7 @@ function instrumentFunction(s, source, node, name, fileLit, names, mappedLine, s
       s.appendRight(ret.argument.start, ` ${G}.ret(${CTX}, (`)
       s.prependLeft(ret.argument.end, `))`)
     } else {
-      // `return;`  →  `return globalThis.__axiom.ret(__axm, void 0);`
+      // `return;`  →  `return globalThis.__ambio.ret(__axm, void 0);`
       const afterReturn = ret.start + 'return'.length
       s.prependLeft(afterReturn, ` ${G}.ret(${CTX}, void 0)`)
     }

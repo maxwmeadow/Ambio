@@ -65,7 +65,7 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 - [x] **C5** Lasso-drag no longer lags. Root cause: the `transition: none` guard
   keyed off React Flow's `.dragging` class, which a **box-selection drag never
   sets** (it moves nodes through the separate selection-rect path). Now keyed
-  off `.axiom-dragging`, set by Axiom for any drag gesture;
+  off `.ambio-dragging`, set by Ambio for any drag gesture;
   `onSelectionDragStart/Stop` were unwired entirely.
 - [x] **C5b** Resizing one node of a multi-selection scales the whole selection as
   one frame (`selectionResize.ts`). Members sharing the anchor's parent only;
@@ -121,7 +121,7 @@ Fixed during this pass:
   for editable chrome). Disabling `draggable` alone then made it *swallow* the
   pointer instead - the click fell through to whatever was painted behind, and
   since React Flow renders node wrappers as **siblings**, that was the outer
-  depth-0 container. Now `.axiom-node-hidden` kills pointer events on the node
+  depth-0 container. Now `.ambio-node-hidden` kills pointer events on the node
   and every descendant, plus React Flow's `draggable`/`selectable` flags as a
   second layer for keyboard/programmatic paths.
 - [x] **Stuck-to-cursor drag.** The drag-start visibility override sat *after*
@@ -140,6 +140,20 @@ Fixed during this pass:
 - [ ] **E8** Drag does not start from editable text, symbol rows, buttons, scroll regions
 - [ ] **E9** Drag a node during a live flow animation - no teleport, no lost geometry
 - [ ] **E10** Rapid drag + release + immediate re-drag
+- [ ] **E-M1** Floor: drag a file into another system → it belongs there (notice "x.ts now belongs to Y" with Undo); Review Changes shows "x.ts moved from X to Y by you"
+- [ ] **E-M2** Floor: drag a system into another → nested; drag it onto open canvas → top level
+- [ ] **E-M3** Floor: rearrange inside the same system → no notice, nothing in Review Changes
+- [ ] **E-M4** Undo from the notice and from Review Changes both put it back; a second, later move makes the first Undo refuse with a reason
+- [ ] **E-M5** Double-click a system title on the Floor → rename; Review Changes shows the rename
+- [ ] **E-M6** Right-click a system → Ungroup; right-click a file → Group into New System…, Take Out of <system>
+- [ ] **E-M7** Right-click open canvas → New System Here… opens a new sheet with a planned system where you clicked, ready to send
+- [ ] **E-M8** Right-click a file → Delete This File…, a system → Delete <system>'s Code… opens a new "Remove …" sheet with the removal drawn, and Send to Agent with that sheet attached and the instruction written; nothing is deleted until an agent does it
+- [ ] **E-M8b** Drag from one live system's edge to another's on the Floor → a new "<A> uses <B>" sheet opens with the dependency drawn from A to B, and Send to Agent opens with it attached
+- [ ] **E-M8c** Make two meaning edits on the Floor, press ⌘Z twice → both undone in reverse order; ⌘⇧Z redoes; ⌘Z while renaming a system undoes typing only
+- [ ] **E-M9** Move a file into a system whose other files live in another folder → the Undo notice says where the code disagrees and offers Make the Code Match…, which opens Send to Agent with the move written; moving a file that already fits shows no offer
+- [ ] **E-M10** Dismiss that notice → Review Changes shows the move with the same disagreement and Make the Code Match…
+- [ ] **E-M11** Send the order (the composer shows "Ambio checks the code afterwards"), let an agent move the file → the file keeps its system and place on the Floor, and the order shows "Checked by Ambio: it now matches the map"
+
 
 ## F. Tidy and layout
 
@@ -190,8 +204,10 @@ Fixed during this pass:
 - [ ] **J4** Planned outlines dashed; realized solid; status colors planned/partial/realized
 - [ ] **J5** Connect two nodes on an active sheet; live nodes are connectable on a sheet too (the connection is a proposal)
 - [ ] **J6** Edit planned element name / path / members inline
-- [ ] **J7** `Delete`/`Backspace` removes the selected sheet node (must not fire while typing)
-- [ ] **J8** Delete/Backspace on the **Floor**: record what happens. The rule is being decided (WORK.md `floor-edit-rules`)
+- [ ] **J7** `Delete`/`Backspace` deletes a selected planned node; on a selected **live** node it proposes removal instead: the node leaves this sheet's picture (with what is inside it), a notice offers Restore, and the rail lists it under "Removed on this sheet" (must not fire while typing)
+- [ ] **J7b** Leave the sheet → the removed node is on the Floor as before; once its code is really deleted, the Removed list marks it GONE instead of dropping it
+- [ ] **J8** Delete/Backspace on the **Floor**: a selected system is ungrouped (contents move up a level; notice with Undo); a selected file stays and a notice says files are code
+- [ ] **J8b** An agent creates a sheet (`edit_sheet create`) or proposes an element (`plan_element`) → an invitation with Open Sheet appears, the sheet is marked NEW until opened, the proposal is outlined PROPOSED, and "To review" in the rail confirms or rejects it in one click
 - [ ] **J9** Deactivate the sheet - live identity preserved, nothing orphaned
 - [ ] **J10** Sheet geometry persists across sheet layout mutations
 
@@ -224,6 +240,8 @@ Fixed during this pass:
 - [ ] **L15** Save while zoomed way out (endpoints resolve to containers, no self-loop)
 
 ## M. Toolbar and global
+
+- [ ] **M-E1** ⌘⇧O opens Model Explorer; typing filters to matches with their path open; clicking a row selects and frames it; selecting on the canvas highlights its row; arrows, Enter and Escape work without a mouse
 
 - [ ] **M1** `Ctrl+K` opens search; Escape closes
 - [ ] **M2** Search results navigate to and select the file

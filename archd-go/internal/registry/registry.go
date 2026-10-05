@@ -1,6 +1,6 @@
 // Package registry is the infra service registry (docs/INFRA.md).
 //
-// A "service" is one external-infrastructure product Axiom knows how to
+// A "service" is one external-infrastructure product Ambio knows how to
 // render and (later) detect: aws/rds, openai/api, stripe/api, generic/postgres.
 // Identity is Category x Provider x Service: the CATEGORY defines edge
 // semantics and the node silhouette, the PROVIDER defines the brand skin,
@@ -10,8 +10,8 @@
 // Resolution is layered - later layers override earlier by service id:
 //
 //  1. embedded defaults   (archd-go/internal/registry/services/*.json, go:embed)
-//  2. global user layer   (~/.config/axiom/services/*.json)
-//  3. workspace layer     (<root>/.axiom/services/*.json)
+//  2. global user layer   (~/.config/ambio/services/*.json)
+//  3. workspace layer     (<root>/.ambio/services/*.json)
 //
 // The renderer never bundles its own copy: it fetches the resolved registry
 // from GET /api/registry/services, so archd and canvas cannot disagree.
@@ -141,11 +141,15 @@ func Load(workspaceRoots []string) *Registry {
 	r := &Registry{services: make(map[string]Service)}
 	r.loadFS(embedded, "services", "embedded")
 
+	// .axiom is the folder name from before the rename; read it too, first,
+	// so a .ambio entry with the same id wins.
 	if home, err := os.UserHomeDir(); err == nil {
 		r.loadDir(filepath.Join(home, ".config", "axiom", "services"), "user")
+		r.loadDir(filepath.Join(home, ".config", "ambio", "services"), "user")
 	}
 	for _, root := range workspaceRoots {
 		r.loadDir(filepath.Join(root, ".axiom", "services"), "workspace")
+		r.loadDir(filepath.Join(root, ".ambio", "services"), "workspace")
 	}
 	return r
 }

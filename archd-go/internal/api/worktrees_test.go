@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/gitworktree"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 func TestSyncWorkspaceWorktreesKeepsOneCanonicalGraphRoot(t *testing.T) {
@@ -123,23 +123,23 @@ func TestDiscoverInitialWorktreesFallsBackForNonGitFolder(t *testing.T) {
 
 func TestIgnoredPathsFollowEachLinkedWorktree(t *testing.T) {
 	patterns := []string{
-		"C:/code/Axiom/generated/**",
+		"C:/code/Ambio/generated/**",
 		"relative/vendor/**",
 	}
-	translated := ignoredPathsForWorktree(patterns, "C:/code/Axiom", "D:/agents/Axiom-feature")
-	if len(translated) != 2 || translated[0] != "D:/agents/Axiom-feature/generated/**" || translated[1] != patterns[1] {
+	translated := ignoredPathsForWorktree(patterns, "C:/code/Ambio", "D:/agents/Ambio-feature")
+	if len(translated) != 2 || translated[0] != "D:/agents/Ambio-feature/generated/**" || translated[1] != patterns[1] {
 		t.Fatalf("translated ignored paths = %#v", translated)
 	}
 }
 
 func TestRootPathNormalizationMatchesHostFilesystemSemantics(t *testing.T) {
-	windowsUpper := normalizedRootPathForOS(`C:\Code\Axiom-Agent`, "windows")
-	windowsLower := normalizedRootPathForOS(`c:/code/axiom-agent`, "windows")
+	windowsUpper := normalizedRootPathForOS(`C:\Code\Ambio-Agent`, "windows")
+	windowsLower := normalizedRootPathForOS(`c:/code/ambio-agent`, "windows")
 	if windowsUpper != windowsLower {
 		t.Fatalf("Windows paths should compare case-insensitively: %q != %q", windowsUpper, windowsLower)
 	}
-	linuxUpper := normalizedRootPathForOS(`/code/Axiom-Agent`, "linux")
-	linuxLower := normalizedRootPathForOS(`/code/axiom-agent`, "linux")
+	linuxUpper := normalizedRootPathForOS(`/code/Ambio-Agent`, "linux")
+	linuxLower := normalizedRootPathForOS(`/code/ambio-agent`, "linux")
 	if linuxUpper == linuxLower {
 		t.Fatalf("case-sensitive hosts must keep distinct worktrees distinct: %q == %q", linuxUpper, linuxLower)
 	}
@@ -175,8 +175,8 @@ func TestOpenWorkspaceIndexesOnlyCanonicalRootAndStillTracksGitMetadata(t *testi
 		t.Fatal(err)
 	}
 	runWorktreeGit(t, primaryPath, "init")
-	runWorktreeGit(t, primaryPath, "config", "user.email", "axiom-test@example.com")
-	runWorktreeGit(t, primaryPath, "config", "user.name", "Axiom Test")
+	runWorktreeGit(t, primaryPath, "config", "user.email", "ambio-test@example.com")
+	runWorktreeGit(t, primaryPath, "config", "user.name", "Ambio Test")
 	if err := os.WriteFile(
 		filepath.Join(primaryPath, "base.go"),
 		[]byte("package sample\n\nfunc Base() {}\n"),
@@ -269,8 +269,8 @@ func TestOpenWorkspaceIndexesOnlyCanonicalRootAndStillTracksGitMetadata(t *testi
 func TestRootPathNormalizationTreatsMacOSAsCaseInsensitive(t *testing.T) {
 	// APFS and HFS+ are case-insensitive unless deliberately formatted
 	// otherwise, so two spellings of one path must not become two roots.
-	upper := normalizedRootPathForOS("/Users/dev/Axiom-Agent", "darwin")
-	lower := normalizedRootPathForOS("/users/dev/axiom-agent", "darwin")
+	upper := normalizedRootPathForOS("/Users/dev/Ambio-Agent", "darwin")
+	lower := normalizedRootPathForOS("/users/dev/ambio-agent", "darwin")
 	if upper != lower {
 		t.Fatalf("macOS paths should compare case-insensitively: %q != %q", upper, lower)
 	}

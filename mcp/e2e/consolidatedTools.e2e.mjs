@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 
 /**
@@ -134,6 +135,88 @@ test('an agent can curate the architecture map', async () => {
 
   const removed = await client.callTool('edit_systems', { op: 'delete', systemId })
   assert.equal(removed.isError, false, removed.text)
+
+  // Every one of those edits is recorded and attributed to the agent, so the
+  // human can review and undo it.
+  const response = await fetch(`${harness.apiBase}/api/query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId: harness.workspaceId, sql: 'SELECT kind, actor FROM structural_events', params: [] }),
+  })
+  assert.equal(response.status, 200, await response.clone().text())
+  const kinds = (await response.json()).filter(event => event.actor === 'agent').map(event => event.kind)
+  for (const kind of ['system.created', 'system.renamed', 'file.assigned', 'system.ungrouped']) {
+    assert.ok(kinds.includes(kind), `${kind} was not recorded for the agent: ${kinds.join(', ')}`)
+  }
+
+  // An agent that puts a file where the code disagrees is told so.
+  const storage = files.filter(file => file.relPath.startsWith('storage/')).map(file => file.id)
+  const handler = files.find(file => file.relPath === 'api/handlers.py')
+  const home = await client.callTool('edit_systems', { op: 'create', name: 'HarnessStorage' })
+  const homeId = home.payload?.systemId
+  await client.callTool('edit_systems', { op: 'assign', systemId: homeId, fileIds: storage })
+  const misplaced = await client.callTool('edit_systems', { op: 'assign', systemId: homeId, fileIds: [handler.id] })
+  assert.equal(misplaced.isError, false, misplaced.text)
+  assert.ok(
+    misplaced.payload?.codeDisagrees?.some(item => item.toFix.includes('storage/handlers.py')),
+    `no code disagreement reported: ${misplaced.text}`,
+  )
+
+  // And any agent can read back what changed on the map.
+  const changes = await client.callTool('get_architecture', { scope: 'changes' })
+  assert.equal(changes.isError, false, changes.text)
+  assert.ok(Array.isArray(changes.payload?.changes), changes.text)
+  assert.ok(changes.payload.changes.some(change => change.kind === 'ungrouped'), changes.text)
+})
+
+test('making the code match the map is verified by Ambio, and the moved file keeps its place', async () => {
+  const files = harness.snapshot.files ?? []
+  const storage = files.filter(file => file.relPath.startsWith('storage/')).map(file => file.id)
+  const routes = files.find(file => file.relPath === 'api/routes.py')
+  const created = await client.callTool('edit_systems', { op: 'create', name: 'HarnessStore' })
+  const systemId = created.payload?.systemId
+  await client.callTool('edit_systems', { op: 'assign', systemId, fileIds: [...storage, routes.id] })
+
+  // The human sends the order the notice offers; Ambio keeps the files to check.
+  const id = 'make-code-match-e2e'
+  const sent = await fetch(`${harness.apiBase}/api/canvas/send`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id, workspaceId: harness.workspaceId, deliveryMode: 'addressed',
+      note: 'Move api/routes.py to storage/routes.py', codeFitFileIds: [routes.id],
+    }),
+  })
+  assert.equal(sent.status, 200, await sent.text())
+  const history = async () => {
+    const response = await fetch(`${harness.apiBase}/api/canvas/history?workspace=${encodeURIComponent(harness.workspaceId)}`)
+    return (await response.json()).messages.find(message => message.id === id)
+  }
+  assert.equal((await history()).codeChecks?.[0]?.state, 'disagrees')
+
+  // The agent does the work: the file moves on disk.
+  const claimed = await client.callTool('get_inbox', { messageId: id, expectedWorkspaceId: harness.workspaceId })
+  assert.equal(claimed.isError, false, claimed.text)
+  mkdirSync(join(harness.projectDir, 'storage'), { recursive: true })
+  renameSync(join(harness.projectDir, 'api', 'routes.py'), join(harness.projectDir, 'storage', 'routes.py'))
+
+  let state
+  for (let attempt = 0; attempt < 60 && state !== 'agrees'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 250))
+    state = (await history()).codeChecks?.[0]?.state
+  }
+  assert.equal(state, 'agrees', `Ambio never saw the code agree: ${JSON.stringify((await history()).codeChecks)}`)
+
+  const moved = await fetch(`${harness.apiBase}/api/query`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId: harness.workspaceId, sql: 'SELECT id, system_id AS systemId FROM files WHERE rel_path = ?', params: ['storage/routes.py'] }),
+  })
+  const [row] = await moved.json()
+  assert.deepEqual(row, { id: routes.id, systemId }, 'the moved file lost its identity or its system')
+
+  const answer = await client.callTool('reply_to_canvas', {
+    messageHandle: claimed.payload.messages[0].messageHandle, body: 'Moved routes.py into storage/.',
+  })
+  assert.equal(answer.isError, false, answer.text)
+  assert.equal(answer.payload?.message?.codeChecks?.[0]?.state, 'agrees', answer.text)
 })
 
 test('sheet ops route correctly', async () => {
@@ -147,6 +230,27 @@ test('sheet ops route correctly', async () => {
 
   const fetched = await client.callTool('edit_sheet', { op: 'get', sheet: 'HarnessSheet' })
   assert.equal(fetched.isError, false, fetched.text)
+
+  // An agent can propose taking code away; nothing is deleted, and compare
+  // reports the removal as open work until the code is gone.
+  const removed = await client.callTool('edit_sheet', { op: 'remove', sheet: 'HarnessSheet', members: ['api/serializers.py'] })
+  assert.equal(removed.isError, false, removed.text)
+  const compared = await client.callTool('edit_sheet', { op: 'compare', sheet: 'HarnessSheet' })
+  assert.ok(compared.payload?.differences?.some(difference => difference.kind === 'removal'), compared.text)
+  const restored = await client.callTool('edit_sheet', { op: 'restore', sheet: 'HarnessSheet', members: ['api/serializers.py'] })
+  assert.equal(restored.isError, false, restored.text)
+})
+
+test('an agent drafts a sheet from a Markdown spec and reads it back', async () => {
+  const spec = '# Harness spec\n\nQueue the exports.\n\n## Add\n- service `Export Queue` at `api/export_queue.py` - batches exports\n\n## Remove\n- file `api/serializers.py`\n'
+  const imported = await client.callTool('edit_sheet', { op: 'import', body: spec })
+  assert.equal(imported.isError, false, imported.text)
+  assert.equal(imported.payload?.sheet?.name, 'Harness spec', imported.text)
+  assert.deepEqual(imported.payload?.warnings, [], imported.text)
+  const exported = await client.callTool('edit_sheet', { op: 'export', sheet: 'Harness spec' })
+  assert.equal(exported.isError, false, exported.text)
+  assert.match(exported.text, /service `Export Queue` at `api\/export_queue.py` - batches exports/)
+  assert.match(exported.text, /file `api\/serializers.py`/)
 })
 
 test('an agent finds a sheet, implements nesting, resolves it and restores it', async () => {
@@ -156,8 +260,8 @@ test('an agent finds a sheet, implements nesting, resolves it and restores it', 
     assert.equal(response.status,200,await response.clone().text())
     return response.json()
   }
-  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',source:'user' })
-  await post('/api/systems', { id:'sheet-child',name:'Sheet child',source:'user' })
+  await post('/api/systems', { id:'sheet-parent',name:'Sheet parent',actor:{kind:'human'} })
+  await post('/api/systems', { id:'sheet-child',name:'Sheet child',actor:{kind:'human'} })
   const created = await client.callTool('edit_sheet', {op:'create',name:'Checkout structural redesign',members:['sheet-child']})
   assert.equal(created.isError,false,created.text)
   const sheetId = created.payload.created.id
@@ -299,9 +403,17 @@ test('two addressed requests keep separate work sessions on one MCP connector', 
   }
 })
 
+test('the loop prompts are advertised and filled in', async () => {
+  const listed = await client.request('prompts/list', {})
+  const names = listed.result.prompts.map(prompt => prompt.name)
+  for (const name of ['review-canvas', 'name-architecture', 'propose', 'implement', 'review']) assert.ok(names.includes(name), names.join(', '))
+  const prompt = await client.request('prompts/get', { name: 'implement', arguments: { sheet: 'Payment flow' } })
+  assert.match(prompt.result.messages[0].content.text, /get_build_plan with sheet "Payment flow"/)
+})
+
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
-  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`axiom://file/${file.id}?label=Original%20file`]) }
+  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`ambio://file/${file.id}?label=Original%20file`]) }
   const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
   for (let i = 0; i < 2; i++) {
     const sent = await post('send', body)
@@ -361,7 +473,7 @@ test('agent actions are logged with targets the canvas can light up', async () =
   assert.ok(architecture, `expected a get_architecture entry, got: ${
     actions.map(a => a.tool).join(', ')}`)
   assert.equal(architecture.rootId, harness.snapshot.files[0].rootId)
-  assert.equal(architecture.agent, 'axiom-harness')
+  assert.equal(architecture.agent, 'ambio-harness')
   assert.equal(architecture.kind, 'read')
   assert.ok(
     architecture.targets.includes(files[0].id),
@@ -386,7 +498,7 @@ test('the running MCP process renews a harness-tagged presence lease', async () 
 
   assert.equal(presence?.connected, true)
   assert.ok(
-    presence.connections.some(connection => connection.hostId === 'axiom-harness'),
+    presence.connections.some(connection => connection.hostId === 'ambio-harness'),
     `missing tagged harness presence: ${JSON.stringify(presence)}`,
   )
 })

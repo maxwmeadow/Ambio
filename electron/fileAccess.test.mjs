@@ -23,7 +23,7 @@ test('paths must be inside a registered project', () => {
 })
 
 test('editors are found on PATH and chosen by setting', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-editors-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-editors-'))
   try {
     for (const name of ['cursor', 'code']) fs.writeFileSync(path.join(dir, name), '')
     const editors = detectEditors({ PATH: dir, HOME: dir }, 'linux', dir).filter(editor => editor.command.startsWith(dir))

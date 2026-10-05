@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/runtime"
 )
 
 // limitBody caps request bodies so a runaway client cannot OOM the daemon.
@@ -119,7 +119,7 @@ func (s *Server) handleRuntimeWatch(w http.ResponseWriter, r *http.Request) {
 func watchNote(notified int) string {
 	if notified == 0 {
 		return "Watch registered, but no runtime adapter is connected yet. " +
-			"Launch the target app via the launch_target tool (or with the axiom_adapter launcher) to start streaming calls."
+			"Launch the target app via the launch_target tool (or with the ambio_adapter launcher) to start streaming calls."
 	}
 	return fmt.Sprintf("Watch active - streaming to canvas from %d connected process(es).", notified)
 }
@@ -200,7 +200,7 @@ func (s *Server) handleRuntimeInject(w http.ResponseWriter, r *http.Request) {
 		Value:       body.Value,
 		Once:        once,
 	})
-	note := "Injection is pending user confirmation on the Axiom canvas. " +
+	note := "Injection is pending user confirmation on the Ambio canvas. " +
 		"Poll get_runtime_snapshot to see it become armed, then fired."
 	switch inj.Status {
 	case "armed":

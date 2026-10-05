@@ -1,4 +1,4 @@
-.axiom-connect {
+.ambio-connect {
   position: relative;
   height: 100vh;
   overflow: auto;
@@ -11,13 +11,13 @@
   font-family: var(--font-mono);
 }
 
-.axiom-connect__titlebar {
+.ambio-connect__titlebar {
   position: sticky;
   top: 0;
   z-index: 30;
 }
 
-.axiom-connect__card {
+.ambio-connect__card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -31,7 +31,7 @@
   box-shadow: 5px 5px 0 rgba(7, 13, 11, 0.42), 0 26px 64px rgba(0, 0, 0, 0.34);
 }
 
-.axiom-connect__card::after {
+.ambio-connect__card::after {
   content: '';
   position: absolute;
   top: -1px;
@@ -42,12 +42,12 @@
   pointer-events: none;
 }
 
-.axiom-connect__header {
+.ambio-connect__header {
   padding: 18px 28px 17px;
   border-bottom: 1px solid #d0d1c7;
 }
 
-.axiom-connect__back {
+.ambio-connect__back {
   margin: 0 0 11px;
   padding: 0;
   border: 0;
@@ -58,16 +58,16 @@
   font-size: 12px;
 }
 
-.axiom-connect__back:hover { color: #1e4e40; }
+.ambio-connect__back:hover { color: #1e4e40; }
 
-.axiom-connect__identity {
+.ambio-connect__identity {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
 }
 
-.axiom-connect__eyebrow {
+.ambio-connect__eyebrow {
   margin: 0 0 7px;
   color: #708079;
   font-size: 11px;
@@ -75,7 +75,7 @@
   text-transform: uppercase;
 }
 
-.axiom-connect__identity h1 {
+.ambio-connect__identity h1 {
   margin: 0;
   font-family: var(--font-ui);
   font-size: clamp(27px, 3vw, 36px);
@@ -84,7 +84,7 @@
   letter-spacing: -0.02em;
 }
 
-.axiom-connect__indexed {
+.ambio-connect__indexed {
   flex: 0 0 auto;
   padding: 7px 10px;
   border: 1px solid #c9cbc1;
@@ -94,18 +94,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.axiom-connect__step-nav {
+.ambio-connect__step-nav {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-bottom: 1px solid #bcc5bf;
   background: #e7ebe6;
 }
 
-.axiom-connect__step-nav[data-mode='blank'] {
+.ambio-connect__step-nav[data-mode='blank'] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.axiom-connect__step-nav button {
+.ambio-connect__step-nav button {
   position: relative;
   display: flex;
   align-items: center;
@@ -122,10 +122,10 @@
   font-size: 12px;
 }
 
-.axiom-connect__step-nav button:last-child { border-right: 0; }
-.axiom-connect__step-nav button:hover { background: rgba(255, 255, 255, 0.4); color: #26362f; }
+.ambio-connect__step-nav button:last-child { border-right: 0; }
+.ambio-connect__step-nav button:hover { background: rgba(255, 255, 255, 0.4); color: #26362f; }
 
-.axiom-connect__step-nav button::after {
+.ambio-connect__step-nav button::after {
   content: '';
   position: absolute;
   right: 0;
@@ -135,15 +135,15 @@
   background: transparent;
 }
 
-.axiom-connect__step-nav button[aria-selected='true'] {
+.ambio-connect__step-nav button[aria-selected='true'] {
   background: #f3f1e9;
   color: #173b31;
   font-weight: 700;
 }
 
-.axiom-connect__step-nav button[aria-selected='true']::after { background: #34735f; }
+.ambio-connect__step-nav button[aria-selected='true']::after { background: #34735f; }
 
-.axiom-connect__step-nav button > span {
+.ambio-connect__step-nav button > span {
   display: grid;
   width: 24px;
   height: 24px;
@@ -156,14 +156,14 @@
   line-height: 1;
 }
 
-.axiom-connect__step-nav button[data-state='active'] > span,
-.axiom-connect__step-nav button[data-state='done'] > span {
+.ambio-connect__step-nav button[data-state='active'] > span,
+.ambio-connect__step-nav button[data-state='done'] > span {
   border-color: #34735f;
   background: #34735f;
   color: #f8faf6;
 }
 
-.axiom-connect__workspace {
+.ambio-connect__workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
   flex: 1 1 auto;
@@ -171,7 +171,7 @@
   overflow: hidden;
 }
 
-.axiom-connect__stage {
+.ambio-connect__stage {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -180,20 +180,20 @@
   scrollbar-gutter: stable;
 }
 
-.axiom-connect__step-panel {
+.ambio-connect__step-panel {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
-  animation: axiom-connect-step-in 160ms ease-out;
+  animation: ambio-connect-step-in 160ms ease-out;
 }
 
-@keyframes axiom-connect-step-in {
+@keyframes ambio-connect-step-in {
   from { opacity: 0; transform: translateX(5px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-.axiom-connect__step-kicker {
+.ambio-connect__step-kicker {
   margin: 0 0 8px;
   color: #34735f;
   font-size: 10px;
@@ -202,7 +202,7 @@
   text-transform: uppercase;
 }
 
-.axiom-connect__step-panel h2 {
+.ambio-connect__step-panel h2 {
   margin: 0 0 10px;
   max-width: 24ch;
   font-family: var(--font-ui);
@@ -212,7 +212,7 @@
   letter-spacing: -0.018em;
 }
 
-.axiom-connect__step-copy {
+.ambio-connect__step-copy {
   margin: 0;
   max-width: 63ch;
   color: #53635c;
@@ -220,8 +220,8 @@
   line-height: 1.65;
 }
 
-.axiom-connect__agents,
-.axiom-connect__families {
+.ambio-connect__agents,
+.ambio-connect__families {
   display: grid;
   gap: 8px;
   margin: 14px 0 10px;
@@ -229,8 +229,8 @@
   list-style: none;
 }
 
-.axiom-connect__agents > li,
-.axiom-connect__family-card {
+.ambio-connect__agents > li,
+.ambio-connect__family-card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -239,20 +239,20 @@
   transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
 }
 
-.axiom-connect__agents > li:hover,
-.axiom-connect__family-card:hover {
+.ambio-connect__agents > li:hover,
+.ambio-connect__family-card:hover {
   border-color: #aab7b0;
   background: #fffef9;
 }
 
-.axiom-connect__agents > li[data-selected='true'],
-.axiom-connect__family-card[data-selected='true'] {
+.ambio-connect__agents > li[data-selected='true'],
+.ambio-connect__family-card[data-selected='true'] {
   border-color: #4d806f;
   background: #edf3ee;
   box-shadow: inset 3px 0 #34735f;
 }
 
-.axiom-connect__modality-dot {
+.ambio-connect__modality-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -260,31 +260,31 @@
   flex-shrink: 0;
 }
 
-.axiom-connect__modality-dot[data-state='available'],
-.axiom-connect__modality-dot[data-state='repair'] {
+.ambio-connect__modality-dot[data-state='available'],
+.ambio-connect__modality-dot[data-state='repair'] {
   background: #c28825;
 }
 
-.axiom-connect__modality-dot[data-state='installed'] {
+.ambio-connect__modality-dot[data-state='installed'] {
   background: #2f745d;
 }
 
-.axiom-connect__modality-dot[data-state='live'] {
+.ambio-connect__modality-dot[data-state='live'] {
   background: #35c985;
   box-shadow: 0 0 0 2px rgba(53, 201, 133, 0.4);
 }
 
-.axiom-connect__modality-dot[data-state='missing'] {
+.ambio-connect__modality-dot[data-state='missing'] {
   background: #cb7a72;
 }
 
-.axiom-connect__step-tabs {
+.ambio-connect__step-tabs {
   display: flex;
   gap: 6px;
   margin: 12px 0 16px;
 }
 
-.axiom-connect__step-tab {
+.ambio-connect__step-tab {
   padding: 5px 12px;
   border: 1px solid #bcc5bf;
   background: #e6eae5;
@@ -294,24 +294,24 @@
   font-size: 11px;
 }
 
-.axiom-connect__step-tab[data-selected='true'] {
+.ambio-connect__step-tab[data-selected='true'] {
   border-color: #34735f;
   background: #34735f;
   color: #ffffff;
   font-weight: 600;
 }
 
-.axiom-connect__install--batch {
+.ambio-connect__install--batch {
   border-color: #77998d !important;
   background: #e2ede7 !important;
   color: #215444 !important;
 }
 
-.axiom-connect__install--batch:hover:not(:disabled) {
+.ambio-connect__install--batch:hover:not(:disabled) {
   background: #d3e5dc !important;
 }
 
-.axiom-connect__host-signal {
+.ambio-connect__host-signal {
   position: relative;
   display: grid;
   flex: 0 0 20px;
@@ -330,38 +330,38 @@
   outline: none;
 }
 
-.axiom-connect__host-signal::after { content: '×'; }
+.ambio-connect__host-signal::after { content: '×'; }
 
-.axiom-connect__host-signal[data-state='available'],
-.axiom-connect__host-signal[data-state='repair'] {
+.ambio-connect__host-signal[data-state='available'],
+.ambio-connect__host-signal[data-state='repair'] {
   background: #fff2c8;
   color: #a36b16;
 }
 
-.axiom-connect__host-signal[data-state='available']::after,
-.axiom-connect__host-signal[data-state='repair']::after { content: '!'; }
+.ambio-connect__host-signal[data-state='available']::after,
+.ambio-connect__host-signal[data-state='repair']::after { content: '!'; }
 
-.axiom-connect__host-signal[data-state='installed'],
-.axiom-connect__host-signal[data-state='live'] {
+.ambio-connect__host-signal[data-state='installed'],
+.ambio-connect__host-signal[data-state='live'] {
   background: #dff0e8;
   color: #2f745d;
 }
 
-.axiom-connect__host-signal[data-state='installed']::after,
-.axiom-connect__host-signal[data-state='live']::after { content: '✓'; font-size: 10px; }
+.ambio-connect__host-signal[data-state='installed']::after,
+.ambio-connect__host-signal[data-state='live']::after { content: '✓'; font-size: 10px; }
 
-.axiom-connect__host-signal[data-state='live'] {
+.ambio-connect__host-signal[data-state='live'] {
   background: #47d99a;
   color: #0f4f37;
-  animation: axiom-connect-live-signal 1.15s ease-in-out infinite;
+  animation: ambio-connect-live-signal 1.15s ease-in-out infinite;
 }
 
-@keyframes axiom-connect-live-signal {
+@keyframes ambio-connect-live-signal {
   0%, 100% { box-shadow: 0 0 0 0 rgba(47, 203, 139, 0.2), 0 0 10px rgba(47, 203, 139, 0.35); }
   50% { box-shadow: 0 0 0 7px rgba(47, 203, 139, 0), 0 0 18px rgba(47, 203, 139, 0.72); }
 }
 
-.axiom-connect__host-signal::before {
+.ambio-connect__host-signal::before {
   content: attr(data-tooltip);
   position: absolute;
   z-index: 20;
@@ -384,13 +384,13 @@
   transition: opacity 100ms ease, transform 100ms ease;
 }
 
-.axiom-connect__host-signal:hover::before,
-.axiom-connect__host-signal:focus-visible::before {
+.ambio-connect__host-signal:hover::before,
+.ambio-connect__host-signal:focus-visible::before {
   opacity: 1;
   transform: translate(0, -50%);
 }
 
-.axiom-connect__install {
+.ambio-connect__install {
   min-width: 88px;
   min-height: 32px;
   margin-right: 10px;
@@ -403,10 +403,10 @@
   font-size: 11px;
 }
 
-.axiom-connect__install:hover:not(:disabled) { background: #3d846e; }
-.axiom-connect__install:disabled { border-color: #c6c9c1; background: #e4e4dd; color: #8c9691; cursor: default; }
+.ambio-connect__install:hover:not(:disabled) { background: #3d846e; }
+.ambio-connect__install:disabled { border-color: #c6c9c1; background: #e4e4dd; color: #8c9691; cursor: default; }
 
-.axiom-connect__install-result {
+.ambio-connect__install-result {
   grid-column: 1 / -1;
   margin: 0;
   padding: 8px 14px 10px 49px;
@@ -416,9 +416,9 @@
   line-height: 1.45;
 }
 
-.axiom-connect__install-result[data-ok='false'] { color: #994437; }
+.ambio-connect__install-result[data-ok='false'] { color: #994437; }
 
-.axiom-connect__instruction-card {
+.ambio-connect__instruction-card {
   display: grid;
   grid-template-columns: 42px 1fr;
   align-items: center;
@@ -429,7 +429,7 @@
   background: #e9eee9;
 }
 
-.axiom-connect__instruction-card > span {
+.ambio-connect__instruction-card > span {
   display: grid;
   width: 42px;
   height: 42px;
@@ -441,10 +441,10 @@
   font-size: 25px;
 }
 
-.axiom-connect__instruction-card p { margin: 0; color: #52615b; font-size: 13px; line-height: 1.55; }
-.axiom-connect__instruction-card strong { color: #18342b; }
+.ambio-connect__instruction-card p { margin: 0; color: #52615b; font-size: 13px; line-height: 1.55; }
+.ambio-connect__instruction-card strong { color: #18342b; }
 
-.axiom-connect__command {
+.ambio-connect__command {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -458,7 +458,7 @@
   color: #f3f7f1;
 }
 
-.axiom-connect__command > span {
+.ambio-connect__command > span {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 16px;
@@ -466,7 +466,7 @@
   user-select: all;
 }
 
-.axiom-connect__command button {
+.ambio-connect__command button {
   min-height: 40px;
   padding: 7px 14px;
   border: 1px solid #7a9188;
@@ -477,16 +477,16 @@
   font-size: 11px;
 }
 
-.axiom-connect__command button:hover { background: #fff; }
+.ambio-connect__command button:hover { background: #fff; }
 
-.axiom-connect__command-note {
+.ambio-connect__command-note {
   margin: 12px 0 0;
   color: #6b7973;
   font-size: 12px;
   line-height: 1.55;
 }
 
-.axiom-connect__waiting-line {
+.ambio-connect__waiting-line {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -498,29 +498,29 @@
   font-size: 12px;
 }
 
-.axiom-connect__waiting-line span {
+.ambio-connect__waiting-line span {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: #b28a35;
-  animation: axiom-connect-wait 1.4s ease-in-out infinite;
+  animation: ambio-connect-wait 1.4s ease-in-out infinite;
 }
 
-.axiom-connect__waiting-line[data-state='connected'] {
+.ambio-connect__waiting-line[data-state='connected'] {
   border-color: #75a393;
   background: #e4eee8;
   color: #245f4c;
 }
 
-.axiom-connect__waiting-line[data-state='connected'] span {
+.ambio-connect__waiting-line[data-state='connected'] span {
   background: #35c985;
   box-shadow: 0 0 0 4px rgba(53, 201, 133, 0.14);
   animation: none;
 }
 
-@keyframes axiom-connect-wait { 50% { opacity: 0.25; } }
+@keyframes ambio-connect-wait { 50% { opacity: 0.25; } }
 
-.axiom-connect__review {
+.ambio-connect__review {
   align-self: flex-start;
   min-height: 50px;
   margin-top: 28px;
@@ -534,9 +534,9 @@
   font-weight: 700;
 }
 
-.axiom-connect__review:hover { background: #3e866f; }
+.ambio-connect__review:hover { background: #3e866f; }
 
-.axiom-connect__step-actions {
+.ambio-connect__step-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -545,8 +545,8 @@
   padding-top: 14px;
 }
 
-.axiom-connect__primary,
-.axiom-connect__secondary {
+.ambio-connect__primary,
+.ambio-connect__secondary {
   min-height: 38px;
   padding: 8px 14px;
   cursor: pointer;
@@ -554,18 +554,18 @@
   font-size: 11px;
 }
 
-.axiom-connect__primary { border: 1px solid #285e4d; background: #34735f; color: #f7faf5; }
-.axiom-connect__primary:hover { background: #3e866f; }
-.axiom-connect__primary:disabled {
+.ambio-connect__primary { border: 1px solid #285e4d; background: #34735f; color: #f7faf5; }
+.ambio-connect__primary:hover { background: #3e866f; }
+.ambio-connect__primary:disabled {
   border-color: #aeb8b2;
   background: #d8ddd8;
   color: #7a8780;
   cursor: not-allowed;
 }
-.axiom-connect__secondary { border: 1px solid #b8beb8; background: #f8f7f2; color: #56655e; }
-.axiom-connect__secondary:hover { border-color: #75867e; color: #23362f; }
+.ambio-connect__secondary { border: 1px solid #b8beb8; background: #f8f7f2; color: #56655e; }
+.ambio-connect__secondary:hover { border-color: #75867e; color: #23362f; }
 
-.axiom-connect__mascot {
+.ambio-connect__mascot {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -580,7 +580,7 @@
     #e6e9e3;
 }
 
-.axiom-connect__mascot::before {
+.ambio-connect__mascot::before {
   content: 'FIELD AGENT 04';
   position: absolute;
   top: 18px;
@@ -590,7 +590,7 @@
   letter-spacing: 0.17em;
 }
 
-.axiom-connect__mascot svg {
+.ambio-connect__mascot svg {
   width: min(100%, 300px);
   height: auto;
   overflow: visible;
@@ -598,11 +598,11 @@
   filter: drop-shadow(3px 5px 0 rgba(39, 56, 49, 0.11));
 }
 
-.axiom-connect__mascot > .axiom-final-gemini {
+.ambio-connect__mascot > .ambio-final-gemini {
   width: min(100%, 320px);
 }
 
-.axiom-connect__footer {
+.ambio-connect__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -615,7 +615,7 @@
   font-size: 10px;
 }
 
-.axiom-connect__footer button {
+.ambio-connect__footer button {
   padding: 4px 0;
   border: 0;
   background: transparent;
@@ -628,39 +628,39 @@
 }
 
 
-.axiom-connect button:focus-visible,
-.axiom-connect__host-signal:focus-visible {
+.ambio-connect button:focus-visible,
+.ambio-connect__host-signal:focus-visible {
   outline: 2px solid #34735f;
   outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .axiom-connect__step-panel,
-  .axiom-connect__host-signal,
-  .axiom-connect__waiting-line span { animation: none !important; transition: none !important; }
+  .ambio-connect__step-panel,
+  .ambio-connect__host-signal,
+  .ambio-connect__waiting-line span { animation: none !important; transition: none !important; }
 }
 
 @media (max-width: 850px) {
-  .axiom-connect__card { width: calc(100% - 32px); height: auto; min-height: 700px; margin: 16px auto 24px; overflow: visible; }
-  .axiom-connect__workspace { grid-template-columns: minmax(0, 1fr); }
-  .axiom-connect__stage { min-height: 520px; overflow: visible; }
-  .axiom-connect__mascot { min-height: 380px; border-top: 1px solid #cbd1cc; border-left: 0; }
-  .axiom-connect__mascot svg { width: 230px; }
+  .ambio-connect__card { width: calc(100% - 32px); height: auto; min-height: 700px; margin: 16px auto 24px; overflow: visible; }
+  .ambio-connect__workspace { grid-template-columns: minmax(0, 1fr); }
+  .ambio-connect__stage { min-height: 520px; overflow: visible; }
+  .ambio-connect__mascot { min-height: 380px; border-top: 1px solid #cbd1cc; border-left: 0; }
+  .ambio-connect__mascot svg { width: 230px; }
 }
 
 @media (max-width: 580px) {
-  .axiom-connect__card { width: 100%; margin: 0; border-right: 0; border-left: 0; }
-  .axiom-connect__header { padding: 20px; }
-  .axiom-connect__identity { align-items: flex-start; flex-direction: column; gap: 14px; }
-  .axiom-connect__step-nav button { min-height: 62px; flex-direction: column; gap: 4px; font-size: 9px; }
-  .axiom-connect__stage { padding: 28px 20px; }
-  .axiom-connect__host-signal::before { position: fixed; top: auto; right: 16px; bottom: 16px; left: 16px; width: auto; max-width: none; transform: translateY(5px); }
-  .axiom-connect__host-signal:hover::before,
-  .axiom-connect__host-signal:focus-visible::before { transform: translateY(0); }
-  .axiom-connect__footer { align-items: flex-start; flex-direction: column; }
+  .ambio-connect__card { width: 100%; margin: 0; border-right: 0; border-left: 0; }
+  .ambio-connect__header { padding: 20px; }
+  .ambio-connect__identity { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .ambio-connect__step-nav button { min-height: 62px; flex-direction: column; gap: 4px; font-size: 9px; }
+  .ambio-connect__stage { padding: 28px 20px; }
+  .ambio-connect__host-signal::before { position: fixed; top: auto; right: 16px; bottom: 16px; left: 16px; width: auto; max-width: none; transform: translateY(5px); }
+  .ambio-connect__host-signal:hover::before,
+  .ambio-connect__host-signal:focus-visible::before { transform: translateY(0); }
+  .ambio-connect__footer { align-items: flex-start; flex-direction: column; }
 }
 
-.axiom-connect__family-chevron {
+.ambio-connect__family-chevron {
   width: 0;
   height: 0;
   border-left: 4px solid transparent;
@@ -669,14 +669,14 @@
   transition: transform 140ms ease;
 }
 
-.axiom-connect__family-row[aria-expanded='true'] .axiom-connect__family-chevron {
+.ambio-connect__family-row[aria-expanded='true'] .ambio-connect__family-chevron {
   transform: rotate(180deg);
 }
 
 /* One row per family: status, name, a short summary, and a triangle. The row
    only ever discloses - installing happens on the surface it applies to, so
    the button never moves around. */
-.axiom-connect__family-row {
+.ambio-connect__family-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
@@ -691,7 +691,7 @@
   text-align: left;
 }
 
-.axiom-connect__family-row strong {
+.ambio-connect__family-row strong {
   min-width: 0;
   overflow: hidden;
   color: #17231f;
@@ -701,12 +701,12 @@
   white-space: nowrap;
 }
 
-.axiom-connect__family-row:focus-visible {
+.ambio-connect__family-row:focus-visible {
   outline: 2px solid #34735f;
   outline-offset: -4px;
 }
 
-.axiom-connect__family-summary {
+.ambio-connect__family-summary {
   color: #6b7a72;
   font-size: 11px;
   letter-spacing: 0.03em;
@@ -714,14 +714,14 @@
 }
 
 /* Expanded surfaces: one line each, every line ending in its own button. */
-.axiom-connect__surfaces {
+.ambio-connect__surfaces {
   display: flex;
   flex-direction: column;
   border-top: 1px solid #dfe4de;
   background: #f6f7f2;
 }
 
-.axiom-connect__surface {
+.ambio-connect__surface {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -729,11 +729,11 @@
   padding: 8px 14px 8px 34px;
 }
 
-.axiom-connect__surface + .axiom-connect__surface {
+.ambio-connect__surface + .ambio-connect__surface {
   border-top: 1px solid #e7eae4;
 }
 
-.axiom-connect__surface-label {
+.ambio-connect__surface-label {
   min-width: 0;
   overflow: hidden;
   color: #2b3a33;
@@ -742,18 +742,18 @@
   white-space: nowrap;
 }
 
-.axiom-connect__surface-state {
+.ambio-connect__surface-state {
   color: #6b7a72;
   font-size: 11px;
   white-space: nowrap;
 }
 
-.axiom-connect__surface .axiom-connect__install-result {
+.ambio-connect__surface .ambio-connect__install-result {
   grid-column: 1 / -1;
   margin: 4px 0 0;
 }
 
-.axiom-connect__surfaces-footer {
+.ambio-connect__surfaces-footer {
   display: flex;
   justify-content: flex-end;
   padding: 8px 14px 10px;
@@ -761,7 +761,7 @@
 }
 
 /* Rescan sits above the list, next to the reason someone would want it. */
-.axiom-connect__list-bar {
+.ambio-connect__list-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -769,12 +769,12 @@
   margin: 0 0 8px;
 }
 
-.axiom-connect__list-hint {
+.ambio-connect__list-hint {
   color: #6b7a72;
   font-size: 11px;
 }
 
-.axiom-connect__rescan {
+.ambio-connect__rescan {
   padding: 4px 10px;
   border: 1px solid #c8cec9;
   border-radius: 4px;
@@ -785,40 +785,40 @@
   font-size: 11px;
 }
 
-.axiom-connect__rescan:hover:not(:disabled) {
+.ambio-connect__rescan:hover:not(:disabled) {
   border-color: #7b9489;
   background: #ffffff;
   color: #172d24;
 }
 
-.axiom-connect__rescan:disabled {
+.ambio-connect__rescan:disabled {
   cursor: default;
   opacity: 0.6;
 }
 
 /* A surface that rides on another surface's configuration: same light, no
    button of its own, indented so the relationship reads at a glance. */
-.axiom-connect__surface--shared {
+.ambio-connect__surface--shared {
   padding-left: 50px;
 }
 
-.axiom-connect__surface--shared .axiom-connect__surface-label {
+.ambio-connect__surface--shared .ambio-connect__surface-label {
   color: #5b6a62;
 }
 
 /* Rescan spinner. The scan itself is near-instant, so this is the only thing
    telling the user the button did something. */
-.axiom-connect__rescan {
+.ambio-connect__rescan {
   position: relative;
 }
 
 /* Kept in flow while scanning, only hidden: the button must not change width,
    or the hint beside it reflows onto a second line. */
-.axiom-connect__rescan-label[data-busy='true'] {
+.ambio-connect__rescan-label[data-busy='true'] {
   visibility: hidden;
 }
 
-.axiom-connect__rescan-spinner {
+.ambio-connect__rescan-spinner {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -828,17 +828,17 @@
   border: 2px solid #c8cec9;
   border-top-color: #34735f;
   border-radius: 50%;
-  animation: axiom-rescan-spin 700ms linear infinite;
+  animation: ambio-rescan-spin 700ms linear infinite;
 }
 
-@keyframes axiom-rescan-spin {
+@keyframes ambio-rescan-spin {
   to { transform: rotate(360deg); }
 }
 
 /* Motion is the signal here, so when it is unwelcome the border still reads as
    busy without rotating. */
 @media (prefers-reduced-motion: reduce) {
-  .axiom-connect__rescan-spinner {
+  .ambio-connect__rescan-spinner {
     animation: none;
     border-top-color: #34735f;
     opacity: 0.7;
@@ -846,14 +846,14 @@
 }
 
 /* Actions sit together at the end of a surface row: the primary install, plus
-   the escape hatch when Axiom guessed the location wrong. */
-.axiom-connect__surface-actions {
+   the escape hatch when Ambio guessed the location wrong. */
+.ambio-connect__surface-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.axiom-connect__surface-locate {
+.ambio-connect__surface-locate {
   padding: 3px 8px;
   border: 1px solid #c8cec9;
   border-radius: 4px;
@@ -864,7 +864,7 @@
   font-size: 11px;
 }
 
-.axiom-connect__surface-locate:hover {
+.ambio-connect__surface-locate:hover {
   border-color: #7b9489;
   background: #ffffff;
   color: #172d24;
@@ -872,7 +872,7 @@
 
 /* The chosen path, and any message from choosing it, run under the row rather
    than squeezing the columns. */
-.axiom-connect__surface-override {
+.ambio-connect__surface-override {
   grid-column: 1 / -1;
   margin-top: 3px;
   overflow-wrap: anywhere;

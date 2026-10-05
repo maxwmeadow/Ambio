@@ -2,7 +2,7 @@ import { createBundledHighlighter, createSingletonShorthands } from 'shiki/core'
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 import { darkModernTheme } from './darkModernTheme'
 
-const createAxiomHighlighter = createBundledHighlighter({
+const createAmbioHighlighter = createBundledHighlighter({
   langs: {
     typescript: () => import('@shikijs/langs/typescript'),
     tsx: () => import('@shikijs/langs/tsx'),
@@ -23,4 +23,4 @@ const createAxiomHighlighter = createBundledHighlighter({
   engine: () => createOnigurumaEngine(import('shiki/wasm')),
 })
 
-export const { codeToTokens } = createSingletonShorthands(createAxiomHighlighter)
+export const { codeToTokens } = createSingletonShorthands(createAmbioHighlighter)

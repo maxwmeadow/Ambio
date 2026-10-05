@@ -773,11 +773,11 @@ function sampleStride(calls) {
 
 /** Build a recorder from the environment, or null when this is not a run. */
 function fromEnv() {
-  const dir = process.env.AXIOM_EVIDENCE_DIR
+  const dir = process.env.AMBIO_EVIDENCE_DIR
   if (!dir) return null
   let watches = []
-  try { watches = JSON.parse(process.env.AXIOM_WATCHES || '[]') } catch (_) { watches = [] }
-  const rec = new Recorder({ dir, runId: process.env.AXIOM_RUN_ID, watches })
+  try { watches = JSON.parse(process.env.AMBIO_WATCHES || '[]') } catch (_) { watches = [] }
+  const rec = new Recorder({ dir, runId: process.env.AMBIO_RUN_ID, watches })
   process.on('uncaughtExceptionMonitor', err => rec.uncaughtException(err))
   process.on('exit', () => rec.write())
   // A signal (a run that hit its timeout, a server stopped by archd) skips

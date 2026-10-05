@@ -4,7 +4,7 @@
 //	Ruby - rdbg (debug gem) DAP over TCP, native breakpoints.  LIVE-VERIFIED
 //	       (call attribution; args unavailable - rdbg stackTrace bug, see below).
 //	Java - Microsoft java-debug adapter jar, source breakpoints.  Config provided;
-//	       requires the adapter jar (AXIOM_JAVA_DEBUG_JAR) - that adapter normally
+//	       requires the adapter jar (AMBIO_JAVA_DEBUG_JAR) - that adapter normally
 //	       runs inside the JDT language server, so standalone use is environment-
 //	       specific and not verified here.
 //
@@ -39,7 +39,7 @@ var cppConfig = dapLangConfig{
 	breakpointMode: "function",
 	requestType:    "launch",
 	threadPrefix:   "thread",
-	findDebugger:   func() (string, error) { return findOnPath("gdb", "AXIOM_GDB_PATH") },
+	findDebugger:   func() (string, error) { return findOnPath("gdb", "AMBIO_GDB_PATH") },
 	buildArgv: func(dbg string, port int, program string, args []string, watches []Watch) []string {
 		return []string{dbg, "--interpreter=dap"}
 	},
@@ -75,9 +75,9 @@ var rubyConfig = dapLangConfig{
 	breakpointMode: "external",
 	requestType:    "none", // rdbg runs the program from its argv on configurationDone
 	threadPrefix:   "thread",
-	findDebugger:   func() (string, error) { return findOnPath("ruby", "AXIOM_RUBY_PATH") },
+	findDebugger:   func() (string, error) { return findOnPath("ruby", "AMBIO_RUBY_PATH") },
 	buildArgv: func(rubyPath string, port int, program string, args []string, watches []Watch) []string {
-		rdbg := os.Getenv("AXIOM_RDBG_PATH")
+		rdbg := os.Getenv("AMBIO_RDBG_PATH")
 		if rdbg == "" {
 			rdbg = filepath.Join(filepath.Dir(rubyPath), "rdbg")
 		}
@@ -97,7 +97,7 @@ var rubyConfig = dapLangConfig{
 
 // ─── Java (Microsoft java-debug) ────────────────────────────────────────────
 // The java-debug adapter runs as `java -jar com.microsoft.java.debug.plugin.jar`
-// speaking DAP over stdio. Path via AXIOM_JAVA_DEBUG_JAR. Source breakpoints
+// speaking DAP over stdio. Path via AMBIO_JAVA_DEBUG_JAR. Source breakpoints
 // bind by file:line through JDWP.
 var javaConfig = dapLangConfig{
 	language:       "java",
@@ -109,17 +109,17 @@ var javaConfig = dapLangConfig{
 	findDebugger: func() (string, error) {
 		// The adapter jar is required - validate it up front so we never spawn
 		// `java -jar ""` and hang the handshake waiting on a dead process.
-		jar := os.Getenv("AXIOM_JAVA_DEBUG_JAR")
+		jar := os.Getenv("AMBIO_JAVA_DEBUG_JAR")
 		if jar == "" {
-			return "", fmt.Errorf("Java tracing needs AXIOM_JAVA_DEBUG_JAR set to the java-debug adapter jar")
+			return "", fmt.Errorf("Java tracing needs AMBIO_JAVA_DEBUG_JAR set to the java-debug adapter jar")
 		}
 		if _, err := os.Stat(jar); err != nil {
-			return "", fmt.Errorf("AXIOM_JAVA_DEBUG_JAR %q not found: %w", jar, err)
+			return "", fmt.Errorf("AMBIO_JAVA_DEBUG_JAR %q not found: %w", jar, err)
 		}
-		return findOnPath("java", "AXIOM_JAVA_PATH")
+		return findOnPath("java", "AMBIO_JAVA_PATH")
 	},
 	buildArgv: func(dbg string, port int, program string, args []string, watches []Watch) []string {
-		return []string{dbg, "-jar", os.Getenv("AXIOM_JAVA_DEBUG_JAR")}
+		return []string{dbg, "-jar", os.Getenv("AMBIO_JAVA_DEBUG_JAR")}
 	},
 	launchArgs: func(program, cwd string, args []string) map[string]any {
 		// program is the main class; java-debug needs the classpath (the dir of
@@ -128,7 +128,7 @@ var javaConfig = dapLangConfig{
 		if len(args) > 0 {
 			m["args"] = args
 		}
-		if cp := os.Getenv("AXIOM_JAVA_CLASSPATH"); cp != "" {
+		if cp := os.Getenv("AMBIO_JAVA_CLASSPATH"); cp != "" {
 			m["classPaths"] = []string{cp}
 		} else {
 			m["classPaths"] = []string{cwd}
@@ -139,7 +139,7 @@ var javaConfig = dapLangConfig{
 }
 
 // findOnPath resolves a debugger binary: env override, PATH, then ~/go/bin and
-// ~/axiom-tools fallbacks used elsewhere in Axiom.
+// ~/ambio-tools fallbacks used elsewhere in Ambio.
 func findOnPath(name, envVar string) (string, error) {
 	if p := os.Getenv(envVar); p != "" {
 		return p, nil
@@ -149,8 +149,8 @@ func findOnPath(name, envVar string) (string, error) {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		for _, c := range []string{
-			filepath.Join(home, "axiom-tools", name, name+".exe"),
-			filepath.Join(home, "axiom-tools", name, name),
+			filepath.Join(home, "ambio-tools", name, name+".exe"),
+			filepath.Join(home, "ambio-tools", name, name),
 		} {
 			if _, err := os.Stat(c); err == nil {
 				return c, nil

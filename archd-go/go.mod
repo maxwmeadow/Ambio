@@ -1,4 +1,4 @@
-module axiom.local/archd
+module ambio.local/archd
 
 go 1.22
 

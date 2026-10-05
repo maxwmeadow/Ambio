@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands, type CommandId } from '../../shared/appMenu'
+import { COMMANDS, buildMenu, commandForKey, commandIds, formatAccelerator, paletteCommands, type CommandId } from '../../shared/appMenu'
 import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '../../shared/appSettings'
 import { useGraphStore } from '../store/graphStore'
 import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
@@ -25,7 +25,7 @@ export function GlobalCommands() {
 
   // After an update, the release notes for the new version, once.
   useEffect(() => {
-    void window.axiom?.takeWhatsNew?.().then(notes => {
+    void window.ambio?.takeWhatsNew?.().then(notes => {
       if (!notes) return
       setWhatsNew(notes)
       setDialog('whatsNew')
@@ -50,6 +50,8 @@ export function GlobalCommands() {
       const spec = COMMANDS[id]
       const modified = event.metaKey || event.ctrlKey
       if (!modified && isEditable(event.target)) return
+      // A text field's own undo history answers its undo keys.
+      if ((id === 'edit.undo' || id === 'edit.redo') && isEditable(event.target)) return
       if (spec.needsProject && !useGraphStore.getState().currentProject) return
       event.preventDefault()
       emitCommand(id)
@@ -59,10 +61,10 @@ export function GlobalCommands() {
   }, [platform])
 
   // The native macOS menu reports clicks here.
-  useEffect(() => window.axiom?.onMenuCommand?.(id => emitCommand(id)), [])
+  useEffect(() => window.ambio?.onMenuCommand?.(id => emitCommand(id)), [])
 
   // Project commands enable and disable with the project.
-  useEffect(() => { void window.axiom?.setMenuState?.({ projectOpen }) }, [projectOpen])
+  useEffect(() => { void window.ambio?.setMenuState?.({ projectOpen }) }, [projectOpen])
 
   useCommandHandlers({
     'view.commandPalette': () => setDialog(current => (current === 'palette' ? null : 'palette')),
@@ -70,35 +72,36 @@ export function GlobalCommands() {
     'help.shortcuts': () => setDialog(current => (current === 'shortcuts' ? null : 'shortcuts')),
     'app.about': () => setDialog('about'),
     'app.checkUpdates': () => {
-      if (!window.axiom) return
+      if (!window.ambio) return
       say('Checking for updates…')
-      void window.axiom.checkForUpdates().then(result => {
+      void window.ambio.checkForUpdates().then(result => {
         say({
-          'up-to-date': 'Axiom is up to date.',
+          'up-to-date': 'Ambio is up to date.',
           available: 'A new version is available - see the update notice.',
           unavailable: 'Updates are checked in installed builds only.',
           failed: 'Could not check for updates. Try again later.',
         }[result])
       })
     },
-    'view.zoomIn': () => { void window.axiom?.zoom('in').then(factor => say(`Interface zoom ${Math.round(factor * 100)}%`)) },
-    'view.zoomOut': () => { void window.axiom?.zoom('out').then(factor => say(`Interface zoom ${Math.round(factor * 100)}%`)) },
-    'view.resetZoom': () => { void window.axiom?.zoom('reset').then(() => say('Interface zoom 100%')) },
-    'view.fullScreen': () => { void window.axiom?.toggleFullScreen() },
-    'help.docs': () => { void window.axiom?.openHelp('docs') },
-    'help.privacy': () => { void window.axiom?.openHelp('privacy') },
-    'help.license': () => { void window.axiom?.openHelp('license') },
+    'view.zoomIn': () => { void window.ambio?.zoom('in').then(factor => say(`Interface zoom ${Math.round(factor * 100)}%`)) },
+    'view.zoomOut': () => { void window.ambio?.zoom('out').then(factor => say(`Interface zoom ${Math.round(factor * 100)}%`)) },
+    'view.resetZoom': () => { void window.ambio?.zoom('reset').then(() => say('Interface zoom 100%')) },
+    'view.fullScreen': () => { void window.ambio?.toggleFullScreen() },
+    'help.docs': () => { void window.ambio?.openHelp('docs') },
+    'help.privacy': () => { void window.ambio?.openHelp('privacy') },
+    'help.license': () => { void window.ambio?.openHelp('license') },
     'help.acknowledgements': () => setDialog('acknowledgements'),
     'help.whatsNew': () => {
-      void window.axiom?.whatsNew?.().then(notes => {
+      void window.ambio?.whatsNew?.().then(notes => {
         if (!notes) { say('Release notes are not available for this build.'); return }
         setWhatsNew(notes)
         setDialog('whatsNew')
       })
     },
-    'help.reportBug': () => { void window.axiom?.reportBug() },
-    'help.copyDiagnostics': () => { void window.axiom?.copyDiagnostics().then(() => say('Diagnostics copied to the clipboard.')) },
-    'help.openLogs': () => { void window.axiom?.openLogsFolder() },
+    'help.reportBug': () => { void window.ambio?.reportBug() },
+    'help.feedback': () => { void window.ambio?.openHelp('feedback') },
+    'help.copyDiagnostics': () => { void window.ambio?.copyDiagnostics().then(() => say('Diagnostics copied to the clipboard.')) },
+    'help.openLogs': () => { void window.ambio?.openLogsFolder() },
   })
 
   return (
@@ -110,10 +113,10 @@ export function GlobalCommands() {
       {dialog === 'acknowledgements' && <AcknowledgementsDialog onClose={() => setDialog(null)} />}
       {dialog === 'whatsNew' && whatsNew && (
         <Modal title={whatsNew.version === 'Unreleased' ? "What's New (unreleased)" : `What's New in ${whatsNew.version}`} width={620} onClose={() => setDialog(null)}>
-          <div className="axiom-whats-new"><MarkdownView source={whatsNew.notes} /></div>
+          <div className="ambio-whats-new"><MarkdownView source={whatsNew.notes} /></div>
         </Modal>
       )}
-      {toast && <div className="axiom-app-toast" role="status">{toast}</div>}
+      {toast && <div className="ambio-app-toast" role="status">{toast}</div>}
     </>
   )
 }
@@ -136,7 +139,7 @@ function Modal({ title, width, onClose, children, className = '' }: {
   }, [])
   return (
     <div
-      className="axiom-dialog-backdrop axiom-app-modal__backdrop"
+      className="ambio-dialog-backdrop ambio-app-modal__backdrop"
       onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}
       onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }}
     >
@@ -145,14 +148,14 @@ function Modal({ title, width, onClose, children, className = '' }: {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`axiom-dialog-surface axiom-app-modal ${className}`.trim()}
-        style={{ '--axiom-dialog-width': `${width}px` } as React.CSSProperties}
+        className={`ambio-dialog-surface ambio-app-modal ${className}`.trim()}
+        style={{ '--ambio-dialog-width': `${width}px` } as React.CSSProperties}
       >
-        <header className="axiom-dialog-header axiom-app-modal__header">
-          <h2 className="axiom-dialog-title">{title}</h2>
-          <button type="button" className="axiom-app-modal__close" onClick={onClose} aria-label="Close">×</button>
+        <header className="ambio-dialog-header ambio-app-modal__header">
+          <h2 className="ambio-dialog-title">{title}</h2>
+          <button type="button" className="ambio-app-modal__close" onClick={onClose} aria-label="Close">×</button>
         </header>
-        <div className="axiom-app-modal__body">{children}</div>
+        <div className="ambio-app-modal__body">{children}</div>
       </section>
     </div>
   )
@@ -183,17 +186,17 @@ function CommandPalette({ projectOpen, platform, onClose }: {
 
   return (
     <div
-      className="axiom-dialog-backdrop axiom-palette__backdrop"
+      className="ambio-dialog-backdrop ambio-palette__backdrop"
       onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}
     >
-      <section className="axiom-palette" role="dialog" aria-modal="true" aria-label="Command palette">
+      <section className="ambio-palette" role="dialog" aria-modal="true" aria-label="Command palette">
         <input
           autoFocus
-          className="axiom-palette__input"
+          className="ambio-palette__input"
           value={query}
           placeholder="Type a command…"
           aria-label="Command"
-          aria-controls="axiom-palette-results"
+          aria-controls="ambio-palette-results"
           spellCheck={false}
           onChange={event => setQuery(event.target.value)}
           onKeyDown={event => {
@@ -203,15 +206,15 @@ function CommandPalette({ projectOpen, platform, onClose }: {
             if (event.key === 'Enter' && results[active]) { event.preventDefault(); run(results[active].id) }
           }}
         />
-        <ul id="axiom-palette-results" ref={list} className="axiom-palette__results" role="listbox">
-          {results.length === 0 && <li className="axiom-palette__empty">No matching commands</li>}
+        <ul id="ambio-palette-results" ref={list} className="ambio-palette__results" role="listbox">
+          {results.length === 0 && <li className="ambio-palette__empty">No matching commands</li>}
           {results.map((spec, index) => (
             <li
               key={spec.id}
               data-index={index}
               role="option"
               aria-selected={index === active}
-              className={index === active ? 'axiom-palette__item axiom-palette__item--active' : 'axiom-palette__item'}
+              className={index === active ? 'ambio-palette__item ambio-palette__item--active' : 'ambio-palette__item'}
               onMouseEnter={() => setActive(index)}
               onMouseDown={event => { event.preventDefault(); run(spec.id) }}
             >
@@ -230,17 +233,16 @@ function CommandPalette({ projectOpen, platform, onClose }: {
 function ShortcutsDialog({ platform, onClose }: { platform: 'darwin' | 'win32' | 'linux'; onClose: () => void }) {
   const sections = buildMenu(platform)
     .map(section => ({
-      label: section.id === 'app' ? 'Axiom' : section.label,
-      commands: section.entries
-        .filter((entry): entry is { kind: 'command'; id: CommandId } => entry.kind === 'command')
-        .map(entry => COMMANDS[entry.id])
+      label: section.id === 'app' ? 'Ambio' : section.label,
+      commands: commandIds(section.entries)
+        .map(id => COMMANDS[id])
         .filter(spec => spec.accelerator),
     }))
     .filter(section => section.commands.length > 0)
   const seen = new Set<CommandId>()
   return (
     <Modal title="Keyboard Shortcuts" width={560} onClose={onClose}>
-      <div className="axiom-shortcuts">
+      <div className="ambio-shortcuts">
         {sections.map(section => {
           const commands = section.commands.filter(spec => !seen.has(spec.id))
           commands.forEach(spec => seen.add(spec.id))
@@ -275,19 +277,19 @@ function ShortcutsDialog({ platform, onClose }: { platform: 'darwin' | 'win32' |
 
 function AboutDialog({ onClose }: { onClose: () => void }) {
   const [info, setInfo] = useState<{ version: string; platform: string; isPackaged: boolean } | null>(null)
-  useEffect(() => { void window.axiom?.getAppInfo().then(setInfo) }, [])
+  useEffect(() => { void window.ambio?.getAppInfo().then(setInfo) }, [])
   return (
-    <Modal title="About Axiom" width={420} onClose={onClose}>
-      <div className="axiom-about">
-        <strong>Axiom</strong>
+    <Modal title="About Ambio" width={420} onClose={onClose}>
+      <div className="ambio-about">
+        <strong>Ambio</strong>
         <p>Version {info?.version ?? '…'}{info && !info.isPackaged ? ' (development)' : ''}</p>
         <p>A live architecture map of your codebase, shared with your coding agents.</p>
         <p>Free software under the GNU Affero General Public License v3.0.</p>
-        <div className="axiom-about__links">
-          <button type="button" onClick={() => void window.axiom?.openHelp('license')}>License</button>
-          <button type="button" onClick={() => void window.axiom?.openHelp('privacy')}>Privacy</button>
-          <button type="button" onClick={() => void window.axiom?.openHelp('releases')}>Release notes</button>
-          <button type="button" onClick={() => void window.axiom?.openHelp('source')}>Source code</button>
+        <div className="ambio-about__links">
+          <button type="button" onClick={() => void window.ambio?.openHelp('license')}>License</button>
+          <button type="button" onClick={() => void window.ambio?.openHelp('privacy')}>Privacy</button>
+          <button type="button" onClick={() => void window.ambio?.openHelp('releases')}>Release notes</button>
+          <button type="button" onClick={() => void window.ambio?.openHelp('source')}>Source code</button>
           <button type="button" onClick={() => { onClose(); setTimeout(() => emitCommand('help.acknowledgements'), 0) }}>Acknowledgements</button>
         </div>
       </div>
@@ -300,12 +302,12 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
 function AcknowledgementsDialog({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState<string | null>(null)
   useEffect(() => {
-    void (window.axiom?.thirdPartyNotices?.() ?? Promise.resolve('Available in the desktop app.')).then(setText)
+    void (window.ambio?.thirdPartyNotices?.() ?? Promise.resolve('Available in the desktop app.')).then(setText)
   }, [])
   return (
     <Modal title="Acknowledgements" width={760} onClose={onClose}>
-      <div className="axiom-acknowledgements">
-        <p>Axiom is built on open-source software. These are the components it includes and their licenses.</p>
+      <div className="ambio-acknowledgements">
+        <p>Ambio is built on open-source software. These are the components it includes and their licenses.</p>
         <pre>{text ?? 'Loading…'}</pre>
       </div>
     </Modal>
@@ -336,33 +338,33 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   const projectOpen = useGraphStore(state => state.currentProject !== null)
 
   useEffect(() => {
-    if (!window.axiom) { setLoaded(true); return }
-    void window.axiom.getSettings().then(current => {
+    if (!window.ambio) { setLoaded(true); return }
+    void window.ambio.getSettings().then(current => {
       setSettings(current)
       setInitialMotion(current.reduceMotion)
       setLoaded(true)
     })
-    void window.axiom.getAppPaths().then(setPaths)
-    void window.axiom.getAppInfo().then(info => setVersion(info.version))
-    void window.axiom.listEditors?.().then(setEditors)
-    return window.axiom.onSettingsChanged(setSettings)
+    void window.ambio.getAppPaths().then(setPaths)
+    void window.ambio.getAppInfo().then(info => setVersion(info.version))
+    void window.ambio.listEditors?.().then(setEditors)
+    return window.ambio.onSettingsChanged(setSettings)
   }, [])
 
   const update = (patch: Partial<AppSettings>) => {
     setSettings(current => ({ ...current, ...patch }))
-    void window.axiom?.setSettings(patch).then(setSettings)
+    void window.ambio?.setSettings(patch).then(setSettings)
   }
 
   return (
-    <Modal title="Settings" width={720} onClose={onClose} className="axiom-settings">
-      <div className="axiom-settings__layout">
-        <nav className="axiom-settings__nav" aria-label="Settings sections">
+    <Modal title="Settings" width={720} onClose={onClose} className="ambio-settings">
+      <div className="ambio-settings__layout">
+        <nav className="ambio-settings__nav" aria-label="Settings sections">
           {SECTIONS.map(item => (
             <button
               key={item.id}
               type="button"
               aria-current={section === item.id ? 'page' : undefined}
-              className={section === item.id ? 'axiom-settings__nav-item axiom-settings__nav-item--active' : 'axiom-settings__nav-item'}
+              className={section === item.id ? 'ambio-settings__nav-item ambio-settings__nav-item--active' : 'ambio-settings__nav-item'}
               onClick={() => setSection(item.id)}
             >
               {item.label}
@@ -370,22 +372,28 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
 
-        <div className="axiom-settings__panel" aria-busy={!loaded}>
+        <div className="ambio-settings__panel" aria-busy={!loaded}>
           {section === 'general' && (
             <>
               <Toggle
                 label="Reopen the last project on launch"
-                detail="Start where you left off. When off, Axiom always opens on the project list."
+                detail="Start where you left off. When off, Ambio always opens on the project list."
                 checked={settings.reopenLastProject}
                 onChange={value => update({ reopenLastProject: value })}
               />
               <Toggle
+                label="Notify me about work orders"
+                detail="A system notification when an agent picks up or replies to a work order while Ambio is in the background."
+                checked={settings.workOrderNotifications}
+                onChange={value => update({ workOrderNotifications: value })}
+              />
+              <Toggle
                 label="Check for updates automatically"
-                detail="Axiom asks GitHub Releases for new versions. Nothing about you or your code is sent."
+                detail="Ambio asks GitHub Releases for new versions. Nothing about you or your code is sent."
                 checked={settings.checkForUpdates}
                 onChange={value => update({ checkForUpdates: value })}
               />
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div>
                   <strong>Open files in</strong>
                   <small>
@@ -403,17 +411,17 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                   {editors.map(editor => <option key={editor.id} value={editor.id}>{editor.label}</option>)}
                 </select>
               </div>
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div>
                   <strong>Version {version}</strong>
                   {checkResult && <small>{checkResult}</small>}
                 </div>
                 <button
                   type="button"
-                  className="axiom-settings__button"
+                  className="ambio-settings__button"
                   onClick={() => {
                     setCheckResult('Checking…')
-                    void window.axiom?.checkForUpdates().then(result => setCheckResult({
+                    void window.ambio?.checkForUpdates().then(result => setCheckResult({
                       'up-to-date': 'You have the latest version.',
                       available: 'A new version is available.',
                       unavailable: 'Updates are checked in installed builds only.',
@@ -429,12 +437,12 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {section === 'appearance' && (
             <>
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div>
                   <strong>Interface zoom</strong>
-                  <small>Scales all of Axiom. Also {formatAccelerator('CmdOrCtrl+=', currentPlatform())} and {formatAccelerator('CmdOrCtrl+-', currentPlatform())}.</small>
+                  <small>Scales all of Ambio. Also {formatAccelerator('CmdOrCtrl+=', currentPlatform())} and {formatAccelerator('CmdOrCtrl+-', currentPlatform())}.</small>
                 </div>
-                <div className="axiom-settings__zoom">
+                <div className="ambio-settings__zoom">
                   <input
                     type="range"
                     min={UI_ZOOM_MIN}
@@ -447,12 +455,12 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                   <output>{Math.round(settings.uiZoom * 100)}%</output>
                 </div>
               </div>
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div>
                   <strong>Reduce motion</strong>
                   <small>
                     Calms the map&rsquo;s animations.
-                    {initialMotion !== null && initialMotion !== settings.reduceMotion && ' Takes effect the next time Axiom starts.'}
+                    {initialMotion !== null && initialMotion !== settings.reduceMotion && ' Takes effect the next time Ambio starts.'}
                   </small>
                 </div>
                 <select
@@ -469,18 +477,18 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {section === 'agents' && (
             <>
-              <p className="axiom-settings__text">
-                Axiom installs itself into your coding agents (Claude Code, Cursor, Codex and others) from the
+              <p className="ambio-settings__text">
+                Ambio installs itself into your coding agents (Claude Code, Cursor, Codex and others) from the
                 Connect an Agent screen, which also repairs a connection that stopped working.
               </p>
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div>
                   <strong>Connect an agent</strong>
                   <small>{projectOpen ? 'Opens the connection screen for this project.' : 'Open a project first.'}</small>
                 </div>
                 <button
                   type="button"
-                  className="axiom-settings__button"
+                  className="ambio-settings__button"
                   disabled={!projectOpen}
                   onClick={() => { onClose(); setTimeout(() => emitCommand('agent.connect'), 0) }}
                 >
@@ -493,20 +501,20 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {section === 'privacy' && (
             <>
-              <p className="axiom-settings__text">
-                Your code, project maps and history stay on this machine. Axiom does not collect usage analytics.
+              <p className="ambio-settings__text">
+                Your code, project maps and history stay on this machine. Ambio does not collect usage analytics.
                 Diagnostics are only ever copied by you.
               </p>
-              <PathRow label="Project data" path={paths?.data} onOpen={() => void window.axiom?.openAppPath('data')} />
-              <PathRow label="Logs" path={paths?.logs} onOpen={() => void window.axiom?.openAppPath('logs')} />
-              <div className="axiom-settings__row">
+              <PathRow label="Project data" path={paths?.data} onOpen={() => void window.ambio?.openAppPath('data')} />
+              <PathRow label="Logs" path={paths?.logs} onOpen={() => void window.ambio?.openAppPath('logs')} />
+              <div className="ambio-settings__row">
                 <div><strong>Diagnostics</strong><small>Version, OS and recent log lines, with your home folder replaced by ~.</small></div>
-                <button type="button" className="axiom-settings__button" onClick={() => emitCommand('help.copyDiagnostics')}>Copy</button>
+                <button type="button" className="ambio-settings__button" onClick={() => emitCommand('help.copyDiagnostics')}>Copy</button>
               </div>
               <DeleteAllData />
-              <div className="axiom-settings__row">
+              <div className="ambio-settings__row">
                 <div><strong>Privacy policy</strong><small>Exactly what stays local and what does not.</small></div>
-                <button type="button" className="axiom-settings__button" onClick={() => void window.axiom?.openHelp('privacy')}>Read</button>
+                <button type="button" className="ambio-settings__button" onClick={() => void window.ambio?.openHelp('privacy')}>Read</button>
               </div>
             </>
           )}
@@ -520,7 +528,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 onChange={value => update({ developerMenu: value })}
               />
               <CliInstallRow />
-              <PathRow label="Settings folder" path={paths?.config} onOpen={() => void window.axiom?.openAppPath('config')} />
+              <PathRow label="Settings folder" path={paths?.config} onOpen={() => void window.ambio?.openAppPath('config')} />
             </>
           )}
         </div>
@@ -531,15 +539,15 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 
 function DeleteAllData() {
   return (
-    <div className="axiom-settings__row">
+    <div className="ambio-settings__row">
       <div>
-        <strong>Delete all Axiom data</strong>
-        <small>Every project map, your settings and the logs on this computer. Your code is not touched. Axiom restarts afterwards.</small>
+        <strong>Delete all Ambio data</strong>
+        <small>Every project map, your settings and the logs on this computer. Your code is not touched. Ambio restarts afterwards.</small>
       </div>
       <button
         type="button"
-        className="axiom-settings__button axiom-settings__button--danger"
-        onClick={() => { void window.axiom?.clearAllData() }}
+        className="ambio-settings__button ambio-settings__button--danger"
+        onClick={() => { void window.ambio?.clearAllData() }}
       >
         Delete…
       </button>
@@ -547,19 +555,19 @@ function DeleteAllData() {
   )
 }
 
-/** `axiom .` in a terminal, like `code .`. */
+/** `ambio .` in a terminal, like `code .`. */
 function CliInstallRow() {
   const [result, setResult] = useState<{ ok: boolean; manual?: string; detail: string } | null>(null)
   return (
-    <div className="axiom-settings__row">
+    <div className="ambio-settings__row">
       <div>
         <strong>Command-line launcher</strong>
-        <small>{result?.detail ?? 'Open any folder from a terminal with: axiom .'}</small>
+        <small>{result?.detail ?? 'Open any folder from a terminal with: ambio .'}</small>
       </div>
       {result?.manual ? (
-        <button type="button" className="axiom-settings__button" onClick={() => void window.axiom?.copyText(result.manual!)}>Copy</button>
+        <button type="button" className="ambio-settings__button" onClick={() => void window.ambio?.copyText(result.manual!)}>Copy</button>
       ) : (
-        <button type="button" className="axiom-settings__button" onClick={() => { void window.axiom?.installCli().then(setResult) }}>
+        <button type="button" className="ambio-settings__button" onClick={() => { void window.ambio?.installCli().then(setResult) }}>
           {result?.ok ? 'Installed' : 'Install'}
         </button>
       )}
@@ -573,20 +581,20 @@ function RemoveFromAgents() {
   const [result, setResult] = useState<string | null>(null)
   const projectRoot = useGraphStore(state => state.currentProject?.rootPath)
   return (
-    <div className="axiom-settings__row">
+    <div className="ambio-settings__row">
       <div>
-        <strong>Remove Axiom from all agents</strong>
+        <strong>Remove Ambio from all agents</strong>
         <small>
-          {result ?? 'Deletes the "axiom" connection and the axiom-map and axiom-inbox workflows Axiom added to your agents. Nothing else in their settings changes.'}
+          {result ?? 'Deletes the "ambio" connection and the ambio-map and ambio-inbox workflows Ambio added to your agents. Nothing else in their settings changes.'}
         </small>
       </div>
       <button
         type="button"
-        className={armed ? 'axiom-settings__button axiom-settings__button--danger' : 'axiom-settings__button'}
+        className={armed ? 'ambio-settings__button ambio-settings__button--danger' : 'ambio-settings__button'}
         onClick={() => {
           if (!armed) { setArmed(true); return }
           setArmed(false)
-          void window.axiom?.uninstallAllAgents(projectRoot).then(outcome => setResult(outcome.detail))
+          void window.ambio?.uninstallAllAgents(projectRoot).then(outcome => setResult(outcome.detail))
         }}
         onBlur={() => setArmed(false)}
       >
@@ -603,7 +611,7 @@ function Toggle({ label, detail, checked, onChange }: {
   onChange: (value: boolean) => void
 }) {
   return (
-    <label className="axiom-settings__row axiom-settings__toggle">
+    <label className="ambio-settings__row ambio-settings__toggle">
       <div><strong>{label}</strong><small>{detail}</small></div>
       <input type="checkbox" role="switch" checked={checked} onChange={event => onChange(event.target.checked)} />
     </label>
@@ -612,9 +620,9 @@ function Toggle({ label, detail, checked, onChange }: {
 
 function PathRow({ label, path, onOpen }: { label: string; path?: string; onOpen: () => void }) {
   return (
-    <div className="axiom-settings__row">
+    <div className="ambio-settings__row">
       <div><strong>{label}</strong><small><code>{path ?? '…'}</code></small></div>
-      <button type="button" className="axiom-settings__button" onClick={onOpen}>Open</button>
+      <button type="button" className="ambio-settings__button" onClick={onOpen}>Open</button>
     </div>
   )
 }

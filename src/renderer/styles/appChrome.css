@@ -1,7 +1,7 @@
 /* Application chrome: title-bar menu bar (Windows/Linux), command palette,
    Settings, Keyboard Shortcuts, About and the transient status toast. */
 
-.axiom-menubar {
+.ambio-menubar {
   display: flex;
   align-items: center;
   gap: 1px;
@@ -9,7 +9,7 @@
   -webkit-app-region: no-drag;
 }
 
-.axiom-menubar__top {
+.ambio-menubar__top {
   padding: 4px 8px;
   border-radius: 2px;
   color: #d9ddd6;
@@ -17,15 +17,15 @@
   line-height: 1;
 }
 
-.axiom-menubar__top:hover,
-.axiom-menubar__top--open,
-.axiom-menubar__top:focus-visible {
+.ambio-menubar__top:hover,
+.ambio-menubar__top--open,
+.ambio-menubar__top:focus-visible {
   background: rgba(242, 241, 235, 0.12);
   color: #f2f1eb;
   outline: none;
 }
 
-.axiom-menubar__dropdown {
+.ambio-menubar__dropdown {
   position: fixed;
   z-index: 10050;
   display: flex;
@@ -38,7 +38,7 @@
   -webkit-app-region: no-drag;
 }
 
-.axiom-menubar__dropdown button {
+.ambio-menubar__dropdown button {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -49,31 +49,31 @@
   text-align: left;
 }
 
-.axiom-menubar__dropdown button:hover:not(:disabled),
-.axiom-menubar__dropdown button:focus-visible {
+.ambio-menubar__dropdown button:hover:not(:disabled),
+.ambio-menubar__dropdown button:focus-visible {
   background: #dcd9ce;
   outline: none;
 }
 
-.axiom-menubar__dropdown button:disabled {
+.ambio-menubar__dropdown button:disabled {
   color: #9aa19c;
   cursor: default;
 }
 
-.axiom-menubar__dropdown kbd,
-.axiom-palette__item kbd,
-.axiom-shortcuts kbd {
+.ambio-menubar__dropdown kbd,
+.ambio-palette__item kbd,
+.ambio-shortcuts kbd {
   color: #5f6b66;
   font-family: var(--font-mono);
   font-size: 11px;
 }
 
-.axiom-menubar__recent {
+.ambio-menubar__recent {
   display: flex;
   flex-direction: column;
 }
 
-.axiom-menubar__group-label {
+.ambio-menubar__group-label {
   padding: 6px 10px 2px;
   color: #69746f;
   font-family: var(--font-mono);
@@ -82,21 +82,21 @@
   text-transform: uppercase;
 }
 
-.axiom-menubar__recent button {
+.ambio-menubar__recent button {
   padding-left: 18px !important;
 }
 
-.axiom-menubar__empty {
+.ambio-menubar__empty {
   padding: 4px 18px 6px;
   color: #9aa19c;
   font-size: 12px;
 }
 
-.axiom-menubar__dropdown .axiom-menubar__subtle {
+.ambio-menubar__dropdown .ambio-menubar__subtle {
   color: #5f6b66;
 }
 
-.axiom-menubar__dropdown hr {
+.ambio-menubar__dropdown hr {
   margin: 4px 0;
   border: 0;
   border-top: 1px solid #cfccc0;
@@ -104,13 +104,13 @@
 
 /* ── Command palette ──────────────────────────────────────────────────────── */
 
-.axiom-palette__backdrop {
+.ambio-palette__backdrop {
   z-index: 10040;
   align-items: flex-start;
   padding-top: 12vh;
 }
 
-.axiom-palette {
+.ambio-palette {
   width: min(560px, 100%);
   overflow: hidden;
   border: 1px solid #56635f;
@@ -118,7 +118,7 @@
   box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.52), 0 18px 50px rgba(0, 0, 0, 0.34);
 }
 
-.axiom-palette__input {
+.ambio-palette__input {
   width: 100%;
   padding: 14px 16px;
   border: 0;
@@ -129,7 +129,7 @@
   outline: none;
 }
 
-.axiom-palette__results {
+.ambio-palette__results {
   max-height: 360px;
   margin: 0;
   padding: 4px;
@@ -137,7 +137,7 @@
   list-style: none;
 }
 
-.axiom-palette__item {
+.ambio-palette__item {
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -147,16 +147,16 @@
   cursor: pointer;
 }
 
-.axiom-palette__item--active {
+.ambio-palette__item--active {
   background: #2f5f56;
   color: #f2f1eb;
 }
 
-.axiom-palette__item--active kbd {
+.ambio-palette__item--active kbd {
   color: #cfe0da;
 }
 
-.axiom-palette__empty {
+.ambio-palette__empty {
   padding: 14px 12px;
   color: #69746f;
   font-size: 13px;
@@ -164,22 +164,22 @@
 
 /* ── Modals ───────────────────────────────────────────────────────────────── */
 
-.axiom-app-modal__backdrop {
+.ambio-app-modal__backdrop {
   z-index: 10030;
 }
 
-.axiom-app-modal__header {
+.ambio-app-modal__header {
   justify-content: space-between;
 }
 
-.axiom-app-modal__close {
+.ambio-app-modal__close {
   padding: 0 4px;
   color: inherit;
   font-size: 18px;
   line-height: 1;
 }
 
-.axiom-app-modal__body {
+.ambio-app-modal__body {
   max-height: min(70vh, 620px);
   overflow-y: auto;
   color: #1f2a26;
@@ -187,13 +187,13 @@
 
 /* ── Settings ─────────────────────────────────────────────────────────────── */
 
-.axiom-settings__layout {
+.ambio-settings__layout {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
   min-height: 360px;
 }
 
-.axiom-settings__nav {
+.ambio-settings__nav {
   display: flex;
   flex-direction: column;
   padding: 10px 6px;
@@ -201,30 +201,30 @@
   background: #dcdad2;
 }
 
-.axiom-settings__nav-item {
+.ambio-settings__nav-item {
   padding: 7px 10px;
   color: #34403c;
   font-size: 13px;
   text-align: left;
 }
 
-.axiom-settings__nav-item:hover {
+.ambio-settings__nav-item:hover {
   background: rgba(47, 95, 86, 0.08);
 }
 
-.axiom-settings__nav-item--active {
+.ambio-settings__nav-item--active {
   background: #f1efe8;
   box-shadow: inset 3px 0 #2f5f56;
   color: #1f2a26;
   font-weight: 600;
 }
 
-.axiom-settings__panel {
+.ambio-settings__panel {
   padding: 6px 20px 16px;
   background: #f1efe8;
 }
 
-.axiom-settings__row {
+.ambio-settings__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -233,41 +233,41 @@
   border-bottom: 1px solid #dcd9ce;
 }
 
-.axiom-settings__row > div:first-child {
+.ambio-settings__row > div:first-child {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
 
-.axiom-settings__row strong {
+.ambio-settings__row strong {
   font-size: 13.5px;
 }
 
-.axiom-settings__row small {
+.ambio-settings__row small {
   color: #5f6b66;
   font-size: 12px;
   line-height: 1.45;
 }
 
-.axiom-settings__row code {
+.ambio-settings__row code {
   font-family: var(--font-mono);
   font-size: 11px;
   word-break: break-all;
 }
 
-.axiom-settings__toggle {
+.ambio-settings__toggle {
   cursor: pointer;
 }
 
-.axiom-settings__toggle input {
+.ambio-settings__toggle input {
   width: 34px;
   height: 18px;
   flex: 0 0 auto;
   accent-color: #2f5f56;
 }
 
-.axiom-settings__button {
+.ambio-settings__button {
   flex: 0 0 auto;
   padding: 6px 12px;
   border: 1px solid #8a948f;
@@ -276,41 +276,41 @@
   font-size: 12.5px;
 }
 
-.axiom-settings__button:hover:not(:disabled) {
+.ambio-settings__button:hover:not(:disabled) {
   border-color: #2f5f56;
 }
 
-.axiom-settings__button--danger {
+.ambio-settings__button--danger {
   border-color: #a05b52;
   background: #f4e4df;
   color: #824139;
 }
 
-.axiom-settings__button:disabled {
+.ambio-settings__button:disabled {
   opacity: 0.5;
 }
 
-.axiom-settings__panel select {
+.ambio-settings__panel select {
   padding: 5px 8px;
   border: 1px solid #8a948f;
   background: #f7f6f1;
   color: #1f2a26;
 }
 
-.axiom-settings__zoom {
+.ambio-settings__zoom {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.axiom-settings__zoom output {
+.ambio-settings__zoom output {
   width: 40px;
   font-family: var(--font-mono);
   font-size: 12px;
   text-align: right;
 }
 
-.axiom-settings__text {
+.ambio-settings__text {
   margin: 14px 0 4px;
   color: #34403c;
   font-size: 13px;
@@ -319,14 +319,14 @@
 
 /* ── Shortcuts and About ──────────────────────────────────────────────────── */
 
-.axiom-shortcuts {
+.ambio-shortcuts {
   display: grid;
   gap: 16px;
   padding: 16px 20px 20px;
   background: #f1efe8;
 }
 
-.axiom-shortcuts h3 {
+.ambio-shortcuts h3 {
   margin: 0 0 6px;
   color: #5f6b66;
   font-family: var(--font-mono);
@@ -335,11 +335,11 @@
   text-transform: uppercase;
 }
 
-.axiom-shortcuts dl {
+.ambio-shortcuts dl {
   margin: 0;
 }
 
-.axiom-shortcuts dl > div {
+.ambio-shortcuts dl > div {
   display: flex;
   justify-content: space-between;
   padding: 5px 0;
@@ -347,11 +347,11 @@
   font-size: 13px;
 }
 
-.axiom-shortcuts dd {
+.ambio-shortcuts dd {
   margin: 0;
 }
 
-.axiom-about {
+.ambio-about {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -361,22 +361,22 @@
   line-height: 1.5;
 }
 
-.axiom-about strong {
+.ambio-about strong {
   font-size: 20px;
 }
 
-.axiom-about p {
+.ambio-about p {
   margin: 0;
   color: #34403c;
 }
 
-.axiom-about__links {
+.ambio-about__links {
   display: flex;
   gap: 14px;
   margin-top: 10px;
 }
 
-.axiom-about__links button {
+.ambio-about__links button {
   color: #2f5f56;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -384,7 +384,7 @@
 
 /* ── Toast ────────────────────────────────────────────────────────────────── */
 
-.axiom-app-toast {
+.ambio-app-toast {
   position: fixed;
   z-index: 10060;
   bottom: 44px;
@@ -400,14 +400,14 @@
 
 /* ── Project settings ─────────────────────────────────────────────────────── */
 
-.axiom-project-settings__name {
+.ambio-project-settings__name {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin: 6px 0 10px;
 }
 
-.axiom-project-settings__name span {
+.ambio-project-settings__name span {
   color: #5f6b66;
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -415,7 +415,7 @@
   text-transform: uppercase;
 }
 
-.axiom-project-settings__name input {
+.ambio-project-settings__name input {
   max-width: 420px;
   padding: 8px 10px;
   border: 1px solid #8a948f;
@@ -425,7 +425,7 @@
   font-weight: 700;
 }
 
-.axiom-project-settings__reindex {
+.ambio-project-settings__reindex {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -434,7 +434,7 @@
   font-size: 12.5px;
 }
 
-.axiom-project-settings__reindex button {
+.ambio-project-settings__reindex button {
   padding: 6px 12px;
   border: 1px solid #8a948f;
   background: #f7f6f1;
@@ -442,43 +442,43 @@
   font-size: 12.5px;
 }
 
-.axiom-project-settings__reindex button:hover {
+.ambio-project-settings__reindex button:hover {
   border-color: #2f5f56;
 }
 
-.axiom-project-settings__backups {
+.ambio-project-settings__backups {
   margin: 12px 0 0;
   color: #5f6b66;
   font-size: 12.5px;
 }
 
-.axiom-project-settings__backups summary {
+.ambio-project-settings__backups summary {
   cursor: pointer;
   color: #1f2a26;
 }
 
-.axiom-project-settings__backups p {
+.ambio-project-settings__backups p {
   margin: 6px 0;
 }
 
-.axiom-project-settings__backups ul {
+.ambio-project-settings__backups ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.axiom-project-settings__backups li {
+.ambio-project-settings__backups li {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 4px 0;
 }
 
-.axiom-project-settings__backups li span {
+.ambio-project-settings__backups li span {
   flex: 1;
 }
 
-.axiom-project-settings__backups button {
+.ambio-project-settings__backups button {
   padding: 3px 10px;
   border: 1px solid #8a948f;
   background: #f7f6f1;
@@ -486,13 +486,13 @@
   font-size: 12px;
 }
 
-.axiom-project-settings__backup-error {
+.ambio-project-settings__backup-error {
   color: #713c35;
 }
 
 /* ── Canvas right-click menu ──────────────────────────────────────────────── */
 
-.axiom-context-menu {
+.ambio-context-menu {
   position: fixed;
   z-index: 10020;
   display: flex;
@@ -504,41 +504,41 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
 }
 
-.axiom-context-menu button {
+.ambio-context-menu button {
   padding: 6px 10px;
   color: #1f2a26;
   font-size: 12.5px;
   text-align: left;
 }
 
-.axiom-context-menu button:hover,
-.axiom-context-menu button:focus-visible {
+.ambio-context-menu button:hover,
+.ambio-context-menu button:focus-visible {
   background: #dcd9ce;
   outline: none;
 }
 
-.axiom-context-menu hr {
+.ambio-context-menu hr {
   margin: 4px 0;
   border: 0;
   border-top: 1px solid #cfccc0;
 }
 
-.axiom-context-menu__danger {
+.ambio-context-menu__danger {
   color: #824139 !important;
 }
 
-.axiom-acknowledgements {
+.ambio-acknowledgements {
   padding: 14px 20px 20px;
   background: #f1efe8;
   font-size: 13px;
 }
 
-.axiom-acknowledgements p {
+.ambio-acknowledgements p {
   margin: 0 0 10px;
   color: #34403c;
 }
 
-.axiom-acknowledgements pre {
+.ambio-acknowledgements pre {
   max-height: 52vh;
   margin: 0;
   padding: 12px;
@@ -552,14 +552,14 @@
   white-space: pre-wrap;
 }
 
-.axiom-source-setup__notice--large {
+.ambio-source-setup__notice--large {
   border-color: #b99a55 !important;
   background: #f6efd9 !important;
   color: #4d3f1f !important;
   line-height: 1.5;
 }
 
-.axiom-status-bar__stop {
+.ambio-status-bar__stop {
   margin-left: 6px;
   padding: 0 6px;
   border: 1px solid currentColor;
@@ -569,11 +569,11 @@
   opacity: 0.8;
 }
 
-.axiom-status-bar__stop:hover {
+.ambio-status-bar__stop:hover {
   opacity: 1;
 }
 
-.axiom-whats-new {
+.ambio-whats-new {
   max-height: 60vh;
   padding: 8px 22px 20px;
   overflow-y: auto;

@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestIgnoredSourceBoundaryCoversDescendantsOnly(t *testing.T) {

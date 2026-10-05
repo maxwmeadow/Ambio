@@ -1,11 +1,11 @@
-# Axiom MCP tool surface
+# Ambio MCP tool surface
 
 Status: consolidated 2026-07-30. 59 advertised tools → 15 core (+1 debug).
 
 ## Why this is a budget, not a detail
 
 The tool listing is sent on **every request an agent makes**, before it has
-read a line of code. Axiom's 59 tools cost roughly **9,600 tokens** per
+read a line of code. Ambio's 59 tools cost roughly **9,600 tokens** per
 request. That is both a context tax and a selection problem: a model choosing
 between `get_neighbors`, `get_family`, `get_node` and `get_systems_with_files`
 is choosing between four spellings of one question.
@@ -46,14 +46,14 @@ in the surface for exactly that reason.
 
 | Tool | Absorbs |
 |---|---|
-| `get_architecture` | overview, systems, system_files, files, unclassified, node, neighbors, family, cross_dependencies, dependency_graph, infra, infra_for_files, infra_catalog, hotspots |
+| `get_architecture` | overview, systems, system_files, files, unclassified, node, neighbors, family, cross_dependencies, dependency_graph, infra, infra_for_files, infra_catalog, hotspots, changes |
 | `search_symbols` | - |
 | `get_symbols` | `get_symbols_for_files`, `get_function_body` |
 | `trace_calls` | `get_call_path`, `get_call_graph`, `get_call_graph_for_files` |
 | `get_data_flow` | - |
 | `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect, contents, require, decide |
-| `edit_sheet` | list, get, create, add, annotate, connect, compare, bind, apply_nesting, resolve, reopen |
+| `edit_sheet` | list, get, create, add, remove, restore, annotate, connect, compare, bind, apply_nesting, resolve, reopen, export, import |
 | `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
@@ -75,7 +75,7 @@ The inbox lifecycle, workspace binding, local authentication, and migration
 contract are documented in [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 Structural sheet implementation and archival are documented in [SHEET_WORKFLOW.md](SHEET_WORKFLOW.md).
 
-Set `AXIOM_MCP_PROFILE=debug` to advertise:
+Set `AMBIO_MCP_PROFILE=debug` to advertise:
 
 | Tool | Absorbs |
 |---|---|

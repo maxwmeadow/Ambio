@@ -93,9 +93,9 @@ export interface DiagnosticsInput {
 
 export function formatDiagnostics(input: DiagnosticsInput): string {
   const lines = [
-    '## Axiom diagnostics',
+    '## Ambio diagnostics',
     '',
-    `- Axiom ${input.appVersion}${input.packaged ? '' : ' (development)'}`,
+    `- Ambio ${input.appVersion}${input.packaged ? '' : ' (development)'}`,
     `- ${input.platform} ${input.arch}, OS ${input.osRelease}, locale ${input.locale}`,
     `- Electron ${input.electron}, Chrome ${input.chrome}, Node ${input.node}`,
     `- Background service: ${input.archdRunning ? 'running' : 'not running'}` +

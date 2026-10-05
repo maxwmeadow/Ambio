@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestSetupProposalFinalizeEstablishesMorningDeltaBaseline(t *testing.T) {
 	eventHub := hub.New()
-	server := NewServer(t.TempDir(), eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(t.TempDir(), eventHub, ambioruntime.NewManager(eventHub))
 	sqlDB, err := server.openDB("ws")
 	if err != nil {
 		t.Fatal(err)

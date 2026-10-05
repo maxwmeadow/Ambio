@@ -1,4 +1,4 @@
-# Axiom - Infra Layer Plan
+# Ambio - Infra Layer Plan
 
 > Status: active plan, local development first
 > Supersedes the 2026-07-09 draft. Its Phase I1 (registry, schema, CRUD, MCP
@@ -209,12 +209,12 @@ they submit a map, so the Floor separates more than folders do.
 ## Phases
 
 Every phase ships its agent surface with it, and ends with a real-agent test on
-the lab project: a task where the phase should help, run with and without Axiom,
+the lab project: a task where the phase should help, run with and without Ambio,
 judged on the agent's result and on what the person watching could see.
 
 ### L0 - Lab project and baseline
 
-An infra-heavy local-development project, `harbor`, under `~/dev/axiom-lab/`:
+An infra-heavy local-development project, `harbor`, under `~/dev/ambio-lab/`:
 Postgres through `pg` with SQL migrations, a Redis cache with an in-process LRU
 fallback, a job queue and an in-process event bus, Stripe with a local fake,
 OpenAI with prompt templates, S3-compatible storage, Resend email, Sentry and
@@ -260,7 +260,7 @@ server instructions that tell the agent when infra matters.
 
 > **Accuracy, measured 2026-09-29.** `pantry` (TypeScript API, Python worker,
 > Go service; written without looking at the detector; answer key in
-> `~/dev/axiom-lab/.answers/pantry.md`, test `pantry_test.go`):
+> `~/dev/ambio-lab/.answers/pantry.md`, test `pantry_test.go`):
 >
 > | | first run | now |
 > |---|---|---|
@@ -318,10 +318,10 @@ dependency wiring.
 > 96 s and $0.75 (L0: 153 s, $1.17), 4 shell reads instead of 48 file reads,
 > 15 confirmed nodes including the flags, realtime and auth roles L0 skipped,
 > 39 item-level relationships. Unprompted, it reported seeded bugs 1 (flag key),
-> 3 (reminder topic, "Axiom also flags this") and 7 (unprotected cancel). Its
+> 3 (reminder topic, "Ambio also flags this") and 7 (unprotected cancel). Its
 > failed calls were guessed relationship kinds, so the summary now lists each
 > role's kinds ("Record as: ..."). On a reminder-bug ticket both arms fixed it
-> in under a minute and the Axiom agent never read the map, so an
+> in under a minute and the Ambio agent never read the map, so an
 > investigation now opens with the flagged contract gaps.
 
 Contents extraction: SQL migrations and ORM schemas → tables and columns;
@@ -383,4 +383,4 @@ and surfaced to the agent.
   channel and as the source of cross-service edges (a function triggered by a
   queue with no code in between).
 - Services the team runs themselves (another repository's API) as `api` nodes
-  backed by a second Axiom workspace.
+  backed by a second Ambio workspace.

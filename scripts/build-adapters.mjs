@@ -3,7 +3,7 @@
 //
 // The Node adapter is preloaded into someone else's process through
 // NODE_OPTIONS, so it cannot rely on any node_modules: not the user's (their
-// dependencies are theirs) and not Axiom's (inside app.asar, unreachable from a
+// dependencies are theirs) and not Ambio's (inside app.asar, unreachable from a
 // plain Node process). Its only third-party code - the parser and source
 // rewriter in transform.cjs - is bundled in. The other files stay separate and
 // verbatim because the bootstraps load each other by relative path.

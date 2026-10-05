@@ -1,5 +1,5 @@
 // Opt-in real host trial. No developer project or global host config is changed.
-// AXIOM_LIVE_DRAW_FIRST_HOST=codex|claude-code|copilot-cli node --test mcp/e2e/drawFirst.live.mjs
+// AMBIO_LIVE_DRAW_FIRST_HOST=codex|claude-code|copilot-cli node --test mcp/e2e/drawFirst.live.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 import { agentRuleFiles, installAgentRule } from '../../electron/agentRules.ts'
 
-const host = process.env.AXIOM_LIVE_DRAW_FIRST_HOST
+const host = process.env.AMBIO_LIVE_DRAW_FIRST_HOST
 const supported = ['codex', 'claude-code', 'copilot-cli']
 
 function sourceSnapshot(root) {
@@ -27,23 +27,23 @@ function sourceSnapshot(root) {
 }
 
 async function runHost(harness, prompt) {
-  const env = { ...process.env, ELECTRON_RUN_AS_NODE: '', AXIOM_API_URL: harness.apiBase, AXIOM_API_TOKEN: 'axiom-isolated-test-token-for-mcp-harness', AXIOM_ACTIVE_PROJECT: harness.activeProjectPath }
-  const mcp = { command: process.execPath, args: [fileURLToPath(new URL('../axiom-mcp.ts', import.meta.url)), `--axiom-host=${host}`], env: { AXIOM_API_URL: env.AXIOM_API_URL, AXIOM_API_TOKEN: env.AXIOM_API_TOKEN, AXIOM_ACTIVE_PROJECT: env.AXIOM_ACTIVE_PROJECT } }
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: '', AMBIO_API_URL: harness.apiBase, AMBIO_API_TOKEN: 'ambio-isolated-test-token-for-mcp-harness', AMBIO_ACTIVE_PROJECT: harness.activeProjectPath }
+  const mcp = { command: process.execPath, args: [fileURLToPath(new URL('../ambio-mcp.ts', import.meta.url)), `--ambio-host=${host}`], env: { AMBIO_API_URL: env.AMBIO_API_URL, AMBIO_API_TOKEN: env.AMBIO_API_TOKEN, AMBIO_ACTIVE_PROJECT: env.AMBIO_ACTIVE_PROJECT } }
   let binary, args
   if (host === 'codex') {
-    binary = process.env.AXIOM_CODEX_BIN || 'codex'
+    binary = process.env.AMBIO_CODEX_BIN || 'codex'
     const settings = [
-      `mcp_servers.axiom.command=${JSON.stringify(mcp.command)}`,
-      `mcp_servers.axiom.args=${JSON.stringify(mcp.args)}`,
-      ...Object.entries(mcp.env).map(([key, value]) => `mcp_servers.axiom.env.${key}=${JSON.stringify(value)}`),
+      `mcp_servers.ambio.command=${JSON.stringify(mcp.command)}`,
+      `mcp_servers.ambio.args=${JSON.stringify(mcp.args)}`,
+      ...Object.entries(mcp.env).map(([key, value]) => `mcp_servers.ambio.env.${key}=${JSON.stringify(value)}`),
     ]
     args = ['exec', '--ignore-user-config', '--skip-git-repo-check', '--ephemeral', '--json', '--approve-for-me', '-C', harness.projectDir, ...settings.flatMap(value => ['-c', value]), prompt]
   } else if (host === 'claude-code') {
-    binary = process.env.AXIOM_CLAUDE_BIN || 'claude'
-    args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { axiom: mcp } }), '--allowedTools', 'mcp__axiom__*,Read,Glob,Grep,Edit,Write,Bash(python3 *)']
+    binary = process.env.AMBIO_CLAUDE_BIN || 'claude'
+    args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { ambio: mcp } }), '--allowedTools', 'mcp__ambio__*,Read,Glob,Grep,Edit,Write,Bash(python3 *)']
   } else {
-    binary = process.env.AXIOM_COPILOT_BIN || 'copilot'
-    args = ['-p', prompt, '--additional-mcp-config', JSON.stringify({ mcpServers: { axiom: mcp } }), '--allow-tool', 'axiom', '--allow-tool', 'write', '--allow-tool', 'shell(python3)', '--no-ask-user']
+    binary = process.env.AMBIO_COPILOT_BIN || 'copilot'
+    args = ['-p', prompt, '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: mcp } }), '--allow-tool', 'ambio', '--allow-tool', 'write', '--allow-tool', 'shell(python3)', '--no-ask-user']
   }
   const child = spawn(binary, args, { cwd: harness.projectDir, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'] })
   let stdout = '', stderr = ''
@@ -59,7 +59,7 @@ test('fresh host draws before code, waits for human approval, then reuses and co
   assert.ok(supported.includes(host), `Unsupported live host: ${host}`)
   const harness = await startHarness()
   const report = { host, startedAt: new Date().toISOString(), phases: [] }
-  const recordDir = process.env.AXIOM_LIVE_RECORD_DIR || path.join(os.tmpdir(), 'axiom-draw-first-recordings')
+  const recordDir = process.env.AMBIO_LIVE_RECORD_DIR || path.join(os.tmpdir(), 'ambio-draw-first-recordings')
   try {
     for (const rule of agentRuleFiles(host, harness.projectDir)) installAgentRule(rule)
     const original = sourceSnapshot(harness.projectDir)
@@ -83,7 +83,7 @@ test('fresh host draws before code, waits for human approval, then reuses and co
       const response = await fetch(`${harness.apiBase}/api/planned/${node.id}/approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: harness.workspaceId, decision: 'approved' }) })
       assert.ok(response.ok, await response.text())
     }
-    const implementation = await runHost(harness, `I reviewed and approved the proposals on sheet "${sheet.name}" (${sheet.id}) in Axiom. Build that plan now, run the requested check, and report the result and remaining structural differences.`)
+    const implementation = await runHost(harness, `I reviewed and approved the proposals on sheet "${sheet.name}" (${sheet.id}) in Ambio. Build that plan now, run the requested check, and report the result and remaining structural differences.`)
     report.phases.push({ name: 'build', ...implementation })
     assert.equal(implementation.timedOut, false)
     assert.equal(implementation.code, 0, implementation.stderr.slice(-2000))

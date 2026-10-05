@@ -11,7 +11,7 @@ import (
 
 // MergeBase returns the common ancestor used to measure each side's own
 // branch changes. This is not conflict detection; it only defines the durable
-// pre-merge window whose files Axiom projects onto semantic systems.
+// pre-merge window whose files Ambio projects onto semantic systems.
 func MergeBase(worktreePath, leftCommit, rightCommit string) (string, error) {
 	output, err := gitOutput(worktreePath, "merge-base", leftCommit, rightCommit)
 	if err != nil {

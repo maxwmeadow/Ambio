@@ -114,33 +114,33 @@ export function RecordingControl({ workspaceId }: { workspaceId: string }) {
 
   if (active) {
     return (
-      <div className="axiom-recording" role="status" aria-live="polite">
+      <div className="ambio-recording" role="status" aria-live="polite">
         <button
           type="button"
-          className="axiom-recording__stop"
+          className="ambio-recording__stop"
           onClick={() => void stop()}
           disabled={busy}
           title={`Recording "${active.name}" - click to save the capture`}
         >
-          <span className="axiom-recording__dot" aria-hidden="true" />
-          <span className="axiom-recording__text">
+          <span className="ambio-recording__dot" aria-hidden="true" />
+          <span className="ambio-recording__text">
             {busy
               ? 'Saving…'
               : active.origin === 'auto'
                 ? `Auto-recording ${elapsedLabel(now - active.startedAt)}`
                 : `Recording ${elapsedLabel(now - active.startedAt)}`}
           </span>
-          <span className="axiom-recording__count">
+          <span className="ambio-recording__count">
             {active.eventCount} {active.eventCount === 1 ? 'event' : 'events'}
           </span>
         </button>
-        {error && <span className="axiom-recording__error" role="alert">{error}</span>}
+        {error && <span className="ambio-recording__error" role="alert">{error}</span>}
       </div>
     )
   }
 
   return (
-    <div className="axiom-recording">
+    <div className="ambio-recording">
       <ChromeButton
         onClick={() => void start()}
         label={busy ? 'Starting recording' : 'Record investigation'}
@@ -153,14 +153,14 @@ export function RecordingControl({ workspaceId }: { workspaceId: string }) {
       {saved && (
         <button
           type="button"
-          className="axiom-recording__saved"
+          className="ambio-recording__saved"
           onClick={() => void openSaved(saved.id)}
           title="Replay this capture on the canvas"
         >
           Saved {saved.eventCount} {saved.eventCount === 1 ? 'event' : 'events'} - watch it
         </button>
       )}
-      {error && <span className="axiom-recording__error" role="alert">{error}</span>}
+      {error && <span className="ambio-recording__error" role="alert">{error}</span>}
     </div>
   )
 }

@@ -21,7 +21,7 @@ export interface AgentFamilyPresentation {
 }
 
 export function connectionCheckPrompt(project: { id: string; name: string; rootPath: string }): string {
-  return `Check Axiom access for project "${project.name}" (${project.rootPath}). Call get_inbox with verifyOnly true and expectedWorkspaceId "${project.id}". Do not claim or work on any request. Tell me whether inboxReady is true and the returned workspace ID matches.`
+  return `Check Ambio access for project "${project.name}" (${project.rootPath}). Call get_inbox with verifyOnly true and expectedWorkspaceId "${project.id}". Do not claim or work on any request. Tell me whether inboxReady is true and the returned workspace ID matches.`
 }
 
 /**
@@ -43,7 +43,7 @@ export function presentAgentHost(
   if (result?.ok || (host.configured && host.workflowInstalled)) {
     return {
       state: 'installed',
-      detail: `Axiom MCP, draw-first guidance, and its canvas inbox${host.command ? ` and ${host.command} mapping` : ''} workflow are installed for ${host.modalityLabel || host.label}.`,
+      detail: `Ambio MCP, draw-first guidance, and its canvas inbox${host.command ? ` and ${host.command} mapping` : ''} workflow are installed for ${host.modalityLabel || host.label}.`,
       action: 'reinstall',
     }
   }
@@ -51,7 +51,7 @@ export function presentAgentHost(
   if (host.unreadablePaths.length > 0) {
     return {
       state: 'repair',
-      detail: `${host.modalityLabel || host.label}'s configuration could not be read safely. Axiom will not overwrite it.`,
+      detail: `${host.modalityLabel || host.label}'s configuration could not be read safely. Ambio will not overwrite it.`,
       action: 'repair',
     }
   }
@@ -59,7 +59,7 @@ export function presentAgentHost(
   if (host.configured && !host.workflowInstalled) {
     return {
       state: 'repair',
-      detail: `Axiom MCP is configured for ${host.modalityLabel || host.label}, but mapping, inbox, or draw-first instructions need repair.`,
+      detail: `Ambio MCP is configured for ${host.modalityLabel || host.label}, but mapping, inbox, or draw-first instructions need repair.`,
       action: 'repair',
     }
   }
@@ -67,14 +67,14 @@ export function presentAgentHost(
   if (!host.detected) {
     return {
       state: 'missing',
-      detail: `${host.modalityLabel || host.label} was not found on this machine. Install it before adding Axiom.`,
+      detail: `${host.modalityLabel || host.label} was not found on this machine. Install it before adding Ambio.`,
       action: 'none',
     }
   }
 
   return {
     state: 'available',
-    detail: `${host.modalityLabel || host.label} is installed on this machine, but Axiom has not been added yet.`,
+    detail: `${host.modalityLabel || host.label} is installed on this machine, but Ambio has not been added yet.`,
     action: 'install',
   }
 }
@@ -125,7 +125,7 @@ export function presentAgentFamily(
       : `${brokenLabels} needs repair.`
   } else if (isLive) {
     state = 'live'
-    detail = `${familyLabel} is connected to this Axiom project right now.`
+    detail = `${familyLabel} is connected to this Ambio project right now.`
   } else if (isInstalled) {
     state = 'installed'
     detail = `${familyLabel} is installed and ready (${installedCount} of ${detectedCount || totalCount} modalities configured).`

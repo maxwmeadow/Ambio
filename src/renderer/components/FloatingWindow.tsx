@@ -134,13 +134,13 @@ export function FloatingWindow({
 
   return createPortal(
     <section
-      className={['axiom-window', className].filter(Boolean).join(' ')}
+      className={['ambio-window', className].filter(Boolean).join(' ')}
       {...(dataAttribute ? { [dataAttribute]: '' } : {})}
       aria-label={title}
       style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
     >
       <header
-        className="axiom-window__bar"
+        className="ambio-window__bar"
         onPointerDown={event => {
           if ((event.target as HTMLElement).closest('button, input')) return
           beginGesture()
@@ -160,12 +160,12 @@ export function FloatingWindow({
         <button type="button" onClick={onClose} aria-label={`Close ${title}`}>×</button>
       </header>
 
-      <div className="axiom-window__body">{children}</div>
+      <div className="ambio-window__body">{children}</div>
 
-      {footer && <footer className="axiom-window__footer">{footer}</footer>}
+      {footer && <footer className="ambio-window__footer">{footer}</footer>}
 
       <div
-        className="axiom-window__grip"
+        className="ambio-window__grip"
         role="separator"
         aria-label={`Resize ${title}`}
         onPointerDown={event => {

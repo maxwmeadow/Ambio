@@ -32,7 +32,7 @@ export function writeWindowState(file: string, state: WindowState): void {
 /**
  * The saved bounds, if enough of the window would still land on a connected
  * display to grab it. A monitor that was unplugged since last time must not
- * reopen Axiom off-screen.
+ * reopen Ambio off-screen.
  */
 export function restorableBounds(
   state: WindowState | null,

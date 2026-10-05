@@ -62,12 +62,12 @@ function AnchorChips({ anchors }: { anchors?: CaseAnchor[] }) {
   const focus = useFocus()
   if (!anchors?.length) return null
   return (
-    <span className="axiom-case__anchors">
+    <span className="ambio-case__anchors">
       {anchors.map((a, i) => (
         <button
           key={`${a.fileId}-${a.symbol}-${i}`}
           type="button"
-          className="axiom-case__anchor"
+          className="ambio-case__anchor"
           disabled={!a.fileId}
           title={a.fileId ? `Show ${a.relPath} on the map` : a.relPath}
           onClick={() => focus(a)}
@@ -89,10 +89,10 @@ function FindingRow({ finding }: { finding: CaseFinding }) {
   const focus = useFocus()
   const clickable = !!finding.anchor?.fileId
   return (
-    <li className="axiom-case__finding" data-severity={finding.severity}>
+    <li className="ambio-case__finding" data-severity={finding.severity}>
       <button type="button" disabled={!clickable} onClick={() => focus(finding.anchor)} title={clickable ? 'Show on the map' : undefined}>
-        <span className="axiom-case__finding-mark" aria-hidden="true">{finding.severity === 'high' ? '!' : '·'}</span>
-        <span className="axiom-case__finding-text"><Rich text={finding.text} /></span>
+        <span className="ambio-case__finding-mark" aria-hidden="true">{finding.severity === 'high' ? '!' : '·'}</span>
+        <span className="ambio-case__finding-text"><Rich text={finding.text} /></span>
       </button>
     </li>
   )
@@ -103,27 +103,27 @@ function RunCard({ run, hypothesis }: { run: CaseRun; hypothesis?: CaseHypothesi
   const findings = run.findings.filter(f => f.severity !== 'info')
   const failed = run.timedOut || run.exitCode !== 0 || !!run.error
   return (
-    <article className="axiom-case__run" data-failed={failed || undefined}>
+    <article className="ambio-case__run" data-failed={failed || undefined}>
       <header>
-        <span className="axiom-case__run-id">R{run.n}</span>
-        <code className="axiom-case__run-command" title={run.command}>{run.command}</code>
-        <span className="axiom-case__run-meta">
+        <span className="ambio-case__run-id">R{run.n}</span>
+        <code className="ambio-case__run-command" title={run.command}>{run.command}</code>
+        <span className="ambio-case__run-meta">
           {run.error ? 'could not run' : run.timedOut ? 'timed out' : `exit ${run.exitCode}`} · {duration(run.durationMs)}
         </span>
       </header>
-      {hypothesis && <p className="axiom-case__run-tests" title={hypothesis.text}>Testing {hypothesis.id}</p>}
-      {run.error && <p className="axiom-case__run-error">{run.error}</p>}
+      {hypothesis && <p className="ambio-case__run-tests" title={hypothesis.text}>Testing {hypothesis.id}</p>}
+      {run.error && <p className="ambio-case__run-error">{run.error}</p>}
       {findings.length > 0 ? (
-        <ul className="axiom-case__findings" aria-label={`What run R${run.n} showed`}>
+        <ul className="ambio-case__findings" aria-label={`What run R${run.n} showed`}>
           {findings.slice(0, 5).map((f, i) => <FindingRow key={i} finding={f} />)}
         </ul>
       ) : !run.error && (
-        <p className="axiom-case__run-quiet">
+        <p className="ambio-case__run-quiet">
           Nothing unusual in the watched code{run.functionsRun ? ` · ${run.functionsRun} functions ran in ${run.filesRun} files` : ''}
         </p>
       )}
       {run.watched.length > 0 && (
-        <ul className="axiom-case__watched">
+        <ul className="ambio-case__watched">
           {run.watched.map((w, i) => (
             <li key={i}>
               <code>{w.anchor.symbol}</code> ×{w.calls}{w.errors ? ` · ${w.errors} threw` : ''}
@@ -133,7 +133,7 @@ function RunCard({ run, hypothesis }: { run: CaseRun; hypothesis?: CaseHypothesi
         </ul>
       )}
       {run.outputTail && (
-        <div className="axiom-case__output">
+        <div className="ambio-case__output">
           <button type="button" aria-expanded={showOutput} onClick={() => setShowOutput(v => !v)}>
             {showOutput ? 'Hide output' : 'Program output'}
           </button>
@@ -150,8 +150,8 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
       const h = file.hypotheses.find(x => x.id === entry.hypothesisId)
       if (!h) return null
       return (
-        <li className="axiom-case__entry" data-kind="hypothesis">
-          <span className="axiom-case__entry-label">Suspects</span>
+        <li className="ambio-case__entry" data-kind="hypothesis">
+          <span className="ambio-case__entry-label">Suspects</span>
           <p><strong>{h.id}</strong> {h.text}</p>
           <AnchorChips anchors={h.anchors} />
         </li>
@@ -159,8 +159,8 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
     }
     case 'verdict':
       return (
-        <li className="axiom-case__entry" data-kind="verdict" data-status={entry.status}>
-          <span className="axiom-case__entry-label">{STATUS_LABEL[entry.status]}</span>
+        <li className="ambio-case__entry" data-kind="verdict" data-status={entry.status}>
+          <span className="ambio-case__entry-label">{STATUS_LABEL[entry.status]}</span>
           <p><strong>{entry.hypothesisId}</strong>{entry.text ? ` - ${entry.text}` : ''}</p>
         </li>
       )
@@ -169,15 +169,15 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
       if (!run) return null
       const h = run.hypothesisId ? file.hypotheses.find(x => x.id === run.hypothesisId) : undefined
       return (
-        <li className="axiom-case__entry" data-kind="run">
+        <li className="ambio-case__entry" data-kind="run">
           <RunCard run={run} hypothesis={h} />
         </li>
       )
     }
     case 'note':
       return (
-        <li className="axiom-case__entry" data-kind="note">
-          <span className="axiom-case__entry-label">Found</span>
+        <li className="ambio-case__entry" data-kind="note">
+          <span className="ambio-case__entry-label">Found</span>
           <p><Rich text={entry.text} /></p>
           <AnchorChips anchors={entry.anchors} />
         </li>
@@ -186,10 +186,10 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
       const m = file.messages.find(x => x.id === entry.messageId)
       if (!m) return null
       return (
-        <li className="axiom-case__entry" data-kind="message">
-          <span className="axiom-case__entry-label">You</span>
+        <li className="ambio-case__entry" data-kind="message">
+          <span className="ambio-case__entry-label">You</span>
           <p>{m.text}</p>
-          <span className="axiom-case__delivery">
+          <span className="ambio-case__delivery">
             {m.deliveredAt ? 'Delivered to the agent' : file.status === 'live' ? 'Arrives with the agent’s next step' : 'Not delivered'}
           </span>
         </li>
@@ -227,12 +227,12 @@ function Composer({ disabled }: { disabled: boolean }) {
 
   return (
     <form
-      className="axiom-case__composer"
+      className="ambio-case__composer"
       onSubmit={event => { event.preventDefault(); void send() }}
     >
-      <label htmlFor="axiom-case-message" className="axiom-case__composer-label">Tell the agent</label>
+      <label htmlFor="ambio-case-message" className="ambio-case__composer-label">Tell the agent</label>
       <textarea
-        id="axiom-case-message"
+        id="ambio-case-message"
         value={text}
         disabled={disabled || sending}
         rows={2}
@@ -245,16 +245,16 @@ function Composer({ disabled }: { disabled: boolean }) {
           }
         }}
       />
-      <div className="axiom-case__composer-row">
+      <div className="ambio-case__composer-row">
         {selectedFile && !disabled ? (
-          <label className="axiom-case__attach">
+          <label className="ambio-case__attach">
             <input type="checkbox" checked={attach} onChange={event => setAttach(event.target.checked)} />
             Pointing at {basename(selectedFile.relPath)}
           </label>
-        ) : <span className="axiom-case__hint">Select a file on the map to point at it</span>}
+        ) : <span className="ambio-case__hint">Select a file on the map to point at it</span>}
         <button type="submit" disabled={disabled || sending || !text.trim()}>{sending ? 'Sending…' : 'Send'}</button>
       </div>
-      {error && <p className="axiom-case__error" role="alert">{error}</p>}
+      {error && <p className="ambio-case__error" role="alert">{error}</p>}
     </form>
   )
 }
@@ -299,10 +299,10 @@ export function CasePanel() {
 
   if (dismissedId === caseFile.id) {
     return (
-      <button type="button" className="axiom-case-chip" data-status={caseFile.status} onClick={showCase}>
-        <span className="axiom-case-chip__dot" aria-hidden="true" />
-        <span className="axiom-case-chip__name">{caseFile.name}</span>
-        <span className="axiom-case-chip__summary">{summary}</span>
+      <button type="button" className="ambio-case-chip" data-status={caseFile.status} onClick={showCase}>
+        <span className="ambio-case-chip__dot" aria-hidden="true" />
+        <span className="ambio-case-chip__name">{caseFile.name}</span>
+        <span className="ambio-case-chip__summary">{summary}</span>
       </button>
     )
   }
@@ -326,19 +326,19 @@ export function CasePanel() {
   ].filter(Boolean).join(' · ')
 
   return (
-    <aside className="axiom-case" data-status={caseFile.status} data-with-replay={replay ? true : undefined} aria-label={`Investigation: ${caseFile.name}`}>
-      <header className="axiom-case__header">
-        <span className="axiom-case__mode" data-status={caseFile.status}>
-          {live && <span className="axiom-case__live-dot" aria-hidden="true" />}
+    <aside className="ambio-case" data-status={caseFile.status} data-with-replay={replay ? true : undefined} aria-label={`Investigation: ${caseFile.name}`}>
+      <header className="ambio-case__header">
+        <span className="ambio-case__mode" data-status={caseFile.status}>
+          {live && <span className="ambio-case__live-dot" aria-hidden="true" />}
           {mode}
         </span>
-        <div className="axiom-case__identity">
+        <div className="ambio-case__identity">
           <strong title={caseFile.name}>{caseFile.name}</strong>
           <span>{caseFile.status === 'replay' ? 'Saved investigation' : since}{counts ? ` · ${counts}` : ''}</span>
         </div>
         <button
           type="button"
-          className="axiom-case__close"
+          className="ambio-case__close"
           aria-label={caseFile.status === 'closed' ? 'Dismiss the closed case' : 'Minimize the case'}
           title={caseFile.status === 'closed' ? 'Dismiss' : 'Minimize'}
           onClick={dismissCase}
@@ -347,13 +347,13 @@ export function CasePanel() {
         </button>
       </header>
 
-      <div className="axiom-case__summary" aria-live="polite">
+      <div className="ambio-case__summary" aria-live="polite">
         <span>{caseFile.conclusion ? 'Root cause' : 'So far'}</span>
         <p><Rich text={summary} /></p>
         {caseFile.conclusion && <AnchorChips anchors={caseFile.conclusion.anchors} />}
-        {caseFile.conclusion?.fix && <p className="axiom-case__fix"><span>Fix</span> {caseFile.conclusion.fix}</p>}
+        {caseFile.conclusion?.fix && <p className="ambio-case__fix"><span>Fix</span> {caseFile.conclusion.fix}</p>}
         {caseFile.conclusion && (
-          <p className="axiom-case__verified" data-verified={caseFile.conclusion.verified ? true : undefined}>
+          <p className="ambio-case__verified" data-verified={caseFile.conclusion.verified ? true : undefined}>
             {caseFile.conclusion.verified
               ? `Verified by R${caseFile.runs.find(r => r.id === caseFile.conclusion?.verified)?.n ?? '?'}`
               : 'Not yet verified by a run'}
@@ -362,27 +362,27 @@ export function CasePanel() {
       </div>
 
       {caseFile.status === 'closed' && (
-        <div className="axiom-case__closed">
+        <div className="ambio-case__closed">
           <p>The agent closed this case{caseFile.conclusion ? '' : ' without a stated root cause'}.</p>
           {caseFile.savedId && <button type="button" onClick={() => void watchReplay()}>Watch the replay</button>}
-          {replayError && <p className="axiom-case__error" role="alert">{replayError}</p>}
+          {replayError && <p className="ambio-case__error" role="alert">{replayError}</p>}
         </div>
       )}
 
       {caseFile.hypotheses.length > 0 && (
-        <section className="axiom-case__board" aria-label="Hypotheses">
+        <section className="ambio-case__board" aria-label="Hypotheses">
           {caseFile.hypotheses.map(h => (
-            <div key={h.id} className="axiom-case__hypothesis" data-status={h.status}>
-              <span className="axiom-case__hypothesis-id">{h.id}</span>
-              <span className="axiom-case__hypothesis-text">{h.text}</span>
-              <span className="axiom-case__hypothesis-status">{STATUS_LABEL[h.status]}</span>
+            <div key={h.id} className="ambio-case__hypothesis" data-status={h.status}>
+              <span className="ambio-case__hypothesis-id">{h.id}</span>
+              <span className="ambio-case__hypothesis-text">{h.text}</span>
+              <span className="ambio-case__hypothesis-status">{STATUS_LABEL[h.status]}</span>
             </div>
           ))}
         </section>
       )}
 
       <ol
-        className="axiom-case__story"
+        className="ambio-case__story"
         ref={storyRef}
         aria-label="How the investigation unfolded"
         onScroll={event => {
@@ -391,7 +391,7 @@ export function CasePanel() {
         }}
       >
         {caseFile.entries.length === 0 && !caseFile.running && (
-          <li className="axiom-case__empty">
+          <li className="ambio-case__empty">
             {caseFile.status === 'replay'
               ? 'Press Play to watch the investigation unfold.'
               : 'The agent has opened the case. Its hypotheses and experiments will appear here as it works.'}
@@ -399,11 +399,11 @@ export function CasePanel() {
         )}
         {caseFile.entries.map((entry, i) => <Entry key={`${entry.kind}-${i}`} entry={entry} file={caseFile} />)}
         {caseFile.running && (
-          <li className="axiom-case__entry" data-kind="running" aria-live="polite">
-            <span className="axiom-case__entry-label">Running</span>
+          <li className="ambio-case__entry" data-kind="running" aria-live="polite">
+            <span className="ambio-case__entry-label">Running</span>
             <p><code>{caseFile.running.command}</code> · {elapsed(now - caseFile.running.startedAt)}</p>
             {caseFile.running.watches.length > 0 && (
-              <p className="axiom-case__watching">Watching <AnchorChips anchors={caseFile.running.watches} /></p>
+              <p className="ambio-case__watching">Watching <AnchorChips anchors={caseFile.running.watches} /></p>
             )}
           </li>
         )}

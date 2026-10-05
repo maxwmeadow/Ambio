@@ -8,7 +8,7 @@ import { agentRuleFiles, installAgentRule, removeAgentRule, ruleInstalled } from
 import { uninstallAll, uninstallHost } from './agentUninstall.ts'
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-draw-first-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-draw-first-'))
   const home = path.join(root, 'home')
   const project = path.join(root, 'project')
   fs.mkdirSync(project, { recursive: true })
@@ -28,7 +28,7 @@ function fixture() {
 }
 
 test('a fixture leaves the inherited XDG config untouched and restores it on cleanup', () => {
-  const inherited = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-inherited-xdg-'))
+  const inherited = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-inherited-xdg-'))
   const previousXdg = process.env.XDG_CONFIG_HOME
   process.env.XDG_CONFIG_HOME = inherited
   try {
@@ -37,7 +37,7 @@ test('a fixture leaves the inherited XDG config untouched and restores it on cle
       // Explicit Linux discovery exercises XDG even on macOS/Windows CI.
       const zed = buildHosts(f.home, path.join(f.root, 'appdata'), 'linux').find(host => host.id === 'zed')
       assert.equal(zed.configPath(), path.join(f.root, 'xdg-config', 'zed', 'settings.json'))
-      assert.ok(zed.install('node', ['axiom.mjs'], '# Axiom', f.project).ok)
+      assert.ok(zed.install('node', ['ambio.mjs'], '# Ambio', f.project).ok)
       assert.ok(uninstallHost(zed, f.project).ok)
       assert.deepEqual(fs.readdirSync(inherited), [], 'fixture wrote to an inherited/shared config directory')
     } finally { f.cleanup() }
@@ -54,7 +54,7 @@ test('every supported host receives draw-first guidance and repairs missing proj
   try {
     assert.equal(f.hosts.length, 10)
     for (const host of f.hosts) {
-      const result = host.install('node', ['axiom.mjs'], '# Axiom mapping', f.project)
+      const result = host.install('node', ['ambio.mjs'], '# Ambio mapping', f.project)
       assert.ok(result.ok, `${host.id}: ${result.detail}`)
       if (host.commandPath) {
         const skill = buildSkillPath(host.commandPath(f.project))
@@ -75,7 +75,7 @@ test('every supported host receives draw-first guidance and repairs missing proj
       assert.equal(inspectHostConfiguration(host, f.project).workflowInstalled, true, host.id)
       fs.rmSync(rules[0].path)
       assert.equal(inspectHostConfiguration(host, f.project).workflowInstalled, false, `${host.id} missing rule was not detected`)
-      const repaired = host.install('node', ['axiom.mjs'], '# Axiom mapping', f.project)
+      const repaired = host.install('node', ['ambio.mjs'], '# Ambio mapping', f.project)
       assert.ok(repaired.ok, `${host.id}: ${repaired.detail}`)
       assert.ok(ruleInstalled(rules[0]))
     }
@@ -97,10 +97,10 @@ test('installation is idempotent and preserves authored instructions with CRLF',
     installAgentRule(rule)
     assert.equal(fs.readFileSync(rule.path, 'utf8'), installed)
     assert.ok(installed.startsWith(authored))
-    assert.equal((installed.match(/<!-- axiom:draw-first:v1 /g) ?? []).length, 1)
+    assert.equal((installed.match(/<!-- ambio:draw-first:v1 /g) ?? []).length, 1)
     assert.ok(removeAgentRule(rule))
     assert.ok(fs.readFileSync(rule.path, 'utf8').startsWith(authored))
-    assert.doesNotMatch(fs.readFileSync(rule.path, 'utf8'), /axiom:draw-first/)
+    assert.doesNotMatch(fs.readFileSync(rule.path, 'utf8'), /ambio:draw-first/)
   } finally { f.cleanup() }
 })
 
@@ -108,14 +108,14 @@ test('edited rules are neither overwritten nor removed, and partial installs rep
   const f = fixture()
   try {
     const host = f.hosts.find(host => host.id === 'cursor')
-    assert.ok(host.install('node', ['axiom.mjs'], '# Axiom', f.project).ok)
+    assert.ok(host.install('node', ['ambio.mjs'], '# Ambio', f.project).ok)
     const rule = host.ruleFiles(f.project)[0]
     const edited = fs.readFileSync(rule.path, 'utf8').replace('Bug fixes, tests', 'My own policy: bug fixes, tests')
     fs.writeFileSync(rule.path, edited)
     assert.equal(ruleInstalled(rule), false)
     assert.throws(() => installAgentRule(rule), /edited/)
     assert.equal(removeAgentRule(rule), false)
-    const reinstall = host.install('node', ['axiom.mjs'], '# Axiom', f.project)
+    const reinstall = host.install('node', ['ambio.mjs'], '# Ambio', f.project)
     assert.equal(reinstall.ok, false)
     assert.match(reinstall.detail, /need repair/)
     assert.ok(inspectHostConfiguration(host, f.project).configured)
@@ -133,7 +133,7 @@ test('unmanaged dedicated files and malformed managed blocks are preserved', () 
     assert.throws(() => installAgentRule(rule), /authored rule/)
     assert.equal(fs.readFileSync(rule.path, 'utf8'), 'My own rule')
     const shared = agentRuleFiles('zed', f.project)[0]
-    fs.writeFileSync(shared.path, '<!-- axiom:draw-first:v1 sha256=bad -->\ncustom rule')
+    fs.writeFileSync(shared.path, '<!-- ambio:draw-first:v1 sha256=bad -->\ncustom rule')
     assert.throws(() => installAgentRule(shared), /incomplete/)
   } finally { f.cleanup() }
 })
@@ -143,12 +143,12 @@ test('shared AGENTS instructions survive removing one host and clean up after th
   try {
     const codex = f.hosts.find(host => host.id === 'codex')
     const copilot = f.hosts.find(host => host.id === 'copilot-cli')
-    for (const host of [codex, copilot]) assert.ok(host.install('node', ['axiom.mjs'], '# Axiom', f.project).ok)
+    for (const host of [codex, copilot]) assert.ok(host.install('node', ['ambio.mjs'], '# Ambio', f.project).ok)
     uninstallHost(codex, f.project, [copilot])
     assert.ok(ruleInstalled(copilot.ruleFiles(f.project)[0]))
     uninstallHost(copilot, f.project)
     assert.equal(fs.existsSync(path.join(f.project, 'AGENTS.md')), false)
-    for (const host of f.hosts) host.install('node', ['axiom.mjs'], '# Axiom', f.project)
+    for (const host of f.hosts) host.install('node', ['ambio.mjs'], '# Ambio', f.project)
     assert.ok(uninstallAll(f.hosts, f.project).ok)
     for (const host of f.hosts) {
       for (const rule of host.ruleFiles(f.project)) assert.equal(fs.existsSync(rule.path), false, host.id)

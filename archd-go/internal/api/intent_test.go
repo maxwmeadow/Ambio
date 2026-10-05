@@ -3,7 +3,7 @@ package api
 import (
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestDispatchedIntentsComeFromImmutableCanvasSnapshot(t *testing.T) {

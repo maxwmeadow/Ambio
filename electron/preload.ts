@@ -4,7 +4,7 @@ import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
 
 // Expose a safe API to the renderer process
-contextBridge.exposeInMainWorld('axiom', {
+contextBridge.exposeInMainWorld('ambio', {
   // Project management
   openProjectDialog: (): Promise<ProjectConfig | null> =>
     ipcRenderer.invoke('project:open-dialog'),
@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('axiom', {
   listAgentHosts: (projectRoot?: string): Promise<AgentHostInfo[]> =>
     ipcRenderer.invoke('agent:hosts', projectRoot),
 
-  // Install Axiom into one agent - server entry and slash command
+  // Install Ambio into one agent - server entry and slash command
   installAgent: (hostId: string, projectRoot?: string): Promise<AgentInstallResult> =>
     ipcRenderer.invoke('agent:install', hostId, projectRoot),
 
@@ -139,7 +139,7 @@ contextBridge.exposeInMainWorld('axiom', {
   },
   copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
 
-  // Opening from outside: `axiom .`, dock drops, links, dropped folders.
+  // Opening from outside: `ambio .`, dock drops, links, dropped folders.
   takeOpenRequest: (): Promise<ProjectConfig | null> => ipcRenderer.invoke('app:take-open-request'),
   onOpenRequest: (callback: () => void) => {
     const handler = () => callback()
@@ -153,6 +153,8 @@ contextBridge.exposeInMainWorld('axiom', {
   takeWhatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:take-whats-new'),
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
   clearAllData: (): Promise<boolean> => ipcRenderer.invoke('app:clear-all-data'),
+  /** A system notification (if the setting allows); clicking it brings Ambio forward. */
+  notify: (notice: { title: string; body: string; tag: string }): Promise<boolean> => ipcRenderer.invoke('app:notify', notice),
 
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
@@ -165,7 +167,7 @@ contextBridge.exposeInMainWorld('axiom', {
   },
   zoom: (action: 'in' | 'out' | 'reset'): Promise<number> => ipcRenderer.invoke('window:zoom', action),
   toggleFullScreen: (): Promise<void> => ipcRenderer.invoke('window:toggle-fullscreen'),
-  openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source'): Promise<void> => ipcRenderer.invoke('help:open', topic),
+  openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback'): Promise<void> => ipcRenderer.invoke('help:open', topic),
   thirdPartyNotices: (): Promise<string> => ipcRenderer.invoke('app:third-party-notices'),
   getAppPaths: (): Promise<{ config: string; data: string; logs: string }> => ipcRenderer.invoke('app:paths'),
   openAppPath: (which: 'config' | 'data' | 'logs'): Promise<string> => ipcRenderer.invoke('shell:open-path', which),
@@ -215,14 +217,14 @@ export interface AgentHostInfo {
   sharedSurfaces: { id: string; label: string }[]
   /** Whether this agent looks installed on this machine. */
   detected: boolean
-  /** Whether any user or project configuration contains an Axiom MCP entry. */
+  /** Whether any user or project configuration contains an Ambio MCP entry. */
   configured: boolean
   configuredPaths: string[]
   unreadablePaths: string[]
   workflowInstalled: boolean
   workflowPath: string | null
   configPath: string
-  /** Set when the user pointed Axiom at this file themselves. */
+  /** Set when the user pointed Ambio at this file themselves. */
   configOverride: string | null
   command: string | null
   triggerKind: 'slash command' | 'skill command' | 'instruction' | 'chat prompt'
@@ -274,7 +276,7 @@ export type ArchdStatus =
 // Type declaration for the renderer
 declare global {
   interface Window {
-    axiom: {
+    ambio: {
       openProjectDialog: () => Promise<ProjectConfig | null>
       openProject: (config: ProjectConfig) => Promise<ProjectConfig>
       chooseDirectory: () => Promise<string | null>
@@ -338,13 +340,14 @@ declare global {
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>
       clearAllData: () => Promise<boolean>
+      notify: (notice: { title: string; body: string; tag: string }) => Promise<boolean>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>
       onMenuCommand: (callback: (id: CommandId) => void) => () => void
       zoom: (action: 'in' | 'out' | 'reset') => Promise<number>
       toggleFullScreen: () => Promise<void>
-      openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source') => Promise<void>
+      openHelp: (topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback') => Promise<void>
       thirdPartyNotices: () => Promise<string>
       getAppPaths: () => Promise<{ config: string; data: string; logs: string }>
       openAppPath: (which: 'config' | 'data' | 'logs') => Promise<string>

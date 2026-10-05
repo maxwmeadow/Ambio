@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "axiom": {
+    "ambio": {
       "command": "node",
-      "args": ["${AXIOM_PATH}/mcp/axiom-mcp.js"],
-      "description": "Axiom architectural graph - query your codebase structure with GQP"
+      "args": ["${AMBIO_PATH}/mcp/ambio-mcp.js"],
+      "description": "Ambio architectural graph - query your codebase structure with GQP"
     }
   }
 }

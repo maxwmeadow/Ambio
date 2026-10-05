@@ -7,6 +7,7 @@
 //	PUT    /api/sheets/:id                   - update name/purpose/folder/viewport
 //	DELETE /api/sheets/:id?workspace=
 //	POST   /api/sheets/:id/elements          - add element(s)
+//	POST   /api/sheets/:id/removals          - propose removing a live node (DELETE …/removals/:nodeId restores)
 //	DELETE /api/sheets/:id/elements/:elId?workspace=
 //	POST   /api/sheets/:id/elements/:elId/position
 //	POST   /api/annotations                  - create note/flag/reply
@@ -19,12 +20,14 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func (s *Server) broadcastSheetLayoutState(sqlDB *sql.DB, sheetID string) ([]db.SheetElement, []db.PlannedNode, *db.Sheet) {
@@ -217,6 +220,12 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// removals: POST /api/sheets/:id/removals, DELETE /api/sheets/:id/removals/:nodeId
+	if len(parts) >= 2 && parts[1] == "removals" {
+		s.handleSheetRemovals(w, r, id, parts[2:])
+		return
+	}
+
 	// element subroutes: /api/sheets/:id/elements[/:elId[/position]]
 	if len(parts) >= 2 && parts[1] == "elements" {
 		s.handleSheetElements(w, r, id, parts[2:])
@@ -265,6 +274,25 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		}
 		s.broadcastPatch("planned:edge", e)
 		jsonOK(w, e)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "markdown" && r.Method == http.MethodGet {
+		sqlDB, err := s.dbFor(workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		sheet, err := db.GetSheet(sqlDB, id)
+		if err != nil || sheet == nil || sheet.WorkspaceID != workspaceID {
+			jsonError(w, "sheet not found", 404)
+			return
+		}
+		markdown, err := renderSheetMarkdown(sqlDB, sheet)
+		if err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		jsonOK(w, map[string]any{"sheetId": id, "markdown": markdown})
 		return
 	}
 	if len(parts) == 2 && parts[1] == "buildspec" && r.Method == http.MethodGet {
@@ -376,9 +404,11 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		planned, _ := db.GetPlannedNodes(sqlDB, id)
 		plannedEdges, _ := db.GetPlannedEdges(sqlDB, id)
 		layouts, _ := db.GetSheetLayouts(sqlDB, id)
+		removals, _ := db.GetSheetRemovals(sqlDB, sheet.WorkspaceID, id)
 		jsonOK(w, map[string]any{
 			"sheet": sheet, "elements": elements, "annotations": annotations,
 			"planned": planned, "plannedEdges": plannedEdges, "layouts": layouts,
+			"removals": removals,
 		})
 
 	case r.Method == http.MethodPut && len(parts) == 1:
@@ -627,6 +657,8 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			WorkspaceID string `json:"workspaceId"`
 			Decision    string `json:"decision"`
+			// Reason is why, in a line; it reaches later agent sessions.
+			Reason string `json:"reason"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
@@ -642,10 +674,14 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "planned node not found", 404)
 			return
 		}
+		wasPending := planned.ApprovalStatus == "pending"
 		planned, err = db.SetPlannedApproval(sqlDB, id, body.Decision)
 		if err != nil {
 			jsonError(w, err.Error(), 409)
 			return
+		}
+		if wasPending && planned.CreatedBy == "agent" {
+			s.recordProposalDecision(sqlDB, planned, body.Decision, body.Reason)
 		}
 		s.broadcastPatch("planned:upserted", planned)
 		jsonOK(w, planned)
@@ -859,6 +895,9 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		Note         string  `json:"note"`
 		Selection    string  `json:"selection"`
 		DeliveryMode string  `json:"deliveryMode"`
+		// CodeFitFileIDs asks Ambio to verify, after the reply, that the code
+		// agrees with where the map puts these files (make the code match).
+		CodeFitFileIDs []string `json:"codeFitFileIds"`
 	}
 	if !decodeInbox(w, r, &input) {
 		return
@@ -911,8 +950,8 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, ref := range refs {
 		u, e := url.Parse(ref)
-		if e != nil || len(ref) > 2048 || u.Scheme != "axiom" {
-			jsonError(w, "selection requires canonical axiom references", 400)
+		if e != nil || len(ref) > 2048 || u.Scheme != "ambio" {
+			jsonError(w, "selection requires canonical ambio references", 400)
 			return
 		}
 		table := ""
@@ -999,9 +1038,22 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "sheet context exceeds 2 MB; dispatch a smaller sheet", 413)
 		return
 	}
+	if len(input.CodeFitFileIDs) > 200 {
+		jsonError(w, "codeFitFileIds is limited to 200 files", 400)
+		return
+	}
 	if err := db.EnqueueCanvasMessage(sqlDB, &m); err != nil {
 		inboxError(w, err)
 		return
+	}
+	if len(input.CodeFitFileIDs) > 0 {
+		findings, fitErr := db.CodeFit(sqlDB, m.WorkspaceID, input.CodeFitFileIDs)
+		if fitErr == nil {
+			fitErr = db.SaveWorkOrderCodeChecks(sqlDB, m.ID, findings)
+		}
+		if fitErr != nil {
+			log.Printf("[archd] code checks for work order %s: %v", m.ID, fitErr)
+		}
 	}
 	s.publishInbox(db.InboxItem{CanvasMessage: m})
 	jsonOK(w, m)
@@ -1104,5 +1156,146 @@ func (s *Server) handleCanvasReply(w http.ResponseWriter, r *http.Request) {
 	}
 	s.publishInbox(*item)
 	item.LeaseToken = ""
+	if checks, checkErr := db.WorkOrderCodeChecks(d, body.WorkspaceID, []string{item.ID}); checkErr == nil {
+		item.CodeChecks = checks[item.ID]
+	}
 	jsonOK(w, map[string]any{"message": item})
+}
+
+// handleSheetRemovals proposes and restores removals: live nodes a sheet says
+// should leave the code (db/sheet_removals.go). Neither touches reality.
+//
+//	POST   /api/sheets/:id/removals          {workspaceId, nodeId, createdBy?}
+//	DELETE /api/sheets/:id/removals/:nodeId?workspace=
+func (s *Server) handleSheetRemovals(w http.ResponseWriter, r *http.Request, sheetID string, rest []string) {
+	switch {
+	case r.Method == http.MethodPost && len(rest) == 0:
+		var body struct {
+			WorkspaceID string `json:"workspaceId"`
+			NodeID      string `json:"nodeId"`
+			CreatedBy   string `json:"createdBy"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.NodeID == "" {
+			jsonError(w, "bad request: nodeId required", http.StatusBadRequest)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		removal, err := db.ProposeSheetRemoval(sqlDB, body.WorkspaceID, sheetID, body.NodeID, body.CreatedBy)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			jsonError(w, err.Error(), status)
+			return
+		}
+		s.broadcastSheetRemovals(sqlDB, body.WorkspaceID, sheetID)
+		jsonOK(w, removal)
+	case r.Method == http.MethodDelete && len(rest) == 1:
+		workspaceID := r.URL.Query().Get("workspace")
+		sqlDB, err := s.dbFor(workspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if err := db.RestoreSheetRemoval(sqlDB, workspaceID, sheetID, rest[0]); err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			jsonError(w, err.Error(), status)
+			return
+		}
+		s.broadcastSheetRemovals(sqlDB, workspaceID, sheetID)
+		jsonOK(w, map[string]bool{"restored": true})
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (s *Server) broadcastSheetRemovals(sqlDB *sql.DB, workspaceID, sheetID string) {
+	removals, err := db.GetSheetRemovals(sqlDB, workspaceID, sheetID)
+	if err != nil {
+		return
+	}
+	s.broadcastPatch("sheet:removals", map[string]any{"workspaceId": workspaceID, "sheetId": sheetID, "removals": removals})
+	if sheet, err := db.GetSheet(sqlDB, sheetID); err == nil && sheet != nil {
+		s.broadcastPatch("sheet:upserted", sheet)
+	}
+}
+
+// recordProposalDecision journals a person's verdict on an agent's planned
+// element so the next agent session hears it (api/map_briefing.go) and does
+// not propose the same thing again.
+func (s *Server) recordProposalDecision(sqlDB *sql.DB, planned *db.PlannedNode, decision, reason string) {
+	where := ""
+	if sheet, err := db.GetSheet(sqlDB, planned.SheetID); err == nil && sheet != nil {
+		where = "on " + sheet.Name
+	}
+	s.recordDecision(sqlDB, decisionRecord{
+		WorkspaceID: planned.WorkspaceID, SubjectID: planned.ID, SubjectLabel: planned.Name,
+		Kind: planned.Kind, Decision: decision, Reason: reason, Where: where, SheetID: planned.SheetID,
+	})
+}
+
+// decisionRecord is one human verdict on something proposed to the map: a
+// planned element, a system in an architecture proposal, or infrastructure.
+type decisionRecord struct {
+	WorkspaceID, SubjectID, SubjectLabel string
+	Kind                                 string // what was proposed: system, file, infrastructure...
+	Decision                             string // confirmed/approved, rejected/dismissed
+	Reason                               string
+	Where                                string // "on Agent Plan", "in an architecture proposal"
+	SheetID                              string
+}
+
+// recordDecision journals the verdict as proposal.decided.
+func (s *Server) recordDecision(sqlDB *sql.DB, record decisionRecord) {
+	detail, _ := json.Marshal(map[string]string{
+		"decision": record.Decision, "reason": strings.TrimSpace(record.Reason), "kind": record.Kind,
+		"where": record.Where, "sheetId": record.SheetID,
+	})
+	if err := db.RecordStructuralEvent(sqlDB, db.StructuralEvent{
+		WorkspaceID: record.WorkspaceID, Actor: "human", Kind: db.EventProposalDecided,
+		SubjectID: record.SubjectID, SubjectLabel: record.SubjectLabel, Detail: string(detail),
+	}); err != nil {
+		log.Printf("[archd] record proposal decision: %v", err)
+	}
+}
+
+// handleSheetImport creates a draft sheet from a Markdown spec
+// (sheet_markdown.go). POST {workspaceId, markdown, createdBy}
+func (s *Server) handleSheetImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		Markdown    string `json:"markdown"`
+		CreatedBy   string `json:"createdBy"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Markdown) == "" {
+		jsonError(w, "bad request: workspaceId and markdown required", 400)
+		return
+	}
+	if len(body.Markdown) > 1<<20 {
+		jsonError(w, "spec too large (1 MB limit)", 413)
+		return
+	}
+	sqlDB, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	sheet, warnings, err := s.importSheetMarkdown(sqlDB, body.WorkspaceID, body.Markdown, body.CreatedBy)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	jsonOK(w, map[string]any{"sheet": sheet, "warnings": warnings})
 }

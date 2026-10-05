@@ -157,10 +157,10 @@ export function InfraSidebar() {
     const vendor = (node.implementations ?? []).find(impl => impl.kind === 'vendor')
     const foundIn = proposal ? vendor?.ref ?? detected?.evidence?.[0]?.ref : undefined
     return (
-      <li key={node.id} className="axiom-infra-sidebar__item">
+      <li key={node.id} className="ambio-infra-sidebar__item">
         <button
           type="button"
-          className="axiom-infra-sidebar__row"
+          className="ambio-infra-sidebar__row"
           data-infra-row={node.id}
           data-selected={selectedInfraId === node.id || undefined}
           data-touched={touched.has(node.id) || undefined}
@@ -169,28 +169,28 @@ export function InfraSidebar() {
           onClick={() => select(node)}
           title={gaps.length > 0 ? gaps.join('\n') : undefined}
         >
-          <span className="axiom-infra-sidebar__icon" aria-hidden="true">
+          <span className="ambio-infra-sidebar__icon" aria-hidden="true">
             {service ? <ServiceIcon service={service} size={18} /> : (
               <svg viewBox="0 0 24 24" width={18} height={18}>
                 <path d={CATEGORY_GLYPHS[node.category] ?? CATEGORY_GLYPHS.api} fill="currentColor" />
               </svg>
             )}
           </span>
-          <span className="axiom-infra-sidebar__text">
-            <span className="axiom-infra-sidebar__name">{node.name}</span>
-            <span className="axiom-infra-sidebar__meta">
+          <span className="ambio-infra-sidebar__text">
+            <span className="ambio-infra-sidebar__name">{node.name}</span>
+            <span className="ambio-infra-sidebar__meta">
               {ROLE_LABEL[node.category] ?? node.category}
               {' · '}
               {node.category === 'platform' && !proposal ? 'on the map' : usage}
             </span>
-            {foundIn && <span className="axiom-infra-sidebar__found">found in {fileName(foundIn.replace(/:\d+$/, ''))}</span>}
+            {foundIn && <span className="ambio-infra-sidebar__found">found in {fileName(foundIn.replace(/:\d+$/, ''))}</span>}
           </span>
           {gaps.length > 0 && (
-            <span className="axiom-infra-sidebar__gap" aria-label={`${gaps.length} thing${gaps.length === 1 ? '' : 's'} look wrong`}>!</span>
+            <span className="ambio-infra-sidebar__gap" aria-label={`${gaps.length} thing${gaps.length === 1 ? '' : 's'} look wrong`}>!</span>
           )}
         </button>
         {proposal && (
-          <div className="axiom-infra-sidebar__decide">
+          <div className="ambio-infra-sidebar__decide">
             <button type="button" disabled={busy !== null} onClick={() => void decide([node], 'confirmed')}>
               {busy === node.id ? 'Saving…' : 'Confirm'}
             </button>
@@ -210,7 +210,7 @@ export function InfraSidebar() {
     <button
       key={`tab-${pulse}`}
       type="button"
-      className="axiom-infra-sidebar-tab"
+      className="ambio-infra-sidebar-tab"
       data-open={open || undefined}
       data-arriving={pulse > 0 || undefined}
       onClick={() => setOpen(!open)}
@@ -219,10 +219,10 @@ export function InfraSidebar() {
       title={open ? `Close infrastructure (${shortcut})`
         : `Infrastructure${proposals.length ? ` · ${proposals.length} new` : ''}${alert ? ' · something looks wrong' : ''} (${shortcut})`}
     >
-      <span className="axiom-infra-sidebar-tab__chevron" aria-hidden="true">{open ? '‹' : '›'}</span>
-      {!open && <span className="axiom-infra-sidebar-tab__label">Infrastructure</span>}
+      <span className="ambio-infra-sidebar-tab__chevron" aria-hidden="true">{open ? '‹' : '›'}</span>
+      {!open && <span className="ambio-infra-sidebar-tab__label">Infrastructure</span>}
       {!open && (alert || proposals.length > 0) && (
-        <span className="axiom-infra-sidebar-tab__dot" data-kind={alert ? 'alert' : 'new'} aria-hidden="true" />
+        <span className="ambio-infra-sidebar-tab__dot" data-kind={alert ? 'alert' : 'new'} aria-hidden="true" />
       )}
     </button>
   )
@@ -247,8 +247,8 @@ export function InfraSidebar() {
 
   return (
     <>
-    <aside className="axiom-infra-sidebar" aria-label="Infrastructure">
-      <header className="axiom-infra-sidebar__header">
+    <aside className="ambio-infra-sidebar" aria-label="Infrastructure">
+      <header className="ambio-infra-sidebar__header">
         <div>
           <h2>Infrastructure</h2>
           <p>
@@ -256,14 +256,14 @@ export function InfraSidebar() {
             {proposals.length > 0 ? ` · ${proposals.length} to confirm` : ''}
           </p>
         </div>
-        <button type="button" className="axiom-infra-sidebar__add" onClick={() => setAdding(true)}
+        <button type="button" className="ambio-infra-sidebar__add" onClick={() => setAdding(true)}
           title="Add a database, queue, API or host">+ Add</button>
       </header>
-      <div className="axiom-infra-sidebar__list">
-        {error && <p className="axiom-infra-sidebar__error" role="alert">{error}</p>}
+      <div className="ambio-infra-sidebar__list">
+        {error && <p className="ambio-infra-sidebar__error" role="alert">{error}</p>}
         {proposals.length > 0 && (
-          <section className="axiom-infra-sidebar__group axiom-infra-sidebar__group--found">
-            <div className="axiom-infra-sidebar__group-head">
+          <section className="ambio-infra-sidebar__group ambio-infra-sidebar__group--found">
+            <div className="ambio-infra-sidebar__group-head">
               <h3>Found in your code</h3>
               {proposals.length > 1 && (
                 <button type="button" disabled={busy !== null} onClick={() => void decide(proposals, 'confirmed')}>
@@ -275,20 +275,20 @@ export function InfraSidebar() {
           </section>
         )}
         {groups.map(group => (
-          <section key={group.label} className="axiom-infra-sidebar__group">
-            <div className="axiom-infra-sidebar__group-head"><h3>{group.label}</h3></div>
+          <section key={group.label} className="ambio-infra-sidebar__group">
+            <div className="ambio-infra-sidebar__group-head"><h3>{group.label}</h3></div>
             <ul>{group.nodes.map(node => row(node, false))}</ul>
           </section>
         ))}
         {listed.length === 0 && (
-          <p className="axiom-infra-sidebar__empty">
-            No infrastructure yet. Axiom looks for databases, queues and services as files are saved;
+          <p className="ambio-infra-sidebar__empty">
+            No infrastructure yet. Ambio looks for databases, queues and services as files are saved;
             you can also add one with Add Infra.
           </p>
         )}
         {unresolved.length > 0 && (
-          <section className="axiom-infra-sidebar__group axiom-infra-sidebar__unresolved">
-            <div className="axiom-infra-sidebar__group-head"><h3>Could not tell which service</h3></div>
+          <section className="ambio-infra-sidebar__group ambio-infra-sidebar__unresolved">
+            <div className="ambio-infra-sidebar__group-head"><h3>Could not tell which service</h3></div>
             <ul>
               {unresolved.map(item => (
                 <li key={`${item.Package}-${item.Evidence}`}>
@@ -300,7 +300,7 @@ export function InfraSidebar() {
           </section>
         )}
       </div>
-      <footer className="axiom-infra-sidebar__footer">
+      <footer className="ambio-infra-sidebar__footer">
         {selected
           ? <>Showing what uses <strong>{selected.name}</strong>. Esc to clear.</>
           : touched.size > 0

@@ -56,7 +56,7 @@ export function systemAtFloorPoint(clientX: number, clientY: number): string | n
  */
 export function dropOnFloorAt(fileId: string, clientX: number, clientY: number): boolean {
   const log = (stage: string, detail: Record<string, unknown> = {}) => {
-    if ((window as unknown as { __axiomBinDragDebug?: boolean }).__axiomBinDragDebug !== false) {
+    if ((window as unknown as { __ambioBinDragDebug?: boolean }).__ambioBinDragDebug !== false) {
       console.log(`[bins] drop/${stage}`, { fileId, clientX, clientY, ...detail })
     }
   }
