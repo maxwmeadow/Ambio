@@ -44,11 +44,12 @@ type dapLangConfig struct {
 	// requestType: "launch" (debugger starts the program) or "attach" (program
 	// is already specified on the debugger's command line - rdbg).
 	requestType string
-	// launchLast sends the launch after configurationDone: gdb 15 runs the
-	// program as soon as it sees a launch, so breakpoints must be in place
-	// first, and a launch ahead of configurationDone fails it ("notStopped").
-	launchLast   bool
-	threadPrefix string // e.g. "thread" → threadId label "thread-14"
+	// launchAfterBreakpoints sends the launch once breakpoints are set, just
+	// before configurationDone. gdb 15 runs the program as soon as it sees a
+	// launch, so breakpoints must already be in place; newer gdb (and the DAP
+	// spec) refuse a configurationDone that no launch preceded.
+	launchAfterBreakpoints bool
+	threadPrefix           string // e.g. "thread" → threadId label "thread-14"
 	// findDebugger locates the debugger binary (env override + PATH + fallbacks).
 	findDebugger func() (string, error)
 	// buildArgv returns the full argv to spawn the debugger. For tcp transports
@@ -223,7 +224,7 @@ func (s *dapLangSession) handshake() error {
 	// requestType "none": the debugger already has the program on its command
 	// line and starts it on configurationDone (rdbg) - no launch/attach request.
 	// The launch is written at a fixed point in the sequence (before the
-	// breakpoints, or after configurationDone with launchLast) and only its
+	// breakpoints, or after them with launchAfterBreakpoints) and only its
 	// answer is awaited in the background. Sent from a goroutine, it used to
 	// reach gdb at whatever point the scheduler allowed.
 	launchDone := make(chan error, 1)
@@ -245,7 +246,7 @@ func (s *dapLangSession) handshake() error {
 		}()
 		return nil
 	}
-	if s.cfg.requestType != "none" && !s.cfg.launchLast {
+	if s.cfg.requestType != "none" && !s.cfg.launchAfterBreakpoints {
 		if err := sendLaunch(); err != nil {
 			return err
 		}
@@ -261,13 +262,13 @@ func (s *dapLangSession) handshake() error {
 			return err
 		}
 	}
-	if _, err := s.client.request("configurationDone", map[string]any{}); err != nil {
-		return err
-	}
-	if s.cfg.requestType != "none" && s.cfg.launchLast {
+	if s.cfg.requestType != "none" && s.cfg.launchAfterBreakpoints {
 		if err := sendLaunch(); err != nil {
 			return err
 		}
+	}
+	if _, err := s.client.request("configurationDone", map[string]any{}); err != nil {
+		return err
 	}
 	if s.cfg.requestType != "none" {
 		select {
