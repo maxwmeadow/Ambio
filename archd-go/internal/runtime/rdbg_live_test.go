@@ -31,7 +31,12 @@ func TestRdbgCountsEveryCallToAWatchedRubyMethod(t *testing.T) {
 			t.Skip("rdbg not found in the debug gem")
 		}
 	}
-	dir := t.TempDir()
+	// Behind a symlink, as macOS's temp folder is (/var -> /private/var): the
+	// breakpoint and the reported stop must still name the watched file.
+	dir := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(t.TempDir(), dir); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
 	program := filepath.Join(dir, "pay.rb")
 	if err := os.WriteFile(program, []byte("def process_payment(id, amount)\n  amount * 1.1 + id\nend\n\ntotal = 0\n(1..3).each { |i| total += process_payment(i, 10.0 * i) }\nputs total\n"), 0o644); err != nil {
 		t.Fatal(err)

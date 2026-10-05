@@ -8,7 +8,9 @@ directory on PYTHONPATH permanently is harmless.
 
 If the user's environment has its own sitecustomize elsewhere on sys.path,
 ours shadows it (Python imports only the first). We chain-load the next one
-found so existing setups keep working.
+found so existing setups keep working, and load it before starting Ambio:
+Ubuntu's installs apport's sys.excepthook, which would otherwise replace the
+recorder's and hide every crash.
 """
 
 import os
@@ -62,5 +64,5 @@ def _chain_next_sitecustomize() -> None:
         pass
 
 
-_bootstrap()
 _chain_next_sitecustomize()
+_bootstrap()
