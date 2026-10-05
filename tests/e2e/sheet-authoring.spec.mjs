@@ -20,9 +20,14 @@ for (const creation of ['drag', 'click']) {
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
         const url = new URL(route.request().url())
-        const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
-          headers: { ...route.request().headers(), Authorization: 'Bearer ambio-isolated-test-token-for-mcp-harness' } })
-        await route.fulfill({ response: result })
+        try {
+          const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
+            headers: { ...route.request().headers(), Authorization: 'Bearer ambio-isolated-test-token-for-mcp-harness' } })
+          await route.fulfill({ response: result })
+        } catch (error) {
+          // page.reload() cancels requests still in flight; only that is expected.
+          if (!/disposed|has been closed/.test(String(error))) throw error
+        }
       })
       await page.reload()
       await expect(page.locator('.react-flow__node').first()).toBeAttached()
@@ -105,9 +110,24 @@ for (const creation of ['drag', 'click']) {
         }
         return previous
       }
-      const from = await settled(fileNode)
+      // Grab the node by its body: the language icon is a picker button and
+      // the selection chrome has resize handles, both of which (rightly) do
+      // not start a move. Where they sit depends on the zoom, so look.
+      const grabPoint = (box, id) => page.evaluate(([box, id]) => {
+        for (const fy of [0.75, 0.5, 0.25]) {
+          for (const fx of [0.3, 0.7, 0.5]) {
+            const x = box.x + box.width * fx, y = box.y + box.height * fy
+            const hit = document.elementFromPoint(x, y)
+            if (hit?.closest('.react-flow__node')?.getAttribute('data-id') === id &&
+              !hit.closest('.nodrag, .ambio-floating-resize-handle')) return { x, y }
+          }
+        }
+        throw new Error(`No draggable point on ${id}`)
+      }, [box, id])
+      await settled(fileNode)
+      const from = await grabPoint(await settled(fileNode), `planned:${rootFile.id}`)
       const to = await settled(systemNode)
-      await page.mouse.move(from.x + from.width / 2, from.y + 12)
+      await page.mouse.move(from.x, from.y)
       await page.mouse.down()
       await page.mouse.move(to.x + to.width * 0.6, to.y + to.height * 0.7, { steps: 20 })
       await page.mouse.up()
