@@ -82,7 +82,11 @@ type Server struct {
 	worktreeRefresh   time.Duration
 	worktreeMonitors  map[string]worktreeMonitor
 	rootSyncing       map[string]bool
-	rootSyncPending   map[string]pendingRootSync
+	// background counts work started for an open workspace (watching a
+	// project opened by a request, root syncs); closeDB waits for it, so a
+	// closed or deleted project's folder is not still being written.
+	background      map[string]*sync.WaitGroup
+	rootSyncPending map[string]pendingRootSync
 	// Exclusions a root had before the user changed them; the next reconcile
 	// of that root runs as a quiet re-scope. See indexer.ReconcileScope.
 	rootScopeFrom     map[string][]string
@@ -125,6 +129,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
 		rootSyncing:         make(map[string]bool),
+		background:          make(map[string]*sync.WaitGroup),
 		rootSyncPending:     make(map[string]pendingRootSync),
 		rootScopeFrom:       make(map[string][]string),
 		rootForceReindex:    make(map[string]bool),
@@ -268,7 +273,12 @@ func (s *Server) dbFor(workspaceID string) (*sql.DB, error) {
 		// Attempt to open lazily - the DB may exist on disk from a previous session.
 		d, err := s.openDB(workspaceID)
 		if err == nil {
-			go s.keepWorkspaceLive(workspaceID, d)
+			if done, ok := s.startBackground(workspaceID); ok {
+				go func() {
+					defer done()
+					s.keepWorkspaceLive(workspaceID, d)
+				}()
+			}
 		}
 		return d, err
 	}
@@ -316,6 +326,23 @@ func (s *Server) keepWorkspaceLive(workspaceID string, sqlDB *sql.DB) {
 	s.launchRootSync(sqlDB, *live, false)
 }
 
+// startBackground registers work for an open workspace; ok is false once it
+// is closed, and the work must not start. Call done when the work ends.
+func (s *Server) startBackground(workspaceID string) (done func(), ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, open := s.dbs[workspaceID]; !open {
+		return nil, false
+	}
+	wg := s.background[workspaceID]
+	if wg == nil {
+		wg = &sync.WaitGroup{}
+		s.background[workspaceID] = wg
+	}
+	wg.Add(1)
+	return wg.Done, true
+}
+
 // closeDB closes and removes the database connection for a workspace without
 // deleting the data on disk. Called before the electron process deletes the
 // project directory so the file lock is released (important on Windows).
@@ -346,12 +373,20 @@ func (s *Server) closeDB(workspaceID string) {
 	d := s.dbs[workspaceID]
 	delete(s.dbs, workspaceID)
 	delete(s.collisionCache, workspaceID)
+	background := s.background[workspaceID]
+	delete(s.background, workspaceID)
 	s.mu.Unlock()
 	for _, w := range watchers {
 		_ = w.Close()
 	}
 	if d != nil {
 		_ = d.Close()
+	}
+	// sql.DB.Close does not wait for queries already running; their
+	// connections (and the WAL) close when they finish. Wait for the work
+	// that runs them: with the database closed, its next query fails fast.
+	if background != nil {
+		background.Wait()
 	}
 	s.presenceMu.Lock()
 	delete(s.agentPresence, workspaceID)
