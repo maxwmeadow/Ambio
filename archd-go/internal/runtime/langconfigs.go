@@ -83,16 +83,27 @@ var rubyConfig = dapLangConfig{
 		}
 		argv := []string{rubyPath, rdbg, "--open=vscode", "--port", fmt.Sprintf("%d", port)}
 		// Native file:line breakpoints on each watched method's def line - rdbg
-		// binds these to method entry, so they hit on every call.
+		// binds these to method entry, so they hit on every call. The program
+		// and each breakpoint name the file by one absolute, symlink-free path:
+		// a relative one resolves against rdbg's cwd (the program's folder, not
+		// the workspace root), and on macOS /var/… runs as /private/var/….
 		for _, w := range watches {
-			argv = append(argv, "-e", fmt.Sprintf("break %s:%d", filepath.ToSlash(w.RelPath), w.LineStart))
+			argv = append(argv, "-e", fmt.Sprintf("break %s:%d", filepath.ToSlash(resolvedPath(w.AbsPath)), w.LineStart))
 		}
-		argv = append(argv, program)
+		argv = append(argv, resolvedPath(program))
 		argv = append(argv, args...)
 		return argv
 	},
 	launchArgs:    nil, // attach mode
 	qualifySymbol: func(sym string) string { return sym },
+}
+
+// resolvedPath is p with symlinks resolved, or p itself if that fails.
+func resolvedPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // ─── Java (Microsoft java-debug) ────────────────────────────────────────────

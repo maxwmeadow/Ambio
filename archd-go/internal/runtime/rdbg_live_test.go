@@ -37,12 +37,15 @@ func TestRdbgCountsEveryCallToAWatchedRubyMethod(t *testing.T) {
 	if err := os.Symlink(t.TempDir(), dir); err != nil {
 		t.Skip("symlinks unavailable:", err)
 	}
-	program := filepath.Join(dir, "pay.rb")
+	if err := os.Mkdir(filepath.Join(dir, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	program := filepath.Join(dir, "app", "pay.rb")
 	if err := os.WriteFile(program, []byte("def process_payment(id, amount)\n  amount * 1.1 + id\nend\n\ntotal = 0\n(1..3).each { |i| total += process_payment(i, 10.0 * i) }\nputs total\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	m := NewManager(hub.New())
-	m.AddWatch(&Watch{ID: "w1", WorkspaceID: "ws", Symbol: "process_payment", RelPath: "pay.rb", AbsPath: program, LineStart: 1, LineEnd: 3})
+	m.AddWatch(&Watch{ID: "w1", WorkspaceID: "ws", Symbol: "process_payment", RelPath: "app/pay.rb", AbsPath: program, LineStart: 1, LineEnd: 3})
 	session, err := m.LaunchLangTarget("ws", "ruby", program, nil)
 	if err != nil {
 		t.Fatalf("launch: %v", err)
@@ -59,5 +62,35 @@ func TestRdbgCountsEveryCallToAWatchedRubyMethod(t *testing.T) {
 			t.Fatalf("calls counted: %+v", watches)
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// rdbg resolves a relative breakpoint against its cwd, the program's folder,
+// and runs a program under /var/… as /private/var/… on macOS, so both the
+// breakpoints and the program are passed as one absolute, symlink-free path.
+func TestRdbgArgvNamesFilesByResolvedAbsolutePath(t *testing.T) {
+	real := t.TempDir()
+	if err := os.Mkdir(filepath.Join(real, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "app", "pay.rb"), []byte("def pay; end\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linked := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(real, linked); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(real, "app", "pay.rb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	program := filepath.Join(linked, "app", "pay.rb")
+	argv := rubyConfig.buildArgv("ruby", 4711, program, nil, []Watch{{RelPath: "app/pay.rb", AbsPath: program, LineStart: 1}})
+	joined := strings.Join(argv, " ")
+	if !strings.Contains(joined, "break "+filepath.ToSlash(want)+":1") {
+		t.Errorf("breakpoint should name %s: %v", want, argv)
+	}
+	if argv[len(argv)-1] != want {
+		t.Errorf("program should be %s, got %s", want, argv[len(argv)-1])
 	}
 }
