@@ -1,7 +1,9 @@
 import fs from 'fs'
 import { dirname } from 'path'
+import { removeAgentRule } from './agentRules.ts'
 import {
   inboxSkillPath,
+  buildSkillPath,
   inspectHostConfiguration,
   readJson,
   writeJson,
@@ -10,7 +12,7 @@ import {
 } from './agentInstallers.ts'
 
 // Undo what the installers wrote: the `ambio` MCP entry in each place a host
-// reads, and the ambio-map / ambio-inbox workflow files. Nothing else in a
+// reads, and the ambio-map / ambio-inbox / ambio-build workflow files. Nothing else in a
 // host's configuration is touched, and a file Ambio cannot parse is left
 // alone and reported rather than rewritten.
 
@@ -58,12 +60,12 @@ function removeJsonEntry(path: string, keyPath: string[], name = 'ambio'): 'remo
 function removeWorkflowFile(path: string, name = 'ambio'): boolean {
   // Only files in our own skill folders, and only if they still look like
   // ours - a user who rewrote the file keeps it.
-  if (!new RegExp(`${name}-(map|inbox)`).test(path) || !fs.existsSync(path)) return false
+  if (!new RegExp(`${name}-(map|inbox|build)`).test(path) || !fs.existsSync(path)) return false
   try {
     if (!new RegExp(name, 'i').test(fs.readFileSync(path, 'utf8'))) return false
     fs.rmSync(path)
     const folder = dirname(path)
-    if (new RegExp(`${name}-(map|inbox)$`).test(folder) && fs.readdirSync(folder).length === 0) fs.rmdirSync(folder)
+    if (new RegExp(`${name}-(map|inbox|build)$`).test(folder) && fs.readdirSync(folder).length === 0) fs.rmdirSync(folder)
     return true
   } catch {
     return false
@@ -105,16 +107,25 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
     }
   }
 
-  const workflow = host.commandPath?.(projectRoot)
-  if (workflow) {
+  const workflows = [host.commandPath?.(projectRoot), ...(host.additionalCommandPaths?.() ?? [])].filter((path): path is string => !!path)
+  for (const workflow of workflows) {
     const stillShared = others.some(other =>
       other.id !== host.id &&
-      other.commandPath?.(projectRoot) === workflow &&
+      [other.commandPath?.(projectRoot), ...(other.additionalCommandPaths?.() ?? [])].includes(workflow) &&
       inspectHostConfiguration(other, projectRoot).configured)
     if (!stillShared) {
-      for (const file of [workflow, inboxSkillPath(workflow)]) {
+      for (const file of [workflow, inboxSkillPath(workflow), buildSkillPath(workflow)]) {
         if (removeWorkflowFile(file)) removed.push(file)
       }
+    }
+  }
+
+  for (const rule of host.ruleFiles?.(projectRoot) ?? []) {
+    const shared = others.some(other => other.id !== host.id &&
+      (other.ruleFiles?.(projectRoot) ?? []).some(candidate => candidate.path === rule.path) &&
+      inspectHostConfiguration(other, projectRoot).configured)
+    if (!shared) {
+      try { if (removeAgentRule(rule)) removed.push(rule.path) } catch { unreadable.push(rule.path) }
     }
   }
 

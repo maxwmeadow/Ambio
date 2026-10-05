@@ -286,8 +286,16 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 	}
 	s.rootSyncing[root.ID] = true
 	s.mu.Unlock()
+	done, open := s.startBackground(root.WorkspaceID)
+	if !open {
+		s.mu.Lock()
+		delete(s.rootSyncing, root.ID)
+		s.mu.Unlock()
+		return
+	}
 
 	go func() {
+		defer done()
 		defer func() {
 			s.mu.Lock()
 			delete(s.rootSyncing, root.ID)

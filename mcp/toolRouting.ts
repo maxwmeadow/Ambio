@@ -86,6 +86,7 @@ const SHEET_OPS: Record<string, string> = {
   remove: 'propose_sheet_removal',
   restore: 'restore_sheet_removal',
   annotate: 'annotate_sheet',
+  connect: 'connect_sheet',
   compare: 'compare_sheet',
   bind: 'bind_sheet',
   apply_nesting: 'apply_sheet_nesting',

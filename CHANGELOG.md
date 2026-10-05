@@ -12,6 +12,10 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Agents receive guidance to draw structural changes on a sheet before editing
+  code, reuse approved plans, and compare after building. Project reminders
+  support every installed coding host; Claude Desktop receives MCP/chat guidance.
+- Agents can draw typed dependencies between planned and existing sheet nodes.
 - Work-order destinations for every supported agent: start a new Claude Code,
   Codex or Copilot CLI run from Send, or copy the handoff and open your editor.
   Managed runs show launch failures, local output and a Stop control.
@@ -141,6 +145,8 @@ in the app as "What's New" after updating, so write it for users.
   reporter used to hide them).
 - Tracing Ruby counts calls in files inside subfolders, and in projects
   reached through a symlink (every project under /var on macOS).
+- Deleting a project right after an agent opened it no longer fails with
+  "workspace data still exists".
 - A file moved on disk no longer drops off the map when the move's delete
   and create are handled at the same moment.
 - Tracing C++ with gdb is reliable on a busy machine: Ambio no longer races
