@@ -308,6 +308,11 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	var movedSystemID *string
 	if _, known := existing[relPath]; !known {
 		moveMu.Lock()
+		// Read again under the lock: a removal that finished since the read
+		// above has deleted its row and is claimable only as a removal.
+		if fresh, err := buildExistingMap(sqlDB, root.ID); err == nil {
+			existing = fresh
+		}
 		if moved, from, ok := adoptMovedFile(sqlDB, root, relPath, absPath, existing); ok {
 			movedFrom, movedSystemID = from, moved.SystemID
 			delete(existing, from)
@@ -464,15 +469,23 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	traceID := nextLivingTraceID()
 	relPath, _ := filepath.Rel(root.Path, absPath)
 	relPath = filepath.ToSlash(relPath)
+	// Held until the row is gone: a create that adopted this row in between
+	// (renaming it to its new path) would otherwise be deleted with it.
 	moveMu.Lock()
+	locked := true
+	unlock := func() {
+		if locked {
+			locked = false
+			moveMu.Unlock()
+		}
+	}
+	defer unlock()
 	file, err := db.GetFileByRelPath(sqlDB, root.ID, relPath)
 	if err != nil || file == nil {
-		moveMu.Unlock()
 		return err
 	}
 	// Claimable by a create at another path for a moment: it may be a move.
 	rememberRemoval(root.ID, *file)
-	moveMu.Unlock()
 
 	beforeDeps, err := projectFileDependencies(sqlDB, root.ID)
 	if err != nil {
@@ -491,6 +504,7 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	if err := db.DeleteFileByID(sqlDB, file.ID); err != nil {
 		return err
 	}
+	unlock()
 	if err := buildImportDependencies(sqlDB, root); err != nil {
 		return fmt.Errorf("rebuild imports after deleting %s: %w", relPath, err)
 	}
