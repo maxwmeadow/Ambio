@@ -156,9 +156,14 @@ func (s *DotnetSession) handshake() error {
 	if len(s.args) > 0 {
 		launchArgs["args"] = s.args
 	}
+	// Written now, awaited in the background: nothing may overtake it.
 	launchDone := make(chan error, 1)
+	wait, err := s.client.start("launch", launchArgs)
+	if err != nil {
+		return err
+	}
 	go func() {
-		_, err := s.client.request("launch", launchArgs)
+		_, err := wait()
 		launchDone <- err
 	}()
 
