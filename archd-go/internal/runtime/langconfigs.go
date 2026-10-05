@@ -33,14 +33,14 @@ var langConfigs = map[string]dapLangConfig{
 // The target must carry debug info (-g); statically-linked binaries avoid the
 // "wrong runtime DLL" startup failure under the debugger on MinGW.
 var cppConfig = dapLangConfig{
-	language:       "cpp",
-	adapterID:      "gdb",
-	transport:      "stdio",
-	breakpointMode: "function",
-	requestType:    "launch",
-	launchLast:     true,
-	threadPrefix:   "thread",
-	findDebugger:   func() (string, error) { return findOnPath("gdb", "AMBIO_GDB_PATH") },
+	language:               "cpp",
+	adapterID:              "gdb",
+	transport:              "stdio",
+	breakpointMode:         "function",
+	requestType:            "launch",
+	launchAfterBreakpoints: true,
+	threadPrefix:           "thread",
+	findDebugger:           func() (string, error) { return findOnPath("gdb", "AMBIO_GDB_PATH") },
 	buildArgv: func(dbg string, port int, program string, args []string, watches []Watch) []string {
 		return []string{dbg, "--interpreter=dap"}
 	},
