@@ -38,6 +38,7 @@ var cppConfig = dapLangConfig{
 	transport:      "stdio",
 	breakpointMode: "function",
 	requestType:    "launch",
+	launchLast:     true,
 	threadPrefix:   "thread",
 	findDebugger:   func() (string, error) { return findOnPath("gdb", "AMBIO_GDB_PATH") },
 	buildArgv: func(dbg string, port int, program string, args []string, watches []Watch) []string {

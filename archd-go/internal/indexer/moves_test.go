@@ -125,3 +125,22 @@ func TestANewFileIsNotMistakenForAMove(t *testing.T) {
 		t.Fatal("the untouched file vanished")
 	}
 }
+
+// The watcher handles a move's delete and create at the same time. However
+// they interleave, the file keeps its identity and system.
+func TestAMoveSeenConcurrentlyKeepsTheFile(t *testing.T) {
+	for i := 0; i < 40; i++ {
+		sqlDB, root, id := movedFixture(t)
+		oldPath, newPath := moveOnDisk(t, root, "orders/billing.py", "payments/billing.py", "")
+		eventHub := hub.New()
+		errs := make(chan error, 2)
+		go func() { errs <- RemoveFile(sqlDB, eventHub, root, oldPath) }()
+		go func() { errs <- ReindexFile(sqlDB, eventHub, root, newPath) }()
+		for range 2 {
+			if err := <-errs; err != nil {
+				t.Fatal(err)
+			}
+		}
+		assertKeptItsPlace(t, sqlDB, root, id, "payments/billing.py")
+	}
+}

@@ -141,6 +141,10 @@ in the app as "What's New" after updating, so write it for users.
   reporter used to hide them).
 - Tracing Ruby counts calls in files inside subfolders, and in projects
   reached through a symlink (every project under /var on macOS).
+- A file moved on disk no longer drops off the map when the move's delete
+  and create are handled at the same moment.
+- Tracing C++ with gdb is reliable on a busy machine: Ambio no longer races
+  its own launch request, and waits longer for a debugger's first answer.
 - Tracing Go code works again for projects outside Ambio's own folder, and
   a program that does not build says why.
 - A damaged map is caught when the project opens: Ambio offers to restore

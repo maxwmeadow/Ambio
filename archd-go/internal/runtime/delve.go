@@ -211,9 +211,14 @@ func (s *DelveSession) handshake() error {
 	}
 	// launch response only arrives after configuration completes on some
 	// adapters; delve responds promptly, and emits an "initialized" event.
+	// Written now, awaited in the background: nothing may overtake it.
 	launchDone := make(chan error, 1)
+	wait, err := s.client.start("launch", launchArgs)
+	if err != nil {
+		return err
+	}
 	go func() {
-		_, err := s.client.request("launch", launchArgs)
+		_, err := wait()
 		launchDone <- err
 	}()
 

@@ -43,7 +43,11 @@ type dapLangConfig struct {
 	breakpointMode string
 	// requestType: "launch" (debugger starts the program) or "attach" (program
 	// is already specified on the debugger's command line - rdbg).
-	requestType  string
+	requestType string
+	// launchLast sends the launch after configurationDone: gdb 15 runs the
+	// program as soon as it sees a launch, so breakpoints must be in place
+	// first, and a launch ahead of configurationDone fails it ("notStopped").
+	launchLast   bool
 	threadPrefix string // e.g. "thread" → threadId label "thread-14"
 	// findDebugger locates the debugger binary (env override + PATH + fallbacks).
 	findDebugger func() (string, error)
@@ -218,19 +222,33 @@ func (s *dapLangSession) handshake() error {
 
 	// requestType "none": the debugger already has the program on its command
 	// line and starts it on configurationDone (rdbg) - no launch/attach request.
+	// The launch is written at a fixed point in the sequence (before the
+	// breakpoints, or after configurationDone with launchLast) and only its
+	// answer is awaited in the background. Sent from a goroutine, it used to
+	// reach gdb at whatever point the scheduler allowed.
 	launchDone := make(chan error, 1)
-	if s.cfg.requestType != "none" {
+	sendLaunch := func() error {
+		req := "launch"
+		var args map[string]any = map[string]any{}
+		if s.cfg.requestType == "attach" {
+			req = "attach"
+		} else {
+			args = s.cfg.launchArgs(s.Program, dirOf(s.Program), s.args)
+		}
+		wait, err := s.client.start(req, args)
+		if err != nil {
+			return err
+		}
 		go func() {
-			req := "launch"
-			var args map[string]any = map[string]any{}
-			if s.cfg.requestType == "attach" {
-				req = "attach"
-			} else {
-				args = s.cfg.launchArgs(s.Program, dirOf(s.Program), s.args)
-			}
-			_, err := s.client.request(req, args)
+			_, err := wait()
 			launchDone <- err
 		}()
+		return nil
+	}
+	if s.cfg.requestType != "none" && !s.cfg.launchLast {
+		if err := sendLaunch(); err != nil {
+			return err
+		}
 	}
 
 	if err := s.waitForInitialized(launchDone); err != nil {
@@ -245,6 +263,11 @@ func (s *dapLangSession) handshake() error {
 	}
 	if _, err := s.client.request("configurationDone", map[string]any{}); err != nil {
 		return err
+	}
+	if s.cfg.requestType != "none" && s.cfg.launchLast {
+		if err := sendLaunch(); err != nil {
+			return err
+		}
 	}
 	if s.cfg.requestType != "none" {
 		select {
