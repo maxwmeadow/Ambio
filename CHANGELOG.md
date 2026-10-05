@@ -16,6 +16,9 @@ in the app as "What's New" after updating, so write it for users.
   code, reuse approved plans, and compare after building. Project reminders
   support every installed coding host; Claude Desktop receives MCP/chat guidance.
 - Agents can draw typed dependencies between planned and existing sheet nodes.
+- Work-order destinations for every supported agent: start a new Claude Code,
+  Codex or Copilot CLI run from Send, or copy the handoff and open your editor.
+  Managed runs show launch failures, local output and a Stop control.
 - Help → Send Feedback… (also on the launcher).
 - Review Changes counts agent changes nobody explained; click to see them.
 - Ask, Propose or Build when you send to an agent: a question changes
