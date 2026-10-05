@@ -54,9 +54,8 @@ The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
 collide. Full context for each item is in its section below.
 
-1. ⬜ `work-order-delivery` - investigate and fix how a work order reaches an agent. [mcp, electron, docs]
-2. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
-3. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
+1. ⬜ `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
+2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
 
 ---
 
@@ -103,7 +102,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Sheets and work orders
 
-- ⬜ `work-order-delivery` **Investigate and fix how a work order reaches an agent.** Today the human copies a work-order ID into the agent's chat (see [docs/INBOX_PROTOCOL.md](docs/INBOX_PROTOCOL.md): "There is no automatic delivery or reliable cross-harness hook"). This is the weakest link in "you draw, agent builds". Investigate per host, and write the findings into INBOX_PROTOCOL.md: Claude Code hooks (`SessionStart`, `UserPromptSubmit` injecting pending work orders), MCP resource/list-changed notifications and elicitation support per host, launching the host CLI headless with the work order (`claude -p`, `codex exec`, Gemini/Antigravity CLI, Copilot CLI) into a worktree, IDE deep links that open a chat with a prompt (VS Code, Cursor, Windsurf, JetBrains), and one-click "copy + focus the agent window". **Done when:** a capability table per host exists, and the best option is built for at least Claude Code and Codex so that "Send" starts the work without copy-paste.
 - ⬜ `work-order-recovery` **Recovery across hosts and interruptions.** A real Sheet request, an interrupted agent, an expired claim, a retry and a requested revision all return to review without duplicate execution or lost context. **Start:** `archd-go/internal/api/inbox.go`, `internal/db/work_order_snapshot.go`, `src/renderer/components/WorkOrderReview.tsx`.
 - ⬜ `build-plan-panel` **A persistent Build Plan panel** replacing the modal, showing what was sent, who holds it, and realisation live.
 - ⬜ `work-order-live-validation` **Validate the loop with real hosts beyond Codex:** Claude Code, Antigravity, Cursor. Record runs; file bugs in the Inbox.
@@ -237,6 +235,10 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `unassigned-regrouped` **Files taken out of every system can be regrouped by the clusterer.** Unassigned files are classifier-managed, so ungrouping a top-level system or dragging a file to empty canvas may be undone by the next cluster pass. Decide whether a human "unassign" should pin the file as deliberately unsorted. (2026-10-01, meaning-edits-recorded)
 - ⬜ `readme-screenshots` **README screenshots** of the Floor, a sheet and Review Changes, once the rename and theme settle. (2026-09-30, docs cleanup)
 
+- ⬜ `work-order-delivery-live` **Record authenticated provider delivery smoke runs** for Claude Code, Codex and Copilot CLI, and verify launcher behavior on macOS/Windows. Automated delivery tests use simulated agents; test auth, MCP startup, host permissions and the actual claim/build/reply loop. (2026-09-30, work-order-delivery)
+- ⬜ `work-order-isolated-roots` **Isolated agent runs with truthful review.** Before creating a worktree on Send, bind indexing/comparison to the run’s root so review checks the branch the agent edited. Current direct runs use the existing live root and prevent overlapping managed runs. (2026-09-30, work-order-delivery)
+- ⬜ `more-direct-delivery` **Extend host-specific delivery adapters.** Validate Cursor Agent CLI and project-bound VS Code chat delivery; add direct routes where the destination and permissions can be verified. Keep editor/desktop copy/open fallbacks and the host capability table current. (2026-09-30, work-order-delivery)
+
 ---
 
 ## Done log
@@ -302,6 +304,7 @@ Newest first. One line each: date, slug, what changed, branch/commit.
 - 2026-10-01 `floor-meaning-gestures` On the Floor, placement is meaning: a drop into a system assigns files / nests systems, a drop on open canvas un-assigns / un-nests, recorded before the layout is saved (`canvas/floorMeaning.ts`, `meaningActions.ts`); inline rename of live systems (`floorEditContext.ts`); right-click Ungroup, Group into New System, Take Out of <system>; Delete on a system ungroups, on a file explains; every edit confirms with an Undo notice. Contract and QA checklist updated; Playwright covers drop-nest, Delete and rename. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `meaning-edits-review-undo` Meaning edits appear in Review Changes as claims (moved, renamed, nested, merged, ungrouped, grouped), collapsed to net effect and attributed ("by you" / "by codex"); each has Undo (`POST /api/architecture/undo`, refused with a reason when later work would be overwritten; an edit and its undo cancel out); agents read recent changes via `get_architecture` scope `changes`. Not yet checked in the real app. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 `meaning-edits-recorded` One recorded path for meaning edits (`POST /api/architecture/edits`, `internal/db/meaning.go`): create, rename, describe, nest, assign, merge (now atomic), ungroup; journaled with before/after and a stated actor; inferred systems touched by an edit are adopted; MCP `edit_systems` and the renderer use it; older routes refuse unattributed meaning changes; tidy/geometry never journals. Also fixes returning a file to the unsorted bin, which sent an empty system ID. (claude/gracious-gauss-1bgdv9)
+- 2026-09-30 `work-order-delivery` Send can launch Claude Code, Codex or Copilot CLI with workspace-bound MCP and durable launch receipts; all ten hosts have delivery choices, editor/desktop copy/open fallbacks, output and Stop controls, and a documented capability table. Provider smoke runs and isolated roots remain explicit follow-ups. (codex/work-order-delivery)
 - 2026-09-30 `docs-consolidation` Stray briefs and plans consolidated: current docs in `docs/`, old plans in `docs/history/`, the bug hunt became `docs/testing/CANVAS_QA_CHECKLIST.md`, LAUNCH split into this file and `docs/DECISIONS.md`, new PRODUCT/ARCHITECTURE docs, README repositioned around bidirectional architecture. (claude/gracious-gauss-1bgdv9)
 - 2026-09-30 `ci-fix` Open-time backup made synchronous; path tests made host-independent. (c063eb8)
 - 2026-09-30 `merge-infra-work-orders` Merged the infrastructure sidebar, hosting frames and work orders; canvas commands joined the shared command model. (d253dbc)

@@ -229,3 +229,11 @@
 .react-flow__node[data-proposal="pending"]::after { content: 'PROPOSED'; position: absolute; top: -18px; left: 0; font: 700 9px var(--font-mono, monospace); letter-spacing: .05em; color: #8a5a12; pointer-events: none; }
 .react-flow__node[data-proposal="rejected"] { opacity: .35; }
 .ambio-sheet-rail__new { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #c98a1b; color: #fff; font: 700 8px var(--font-mono, monospace); letter-spacing: .05em; }
+.ambio-inbox__delivery { display: grid; gap: 6px; padding: 8px 0; }
+.ambio-inbox__delivery label { display: grid; gap: 4px; font-size: 12px; }
+.ambio-inbox__delivery select { width: 100%; padding: 6px; color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; font: inherit; }
+.ambio-inbox__delivery select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
+.ambio-inbox__delivery small { font-size: 11px; opacity: .75; overflow-wrap: anywhere; }
+.ambio-inbox__delivery-run { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; font-size: 11px; }
+.ambio-inbox__delivery-run span { flex-basis: 100%; }
+.ambio-inbox .ambio-inbox__delivery-run button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--inbox-line); padding: 3px 6px; cursor: pointer; }
