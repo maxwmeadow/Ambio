@@ -17,7 +17,7 @@
 //     and weighted 0.5x so automated refactoring loops don't pin every file
 //     red; human edits weigh 1.0x.
 //
-// This package is a leaf - it deliberately imports no other axiom packages so
+// This package is a leaf - it deliberately imports no other ambio packages so
 // db, indexer, and api can all use it without cycles.
 package activity
 

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/collision"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/collision"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestCollisionsSurfaceUnmergedSemanticOverlapAfterDeltaReview(t *testing.T) {
@@ -24,8 +24,8 @@ func TestCollisionsSurfaceUnmergedSemanticOverlapAfterDeltaReview(t *testing.T) 
 		t.Fatal(err)
 	}
 	runWorktreeGit(t, primaryPath, "init", "-b", "main")
-	runWorktreeGit(t, primaryPath, "config", "user.email", "axiom@example.test")
-	runWorktreeGit(t, primaryPath, "config", "user.name", "Axiom Test")
+	runWorktreeGit(t, primaryPath, "config", "user.email", "ambio@example.test")
+	runWorktreeGit(t, primaryPath, "config", "user.name", "Ambio Test")
 	if err := os.MkdirAll(filepath.Join(primaryPath, "payments"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestCollisionsSurfaceUnmergedSemanticOverlapAfterDeltaReview(t *testing.T) 
 	}
 
 	eventHub := hub.New()
-	server := NewServer(t.TempDir(), eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(t.TempDir(), eventHub, ambioruntime.NewManager(eventHub))
 	sqlDB, err := server.openDB("ws")
 	if err != nil {
 		t.Fatal(err)

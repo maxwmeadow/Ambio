@@ -2,7 +2,7 @@
 
 A sheet is a scoped structural target, not a screenshot to reproduce. The inbox
 connects the user's instruction to that target; the agent's own harness edits
-code, while Axiom compares the authored requirements against its indexed live model.
+code, while Ambio compares the authored requirements against its indexed live model.
 
 ## Canvas workflow
 
@@ -47,7 +47,7 @@ Restoration creates a new revision; historical resolution evidence remains store
    words. Ambiguous matches fail with candidates; the agent must ask rather than guess.
 2. `edit_sheet({op:"compare",sheet:sheetId})` returns the current revision, comparison
    token, requirements, planned-to-live mappings, and remaining differences.
-3. Implement the requested code using the harness; use existing Axiom architecture
+3. Implement the requested code using the harness; use existing Ambio architecture
    tools to curate the real map. Indexing provides file/contract realization evidence.
 4. Bind a new live system or infrastructure node to its planned identity with
    `edit_sheet({op:"bind",sheet:sheetId,plannedId,liveId,revision})`. The node must be
@@ -82,10 +82,18 @@ includes its saved resolution context/comparison as well as the current comparis
   need matching indexed realization. Active realized file contracts are rechecked on
   indexing, so later drift can turn an unfinished sheet back into outstanding work.
 - Planned typed relationships require corresponding live relationships. `CONTAINS`
-  can be established by canonical nesting; other relationship kinds match live dependency
-  types case-insensitively. Unsupported/unproven requirements stay outstanding.
+  can be established by canonical nesting; `DEPENDS_ON` is met by any import or call from
+  inside the source to inside the target (systems count the files in and below them);
+  other relationship kinds match live dependency types case-insensitively.
+  Unsupported/unproven requirements stay outstanding.
 - Rejected proposals and their edges are excluded. Pending proposals block resolution.
   Empty sheets and deleted/symbol-only references cannot claim structural completion.
+- Removals are explicit: a live file, system or infrastructure node the sheet proposes
+  taking out of the code (`sheet_removals`; `edit_sheet` `remove`/`restore`, or Delete on
+  a live node in the canvas). A removal wins over any placement opinion for that node and
+  is outstanding until the code is gone - a file or infrastructure node no longer
+  indexed, or no file left in or below a system. Done removals stay listed. Removals are
+  frozen into a sent work order and checked by its snapshot comparison too.
 - Objects outside the sheet's scope are untouched. Omission is never a deletion request.
   The comparison does not infer filesystem removals or semantic refactors from pixels.
 
@@ -126,7 +134,7 @@ edges, pending approvals, missing implementation, contract drift, workspace isol
 stale resolution refusal, retry idempotency, archival and restoration. The real stdio
 MCP harness exercises lookup through resolution; Electron exercises direct attachment,
 Floor navigation, live comparison refresh, archival, and restoration.
-The opt-in `AXIOM_LIVE_HOST_TEST=1` Electron suite runs real Codex sessions against
+The opt-in `AMBIO_LIVE_HOST_TEST=1` Electron suite runs real Codex sessions against
 isolated demo projects. It covers project and Sheet handoffs, source changes,
 reported checks, an independently executed function, replies, and acceptance.
 The Sheet case changes the current contract after submission and checks that the

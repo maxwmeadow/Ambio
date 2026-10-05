@@ -534,6 +534,14 @@ export type DeltaClaimKind =
   | 'system.membership'
   | 'file.unclassified'
   | 'system.internal'
+  | 'meaning.moved'
+  | 'meaning.renamed'
+  | 'meaning.nested'
+  | 'meaning.merged'
+  | 'meaning.ungrouped'
+  | 'meaning.grouped'
+  | 'infra.linked'
+  | 'infra.unlinked'
 
 export interface DeltaEvidence {
   kind: string
@@ -564,6 +572,34 @@ export interface DeltaClaim {
   /** Whether agent work matched an immutable build spec dispatched first. */
   intentStatus?: 'expected' | 'unexpected'
   intentIds?: string[]
+  /** A change to meaning (moved, renamed, nested...) can be undone from here. */
+  undoEventIds?: number[]
+  /** Where the code still disagrees with the files this change placed. */
+  codeFit?: CodeFitFinding[]
+}
+
+/**
+ * Where the code disagrees with where the map puts a file (archd
+ * `db/code_fit.go`): it lives outside its system's folder, or its imports
+ * mostly connect to another system.
+ */
+export interface CodeFitFinding {
+  kind: 'folder' | 'coupling'
+  fileId: string
+  filePath: string
+  systemId: string
+  systemName: string
+  suggestedPath?: string
+  otherSystemName?: string
+  summary: string
+  ask: string
+}
+
+/** A make-the-code-match work order's disagreement, re-checked by Ambio. */
+export interface CodeCheckResult {
+  sent: CodeFitFinding
+  state: 'agrees' | 'disagrees' | 'map-changed' | 'file-gone'
+  now: string
 }
 
 /**

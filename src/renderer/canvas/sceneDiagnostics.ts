@@ -56,7 +56,7 @@ export interface SceneMutationRecord extends SceneDelta {
 }
 
 type SceneDiagnosticGlobal = typeof globalThis & {
-  __axiomSceneLog?: SceneMutationRecord[]
+  __ambioSceneLog?: SceneMutationRecord[]
 }
 
 const MAX_RECORDS = 300
@@ -135,10 +135,10 @@ export function recordSceneMutation(
   record: SceneMutationRecord,
 ): SceneMutationRecord {
   const owner = globalThis as SceneDiagnosticGlobal
-  const log = owner.__axiomSceneLog ?? []
+  const log = owner.__ambioSceneLog ?? []
   log.push(record)
   if (log.length > MAX_RECORDS) log.splice(0, log.length - MAX_RECORDS)
-  owner.__axiomSceneLog = log
+  owner.__ambioSceneLog = log
 
   // A repack moves several nodes by design; recording it is useful, warning
   // about it is noise that would bury a real fault later.

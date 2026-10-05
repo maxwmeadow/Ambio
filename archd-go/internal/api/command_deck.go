@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 type commandDeckStatus struct {
@@ -56,7 +56,7 @@ func (s *Server) handleCommandDeck(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "workspace is required", http.StatusBadRequest)
 		return
 	}
-	dbPath := filepath.Join(s.dataDir, workspaceID, "axiom.db")
+	dbPath := filepath.Join(s.dataDir, workspaceID, "ambio.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		jsonOK(w, commandDeckStatus{
 			WorkspaceID: workspaceID,

@@ -34,7 +34,7 @@ Module.prototype._compile = function (content, filename) {
     }
   } catch (err) {
     // Instrumentation must never break the target app.
-    try { process.stderr.write(`[axiom] instrument ${filename} failed: ${err}\n`) } catch (_) {}
+    try { process.stderr.write(`[ambio] instrument ${filename} failed: ${err}\n`) } catch (_) {}
   }
   return origCompile.call(this, content, filename)
 }

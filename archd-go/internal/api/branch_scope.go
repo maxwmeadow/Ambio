@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func pathInsideRoot(path, root string) bool {

@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 
 test('work-order review distinguishes the sent sheet from a later revision', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
-  const app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
   try {
     const page = await app.firstWindow()
     const sheet = { id: 'sheet_design', workspaceId: 'demo', name: 'Checkout revised', purpose: 'New scope', kind: 'structure', folder: '', createdBy: 'user', revision: 5, createdAt: 1, updatedAt: 2 }
@@ -64,7 +64,7 @@ test('work-order review distinguishes the sent sheet from a later revision', asy
 
 test('sheet attachment follows live differences, survives Floor navigation, and archives/restores', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
-  const app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
   try {
     const page = await app.firstWindow()
     await page.setViewportSize({ width: 1440, height: 1000 })
@@ -90,17 +90,17 @@ test('sheet attachment follows live differences, survives Floor navigation, and 
       await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)})
     })
     await page.evaluate(() => {
-      localStorage.removeItem('axiom:inbox-draft:demo')
-      localStorage.removeItem('axiom:inbox-draft:demo:pending')
-      localStorage.removeItem('axiom:inbox-draft:demo:sheet')
+      localStorage.removeItem('ambio:inbox-draft:demo')
+      localStorage.removeItem('ambio:inbox-draft:demo:pending')
+      localStorage.removeItem('ambio:inbox-draft:demo:sheet')
     })
     await page.reload()
-    await expect(page.getByText('Axiom Canvas Fixture')).toBeVisible()
+    await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
     const rail = page.getByRole('complementary',{name:'Drawings'})
     await rail.getByRole('button',{name:/Checkout redesign STR/}).click()
     await rail.getByRole('button',{name:'Attach Checkout redesign to agent message'}).click()
     const panel = page.getByRole('complementary',{name:'Agent inbox'})
-    const attachment = panel.locator('.axiom-inbox__attachment')
+    const attachment = panel.locator('.ambio-inbox__attachment')
     await expect(attachment).toContainText(sheet.name)
     await panel.getByRole('button',{name:'Remove attached sheet'}).click()
     await expect(attachment).toHaveCount(0)

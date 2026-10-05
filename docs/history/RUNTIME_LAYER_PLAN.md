@@ -1,4 +1,4 @@
-# Axiom - Runtime Debugging Layer: Complete Architecture Plan
+# Ambio - Runtime Debugging Layer: Complete Architecture Plan
 
 > **Historical design plan (July 2026).** The "Status: Planning" line below is
 > out of date. What exists today is described in
@@ -19,7 +19,7 @@
 
 ## Vision
 
-Axiom already maps the static skeleton of a codebase: files, systems, import relationships, and call paths. The runtime layer puts flesh on that skeleton.
+Ambio already maps the static skeleton of a codebase: files, systems, import relationships, and call paths. The runtime layer puts flesh on that skeleton.
 
 When an AI agent debugs a codebase today, it reads files silently and reasons in its own context window. The user cannot see what the agent is investigating, and the agent cannot verify its mental model against real execution. The result is slow, opaque, and error-prone.
 
@@ -62,13 +62,13 @@ Combining these three onto a 2D interactive canvas - with the AI's investigation
 Three recent papers (2024–2025) directly validate this architecture:
 
 **ADI - Agent-centric Debugging Interface (2024)**
-Standard line-by-line debugger stepping is too expensive for LLMs. ADI proposes a *Frame Lifetime Trace* (FLT): capture variable states only at function boundaries (entry, exit, major state changes), not on every line. This matches the granularity of Axiom's call graph naturally.
+Standard line-by-line debugger stepping is too expensive for LLMs. ADI proposes a *Frame Lifetime Trace* (FLT): capture variable states only at function boundaries (entry, exit, major state changes), not on every line. This matches the granularity of Ambio's call graph naturally.
 
 **InspectCoder / InspectWare (2024)**
-Implements an *Inspect-Perturb-Validate* loop: the agent sets a breakpoint, inspects a variable, *changes* its value (perturbation), and observes whether the downstream behavior matches the expected output. This is the formal basis for Axiom's perturbation step.
+Implements an *Inspect-Perturb-Validate* loop: the agent sets a breakpoint, inspects a variable, *changes* its value (perturbation), and observes whether the downstream behavior matches the expected output. This is the formal basis for Ambio's perturbation step.
 
 **ARISE - Agentic Repository-level Issue Solving Engine (2025)**
-Uses *data-flow slicing* as a first-class agent primitive. When the agent asks "where does `userId` get mutated?", the tool returns a slice of the codebase containing only the relevant lines. On SWE-bench Lite, this significantly outperformed agents without slicing. This is the basis for Axiom's `get_data_flow` tool.
+Uses *data-flow slicing* as a first-class agent primitive. When the agent asks "where does `userId` get mutated?", the tool returns a slice of the codebase containing only the relevant lines. On SWE-bench Lite, this significantly outperformed agents without slicing. This is the basis for Ambio's `get_data_flow` tool.
 
 ---
 
@@ -76,7 +76,7 @@ Uses *data-flow slicing* as a first-class agent primitive. When the agent asks "
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Axiom Canvas (React)                    │
+│                  Ambio Canvas (React)                    │
 │  Nodes: files    Paths: call traces    Colors: live state│
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket (existing)
@@ -131,7 +131,7 @@ All runtime events - regardless of language - are normalized into a single inter
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "axiom/event",
+  "method": "ambio/event",
   "params": {
     "traceId": "t-8f92-4c91",
     "parentTraceId": "t-1a2b-3c4d",
@@ -163,7 +163,7 @@ Perturbation command (archd → adapter):
 {
   "jsonrpc": "2.0",
   "id": 102,
-  "method": "axiom/inject",
+  "method": "ambio/inject",
   "params": {
     "file": "src/services/payment.py",
     "symbol": "process_payment",
@@ -190,7 +190,7 @@ runtime:rate_limit - adapter throttled a hot function, warn user
 
 ## MCP Tools - New Additions
 
-These tools extend the existing MCP server (`mcp/axiom-mcp.ts`) and are callable by any agent.
+These tools extend the existing MCP server (`mcp/ambio-mcp.ts`) and are callable by any agent.
 
 ### `get_function_body(file, symbol)`
 Returns the source code of a specific function. No runtime required - uses the `LineStart`/`LineEnd` already stored in the symbol table from indexing.
@@ -233,7 +233,7 @@ The `traceId` / `parentTraceId` pair propagates across async execution boundarie
 | C# / Unity | ThreadPool + Tasks | `AsyncLocal<string>` - flows across `await` boundaries |
 | Go | Goroutines | No goroutine-local storage - requires `context.Context` carrying trace ID, injected at build time via AST rewrite, OR eBPF uprobe on `runtime.newproc` to map parent→child goroutine IDs |
 
-Go is the hardest. The pragmatic approach: provide an `axiom instrument` build step that rewrites the Go source AST to inject `context.Context` propagation, similar to how OpenTelemetry instrumentation works.
+Go is the hardest. The pragmatic approach: provide an `ambio instrument` build step that rewrites the Go source AST to inject `context.Context` propagation, similar to how OpenTelemetry instrumentation works.
 
 ---
 
@@ -253,7 +253,7 @@ Compiled, DAP-native (Go with delve, C# with mono-debug)
 Compiled, no debug symbols (C++ release, Unity IL2CPP)
   ├── GDB/LLDB MI protocol as fallback
   ├── Significant overhead (~100x) - watchpoints only, not streaming
-  └── Annotation-based SDK as alternative: developer imports axiom-cpp-sdk
+  └── Annotation-based SDK as alternative: developer imports ambio-cpp-sdk
       and marks functions to watch with a macro
 ```
 
@@ -272,7 +272,7 @@ Before overriding a parameter, the adapter deep-clones the original value. The r
 When a perturbation is active, outgoing network calls (HTTP, gRPC, database writes) that originate from the perturbed function's call subtree are intercepted and mocked. The app executes the logic; the side effects never reach external systems.
 
 **Tier 3 - Database Transaction Wrapping**
-For apps using standard ORMs (SQLAlchemy, GORM, Entity Framework), Axiom wraps the entire perturbation execution in a transaction and forces a `ROLLBACK` on completion. No writes reach the actual database.
+For apps using standard ORMs (SQLAlchemy, GORM, Entity Framework), Ambio wraps the entire perturbation execution in a transaction and forces a `ROLLBACK` on completion. No writes reach the actual database.
 
 The agent always specifies `"once": true` on inject commands by default. Persistent injection requires explicit opt-in.
 
@@ -308,7 +308,7 @@ CREATE INDEX idx_data_flow_file ON data_flow(file_id);
 
 ### Runtime enrichment (when adapter is active)
 
-When the agent calls `get_data_flow("userId")` and a runtime adapter is connected, Axiom places temporary watches on every line identified in the static pass. As those lines execute, real values are captured and annotated onto the canvas nodes.
+When the agent calls `get_data_flow("userId")` and a runtime adapter is connected, Ambio places temporary watches on every line identified in the static pass. As those lines execute, real values are captured and annotated onto the canvas nodes.
 
 This is the hybrid model from ARISE (2025): static analysis finds the candidates, runtime execution fills in the actual values.
 
@@ -351,7 +351,7 @@ Hovering a watched node shows: last seen argument values, last return value, las
 
 ## Trace Storage and Shareable Replay Links
 
-Every runtime session is serialized to a `AxiomTrace` JSON document stored in SQLite.
+Every runtime session is serialized to a `AmbioTrace` JSON document stored in SQLite.
 
 ```json
 {
@@ -386,7 +386,7 @@ Instead of pasting a stack trace in Slack, you send a link where your teammate w
 
 ## Cross-Language Traces
 
-When a Python service calls a Go service via HTTP, passing an `X-Axiom-Trace-Id` header allows archd to stitch the two adapter event streams into a single continuous trace on the canvas.
+When a Python service calls a Go service via HTTP, passing an `X-Ambio-Trace-Id` header allows archd to stitch the two adapter event streams into a single continuous trace on the canvas.
 
 ```
 Python service (debugpy adapter)
@@ -395,7 +395,7 @@ Python service (debugpy adapter)
       canvas renders one path: Python node → Go node → Go node
 ```
 
-This works across any number of service hops as long as the trace ID is propagated in the request headers. For languages with standard HTTP middleware (Express, FastAPI, Gin), Axiom ships a middleware snippet that handles this automatically.
+This works across any number of service hops as long as the trace ID is propagated in the request headers. For languages with standard HTTP middleware (Express, FastAPI, Gin), Ambio ships a middleware snippet that handles this automatically.
 
 ---
 
@@ -503,7 +503,7 @@ Estimated: 2–3 weeks
 ### Phase 8 - Investigation capture (shareable links)
 
 Deliverables:
-- `AxiomTrace` JSON schema linked to Git commit SHA
+- `AmbioTrace` JSON schema linked to Git commit SHA
 - Serialize sessions to SQLite with short IDs
 - Canvas investigation replay mode - plays back agent steps in order
 - Clearly named "Investigation Capture" not "replay" - sets accurate expectations
@@ -515,7 +515,7 @@ Estimated: 1–2 weeks
 Deliverables:
 - `mono-debug` DAP connection from archd
 - Streaming mode via Mono profiler API (MonoProfiler hooks)
-- IL2CPP fallback: Embedded SDK mode (`axiom-unity-sdk` package)
+- IL2CPP fallback: Embedded SDK mode (`ambio-unity-sdk` package)
 - Unity MonoBehaviour lifecycle awareness (Start, Update, Awake hooks)
 
 Estimated: 3–4 weeks
@@ -524,7 +524,7 @@ Estimated: 3–4 weeks
 
 - LLDB-DAP adapter
 - GDB MI protocol as fallback for unstripped binaries
-- Embedded SDK (`axiom-cpp-sdk`) with macro annotations as primary path
+- Embedded SDK (`ambio-cpp-sdk`) with macro annotations as primary path
 - Java: `java-debug` (Microsoft's DAP server for JVM)
 - Ruby: `ruby-debug-ide` DAP wrapper
 
@@ -571,7 +571,7 @@ Two modes: **Streaming mode** (native hooks, always on, low overhead) and **Insp
 
 **Resolution:** archd implements a **DAP multiplexer** in inspection mode - it acts as a DAP server to the IDE while connecting as a DAP client to the language adapter. It merges breakpoint lists from both sources and routes stopped events to both clients. In streaming mode (native hooks), no conflict exists because the IDE debugger remains free.
 
-For the initial implementation: streaming mode ships first. Inspection/perturbation mode is explicitly opt-in and surfaces a warning: "Axiom is taking debugger control. Your IDE debugger will be disconnected."
+For the initial implementation: streaming mode ships first. Inspection/perturbation mode is explicitly opt-in and surfaces a warning: "Ambio is taking debugger control. Your IDE debugger will be disconnected."
 
 ### 3. Safe perturbation is harder than claimed
 
@@ -585,10 +585,10 @@ For the initial implementation: streaming mode ships first. Inspection/perturbat
 
 ### 4. Cross-language trace stitching is fragile
 
-**The problem:** Injecting `X-Axiom-Trace-Id` only handles incoming HTTP. Outgoing HTTP clients need library-specific monkeypatching. Kafka/gRPC/message queues are completely unhandled. Clock drift between adapters creates ordering problems.
+**The problem:** Injecting `X-Ambio-Trace-Id` only handles incoming HTTP. Outgoing HTTP clients need library-specific monkeypatching. Kafka/gRPC/message queues are completely unhandled. Clock drift between adapters creates ordering problems.
 
 **Resolution:**
-- Don't invent a custom header scheme. Use W3C Trace Context (`traceparent`) - it's already the standard. If a project uses OpenTelemetry, Axiom reads its spans directly.
+- Don't invent a custom header scheme. Use W3C Trace Context (`traceparent`) - it's already the standard. If a project uses OpenTelemetry, Ambio reads its spans directly.
 - Replace timestamps with causal IDs: every event carries `traceId` + `spanId` + `parentSpanId`. Canvas reconstructs the graph by causality, not by clock.
 - Cross-language stitching is an **advanced feature**. Ship single-language tracing first. Document that cross-service tracing requires W3C Trace Context propagation in the target app.
 
@@ -598,7 +598,7 @@ For the initial implementation: streaming mode ships first. Inspection/perturbat
 
 **Resolution:**
 - Static data-flow slicing is scoped to **single files only**. Within a file, Tree-sitter's def-use graph is accurate.
-- Cross-file slicing delegates to an active **Language Server (LSP)** via `textDocument/references` - this is what LSP exists for. If an LSP is running (most developers have one), Axiom queries it. If not, slicing is file-scoped and the agent is told so.
+- Cross-file slicing delegates to an active **Language Server (LSP)** via `textDocument/references` - this is what LSP exists for. If an LSP is running (most developers have one), Ambio queries it. If not, slicing is file-scoped and the agent is told so.
 - Rename "data-flow slicing" to "variable references" to set accurate expectations.
 
 ### 6. Go AST rewriting will corrupt DWARF debug tables
@@ -608,8 +608,8 @@ For the initial implementation: streaming mode ships first. Inspection/perturbat
 **Resolution:**
 - No AST rewriting for Go. Drop it.
 - Goroutine trace propagation via delve's native goroutine tracking instead.
-- Cross-service Go tracing requires the project to already use OpenTelemetry context propagation. Axiom reads those spans.
-- `axiom instrument` CLI is removed from the plan.
+- Cross-service Go tracing requires the project to already use OpenTelemetry context propagation. Ambio reads those spans.
+- `ambio instrument` CLI is removed from the plan.
 
 ### 7. Replay schema is misleading
 

@@ -29,7 +29,7 @@ async function api(path, init) {
 }
 
 test.before(async () => {
-  project = realpathSync(mkdtempSync(join(tmpdir(), 'axiom-run-e2e-')))
+  project = realpathSync(mkdtempSync(join(tmpdir(), 'ambio-run-e2e-')))
   mkdirSync(join(project, 'billing'))
   writeFileSync(join(project, 'billing', 'ledger.js'), [
     "'use strict'",

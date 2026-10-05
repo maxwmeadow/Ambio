@@ -44,7 +44,7 @@ test('the scene is painted from the selection set and from nothing else', () => 
 // ── Clicking ────────────────────────────────────────────────────────────────
 
 test('a modifier press reaches the selection as ordered changes, not as a rule to redo', () => {
-  // React Flow performs the toggle on pointer down; Axiom only reconciles it.
+  // React Flow performs the toggle on pointer down; Ambio only reconciles it.
   // Re-deriving the toggle here is what cancelled a modifier click out.
   const afterCtrlClickAddingB = selectionAfterNodeChanges(new Set(['a']), [
     { id: 'b', type: 'select', selected: true },

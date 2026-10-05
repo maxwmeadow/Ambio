@@ -4,7 +4,7 @@ import type { ThemeRegistration } from 'shiki/core'
 /**
  * VS Code's Dark Modern inherits Dark+ token colors and replaces its editor
  * surface colors. Only those editor colors are relevant inside this read-only
- * source viewer; workbench/sidebar colors intentionally remain Axiom-owned.
+ * source viewer; workbench/sidebar colors intentionally remain Ambio-owned.
  */
 export const darkModernTheme: ThemeRegistration = {
   ...darkPlus,

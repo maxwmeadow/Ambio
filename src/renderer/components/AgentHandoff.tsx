@@ -17,7 +17,7 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
     let active = true
     const check = async () => {
       try {
-        const hosts = await window.axiom.listAgentHosts(projectRoot)
+        const hosts = await window.ambio.listAgentHosts(projectRoot)
         const response = await fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
         if (!response.ok) throw new Error('Presence unavailable')
         const presence = await response.json() as {
@@ -39,7 +39,7 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
         const verified = (presence.connections ?? []).filter(item => (item.lastToolAt ?? 0) > 0).length
         const total = presence.connections?.length ?? 0
         setLiveDescription(verified
-          ? `Axiom tool access verified · ${verified}/${total} connections${hostSummary ? ` · ${hostSummary}` : ''}`
+          ? `Ambio tool access verified · ${verified}/${total} connections${hostSummary ? ` · ${hostSummary}` : ''}`
           : `${total} MCP process${total === 1 ? '' : 'es'} online · Run tool check${hostSummary ? ` · ${hostSummary}` : ''}`)
         setConnection(presence.connected ? (verified ? 'live' : 'online') : installedHost ? 'configured' : configuredHost ? 'repair' : 'unconfigured')
       } catch {
@@ -58,8 +58,8 @@ export function AgentHandoff({ workspaceId, projectRoot, onManageConnections }: 
         : connection === 'unavailable' ? 'Connection status unavailable'
           : 'Checking agent connection…'
 
-  return <section className="axiom-inbox__handoff" aria-label="Agent connection and handoff">
-    <div className="axiom-inbox__handoff-status"><span className={`axiom-inbox__signal axiom-inbox__signal--${connection}`} />
+  return <section className="ambio-inbox__handoff" aria-label="Agent connection and handoff">
+    <div className="ambio-inbox__handoff-status"><span className={`ambio-inbox__signal ambio-inbox__signal--${connection}`} />
       <span>{status}</span>
       {onManageConnections && <button type="button" onClick={onManageConnections}>Connections</button>}
     </div>

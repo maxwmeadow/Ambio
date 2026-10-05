@@ -5,7 +5,7 @@ import type { CommandId } from '../../shared/appMenu'
 // menu, the title-bar menu or the palette - and whichever component owns the
 // behaviour handles it. Nothing needs to know who else is listening.
 
-const EVENT = 'axiom:command'
+const EVENT = 'ambio:command'
 
 export function emitCommand(id: CommandId): void {
   window.dispatchEvent(new CustomEvent<CommandId>(EVENT, { detail: id }))
@@ -25,11 +25,11 @@ export function useCommandHandlers(handlers: Partial<Record<CommandId, () => voi
 }
 
 export function currentPlatform(): 'darwin' | 'win32' | 'linux' {
-  const platform = window.axiom?.platform ?? document.documentElement.dataset.platform
+  const platform = window.ambio?.platform ?? document.documentElement.dataset.platform
   return platform === 'darwin' || platform === 'win32' ? platform : 'linux'
 }
 
-const OPEN_RECENT = 'axiom:open-recent'
+const OPEN_RECENT = 'ambio:open-recent'
 
 /** Ask the app to open a project from Open Recent. */
 export function requestOpenRecent(projectId: string): void {
@@ -43,7 +43,7 @@ export function useOpenRecent(handler: (projectId: string) => void): void {
   useEffect(() => {
     const listener = (event: Event) => latest.current((event as CustomEvent<string>).detail)
     window.addEventListener(OPEN_RECENT, listener)
-    const unsubscribe = window.axiom?.onOpenRecent?.(projectId => latest.current(projectId))
+    const unsubscribe = window.ambio?.onOpenRecent?.(projectId => latest.current(projectId))
     return () => {
       window.removeEventListener(OPEN_RECENT, listener)
       unsubscribe?.()

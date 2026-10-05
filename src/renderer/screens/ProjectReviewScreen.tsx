@@ -17,7 +17,7 @@ interface ProjectReviewScreenProps {
 }
 
 /**
- * The proposal review is its own workspace around the real AxiomCanvas. Only
+ * The proposal review is its own workspace around the real AmbioCanvas. Only
  * the scene data and persistence boundary differ: unapproved systems remain in
  * proposal storage until accepted, while rendering and interaction stay the
  * same implementation as the live Floor.
@@ -55,21 +55,21 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
   }, [finalize, onFinishReview])
 
   return (
-    <main className="axiom-onboarding axiom-project-review">
+    <main className="ambio-onboarding ambio-project-review">
       <WorkbenchTitleBar
         context={`${project.name} / Architecture Review`}
         status={proposal ? describeProgress(progress).toUpperCase() : 'LOADING PROPOSAL'}
         statusTone={proposal ? (progress.settled ? 'ready' : 'busy') : 'busy'}
       />
 
-      <div className="axiom-review__workspace axiom-review__workspace--proposal">
-        <section className="axiom-review__panel axiom-review__panel--proposal" aria-labelledby="review-title">
-          <header className="axiom-review__heading axiom-review__heading--proposal">
-            <button className="axiom-onboarding__back" onClick={onBack} aria-label="Back to agent connection">
+      <div className="ambio-review__workspace ambio-review__workspace--proposal">
+        <section className="ambio-review__panel ambio-review__panel--proposal" aria-labelledby="review-title">
+          <header className="ambio-review__heading ambio-review__heading--proposal">
+            <button className="ambio-onboarding__back" onClick={onBack} aria-label="Back to agent connection">
               <span aria-hidden="true">←</span>
               Agent connection
             </button>
-            <div className="axiom-onboarding__step">STEP 04 / REVIEW THE MAP</div>
+            <div className="ambio-onboarding__step">STEP 04 / REVIEW THE MAP</div>
             <h1 id="review-title">Review the architecture your agent found</h1>
             <p>
               This is the proposed system tree-not the current file-only Floor. Approve the boundaries
@@ -79,7 +79,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
 
           {proposal ? (
             <>
-              <dl className="axiom-review__metrics" aria-label="Proposal summary">
+              <dl className="ambio-review__metrics" aria-label="Proposal summary">
                 <ReviewMetric label="Systems" value={String(progress.total)} />
                 <ReviewMetric label="Files placed" value={String(proposedFiles)} />
                 <ReviewMetric
@@ -90,32 +90,32 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
               </dl>
 
               {(proposal.rationale || proposal.evidenceSummary) && (
-                <section className="axiom-review__brief" aria-label="Agent mapping brief">
+                <section className="ambio-review__brief" aria-label="Agent mapping brief">
                   {proposal.rationale && <p><strong>Why this structure</strong>{proposal.rationale}</p>}
                   {proposal.evidenceSummary && <p><strong>Evidence</strong>{proposal.evidenceSummary}</p>}
                 </section>
               )}
 
-              <div className="axiom-review__proposal-list">
+              <div className="ambio-review__proposal-list">
                 <ArchitectureProposalPanel embedded />
               </div>
             </>
           ) : (
-            <div className="axiom-review__loading" role="status">
+            <div className="ambio-review__loading" role="status">
               <strong>{loading ? 'Loading the proposed architecture…' : 'No proposal is available yet.'}</strong>
               <p>{error ?? 'Return to the connection step and ask the agent to map this project.'}</p>
               <ProposalDraftProgress workspaceId={project.id} inline />
             </div>
           )}
 
-          <footer className="axiom-review__actions axiom-review__actions--proposal">
+          <footer className="ambio-review__actions ambio-review__actions--proposal">
             <p>
               {progress.pending > 0
                 ? 'Done Reviewing accepts the remaining proposed branches and commits this exact map.'
                 : 'The review is settled. Commit it as the live canvas to continue.'}
             </p>
             <button
-              className="axiom-onboarding__primary"
+              className="ambio-onboarding__primary"
               onClick={() => void finishReview()}
               disabled={!proposal || finalizing}
             >
@@ -130,7 +130,7 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
           </footer>
         </section>
 
-        <section className="axiom-review__canvas axiom-review__canvas--proposal" aria-label="Proposed architecture canvas">
+        <section className="ambio-review__canvas ambio-review__canvas--proposal" aria-label="Proposed architecture canvas">
           {proposal ? (
             <ReactFlowProvider>
               <ProposalReviewCanvas
@@ -141,11 +141,11 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
               />
             </ReactFlowProvider>
           ) : (
-            <div className="axiom-review__canvas-empty">Waiting for a proposal to draw.</div>
+            <div className="ambio-review__canvas-empty">Waiting for a proposal to draw.</div>
           )}
 
-          <div className="axiom-review__canvas-note">
-            <span className="axiom-review__canvas-signal" aria-hidden="true" />
+          <div className="ambio-review__canvas-note">
+            <span className="ambio-review__canvas-signal" aria-hidden="true" />
             <div>
               <strong>PROPOSED SYSTEM FLOOR</strong>
               <p>The same nesting and tidy layout engine as the live Floor, without committing unapproved systems.</p>
@@ -167,7 +167,7 @@ function ReviewMetric({
   tone?: 'neutral' | 'attention' | 'complete'
 }) {
   return (
-    <div className={`axiom-review__metric axiom-review__metric--${tone}`}>
+    <div className={`ambio-review__metric ambio-review__metric--${tone}`}>
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>

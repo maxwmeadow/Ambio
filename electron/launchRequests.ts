@@ -1,7 +1,7 @@
 import { isAbsolute, resolve } from 'path'
 
-// Every way of asking Axiom to open something - `axiom .` in a terminal, a
-// folder dropped on the dock icon, a jump-list entry, an axiom:// link -
+// Every way of asking Ambio to open something - `ambio .` in a terminal, a
+// folder dropped on the dock icon, a jump-list entry, an ambio:// link -
 // becomes one of these before anything acts on it.
 
 export type LaunchRequest =
@@ -9,16 +9,16 @@ export type LaunchRequest =
   | { kind: 'project'; projectId: string }
 
 /**
- * axiom://open?path=/abs/path   open (or add) the folder or file's project
- * axiom://project/<id>          open a project Axiom already knows
+ * ambio://open?path=/abs/path   open (or add) the folder or file's project
+ * ambio://project/<id>          open a project Ambio already knows
  */
-export function parseAxiomUrl(raw: string): LaunchRequest | null {
-  // A link with dot segments is never one Axiom produced; refuse it rather
+export function parseAmbioUrl(raw: string): LaunchRequest | null {
+  // A link with dot segments is never one Ambio produced; refuse it rather
   // than let URL normalisation turn it into something that looks valid.
   if (raw.includes('..')) return null
   let url: URL
   try { url = new URL(raw) } catch { return null }
-  if (url.protocol !== 'axiom:') return null
+  if (url.protocol !== 'ambio:') return null
   const action = url.hostname || url.pathname.replace(/^\/+/, '').split('/')[0]
   if (action === 'open') {
     const path = url.searchParams.get('path')
@@ -39,7 +39,7 @@ export function parseLaunchArgs(argv: readonly string[], workingDirectory: strin
   const skipped = new Set(skip.map(entry => resolve(entry)))
   for (const argument of argv.slice(1)) {
     if (!argument || argument.startsWith('-')) continue
-    if (argument.startsWith('axiom:')) return parseAxiomUrl(argument)
+    if (argument.startsWith('ambio:')) return parseAmbioUrl(argument)
     const path = resolve(workingDirectory, argument)
     if (skipped.has(path)) continue
     return { kind: 'path', path }

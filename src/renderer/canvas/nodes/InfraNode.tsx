@@ -10,7 +10,7 @@ import { EditableNodeTitle } from './EditableNodeTitle'
 import { ShapeBackdrop } from './NodeShell'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
-import { AxiomNodeResizer } from './AxiomNodeResizer'
+import { AmbioNodeResizer } from './AmbioNodeResizer'
 
 // Infra node - Category x Provider x Service (docs/INFRA.md).
 // The CATEGORY drives the glyph and the legend label ("DATABASE · SQL"),
@@ -68,7 +68,7 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
     width: '100%', height: '100%', position: 'relative', userSelect: 'none', cursor: 'grab',
   }}>
     {selected && (
-      <AxiomNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
+      <AmbioNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
         isResizable={typeof d.onResizeStart === 'function' && typeof d.onResizeEnd === 'function'}
         minWidth={1} minHeight={1} color="var(--accent)"
         onResizeStart={d.onResizeStart} onResizeEnd={d.onResizeEnd} />
@@ -117,13 +117,13 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
       userSelect: 'none',
     }}>
       {selected && (
-        <AxiomNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
+        <AmbioNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
           isResizable={typeof d.onResizeStart === 'function' && typeof d.onResizeEnd === 'function'}
           minWidth={1} minHeight={1} color={accent}
           onResizeStart={d.onResizeStart} onResizeEnd={d.onResizeEnd} />
       )}
       <div
-        className="axiom-infra-card"
+        className="ambio-infra-card"
         data-infra-card={d.service || d.category}
         style={{
           width: `${100 / presentationScale}%`,
@@ -136,15 +136,15 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
         } as React.CSSProperties}
       >
         <ShapeBackdrop stock="blueprint" shape={shape} stroke="var(--infra-border)" strokeWidth={1} dashed={proposed} fill="var(--infra-surface)" width={contentW} height={contentH} />
-        <div className="axiom-infra-card__head">
+        <div className="ambio-infra-card__head">
           {officialIcon ? (
-            <img src={officialIcon} width={30} height={30} alt="" className="axiom-infra-card__icon" />
+            <img src={officialIcon} width={30} height={30} alt="" className="ambio-infra-card__icon" />
           ) : icon ? (
-            <svg viewBox="0 0 24 24" width={30} height={30} className="axiom-infra-card__icon" aria-label={icon.title}>
+            <svg viewBox="0 0 24 24" width={30} height={30} className="ambio-infra-card__icon" aria-label={icon.title}>
               <path d={icon.path} fill={accent} />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" width={30} height={30} className="axiom-infra-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width={30} height={30} className="ambio-infra-card__icon" aria-hidden="true">
               <path d={glyph} fill="var(--text-secondary)" />
             </svg>
           )}
@@ -160,15 +160,15 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
             minWidth: 0,
           }} />
         </div>
-        <div className="axiom-infra-card__role">
+        <div className="ambio-infra-card__role">
           <svg viewBox="0 0 24 24" width={11} height={11} aria-hidden="true"><path d={glyph} fill="currentColor" /></svg>
           <span>{legend}</span>
-          {proposed && <span className="axiom-infra-card__proposed">PROPOSED</span>}
+          {proposed && <span className="ambio-infra-card__proposed">PROPOSED</span>}
         </div>
-        <div className="axiom-infra-card__use">{useLine}</div>
-        {facts.local && <div className="axiom-infra-card__local" title="What fills this role when you run the code locally">Locally: {facts.local}</div>}
+        <div className="ambio-infra-card__use">{useLine}</div>
+        {facts.local && <div className="ambio-infra-card__local" title="What fills this role when you run the code locally">Locally: {facts.local}</div>}
         {facts.gaps.length > 0 && (
-          <div className="axiom-infra-card__gap" title={facts.gaps.join('\n')}>
+          <div className="ambio-infra-card__gap" title={facts.gaps.join('\n')}>
             {facts.gaps.length === 1 ? facts.gaps[0] : `${facts.gaps.length} things look wrong`}
           </div>
         )}

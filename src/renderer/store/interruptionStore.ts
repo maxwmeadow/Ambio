@@ -138,13 +138,16 @@ export function raiseInvitation(
   })
 }
 
-/** Confirmation that something worked. Removes itself. */
-export function raiseNotice(id: string, title: string, body?: string) {
+/**
+ * Confirmation that something worked. Removes itself; one with an action
+ * (Undo) stays long enough to reach for it.
+ */
+export function raiseNotice(id: string, title: string, body?: string, actions?: InterruptionAction[]) {
   const now = Date.now()
   useInterruptionStore.getState().raise({
-    id, kind: 'notice', title, body,
+    id, kind: 'notice', title, body, actions,
     createdAt: now,
-    expiresAt: now + NOTICE_TTL_MS,
+    expiresAt: now + (actions?.length ? NOTICE_TTL_MS * 2.5 : NOTICE_TTL_MS),
   })
 }
 

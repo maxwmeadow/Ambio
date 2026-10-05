@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
+	"ambio.local/archd/internal/activity"
 )
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -938,7 +938,7 @@ type InvestigationMeta struct {
 }
 
 // SaveInvestigation persists a captured investigation. `data` is the full
-// AxiomTrace JSON document.
+// AmbioTrace JSON document.
 func SaveInvestigation(db *sql.DB, id, workspaceID, name, commit, branch, status, origin string, createdAt, durationMs int64, eventCount int, data []byte) error {
 	_, err := db.Exec(`
 		INSERT OR REPLACE INTO investigations
@@ -968,7 +968,7 @@ func ListInvestigations(db *sql.DB, workspaceID string) ([]InvestigationMeta, er
 	return out, rows.Err()
 }
 
-// GetInvestigation returns the full AxiomTrace JSON for one investigation, or
+// GetInvestigation returns the full AmbioTrace JSON for one investigation, or
 // nil if not found.
 func GetInvestigation(db *sql.DB, id string) (json.RawMessage, error) {
 	var data string
@@ -1134,6 +1134,23 @@ func GetOutgoingDependenciesByFile(db *sql.DB, workspaceID, fileID string) ([]De
 		deps = append(deps, d)
 	}
 	return deps, rows.Err()
+}
+
+// GetDependency reads one edge by id; nil when there is none.
+func GetDependency(db Reader, id string) (*Dependency, error) {
+	var d Dependency
+	err := db.QueryRow(`
+		SELECT id, workspace_id, src, dst, src_type, dst_type, dependency_type, weight, created_by, evidence, target_item, status
+		FROM dependencies WHERE id = ?`, id).Scan(
+		&d.ID, &d.WorkspaceID, &d.Src, &d.Dst, &d.SrcType, &d.DstType, &d.DependencyType, &d.Weight,
+		&d.CreatedBy, &d.Evidence, &d.TargetItem, &d.Status)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 // DeleteDependency removes a single edge by id.

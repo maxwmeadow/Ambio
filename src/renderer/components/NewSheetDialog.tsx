@@ -3,16 +3,18 @@
 import React, { useState } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'
+import { describeSheetMembers, sheetMembersFor } from '../canvas/sheetFromSelection'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 
 interface NewSheetDialogProps {
   isOpen: boolean
   onClose: () => void
-  selectedFileIds: string[]
+  /** What was selected (or right-clicked) on the Floor: systems, files, infrastructure. */
+  nodeIds: string[]
   onSuccess: () => void
 }
 
-export function NewSheetDialog({ isOpen, onClose, selectedFileIds, onSuccess }: NewSheetDialogProps) {
+export function NewSheetDialog({ isOpen, onClose, nodeIds, onSuccess }: NewSheetDialogProps) {
   const [name, setName] = useState('')
   const [purpose, setPurpose] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,8 +23,12 @@ export function NewSheetDialog({ isOpen, onClose, selectedFileIds, onSuccess }: 
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const createSheet = useSheetStore(s => s.createSheet)
   const openSheet = useSheetStore(s => s.openSheet)
+  const systems = useGraphStore(s => s.systems)
+  const files = useGraphStore(s => s.files)
+  const infraNodes = useGraphStore(s => s.infraNodes)
 
   if (!isOpen) return null
+  const members = sheetMembersFor(nodeIds, { systems, files, infraNodes })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,7 +39,7 @@ export function NewSheetDialog({ isOpen, onClose, selectedFileIds, onSuccess }: 
     setLoading(true)
     setError(null)
     try {
-      const sheet = await createSheet(workspaceId, name.trim(), purpose.trim(), selectedFileIds)
+      const sheet = await createSheet(workspaceId, name.trim(), purpose.trim(), members)
       setName('')
       setPurpose('')
       onSuccess()
@@ -55,19 +61,18 @@ export function NewSheetDialog({ isOpen, onClose, selectedFileIds, onSuccess }: 
           <DialogField label="Sheet name">
             <input
               type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder='e.g. "Payment flow"' className="axiom-dialog-input" autoFocus
+              placeholder='e.g. "Payment flow"' className="ambio-dialog-input" autoFocus
             />
           </DialogField>
           <DialogField label="Purpose" optional="optional - shown in the title block">
             <input
               type="text" value={purpose} onChange={e => setPurpose(e.target.value)}
-              placeholder="What story does this sheet tell?" className="axiom-dialog-input"
+              placeholder="What story does this sheet tell?" className="ambio-dialog-input"
             />
           </DialogField>
           <DialogNote>
-            Curating <strong>{selectedFileIds.length}</strong> selected{' '}
-            {selectedFileIds.length === 1 ? 'file' : 'files'} onto this sheet. Elements stay live -
-            renames and deletions in the codebase show up here.
+            Starting the sheet with <strong>{describeSheetMembers(members)}</strong>. Elements stay
+            live - renames and deletions in the codebase show up here.
           </DialogNote>
           <DialogActions inset>
             <DialogButton type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancel</DialogButton>

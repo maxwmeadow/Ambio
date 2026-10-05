@@ -6,9 +6,9 @@ interface ArchdPorts { api: number; ws: number }
 let ports: ArchdPorts = { api: 7743, ws: 7744 }
 
 try {
-  const initial = window.axiom?.archdPortsSync?.()
+  const initial = window.ambio?.archdPortsSync?.()
   if (initial) ports = initial
-  window.axiom?.onArchdPorts?.(next => { ports = next })
+  window.ambio?.onArchdPorts?.(next => { ports = next })
 } catch {
   // Browser demo or tests: keep the defaults.
 }

@@ -18,16 +18,16 @@ function freePort() {
   })
 }
 
-test('without a way to start archd, an unreachable daemon says to open Axiom', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-daemon-'))
+test('without a way to start archd, an unreachable daemon says to open Ambio', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-daemon-'))
   const saved = { ...process.env }
   try {
-    process.env.AXIOM_API_TOKEN_FILE = path.join(dir, 'api-token')
-    delete process.env.AXIOM_ARCHD_PATH
-    delete process.env.AXIOM_API_TOKEN
+    process.env.AMBIO_API_TOKEN_FILE = path.join(dir, 'api-token')
+    delete process.env.AMBIO_ARCHD_PATH
+    delete process.env.AMBIO_API_TOKEN
     const port = await freePort()
     await assert.rejects(daemonFetch(`http://127.0.0.1:${port}/api/anything`), error =>
-      error instanceof DaemonUnavailableError && /Open the Axiom app/.test(error.message))
+      error instanceof DaemonUnavailableError && /Open the Ambio app/.test(error.message))
   } finally {
     process.env = saved
     fs.rmSync(dir, { recursive: true, force: true })
@@ -35,7 +35,7 @@ test('without a way to start archd, an unreachable daemon says to open Axiom', a
 })
 
 test('an unreachable daemon is started headless and the request retried', { skip: process.platform === 'win32' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-daemon-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-daemon-'))
   const saved = { ...process.env }
   const port = await freePort()
   // A stand-in archd: writes its token and serves until killed.
@@ -53,10 +53,10 @@ test('an unreachable daemon is started headless and the request retried', { skip
   const launcher = path.join(dir, 'archd')
   fs.writeFileSync(launcher, `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`, { mode: 0o755 })
   try {
-    process.env.AXIOM_ACTIVE_PROJECT = path.join(dir, 'active_project.json')
-    delete process.env.AXIOM_API_TOKEN_FILE
-    delete process.env.AXIOM_API_TOKEN
-    process.env.AXIOM_ARCHD_PATH = launcher
+    process.env.AMBIO_ACTIVE_PROJECT = path.join(dir, 'active_project.json')
+    delete process.env.AMBIO_API_TOKEN_FILE
+    delete process.env.AMBIO_API_TOKEN
+    process.env.AMBIO_ARCHD_PATH = launcher
     const response = await daemonFetch(`http://127.0.0.1:${port}/api/snapshot/x`)
     const body = await response.json()
     assert.equal(body.url, '/api/snapshot/x')
@@ -69,10 +69,10 @@ test('an unreachable daemon is started headless and the request retried', { skip
 })
 
 test('requests to the default port follow archd to the port it published', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-daemon-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-daemon-'))
   const saved = { ...process.env }
   try {
-    process.env.AXIOM_ACTIVE_PROJECT = path.join(dir, 'active_project.json')
+    process.env.AMBIO_ACTIVE_PROJECT = path.join(dir, 'active_project.json')
     assert.equal(resolveDaemonUrl('http://127.0.0.1:7743/api/x').port, '7743')
     fs.writeFileSync(path.join(dir, 'daemon.json'), JSON.stringify({ pid: 1, apiPort: 51234 }))
     assert.equal(resolveDaemonUrl('http://127.0.0.1:7743/api/x').href, 'http://127.0.0.1:51234/api/x')

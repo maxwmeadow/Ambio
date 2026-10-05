@@ -1,4 +1,4 @@
-// Package runtime is the language-agnostic core of Axiom's runtime debugging
+// Package runtime is the language-agnostic core of Ambio's runtime debugging
 // layer. Per-language adapters (Python via sys.monitoring, later Node/Go/C#)
 // run inside or alongside the target application and connect to this manager
 // over a local TCP socket speaking newline-delimited JSON.
@@ -35,7 +35,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/hub"
 )
 
 // ─── Wire types ───────────────────────────────────────────────────────────────
@@ -165,11 +165,11 @@ type Manager struct {
 	targets        map[string]*Target
 
 	// autoConfirm skips the user's warn-and-confirm step for injections
-	// (AXIOM_AUTO_CONFIRM_INJECT=1; headless/test use only).
+	// (AMBIO_AUTO_CONFIRM_INJECT=1; headless/test use only).
 	autoConfirm bool
 
 	// resolveWorkspace maps a target process cwd to a workspace ID when the
-	// adapter did not receive AXIOM_WORKSPACE_ID (e.g. user started the app
+	// adapter did not receive AMBIO_WORKSPACE_ID (e.g. user started the app
 	// themselves with only PYTHONPATH set). Provided by the api package.
 	resolveWorkspace func(cwd string) string
 

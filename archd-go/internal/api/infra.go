@@ -24,14 +24,14 @@ import (
 	"sync"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/indexer"
-	"axiom.local/archd/internal/infradetect"
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/indexer"
+	"ambio.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/registry"
 )
 
 // reloadRegistry re-resolves the layered registry with all known workspace
-// roots so <root>/.axiom/services/ definitions are picked up.
+// roots so <root>/.ambio/services/ definitions are picked up.
 func (s *Server) reloadRegistry() {
 	s.mu.RLock()
 	paths := make([]string, 0, len(s.roots))
@@ -151,7 +151,8 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 			Name            *string         `json:"name"`
 			Service         *string         `json:"service"` // reskin: re-resolves category/provider
 			Subtype         *string         `json:"subtype"`
-			Status          *string         `json:"status"` // 'proposed'|'confirmed'|'dismissed'
+			Status          *string         `json:"status"`    // 'proposed'|'confirmed'|'dismissed'
+			DecidedBy       string          `json:"decidedBy"` // 'agent' from MCP; a person otherwise
 			Config          json.RawMessage `json:"config"`
 			Implementations json.RawMessage `json:"implementations"`
 			Policies        json.RawMessage `json:"policies"`
@@ -218,6 +219,12 @@ func (s *Server) handleInfraByID(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			s.broadcastInfraRefresh(sqlDB, n.WorkspaceID)
+			if body.DecidedBy != "agent" {
+				s.recordDecision(sqlDB, decisionRecord{
+					WorkspaceID: n.WorkspaceID, SubjectID: n.ID, SubjectLabel: n.Name,
+					Kind: "infrastructure", Decision: n.Status,
+				})
+			}
 		}
 		s.broadcastPatch("infra:upserted", *n)
 		jsonOK(w, n)
@@ -346,6 +353,9 @@ func (s *Server) handleInfraConnect(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 500)
 		return
 	}
+	if dep.CreatedBy == "user" || dep.CreatedBy == "agent" {
+		journalInfraLink(sqlDB, body.WorkspaceID, "", dep, db.EventInfraLinked, infraEdgeActor(dep.CreatedBy), "")
+	}
 	s.broadcastPatch("infra:connected", dep)
 	jsonOK(w, dep)
 }
@@ -385,9 +395,14 @@ func (s *Server) handleInfraEdge(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 404)
 		return
 	}
+	gone, _ := db.GetDependency(sqlDB, id)
 	if err := db.DeleteDependency(sqlDB, id); err != nil {
 		jsonError(w, err.Error(), 500)
 		return
+	}
+	if gone != nil && (gone.CreatedBy == "user" || gone.CreatedBy == "agent") {
+		// Only the canvas removes a relationship by hand (MCP has no such op).
+		journalInfraLink(sqlDB, workspaceID, "", *gone, db.EventInfraUnlinked, "human", "")
 	}
 	s.broadcastPatch("infra:disconnected", map[string]string{"id": id, "workspaceId": workspaceID})
 	jsonOK(w, map[string]string{"deleted": id})
@@ -530,6 +545,7 @@ func (s *Server) detectInfra(sqlDB *sql.DB, root db.Root) {
 	s.detectMu.Lock()
 	s.infraUnresolved[root.WorkspaceID] = result.Unresolved
 	s.detectMu.Unlock()
+	s.journalDetectedLinks(sqlDB, root, changes.Linked, changes.Unlinked)
 	log.Printf("[infra] detection for %s: %d proposals, %d relationships, %d withdrawn in %s",
 		root.Path, len(result.Proposals), len(changes.Connected), len(changes.Disconnected)+len(changes.Removed), time.Since(started).Round(time.Millisecond))
 	s.broadcastInfraRefresh(sqlDB, root.WorkspaceID)

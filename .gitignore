@@ -5,7 +5,7 @@ release/
 out/
 test-results/
 playwright-report/
-.axiom/
+.ambio/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

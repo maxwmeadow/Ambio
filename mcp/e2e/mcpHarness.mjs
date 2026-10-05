@@ -20,13 +20,13 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const ARCHD_EXE = join(ROOT, 'archd-go', `archd${process.platform === 'win32' ? '.exe' : ''}`)
-const MCP_ENTRY = join(ROOT, 'mcp', 'axiom-mcp.ts')
+const MCP_ENTRY = join(ROOT, 'mcp', 'ambio-mcp.ts')
 
-// Deliberately not archd's defaults: a running Axiom must not be disturbed,
+// Deliberately not archd's defaults: a running Ambio must not be disturbed,
 // and must not silently serve these requests either.
 // archd requires its local API token on every request (api/auth.go). The
 // harness sets its own, so it never reads a developer's real token.
-const API_TOKEN = 'axiom-isolated-test-token-for-mcp-harness'
+const API_TOKEN = 'ambio-isolated-test-token-for-mcp-harness'
 export function harnessFetch(input, init = {}) {
   return globalThis.fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${API_TOKEN}` } })
 }
@@ -146,11 +146,11 @@ export async function startHarness(options = {}) {
   const runtimePort = await freePort()
   const apiBase = `http://127.0.0.1:${apiPort}`
 
-  const dataDir = mkdtempSync(join(tmpdir(), 'axiom-mcp-data-'))
+  const dataDir = mkdtempSync(join(tmpdir(), 'ambio-mcp-data-'))
   // A caller may point the harness at an existing project (a debugging lab)
   // instead of the generated fixture. It is never deleted in that case.
   const ownsProject = !options.projectDir
-  const projectDir = options.projectDir ?? mkdtempSync(join(tmpdir(), 'axiom-mcp-project-'))
+  const projectDir = options.projectDir ?? mkdtempSync(join(tmpdir(), 'ambio-mcp-project-'))
   if (ownsProject) writeFixture(projectDir)
   const minFiles = options.minFiles ?? 6
 
@@ -159,7 +159,7 @@ export async function startHarness(options = {}) {
     '-api-port', String(apiPort),
     '-ws-port', String(wsPort),
     '-runtime-port', String(runtimePort),
-  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AXIOM_API_TOKEN: API_TOKEN } })
+  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AMBIO_API_TOKEN: API_TOKEN } })
 
   let archdLog = ''
   archd.stdout.setEncoding('utf8')
@@ -208,14 +208,14 @@ export async function startHarness(options = {}) {
       workspaceId, rootPath: projectDir, name: options.projectName ?? 'harness',
     }))
 
-    const mcp = spawn(process.execPath, [MCP_ENTRY, '--axiom-host=axiom-harness'], {
+    const mcp = spawn(process.execPath, [MCP_ENTRY, '--ambio-host=ambio-harness'], {
       cwd: projectDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        AXIOM_API_URL: apiBase,
-        AXIOM_API_TOKEN: API_TOKEN,
-        AXIOM_ACTIVE_PROJECT: activeProjectPath,
+        AMBIO_API_URL: apiBase,
+        AMBIO_API_TOKEN: API_TOKEN,
+        AMBIO_ACTIVE_PROJECT: activeProjectPath,
         ...(options.env ?? {}),
       },
     })
@@ -224,7 +224,7 @@ export async function startHarness(options = {}) {
     await client.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
-      clientInfo: { name: 'axiom-harness', version: '1.0.0' },
+      clientInfo: { name: 'ambio-harness', version: '1.0.0' },
     })
 
     return {

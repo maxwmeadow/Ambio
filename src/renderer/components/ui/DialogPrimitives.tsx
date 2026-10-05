@@ -12,25 +12,25 @@ export function DialogFrame({ children, title, width, backdropClassName, onWheel
   const titleId = useId()
 
   return (
-    <div className={['axiom-dialog-backdrop', backdropClassName].filter(Boolean).join(' ')} onWheel={onWheel}>
+    <div className={['ambio-dialog-backdrop', backdropClassName].filter(Boolean).join(' ')} onWheel={onWheel}>
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="axiom-dialog-surface animate-fade-in"
+        className="ambio-dialog-surface animate-fade-in"
         role="dialog"
-        style={{ '--axiom-dialog-width': `${width}px` } as CSSProperties}
+        style={{ '--ambio-dialog-width': `${width}px` } as CSSProperties}
       >
-        <header className="axiom-dialog-header">
-          <h2 className="axiom-dialog-title" id={titleId}>{title}</h2>
+        <header className="ambio-dialog-header">
+          <h2 className="ambio-dialog-title" id={titleId}>{title}</h2>
         </header>
-        <div className="axiom-dialog-content">{children}</div>
+        <div className="ambio-dialog-content">{children}</div>
       </section>
     </div>
   )
 }
 
 export function DialogError({ children }: PropsWithChildren) {
-  return <div className="axiom-dialog-error" role="alert">{children}</div>
+  return <div className="ambio-dialog-error" role="alert">{children}</div>
 }
 
 type DialogFormProps = PropsWithChildren<{
@@ -39,7 +39,7 @@ type DialogFormProps = PropsWithChildren<{
 }>
 
 export function DialogForm({ children, gap = 16, onSubmit }: DialogFormProps) {
-  return <form className={`axiom-dialog-form axiom-dialog-form--gap-${gap}`} onSubmit={onSubmit}>{children}</form>
+  return <form className={`ambio-dialog-form ambio-dialog-form--gap-${gap}`} onSubmit={onSubmit}>{children}</form>
 }
 
 type DialogFieldProps = PropsWithChildren<{
@@ -49,10 +49,10 @@ type DialogFieldProps = PropsWithChildren<{
 
 export function DialogField({ children, label, optional }: DialogFieldProps) {
   return (
-    <label className="axiom-dialog-field">
-      <span className="axiom-dialog-field__label">
+    <label className="ambio-dialog-field">
+      <span className="ambio-dialog-field__label">
         {label}
-        {optional && <span className="axiom-dialog-field__optional">{optional}</span>}
+        {optional && <span className="ambio-dialog-field__optional">{optional}</span>}
       </span>
       {children}
     </label>
@@ -60,13 +60,13 @@ export function DialogField({ children, label, optional }: DialogFieldProps) {
 }
 
 export function DialogNote({ children }: PropsWithChildren) {
-  return <p className="axiom-dialog-note">{children}</p>
+  return <p className="ambio-dialog-note">{children}</p>
 }
 
 type DialogActionsProps = PropsWithChildren<{ inset?: boolean }>
 
 export function DialogActions({ children, inset = false }: DialogActionsProps) {
-  return <div className={inset ? 'axiom-dialog-actions axiom-dialog-actions--inset' : 'axiom-dialog-actions'}>{children}</div>
+  return <div className={inset ? 'ambio-dialog-actions ambio-dialog-actions--inset' : 'ambio-dialog-actions'}>{children}</div>
 }
 
 type DialogButtonProps = PropsWithChildren<{
@@ -81,12 +81,12 @@ export function DialogButton({ children, type, variant, disabled = false, disabl
   return (
     <button
       type={type}
-      className={`axiom-dialog-button axiom-dialog-button--${variant}`}
+      className={`ambio-dialog-button ambio-dialog-button--${variant}`}
       disabled={disabled}
       onClick={onClick}
       style={disabledOpacity === undefined
         ? undefined
-        : { '--axiom-dialog-disabled-opacity': disabledOpacity } as CSSProperties}
+        : { '--ambio-dialog-disabled-opacity': disabledOpacity } as CSSProperties}
     >
       {children}
     </button>

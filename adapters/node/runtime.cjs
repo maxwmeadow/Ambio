@@ -1,7 +1,7 @@
 'use strict'
-// Main-thread runtime for the Axiom Node adapter.
+// Main-thread runtime for the Ambio Node adapter.
 //
-// Installed as globalThis.__axiom by the bootstrap. The AST-instrumented code
+// Installed as globalThis.__ambio by the bootstrap. The AST-instrumented code
 // calls enter/ret/error/exit on it. This module owns:
 //   - the TCP connection to archd (same NDJSON protocol as the Python adapter)
 //   - the watch registry (keyed by file+symbol, matched by line range)
@@ -28,7 +28,7 @@ const HEARTBEAT_MS = 5000
 
 const INACTIVE = Object.freeze({ active: false, o: null })
 
-class AxiomRuntime {
+class AmbioRuntime {
   constructor(port, workspaceId) {
     this.port = port
     this.workspaceId = workspaceId
@@ -502,7 +502,7 @@ function randId() {
 // Worker threads inherit the --require/--import preload and will execute
 // instrumented workspace code, but only the main thread runs the real runtime
 // (one session per process). Off the main thread we install a NO-OP so the
-// injected hooks resolve harmlessly instead of throwing on undefined __axiom.
+// injected hooks resolve harmlessly instead of throwing on undefined __ambio.
 const NOOP_RUNTIME = {
   enter() { return INACTIVE },
   ret(_ctx, v) { return v },
@@ -514,25 +514,25 @@ const NOOP_RUNTIME = {
 
 let installed = false
 function install() {
-  if (installed || globalThis.__axiom) return globalThis.__axiom
+  if (installed || globalThis.__ambio) return globalThis.__ambio
   installed = true
   let isMain = true
   try { isMain = require('worker_threads').isMainThread } catch (_) {}
 
   const rt = isMain
-    ? new AxiomRuntime(
-        parseInt(process.env.AXIOM_RUNTIME_PORT || '7745', 10),
-        process.env.AXIOM_WORKSPACE_ID || '',
+    ? new AmbioRuntime(
+        parseInt(process.env.AMBIO_RUNTIME_PORT || '7745', 10),
+        process.env.AMBIO_WORKSPACE_ID || '',
       )
     : NOOP_RUNTIME
-  Object.defineProperty(globalThis, '__axiom', { value: rt, enumerable: false, configurable: true })
+  Object.defineProperty(globalThis, '__ambio', { value: rt, enumerable: false, configurable: true })
   return rt
 }
 
-module.exports = { install, AxiomRuntime, safeValue, normFile }
+module.exports = { install, AmbioRuntime, safeValue, normFile }
 // Expose helpers for the bootstrap's workspace-file filter.
 module.exports.workspaceRoot = function () {
-  const root = process.env.AXIOM_WORKSPACE_ROOT || process.cwd()
+  const root = process.env.AMBIO_WORKSPACE_ROOT || process.cwd()
   // Module filenames are real paths; a root reached through a symlink would
   // never contain them.
   try { return require('fs').realpathSync.native(root) } catch { return root }

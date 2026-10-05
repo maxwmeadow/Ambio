@@ -17,7 +17,7 @@ function run(code, sourceType = 'script') {
   // null means "leave this file alone" - the program then runs unmodified,
   // which is exactly what must still behave correctly.
   const out = transform(code, { filename: '/w/t.js', sourceType })
-  globalThis.__axiom = passThrough
+  globalThis.__ambio = passThrough
   const module = { exports: {} }
   new Function('module', out ? out.code : code)(module)
   return { module, code: out ? out.code : code }
@@ -63,11 +63,11 @@ test('TypeScript is stripped with line numbers intact', () => {
   const src = 'export function add(a: number,\n  b: number): number {\n  return a + b\n}\n'
   const out = transform(src, { filename: '/w/x.ts', sourceType: 'module' })
   assert.ok(out, 'TypeScript should instrument')
-  assert.match(out.code, /__axiom\.enter\("\/w\/x\.ts", "add", 1, \[a, b\]/)
+  assert.match(out.code, /__ambio\.enter\("\/w\/x\.ts", "add", 1, \[a, b\]/)
 })
 
 test('built code with a source map is recorded under its source names', () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'axiom-sm-')))
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'ambio-sm-')))
   writeFileSync(join(dir, 'tokenizer.ts'), [
     'export class Tokenizer {',
     '  codespan(src: string) {',
@@ -86,7 +86,7 @@ test('built code with a source map is recorded under its source names', () => {
   const bundle = readFileSync(join(dir, 'bundle.js'), 'utf8')
   const out = transform(bundle, { filename: join(dir, 'bundle.js'), sourceType: 'module' })
   assert.ok(out)
-  const calls = [...out.code.matchAll(/__axiom\.enter\("([^"]+)", "([^"]+)", (\d+), \[[^\]]*\], (\[[^\]]*\])/g)]
+  const calls = [...out.code.matchAll(/__ambio\.enter\("([^"]+)", "([^"]+)", (\d+), \[[^\]]*\], (\[[^\]]*\])/g)]
     .map(m => ({ file: JSON.parse(`"${m[1]}"`), name: m[2], line: Number(m[3]), params: JSON.parse(m[4]) }))
   const codespan = calls.find(c => c.name === 'codespan')
   assert.ok(codespan, `codespan not found in ${JSON.stringify(calls)}`)

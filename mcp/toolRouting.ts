@@ -1,7 +1,7 @@
 /**
  * MCP tool consolidation.
  *
- * Axiom exposed 59 tools, whose schemas cost roughly 9,600 tokens on EVERY
+ * Ambio exposed 59 tools, whose schemas cost roughly 9,600 tokens on EVERY
  * request an agent makes, before it has read a line of code. That is both a
  * context tax and a selection problem: a model choosing between
  * `get_neighbors`, `get_family`, `get_node` and `get_systems_with_files` is
@@ -44,6 +44,7 @@ const ARCHITECTURE_SCOPES: Record<string, string> = {
   infra_for_files: 'get_infra_for_files',
   infra_catalog: 'list_infra_services',
   hotspots: 'get_activity_hotspots',
+  changes: 'get_architecture_changes',
 }
 
 /** Architecture curation. Agents keep the map true; that is the product. */
@@ -82,12 +83,16 @@ const SHEET_OPS: Record<string, string> = {
   get: 'get_sheet',
   create: 'create_sheet',
   add: 'add_to_sheet',
+  remove: 'propose_sheet_removal',
+  restore: 'restore_sheet_removal',
   annotate: 'annotate_sheet',
   compare: 'compare_sheet',
   bind: 'bind_sheet',
   apply_nesting: 'apply_sheet_nesting',
   resolve: 'resolve_sheet',
   reopen: 'reopen_sheet',
+  export: 'export_sheet_markdown',
+  import: 'import_sheet_markdown',
 }
 
 const RUNTIME_OPS: Record<string, string> = {

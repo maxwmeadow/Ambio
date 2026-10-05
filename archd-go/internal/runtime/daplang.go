@@ -43,8 +43,13 @@ type dapLangConfig struct {
 	breakpointMode string
 	// requestType: "launch" (debugger starts the program) or "attach" (program
 	// is already specified on the debugger's command line - rdbg).
-	requestType  string
-	threadPrefix string // e.g. "thread" → threadId label "thread-14"
+	requestType string
+	// launchAfterBreakpoints sends the launch once breakpoints are set, just
+	// before configurationDone. gdb 15 runs the program as soon as it sees a
+	// launch, so breakpoints must already be in place; newer gdb (and the DAP
+	// spec) refuse a configurationDone that no launch preceded.
+	launchAfterBreakpoints bool
+	threadPrefix           string // e.g. "thread" → threadId label "thread-14"
 	// findDebugger locates the debugger binary (env override + PATH + fallbacks).
 	findDebugger func() (string, error)
 	// buildArgv returns the full argv to spawn the debugger. For tcp transports
@@ -210,7 +215,7 @@ func (s *dapLangSession) setStatus(status string) {
 
 func (s *dapLangSession) handshake() error {
 	if _, err := s.client.request("initialize", map[string]any{
-		"clientID": "axiom", "adapterID": s.cfg.adapterID,
+		"clientID": "ambio", "adapterID": s.cfg.adapterID,
 		"linesStartAt1": true, "columnsStartAt1": true, "pathFormat": "path",
 	}); err != nil {
 		return err
@@ -218,28 +223,47 @@ func (s *dapLangSession) handshake() error {
 
 	// requestType "none": the debugger already has the program on its command
 	// line and starts it on configurationDone (rdbg) - no launch/attach request.
+	// The launch is written at a fixed point in the sequence (before the
+	// breakpoints, or after them with launchAfterBreakpoints) and only its
+	// answer is awaited in the background. Sent from a goroutine, it used to
+	// reach gdb at whatever point the scheduler allowed.
 	launchDone := make(chan error, 1)
-	if s.cfg.requestType != "none" {
+	sendLaunch := func() error {
+		req := "launch"
+		var args map[string]any = map[string]any{}
+		if s.cfg.requestType == "attach" {
+			req = "attach"
+		} else {
+			args = s.cfg.launchArgs(s.Program, dirOf(s.Program), s.args)
+		}
+		wait, err := s.client.start(req, args)
+		if err != nil {
+			return err
+		}
 		go func() {
-			req := "launch"
-			var args map[string]any = map[string]any{}
-			if s.cfg.requestType == "attach" {
-				req = "attach"
-			} else {
-				args = s.cfg.launchArgs(s.Program, dirOf(s.Program), s.args)
-			}
-			_, err := s.client.request(req, args)
+			_, err := wait()
 			launchDone <- err
 		}()
+		return nil
+	}
+	if s.cfg.requestType != "none" && !s.cfg.launchAfterBreakpoints {
+		if err := sendLaunch(); err != nil {
+			return err
+		}
 	}
 
-	if err := s.waitForInitialized(); err != nil {
+	if err := s.waitForInitialized(launchDone); err != nil {
 		return err
 	}
 	// "external" breakpoint mode sets breakpoints on the debugger command line
 	// (rdbg -e "break …"), so no DAP breakpoint request is sent here.
 	if s.cfg.breakpointMode != "external" {
 		if err := s.setBreakpoints(); err != nil {
+			return err
+		}
+	}
+	if s.cfg.requestType != "none" && s.cfg.launchAfterBreakpoints {
+		if err := sendLaunch(); err != nil {
 			return err
 		}
 	}
@@ -264,11 +288,19 @@ func (s *dapLangSession) handshake() error {
 	return nil
 }
 
-func (s *dapLangSession) waitForInitialized() error {
+func (s *dapLangSession) waitForInitialized(launchDone chan error) error {
 	deadline := time.NewTimer(25 * time.Second)
 	defer deadline.Stop()
 	for {
 		select {
+		case err := <-launchDone:
+			// A refused launch answers before any initialized event; say why
+			// now rather than after the deadline.
+			if err != nil {
+				return fmt.Errorf("%s could not launch %s: %w", s.Language+" debugger", s.Program, err)
+			}
+			launchDone <- nil
+			launchDone = nil
 		case ev := <-s.client.events:
 			if ev.Event == "initialized" {
 				return nil
@@ -354,7 +386,7 @@ func (s *dapLangSession) handleStopped(body json.RawMessage) {
 	if err := json.Unmarshal(body, &st); err != nil {
 		return
 	}
-	if os.Getenv("AXIOM_DAP_DEBUG") == "1" {
+	if os.Getenv("AMBIO_DAP_DEBUG") == "1" {
 		log.Printf("%s: stopped reason=%q thread=%d body=%s", s.Language, st.Reason, st.ThreadID, string(body))
 	}
 	if !strings.Contains(st.Reason, "breakpoint") &&
@@ -391,7 +423,7 @@ func (s *dapLangSession) handleStopped(body json.RawMessage) {
 	// and external-mode (rdbg) resumes above never take this lock, so they're
 	// never blocked by a slow inspection.
 	s.inspectMu.Lock()
-	dbg := os.Getenv("AXIOM_DAP_DEBUG") == "1"
+	dbg := os.Getenv("AMBIO_DAP_DEBUG") == "1"
 	watchID, args := s.inspect(st.ThreadID)
 	roundTrip := float64(time.Since(start).Microseconds()) / 1000.0
 	s.resume(st.ThreadID)
@@ -549,7 +581,7 @@ func (s *dapLangSession) matchSource(framePath string, frameLine int) string {
 	best := ""
 	bestSpan := 1 << 30
 	for _, w := range s.watches {
-		if normalizePath(w.AbsPath) != fp {
+		if normalizePath(w.AbsPath) != fp && !sameResolvedPath(w.AbsPath, framePath) {
 			continue
 		}
 		if frameLine >= w.LineStart && frameLine <= w.LineEnd {
@@ -559,6 +591,15 @@ func (s *dapLangSession) matchSource(framePath string, frameLine int) string {
 		}
 	}
 	return best
+}
+
+// sameResolvedPath reports whether two paths name one file once symlinks are
+// resolved: debuggers report the real path (rdbg on macOS says /private/var/…
+// for a program under /var/…, a symlink), while watches keep the indexed one.
+func sameResolvedPath(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && normalizePath(ra) == normalizePath(rb)
 }
 
 func (s *dapLangSession) finish(status string) {

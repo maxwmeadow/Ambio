@@ -85,10 +85,10 @@ test('bold, italic and strikethrough nest', () => {
 })
 
 test('links keep their href and their label', () => {
-  const [link] = parseInline('[Axiom](https://example.com)')
+  const [link] = parseInline('[Ambio](https://example.com)')
   assert.equal(link.kind, 'link')
   assert.equal(link.href, 'https://example.com')
-  assert.equal(text(link.children), 'Axiom')
+  assert.equal(text(link.children), 'Ambio')
 })
 
 test('images degrade to alt text rather than a broken repo-relative path', () => {

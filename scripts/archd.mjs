@@ -17,12 +17,12 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 function resolveBash() {
   if (process.platform !== 'win32') return 'bash'
 
-  const candidates = [process.env.AXIOM_MSYS2_BASH, 'C:\\msys64\\usr\\bin\\bash.exe'].filter(Boolean)
+  const candidates = [process.env.AMBIO_MSYS2_BASH, 'C:\\msys64\\usr\\bin\\bash.exe'].filter(Boolean)
   const found = candidates.find(candidate => existsSync(candidate))
   if (!found) {
     console.error(
       'archd: MSYS2 bash not found.\n' +
-      'Install MSYS2 to C:\\msys64, or point AXIOM_MSYS2_BASH at its usr/bin/bash.exe.'
+      'Install MSYS2 to C:\\msys64, or point AMBIO_MSYS2_BASH at its usr/bin/bash.exe.'
     )
     process.exit(1)
   }
@@ -36,7 +36,7 @@ function resolveBash() {
 const bash = resolveBash()
 const env = { ...process.env }
 // Stamped into the daemon so the app can tell whether a running archd is its own.
-env.AXIOM_VERSION ??= JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
+env.AMBIO_VERSION ??= JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 if (process.platform === 'win32') {
   const msysRoot = bash.replace(/[\\/]usr[\\/]bin[\\/]bash\.exe$/i, '')
   // Windows spells it "Path". process.env lookups are case-insensitive there,

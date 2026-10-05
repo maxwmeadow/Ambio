@@ -43,9 +43,9 @@ export function SentSheetSnapshot({ workspaceId, messageId }: { workspaceId: str
   const plannedEdges = context?.edges?.filter(edge => edge.planned) ?? []
   const notes = context?.notes ?? []
 
-  return <div className="axiom-inbox__sent-plan">
+  return <div className="ambio-inbox__sent-plan">
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? 'Hide sent plan' : 'View sent plan'}</button>
-    {open && <div className="axiom-inbox__sent-plan-body">
+    {open && <div className="ambio-inbox__sent-plan-body">
       {error && <p role="alert">{error}</p>}
       {!snapshot && !error && <p>Loading the plan sent with this order…</p>}
       {snapshot && <>

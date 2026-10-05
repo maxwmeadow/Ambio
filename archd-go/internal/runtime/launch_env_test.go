@@ -6,14 +6,14 @@ import (
 )
 
 func TestNodeOptionsSurviveWindowsAndUnicodePaths(t *testing.T) {
-	env := injectNodeEnv([]string{"NODE_OPTIONS=--max-old-space-size=4096"}, `C:\Users\José\Axiom\adapters\node`, 7745, "ws", `C:\work`)
+	env := injectNodeEnv([]string{"NODE_OPTIONS=--max-old-space-size=4096"}, `C:\Users\José\Ambio\adapters\node`, 7745, "ws", `C:\work`)
 	var opts string
 	for _, kv := range env {
 		if strings.HasPrefix(kv, "NODE_OPTIONS=") {
 			opts = kv
 		}
 	}
-	if !strings.Contains(opts, `--max-old-space-size=4096 --require "C:/Users/José/Axiom/adapters/node/cjs-bootstrap.cjs"`) {
+	if !strings.Contains(opts, `--max-old-space-size=4096 --require "C:/Users/José/Ambio/adapters/node/cjs-bootstrap.cjs"`) {
 		t.Fatalf("existing options must be kept and the path quoted with forward slashes and raw unicode: %s", opts)
 	}
 	if strings.Contains(opts, `\u`) || strings.Contains(opts, `\\`) {

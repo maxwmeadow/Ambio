@@ -124,7 +124,7 @@ export function buildAgentLaneModel(
   }))
 
   return {
-    // Axiom already has single-agent surfaces. The lane is a parallel-worktree
+    // Ambio already has single-agent surfaces. The lane is a parallel-worktree
     // surface, so showing it for one root would violate legacy visual parity.
     visible: branches.length > 1,
     branchCount: branches.length,

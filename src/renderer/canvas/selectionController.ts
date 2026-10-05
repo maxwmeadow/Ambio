@@ -18,11 +18,11 @@
  *   reveal from elsewhere    → that node alone
  *
  * The first two are React Flow's, applied on pointer DOWN and arriving here as
- * ordered select changes. Axiom must reconcile them, never recompute them:
+ * ordered select changes. Ambio must reconcile them, never recompute them:
  * deriving the modifier toggle a second time in the click handler undid the
  * first one, so a modifier click appeared to do nothing while a plain click -
  * which lands in the same place however many times it is applied - looked fine.
- * The rest of the rules are Axiom's, and live here as pure functions.
+ * The rest of the rules are Ambio's, and live here as pure functions.
  */
 import type { Node, NodeChange } from '@xyflow/react'
 
@@ -34,7 +34,7 @@ export function emptySelection(): Set<string> {
   return new Set()
 }
 
-/** Apply React Flow's ordered select changes to Axiom's authoritative ID set. */
+/** Apply React Flow's ordered select changes to Ambio's authoritative ID set. */
 export function selectionAfterNodeChanges(
   current: ReadonlySet<string>,
   changes: NodeChange[],

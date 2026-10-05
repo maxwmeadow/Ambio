@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
+	"ambio.local/archd/internal/hub"
 )
 
 // The journal is what makes the delta survive the app being closed, so these

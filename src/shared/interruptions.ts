@@ -1,6 +1,6 @@
 // Interruptions - everything that wants the user's attention over the canvas.
 //
-// Axiom grew seven independent floating surfaces, each deciding on its own when
+// Ambio grew seven independent floating surfaces, each deciding on its own when
 // to appear. Two of them shipped at identical coordinates and covered each
 // other. Worse than the collision was the rhythm: unrelated things surfacing one
 // at a time, in whatever order their triggers happened to fire, with no way to

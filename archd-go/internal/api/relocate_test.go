@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/runtime"
 )
 
 func TestRelocateWorkspaceKeepsRootIdentityAndRebasesPaths(t *testing.T) {

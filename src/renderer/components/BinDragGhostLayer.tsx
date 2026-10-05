@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { BASE_FILE_H, BASE_FILE_W, NODE_TYPES } from '../canvas/AxiomCanvas'
+import { BASE_FILE_H, BASE_FILE_W, NODE_TYPES } from '../canvas/AmbioCanvas'
 import {
   getBinGhost,
   registerBinGhostElement,
@@ -33,7 +33,7 @@ export function BinDragGhostLayer() {
   return createPortal(
     <div
       ref={registerBinGhostElement}
-      className="axiom-bin-ghost"
+      className="ambio-bin-ghost"
       style={{
         width,
         height,

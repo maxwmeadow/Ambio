@@ -32,7 +32,7 @@ function visiblyProjected(node: Node): boolean {
 }
 
 /**
- * Canonical Floor structure belongs to Axiom's graph/layout stores. React Flow
+ * Canonical Floor structure belongs to Ambio's graph/layout stores. React Flow
  * may report interaction changes, but its local add/remove/replace operations
  * must never mutate that canonical projection.
  */

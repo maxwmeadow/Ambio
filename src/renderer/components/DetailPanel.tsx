@@ -61,16 +61,16 @@ export function DetailPanel() {
 
   return (
     <aside
-      className="axiom-detail-panel"
+      className="ambio-detail-panel"
       aria-label={`${typeLabel} properties`}
       data-inspected-node-id={inspectedNodeId}
     >
-      <header className="axiom-detail-panel__titlebar">
+      <header className="ambio-detail-panel__titlebar">
         <span>Properties</span>
-        <span className="axiom-detail-panel__type">{typeLabel}</span>
+        <span className="ambio-detail-panel__type">{typeLabel}</span>
         <button
           type="button"
-          className="axiom-detail-panel__close"
+          className="ambio-detail-panel__close"
           aria-label="Close properties"
           onClick={() => setInspectedNode(null)}
         >
@@ -78,7 +78,7 @@ export function DetailPanel() {
         </button>
       </header>
 
-      <div className="axiom-detail-panel__body">
+      <div className="ambio-detail-panel__body">
         {planned && <PlannedDetail node={planned} />}
         {file && !planned && (
           <FileDetail
@@ -117,10 +117,10 @@ function InspectorIdentity({
   detail?: React.ReactNode
 }) {
   return (
-    <div className="axiom-detail-panel__identity">
-      <div className="axiom-detail-panel__kicker">{kicker}</div>
+    <div className="ambio-detail-panel__identity">
+      <div className="ambio-detail-panel__kicker">{kicker}</div>
       <h2>{name}</h2>
-      {detail && <div className="axiom-detail-panel__identity-detail">{detail}</div>}
+      {detail && <div className="ambio-detail-panel__identity-detail">{detail}</div>}
     </div>
   )
 }
@@ -144,12 +144,12 @@ function InspectorText({
     onBlur: () => {
       if (draft !== value) onCommit(draft)
     },
-    className: 'axiom-inspector-input',
+    className: 'ambio-inspector-input',
   }
 
   return (
-    <label className="axiom-inspector-field">
-      <span className="axiom-inspector-field__label">{label}</span>
+    <label className="ambio-inspector-field">
+      <span className="ambio-inspector-field__label">{label}</span>
       {multiline ? <textarea {...common} rows={3} /> : <input {...common} />}
     </label>
   )
@@ -212,10 +212,10 @@ function KeyValueEditor({
   }
 
   return (
-    <div className="axiom-inspector-field">
-      <div className="axiom-inspector-field__label">{label}</div>
+    <div className="ambio-inspector-field">
+      <div className="ambio-inspector-field__label">{label}</div>
       {rows.length > 0 && (
-        <div className="axiom-inspector-key-values">
+        <div className="ambio-inspector-key-values">
           <span>Key</span>
           <span>Value</span>
           <span />
@@ -223,14 +223,14 @@ function KeyValueEditor({
             <React.Fragment key={row.id}>
               <input
                 autoFocus={index === rows.length - 1 && !row.key}
-                className="axiom-inspector-input axiom-inspector-input--mono"
+                className="ambio-inspector-input ambio-inspector-input--mono"
                 value={row.key}
                 placeholder="VARIABLE_NAME"
                 onChange={event => updateRow(row.id, 'key', event.target.value)}
                 onBlur={() => commit(rows)}
               />
               <input
-                className="axiom-inspector-input axiom-inspector-input--mono"
+                className="ambio-inspector-input ambio-inspector-input--mono"
                 value={row.value}
                 placeholder="value"
                 onChange={event => updateRow(row.id, 'value', event.target.value)}
@@ -238,7 +238,7 @@ function KeyValueEditor({
               />
               <button
                 type="button"
-                className="axiom-inspector-icon-button"
+                className="ambio-inspector-icon-button"
                 aria-label={`Remove ${row.key || 'environment variable'}`}
                 onClick={() => removeRow(row.id)}
               >
@@ -250,7 +250,7 @@ function KeyValueEditor({
       )}
       <button
         type="button"
-        className="axiom-inspector-add-button"
+        className="ambio-inspector-add-button"
         onClick={addRow}
         title="Add environment variable"
       >
@@ -291,13 +291,13 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
         name={node.name}
         detail="Overlay-authored architecture element"
       />
-      <div className="axiom-inspector-form">
+      <div className="ambio-inspector-form">
         <InspectorText label="NAME" value={node.name} onCommit={name => update({ name })} />
 
         {(node.kind === 'class' || node.kind === 'file') && (
-          <div className="axiom-inspector-field">
-            <div className="axiom-inspector-field__label">LANGUAGE</div>
-            <div className="axiom-inspector-language">
+          <div className="ambio-inspector-field">
+            <div className="ambio-inspector-field__label">LANGUAGE</div>
+            <div className="ambio-inspector-language">
               <LanguagePicker
                 value={metadata.language ?? ''}
                 onChange={language => {
@@ -312,10 +312,10 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
 
         {node.kind === 'class' && (
           <>
-            <label className="axiom-inspector-field">
-              <span className="axiom-inspector-field__label">CLASS KIND</span>
+            <label className="ambio-inspector-field">
+              <span className="ambio-inspector-field__label">CLASS KIND</span>
               <select
-                className="axiom-inspector-input"
+                className="ambio-inspector-input"
                 value={metadata.classKind ?? 'class'}
                 onChange={event => update({}, { classKind: event.target.value as PlannedNodeMetadata['classKind'] })}
               >
@@ -337,7 +337,7 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
 
         {(node.kind === 'class' || node.kind === 'service') && (
           <Section title="Detailed structure">
-            <div className="axiom-inspector-uml-frame">
+            <div className="ambio-inspector-uml-frame">
               <UmlMetadataPanel
                 kind={node.kind}
                 metadata={metadata}
@@ -350,9 +350,9 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
 
         {node.kind === 'infra' && (
           <>
-            <div className="axiom-inspector-field">
-              <div className="axiom-inspector-field__label">INFRASTRUCTURE</div>
-              <div className="axiom-inspector-service">
+            <div className="ambio-inspector-field">
+              <div className="ambio-inspector-field__label">INFRASTRUCTURE</div>
+              <div className="ambio-inspector-service">
                 <strong>{service?.name ?? 'Not assigned'}</strong>
                 {service && (
                   <span>
@@ -362,13 +362,13 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
               </div>
               <button
                 type="button"
-                className="axiom-inspector-command"
+                className="ambio-inspector-command"
                 onClick={() => setInfraPickerNode(node.id)}
               >
                 {service ? 'Change infrastructure…' : 'Choose infrastructure…'}
               </button>
               {hasContainedNodes && (
-                <span className="axiom-inspector-help">
+                <span className="ambio-inspector-help">
                   This node contains hosted elements, so it can only be reassigned to other container-capable infrastructure.
                 </span>
               )}
@@ -431,7 +431,7 @@ function FileDetail({
   const inDeps = dependencies.filter(dependency => dependency.dst === file.id && dependency.dstType === 'file')
 
   const openFile = () => {
-    if (window.axiom) window.axiom.showInFolder(file.path)
+    if (window.ambio) window.ambio.showInFolder(file.path)
   }
 
   return (
@@ -440,14 +440,14 @@ function FileDetail({
         kicker="Selected source file"
         name={filename}
         detail={(
-          <button type="button" className="axiom-detail-panel__path" onClick={openFile} title="Show in folder">
+          <button type="button" className="ambio-detail-panel__path" onClick={openFile} title="Show in folder">
             {file.relPath}
           </button>
         )}
       />
 
       <Section title="General">
-        <div className="axiom-inspector-properties">
+        <div className="ambio-inspector-properties">
           <Stat label="Language" value={file.language} />
           {file.lineCount > 0 && <Stat label="Lines" value={String(file.lineCount)} />}
           {churn > 0 && <Stat label="Churn" value={`${Math.round(churn * 100)}%`} warn={churn > 0.7} />}
@@ -512,7 +512,7 @@ function SystemDetail({
       />
 
       <Section title="General">
-        <div className="axiom-inspector-properties">
+        <div className="ambio-inspector-properties">
           <Stat label="Files" value={String(childFiles.length)} />
           {childSystems.length > 0 && <Stat label="Subsystems" value={String(childSystems.length)} />}
           <Stat label="Source" value={system.source} />
@@ -522,27 +522,27 @@ function SystemDetail({
 
       {system.source === 'cluster' && (
         <Section title="Architectural proposal">
-          <div className="axiom-inspector-note">
-            Axiom inferred this boundary from authored names, parsed symbols, dependencies, and co-change signals.
+          <div className="ambio-inspector-note">
+            Ambio inferred this boundary from authored names, parsed symbols, dependencies, and co-change signals.
             Confirm it to protect this system from future automatic reclustering.
           </div>
           <button
             type="button"
-            className="axiom-inspector-command"
+            className="ambio-inspector-command"
             disabled={confirming}
             onClick={() => void confirmArchitecture()}
           >
             {confirming ? 'Confirming…' : 'Confirm as architecture'}
           </button>
           {confirmationError && (
-            <div className="axiom-inspector-property__value--warn">{confirmationError}</div>
+            <div className="ambio-inspector-property__value--warn">{confirmationError}</div>
           )}
         </Section>
       )}
 
       {system.agentNotes && (
         <Section title="Agent notes">
-          <div className="axiom-inspector-note">{system.agentNotes}</div>
+          <div className="ambio-inspector-note">{system.agentNotes}</div>
         </Section>
       )}
     </>
@@ -564,14 +564,14 @@ function DependencySection({
   const shown = dependencies.slice(0, 10)
   return (
     <Section title={title}>
-      <div className="axiom-inspector-dependencies">
+      <div className="ambio-inspector-dependencies">
         {shown.map(dependency => {
           const target = direction === 'out' ? dependency.dst : dependency.src
           return (
             <button
               type="button"
               key={dependency.id}
-              className="axiom-inspector-dependency"
+              className="ambio-inspector-dependency"
               onClick={() => onClick(target)}
               title={nameOf(target)}
             >
@@ -581,7 +581,7 @@ function DependencySection({
           )
         })}
         {dependencies.length > 10 && (
-          <div className="axiom-inspector-more">+{dependencies.length - 10} more</div>
+          <div className="ambio-inspector-more">+{dependencies.length - 10} more</div>
         )}
       </div>
     </Section>
@@ -590,18 +590,18 @@ function DependencySection({
 
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div className="axiom-inspector-property">
+    <div className="ambio-inspector-property">
       <span>{label}</span>
-      <strong className={warn ? 'axiom-inspector-property__value--warn' : undefined}>{value}</strong>
+      <strong className={warn ? 'ambio-inspector-property__value--warn' : undefined}>{value}</strong>
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="axiom-inspector-section">
+    <section className="ambio-inspector-section">
       <h3>{title}</h3>
-      <div className="axiom-inspector-section__body">{children}</div>
+      <div className="ambio-inspector-section__body">{children}</div>
     </section>
   )
 }
@@ -701,24 +701,24 @@ function InfraDetail({
   return (
     <>
       <InspectorIdentity
-        kicker={infra.status === 'proposed' ? 'Found by Axiom, not confirmed' : ROLE_LABEL[infra.category] ?? 'Infrastructure'}
+        kicker={infra.status === 'proposed' ? 'Found by Ambio, not confirmed' : ROLE_LABEL[infra.category] ?? 'Infrastructure'}
         name={infra.name}
         detail={[service?.name !== infra.name ? service?.name : '', ROLE_LABEL[infra.category] ?? infra.category, infra.subtype]
           .filter(Boolean).join(' · ')}
       />
       {infra.status === 'proposed' && (
         <Section title="Decide">
-          <div className="axiom-inspector-decide">
-            <button type="button" className="axiom-inspector-decide__confirm" onClick={() => void decide('confirmed')}>Confirm</button>
-            <button type="button" className="axiom-inspector-decide__dismiss" onClick={() => void decide('dismissed')}>Dismiss</button>
+          <div className="ambio-inspector-decide">
+            <button type="button" className="ambio-inspector-decide__confirm" onClick={() => void decide('confirmed')}>Confirm</button>
+            <button type="button" className="ambio-inspector-decide__dismiss" onClick={() => void decide('dismissed')}>Dismiss</button>
           </div>
-          {error && <p className="axiom-inspector-error" role="alert">{error}</p>}
+          {error && <p className="ambio-inspector-error" role="alert">{error}</p>}
         </Section>
       )}
 
       {gaps.length > 0 && (
         <Section title="Looks wrong">
-          <ul className="axiom-inspector-list axiom-inspector-list--gaps">
+          <ul className="ambio-inspector-list ambio-inspector-list--gaps">
             {gaps.map(item => {
               const who = [item.detail?.publishers, item.detail?.consumers]
                 .flatMap(value => Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [])
@@ -727,7 +727,7 @@ function InfraDetail({
                 <li key={item.id} title={item.evidence ?? undefined}>
                   <span><code>{item.name}</code> is {String(item.detail!.warning)}.</span>
                   {fileId && (
-                    <button type="button" className="axiom-inspector-link" onClick={() => onOpen(fileId)}>{who[0]}</button>
+                    <button type="button" className="ambio-inspector-link" onClick={() => onOpen(fileId)}>{who[0]}</button>
                   )}
                 </li>
               )
@@ -738,16 +738,16 @@ function InfraDetail({
 
       {implementations.length > 0 && (
         <Section title="How it runs">
-          <ul className="axiom-inspector-list">
+          <ul className="ambio-inspector-list">
             {implementations.map((impl, index) => {
               const fileId = impl.kind === 'in-process' || impl.kind === 'vendor'
                 ? useGraphStore.getState().files.find(file => file.relPath === impl.ref)?.id
                 : undefined
               return (
                 <li key={`${impl.kind}-${impl.ref}-${index}`}>
-                  <span className="axiom-inspector-list__kind">{impl.environment} · {IMPLEMENTATION_LABEL[impl.kind] ?? impl.kind}</span>
+                  <span className="ambio-inspector-list__kind">{impl.environment} · {IMPLEMENTATION_LABEL[impl.kind] ?? impl.kind}</span>
                   {fileId
-                    ? <button type="button" className="axiom-inspector-link" onClick={() => onOpen(fileId)}>{impl.ref}</button>
+                    ? <button type="button" className="ambio-inspector-link" onClick={() => onOpen(fileId)}>{impl.ref}</button>
                     : <code>{impl.ref.startsWith('compose:') ? `${impl.ref.slice(8)} (docker compose)` : impl.ref}</code>}
                 </li>
               )
@@ -758,11 +758,11 @@ function InfraDetail({
 
       {needs.length > 0 && (
         <Section title="Needs to run">
-          <ul className="axiom-inspector-list">
+          <ul className="ambio-inspector-list">
             {needs.map(req => (
               <li key={req.id} title={req.evidence ?? undefined}>
                 <code>{req.name}</code>
-                <span className={req.present ? 'axiom-inspector-list__ok' : 'axiom-inspector-list__missing'}>
+                <span className={req.present ? 'ambio-inspector-list__ok' : 'ambio-inspector-list__missing'}>
                   {req.present ? 'set in .env' : 'not set locally'}
                 </span>
               </li>
@@ -773,21 +773,21 @@ function InfraDetail({
 
       {kinds.length === 0 ? (
         <Section title="Who touches it">
-          <p className="axiom-inspector-note">No file is connected to it yet. Ask your agent to record who uses it, or save a file that imports it.</p>
+          <p className="ambio-inspector-note">No file is connected to it yet. Ask your agent to record who uses it, or save a file that imports it.</p>
         </Section>
       ) : kinds.map(kind => {
         const rows = [...(byKind.get(kind)?.values() ?? [])]
         return (
           <Section key={kind} title={`${RELATIONSHIP_LABEL[kind] ?? kind} (${rows.length})`}>
-            <ul className="axiom-inspector-list">
+            <ul className="ambio-inspector-list">
               {rows.slice(0, 12).map(({ dep, items: touched, proposed }) => (
                 <li key={dep.id}>
-                  <button type="button" className="axiom-inspector-link" onClick={() => onOpen(dep.src)}>{nameOf(dep.src)}</button>
+                  <button type="button" className="ambio-inspector-link" onClick={() => onOpen(dep.src)}>{nameOf(dep.src)}</button>
                   {touched.length > 0 && <code>{touched.sort().join(', ')}</code>}
-                  {proposed && <span className="axiom-inspector-list__proposed">proposed</span>}
+                  {proposed && <span className="ambio-inspector-list__proposed">proposed</span>}
                 </li>
               ))}
-              {rows.length > 12 && <li className="axiom-inspector-more">+{rows.length - 12} more</li>}
+              {rows.length > 12 && <li className="ambio-inspector-more">+{rows.length - 12} more</li>}
             </ul>
           </Section>
         )
@@ -795,13 +795,13 @@ function InfraDetail({
 
       {itemKinds.map(kind => (
         <Section key={`contents-${kind}`} title={CONTENT_TITLE[kind] ?? `${kind.replace('_', ' ')}s`}>
-          <ul className="axiom-inspector-list">
+          <ul className="ambio-inspector-list">
             {items.filter(item => item.kind === kind).map(item => (
               <li key={item.id} title={item.evidence ?? undefined}>
                 <code>{item.name}</code>
-                {typeof item.detail?.cron === 'string' && <span className="axiom-inspector-list__kind">{item.detail.cron}</span>}
-                {itemUse(item.name) && <span className="axiom-inspector-list__kind">{itemUse(item.name)}</span>}
-                {typeof item.detail?.warning === 'string' && <span className="axiom-inspector-list__missing">{item.detail.warning}</span>}
+                {typeof item.detail?.cron === 'string' && <span className="ambio-inspector-list__kind">{item.detail.cron}</span>}
+                {itemUse(item.name) && <span className="ambio-inspector-list__kind">{itemUse(item.name)}</span>}
+                {typeof item.detail?.warning === 'string' && <span className="ambio-inspector-list__missing">{item.detail.warning}</span>}
               </li>
             ))}
           </ul>
@@ -809,11 +809,11 @@ function InfraDetail({
       ))}
 
       {(detected.evidence?.length ?? 0) > 0 && (
-        <Section title="Why Axiom thinks it's here">
-          <ul className="axiom-inspector-list axiom-inspector-list--quiet">
+        <Section title="Why Ambio thinks it's here">
+          <ul className="ambio-inspector-list ambio-inspector-list--quiet">
             {detected.evidence!.slice(0, 8).map((evidence, index) => (
               <li key={`${evidence.ref}-${index}`}>
-                <span className="axiom-inspector-list__kind">{evidence.signal}</span>
+                <span className="ambio-inspector-list__kind">{evidence.signal}</span>
                 <code>{evidence.ref}</code>
                 {evidence.detail && <span>{evidence.detail}</span>}
               </li>

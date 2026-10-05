@@ -72,13 +72,13 @@ export function PaperTextureDefs() {
             it is the plain sheet you write ON. The yellow belongs on the header
             band above it (see --card-head), the way a notepad's colour is its
             binding strip and never the page you write on. */}
-        <Stock id="axiom-paper-sheet" tint="#faf6ea" tintOpacity={0.55} grain={0.26} />
+        <Stock id="ambio-paper-sheet" tint="#faf6ea" tintOpacity={0.55} grain={0.26} />
         {/* Systems: manila folder. Warmer and browner, coarser stock - what you
             keep the pads in. */}
-        <Stock id="axiom-card-sheet" tint="#e8cf9a" tintOpacity={0.44} grain={0.36} scale={1.9} />
+        <Stock id="ambio-card-sheet" tint="#e8cf9a" tintOpacity={0.44} grain={0.36} scale={1.9} />
         {/* Infra: white spec sheet. Cool and plain, so equipment reads as
             issued rather than hand-written. */}
-        <Stock id="axiom-blueprint-sheet" tint="#f6f4ec" tintOpacity={0.5} grain={0.2} scale={1.3} />
+        <Stock id="ambio-blueprint-sheet" tint="#f6f4ec" tintOpacity={0.5} grain={0.2} scale={1.3} />
       </defs>
     </svg>
   )

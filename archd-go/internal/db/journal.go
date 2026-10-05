@@ -24,6 +24,20 @@ const (
 	EventSystemCreated = "system.created"
 	EventSystemDeleted = "system.deleted"
 	EventFileAssigned  = "file.assigned"
+
+	// Meaning edits (meaning.go): what the architecture says changed, with no
+	// code touched. Each carries enough before/after detail to be undone.
+	EventSystemRenamed   = "system.renamed"
+	EventSystemNested    = "system.nested"
+	EventSystemMerged    = "system.merged"
+	EventSystemUngrouped = "system.ungrouped"
+
+	// A person confirmed or rejected an agent's proposal, with an optional
+	// reason; later agent sessions are told (api/map_briefing.go).
+	EventProposalDecided = "proposal.decided"
+	// Code started or stopped using a piece of infrastructure (delta/infra.go).
+	EventInfraLinked   = "infra.linked"
+	EventInfraUnlinked = "infra.unlinked"
 )
 
 // updateCollapseWindowMs mirrors the activity burst window: repeated saves of
@@ -61,7 +75,7 @@ type StructuralEvent struct {
 // A WorkSession is an agent's own account of what it set out to do.
 //
 // Structural facts alone are true but thin: "Handlers now depends on Record"
-// says the topology moved without saying why anyone moved it. Axiom is meant
+// says the topology moved without saying why anyone moved it. Ambio is meant
 // to be bidirectional, so the agent doing the work writes its intent INTO the
 // map rather than leaving the map to infer meaning it cannot know. Claims are
 // then read under the goal that produced them.
@@ -138,6 +152,24 @@ func RecordStructuralEvent(db *sql.DB, ev StructuralEvent) error {
 		ev.TS, ev.Actor, ev.TraceID, ev.Kind,
 		ev.SubjectID, ev.SubjectLabel, ev.ObjectID, ev.ObjectLabel, ev.Detail, ev.SessionID)
 	return err
+}
+
+// recordStructuralEventTx appends one event inside the caller's transaction,
+// so a meaning edit and its journal row commit or fail together. The caller
+// completes the root/branch identity; meaning edits never collapse.
+func recordStructuralEventTx(tx *sql.Tx, ev StructuralEvent) (int64, error) {
+	res, err := tx.Exec(`
+		INSERT INTO structural_events
+			(workspace_id, root_id, branch, ts, actor, trace_id, kind,
+			 subject_id, subject_label, object_id, object_label, detail, count, session_id)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)`,
+		ev.WorkspaceID, nullableHistoryIdentity(ev.RootID), nullableHistoryIdentity(ev.Branch),
+		ev.TS, ev.Actor, ev.TraceID, ev.Kind,
+		ev.SubjectID, ev.SubjectLabel, ev.ObjectID, ev.ObjectLabel, ev.Detail, ev.SessionID)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // GetStructuralEvents returns every event strictly newer than since, oldest

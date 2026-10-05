@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -21,11 +22,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/cluster"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/parser"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/cluster"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/parser"
 )
 
 var skipDirs = map[string]bool{
@@ -51,7 +52,7 @@ func nextLivingTraceID() string {
 var sourceExts = map[string]bool{
 	".ts": true, ".tsx": true, ".js": true, ".mjs": true, ".cjs": true,
 	".jsx": true, ".py": true, ".go": true, ".rs": true, ".cs": true,
-	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".rb": true, ".java": true,
+	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".c": true, ".h": true, ".rb": true, ".java": true,
 }
 
 var documentExts = map[string]bool{
@@ -178,7 +179,7 @@ func ClusterOnly(sqlDB *sql.DB, root db.Root) error {
 		return fmt.Errorf("rebuild semantic evidence: %w", err)
 	}
 	// A classifier-contract migration reshapes systems wholesale. That is a
-	// change in how Axiom reads the code, not a change in the code, so it must
+	// change in how Ambio reads the code, not a change in the code, so it must
 	// never appear in the user's delta as if their agents did it.
 	if err := clusterAndAssign(sqlDB, root, false); err != nil {
 		return err
@@ -301,6 +302,25 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	relPath = filepath.ToSlash(relPath)
 	existing, _ := buildExistingMap(sqlDB, root.ID)
 
+	// A new path may be a file that moved: it keeps its identity and system
+	// (moves.go).
+	movedFrom := ""
+	var movedSystemID *string
+	if _, known := existing[relPath]; !known {
+		moveMu.Lock()
+		// Read again under the lock: a removal that finished since the read
+		// above has deleted its row and is claimable only as a removal.
+		if fresh, err := buildExistingMap(sqlDB, root.ID); err == nil {
+			existing = fresh
+		}
+		if moved, from, ok := adoptMovedFile(sqlDB, root, relPath, absPath, existing); ok {
+			movedFrom, movedSystemID = from, moved.SystemID
+			delete(existing, from)
+			existing[relPath] = moved
+		}
+		moveMu.Unlock()
+	}
+
 	// Snapshot the pre-edit state for activity weighting (live edit tracking).
 	var prev *db.File
 	var prevSyms []db.Symbol
@@ -320,17 +340,21 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	if err := indexOneFile(sqlDB, root, relPath, absPath, existing, nil); err != nil {
 		return err
 	}
+	if movedFrom != "" {
+		restoreMovedSystem(sqlDB, existing[relPath].ID, movedSystemID)
+	}
 	file, err := db.GetFileByRelPath(sqlDB, root.ID, relPath)
 	if err != nil || file == nil {
 		return err
 	}
 	newSyms, _ := db.GetSymbolsByFile(sqlDB, file.ID)
 	actor, contentChanged := recordActivity(sqlDB, root.WorkspaceID, prev, prevSyms, file, absPath)
-	resolutionChanged := prev == nil || symbolResolutionChanged(prevSyms, newSyms)
+	resolutionChanged := prev == nil || movedFrom != "" || symbolResolutionChanged(prevSyms, newSyms)
 
-	// A new file can satisfy imports that were previously external/unresolved.
-	// Existing-file edits only need their own outgoing import set rebuilt.
-	if prev == nil {
+	// A new file can satisfy imports that were previously external/unresolved,
+	// and a moved one changes how every import of it resolves. Existing-file
+	// edits only need their own outgoing import set rebuilt.
+	if prev == nil || movedFrom != "" {
 		if err := buildImportDependencies(sqlDB, root); err != nil {
 			log.Printf("indexer: rebuild project dependencies after creating %s: %v", relPath, err)
 		}
@@ -400,13 +424,17 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	if actor == "" {
 		actor = activity.ActorFor(root.WorkspaceID)
 	}
-	if contentChanged || prev == nil {
+	if contentChanged || prev == nil || movedFrom != "" {
 		labeler := newSystemLabeler(sqlDB, root)
 		kind := db.EventFileUpdated
 		if prev == nil {
 			kind = db.EventFileCreated
 		}
-		journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
+		if movedFrom != "" {
+			journalFileMoved(sqlDB, root, labeler, file, movedFrom, actor, traceID)
+		} else {
+			journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
+		}
 		journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
 	}
 
@@ -441,10 +469,23 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	traceID := nextLivingTraceID()
 	relPath, _ := filepath.Rel(root.Path, absPath)
 	relPath = filepath.ToSlash(relPath)
+	// Held until the row is gone: a create that adopted this row in between
+	// (renaming it to its new path) would otherwise be deleted with it.
+	moveMu.Lock()
+	locked := true
+	unlock := func() {
+		if locked {
+			locked = false
+			moveMu.Unlock()
+		}
+	}
+	defer unlock()
 	file, err := db.GetFileByRelPath(sqlDB, root.ID, relPath)
 	if err != nil || file == nil {
 		return err
 	}
+	// Claimable by a create at another path for a moment: it may be a move.
+	rememberRemoval(root.ID, *file)
 
 	beforeDeps, err := projectFileDependencies(sqlDB, root.ID)
 	if err != nil {
@@ -463,6 +504,7 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	if err := db.DeleteFileByID(sqlDB, file.ID); err != nil {
 		return err
 	}
+	unlock()
 	if err := buildImportDependencies(sqlDB, root); err != nil {
 		return fmt.Errorf("rebuild imports after deleting %s: %w", relPath, err)
 	}
@@ -607,7 +649,7 @@ func normalizedChurn(sqlDB *sql.DB, workspaceID, fileID string) (float64, error)
 
 // Shape is only inferred from STRUCTURE the parser proved (the symbol table)
 // - never from filename/path heuristics; guessing "cylinder" off a directory
-// name is exactly the dumb-tool behavior Axiom exists to replace. Cylinder/
+// name is exactly the dumb-tool behavior Ambio exists to replace. Cylinder/
 // hexagon exist on live files only via explicit shape_override (user/agent),
 // where they are declared, not guessed.
 func inferShape(relPath string, symbols []db.Symbol) (shape, displayName string) {
@@ -766,7 +808,7 @@ func aggregateVarRefs(fileID string, refs []parser.VarRef) []db.VarRefRow {
 //  3. Ambiguous match: multiple files define the same name → use import/using relationships as a
 //     tiebreaker. If imports narrow it to one file, record that. Otherwise skip to avoid noise.
 //
-// This deliberately avoids language-specific logic so it extends to any language Axiom supports.
+// This deliberately avoids language-specific logic so it extends to any language Ambio supports.
 func rebuildCallGraphForFile(sqlDB *sql.DB, root db.Root, file db.File) error {
 	result, err := parser.ParseFile(file.Path, file.RelPath)
 	if err != nil {
@@ -813,16 +855,6 @@ func buildCallGraph(sqlDB *sql.DB, root db.Root, rawCallsMap *sync.Map) error {
 	}
 	rows.Close()
 	log.Printf("[callgraph] symbol index: %d unique names across project", len(symbolToFiles))
-
-	// Log a sample of indexed symbol names so we can compare against raw call names.
-	sampleIdx := 0
-	for name, fileIDs := range symbolToFiles {
-		log.Printf("[callgraph] symbol sample: %q defined in %d file(s)", name, len(fileIDs))
-		sampleIdx++
-		if sampleIdx >= 15 {
-			break
-		}
-	}
 
 	// ── Step 2: Build import map as tiebreaker for ambiguous names ───────────
 	// Only used when multiple files define the same symbol name.
@@ -1487,10 +1519,102 @@ func buildImportPathIndex(files []db.File) map[string]string {
 	for importPath, ids := range goPackages {
 		index[goPackagePrefix+importPath] = strings.Join(ids, ",")
 	}
+	addTailIndex(index, files)
 	return index
 }
 
 const goPackagePrefix = "go:"
+
+// Tail keys find a file or folder by the end of its path, for languages whose
+// imports are rooted somewhere the index does not know (Java's
+// src/main/java, Ruby's load path, C++ include directories):
+//
+//	#tail:a/b/C     the one file whose path, without extension, ends in a/b/C
+//	#dirtail:a/b    every file of the one folder whose path ends in a/b
+//
+// A tail shared by two files or folders is ambiguous and maps to "".
+const (
+	tailPrefix    = "#tail:"
+	dirTailPrefix = "#dirtail:"
+)
+
+func addTailIndex(index map[string]string, files []db.File) {
+	dirFiles := map[string][]string{}
+	for _, file := range files {
+		relPath := filepath.ToSlash(filepath.Clean(file.RelPath))
+		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+		segments := strings.Split(noExt, "/")
+		for k := 1; k <= len(segments); k++ {
+			key := tailPrefix + strings.Join(segments[len(segments)-k:], "/")
+			if existing, taken := index[key]; taken && existing != file.ID {
+				index[key] = ""
+			} else {
+				index[key] = file.ID
+			}
+		}
+		dir := filepath.ToSlash(filepath.Dir(relPath))
+		dirFiles[dir] = append(dirFiles[dir], file.ID)
+	}
+	dirOfTail := map[string]string{}
+	for dir, ids := range dirFiles {
+		if dir == "." {
+			continue
+		}
+		segments := strings.Split(dir, "/")
+		for k := 1; k <= len(segments); k++ {
+			tail := strings.Join(segments[len(segments)-k:], "/")
+			if other, taken := dirOfTail[tail]; taken && other != dir {
+				index[dirTailPrefix+tail] = ""
+				continue
+			}
+			dirOfTail[tail] = dir
+			index[dirTailPrefix+tail] = strings.Join(ids, ",")
+		}
+	}
+}
+
+// resolveTextImport resolves the prefixed specs parser/imports_more.go
+// writes for Java, Rust, Ruby and C++. ok is false for any other spec.
+func resolveTextImport(imported string, index map[string]string) (ids []string, ok bool) {
+	one := func(keys ...string) []string {
+		for _, key := range keys {
+			if id := index[key]; id != "" {
+				return []string{id}
+			}
+		}
+		return nil
+	}
+	switch {
+	case strings.HasPrefix(imported, parser.ImportJavaClass):
+		return one(tailPrefix + strings.TrimPrefix(imported, parser.ImportJavaClass)), true
+	case strings.HasPrefix(imported, parser.ImportJavaPkg):
+		if joined := index[dirTailPrefix+strings.TrimPrefix(imported, parser.ImportJavaPkg)]; joined != "" {
+			return strings.Split(joined, ","), true
+		}
+		return nil, true
+	case strings.HasPrefix(imported, parser.ImportRustPath):
+		// crate::a::b::C is a.rs, a/b.rs or a/b/mod.rs holding C: the longest
+		// prefix of the path that is a module file.
+		for p := strings.TrimPrefix(imported, parser.ImportRustPath); p != "." && p != "/" && p != ""; p = path.Dir(p) {
+			if found := one(p, p+"/mod"); found != nil {
+				return found, true
+			}
+		}
+		return nil, true
+	case strings.HasPrefix(imported, parser.ImportRubyPath):
+		return one(strings.TrimPrefix(imported, parser.ImportRubyPath)), true
+	case strings.HasPrefix(imported, parser.ImportRubyReq):
+		spec := strings.TrimPrefix(imported, parser.ImportRubyReq)
+		return one("lib/"+spec, spec, tailPrefix+spec), true
+	case strings.HasPrefix(imported, parser.ImportCppInc):
+		dir, spec, _ := strings.Cut(strings.TrimPrefix(imported, parser.ImportCppInc), "|")
+		// The header itself when it is indexed; otherwise the file that
+		// implements it, found by the header's name without its extension.
+		stem := strings.TrimSuffix(spec, path.Ext(spec))
+		return one(path.Join(dir, spec), spec, path.Join(dir, stem), stem, tailPrefix+stem), true
+	}
+	return nil, false
+}
 
 // pythonModuleFromSourceRoot strips the folders above a module's top-level
 // package: worker/pantry_worker/db → pantry_worker/db when pantry_worker has an
@@ -1557,6 +1681,9 @@ func joinModule(module string, below []string) string {
 // resolveImportFileIDs is resolveImportFileID for imports that name several
 // files: a Go package is every file in its folder.
 func resolveImportFileIDs(file db.File, imported string, index map[string]string) []string {
+	if ids, ok := resolveTextImport(imported, index); ok {
+		return ids
+	}
 	if strings.EqualFold(filepath.Ext(file.RelPath), ".go") {
 		if joined, ok := index[goPackagePrefix+strings.TrimSpace(imported)]; ok {
 			return strings.Split(joined, ",")

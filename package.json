@@ -1,21 +1,23 @@
 {
-  "name": "axiom",
+  "name": "ambio",
   "version": "0.1.0",
   "description": "Live Architectural Intelligence for the AI Development Era",
   "license": "AGPL-3.0-only",
-  "homepage": "https://github.com/maxwmeadow/Axiom",
+  "homepage": "https://github.com/maxwmeadow/Ambio",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maxwmeadow/Axiom.git"
+    "url": "git+https://github.com/maxwmeadow/Ambio.git"
   },
   "bugs": {
-    "url": "https://github.com/maxwmeadow/Axiom/issues"
+    "url": "https://github.com/maxwmeadow/Ambio/issues"
   },
   "main": "out/main/index.js",
   "scripts": {
     "predev": "npm run build:archd && npm run build:adapters",
     "dev": "electron-vite dev",
     "build": "npm run build:mcp && npm run build:adapters && electron-vite build",
+    "coverage:archd": "cd archd-go && go test -cover ./...",
+    "coverage:node": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-test-coverage --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\"",
     "test:renderer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\" \"adapters/**/*.test.mjs\" \"scripts/**/*.test.mjs\"",
     "test:mcp": "npm run build:archd && npm run build:adapters && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"mcp/e2e/*.e2e.mjs\"",
     "test:e2e": "npm run build && playwright test",
@@ -23,11 +25,8 @@
     "preview": "electron-vite preview",
     "prepackage": "npm run build:archd && npm run build:mcp && npm run notices",
     "package": "electron-vite build && electron-builder",
-    "postinstall": "electron-rebuild",
-    "archd": "node out/main/archd.js",
     "build:archd": "node scripts/archd.mjs build",
     "dbquery": "node scripts/archd.mjs dbquery",
-    "seed-arch": "npx tsx scripts/seed-architecture.ts",
     "test:archd": "node scripts/archd.mjs test",
     "vet:archd": "node scripts/archd.mjs vet",
     "build:mcp": "node scripts/build-mcp.mjs",
@@ -37,25 +36,17 @@
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
-    "@hono/node-server": "^2.0.5",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@xyflow/react": "^12.0.0",
-    "better-sqlite3": "^12.11.1",
-    "chokidar": "^3.6.0",
     "electron-updater": "^6.2.1",
-    "hono": "^4.3.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "shiki": "^4.3.1",
     "simple-icons": "^16.25.0",
-    "web-tree-sitter": "^0.22.6",
-    "ws": "^8.17.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@playwright/test": "^1.61.1",
-    "@types/better-sqlite3": "^7.6.10",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
@@ -69,8 +60,8 @@
     "vite": "^5.3.0"
   },
   "build": {
-    "appId": "com.axiom.app",
-    "productName": "Axiom",
+    "appId": "com.ambio.app",
+    "productName": "Ambio",
     "directories": {
       "output": "release"
     },
@@ -78,15 +69,15 @@
       {
         "provider": "github",
         "owner": "maxwmeadow",
-        "repo": "Axiom",
+        "repo": "Ambio",
         "releaseType": "draft"
       }
     ],
     "protocols": [
       {
-        "name": "Axiom",
+        "name": "Ambio",
         "schemes": [
-          "axiom"
+          "ambio"
         ]
       }
     ],

@@ -10,6 +10,10 @@ export default defineConfig({
   // retried test as flaky rather than passing it off as clean.
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
+  // A missing baseline fails instead of being written next to the others,
+  // so one rendered on a developer's machine is never committed by accident.
+  // CI writes missing ones on purpose (--update-snapshots=missing).
+  updateSnapshots: 'none',
   expect: {
     timeout: 8_000,
     toHaveScreenshot: {

@@ -16,8 +16,8 @@ import { join } from 'node:path'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 const result = await build({
-  entryPoints: [join(ROOT, 'mcp', 'axiom-mcp.ts')],
-  outfile: join(ROOT, 'out', 'mcp', 'axiom-mcp.mjs'),
+  entryPoints: [join(ROOT, 'mcp', 'ambio-mcp.ts')],
+  outfile: join(ROOT, 'out', 'mcp', 'ambio-mcp.mjs'),
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -26,12 +26,12 @@ const result = await build({
   // dependency may still reach for.
   banner: {
     js: [
-      "import { createRequire as __axiomCreateRequire } from 'node:module'",
-      'const require = __axiomCreateRequire(import.meta.url)',
+      "import { createRequire as __ambioCreateRequire } from 'node:module'",
+      'const require = __ambioCreateRequire(import.meta.url)',
     ].join('\n'),
   },
   logLevel: 'info',
 })
 
 if (result.errors.length > 0) process.exit(1)
-console.log('Done - ' + join(ROOT, 'out', 'mcp', 'axiom-mcp.mjs'))
+console.log('Done - ' + join(ROOT, 'out', 'mcp', 'ambio-mcp.mjs'))

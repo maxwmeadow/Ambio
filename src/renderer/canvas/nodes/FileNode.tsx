@@ -15,7 +15,7 @@ import { LanguageIcon, LanguagePicker } from '../languages'
 import { SourcePreviewDialog } from '../../components/SourcePreviewDialog'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
-import { AxiomNodeResizer } from './AxiomNodeResizer'
+import { AmbioNodeResizer } from './AmbioNodeResizer'
 import {
   fetchFileSymbols,
   getCachedSymbols,
@@ -403,11 +403,11 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         // unmounts. Linear timing keeps those keyframe stops truthful.
         '--living-delete-hold': `${LIVING_FILE_DELETE_MS}ms`,
         animation: d.fx?.kind === 'enter'
-          ? 'axiomMaterialize 0.55s cubic-bezier(0.22,1,0.36,1) both'
+          ? 'ambioMaterialize 0.55s cubic-bezier(0.22,1,0.36,1) both'
           : d.fx?.kind === 'exit'
-            ? 'axiomDematerializeRed var(--living-delete-hold) linear both'
+            ? 'ambioDematerializeRed var(--living-delete-hold) linear both'
           : d.fx?.kind === 'classify'
-            ? 'axiomClassifySettle 0.7s cubic-bezier(0.22,1,0.36,1) both'
+            ? 'ambioClassifySettle 0.7s cubic-bezier(0.22,1,0.36,1) both'
             : undefined,
       } as React.CSSProperties}
     >
@@ -416,7 +416,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           Interaction chrome (resizer, connection handles) stays outside on
           the raw node frame so selection outlines never shift or teleport. */}
       <div
-        className="axiom-file-node__normal"
+        className="ambio-file-node__normal"
         style={{
           position: 'absolute',
           inset: 0,
@@ -732,8 +732,8 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
       {livingSignal.fx && (
         <div
           className={
-            `axiom-living-file-signal${livingSignal.closing
-              ? ' axiom-living-file-signal--closing'
+            `ambio-living-file-signal${livingSignal.closing
+              ? ' ambio-living-file-signal--closing'
               : ''}`
           }
           style={{
@@ -747,7 +747,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         >
           {/* Luminous perimeter energy border around the active file node */}
           <div
-            className="axiom-living-file-telemetry__border"
+            className="ambio-living-file-telemetry__border"
             style={{
               position: 'absolute',
               inset: -2,
@@ -780,7 +780,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           }} />
           {/* Sleek floating agent activity badge hovering above the node */}
           <div
-            className="axiom-living-file-telemetry__badge"
+            className="ambio-living-file-telemetry__badge"
             style={{
               position: 'absolute',
               top: -30,
@@ -800,7 +800,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             }}
           >
             <div
-              className="axiom-living-file-signal__beacon"
+              className="ambio-living-file-signal__beacon"
               style={{
                 width: 6,
                 height: 6,
@@ -844,7 +844,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         <div key={`fx-${d.fx.key}`} style={{
           position: 'absolute', inset: -3,
           border: '2px solid #2fa35d',
-          animation: 'axiomCreatePulse 0.9s ease-out 1 forwards',
+          animation: 'ambioCreatePulse 0.9s ease-out 1 forwards',
           pointerEvents: 'none',
         }} />
       )}
@@ -854,7 +854,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         <div key={`fx-${d.fx.key}`} style={{
           position: 'absolute', inset: -3,
           border: '2px solid #b6534b',
-          animation: 'axiomDeletePulse 0.9s cubic-bezier(0.4,0,0.2,1) 1 forwards',
+          animation: 'ambioDeletePulse 0.9s cubic-bezier(0.4,0,0.2,1) 1 forwards',
           pointerEvents: 'none',
         }} />
       )}
@@ -864,7 +864,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         <div key={`fx-${d.fx.key}`} style={{
           position: 'absolute', inset: -3,
           border: '2px solid var(--accent)',
-          animation: 'axiomEditPulse 0.75s ease-out 1 forwards',
+          animation: 'ambioEditPulse 0.75s ease-out 1 forwards',
           pointerEvents: 'none',
         }} />
       )}
@@ -872,7 +872,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         <div key={`fx-${d.fx.key}`} style={{
           position: 'absolute', inset: -3,
           border: `2px solid ${d.fx.kind === 'flow-add' ? '#2fa35d' : d.fx.kind === 'flow-remove' ? '#b6534b' : '#3c8f92'}`,
-          animation: 'axiomFlowArrival 0.8s ease-out 1 forwards',
+          animation: 'ambioFlowArrival 0.8s ease-out 1 forwards',
           pointerEvents: 'none',
         }} />
       )}
@@ -882,7 +882,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         <div key={`fx-${d.fx.key}`} style={{
           position: 'absolute', inset: -3,
           border: '1px dashed #667a55',
-          animation: 'axiomClassifyPulse 0.9s ease-out 1 forwards',
+          animation: 'ambioClassifyPulse 0.9s ease-out 1 forwards',
           pointerEvents: 'none',
         }} />
       )}
@@ -915,7 +915,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
       </div>
 
       {selected && (
-        <AxiomNodeResizer nodeId={d.id} presentationScale={s} nodeWidth={width} nodeHeight={height} isVisible={selected}
+        <AmbioNodeResizer nodeId={d.id} presentationScale={s} nodeWidth={width} nodeHeight={height} isVisible={selected}
           isResizable={typeof onResizeStart === 'function' && typeof onResizeEnd === 'function'}
           minWidth={1} minHeight={1} color="var(--accent)"
           onResizeStart={onResizeStart} onResizeEnd={onResizeEnd} />

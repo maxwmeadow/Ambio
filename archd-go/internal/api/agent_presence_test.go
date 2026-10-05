@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestAgentPresenceIsALiveLeaseNotPermanentHistory(t *testing.T) {
 	now := time.UnixMilli(1_000_000)
 	eventHub := hub.New()
-	server := NewServer(t.TempDir(), eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(t.TempDir(), eventHub, ambioruntime.NewManager(eventHub))
 	server.presenceNow = func() time.Time { return now }
 	server.agentPresenceTTL = 15 * time.Second
 

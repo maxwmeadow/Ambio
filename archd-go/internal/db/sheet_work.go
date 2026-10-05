@@ -58,6 +58,15 @@ type SheetComparison struct {
 	Differences []SheetDifference `json:"differences"`
 	Nodes       []StructureNode   `json:"nodes"`
 	Mappings    map[string]string `json:"mappings"`
+	// Removals are the live nodes the sheet proposes taking away.
+	Removals []string `json:"removals,omitempty"`
+}
+
+func removalDetail(nodeType string) string {
+	if nodeType == "system" {
+		return "Remove this system's code; the sheet proposes it should no longer exist"
+	}
+	return "Remove this from the code; the sheet proposes it should no longer exist"
 }
 
 func refValue(p *string) string {
@@ -167,8 +176,21 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 	if err != nil {
 		return nil, err
 	}
+	// Removal wins over a move: a node the sheet takes away has no place to be
+	// checked, only an absence to be checked for.
+	removals, err := GetSheetRemovals(r, workspace, id)
+	if err != nil {
+		return nil, err
+	}
+	removed := map[string]bool{}
+	for _, removal := range removals {
+		removed[removal.NodeID] = true
+	}
 	desired := map[string]StructureNode{}
 	for _, e := range elements {
+		if removed[refValue(e.FileID)] || removed[refValue(e.SystemID)] || removed[refValue(e.InfraID)] {
+			continue
+		}
 		n := StructureNode{ID: refValue(e.FileID), Type: "file", Name: e.Label, ParentID: refValue(e.ParentSystemID)}
 		if e.SystemID != nil {
 			n.ID = *e.SystemID
@@ -217,6 +239,9 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 	// Canonical layout opinions also include nodes inherited from the Floor that
 	// are not duplicated in sheet_elements. They are still authored requirements.
 	for _, l := range layouts {
+		if removed[l.NodeID] {
+			continue
+		}
 		n, ok := desired[l.NodeID]
 		if !ok {
 			if strings.HasPrefix(l.NodeID, "planned:") {
@@ -262,6 +287,13 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 			add("nesting", n.ID, n.Name, parent, actual.ParentID, "Match parent and containment: "+n.Containment+" (live: "+actual.Containment+")")
 		}
 	}
+	for _, removal := range removals {
+		c.Checked++
+		c.Removals = append(c.Removals, removal.NodeID)
+		if !removal.Done {
+			add("removal", removal.NodeID, removal.Label, "removed", removal.NodeType, removalDetail(removal.NodeType))
+		}
+	}
 	edges, err := GetPlannedEdges(r, id)
 	if err != nil {
 		return nil, err
@@ -282,13 +314,7 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 			dst = c.Mappings["planned:"+*e.DstPlanned]
 		}
 		c.Checked++
-		found := src != "" && dst != "" && strings.EqualFold(e.Kind, "CONTAINS") && live[dst].ParentID == src
-		for _, d := range deps {
-			if src != "" && dst != "" && live[src].ID != "" && live[dst].ID != "" && d.Src == src && d.Dst == dst && strings.EqualFold(d.DependencyType, e.Kind) {
-				found = true
-				break
-			}
-		}
+		found := src != "" && dst != "" && live[src].ID != "" && live[dst].ID != "" && relationshipPresent(e.Kind, src, dst, deps, live)
 		if !found {
 			add("relationship", e.ID, e.Kind, src+" → "+dst, "", "Required typed relationship is not present in the live model")
 		}
@@ -436,4 +462,41 @@ func ApplySheetNesting(d *sql.DB, workspace, sheetID, nodeID string, revision in
 		return nil, err
 	}
 	return result, nil
+}
+
+// relationshipPresent reports whether the live model has the relationship a
+// sheet asks for. CONTAINS is nesting. DEPENDS_ON is any code dependency
+// (an import or a call) from inside src to inside dst - systems count the
+// files in and below them, because the code depends file to file. Any other
+// kind must match a live dependency of that type between the two nodes.
+func relationshipPresent(kind, src, dst string, deps []Dependency, live map[string]StructureNode) bool {
+	if strings.EqualFold(kind, "CONTAINS") {
+		return live[dst].ParentID == src
+	}
+	general := strings.EqualFold(kind, "DEPENDS_ON")
+	for _, d := range deps {
+		if d.Src == src && d.Dst == dst && strings.EqualFold(d.DependencyType, kind) {
+			return true
+		}
+		if !general || d.Status == "dismissed" {
+			continue
+		}
+		codeDependency := strings.EqualFold(d.DependencyType, "IMPORTS") || strings.EqualFold(d.DependencyType, "CALLS") ||
+			strings.EqualFold(d.DependencyType, "DEPENDS_ON")
+		if codeDependency && within(live, d.Src, src) && within(live, d.Dst, dst) && !within(live, d.Dst, src) {
+			return true
+		}
+	}
+	return false
+}
+
+// within reports whether node is root or sits anywhere inside it.
+func within(live map[string]StructureNode, node, root string) bool {
+	for hops := 0; node != "" && hops < 64; hops++ {
+		if node == root {
+			return true
+		}
+		node = live[node].ParentID
+	}
+	return false
 }

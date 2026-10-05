@@ -10,6 +10,8 @@ export type CommandId =
   | 'app.settings'
   | 'app.checkUpdates'
   | 'project.new'
+  | 'edit.undo'
+  | 'edit.redo'
   | 'project.open'
   | 'project.reveal'
   | 'project.exportMap'
@@ -19,6 +21,9 @@ export type CommandId =
   | 'go.nextSheet'
   | 'go.previousSheet'
   | 'map.newSheet'
+  | 'map.copySheetMarkdown'
+  | 'map.copyMermaid'
+  | 'map.importSheetMarkdown'
   | 'map.addInfra'
   | 'map.lasso'
   | 'map.tidy'
@@ -33,6 +38,11 @@ export type CommandId =
   | 'view.fitView'
   | 'view.agentLog'
   | 'view.documents'
+  | 'view.explorer'
+  | 'view.zoomSelection'
+  | 'view.panelSheetRail'
+  | 'view.panelDetail'
+  | 'view.panelStatusBar'
   | 'view.reviewChanges'
   | 'view.zoomIn'
   | 'view.zoomOut'
@@ -45,6 +55,7 @@ export type CommandId =
   | 'help.guide'
   | 'help.docs'
   | 'help.reportBug'
+  | 'help.feedback'
   | 'help.copyDiagnostics'
   | 'help.openLogs'
   | 'help.privacy'
@@ -70,9 +81,12 @@ export interface CommandSpec {
 }
 
 export const COMMANDS: Record<CommandId, CommandSpec> = {
-  'app.about': { id: 'app.about', label: 'About Axiom' },
+  'app.about': { id: 'app.about', label: 'About Ambio' },
   'app.settings': { id: 'app.settings', label: 'Settings…', accelerator: 'CmdOrCtrl+,' },
   'app.checkUpdates': { id: 'app.checkUpdates', label: 'Check for Updates…' },
+  // Text fields keep their own undo; on the canvas these step through map changes.
+  'edit.undo': { id: 'edit.undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z' },
+  'edit.redo': { id: 'edit.redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z' },
   'project.new': { id: 'project.new', label: 'New Project…', accelerator: 'CmdOrCtrl+N' },
   'project.open': { id: 'project.open', label: 'Open Folder…', accelerator: 'CmdOrCtrl+O' },
   'project.reveal': { id: 'project.reveal', label: 'Reveal Project Folder', needsProject: true },
@@ -85,6 +99,9 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'go.nextSheet': { id: 'go.nextSheet', label: 'Next Sheet', accelerator: 'CmdOrCtrl+]', needsProject: true },
   'go.previousSheet': { id: 'go.previousSheet', label: 'Previous Sheet', accelerator: 'CmdOrCtrl+[', needsProject: true },
   'map.newSheet': { id: 'map.newSheet', label: 'New Sheet…', accelerator: 'CmdOrCtrl+T', needsProject: true },
+  'map.importSheetMarkdown': { id: 'map.importSheetMarkdown', label: 'New Sheet from Markdown…', needsProject: true },
+  'map.copySheetMarkdown': { id: 'map.copySheetMarkdown', label: 'Copy Sheet as Markdown', needsProject: true },
+  'map.copyMermaid': { id: 'map.copyMermaid', label: 'Copy Map as Mermaid', needsProject: true },
   'map.addInfra': { id: 'map.addInfra', label: 'Add Infrastructure…', needsProject: true },
   'map.lasso': { id: 'map.lasso', label: 'Lasso Select', needsProject: true },
   'map.tidy': { id: 'map.tidy', label: 'Tidy Layout', accelerator: 'CmdOrCtrl+Shift+L', needsProject: true },
@@ -93,11 +110,17 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.search': { id: 'view.search', label: 'Search Files…', accelerator: 'CmdOrCtrl+K', needsProject: true },
   // The map owns the plain zoom keys; the whole interface zooms with Alt added.
   'view.fitView': { id: 'view.fitView', label: 'Fit Map to Window', accelerator: 'CmdOrCtrl+0', needsProject: true },
+  'view.zoomSelection': { id: 'view.zoomSelection', label: 'Zoom to Selection', accelerator: 'CmdOrCtrl+Shift+0', needsProject: true },
+  // Show or hide; the choice is remembered (renderer store/panelStore.ts).
+  'view.panelSheetRail': { id: 'view.panelSheetRail', label: 'Sheet Rail', needsProject: true },
+  'view.panelDetail': { id: 'view.panelDetail', label: 'Detail Panel', needsProject: true },
+  'view.panelStatusBar': { id: 'view.panelStatusBar', label: 'Status Bar', needsProject: true },
   'view.zoomMapIn': { id: 'view.zoomMapIn', label: 'Zoom In Map', accelerator: 'CmdOrCtrl+=', needsProject: true },
   'view.zoomMapOut': { id: 'view.zoomMapOut', label: 'Zoom Out Map', accelerator: 'CmdOrCtrl+-', needsProject: true },
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
   'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+A', needsProject: true },
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
+  'view.explorer': { id: 'view.explorer', label: 'Model Explorer', accelerator: 'CmdOrCtrl+Shift+O', needsProject: true },
   'view.reviewChanges': { id: 'view.reviewChanges', label: 'Review Changes', needsProject: true },
   'view.zoomIn': { id: 'view.zoomIn', label: 'Zoom In Interface', accelerator: 'CmdOrCtrl+Alt+=' },
   'view.zoomOut': { id: 'view.zoomOut', label: 'Zoom Out Interface', accelerator: 'CmdOrCtrl+Alt+-' },
@@ -110,6 +133,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'help.guide': { id: 'help.guide', label: 'Setup Guide', needsProject: true },
   'help.docs': { id: 'help.docs', label: 'Documentation' },
   'help.reportBug': { id: 'help.reportBug', label: 'Report a Bug…' },
+  'help.feedback': { id: 'help.feedback', label: 'Send Feedback…' },
   'help.copyDiagnostics': { id: 'help.copyDiagnostics', label: 'Copy Diagnostics' },
   'help.openLogs': { id: 'help.openLogs', label: 'Open Logs Folder' },
   'help.privacy': { id: 'help.privacy', label: 'Privacy' },
@@ -123,6 +147,14 @@ export type MenuEntry =
   | { kind: 'recent' }
   | { kind: 'role'; role: SystemRole; label: string; accelerator?: string }
   | { kind: 'separator' }
+  /** A submenu of commands (View → Panels ▸). */
+  | { kind: 'group'; label: string; entries: CommandId[] }
+
+/** Every command in a list of entries, including those inside groups. */
+export function commandIds(entries: MenuEntry[]): CommandId[] {
+  return entries.flatMap(entry =>
+    entry.kind === 'command' ? [entry.id] : entry.kind === 'group' ? entry.entries : [])
+}
 
 export interface MenuSection {
   id: 'app' | 'file' | 'edit' | 'view' | 'go' | 'map' | 'agent' | 'window' | 'help'
@@ -148,12 +180,12 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   if (mac) {
     sections.push({
-      id: 'app', label: 'Axiom', entries: [
+      id: 'app', label: 'Ambio', entries: [
         command('app.about'), separator,
         command('app.settings'), command('app.checkUpdates'), separator,
         role('services', 'Services'), separator,
-        role('hide', 'Hide Axiom', 'Cmd+H'), role('hideOthers', 'Hide Others', 'Cmd+Alt+H'), role('unhide', 'Show All'), separator,
-        role('quit', 'Quit Axiom', 'Cmd+Q'),
+        role('hide', 'Hide Ambio', 'Cmd+H'), role('hideOthers', 'Hide Others', 'Cmd+Alt+H'), role('unhide', 'Show All'), separator,
+        role('quit', 'Quit Ambio', 'Cmd+Q'),
       ],
     })
   }
@@ -169,7 +201,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'edit', label: 'Edit', entries: [
-      role('undo', 'Undo', 'CmdOrCtrl+Z'), role('redo', 'Redo', mac ? 'Cmd+Shift+Z' : 'Ctrl+Y'), separator,
+      command('edit.undo'), command('edit.redo'), separator,
       role('cut', 'Cut', 'CmdOrCtrl+X'), role('copy', 'Copy', 'CmdOrCtrl+C'), role('paste', 'Paste', 'CmdOrCtrl+V'),
       role('selectAll', 'Select All', 'CmdOrCtrl+A'),
     ],
@@ -178,8 +210,14 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'view', label: 'View', entries: [
       command('view.commandPalette'), command('view.search'), separator,
-      command('view.agentLog'), command('view.documents'), command('view.infrastructure'), separator,
-      command('view.fitView'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
+      {
+        kind: 'group', label: 'Panels', entries: [
+          'view.agentLog', 'view.documents', 'view.explorer', 'view.infrastructure',
+          'view.panelSheetRail', 'view.panelDetail', 'view.panelStatusBar',
+        ],
+      },
+      separator,
+      command('view.fitView'), command('view.zoomSelection'), command('view.zoomMapIn'), command('view.zoomMapOut'), separator,
       command('view.zoomIn'), command('view.zoomOut'), command('view.resetZoom'), separator,
       command('view.fullScreen'),
       ...(options.developer
@@ -197,7 +235,8 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'map', label: 'Map', entries: [
-      command('map.newSheet'), command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
+      command('map.newSheet'), command('map.importSheetMarkdown'), command('map.copySheetMarkdown'), command('map.copyMermaid'), separator,
+      command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
       command('view.reviewChanges'),
     ],
   })
@@ -220,7 +259,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'help', label: 'Help', entries: [
       command('help.shortcuts'), command('help.guide'), command('help.docs'), command('help.whatsNew'), separator,
-      command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
+      command('help.feedback'), command('help.reportBug'), command('help.copyDiagnostics'), command('help.openLogs'), separator,
       command('help.privacy'), command('help.license'), command('help.acknowledgements'),
       ...(mac ? [] : [separator, command('app.checkUpdates'), command('app.about')]),
     ],

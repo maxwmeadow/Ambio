@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/registry"
 )
 
 func inputs(files map[string]string, imports [][2]string, packages map[string][]string, config map[string]string) Inputs {

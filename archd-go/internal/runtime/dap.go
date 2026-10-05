@@ -83,39 +83,78 @@ func (c *dapClient) nextSeq() int {
 	return c.seq
 }
 
+// requestTimeout bounds the wait for one response. initialize is the
+// debugger's first answer, after its own startup: a cold gdb on a busy Windows
+// machine (a freshly built program is also virus-scanned) can take over 15s.
+func requestTimeout(command string) time.Duration {
+	if command == "initialize" {
+		return 60 * time.Second
+	}
+	return 15 * time.Second
+}
+
 // request sends a DAP request and blocks for its response (or timeout/close).
 func (c *dapClient) request(command string, args any) (dapMessage, error) {
+	wait, err := c.start(command, args)
+	if err != nil {
+		return dapMessage{}, err
+	}
+	return wait()
+}
+
+// start sends a DAP request now and returns a wait for its response, so a
+// caller can order requests on the wire without blocking on each answer (a
+// launch must reach the debugger before configurationDone).
+func (c *dapClient) start(command string, args any) (func() (dapMessage, error), error) {
 	seq := c.nextSeq()
 	ch := make(chan dapMessage, 1)
 	c.pendM.Lock()
 	c.pending[seq] = ch
 	c.pendM.Unlock()
-	defer func() {
+	forget := func() {
 		c.pendM.Lock()
 		delete(c.pending, seq)
 		c.pendM.Unlock()
-	}()
+	}
 
 	var rawArgs json.RawMessage
 	if args != nil {
 		b, err := json.Marshal(args)
 		if err != nil {
-			return dapMessage{}, err
+			forget()
+			return nil, err
 		}
 		rawArgs = b
 	}
 	msg := dapMessage{Seq: seq, Type: "request", Command: command, Arguments: rawArgs}
 	if err := c.send(msg); err != nil {
-		return dapMessage{}, err
+		forget()
+		return nil, err
 	}
+	return func() (dapMessage, error) {
+		defer forget()
+		return c.awaitResponse(command, ch)
+	}, nil
+}
 
+func (c *dapClient) awaitResponse(command string, ch chan dapMessage) (dapMessage, error) {
 	select {
 	case resp := <-ch:
 		if !resp.Success {
+			// The short message ("Failed to launch") says little; the adapter's
+			// detail is in body.error.format, e.g. the build error.
+			var detail struct {
+				Error struct {
+					Format string `json:"format"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(resp.Body, &detail) == nil && detail.Error.Format != "" && detail.Error.Format != resp.Message {
+				return resp, fmt.Errorf("dap %s failed: %s: %s", command, resp.Message, detail.Error.Format)
+			}
 			return resp, fmt.Errorf("dap %s failed: %s", command, resp.Message)
 		}
 		return resp, nil
-	case <-time.After(15 * time.Second):
+	case <-time.After(requestTimeout(command)):
 		return dapMessage{}, fmt.Errorf("dap %s timed out", command)
 	case <-c.closed:
 		return dapMessage{}, fmt.Errorf("dap connection closed")

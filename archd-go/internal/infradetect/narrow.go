@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/registry"
 )
 
 var (

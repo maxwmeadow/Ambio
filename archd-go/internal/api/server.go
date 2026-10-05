@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,14 +35,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/gitworktree"
-	"axiom.local/archd/internal/hub"
-	"axiom.local/archd/internal/infradetect"
-	"axiom.local/archd/internal/registry"
-	"axiom.local/archd/internal/runtime"
-	"axiom.local/archd/internal/watcher"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
+	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/infradetect"
+	"ambio.local/archd/internal/registry"
+	"ambio.local/archd/internal/runtime"
+	"ambio.local/archd/internal/watcher"
 )
 
 var upgrader = websocket.Upgrader{
@@ -72,6 +73,9 @@ type Server struct {
 	detectMu        sync.Mutex
 	detecting       map[string]*sync.Mutex
 	infraUnresolved map[string][]infradetect.Unresolved
+	// infraBaselined marks roots whose first detection run has happened in
+	// this process; only later runs are journaled (infra_journal.go).
+	infraBaselined map[string]bool
 	// Worktree topology and heads are driven by Git metadata notifications. A
 	// slow periodic refresh remains only as protection against dropped events.
 	discoverWorktrees func(string) ([]gitworktree.Worktree, error)
@@ -116,6 +120,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		watchers:            make(map[string]*watcher.Watcher),
 		detecting:           make(map[string]*sync.Mutex),
 		infraUnresolved:     make(map[string][]infradetect.Unresolved),
+		infraBaselined:      make(map[string]bool),
 		discoverWorktrees:   gitworktree.Discover,
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
@@ -133,7 +138,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		agentPresenceTTL:    15 * time.Second,
 	}
 	// Adapters started outside the launcher (PYTHONPATH opt-in) have no
-	// AXIOM_WORKSPACE_ID; map them to a workspace by their working directory.
+	// AMBIO_WORKSPACE_ID; map them to a workspace by their working directory.
 	rt.SetWorkspaceResolver(s.workspaceForCwd)
 	// Recordings are only in memory until stop; flush them so a crash cannot
 	// discard an investigation silently.
@@ -162,7 +167,7 @@ func (s *Server) workspaceForCwd(cwd string) string {
 	return best
 }
 
-// openDB opens (or creates) the per-project database at <dataDir>/<workspaceID>/axiom.db.
+// openDB opens (or creates) the per-project database at <dataDir>/<workspaceID>/ambio.db.
 // Safe to call concurrently; returns the existing connection if already open.
 func (s *Server) openDB(workspaceID string) (*sql.DB, error) {
 	s.mu.Lock()
@@ -261,9 +266,54 @@ func (s *Server) dbFor(workspaceID string) (*sql.DB, error) {
 	s.mu.RUnlock()
 	if !ok {
 		// Attempt to open lazily - the DB may exist on disk from a previous session.
-		return s.openDB(workspaceID)
+		d, err := s.openDB(workspaceID)
+		if err == nil {
+			go s.keepWorkspaceLive(workspaceID, d)
+		}
+		return d, err
 	}
 	return d, nil
+}
+
+// keepWorkspaceLive makes a project opened by a request, rather than by the
+// app (an agent's daemon started while the app is closed, or a project the
+// app does not have open), as live as one the app opened: it catches up on
+// changes made while nobody was watching and watches the files from now on.
+// It only touches the root that already holds the indexed map; indexing a
+// project for the first time stays the app's decision.
+func (s *Server) keepWorkspaceLive(workspaceID string, sqlDB *sql.DB) {
+	roots, err := db.GetRoots(sqlDB, workspaceID)
+	if err != nil {
+		return
+	}
+	var live *db.Root
+	most := 0
+	for i := range roots {
+		root := roots[i]
+		if !root.IsActive || root.IndexedAt == nil || *root.IndexedAt == 0 {
+			continue
+		}
+		var files int
+		if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM files WHERE root_id = ?`, root.ID).Scan(&files); err != nil {
+			continue
+		}
+		if live == nil || files > most {
+			live, most = &roots[i], files
+		}
+	}
+	if live == nil {
+		return
+	}
+	s.mu.RLock()
+	_, watching := s.watchers[live.ID]
+	_, stillOpen := s.dbs[workspaceID]
+	s.mu.RUnlock()
+	if watching || !stillOpen {
+		return
+	}
+	log.Printf("api: %s opened without the app; watching %s", workspaceID, live.Path)
+	s.startWatcher(sqlDB, *live)
+	s.launchRootSync(sqlDB, *live, false)
 }
 
 // closeDB closes and removes the database connection for a workspace without
@@ -366,6 +416,9 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace/", s.handleWorkspaceByID)
 	mux.HandleFunc("/api/workspace", s.handleWorkspace)
 	mux.HandleFunc("/api/roots", s.handleRoots)
+	mux.HandleFunc("/api/architecture/edits", s.handleArchitectureEdits)
+	mux.HandleFunc("/api/architecture/undo", s.handleArchitectureUndo)
+	mux.HandleFunc("/api/architecture/changes", s.handleArchitectureChanges)
 	mux.HandleFunc("/api/systems", s.handleSystems)
 	mux.HandleFunc("/api/systems/", s.handleSystemByID)
 	mux.HandleFunc("/api/files/", s.handleFileByID)
@@ -379,6 +432,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	s.registerSheetRoutes(mux)
 	s.registerArchitectureProposalRoutes(mux)
 	mux.HandleFunc("/api/call-path", s.handleCallPath)
+	mux.HandleFunc("/api/symbols/search", s.handleSymbolSearch)
+	mux.HandleFunc("/api/sheet-import", s.handleSheetImport)
 	mux.HandleFunc("/api/call-trace", s.handleCallTrace)
 	mux.HandleFunc("/api/function-body", s.handleFunctionBody)
 	mux.HandleFunc("/api/data-flow", s.handleDataFlow)
@@ -451,7 +506,7 @@ func (s *Server) handleWorkspaceScope(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "workspace id is required", http.StatusBadRequest)
 		return
 	}
-	dbPath := filepath.Join(s.dataDir, workspaceID, "axiom.db")
+	dbPath := filepath.Join(s.dataDir, workspaceID, "ambio.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		jsonOK(w, map[string]any{
 			"indexed":                    false,
@@ -514,7 +569,18 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	sqlDB, err := s.openDB(wsID)
 	if err != nil {
+		if damaged := s.damagedMap(wsID, err.Error(), false); damaged != nil {
+			jsonDamaged(w, damaged)
+			return
+		}
 		jsonError(w, err.Error(), 500)
+		return
+	}
+	// A damaged map is reported, not used: nothing is written to it and it is
+	// never backed up, so a bad copy cannot push the good backups out.
+	if problem := mapIntegrityProblem(sqlDB); problem != "" {
+		s.closeDB(wsID)
+		jsonDamaged(w, s.damagedMap(wsID, problem, true))
 		return
 	}
 
@@ -592,25 +658,34 @@ func (s *Server) handleWorkspaceByID(w http.ResponseWriter, r *http.Request) {
 
 // ─── Systems ──────────────────────────────────────────────────────────────────
 
+// handleSystems creates a system. Creating a boundary is a meaning edit, so
+// it is recorded like any other (meaning.go) and needs a stated actor.
 func (s *Server) handleSystems(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		var sys db.System
-		if err := json.NewDecoder(r.Body).Decode(&sys); err != nil {
+		var body struct {
+			db.System
+			Actor   *db.MeaningActor `json:"actor"`
+			FileIDs []string         `json:"fileIds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
-		sqlDB, err := s.dbFor(sys.WorkspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		result, ok := s.applyMeaning(w, body.WorkspaceID, body.Actor, []db.MeaningEdit{{
+			Op: db.MeaningCreate, SystemID: body.ID, Name: body.Name,
+			ParentID: body.ParentID, Description: body.Description, FileIDs: body.FileIDs,
+		}})
+		if !ok {
 			return
 		}
-		if err := db.UpsertSystem(sqlDB, sys); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
+		created := body.System
+		for _, system := range result.UpsertedSystems {
+			if system.ID == result.Changes[0].SystemID {
+				created = system
+			}
 		}
-		s.broadcastPatch("system:upserted", sys)
-		jsonOK(w, sys)
+		jsonOK(w, created)
 	default:
 		http.NotFound(w, r)
 	}
@@ -628,36 +703,72 @@ func (s *Server) handleSystemByID(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodPut && sub == "":
-		var sys db.System
-		if err := json.NewDecoder(r.Body).Decode(&sys); err != nil {
+		// Presentation (position, size, colour) is saved directly. Meaning
+		// (name, parent, description) goes through the recorded path and
+		// needs a stated actor; confirming an inferred boundary only adopts it.
+		var body struct {
+			db.System
+			Actor *db.MeaningActor `json:"actor"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
+		sys := body.System
 		sys.ID = id
 		sqlDB, err := s.dbFor(sys.WorkspaceID)
 		if err != nil {
 			jsonError(w, err.Error(), 404)
 			return
 		}
-		if err := db.UpsertSystem(sqlDB, sys); err != nil {
+		stored, err := db.GetSystem(sqlDB, id)
+		if err != nil {
 			jsonError(w, err.Error(), 500)
 			return
 		}
-		s.broadcastPatch("system:upserted", sys)
-		jsonOK(w, sys)
+		if stored == nil || stored.WorkspaceID != sys.WorkspaceID {
+			jsonError(w, "system not found", 404)
+			return
+		}
+		edits := meaningEditsBetween(*stored, sys)
+		if len(edits) > 0 {
+			if _, ok := s.applyMeaning(w, sys.WorkspaceID, body.Actor, edits); !ok {
+				return
+			}
+			if stored, err = db.GetSystem(sqlDB, id); err != nil || stored == nil {
+				jsonError(w, "system not found after edit", 500)
+				return
+			}
+		}
+		presented := *stored
+		presented.PositionX, presented.PositionY = sys.PositionX, sys.PositionY
+		presented.Width, presented.Height = sys.Width, sys.Height
+		presented.Color, presented.AgentNotes = sys.Color, sys.AgentNotes
+		if confirmsInferredBoundary(*stored, sys) {
+			presented.Source = sys.Source
+		}
+		if err := db.UpsertSystem(sqlDB, presented); err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		s.broadcastPatch("system:upserted", presented)
+		jsonOK(w, presented)
 
 	case r.Method == http.MethodDelete && sub == "":
+		// Removing a system ungroups it: its files and systems move up a
+		// level and no code is touched (DECISIONS 2026-10-01).
 		workspaceID := r.URL.Query().Get("workspace")
-		sqlDB, err := s.dbFor(workspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		var actor *db.MeaningActor
+		if kind := r.URL.Query().Get("actor"); kind != "" {
+			actor = &db.MeaningActor{
+				Kind: kind, Agent: r.URL.Query().Get("agent"), SessionID: r.URL.Query().Get("session"),
+			}
+		}
+		if _, ok := s.applyMeaning(w, workspaceID, actor, []db.MeaningEdit{{
+			Op: db.MeaningUngroup, SystemID: id,
+		}}); !ok {
 			return
 		}
-		if err := db.DeleteSystem(sqlDB, id); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		s.broadcastPatch("system:deleted", map[string]string{"id": id, "workspaceId": workspaceID})
 		jsonOK(w, map[string]string{"deleted": id})
 
 	case r.Method == http.MethodPost && sub == "position":
@@ -700,25 +811,27 @@ func (s *Server) handleFileByID(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodPost && sub == "assign":
+		// Which system a file belongs to is meaning: recorded, attributed.
+		// A null or empty systemId takes the file out of every system.
 		var body struct {
-			SystemID    string `json:"systemId"`
-			WorkspaceID string `json:"workspaceId"`
+			SystemID    *string          `json:"systemId"`
+			WorkspaceID string           `json:"workspaceId"`
+			Actor       *db.MeaningActor `json:"actor"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "bad request", 400)
 			return
 		}
-		sqlDB, err := s.dbFor(body.WorkspaceID)
-		if err != nil {
-			jsonError(w, err.Error(), 404)
+		target := ""
+		if body.SystemID != nil {
+			target = *body.SystemID
+		}
+		if _, ok := s.applyMeaning(w, body.WorkspaceID, body.Actor, []db.MeaningEdit{{
+			Op: db.MeaningAssign, FileIDs: []string{id}, SystemID: target,
+		}}); !ok {
 			return
 		}
-		if err := db.AssignFileToSystem(sqlDB, id, body.SystemID); err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-		s.broadcastPatch("file:assigned", map[string]string{"fileId": id, "systemId": body.SystemID, "workspaceId": body.WorkspaceID})
-		jsonOK(w, map[string]string{"fileId": id, "systemId": body.SystemID})
+		jsonOK(w, map[string]any{"fileId": id, "systemId": body.SystemID})
 
 	case r.Method == http.MethodPost && sub == "position":
 		var body struct {
@@ -812,6 +925,28 @@ func (s *Server) handleCallPath(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	jsonOK(w, map[string]any{"path": path})
+}
+
+// handleSymbolSearch finds symbols by name across the workspace, for ⌘K, the
+// Model Explorer and search_symbols. GET ?workspace=&q=&limit=
+func (s *Server) handleSymbolSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonError(w, "method not allowed", 405)
+		return
+	}
+	query := r.URL.Query()
+	sqlDB, err := s.dbFor(query.Get("workspace"))
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	hits, err := db.SearchSymbols(sqlDB, query.Get("workspace"), query.Get("q"), limit)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	jsonOK(w, map[string]any{"symbols": hits})
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

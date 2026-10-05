@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
-import { AxiomCanvas } from './canvas/AxiomCanvas'
+import { AmbioCanvas } from './canvas/AmbioCanvas'
 import { subscribeToDeltaRefresh } from './canvas/deltaRefresh'
 import { Toolbar } from './components/Toolbar'
 import { StatusBar } from './components/StatusBar'
@@ -9,6 +9,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { DocumentsPanel } from './components/DocumentsPanel'
 import { BinDragGhostLayer } from './components/BinDragGhostLayer'
 import { SearchBar } from './components/SearchBar'
+import { ModelExplorer } from './components/ModelExplorer'
 import { InjectConfirmBanner } from './components/InjectConfirmBanner'
 import { AgentLogPanel } from './components/AgentLogPanel'
 import { PaperTextureDefs } from './canvas/nodes/PaperTexture'
@@ -32,7 +33,7 @@ import {
 
 import { useGraphStore, connectToArchd, scheduleInfraDetails } from './store/graphStore'
 import { useOnboardingStore } from './store/onboardingStore'
-import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
+import { raiseDecision, raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
 import { emitCommand, useCommandHandlers, useOpenRecent } from './app/commands'
 import { useSheetStore } from './store/sheetStore'
@@ -40,6 +41,8 @@ import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
 import { useProposalStore } from './store/architectureProposalStore'
 import { SheetRail } from './components/SheetRail'
+import { SheetMarkdown } from './components/SheetMarkdown'
+import { usePanelStore } from './store/panelStore'
 import type { ProjectConfig } from '../shared/types'
 import {
   completeSourceBoundaries,
@@ -53,6 +56,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { archdApi, archdWs } from './archdEndpoint.ts'
+import { clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -63,8 +67,9 @@ const E2E_REVIEW = E2E_MODE && APP_PARAMS.get('review') === '1'
 const E2E_BLANK_PROJECT = E2E_MODE && APP_PARAMS.get('blank') === '1'
 const E2E_PROJECT_BASE: ProjectConfig = {
   id: 'demo',
-  name: 'Axiom Canvas Fixture',
-  rootPath: '/axiom-e2e',
+  name: 'Ambio Canvas Fixture',
+  // The suite passes a real fixture folder; without one nothing is browsable.
+  rootPath: APP_PARAMS.get('root') ?? '/ambio-e2e',
   ignoredPaths: [],
   languageOverrides: {},
   layoutPreferences: { zoom: 1, panX: 0, panY: 0 },
@@ -105,11 +110,11 @@ const E2E_SNAPSHOT = {
 
 // Which project was open when we last closed. Absent means the user backed out
 // to the launcher on purpose, which the next launch has to respect.
-const RESUME_KEY = 'axiom_resume_project'
+const RESUME_KEY = 'ambio_resume_project'
 
 async function rememberOpenProject(projectId: string) {
-  if (window.axiom) {
-    await window.axiom.setResumeProjectId(projectId)
+  if (window.ambio) {
+    await window.ambio.setResumeProjectId(projectId)
     return
   }
   try {
@@ -121,8 +126,8 @@ async function rememberOpenProject(projectId: string) {
 }
 
 async function forgetOpenProject() {
-  if (window.axiom) {
-    await window.axiom.setResumeProjectId(null)
+  if (window.ambio) {
+    await window.ambio.setResumeProjectId(null)
     return
   }
   try {
@@ -138,8 +143,36 @@ function projectIsReady(config: ProjectConfig): boolean {
   return sourceBoundariesAreComplete(config) && projectHasEnteredWorkbench(config)
 }
 
+
+/**
+ * Edit → Undo / Redo. A text field keeps its own history; anywhere else the
+ * canvas's map changes are stepped (canvas/undoStack.ts).
+ */
+async function stepHistory(direction: 'undo' | 'redo'): Promise<void> {
+  const focused = document.activeElement as HTMLElement | null
+  const tag = focused?.tagName?.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || focused?.isContentEditable) {
+    document.execCommand(direction)
+    return
+  }
+  try {
+    const label = direction === 'undo' ? await undoLast() : await redoNext()
+    if (label) raiseNotice(`history-${direction}`, `${direction === 'undo' ? 'Undid' : 'Redid'}: ${label}`)
+    else raiseNotice(`history-${direction}`, direction === 'undo' ? 'Nothing to undo' : 'Nothing to redo')
+  } catch (error) {
+    raiseFailure(`history-${direction}`, direction === 'undo' ? "Couldn't undo" : "Couldn't redo",
+      error instanceof Error ? error.message : String(error))
+  }
+}
+
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
+  const panels = {
+    sheetRail: usePanelStore(s => s.sheetRail),
+    detailPanel: usePanelStore(s => s.detailPanel),
+    statusBar: usePanelStore(s => s.statusBar),
+  }
+  const [explorerOpen, setExplorerOpen] = useState(false)
   const [agentLogOpen, setAgentLogOpen] = useState(false)
   const caseOpen = useGraphStore(state => state.caseFile !== null || state.replay !== null)
   // Shared with the canvas documents bin, so both entry points open one browser.
@@ -150,7 +183,7 @@ export default function App() {
   )
   // Pending project awaiting setup configuration before indexing starts
   const [pendingSetup, setPendingSetup] = useState<ProjectConfig | null>(
-    E2E_SETUP ? { ...E2E_PROJECT, rootPath: '.' } : null
+    E2E_SETUP ? E2E_PROJECT : null
   )
   const [reviewActive, setReviewActive] = useState(E2E_REVIEW)
   // Gates the launcher until the resume decision is known, so a resuming
@@ -206,10 +239,10 @@ export default function App() {
       applySnapshot(E2E_SNAPSHOT)
       // E2E-only affordance: expose the store so tests can drive live patches
       // (graph:patch choreography) deterministically without a real daemon.
-      ;(window as unknown as { __axiomGraphStore?: unknown }).__axiomGraphStore = useGraphStore
+      ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
       return
     }
-    if (!window.axiom) {
+    if (!window.ambio) {
       connectToArchd()
     }
     // Infra service registry - one fetch, shared by canvas nodes and dialogs
@@ -219,26 +252,26 @@ export default function App() {
   // archd is restarted by the main process when it dies. Say so while it
   // happens, and say plainly when it will not come back.
   useEffect(() => {
-    if (E2E_MODE || !window.axiom?.onArchdStatus) return
-    return window.axiom.onArchdStatus(status => {
+    if (E2E_MODE || !window.ambio?.onArchdStatus) return
+    return window.ambio.onArchdStatus(status => {
       if (status.state === 'restarting') {
-        raiseNotice('archd-status', 'Reconnecting to Axiom\'s background service…',
+        raiseNotice('archd-status', 'Reconnecting to Ambio\'s background service…',
           'It stopped unexpectedly and is restarting. The map resumes updating on its own.')
       } else if (status.state === 'running') {
         resolveInterruption('archd-status')
         resolveInterruption('archd-failed')
       } else {
         resolveInterruption('archd-status')
-        raiseFailure('archd-failed', 'Axiom\'s background service is not running', status.detail, [{
+        raiseFailure('archd-failed', 'Ambio\'s background service is not running', status.detail, [{
           label: 'Try again',
           primary: true,
           run: () => {
             resolveInterruption('archd-failed')
-            void window.axiom.restartArchd()
+            void window.ambio.restartArchd()
           },
         }, {
           label: 'Report a bug',
-          run: () => { void window.axiom.reportBug() },
+          run: () => { void window.ambio.reportBug() },
         }])
       }
     })
@@ -254,7 +287,7 @@ export default function App() {
         [{ label: 'Project Settings', primary: true, run: () => emitCommand('project.settings') }])
     }
     const onLimited = () => {
-      const linux = window.axiom?.platform === 'linux'
+      const linux = window.ambio?.platform === 'linux'
       raiseFailure('watcher-limited', 'Live updates are off for part of this project',
         linux
           ? 'Linux limits how many folders one user can watch, and this project needs more. Raise the limit (copy the command and run it in a terminal), or exclude large folders in Project Settings, then reopen the project.'
@@ -263,16 +296,16 @@ export default function App() {
           ...(linux ? [{
             label: 'Copy command',
             primary: true,
-            run: () => { void window.axiom?.copyText('echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/60-axiom-watches.conf && sudo sysctl --system') },
+            run: () => { void window.ambio?.copyText('echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/60-ambio-watches.conf && sudo sysctl --system') },
           }] : []),
           { label: 'Project Settings', run: () => emitCommand('project.settings') },
         ])
     }
-    window.addEventListener('axiom:indexing-cancelled', onCancelled)
-    window.addEventListener('axiom:watcher-limited', onLimited)
+    window.addEventListener('ambio:indexing-cancelled', onCancelled)
+    window.addEventListener('ambio:watcher-limited', onLimited)
     return () => {
-      window.removeEventListener('axiom:indexing-cancelled', onCancelled)
-      window.removeEventListener('axiom:watcher-limited', onLimited)
+      window.removeEventListener('ambio:indexing-cancelled', onCancelled)
+      window.removeEventListener('ambio:watcher-limited', onLimited)
     }
   }, [])
 
@@ -282,19 +315,19 @@ export default function App() {
   useEffect(() => {
     if (!workbenchOpen || updateStatus.state === 'idle') return
     if (updateStatus.state === 'ready') {
-      raiseInvitation('app-update', `Axiom ${updateStatus.version} is ready`,
-        'It installs when you restart Axiom. Your projects reopen where you left them.',
-        [{ label: 'Restart to update', primary: true, run: () => { void window.axiom.installUpdate() } }],
-        undefined, 'It will also install the next time you quit Axiom.')
+      raiseInvitation('app-update', `Ambio ${updateStatus.version} is ready`,
+        'It installs when you restart Ambio. Your projects reopen where you left them.',
+        [{ label: 'Restart to update', primary: true, run: () => { void window.ambio.installUpdate() } }],
+        undefined, 'It will also install the next time you quit Ambio.')
     } else {
-      raiseInvitation('app-update', `Axiom ${updateStatus.version} is available`,
+      raiseInvitation('app-update', `Ambio ${updateStatus.version} is available`,
         'Download it from the release page and replace this copy.',
-        [{ label: 'Download', primary: true, run: () => { void window.axiom.installUpdate() } }])
+        [{ label: 'Download', primary: true, run: () => { void window.ambio.installUpdate() } }])
     }
   }, [workbenchOpen, updateStatus])
 
   // A delta:ready event covers project open. Focus refresh covers the other
-  // daily path: Axiom stayed open while an agent changed the architecture.
+  // daily path: Ambio stayed open while an agent changed the architecture.
   useEffect(() => {
     if (E2E_MODE) return
     return subscribeToDeltaRefresh(window, () => useGraphStore.getState().loadDelta())
@@ -306,7 +339,7 @@ export default function App() {
       const notice = (event as CustomEvent<{ workspaceId: string; proposalId: string }>).detail
       if (notice.workspaceId !== currentProject.id) return
       // Decision and layout writes update their own store. A new proposal
-      // refreshes the invitation even when Axiom was already open.
+      // refreshes the invitation even when Ambio was already open.
       const proposalStore = useProposalStore.getState()
       if (proposalStore.proposal?.id !== notice.proposalId) void proposalStore.load(currentProject.id)
     }
@@ -321,11 +354,11 @@ export default function App() {
         }
       } catch { /* the daemon can reconnect before its API is ready */ }
     }
-    window.addEventListener('axiom:proposal', onProposal)
-    window.addEventListener('axiom:proposal-refresh', refreshProposal)
+    window.addEventListener('ambio:proposal', onProposal)
+    window.addEventListener('ambio:proposal-refresh', refreshProposal)
     return () => {
-      window.removeEventListener('axiom:proposal', onProposal)
-      window.removeEventListener('axiom:proposal-refresh', refreshProposal)
+      window.removeEventListener('ambio:proposal', onProposal)
+      window.removeEventListener('ambio:proposal-refresh', refreshProposal)
     }
   }, [currentProject?.id])
 
@@ -345,11 +378,13 @@ export default function App() {
   }, [])
 
   const openProject = useCallback(async (incomingConfig: ProjectConfig) => {
+    // Undo history belongs to the project it was made in.
+    clearUndo()
     let config = migrateLegacyProjectLifecycle(incomingConfig)
     let returning = projectHasEnteredWorkbench(config)
     // Older builds did not persist this milestone. Their existing index is
     // durable evidence that opening should go straight to the workbench.
-    if (!returning && window.axiom) {
+    if (!returning && window.ambio) {
       try {
         const scope = await fetch(`${archdApi()}/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`)
         if (scope.ok && ((await scope.json()) as { indexed?: boolean }).indexed) returning = true
@@ -366,13 +401,13 @@ export default function App() {
     setReviewActive(!returning && !isBlankProject && !config.reviewCompletedAt)
     setCreatedProjectId(isBlankProject ? config.id : null)
 
-    if (window.axiom) {
+    if (window.ambio) {
       beginIndexing()
       // Save to recent projects list via IPC. Failing here used to leave the
       // workbench mounted against a project that never actually opened, so the
       // user got an empty canvas with no way to tell it had failed.
       try {
-        await window.axiom.openProject(config)
+        await window.ambio.openProject(config)
       } catch (err) {
         console.error('[openProject] could not record the project:', err)
         void forgetOpenProject()
@@ -420,14 +455,40 @@ export default function App() {
       }
       registerWorkspace().then(async response => {
         // archd answered but refused the project - for instance a database
-        // written by a newer Axiom. Say exactly that, not "unreachable".
+        // written by a newer Ambio. Say exactly that, not "unreachable".
         if (!response.ok) {
           setIndexingComplete()
           let detail = `archd answered ${response.status}.`
+          let damaged: { backups?: Array<{ name: string; createdAt: number }> } | undefined
           try {
-            const body = await response.json() as { error?: string }
+            const body = await response.json() as { error?: string; damaged?: typeof damaged }
             if (body.error) detail = body.error
+            damaged = body.damaged
           } catch { /* keep the status line */ }
+          // A damaged map is not opened; its newest backup is offered instead.
+          const newest = damaged?.backups?.[0]
+          if (damaged && newest && window.ambio) {
+            const id = 'map-damaged'
+            raiseDecision(id, `${config.name}'s map is damaged`,
+              `It cannot be opened as it is. Restore the backup from ${new Date(newest.createdAt).toLocaleString()}? The damaged map is kept aside, and your code is untouched.`, [
+                {
+                  label: 'Restore Backup',
+                  primary: true,
+                  run: async () => {
+                    try {
+                      if (await window.ambio!.restoreBackup(config.id, newest.name)) {
+                        resolveInterruption(id)
+                        void openProject(config)
+                      }
+                    } catch (error) {
+                      raiseFailure('map-restore', "Couldn't restore the backup", String(error))
+                    }
+                  },
+                },
+                { label: 'Not Now', run: () => resolveInterruption(id) },
+              ])
+            return
+          }
           raiseFailure('workspace-register', `Could not open ${config.name}`,
             `${detail} Your code is untouched.`)
           return
@@ -557,26 +618,26 @@ export default function App() {
     setPendingSetup(config)
   }, [openProject])
 
-  // Resume where you were. Axiom opened on the launcher every single time, so
+  // Resume where you were. Ambio opened on the launcher every single time, so
   // reaching your own codebase cost a click through a list you had already
   // chosen from yesterday - the wrong first impression for a tool meant to be
   // opened every morning. Runs once per launch, before anything is open.
   useEffect(() => {
     if (resumeChecked) return
-    if (!window.axiom) { setResumeChecked(true); return }
+    if (!window.ambio) { setResumeChecked(true); return }
     let active = true
     void (async () => {
       try {
-        // Launched to open something (`axiom .`, a dock drop, a link): that
+        // Launched to open something (`ambio .`, a dock drop, a link): that
         // wins over resuming yesterday's project.
-        const requested = await window.axiom!.takeOpenRequest?.()
+        const requested = await window.ambio!.takeOpenRequest?.()
         if (requested) {
           await routeProjectBySourceBoundaryState(requested)
           return
         }
-        const recent = await window.axiom!.listRecentProjects()
+        const recent = await window.ambio!.listRecentProjects()
         if (!active) return
-        const storedResume = await window.axiom!.getResumeProjectId()
+        const storedResume = await window.ambio!.getResumeProjectId()
         const legacyResume = localStorage.getItem(RESUME_KEY)
         if (legacyResume) localStorage.removeItem(RESUME_KEY)
         const decision = resumeDecision({
@@ -619,8 +680,8 @@ export default function App() {
   }, [setStoreProject])
 
   const openProjectDialog = useCallback(async () => {
-    if (window.axiom) {
-      const config = await window.axiom.openProjectDialog()
+    if (window.ambio) {
+      const config = await window.ambio.openProjectDialog()
       if (config) {
         await routeProjectBySourceBoundaryState(config)
       }
@@ -643,6 +704,9 @@ export default function App() {
   const [projectSettingsFor, setProjectSettingsFor] = useState<ProjectConfig | null>(null)
 
   useCommandHandlers({
+    'view.panelSheetRail': () => usePanelStore.getState().toggle('sheetRail'),
+    'view.panelDetail': () => usePanelStore.getState().toggle('detailPanel'),
+    'view.panelStatusBar': () => usePanelStore.getState().toggle('statusBar'),
     'project.new': () => {
       void (async () => {
         if (currentProject) await closeProject()
@@ -667,11 +731,14 @@ export default function App() {
         }
       }).catch(error => raiseFailure('reindex', 'Could not re-index this project', String(error)))
     },
-    'project.reveal': () => { if (currentProject) window.axiom?.showInFolder(currentProject.rootPath) },
+    'edit.undo': () => { void stepHistory('undo') },
+    'edit.redo': () => { void stepHistory('redo') },
+    'project.reveal': () => { if (currentProject) window.ambio?.showInFolder(currentProject.rootPath) },
     'project.exportMap': () => { if (currentProject) void exportMap(currentProject) },
     'project.importMap': () => { void importMap() },
     'project.close': () => { if (currentProject) void closeProject() },
     'view.search': () => { if (currentProject) setSearchOpen(open => !open) },
+    'view.explorer': () => { if (currentProject) setExplorerOpen(open => !open) },
     'view.agentLog': () => { if (currentProject) setAgentLogOpen(open => !open) },
     'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
     'view.reviewChanges': () => {
@@ -679,11 +746,11 @@ export default function App() {
       if (store.delta) store.startDeltaReview()
       else raiseNotice('no-delta', 'Nothing to review', 'No architectural changes since your last review.')
     },
-    'agent.message': () => { window.dispatchEvent(new Event('axiom:open-agent-dispatch')) },
+    'agent.message': () => { window.dispatchEvent(new Event('ambio:open-agent-dispatch')) },
     'agent.connect': () => { if (currentProject) setAgentSetupOpen(true) },
     'help.guide': () => { useOnboardingStore.getState().reveal() },
     'project.clearRecent': () => {
-      void window.axiom?.clearRecentProjects()
+      void window.ambio?.clearRecentProjects()
         .then(() => raiseNotice('recent-cleared', 'Recent list cleared', 'Every project is still under Show all on the project list.'))
     },
     'go.floor': () => { if (currentProject) void useSheetStore.getState().openSheet(currentProject.id, null) },
@@ -703,7 +770,7 @@ export default function App() {
 
   async function exportMap(project: ProjectConfig) {
     try {
-      const path = await window.axiom.exportMap(project.id)
+      const path = await window.ambio.exportMap(project.id)
       if (path) raiseNotice('map-exported', 'Map exported', `Saved to ${path}. Import it on any computer with File → Import Map.`)
     } catch (error) {
       raiseFailure('map-exported', 'Could not export the map', error instanceof Error ? error.message : String(error))
@@ -713,7 +780,7 @@ export default function App() {
   // An imported map may replace the one that is open, so always reopen.
   async function importMap() {
     try {
-      const config = await window.axiom.importMap()
+      const config = await window.ambio.importMap()
       if (!config) return
       if (currentProject) await closeProject()
       setProjectSettingsFor(null)
@@ -723,7 +790,7 @@ export default function App() {
     }
   }
 
-  // Something asked Axiom to open a project while it was running.
+  // Something asked Ambio to open a project while it was running.
   const openRequested = useRef<(config: ProjectConfig) => Promise<void>>(async () => {})
   openRequested.current = async config => {
     if (currentProject?.id === config.id) return
@@ -731,13 +798,13 @@ export default function App() {
     setProjectSettingsFor(null)
     await routeProjectBySourceBoundaryState(config)
   }
-  useEffect(() => window.axiom?.onOpenRequest?.(() => {
-    void window.axiom.takeOpenRequest().then(config => { if (config) void openRequested.current(config) })
+  useEffect(() => window.ambio?.onOpenRequest?.(() => {
+    void window.ambio.takeOpenRequest().then(config => { if (config) void openRequested.current(config) })
   }), [])
 
   // Drop a folder (or a file inside a project) anywhere on the window.
   useEffect(() => {
-    if (!window.axiom?.pathForFile) return
+    if (!window.ambio?.pathForFile) return
     const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
     const onDragOver = (event: DragEvent) => {
       if (!hasFiles(event)) return
@@ -749,8 +816,8 @@ export default function App() {
       event.preventDefault()
       const file = event.dataTransfer?.files?.[0]
       if (!file) return
-      const path = window.axiom.pathForFile(file)
-      if (path) void window.axiom.openPath(path)
+      const path = window.ambio.pathForFile(file)
+      if (path) void window.ambio.openPath(path)
     }
     window.addEventListener('dragover', onDragOver)
     window.addEventListener('drop', onDrop)
@@ -763,7 +830,7 @@ export default function App() {
   // File → Open Recent, from the native menu or the title-bar menu.
   useOpenRecent(projectId => {
     void (async () => {
-      const project = (await window.axiom?.listRecentProjects())?.find(candidate => candidate.id === projectId)
+      const project = (await window.ambio?.listRecentProjects())?.find(candidate => candidate.id === projectId)
       if (!project) return
       if (currentProject?.id === project.id) return
       if (currentProject) await closeProject()
@@ -796,7 +863,7 @@ export default function App() {
             void openProject(updated)
             return
           }
-          void window.axiom?.updateProject(updated.id, {
+          void window.ambio?.updateProject(updated.id, {
             name: updated.name,
             ignoredPaths: updated.ignoredPaths,
             sourceBoundariesReviewedAt: updated.sourceBoundariesReviewedAt,
@@ -820,7 +887,7 @@ export default function App() {
   // Hold the frame while we decide whether to resume. Without this the
   // launcher paints for a beat and is yanked away, which reads as a glitch.
   if (!currentProject && !resumeChecked) {
-    return <div className="axiom-resume-hold" aria-busy="true" aria-label="Opening your last project" />
+    return <div className="ambio-resume-hold" aria-busy="true" aria-label="Opening your last project" />
   }
 
   // Home screen when no project is open
@@ -866,7 +933,7 @@ export default function App() {
         blankProject={blankProject}
         backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
         onComplete={() => {
-          void window.axiom?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
+          void window.ambio?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
             .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
             .catch(error => raiseFailure('agent-setup-save', 'Could not save agent setup', String(error)))
           setCompletedAgentSetupId(currentProject.id)
@@ -876,7 +943,7 @@ export default function App() {
         onSkip={() => {
           setBrowsingWithoutAgent(currentProject.id)
           setAgentSetupOpen(false)
-          void window.axiom?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+          void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
             .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
             .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
           setReviewActive(false)
@@ -891,7 +958,7 @@ export default function App() {
       <ProjectReviewScreen
         project={currentProject}
         onFinishReview={() => {
-          void window.axiom?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+          void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
             .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
             .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
           setReviewActive(false)
@@ -916,12 +983,13 @@ export default function App() {
 
         {/* Sheet rail + canvas area */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <SheetRail />
+          {panels.sheetRail && <SheetRail />}
+          <SheetMarkdown />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {/* REVISION 2: sheets are layers over the live canvas, not separate
-              views - AxiomCanvas renders the base layer + active sheet overlay. */}
+              views - AmbioCanvas renders the base layer + active sheet overlay. */}
           <ErrorBoundary>
-            <AxiomCanvas />
+            <AmbioCanvas />
           </ErrorBoundary>
 
           {/* Beside the canvas, not inside it: the ghost that carries a node
@@ -941,10 +1009,11 @@ export default function App() {
           <ArchitectureProposalPanel />
 
           {/* Detail panel (right side) */}
-          <DetailPanel />
+          {panels.detailPanel && <DetailPanel />}
 
           {/* Search overlay */}
           {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
+          {explorerOpen && <ModelExplorer onClose={() => setExplorerOpen(false)} />}
 
           {/* The one surface anything is allowed to interrupt you through.
               Everything below raises into it and renders nothing itself. */}
@@ -990,7 +1059,7 @@ export default function App() {
         </div>
 
         {/* Status bar */}
-        <StatusBar workspaceId={currentProject.id} />
+        {panels.statusBar && <StatusBar workspaceId={currentProject.id} />}
       </div>
     </ReactFlowProvider>
   )

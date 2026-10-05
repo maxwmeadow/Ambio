@@ -3,6 +3,7 @@ import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
 import { DialogActions, DialogButton, DialogError, DialogField, DialogForm, DialogFrame, DialogNote } from './ui/DialogPrimitives'
 import { archdApi } from '../archdEndpoint.ts'
+import { apiEditArchitecture } from '../canvas/arcdApi'
 
 interface GroupDialogProps {
   isOpen: boolean
@@ -36,7 +37,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
     setError(null)
 
     try {
-      const isDemo = !window.axiom
+      const isDemo = !window.ambio
 
       if (isDemo) {
         // Demo mode: mutate store directly
@@ -66,27 +67,13 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
       } else {
         // Live: call Go REST API
         const workspaceId = currentProject?.id ?? ''
-        const sysRes = await fetch(`${archdApi()}/api/systems`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId,
-            name: name.trim(),
-            description: description.trim() || null,
-            source: 'user',
-          }),
-        })
-        if (!sysRes.ok) throw new Error(await sysRes.text())
-        const sys = await sysRes.json() as { id: string }
-
-        // Assign files one by one
-        await Promise.all(selectedFileIds.map(fileId =>
-          fetch(`${archdApi()}/api/files/${fileId}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemId: sys.id }),
-          })
-        ))
+        // One recorded step: the new system and the files that belong to it.
+        await apiEditArchitecture(workspaceId, [{
+          op: 'create',
+          name: name.trim(),
+          description: description.trim() || null,
+          fileIds: selectedFileIds,
+        }])
 
         // Re-fetch snapshot so canvas reflects the new assignments
         const snapRes = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)
@@ -122,7 +109,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Auth & Session Management"
-              className="axiom-dialog-input"
+              className="ambio-dialog-input"
               autoFocus
             />
           </DialogField>
@@ -133,7 +120,7 @@ export function GroupDialog({ isOpen, onClose, selectedFileIds, onSuccess }: Gro
               onChange={e => setDescription(e.target.value)}
               placeholder="What this system is responsible for..."
               rows={3}
-              className="axiom-dialog-input axiom-dialog-input--textarea"
+              className="ambio-dialog-input ambio-dialog-input--textarea"
             />
           </DialogField>
 

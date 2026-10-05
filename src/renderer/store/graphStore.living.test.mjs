@@ -10,7 +10,7 @@ import {
 } from './graphStore.ts'
 
 function resetLivingState() {
-  globalThis.__axiomLivingFlowLog = []
+  globalThis.__ambioLivingFlowLog = []
   useGraphStore.setState({
     files: [{ id: 'file-b' }],
     dependencies: [],
@@ -199,7 +199,7 @@ test('one save trace produces one visual route across relationship kinds', () =>
     assert.equal(events[0].eventCount, 2)
     assert.equal(events[0].delayMs, LIVING_FLOW_LEAD_IN_MS)
 
-    const diagnostics = globalThis.__axiomLivingFlowLog
+    const diagnostics = globalThis.__ambioLivingFlowLog
       .filter(entry => entry.traceId === 'save-42')
     assert.deepEqual(
       diagnostics.map(entry => entry.stage),

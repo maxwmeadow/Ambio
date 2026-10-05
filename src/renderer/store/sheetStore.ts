@@ -2,8 +2,10 @@
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
 import { create } from 'zustand'
-import type { DeltaWorkSession, FloorLayout } from '../../shared/types'
-import { raiseFailure } from './interruptionStore.ts'
+import type { SheetMember } from '../canvas/sheetFromSelection'
+import { workOrderNotice } from './workOrderNotice.ts'
+import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
+import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
 
 let openSheetRequest = 0
@@ -98,6 +100,8 @@ export interface CanvasMessage {
   reviews?: { id: string; decision: 'accepted' | 'reopened'; note: string; createdAt: number }[]
   changes?: { kind: string; subjectLabel: string; objectLabel?: string; count: number; at: number }[]
   sessions?: DeltaWorkSession[]
+  /** A make-the-code-match order's disagreements, re-checked by Ambio. */
+  codeChecks?: CodeCheckResult[]
   deliveredTo: string | null
   answerAnnotationId: string | null
   createdAt: number
@@ -272,6 +276,23 @@ export interface SheetLayerData {
   planned: PlannedNode[]
   plannedEdges: PlannedEdge[]
   layouts: SheetLayout[]
+  /** Live nodes this sheet proposes taking out of the code. */
+  removals?: SheetRemoval[]
+}
+
+/**
+ * A sheet's proposal that a live node leave the code. It hides the node in
+ * this sheet's picture only, stays listed until restored, and is done once
+ * the code is gone (archd `db/sheet_removals.go`).
+ */
+export interface SheetRemoval {
+  sheetId: string
+  nodeId: string
+  nodeType: 'file' | 'system' | 'infra'
+  label: string
+  createdBy: 'user' | 'agent'
+  createdAt: number
+  done: boolean
 }
 
 function withValidScale<T extends { scale?: number }>(item: T): T {
@@ -291,7 +312,39 @@ async function fetchSheetLayer(workspaceId: string, sheetId: string): Promise<Sh
     planned: (data.planned ?? []).map(withValidScale),
     plannedEdges: data.plannedEdges ?? [],
     layouts: data.layouts ?? [],
+    removals: data.removals ?? [],
   }
+}
+
+/** Propose that a live node leave the code, on this sheet only. */
+export async function proposeSheetRemoval(workspaceId: string, sheetId: string, nodeId: string): Promise<void> {
+  const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/removals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, nodeId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  const removal = await res.json() as SheetRemoval
+  useSheetStore.setState(st => {
+    const layer = st.layersById[sheetId]
+    if (!layer) return st
+    const removals = [...(layer.removals ?? []).filter(item => item.nodeId !== nodeId), removal]
+    return commitSheetLayer(st, sheetId, { ...layer, removals })
+  })
+}
+
+/** Take a proposed removal back off the sheet. */
+export async function restoreSheetRemoval(workspaceId: string, sheetId: string, nodeId: string): Promise<void> {
+  const res = await fetch(
+    `${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/removals/${encodeURIComponent(nodeId)}?workspace=${encodeURIComponent(workspaceId)}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) throw new Error(await res.text())
+  useSheetStore.setState(st => {
+    const layer = st.layersById[sheetId]
+    if (!layer) return st
+    return commitSheetLayer(st, sheetId, { ...layer, removals: (layer.removals ?? []).filter(item => item.nodeId !== nodeId) })
+  })
 }
 
 interface SheetState {
@@ -314,17 +367,18 @@ interface SheetState {
   fetchSheets: (workspaceId: string) => Promise<void>
   openSheet: (workspaceId: string, sheetId: string | null) => Promise<void>
   toggleSheetVisibility: (workspaceId: string, sheetId: string) => Promise<void>
-  createSheet: (workspaceId: string, name: string, purpose: string, fileIds: string[]) => Promise<Sheet>
+  /** Members are file ids or typed members (sheetFromSelection.ts). */
+  createSheet: (workspaceId: string, name: string, purpose: string, members: Array<string | SheetMember>) => Promise<Sheet>
   deleteSheet: (workspaceId: string, sheetId: string) => Promise<void>
   previewElementPosition: (elementId: string, x: number, y: number) => void
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   updateElementMetadata: (workspaceId: string, elementId: string, metadata: PlannedNodeMetadata) => Promise<void>
   removeElement: (workspaceId: string, sheetId: string, elementId: string) => Promise<void>
-  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string) => Promise<void>
+  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string, codeFitFileIds?: string[]) => Promise<void>
   lastCreatedPlannedId: string | null   // node enters inline name-edit on mount
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
-  setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected') => Promise<void>
+  setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
   previewPlannedPosition: (id: string, x: number, y: number) => void
   updatePlannedLayout: (workspaceId: string, id: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   previewLayoutsBatch: (workspaceId: string, sheetId: string, layouts: SheetLayoutMutation[]) => void
@@ -548,7 +602,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     }
   },
 
-  setPlannedApproval: async (workspaceId, id, decision) => {
+  setPlannedApproval: async (workspaceId, id, decision, reason) => {
     const planned = Object.values(get().layersById)
       .flatMap(layer => layer.planned)
       .find(node => node.id === id)
@@ -556,7 +610,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     const res = await fetch(`${archdApi()}/api/planned/${encodeURIComponent(id)}/approval`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, decision }),
+      // The reason reaches later agent sessions, so the proposal is not made again.
+      body: JSON.stringify({ workspaceId, decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
     })
     if (!res.ok) throw new Error(await res.text())
     const updated = withValidScale(await res.json() as PlannedNode)
@@ -753,7 +808,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   // Throws on refusal. The server rejects duplicate names, and "a sheet named X
   // already exists" is the only useful thing to say at that moment - swallowing
   // it into a null would leave the caller guessing that archd was down.
-  createSheet: async (workspaceId, name, purpose, fileIds) => {
+  createSheet: async (workspaceId, name, purpose, members) => {
     const res = await fetch(`${archdApi()}/api/sheets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -761,8 +816,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         workspaceId, name,
         purpose: purpose || null,
         createdBy: 'user',
-        elements: fileIds.map((id, i) => ({
-          fileId: id,
+        elements: members.map((member, i) => ({
+          ...(typeof member === 'string' ? { fileId: member } : member),
           // starting grid so a fresh sheet isn't a stack at 0,0
           x: 40 + (i % 5) * 220, y: 40 + Math.floor(i / 5) * 120,
         })),
@@ -885,7 +940,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
   },
 
-  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID()) => {
+  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID(), codeFitFileIds = []) => {
     const res = await fetch(`${archdApi()}/api/canvas/send`, {
       method: 'POST',
       signal: AbortSignal.timeout(15000),
@@ -893,12 +948,29 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       body: JSON.stringify({
         id, workspaceId, note, sheetId, deliveryMode: 'addressed',
         selection: JSON.stringify(selection),
+        // Ambio re-checks these files against the map after the reply.
+        ...(codeFitFileIds.length > 0 ? { codeFitFileIds } : {}),
       }),
     })
     if (!res.ok) throw Object.assign(new Error(await res.text()), { status: res.status })
     await refreshInbox(workspaceId)
   },
 }))
+
+/**
+ * What an agent draws must not go unnoticed (docs/PRODUCT.md §1): one
+ * invitation per sheet, replaced rather than stacked while the agent works.
+ */
+function announceAgentDrawing(sheetId: string, title: string, body: string) {
+  raiseInvitation(`agent-drawing-${sheetId}`, title, body, [{
+    label: 'Open Sheet',
+    primary: true,
+    run: () => {
+      const workspaceId = useSheetStore.getState().workspaceId
+      if (workspaceId) void useSheetStore.getState().openSheet(workspaceId, sheetId)
+    },
+  }])
+}
 
 // handleSheetPatch routes sheet/annotation/canvas WebSocket patches into the
 // sheet store. Called from graphStore's patch pipeline (one-way dependency).
@@ -909,6 +981,9 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
   switch (patch.type) {
     case 'sheet:upserted': {
       const sheet = patch.payload as Sheet
+      if (sheet.createdBy === 'agent' && !sheet.resolvedAt && !s.sheets.some(item => item.id === sheet.id)) {
+        announceAgentDrawing(sheet.id, `An agent drew a sheet: ${sheet.name}`, 'Open it to see what it proposes, then confirm or reject each part.')
+      }
       if (sheet.resolvedAt) {
         useSheetStore.setState(st => {
           const previous = st.sheets.find(item => item.id === sheet.id)
@@ -939,6 +1014,15 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
           sheets: st.sheets.filter(x => x.id !== id), layersById, visibleSheetIds, activeSheetId,
           ...(st.activeSheetId === id ? activeLayerProjection(activeSheetId, layersById) : {}),
         }
+      })
+      break
+    }
+    case 'sheet:removals': {
+      const { sheetId, removals } = patch.payload as { sheetId: string; removals?: SheetRemoval[] }
+      if (!s.layersById[sheetId]) break
+      useSheetStore.setState(st => {
+        const layer = st.layersById[sheetId]
+        return layer ? commitSheetLayer(st, sheetId, { ...layer, removals: removals ?? [] }) : st
       })
       break
     }
@@ -1015,6 +1099,11 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'planned:upserted': {
       const p = withValidScale(patch.payload as PlannedNode)
+      const known = Object.values(s.layersById).some(layer => layer.planned.some(node => node.id === p.id))
+      if (p.createdBy === 'agent' && p.approvalStatus === 'pending' && !known) {
+        const sheetName = s.sheets.find(sheet => sheet.id === p.sheetId)?.name ?? 'a sheet'
+        announceAgentDrawing(p.sheetId, `An agent proposed ${p.name}`, `On ${sheetName}. Confirm or reject it in the sheet rail.`)
+      }
       if (!s.layersById[p.sheetId]) break
       useSheetStore.setState(st => {
         const layer = st.layersById[p.sheetId]
@@ -1063,7 +1152,12 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'canvas:message': {
       const m = patch.payload as CanvasMessage
-      if (m.workspaceId === s.workspaceId) void refreshInbox(m.workspaceId)
+      if (m.workspaceId === s.workspaceId) {
+        // Told outside the window only while you are elsewhere (workOrderNotice.ts).
+        const notice = workOrderNotice(s.messages.find(message => message.id === m.id), m)
+        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.ambio?.notify?.(notice)
+        void refreshInbox(m.workspaceId)
+      }
       break
     }
   }

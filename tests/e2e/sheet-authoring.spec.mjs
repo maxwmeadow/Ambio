@@ -15,20 +15,25 @@ for (const creation of ['drag', 'click']) {
       expect(response.ok).toBe(true)
       const sheet = await response.json()
       const readSheet = async () => (await harnessFetch(`${harness.apiBase}/api/sheets/${sheet.id}?workspace=demo`)).json()
-      app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1' } })
+      app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
       const page = await app.firstWindow()
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
         const url = new URL(route.request().url())
-        const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
-          headers: { ...route.request().headers(), Authorization: 'Bearer axiom-isolated-test-token-for-mcp-harness' } })
-        await route.fulfill({ response: result })
+        try {
+          const result = await route.fetch({ url: `${harness.apiBase}${url.pathname}${url.search}`,
+            headers: { ...route.request().headers(), Authorization: 'Bearer ambio-isolated-test-token-for-mcp-harness' } })
+          await route.fulfill({ response: result })
+        } catch (error) {
+          // page.reload() cancels requests still in flight; only that is expected.
+          if (!/disposed|has been closed/.test(String(error))) throw error
+        }
       })
       await page.reload()
       await expect(page.locator('.react-flow__node').first()).toBeAttached()
       await expect(page.locator('.layout-transition')).toHaveCount(0)
       await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
-      const palette = page.locator('.axiom-sheet-palette')
+      const palette = page.locator('.ambio-sheet-palette')
       await expect(palette).toBeVisible()
 
       const dropStencil = async (label, point) => {
@@ -92,9 +97,37 @@ for (const creation of ['drag', 'click']) {
       expect(rootFile).toBeTruthy()
       const fileNode = page.locator(`.react-flow__node[data-id="planned:${rootFile.id}"]`)
       await expect(fileNode).toBeVisible()
-      const from = await fileNode.boundingBox()
-      const to = await systemNode.boundingBox()
-      await page.mouse.move(from.x + from.width / 2, from.y + 12)
+      // A new node animates into place; drag from where it settles, not from
+      // where it was mid-flight.
+      const settled = async locator => {
+        let previous = null
+        for (let attempt = 0; attempt < 40; attempt++) {
+          const box = await locator.boundingBox()
+          if (previous && box && Math.abs(box.x - previous.x) < 0.5 && Math.abs(box.y - previous.y) < 0.5 &&
+            Math.abs(box.width - previous.width) < 0.5) return box
+          previous = box
+          await page.waitForTimeout(100)
+        }
+        return previous
+      }
+      // Grab the node by its body: the language icon is a picker button and
+      // the selection chrome has resize handles, both of which (rightly) do
+      // not start a move. Where they sit depends on the zoom, so look.
+      const grabPoint = (box, id) => page.evaluate(([box, id]) => {
+        for (const fy of [0.75, 0.5, 0.25]) {
+          for (const fx of [0.3, 0.7, 0.5]) {
+            const x = box.x + box.width * fx, y = box.y + box.height * fy
+            const hit = document.elementFromPoint(x, y)
+            if (hit?.closest('.react-flow__node')?.getAttribute('data-id') === id &&
+              !hit.closest('.nodrag, .ambio-floating-resize-handle')) return { x, y }
+          }
+        }
+        throw new Error(`No draggable point on ${id}`)
+      }, [box, id])
+      await settled(fileNode)
+      const from = await grabPoint(await settled(fileNode), `planned:${rootFile.id}`)
+      const to = await settled(systemNode)
+      await page.mouse.move(from.x, from.y)
       await page.mouse.down()
       await page.mouse.move(to.x + to.width * 0.6, to.y + to.height * 0.7, { steps: 20 })
       await page.mouse.up()

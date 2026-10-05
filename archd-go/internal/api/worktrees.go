@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/gitworktree"
-	"axiom.local/archd/internal/indexer"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
+	"ambio.local/archd/internal/indexer"
 )
 
 type rootOpenOptions struct {

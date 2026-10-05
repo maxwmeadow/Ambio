@@ -3,7 +3,7 @@ export type ProjectFileKind = 'folder' | 'source' | 'document' | 'unsupported'
 const SOURCE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.mjs', '.cjs', '.jsx',
   '.py', '.go', '.rs', '.cs',
-  '.cpp', '.cc', '.cxx', '.hpp', '.hxx',
+  '.cpp', '.cc', '.cxx', '.hpp', '.hxx', '.c', '.h',
   '.rb', '.java',
 ])
 

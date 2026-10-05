@@ -48,17 +48,17 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     setLoading(true)
     setLoadError(null)
 
-    if (!window.axiom) {
+    if (!window.ambio) {
       setLoading(false)
       return () => { active = false }
     }
 
-    void window.axiom.listDir(rootPath)
+    void window.ambio.listDir(rootPath)
       .then(entries => {
         if (active) setTree(foldersFirst(entries).map(entry => makeTreeNode(entry, existing)))
       })
       .catch(() => {
-        if (active) setLoadError('Axiom could not read this project directory.')
+        if (active) setLoadError('Ambio could not read this project directory.')
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -75,12 +75,12 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     const node = findNode(tree, nodePath)
     if (!node?.isDirectory) return
 
-    if (!node.children && window.axiom) {
+    if (!node.children && window.ambio) {
       try {
-        const entries = await window.axiom.listDir(nodePath)
+        const entries = await window.ambio.listDir(nodePath)
         setTree(previous => setChildren(previous, nodePath, foldersFirst(entries).map(entry => makeTreeNode(entry, existing))))
       } catch {
-        setLoadError(`Axiom could not read ${node.name}.`)
+        setLoadError(`Ambio could not read ${node.name}.`)
         return
       }
     }
@@ -100,10 +100,10 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
   )
   const [estimate, setEstimate] = useState<ScopeEstimate | null>(null)
   useEffect(() => {
-    if (!window.axiom?.estimateScope || loading) return
+    if (!window.ambio?.estimateScope || loading) return
     let active = true
     const timer = setTimeout(() => {
-      void window.axiom.estimateScope(rootPath, effectiveExclusions).then(result => { if (active) setEstimate(result) })
+      void window.ambio.estimateScope(rootPath, effectiveExclusions).then(result => { if (active) setEstimate(result) })
     }, 400)
     return () => { active = false; clearTimeout(timer) }
   }, [rootPath, effectiveExclusions, loading])
@@ -125,20 +125,20 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
   }
 
   return (
-    <main className="axiom-onboarding axiom-project-setup">
+    <main className="ambio-onboarding ambio-project-setup">
       <WorkbenchTitleBar context={editing ? 'Project Settings' : 'Project Setup'} status={editing ? 'SETTINGS' : 'PRE-INDEX'} />
 
-      <div className="axiom-source-setup">
-        <header className="axiom-source-setup__header">
-          <button className="axiom-source-setup__back" onClick={onCancel} aria-label={`Back to ${backLabel.toLowerCase()}`}>
+      <div className="ambio-source-setup">
+        <header className="ambio-source-setup__header">
+          <button className="ambio-source-setup__back" onClick={onCancel} aria-label={`Back to ${backLabel.toLowerCase()}`}>
             <span aria-hidden="true">←</span>
             {backLabel}
           </button>
-          <div className="axiom-source-setup__intro">
+          <div className="ambio-source-setup__intro">
             {editing ? (
               <div>
-                <p className="axiom-source-setup__eyebrow">Project settings</p>
-                <label className="axiom-project-settings__name">
+                <p className="ambio-source-setup__eyebrow">Project settings</p>
+                <label className="ambio-project-settings__name">
                   <span>Name</span>
                   <input
                     value={name}
@@ -147,12 +147,12 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
                     spellCheck={false}
                   />
                 </label>
-                <p className="axiom-source-setup__description">
-                  Choose which folders Axiom reads. Changing them updates the map, and is not reported as a code
+                <p className="ambio-source-setup__description">
+                  Choose which folders Ambio reads. Changing them updates the map, and is not reported as a code
                   change in your review of what agents did.
                 </p>
                 {onReindex && (
-                  <p className="axiom-project-settings__reindex">
+                  <p className="ambio-project-settings__reindex">
                     <button type="button" onClick={onReindex}>Re-index project</button>
                     <span>Re-reads every file if the map seems out of date. Systems and layout are kept.</span>
                   </p>
@@ -161,35 +161,35 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
               </div>
             ) : (
               <div>
-                <p className="axiom-source-setup__eyebrow">Choose what Axiom reads</p>
+                <p className="ambio-source-setup__eyebrow">Choose what Ambio reads</p>
                 <h1>Set up {projectName}</h1>
-                <p className="axiom-source-setup__description">
+                <p className="ambio-source-setup__description">
                   Source files are included by default. Common generated and dependency folders are skipped automatically;
                   documentation stays searchable outside the canvas, and unsupported assets are never indexed.
                 </p>
               </div>
             )}
-            <code className="axiom-source-setup__path" title={rootPath}>{rootPath}</code>
+            <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>
           </div>
         </header>
 
-        <section className="axiom-source-browser" aria-labelledby="source-browser-title">
-          <header className="axiom-source-browser__header">
+        <section className="ambio-source-browser" aria-labelledby="source-browser-title">
+          <header className="ambio-source-browser__header">
             <div>
               <p>Project contents</p>
               <h2 id="source-browser-title">Files and folders</h2>
             </div>
-            <div className="axiom-source-browser__legend" aria-label="Selection key">
-              <span><i className="axiom-source-browser__legend-check" aria-hidden="true" /> Source → canvas</span>
+            <div className="ambio-source-browser__legend" aria-label="Selection key">
+              <span><i className="ambio-source-browser__legend-check" aria-hidden="true" /> Source → canvas</span>
               <span>Documents → library</span>
               <span>Excluded → skipped</span>
               <span>Unsupported → ignored</span>
             </div>
           </header>
 
-          {loadError && <div className="axiom-source-setup__notice" role="alert">{loadError}</div>}
+          {loadError && <div className="ambio-source-setup__notice" role="alert">{loadError}</div>}
           {largeScope && estimate && (
-            <div className="axiom-source-setup__notice axiom-source-setup__notice--large" role="status">
+            <div className="ambio-source-setup__notice ambio-source-setup__notice--large" role="status">
               <strong>
                 This will index {estimate.truncated ? 'more than ' : 'about '}
                 {estimate.sourceFiles.toLocaleString()} source files.
@@ -202,14 +202,14 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             </div>
           )}
 
-          <div className="axiom-setup-tree axiom-source-browser__tree" role="tree" aria-label="Project files and folders">
+          <div className="ambio-setup-tree ambio-source-browser__tree" role="tree" aria-label="Project files and folders">
             {loading ? (
-              <div className="axiom-setup-tree__state" role="status">
-                <span className="axiom-setup-tree__busy" aria-hidden="true" />
+              <div className="ambio-setup-tree__state" role="status">
+                <span className="ambio-setup-tree__busy" aria-hidden="true" />
                 Reading project contents…
               </div>
             ) : tree.length === 0 ? (
-              <div className="axiom-setup-tree__state">This project is empty.</div>
+              <div className="ambio-setup-tree__state">This project is empty.</div>
             ) : (
               tree.map(node => (
                 <TreeRow
@@ -223,8 +223,8 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             )}
           </div>
 
-          <footer className="axiom-source-browser__footer">
-            <div className="axiom-source-browser__summary" aria-live="polite">
+          <footer className="ambio-source-browser__footer">
+            <div className="ambio-source-browser__summary" aria-live="polite">
               <strong>
                 {scopeSummary.headline}
               </strong>
@@ -232,12 +232,12 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
                 {excludedPaths.length === 0 ? 'No items excluded' : `${excludedPaths.length} ${excludedPaths.length === 1 ? 'item' : 'items'} excluded`}
                 {explored.unsupported > 0 ? ` · ${explored.unsupported} unsupported skipped` : ''}
               </span>
-              <small className="axiom-source-browser__summary-note">
+              <small className="ambio-source-browser__summary-note">
                 {scopeSummary.subtext}
               </small>
             </div>
             <button
-              className="axiom-source-setup__submit"
+              className="ambio-source-setup__submit"
               onClick={handleConfirm}
               disabled={loading || Boolean(loadError && tree.length === 0) || (editing && !trimmedName)}
             >
@@ -265,7 +265,7 @@ interface TreeRowProps {
 }
 
 function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps) {
-  const depthClass = `axiom-setup-tree__row--depth-${Math.min(depth, 8)}`
+  const depthClass = `ambio-setup-tree__row--depth-${Math.min(depth, 8)}`
   const kindLabel = node.kind === 'source'
     ? 'Source'
     : node.kind === 'document'
@@ -276,26 +276,26 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
 
   return (
     <div
-      className="axiom-setup-tree__branch"
+      className="ambio-setup-tree__branch"
       role="treeitem"
       aria-level={depth + 1}
       aria-expanded={node.isDirectory ? node.expanded : undefined}
       data-kind={node.kind}
     >
-      <div className={`axiom-setup-tree__row ${depthClass}${node.excluded ? ' axiom-setup-tree__row--excluded' : ''}`}>
+      <div className={`ambio-setup-tree__row ${depthClass}${node.excluded ? ' ambio-setup-tree__row--excluded' : ''}`}>
         {node.isDirectory ? (
           <button
-            className="axiom-setup-tree__expand"
+            className="ambio-setup-tree__expand"
             onClick={() => void onToggleExpand(node.path)}
             aria-label={`${node.expanded ? 'Collapse' : 'Expand'} ${node.name}`}
           >
             <span aria-hidden="true">›</span>
           </button>
         ) : (
-          <span className="axiom-setup-tree__expand-spacer" aria-hidden="true" />
+          <span className="ambio-setup-tree__expand-spacer" aria-hidden="true" />
         )}
 
-        <label className="axiom-setup-tree__check">
+        <label className="ambio-setup-tree__check">
           <input
             type="checkbox"
             checked={!node.excluded}
@@ -308,13 +308,13 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
 
         <span
           className={node.isDirectory
-            ? `axiom-setup-tree__folder${node.expanded ? ' axiom-setup-tree__folder--open' : ''}`
-            : 'axiom-setup-tree__file'}
+            ? `ambio-setup-tree__folder${node.expanded ? ' ambio-setup-tree__folder--open' : ''}`
+            : 'ambio-setup-tree__file'}
           aria-hidden="true"
         />
-        <span className="axiom-setup-tree__name" title={node.path}>{node.name}</span>
-        <span className="axiom-setup-tree__kind">{kindLabel}</span>
-        <span className="axiom-setup-tree__state-label">
+        <span className="ambio-setup-tree__name" title={node.path}>{node.name}</span>
+        <span className="ambio-setup-tree__kind">{kindLabel}</span>
+        <span className="ambio-setup-tree__state-label">
           {node.kind === 'unsupported' ? 'Skipped' : node.kind === 'document' ? 'Documents' : node.excluded ? 'Excluded' : 'Included'}
         </span>
       </div>
@@ -339,7 +339,7 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
 
 
 /**
- * Axiom keeps a copy of each project's map once a day, seven deep. Restoring
+ * Ambio keeps a copy of each project's map once a day, seven deep. Restoring
  * one keeps the current map as a backup first, so it can be undone.
  */
 function MapBackups({ projectId, onRestored }: { projectId: string; onRestored?: () => void }) {
@@ -347,8 +347,8 @@ function MapBackups({ projectId, onRestored }: { projectId: string; onRestored?:
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const load = useCallback(() => {
-    if (!window.axiom?.listBackups) return
-    window.axiom.listBackups(projectId).then(setBackups).catch(() => setBackups([]))
+    if (!window.ambio?.listBackups) return
+    window.ambio.listBackups(projectId).then(setBackups).catch(() => setBackups([]))
   }, [projectId])
   useEffect(load, [load])
   if (!backups || backups.length === 0) return null
@@ -357,22 +357,22 @@ function MapBackups({ projectId, onRestored }: { projectId: string; onRestored?:
     setBusy(true)
     setError(null)
     try {
-      if (await window.axiom.restoreBackup(projectId, backup.name)) {
+      if (await window.ambio.restoreBackup(projectId, backup.name)) {
         load()
         onRestored?.()
       }
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Axiom could not restore that backup.')
+      setError(failure instanceof Error ? failure.message : 'Ambio could not restore that backup.')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <details className="axiom-project-settings__backups">
+    <details className="ambio-project-settings__backups">
       <summary>Map backups ({backups.length})</summary>
       <p>A copy of the map is kept once a day for the last seven days. Your code is never part of a backup.</p>
-      {error && <p className="axiom-project-settings__backup-error" role="alert">{error}</p>}
+      {error && <p className="ambio-project-settings__backup-error" role="alert">{error}</p>}
       <ul>
         {backups.map(backup => (
           <li key={backup.name}>

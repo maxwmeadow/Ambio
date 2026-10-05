@@ -186,12 +186,12 @@ and truncated. It stays on the local machine in archd's data directory.
 ## Evaluation
 
 Method: headless Claude Code (Opus 5.5) given a support-style ticket that never
-mentions Axiom, in a lab repository with a planted bug, against the real app and
-daemon. Each ticket ran with Axiom connected and with no MCP servers at all.
+mentions Ambio, in a lab repository with a planted bug, against the real app and
+daemon. Each ticket ran with Ambio connected and with no MCP servers at all.
 Otherwise identical: same model, prompt and permissions, and the lab reset to
 the buggy state between runs. The canvas was screenshotted every 3 seconds.
 
-| Ticket | Bug | With Axiom | Without | Used investigation |
+| Ticket | Bug | With Ambio | Without | Used investigation |
 |---|---|---|---|---|
 | shopfront: shipping overcharges* | shared mutable rate table | 52s · $0.32 | 72s · $0.43 | yes (notes only) |
 | marked: `<br>` after a breaks render | module-level rule table mutated across calls | 181s · $0.50 | 188s · $0.40 | yes: start, 2 runs, verdict, conclude |
@@ -199,8 +199,8 @@ the buggy state between runs. The canvas was screenshotted every 3 seconds.
 | ledgerly: partner discount in batch | cached object mutated by a far-away merge | 69s · $0.39 | 72s · $0.31 | yes: start, 3 runs, verdict, conclude |
 
 \* An earlier version with notes but no `run`, and a different comparison:
-Axiom connected with server instructions versus without them (the agent then
-made no Axiom calls at all).
+Ambio connected with server instructions versus without them (the agent then
+made no Ambio calls at all).
 
 Every run fixed its bug. Both agents on the three harder tickets added a
 regression test; on the code-span ticket neither did, because tests for that
@@ -215,7 +215,7 @@ What this shows:
   read whole. A frontier model reads 20 to 40 files in one step and reasons to
   the cause. Runs then confirmed the hypothesis (and in two cases verified the
   fix) rather than discovering it.
-- **The watcher's experience is the difference today.** With Axiom, the person
+- **The watcher's experience is the difference today.** With Ambio, the person
   watching saw the hypothesis, the evidence run with its findings, the verdict
   and the root cause as they happened, and can replay them. Without it, they
   saw the final chat message.
@@ -229,7 +229,7 @@ reading stops working, and on bugs that depend on production-like data.
 
 ### Reproducing
 
-Labs live outside the repository: `~/dev/axiom-lab/{shopfront,marked,ledgerly}`.
+Labs live outside the repository: `~/dev/ambio-lab/{shopfront,marked,ledgerly}`.
 marked is upstream 18.0.14 with two planted changes folded into the release
 commit. Reset a lab with `git reset --hard && git clean -fd`. For marked, also
 rebuild the bundle its tests use: `npm run build:esbuild`.

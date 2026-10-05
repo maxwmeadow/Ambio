@@ -13,14 +13,14 @@ const host = overrides => ({
   workflowInstalled: false,
   workflowPath: null,
   configPath: 'config.toml',
-  command: '$axiom-map',
+  command: '$ambio-map',
   ...overrides,
 })
 
 test('agent host signal has one unambiguous state and action', () => {
   assert.deepEqual(presentAgentHost(host({ detected: false }), undefined, false), {
     state: 'missing',
-    detail: 'Codex was not found on this machine. Install it before adding Axiom.',
+    detail: 'Codex was not found on this machine. Install it before adding Ambio.',
     action: 'none',
   })
   assert.equal(presentAgentHost(host({}), undefined, false).state, 'available')
@@ -34,9 +34,9 @@ test('a successful install immediately reads as installed while host inspection 
 })
 
 test('each harness invocation is described by its actual syntax', () => {
-  assert.equal(commandKind('/axiom-map'), 'slash command')
-  assert.equal(commandKind('$axiom-map'), 'skill command')
-  assert.equal(commandKind('Use the axiom-map skill'), 'instruction')
+  assert.equal(commandKind('/ambio-map'), 'slash command')
+  assert.equal(commandKind('$ambio-map'), 'skill command')
+  assert.equal(commandKind('Use the ambio-map skill'), 'instruction')
 })
 
 test('connection check names the exact project and avoids claiming work', () => {

@@ -270,7 +270,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	}
 
 	runID := uuid.New().String()[:8]
-	evidenceDir, err := os.MkdirTemp("", "axiom-run-"+runID+"-")
+	evidenceDir, err := os.MkdirTemp("", "ambio-run-"+runID+"-")
 	if err != nil {
 		return nil, fmt.Errorf("create evidence dir: %w", err)
 	}
@@ -278,9 +278,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 
 	watchJSON, _ := json.Marshal(spec.Watches)
 	env := append(withUserPath(os.Environ()),
-		"AXIOM_EVIDENCE_DIR="+evidenceDir,
-		"AXIOM_RUN_ID="+runID,
-		"AXIOM_WATCHES="+string(watchJSON),
+		"AMBIO_EVIDENCE_DIR="+evidenceDir,
+		"AMBIO_RUN_ID="+runID,
+		"AMBIO_WATCHES="+string(watchJSON),
 	)
 	var instrumented []string
 	if dir, err := FindNodeAdapterDir(); err == nil {
@@ -289,7 +289,7 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	}
 	if dir, err := FindPythonAdapterDir(); err == nil && pythonAdapterRecords(dir) {
 		env = injectAdapterEnv(env, dir, m.port, spec.WorkspaceID)
-		env = append(env, "AXIOM_WORKSPACE_ROOT="+spec.Root)
+		env = append(env, "AMBIO_WORKSPACE_ROOT="+spec.Root)
 		instrumented = append(instrumented, "python")
 	}
 
@@ -447,6 +447,6 @@ func shellCommand(line string) *exec.Cmd {
 // recording. Until it does, injecting it would connect a live session that
 // records nothing for the run.
 func pythonAdapterRecords(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, "axiom_adapter", "recorder.py"))
+	_, err := os.Stat(filepath.Join(dir, "ambio_adapter", "recorder.py"))
 	return err == nil
 }

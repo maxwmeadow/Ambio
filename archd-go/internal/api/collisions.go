@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"axiom.local/archd/internal/collision"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
-	"axiom.local/archd/internal/gitworktree"
+	"ambio.local/archd/internal/collision"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
+	"ambio.local/archd/internal/gitworktree"
 )
 
 type collisionCacheEntry struct {
@@ -19,7 +19,7 @@ type collisionCacheEntry struct {
 
 // GET /api/collisions?workspace=...
 //
-// Git determines which files still diverge pairwise from a merge base. Axiom
+// Git determines which files still diverge pairwise from a merge base. Ambio
 // determines which semantic systems those files occupy and supplies the
 // branch-stamped claims. No line-level conflict prediction happens here.
 func (s *Server) handleCollisions(w http.ResponseWriter, r *http.Request) {

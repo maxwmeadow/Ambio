@@ -136,7 +136,7 @@ func TestOpenPreservesIndexedWorkspaceAtLegacyDatabasePath(t *testing.T) {
 
 func TestOpenAddsWorktreeMetadataToLegacyRootWithoutReindex(t *testing.T) {
 	dataDir := t.TempDir()
-	legacy, err := sql.Open("sqlite3", filepath.Join(dataDir, "axiom.db"))
+	legacy, err := sql.Open("sqlite3", filepath.Join(dataDir, "ambio.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

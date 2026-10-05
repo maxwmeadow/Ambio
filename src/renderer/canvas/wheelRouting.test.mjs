@@ -50,7 +50,7 @@ test('the wheel walk routes to nowheel, scrollable content, or canvas zoom', () 
   assert.equal(routeWheelEvent(title, 1, root, read).kind, 'zoom')
 
   // A symbol row inside a scrollable list that still has room. The route must
-  // name the list itself, since that is the element Axiom scrolls.
+  // name the list itself, since that is the element Ambio scrolls.
   const list = plain(root)
   metricsFor.set(list, scrollable())
   const row = plain(list)

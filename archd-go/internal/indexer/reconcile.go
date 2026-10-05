@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
 )
 
 // collectSourcePaths walks a root and returns every indexable source file,
@@ -64,11 +64,11 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 	return paths, err
 }
 
-// ReconcileRoot catches the graph up with the filesystem after Axiom was not
+// ReconcileRoot catches the graph up with the filesystem after Ambio was not
 // running.
 //
 // The watcher only sees edits while archd is alive. Without this pass, closing
-// Axiom, letting agents work overnight, and reopening would produce an empty
+// Ambio, letting agents work overnight, and reopening would produce an empty
 // Morning Delta - the single case the delta exists for. Reconciliation replays
 // what the watcher would have seen, through the exact same ReindexFile and
 // RemoveFile paths, so journaling, choreography, and broadcasts all behave
@@ -160,7 +160,7 @@ func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 		} else if classified {
 			log.Printf("[reconcile] root %s classified new files after catch-up", root.Path)
 		}
-		log.Printf("[reconcile] root %s caught up: %d files changed while Axiom was closed", root.Path, changed)
+		log.Printf("[reconcile] root %s caught up: %d files changed while Ambio was closed", root.Path, changed)
 	}
 	return changed, nil
 }

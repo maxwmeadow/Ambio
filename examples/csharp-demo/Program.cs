@@ -1,4 +1,4 @@
-// Axiom C#/.NET runtime-layer spike target.
+// Ambio C#/.NET runtime-layer spike target.
 //
 // Several worker tasks each call ProcessPayment (a synchronous method) so the
 // netcoredbg-based tracer can be exercised for call attribution + argument
@@ -8,7 +8,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AxiomDemo
+namespace AmbioDemo
 {
     public static class Program
     {
