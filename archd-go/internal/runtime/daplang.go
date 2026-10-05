@@ -557,7 +557,7 @@ func (s *dapLangSession) matchSource(framePath string, frameLine int) string {
 	best := ""
 	bestSpan := 1 << 30
 	for _, w := range s.watches {
-		if normalizePath(w.AbsPath) != fp {
+		if normalizePath(w.AbsPath) != fp && !sameResolvedPath(w.AbsPath, framePath) {
 			continue
 		}
 		if frameLine >= w.LineStart && frameLine <= w.LineEnd {
@@ -567,6 +567,15 @@ func (s *dapLangSession) matchSource(framePath string, frameLine int) string {
 		}
 	}
 	return best
+}
+
+// sameResolvedPath reports whether two paths name one file once symlinks are
+// resolved: debuggers report the real path (rdbg on macOS says /private/var/…
+// for a program under /var/…, a symlink), while watches keep the indexed one.
+func sameResolvedPath(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && normalizePath(ra) == normalizePath(rb)
 }
 
 func (s *dapLangSession) finish(status string) {
