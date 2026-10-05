@@ -4,11 +4,11 @@ import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 
 export function daemonDataDir(): string {
-  return process.env.AXIOM_ACTIVE_PROJECT ? dirname(process.env.AXIOM_ACTIVE_PROJECT) : join(homedir(), '.axiom', 'data')
+  return process.env.AMBIO_ACTIVE_PROJECT ? dirname(process.env.AMBIO_ACTIVE_PROJECT) : join(homedir(), '.ambio', 'data')
 }
 
 export function daemonTokenPath(): string {
-  return process.env.AXIOM_API_TOKEN_FILE ?? join(daemonDataDir(), 'api-token')
+  return process.env.AMBIO_API_TOKEN_FILE ?? join(daemonDataDir(), 'api-token')
 }
 
 const DEFAULT_API_PORT = '7743'
@@ -24,7 +24,7 @@ function publishedApiPort(): string | null {
 /**
  * archd falls back to another port when a different program holds 7743. A
  * request aimed at the default port follows it there; an explicitly
- * configured address (AXIOM_API_URL, test harnesses) is left alone.
+ * configured address (AMBIO_API_URL, test harnesses) is left alone.
  */
 export function resolveDaemonUrl(input: string | URL): URL {
   const url = new URL(input)
@@ -34,17 +34,17 @@ export function resolveDaemonUrl(input: string | URL): URL {
   return url
 }
 
-const NOT_RUNNING = 'Axiom is not running. Open the Axiom app, then try again.'
+const NOT_RUNNING = 'Ambio is not running. Open the Ambio app, then try again.'
 
 export function readDaemonToken(): string {
   let raw: string
   try {
-    raw = process.env.AXIOM_API_TOKEN ?? fs.readFileSync(daemonTokenPath(), 'utf8')
+    raw = process.env.AMBIO_API_TOKEN ?? fs.readFileSync(daemonTokenPath(), 'utf8')
   } catch {
     throw new DaemonUnavailableError(NOT_RUNNING)
   }
   const token = raw.trim()
-  if (token.length < 32) throw new DaemonUnavailableError('Axiom local API token is missing or invalid. Start the Axiom desktop application.')
+  if (token.length < 32) throw new DaemonUnavailableError('Ambio local API token is missing or invalid. Start the Ambio desktop application.')
   return token
 }
 
@@ -63,13 +63,13 @@ function isUnreachable(error: unknown): boolean {
 let starting: Promise<void> | null = null
 
 /**
- * Start archd headless for an agent while the Axiom app is closed. Only the
+ * Start archd headless for an agent while the Ambio app is closed. Only the
  * packaged launcher (`archd mcp-run`) says where archd is; anywhere else the
- * agent is told to open Axiom. One start is shared by concurrent requests, and
+ * agent is told to open Ambio. One start is shared by concurrent requests, and
  * a second MCP server racing this one simply finds the first daemon answering.
  */
 export function ensureDaemon(origin: string, timeoutMs = 10_000): Promise<void> {
-  const archd = process.env.AXIOM_ARCHD_PATH
+  const archd = process.env.AMBIO_ARCHD_PATH
   if (!archd || !fs.existsSync(archd)) return Promise.reject(new DaemonUnavailableError(NOT_RUNNING))
   starting ??= (async () => {
     try {
@@ -91,7 +91,7 @@ export function ensureDaemon(origin: string, timeoutMs = 10_000): Promise<void> 
           return
         } catch { /* still starting */ }
       }
-      throw new DaemonUnavailableError(`Axiom's background service did not start. ${NOT_RUNNING}`)
+      throw new DaemonUnavailableError(`Ambio's background service did not start. ${NOT_RUNNING}`)
     } finally {
       starting = null
     }
@@ -101,7 +101,7 @@ export function ensureDaemon(origin: string, timeoutMs = 10_000): Promise<void> 
 
 export async function daemonFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
   const url = new URL(input)
-  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) throw new Error('Axiom daemon must use a loopback HTTP address')
+  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) throw new Error('Ambio daemon must use a loopback HTTP address')
   const attempt = () => {
     const headers = new Headers(init.headers)
     headers.set('Authorization', `Bearer ${readDaemonToken()}`)

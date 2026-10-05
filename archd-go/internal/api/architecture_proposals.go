@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 type createArchitectureProposalRequest struct {
@@ -245,6 +245,13 @@ func (s *Server) handleArchitectureProposalByID(w http.ResponseWriter, r *http.R
 		if err != nil {
 			jsonError(w, err.Error(), proposalErrorStatus(err))
 			return
+		}
+		if request.DecidedBy != "agent" {
+			s.recordDecision(sqlDB, decisionRecord{
+				WorkspaceID: request.WorkspaceID, SubjectID: proposalID + "/" + parts[2], SubjectLabel: candidate.Name,
+				Kind: "system", Decision: candidate.Decision, Reason: candidate.RejectionReason,
+				Where: "in an architecture proposal",
+			})
 		}
 		s.hub.Broadcast("architecture:proposal", map[string]any{"workspaceId": request.WorkspaceID, "proposalId": proposalID, "systemKey": parts[2], "decision": candidate.Decision})
 		if candidate.Decision == db.ProposalDecisionApproved {

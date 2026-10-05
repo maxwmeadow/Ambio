@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 const API = 'http://127.0.0.1:7743'
 const WS = process.env.LOOP_WS ?? 'efddf5c5f623397c'
-const ROOT = process.env.LOOP_ROOT ?? join(homedir(), 'axiom-loop-test')
+const ROOT = process.env.LOOP_ROOT ?? join(homedir(), 'ambio-loop-test')
 
 const pass = []
 const fail = []

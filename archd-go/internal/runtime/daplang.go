@@ -210,7 +210,7 @@ func (s *dapLangSession) setStatus(status string) {
 
 func (s *dapLangSession) handshake() error {
 	if _, err := s.client.request("initialize", map[string]any{
-		"clientID": "axiom", "adapterID": s.cfg.adapterID,
+		"clientID": "ambio", "adapterID": s.cfg.adapterID,
 		"linesStartAt1": true, "columnsStartAt1": true, "pathFormat": "path",
 	}); err != nil {
 		return err
@@ -233,7 +233,7 @@ func (s *dapLangSession) handshake() error {
 		}()
 	}
 
-	if err := s.waitForInitialized(); err != nil {
+	if err := s.waitForInitialized(launchDone); err != nil {
 		return err
 	}
 	// "external" breakpoint mode sets breakpoints on the debugger command line
@@ -264,11 +264,19 @@ func (s *dapLangSession) handshake() error {
 	return nil
 }
 
-func (s *dapLangSession) waitForInitialized() error {
+func (s *dapLangSession) waitForInitialized(launchDone chan error) error {
 	deadline := time.NewTimer(25 * time.Second)
 	defer deadline.Stop()
 	for {
 		select {
+		case err := <-launchDone:
+			// A refused launch answers before any initialized event; say why
+			// now rather than after the deadline.
+			if err != nil {
+				return fmt.Errorf("%s could not launch %s: %w", s.Language+" debugger", s.Program, err)
+			}
+			launchDone <- nil
+			launchDone = nil
 		case ev := <-s.client.events:
 			if ev.Event == "initialized" {
 				return nil
@@ -354,7 +362,7 @@ func (s *dapLangSession) handleStopped(body json.RawMessage) {
 	if err := json.Unmarshal(body, &st); err != nil {
 		return
 	}
-	if os.Getenv("AXIOM_DAP_DEBUG") == "1" {
+	if os.Getenv("AMBIO_DAP_DEBUG") == "1" {
 		log.Printf("%s: stopped reason=%q thread=%d body=%s", s.Language, st.Reason, st.ThreadID, string(body))
 	}
 	if !strings.Contains(st.Reason, "breakpoint") &&
@@ -391,7 +399,7 @@ func (s *dapLangSession) handleStopped(body json.RawMessage) {
 	// and external-mode (rdbg) resumes above never take this lock, so they're
 	// never blocked by a slow inspection.
 	s.inspectMu.Lock()
-	dbg := os.Getenv("AXIOM_DAP_DEBUG") == "1"
+	dbg := os.Getenv("AMBIO_DAP_DEBUG") == "1"
 	watchID, args := s.inspect(st.ThreadID)
 	roundTrip := float64(time.Since(start).Microseconds()) / 1000.0
 	s.resume(st.ThreadID)

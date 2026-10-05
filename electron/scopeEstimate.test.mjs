@@ -7,7 +7,7 @@ import test from 'node:test'
 import { estimateScope } from './scopeEstimate.ts'
 
 test('the estimate counts what archd would index and names the heaviest folders', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-scope-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-scope-'))
   const write = (rel) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), '') }
   try {
     for (let i = 0; i < 5; i++) write(`generated/g${i}.ts`)

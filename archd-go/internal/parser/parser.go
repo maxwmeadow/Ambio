@@ -7,13 +7,12 @@ package parser
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	clang "github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/csharp"
 	"github.com/smacker/go-tree-sitter/golang"
@@ -25,7 +24,7 @@ import (
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // RawCall is an unresolved function call extracted from a file.
@@ -153,6 +152,8 @@ func detectLanguage(path string) string {
 		return "csharp"
 	case ".cpp", ".cc", ".cxx", ".hpp", ".hxx":
 		return "cpp"
+	case ".c", ".h":
+		return "c"
 	case ".rb":
 		return "ruby"
 	case ".java":
@@ -184,6 +185,8 @@ func grammarFor(lang string) *sitter.Language {
 		return csharp.GetLanguage()
 	case "cpp":
 		return cpp.GetLanguage()
+	case "c":
+		return clang.GetLanguage()
 	case "ruby":
 		return ruby.GetLanguage()
 	case "java":
@@ -294,7 +297,7 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	}
 	// C++: the function name is nested in a declarator chain
 	// (function_definition → declarator: function_declarator → declarator: identifier).
-	if lang == "cpp" {
+	if lang == "cpp" || lang == "c" {
 		if d := node.ChildByFieldName("declarator"); d != nil {
 			if n := cppDeclaratorName(d, src); n != "" {
 				return n
@@ -342,6 +345,8 @@ func extractImports(root *sitter.Node, src []byte, lang, relPath string) []strin
 		return extractPythonImports(root, src)
 	case "go":
 		return extractGoImports(root, src)
+	case "java", "rust", "ruby", "cpp", "c":
+		return extractTextImports(src, lang, relPath)
 	default:
 		return nil
 	}
@@ -562,27 +567,13 @@ var scopeNodeTypes = map[string]bool{
 
 // extractCalls walks the AST and returns every function/method call site found,
 // annotated with the name of the enclosing function (CallerSymbol).
-// csNodeDiagDone gates the one-time C# node-type diagnostic log.
-var csNodeDiagDone atomic.Bool
-
 func extractCalls(root *sitter.Node, src []byte, lang string) []RawCall {
 	var calls []RawCall
 	var scope []string // stack of enclosing function names
 
-	// One-time diagnostic: log every unique node type seen in the first C# file
-	// so we can verify the tree-sitter grammar's actual node names.
-	var diagTypes map[string]int
-	if lang == "csharp" && csNodeDiagDone.CompareAndSwap(false, true) {
-		diagTypes = make(map[string]int)
-	}
-
 	var walk func(*sitter.Node)
 	walk = func(n *sitter.Node) {
 		t := n.Type()
-
-		if diagTypes != nil {
-			diagTypes[t]++
-		}
 
 		// Scope push/pop: enter function body, recurse, exit.
 		if scopeNodeTypes[t] {
@@ -613,13 +604,6 @@ func extractCalls(root *sitter.Node, src []byte, lang string) []RawCall {
 		}
 	}
 	walk(root)
-
-	if diagTypes != nil {
-		log.Printf("[parser/csharp] unique node types in first C# file (%d total nodes):", len(diagTypes))
-		for nt, count := range diagTypes {
-			log.Printf("[parser/csharp]   %-40s %d", nt, count)
-		}
-	}
 
 	return calls
 }

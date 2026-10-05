@@ -10,7 +10,7 @@ export interface AgentMascotProps {
 }
 
 /**
- * Axiom Field Agent Mascot - "Theodolite" (Final Synthesis).
+ * Ambio Field Agent Mascot - "Theodolite" (Final Synthesis).
  *
  * Synthesizes:
  * 1. Identity & Anatomy (Claude): Asymmetric skull, oversized theodolite lens barrel,
@@ -24,7 +24,7 @@ export interface AgentMascotProps {
  *    repaired node-edge graph topology, and physical brass check-mark stamp payoff.
  */
 
-const NS = 'axiom-final-gemini'
+const NS = 'ambio-final-gemini'
 const cn = (...parts: string[]) => parts.map((p) => (p.startsWith(NS) ? p : `${NS}__${p}`)).join(' ')
 
 type Mood = 'asleep' | 'connected' | 'proposal-ready'
@@ -391,7 +391,7 @@ function Torso({ instanceId }: TorsoProps) {
         <path className={cn('pocketPouch')} d="M-27 2 H-11 V14 C-11 18 -15 20 -19 20 C-23 20 -27 18 -27 14 Z" />
       </g>
 
-      {/* Axiom Field Surveyor Shield Badge (Right Chest) */}
+      {/* Ambio Field Surveyor Shield Badge (Right Chest) */}
       <g className={cn('badge')}>
         <path
           className={cn('badgeShield')}
@@ -534,7 +534,7 @@ function BlueprintSheet({ instanceId }: BlueprintSheetProps) {
 
       {/* Title Header Text without distracting white highlight bar */}
       <text className={cn('sheetTitle')} x="78" y="166">
-        AXIOM ARCHITECTURE MAP // VERIFIED
+        AMBIO ARCHITECTURE MAP // VERIFIED
       </text>
 
       {/* ========================================================
@@ -640,18 +640,18 @@ export function AgentMascot({ state, hostLabel, className }: AgentMascotProps) {
     state === 'sleeping'
       ? {
           title: 'Field agent asleep',
-          desc: `The Axiom field agent is resting seated on its rolled survey sheet with its compass legs folded to the side, visor drawn over its theodolite lens, and crown beacon dormant. No agent is connected.`,
+          desc: `The Ambio field agent is resting seated on its rolled survey sheet with its compass legs folded to the side, visor drawn over its theodolite lens, and crown beacon dormant. No agent is connected.`,
           caption: 'Asleep - no agent connected.',
         }
       : state === 'connected'
         ? {
             title: 'Field agent awake and listening',
-            desc: `The Axiom field agent has sprung upright on its compass legs, thumbed its visor back, and is calibrating its theodolite lens while its level bubble glows live green with active telemetry. ${host} is connected and listening.`,
+            desc: `The Ambio field agent has sprung upright on its compass legs, thumbed its visor back, and is calibrating its theodolite lens while its level bubble glows live green with active telemetry. ${host} is connected and listening.`,
             caption: `Awake - ${host} is connected and listening.`,
           }
         : {
             title: 'Field agent presenting the survey',
-            desc: `The Axiom field agent is grinning triumphantly over the top edge of a verified architecture blueprint held open in both mitts, showing clean mapped systems and a freshly struck brass approval stamp. The architecture proposal from ${host} is ready to review.`,
+            desc: `The Ambio field agent is grinning triumphantly over the top edge of a verified architecture blueprint held open in both mitts, showing clean mapped systems and a freshly struck brass approval stamp. The architecture proposal from ${host} is ready to review.`,
             caption: `Survey complete - the architecture proposal from ${host} is ready to review.`,
           }
 

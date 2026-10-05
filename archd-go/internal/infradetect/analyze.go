@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"axiom.local/archd/internal/registry"
+	"ambio.local/archd/internal/registry"
 )
 
 // File is one indexed source file.

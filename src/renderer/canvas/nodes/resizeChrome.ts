@@ -39,11 +39,11 @@ export function resizeChromeProps(scale: number) {
     borderWidth: `${safeScale}px`,
     borderRadius: `${safeScale}px`,
   }
-  const lineStyle = { '--axiom-resize-stroke': `${safeScale}px` } as CSSProperties
+  const lineStyle = { '--ambio-resize-stroke': `${safeScale}px` } as CSSProperties
   return {
     autoScale: false,
-    handleClassName: 'axiom-resize-handle',
-    lineClassName: 'axiom-resize-line',
+    handleClassName: 'ambio-resize-handle',
+    lineClassName: 'ambio-resize-line',
     handleStyle,
     lineStyle,
   } as const
@@ -118,7 +118,7 @@ function resizeDirection(target: Element | null): string {
 
 function renderedFrame(session: ResizeTraceSession, timestamp: number): void {
   const node = session.target?.closest<HTMLElement>('.react-flow__node') ?? null
-  const chrome = session.target?.closest<HTMLElement>('.axiom-node-resizer') ?? null
+  const chrome = session.target?.closest<HTMLElement>('.ambio-node-resizer') ?? null
   const handle = session.target
   if (!node || !chrome || !handle) return
 
@@ -225,7 +225,7 @@ export function traceResizeStart(
   requestAnimationFrame(() => {
     const computed = target ? window.getComputedStyle(target) : null
     const rect = target?.getBoundingClientRect()
-    console.info(`[AxiomResizeTrace #${session.id}] start`, {
+    console.info(`[AmbioResizeTrace #${session.id}] start`, {
       nodeId,
       direction,
       presentationScale,
@@ -334,7 +334,7 @@ export function traceResizeStep(event: unknown, params: NodeResizeParams, nodeId
   session.previous = { ...params }
   if (now - session.lastLiveLogAt >= 250) {
     session.lastLiveLogAt = now
-    console.debug(`[AxiomResizeTrace #${session.id}] live sample ${row.sample}`, row)
+    console.debug(`[AmbioResizeTrace #${session.id}] live sample ${row.sample}`, row)
   }
 }
 
@@ -401,13 +401,13 @@ export function traceResizeEnd(event: unknown, params: NodeResizeParams, nodeId:
           height: params.height - session.start.height,
         },
       }
-      console.groupCollapsed(`[AxiomResizeFrameTrace #${session.id}] COMPLETE - ${nodeId} - ${session.direction}`)
+      console.groupCollapsed(`[AmbioResizeFrameTrace #${session.id}] COMPLETE - ${nodeId} - ${session.direction}`)
       console.info('Frame/pointer summary', summary)
       console.info('Pointer events and requested floating-point geometry')
       console.table(session.rows)
       console.info('Every painted animation frame: requested geometry vs actual node/chrome DOM')
       console.table(session.frameRows)
-      console.log('[AxiomResizeFrameTraceRaw]', { summary, pointerSamples: session.rows, paintedFrames: session.frameRows })
+      console.log('[AmbioResizeFrameTraceRaw]', { summary, pointerSamples: session.rows, paintedFrames: session.frameRows })
       console.groupEnd()
       resizeTraceSessions.delete(nodeId)
     })

@@ -14,8 +14,8 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean) {
   useEffect(() => {
     if (!isOpen) return
     let active = true
-    void window.axiom.listDeliveryHosts().then(items => { if (active) setHosts(items) }, () => { if (active) setNotice('Agent destinations unavailable. You can still save and copy a handoff.') })
-    const refresh = () => { void window.axiom.listDeliveryRuns(workspaceId).then(items => { if (active) setRuns(items) }, () => { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }) }
+    void window.ambio.listDeliveryHosts().then(items => { if (active) setHosts(items) }, () => { if (active) setNotice('Agent destinations unavailable. You can still save and copy a handoff.') })
+    const refresh = () => { void window.ambio.listDeliveryRuns(workspaceId).then(items => { if (active) setRuns(items) }, () => { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }) }
     refresh()
     const timer = setInterval(refresh, 3000)
     return () => { active = false; clearInterval(timer) }
@@ -24,7 +24,7 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean) {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.axiom.deliverWorkOrder({ workspaceId, messageId, hostId: destination })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination })
       if (workspace.current !== workspaceId) return
       setNotice(result.detail)
       if (result.run) setRuns(items => [...items.filter(item => item.key !== result.run!.key), result.run!])
@@ -34,8 +34,8 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean) {
   }
   const stop = async (run: DeliveryRun) => {
     try {
-      await window.axiom.stopDeliveryRun(workspaceId, run.key)
-      if (workspace.current === workspaceId) setRuns(await window.axiom.listDeliveryRuns(workspaceId))
+      await window.ambio.stopDeliveryRun(workspaceId, run.key)
+      if (workspace.current === workspaceId) setRuns(await window.ambio.listDeliveryRuns(workspaceId))
     } catch (error) { if (workspace.current === workspaceId) setNotice(String(error)) }
   }
   return { hosts, hostId, setHostId, runs, notice, busy, deliver, stop }
@@ -50,7 +50,7 @@ export function AgentDeliveryDestination({ hosts, hostId, onChange, disabled, ro
   hosts: DeliveryHost[]; hostId: string; onChange: (value: string) => void; disabled: boolean; rootPath: string
 }) {
   const host = hosts.find(item => item.id === hostId)
-  return <div className="axiom-inbox__delivery">
+  return <div className="ambio-inbox__delivery">
     <label>Deliver to<select aria-label="Work-order destination" value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
       <option value="">Choose chat manually</option>
       {hosts.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : ''}</option>)}
@@ -62,9 +62,9 @@ export function AgentDeliveryDestination({ hosts, hostId, onChange, disabled, ro
 
 export function AgentDeliveryStatus({ run, hosts, onStop }: { run?: DeliveryRun; hosts: DeliveryHost[]; onStop: (run: DeliveryRun) => void }) {
   if (!run) return null
-  return <div className="axiom-inbox__delivery-run" role="status">
+  return <div className="ambio-inbox__delivery-run" role="status">
     <span><strong>{hosts.find(host => host.id === run.hostId)?.label ?? run.hostId}</strong> · {run.detail}</span>
     {(run.state === 'running' || run.state === 'starting') && <button type="button" onClick={() => onStop(run)}>Stop run</button>}
-    <button type="button" onClick={() => window.axiom.showInFolder(run.logPath)}>Show agent output</button>
+    <button type="button" onClick={() => window.ambio.showInFolder(run.logPath)}>Show agent output</button>
   </div>
 }

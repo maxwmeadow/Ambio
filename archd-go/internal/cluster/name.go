@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // NameCluster chooses a label from the semantic tokens already used by the

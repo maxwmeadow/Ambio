@@ -4,7 +4,7 @@ type Order = Record<string, any>
 
 async function openMockProject(fixture: 'commerce' | 'service' | 'operations', height = 900) {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
-  const app = await electron.launch({ args: ['.'], env: { ...env, AXIOM_E2E: '1', AXIOM_E2E_FIXTURE: fixture } })
+  const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_FIXTURE: fixture } })
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1280, height })
   const orders: Order[] = []
@@ -59,9 +59,9 @@ async function openMockProject(fixture: 'commerce' | 'service' | 'operations', h
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
   })
   await page.evaluate(id => {
-    localStorage.removeItem(`axiom:inbox-draft:${id}`)
-    localStorage.removeItem(`axiom:inbox-draft:${id}:pending`)
-    localStorage.removeItem(`axiom:inbox-draft:${id}:sheet`)
+    localStorage.removeItem(`ambio:inbox-draft:${id}`)
+    localStorage.removeItem(`ambio:inbox-draft:${id}:pending`)
+    localStorage.removeItem(`ambio:inbox-draft:${id}:sheet`)
   }, workspaceId)
   await page.reload()
   return { app, page, orders, sheet, setEquivalent: (value: boolean) => { equivalent = value } }
@@ -83,7 +83,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
     const instruction = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
     await instruction.press('@')
     await inbox.getByRole('dialog', { name: 'Attach a sheet' }).getByRole('option', { name: /Checkout flow/ }).click()
-    await expect(inbox.locator('.axiom-inbox__attachment')).toContainText('Checkout flow')
+    await expect(inbox.locator('.ambio-inbox__attachment')).toContainText('Checkout flow')
     await instruction.fill('Implement the checkout sheet and verify payment retry.')
     await inbox.getByRole('button', { name: 'Send to inbox' }).click()
     await expect.poll(() => orders.length).toBe(1)
@@ -124,10 +124,10 @@ test('Northstar API: selected systems, failed check, feedback, second attempt an
     const systems = page.locator('.react-flow__node-system')
     await systems.nth(0).click({ position: { x: 18, y: 16 } })
     await systems.nth(1).click({ position: { x: 18, y: 16 }, modifiers: ['Shift'] })
-    await page.locator('.axiom-selection-actions').getByRole('button', { name: 'Message agent', exact: true }).click()
+    await page.locator('.ambio-selection-actions').getByRole('button', { name: 'Message agent', exact: true }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-    await expect(page.locator('.axiom-selection-actions')).toBeHidden()
-    await expect(inbox.locator('.axiom-inbox__compose .axiom-inbox__targets button')).toHaveCount(2)
+    await expect(page.locator('.ambio-selection-actions')).toBeHidden()
+    await expect(inbox.locator('.ambio-inbox__compose .ambio-inbox__targets button')).toHaveCount(2)
     await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Add a timeout response to the selected API system.')
     await inbox.getByRole('button', { name: 'Send to inbox' }).click()
     await expect.poll(() => orders.length).toBe(1)

@@ -2,7 +2,7 @@
 //
 // It has an isolated heap and cannot touch the main thread's runtime, so it
 // does exactly one thing: rewrite the source of workspace .js/.mjs modules and
-// hand the instrumented text back. The injected hooks (globalThis.__axiom.*)
+// hand the instrumented text back. The injected hooks (globalThis.__ambio.*)
 // resolve on the MAIN thread when the module actually executes.
 
 import { createRequire } from 'node:module'

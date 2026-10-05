@@ -23,6 +23,7 @@ test('one architecture question reaches every graph read', () => {
     infra_for_files: 'get_infra_for_files',
     infra_catalog: 'list_infra_services',
     hotspots: 'get_activity_hotspots',
+    changes: 'get_architecture_changes',
   }
   for (const [scope, tool] of Object.entries(cases)) {
     assert.equal(routeTool('get_architecture', { scope }).tool, tool, scope)
@@ -176,7 +177,7 @@ test('every legacy tool a consolidated tool claims actually exists', async () =>
   const { readFileSync } = await import('node:fs')
   // Normalized: git checks this out with CRLF on Windows, and a line-anchored
   // regex would then match nothing and pass vacuously.
-  const source = readFileSync(new URL('./axiom-mcp.ts', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('./ambio-mcp.ts', import.meta.url), 'utf8')
     .replace(/\r\n/g, '\n')
   const implemented = new Set([...source.matchAll(/^      case '([^']+)':/gm)].map(m => m[1]))
   for (const tool of coveredLegacyTools()) {

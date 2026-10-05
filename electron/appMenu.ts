@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron'
-import { COMMANDS, buildMenu, type MenuPlatform, type SystemRole } from '../src/shared/appMenu'
+import { COMMANDS, buildMenu, type CommandId, type MenuPlatform, type SystemRole } from '../src/shared/appMenu'
 
 export interface MenuState {
   projectOpen: boolean
@@ -28,6 +28,16 @@ export function applyApplicationMenu(getWindow: () => BrowserWindow | null, stat
     Menu.setApplicationMenu(null)
     return
   }
+  const commandItem = (id: CommandId): MenuItemConstructorOptions => {
+    const spec = COMMANDS[id]
+    return {
+      label: spec.label,
+      accelerator: spec.accelerator,
+      registerAccelerator: false,
+      enabled: !spec.needsProject || state.projectOpen,
+      click: () => getWindow()?.webContents.send('menu:command', spec.id),
+    }
+  }
   const template: MenuItemConstructorOptions[] = buildMenu(platform, { developer: state.developer }).map(section => ({
     label: section.id === 'app' ? app.name : section.label,
     ...(section.id === 'window' ? { role: 'windowMenu' as const } : {}),
@@ -55,14 +65,8 @@ export function applyApplicationMenu(getWindow: () => BrowserWindow | null, stat
         }
       }
       if (entry.kind === 'role') return { role: ELECTRON_ROLE[entry.role], label: entry.label }
-      const spec = COMMANDS[entry.id]
-      return {
-        label: spec.label,
-        accelerator: spec.accelerator,
-        registerAccelerator: false,
-        enabled: !spec.needsProject || state.projectOpen,
-        click: () => getWindow()?.webContents.send('menu:command', spec.id),
-      }
+      if (entry.kind === 'group') return { label: entry.label, submenu: entry.entries.map(commandItem) }
+      return commandItem(entry.id)
     }),
   }))
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))

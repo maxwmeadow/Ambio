@@ -56,26 +56,26 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
   const guideRecoverable = guideDismissed && !guideComplete
 
   return (
-    <footer className="axiom-status-bar" aria-label="Application status">
+    <footer className="ambio-status-bar" aria-label="Application status">
       <div
-        className="axiom-status-bar__segment axiom-status-bar__connection"
+        className="ambio-status-bar__segment ambio-status-bar__connection"
         data-connection-state={connectionStatus}
         aria-live="polite"
       >
-        <span className="axiom-status-bar__lamp" aria-hidden="true" />
+        <span className="ambio-status-bar__lamp" aria-hidden="true" />
         <span>archd {CONNECTION_LABELS[connectionStatus]}</span>
       </div>
 
-      <div className="axiom-status-bar__metrics" aria-label="Graph statistics">
-        <span className="axiom-status-bar__metric">
+      <div className="ambio-status-bar__metrics" aria-label="Graph statistics">
+        <span className="ambio-status-bar__metric">
           <strong>{systems.length}</strong>
           <span>systems</span>
         </span>
-        <span className="axiom-status-bar__metric">
+        <span className="ambio-status-bar__metric">
           <strong>{files.length}</strong>
           <span>files</span>
         </span>
-        <span className="axiom-status-bar__metric">
+        <span className="ambio-status-bar__metric">
           <strong>{dependencies.length}</strong>
           <span>dependencies</span>
         </span>
@@ -86,11 +86,11 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
       {setAside && (
         <button
           type="button"
-          className="axiom-status-bar__segment axiom-status-bar__delta"
+          className="ambio-status-bar__segment ambio-status-bar__delta"
           onClick={startDeltaReview}
           title="You set this delta aside. Nothing has been acknowledged yet."
         >
-          <span className="axiom-status-bar__lamp" aria-hidden="true" />
+          <span className="ambio-status-bar__lamp" aria-hidden="true" />
           <span>Delta set aside - review</span>
         </button>
       )}
@@ -98,7 +98,7 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
       {guideRecoverable && (
         <button
           type="button"
-          className="axiom-status-bar__segment axiom-status-bar__guide"
+          className="ambio-status-bar__segment ambio-status-bar__guide"
           onClick={revealGuide}
           title="Reopen the setup guide"
         >
@@ -107,7 +107,7 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
       )}
 
       {isIndexing && indexingProgress ? (
-        <div className="axiom-status-bar__segment axiom-status-bar__indexing" aria-live="polite">
+        <div className="ambio-status-bar__segment ambio-status-bar__indexing" aria-live="polite">
           <span>Indexing</span>
           <progress
             aria-label="Indexing progress"
@@ -117,7 +117,7 @@ export function StatusBar({ workspaceId }: { workspaceId: string }) {
           <strong>{indexingProgress.indexed}/{indexingProgress.total}</strong>
           <button
             type="button"
-            className="axiom-status-bar__stop"
+            className="ambio-status-bar__stop"
             title="Stop indexing, then exclude large folders in Project Settings"
             onClick={() => {
               void fetch(`${archdApi()}/api/workspace-index-cancel`, {

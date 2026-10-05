@@ -61,7 +61,7 @@ export interface DropFrame {
   /** True when the drop moves the node into a different parent. */
   changesParent: boolean
   /**
-   * The spacing Axiom would CHOOSE inside this destination, in absolute world
+   * The spacing Ambio would CHOOSE inside this destination, in absolute world
    * units. A preference used by the repack fallback; it never rejects a drop.
    */
   worldGap: number
@@ -238,7 +238,7 @@ export function buildDropFrame({
   // flat and identical at every depth - just enough that two borders never
   // share a line. Steps 1, 2 and 3 all measure against it and nothing else.
   //
-  // `worldGap` is how far apart Axiom LIKES to leave things when IT is the one
+  // `worldGap` is how far apart Ambio LIKES to leave things when IT is the one
   // arranging them. Below, that is the repack fallback alone. Letting it reach
   // any step that judges a human's drop is what made a node unable to approach
   // a system: the release point was legal - not overlapping, inside the frame -
@@ -443,7 +443,7 @@ export function containPointWithin(
  * deliberately not passed in. A drop that already sits clear translates by
  * zero, because the release point is the first candidate tried and nothing
  * rejects it; a drop that genuinely conflicts moves the smallest distance that
- * separates the two borders, not to the distance Axiom would have chosen.
+ * separates the two borders, not to the distance Ambio would have chosen.
  */
 export function slideIncomingIntoFreeSlot(
   incoming: Rect,

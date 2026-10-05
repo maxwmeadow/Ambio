@@ -56,11 +56,11 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             >
               Try again
             </button>
-            {window.axiom?.reportBug && (
-              <button onClick={() => void window.axiom.reportBug()} style={button}>Report a bug</button>
+            {window.ambio?.reportBug && (
+              <button onClick={() => void window.ambio.reportBug()} style={button}>Report a bug</button>
             )}
-            {window.axiom?.copyDiagnostics && (
-              <button onClick={() => void window.axiom.copyDiagnostics()} style={button}>Copy diagnostics</button>
+            {window.ambio?.copyDiagnostics && (
+              <button onClick={() => void window.ambio.copyDiagnostics()} style={button}>Copy diagnostics</button>
             )}
           </div>
 

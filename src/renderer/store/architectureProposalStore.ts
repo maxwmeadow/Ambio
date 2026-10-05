@@ -227,7 +227,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
       // rather than rendering an empty review that looks like "nothing to do".
       set({
         loading: false,
-        error: error instanceof Error ? error.message : 'Could not reach Axiom’s daemon.',
+        error: error instanceof Error ? error.message : 'Could not reach Ambio’s daemon.',
       })
     }
   },

@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"log"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
 )
 
 // Journaling runs alongside the live broadcast, not instead of it. A
 // graph:patch only reaches a renderer that is currently attached; the journal
-// is what lets you close Axiom, let agents work overnight, and still be shown
+// is what lets you close Ambio, let agents work overnight, and still be shown
 // the architectural diff in the morning.
 //
 // Journal failures never fail an index. Losing a delta row is a degraded
@@ -137,6 +137,31 @@ func journalFileChange(
 			"language":   file.Language,
 			"systemId":   systemID,
 			"systemName": systemName,
+		}),
+	})
+}
+
+// journalFileMoved records a file that moved on disk and kept its identity
+// (moves.go). It reads as an update to the file at its new path.
+func journalFileMoved(
+	sqlDB *sql.DB, root db.Root, labeler *systemLabeler,
+	file *db.File, from, actor, traceID string,
+) {
+	if isQuietPath(root.ID, file.RelPath) {
+		return
+	}
+	systemID, systemName := labeler.systemOf(file.ID)
+	recordRootEvent(sqlDB, root, db.StructuralEvent{
+		Actor:        actor,
+		TraceID:      traceID,
+		Kind:         db.EventFileUpdated,
+		SubjectID:    file.ID,
+		SubjectLabel: file.RelPath,
+		Detail: encodeDetail(map[string]string{
+			"language":   file.Language,
+			"systemId":   systemID,
+			"systemName": systemName,
+			"movedFrom":  from,
 		}),
 	})
 }

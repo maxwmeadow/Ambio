@@ -9,7 +9,7 @@
 //
 // The agent's inject_value MCP call returns immediately with pending_confirm;
 // the user approves on the canvas (warn-and-confirm model - plan §Safe
-// Perturbation). AXIOM_AUTO_CONFIRM_INJECT=1 skips confirmation for headless
+// Perturbation). AMBIO_AUTO_CONFIRM_INJECT=1 skips confirmation for headless
 // use and tests.
 package runtime
 

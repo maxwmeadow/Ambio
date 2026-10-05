@@ -78,44 +78,44 @@ export function AgentLane() {
 
   return (
     <aside
-      className="axiom-agent-lane"
+      className="ambio-agent-lane"
       data-colliding={model.collisions.length > 0 || undefined}
       aria-label="Parallel branches and agents"
     >
       <button
         type="button"
-        className="axiom-agent-lane__toggle"
+        className="ambio-agent-lane__toggle"
         aria-expanded={expanded}
         onClick={() => setExpanded(value => !value)}
       >
-        <span className="axiom-agent-lane__signal" aria-hidden="true" />
-        <span className="axiom-agent-lane__heading">
+        <span className="ambio-agent-lane__signal" aria-hidden="true" />
+        <span className="ambio-agent-lane__heading">
           <strong>Parallel work</strong>
           <span>{model.branchCount} branches · {model.agentCount} agent{model.agentCount === 1 ? '' : 's'}</span>
         </span>
         {model.collisions.length > 0 && (
-          <span className="axiom-agent-lane__collision-count">{collisionLabel}</span>
+          <span className="ambio-agent-lane__collision-count">{collisionLabel}</span>
         )}
-        <span className="axiom-agent-lane__chevron" aria-hidden="true">{expanded ? '−' : '+'}</span>
+        <span className="ambio-agent-lane__chevron" aria-hidden="true">{expanded ? '−' : '+'}</span>
       </button>
 
       {expanded && (
-        <div className="axiom-agent-lane__body">
-          <section className="axiom-agent-lane__section" aria-labelledby="axiom-agent-branches">
-            <h2 id="axiom-agent-branches">Worktrees</h2>
-            <div className="axiom-agent-lane__branches">
+        <div className="ambio-agent-lane__body">
+          <section className="ambio-agent-lane__section" aria-labelledby="ambio-agent-branches">
+            <h2 id="ambio-agent-branches">Worktrees</h2>
+            <div className="ambio-agent-lane__branches">
               {model.branches.map(branch => (
-                <article className="axiom-agent-branch" key={branch.rootId}>
+                <article className="ambio-agent-branch" key={branch.rootId}>
                   <header>
-                    <span className="axiom-agent-branch__name" title={branch.name}>{branch.name}</span>
-                    {branch.isPrimary && <span className="axiom-agent-branch__primary">primary</span>}
+                    <span className="ambio-agent-branch__name" title={branch.name}>{branch.name}</span>
+                    {branch.isPrimary && <span className="ambio-agent-branch__primary">primary</span>}
                     <code>{branch.head}</code>
                   </header>
-                  <div className="axiom-agent-branch__work">
+                  <div className="ambio-agent-branch__work">
                     {branch.agents.length === 0 ? (
-                      <span className="axiom-agent-branch__idle">No agent reporting</span>
+                      <span className="ambio-agent-branch__idle">No agent reporting</span>
                     ) : branch.agents.map(agent => (
-                      <div className="axiom-agent-branch__agent" key={agent.id} title={agent.goal}>
+                      <div className="ambio-agent-branch__agent" key={agent.id} title={agent.goal}>
                         <span aria-hidden="true" />
                         <strong>{agent.name}</strong>
                         <p>{agent.goal}</p>
@@ -125,10 +125,10 @@ export function AgentLane() {
                   <footer>
                     <span>{branch.boundaryCount} boundar{branch.boundaryCount === 1 ? 'y' : 'ies'}</span>
                     <span>{branch.fileCount} changed file{branch.fileCount === 1 ? '' : 's'}</span>
-                    {branch.errorCount > 0 && <span className="axiom-agent-branch__warning">git unavailable</span>}
+                    {branch.errorCount > 0 && <span className="ambio-agent-branch__warning">git unavailable</span>}
                   </footer>
                   {(branch.unreviewed > 0 || branch.unexplained > 0 || branch.unexpected > 0) && (
-                    <div className="axiom-agent-branch__brief" aria-label={`${branch.name} review status`}>
+                    <div className="ambio-agent-branch__brief" aria-label={`${branch.name} review status`}>
                       {branch.unreviewed > 0 && <span>{branch.unreviewed} unreviewed</span>}
                       {branch.unexplained > 0 && <span data-warning>{branch.unexplained} unexplained</span>}
                       {branch.unexpected > 0 && <span data-danger>{branch.unexpected} unexpected</span>}
@@ -140,26 +140,26 @@ export function AgentLane() {
           </section>
 
           <section
-            className="axiom-agent-lane__section axiom-agent-lane__collisions"
-            aria-labelledby="axiom-agent-collisions"
+            className="ambio-agent-lane__section ambio-agent-lane__collisions"
+            aria-labelledby="ambio-agent-collisions"
             aria-live="polite"
           >
-            <h2 id="axiom-agent-collisions">Semantic collisions</h2>
+            <h2 id="ambio-agent-collisions">Semantic collisions</h2>
             {model.collisions.length === 0 ? (
-              <p className="axiom-agent-lane__clear">No shared boundaries in the active branches.</p>
+              <p className="ambio-agent-lane__clear">No shared boundaries in the active branches.</p>
             ) : model.collisions.map(collision => (
               <button
                 type="button"
-                className="axiom-agent-collision"
+                className="ambio-agent-collision"
                 key={collision.systemId}
                 onClick={() => focusSystem(collision.systemId)}
                 title={`Show ${collision.systemName} on the map`}
               >
-                <span className="axiom-agent-collision__system">{collision.systemName}</span>
-                <span className="axiom-agent-collision__route">
+                <span className="ambio-agent-collision__system">{collision.systemName}</span>
+                <span className="ambio-agent-collision__route">
                   {collision.branches.map(branch => branch.name).join(' × ')}
                 </span>
-                <span className="axiom-agent-collision__details">
+                <span className="ambio-agent-collision__details">
                   {collision.branches.map(branch => (
                     <span key={branch.rootId}>
                       <strong>{branch.name}</strong> · {branch.claim}

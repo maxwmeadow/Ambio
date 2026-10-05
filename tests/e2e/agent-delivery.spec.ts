@@ -5,12 +5,12 @@ import path from 'node:path'
 
 test('Send launches the selected CLI after saving, preserves failures, and supports editor handoff', async () => {
   test.setTimeout(90000)
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-delivery-ui-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-delivery-ui-'))
   const root = path.join(home, 'project')
   const bin = path.join(home, 'bin')
-  fs.mkdirSync(root); fs.mkdirSync(bin); fs.mkdirSync(path.join(home, '.axiom'))
-  fs.writeFileSync(path.join(home, '.axiom', 'projects.json'), JSON.stringify([{ id: 'demo', name: 'Delivery fixture', rootPath: root, ignoredPaths: [], createdAt: 1 }]))
-  const fakeAgent = 'const fs=require("fs");const host=process.env.AXIOM_AGENT_HOST;const prompt=host==="copilot-cli"?process.argv[process.argv.indexOf("--prompt")+1]:fs.readFileSync(0,"utf8");fs.writeFileSync("captured-"+host+".json",JSON.stringify({args:process.argv.slice(2),prompt,cwd:process.cwd(),workspace:process.env.AXIOM_WORKSPACE_ID}));fs.writeSync(1,"Fixture agent started");process.exit(host==="copilot-cli"?7:0)'
+  fs.mkdirSync(root); fs.mkdirSync(bin); fs.mkdirSync(path.join(home, '.ambio'))
+  fs.writeFileSync(path.join(home, '.ambio', 'projects.json'), JSON.stringify([{ id: 'demo', name: 'Delivery fixture', rootPath: root, ignoredPaths: [], createdAt: 1 }]))
+  const fakeAgent = 'const fs=require("fs");const host=process.env.AMBIO_AGENT_HOST;const prompt=host==="copilot-cli"?process.argv[process.argv.indexOf("--prompt")+1]:fs.readFileSync(0,"utf8");fs.writeFileSync("captured-"+host+".json",JSON.stringify({args:process.argv.slice(2),prompt,cwd:process.cwd(),workspace:process.env.AMBIO_WORKSPACE_ID}));fs.writeSync(1,"Fixture agent started");process.exit(host==="copilot-cli"?7:0)'
   const scripts: Record<string, string> = { claude: '@anthropic-ai/claude-code/cli.js', codex: '@openai/codex/bin/codex.js', copilot: '@github/copilot/index.js' }
   for (const [name, entry] of Object.entries(scripts)) {
     const script = path.join(bin, 'node_modules', entry)
@@ -20,12 +20,12 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, 'zed'), `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(path.join(root, 'editor-opened.json'))},JSON.stringify(process.argv.slice(2)))`, { mode: 0o755 })
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const app = await electron.launch({
-    args: ['.', ...(process.env.AXIOM_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])],
-    env: { ...env, HOME: home, USERPROFILE: home, PATH: bin, AXIOM_E2E: '1', AXIOM_API_TOKEN: 'axiom-isolated-ui-delivery-test-token-12345' },
+    args: ['.', ...(process.env.AMBIO_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])],
+    env: { ...env, HOME: home, USERPROFILE: home, PATH: bin, AMBIO_E2E: '1', AMBIO_API_TOKEN: 'ambio-isolated-ui-delivery-test-token-12345' },
   })
   try {
     const page = await app.firstWindow()
-    expect(await page.evaluate(() => window.axiom.listDeliveryHosts())).toHaveLength(10)
+    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(10)
     await page.setViewportSize({ width: 1280, height: 1000 })
     const orders: any[] = []
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
@@ -64,16 +64,16 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
-      await expect(inbox.locator('.axiom-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')
-      await expect(inbox.locator('.axiom-inbox__status').last()).toHaveText('Waiting for an agent')
+      await expect(inbox.locator('.ambio-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')
+      await expect(inbox.locator('.ambio-inbox__status').last()).toHaveText('Waiting for an agent')
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
     expect(orders).toHaveLength(3)
     await expect(inbox.getByRole('button', { name: 'Show agent output' })).toHaveCount(3)
     const firstMessageId = orders.at(-1).id
-    await expect(inbox.locator('.axiom-inbox__message').last().getByRole('button', { name: 'Start GitHub Copilot (CLI)' })).toBeDisabled()
+    await expect(inbox.locator('.ambio-inbox__message').last().getByRole('button', { name: 'Start GitHub Copilot (CLI)' })).toBeDisabled()
     const modifiedAt = fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs
-    await page.evaluate(messageId => window.axiom.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)
+    await page.evaluate(messageId => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)
     expect(fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs).toBe(modifiedAt)
     expect(orders.at(-1).id).toBe(firstMessageId)
     if (process.platform !== 'win32') {

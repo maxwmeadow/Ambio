@@ -27,7 +27,7 @@ import { archdApi } from '../archdEndpoint.ts'
  * the state worth offering to fix, however complete it is.
  *
  * And its one action copied `${archdApi()}/mcp`, which archd does not
- * serve and never has - the daemon registers no such route. Axiom speaks MCP
+ * serve and never has - the daemon registers no such route. Ambio speaks MCP
  * over stdio, so following the app's own instruction could not possibly work.
  * It now offers the real server entry for this install.
  */
@@ -93,14 +93,14 @@ export function AgentConnectBanner() {
         label: 'Connect an agent',
         primary: true,
         run: async () => {
-          const connection = await window.axiom.getAgentConnection()
+          const connection = await window.ambio.getAgentConnection()
           if (!connection.available) {
             // Never hand over a config that cannot work. Saying which file is
             // missing is the difference between a user debugging their agent
-            // and a user reinstalling Axiom.
+            // and a user reinstalling Ambio.
             raiseNotice(
               'agent-connect-config',
-              'This Axiom install has no MCP server',
+              'This Ambio install has no MCP server',
               `Expected it at ${connection.path}. Reinstall or rebuild before connecting an agent.`,
             )
             return

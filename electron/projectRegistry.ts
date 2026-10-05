@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import fs from 'fs'
-import { dirname, join, relative, resolve, sep } from 'path'
+import { basename, dirname, join, relative, resolve, sep } from 'path'
 import type { ProjectConfig, TrashedProject } from '../src/shared/types'
 
 export function readResumeProjectId(settingsFile: string): string | null {
@@ -26,7 +26,7 @@ export function writeResumeProjectId(settingsFile: string, projectId: string | n
 export function migrateIndexedProjectLifecycle(config: ProjectConfig, dataDir: string): ProjectConfig {
   if (config.workbenchOpenedAt || config.reviewCompletedAt) return config
   if (!/^[A-Za-z0-9._-]{1,128}$/.test(config.id) || config.id === '.' || config.id === '..') return config
-  if (!fs.existsSync(join(dataDir, config.id, 'axiom.db'))) return config
+  if (!fs.existsSync(join(dataDir, config.id, 'ambio.db'))) return config
   return { ...config, workbenchOpenedAt: config.openedAt || Date.now() }
 }
 
@@ -53,7 +53,7 @@ export function createProjectId(): string {
 /**
  * Refresh the part of project setup state that the filesystem owns. Keeping
  * this on the persisted project record lets the renderer distinguish a blank
- * project created by Axiom from a codebase opened through the launcher, while
+ * project created by Ambio from a codebase opened through the launcher, while
  * still switching to the codebase journey as soon as files appear.
  */
 export function refreshProjectDiskState(config: ProjectConfig): ProjectConfig {
@@ -105,7 +105,7 @@ function validatedProjectDataDir(dataDir: string, projectId: string): string {
   const target = resolve(base, projectId)
   const rel = relative(base, target)
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || dirname(target) !== base) {
-    throw new Error('Project data path escapes Axiom\'s data directory.')
+    throw new Error('Project data path escapes Ambio\'s data directory.')
   }
   return target
 }
@@ -143,13 +143,35 @@ export function listTrash(dataDir: string): TrashEntry[] {
   try { names = fs.readdirSync(root) } catch { return [] }
   const entries: TrashEntry[] = []
   for (const trashId of names) {
-    try {
-      const meta = JSON.parse(fs.readFileSync(join(root, trashId, 'trash.json'), 'utf8')) as { config: ProjectConfig; deletedAt: number }
-      if (!meta?.config?.id || typeof meta.deletedAt !== 'number') continue
-      entries.push({ trashId, config: meta.config, deletedAt: meta.deletedAt, expiresAt: meta.deletedAt + TRASH_DAYS * 86_400_000 })
-    } catch { /* not ours */ }
+    const meta = readTrashMeta(join(root, trashId))
+    if (!meta) continue
+    entries.push({ trashId, config: meta.config, deletedAt: meta.deletedAt, expiresAt: meta.deletedAt + TRASH_DAYS * 86_400_000 })
   }
   return entries.sort((left, right) => right.deletedAt - left.deletedAt)
+}
+
+/**
+ * What a trashed map was. A map whose trash.json was never written (the app
+ * quit between the move and the write) is still listed, by the project ID
+ * and time in its folder name, `<id>-<ms>`; restoring it brings the map back
+ * with no folder, which the launcher offers to locate.
+ */
+function readTrashMeta(entryPath: string): { config: ProjectConfig; deletedAt: number } | null {
+  try {
+    const meta = JSON.parse(fs.readFileSync(join(entryPath, 'trash.json'), 'utf8')) as { config: ProjectConfig; deletedAt: number }
+    return meta?.config?.id && typeof meta.deletedAt === 'number' ? meta : null
+  } catch {
+    const orphan = /^(.+)-(\d{13})$/.exec(basename(entryPath))
+    if (!orphan || !/^[A-Za-z0-9._-]{1,200}$/.test(orphan[1]) || orphan[1].startsWith('.')) return null
+    try { if (!fs.statSync(entryPath).isDirectory()) return null } catch { return null }
+    return {
+      config: {
+        id: orphan[1], name: `Unlabeled map ${orphan[1].slice(0, 8)}`, rootPath: '', ignoredPaths: [],
+        languageOverrides: {}, layoutPreferences: { zoom: 1, panX: 0, panY: 0 }, openedAt: Number(orphan[2]),
+      },
+      deletedAt: Number(orphan[2]),
+    }
+  }
 }
 
 export function trashEntryPath(dataDir: string, trashId: string): string {
@@ -160,7 +182,8 @@ export function trashEntryPath(dataDir: string, trashId: string): string {
 /** Put a trashed map back. Fails if the project already has a map again. */
 export function restoreTrash(dataDir: string, trashId: string): ProjectConfig {
   const source = trashEntryPath(dataDir, trashId)
-  const meta = JSON.parse(fs.readFileSync(join(source, 'trash.json'), 'utf8')) as { config: ProjectConfig }
+  const meta = readTrashMeta(source)
+  if (!meta) throw new Error('That map is no longer in Recently Deleted.')
   const target = validatedProjectDataDir(dataDir, meta.config.id)
   if (fs.existsSync(target)) throw new Error(`"${meta.config.name}" already has a map. Delete it before restoring this one.`)
   fs.rmSync(join(source, 'trash.json'), { force: true })
@@ -225,7 +248,7 @@ export async function removeProjectData({
     )
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
-      throw new Error(`Axiom could not delete the project data (${response.status})${detail ? `: ${detail}` : '.'}`)
+      throw new Error(`Ambio could not delete the project data (${response.status})${detail ? `: ${detail}` : '.'}`)
     }
     if (trash) {
       // archd moved the folder into the trash and reports where.
@@ -235,7 +258,7 @@ export async function removeProjectData({
   } catch (error) {
     // HTTP responses are authoritative failures. Connection failures mean the
     // daemon is down, so there can be no daemon-owned SQLite lock to release.
-    if (error instanceof Error && error.message.startsWith('Axiom could not delete')) throw error
+    if (error instanceof Error && error.message.startsWith('Ambio could not delete')) throw error
     daemonUnavailable = true
   }
 
@@ -251,13 +274,13 @@ export async function removeProjectData({
     }
   }
   if (fs.existsSync(projectDataDir)) {
-    throw new Error('Axiom could not verify that the project data was deleted.')
+    throw new Error('Ambio could not verify that the project data was deleted.')
   }
   clearActiveProjectPointer(dataDir, projectId)
   return trashPath
 }
 
-/** What an exported .axiommap carries besides the map itself. */
+/** What an exported .ambiomap carries besides the map itself. */
 export function exportManifest(config: ProjectConfig, appVersion: string): Record<string, string> {
   const { id: _id, rootMissing: _missing, hiddenFromRecents: _hidden, ...portable } = config
   return { name: config.name, rootPath: config.rootPath, appVersion, config: JSON.stringify(portable) }

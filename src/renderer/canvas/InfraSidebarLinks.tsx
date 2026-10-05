@@ -104,7 +104,7 @@ function ActiveInfraLinks({
   React.useEffect(() => {
     if (links.length === 0) return
     const container = containerRef.current
-    const list = container?.querySelector('.axiom-infra-sidebar__list')
+    const list = container?.querySelector('.ambio-infra-sidebar__list')
     const bump = () => setFrame(value => value + 1)
     list?.addEventListener('scroll', bump, { passive: true })
     const observer = typeof ResizeObserver === 'undefined' || !container ? null : new ResizeObserver(bump)
@@ -123,8 +123,8 @@ function ActiveInfraLinks({
       return
     }
     const box = container.getBoundingClientRect()
-    const sidebar = container.querySelector('.axiom-infra-sidebar')?.getBoundingClientRect()
-    const list = container.querySelector('.axiom-infra-sidebar__list')?.getBoundingClientRect()
+    const sidebar = container.querySelector('.ambio-infra-sidebar')?.getBoundingClientRect()
+    const list = container.querySelector('.ambio-infra-sidebar__list')?.getBoundingClientRect()
     if (!sidebar || !list) {
       setPlaced({ items: [], width: 0, height: 0 })
       return
@@ -211,18 +211,18 @@ function ActiveInfraLinks({
   const outlined = new Map<string, NonNullable<Placed['target']>>()
   for (const item of placed.items) if (item.target) outlined.set(item.link.nodeId, item.target)
   return (
-    <div className="axiom-infra-links" aria-hidden={false}>
-      <svg className="axiom-infra-links__svg" width={placed.width} height={placed.height} aria-hidden="true">
+    <div className="ambio-infra-links" aria-hidden={false}>
+      <svg className="ambio-infra-links__svg" width={placed.width} height={placed.height} aria-hidden="true">
         {[...outlined.entries()].map(([id, rect]) => (
-          <rect key={`outline-${id}`} className="axiom-infra-links__outline"
+          <rect key={`outline-${id}`} className="ambio-infra-links__outline"
             x={rect.x - 3} y={rect.y - 3} width={rect.width + 6} height={rect.height + 6} rx={4} />
         ))}
         {placed.items.map(item => (
           <g key={item.link.key}
-            className={`axiom-infra-links__line${item.link.generic ? ' axiom-infra-links__line--generic' : ''}${item.marker ? ' axiom-infra-links__line--away' : ''}`}
+            className={`ambio-infra-links__line${item.link.generic ? ' ambio-infra-links__line--generic' : ''}${item.marker ? ' ambio-infra-links__line--away' : ''}`}
             data-infra-link-source={item.link.infraId} data-infra-link-target={item.link.nodeId}>
-            <path d={item.path} className="axiom-infra-links__casing" />
-            <path d={item.path} className="axiom-infra-links__stroke" />
+            <path d={item.path} className="ambio-infra-links__casing" />
+            <path d={item.path} className="ambio-infra-links__stroke" />
           </g>
         ))}
       </svg>
@@ -236,7 +236,7 @@ function ActiveInfraLinks({
           const fits = item.link.label.length * 6.7 + 18 <= item.target!.width - 8
           return (
             <div key={`label-${item.link.key}`}
-              className={`axiom-infra-links__label${fits ? '' : ' axiom-infra-links__label--compact'}`}
+              className={`ambio-infra-links__label${fits ? '' : ' ambio-infra-links__label--compact'}`}
               data-infra-link-label={item.link.nodeId}
               title={fits ? undefined : item.link.label}
               style={{ transform: `translate(${item.target!.x + 4}px, ${item.target!.y + item.target!.height - 4}px) translateY(-100%)` }}>
@@ -245,14 +245,14 @@ function ActiveInfraLinks({
           )
         })
         : placed.items.map(item => (
-          <div key={`label-${item.link.key}`} className="axiom-infra-links__label axiom-infra-links__label--row"
+          <div key={`label-${item.link.key}`} className="ambio-infra-links__label ambio-infra-links__label--row"
             data-infra-link-label={item.link.infraId}
             style={{ transform: `translate(${item.start.x + 8}px, ${item.start.y}px) translateY(-50%)` }}>
             {item.link.label}
           </div>
         ))}
       {rowSelected && placed.items.filter(item => item.marker).map(item => (
-        <button key={`marker-${item.link.key}`} type="button" className="axiom-infra-links__marker"
+        <button key={`marker-${item.link.key}`} type="button" className="ambio-infra-links__marker"
           data-infra-link-marker={item.link.nodeId}
           data-side={item.marker!.side}
           style={{ transform: `translate(${item.marker!.x}px, ${item.marker!.y}px) ${MARKER_ANCHOR[item.marker!.side]}` }}

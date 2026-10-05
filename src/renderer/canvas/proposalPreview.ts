@@ -12,7 +12,7 @@ function languageFromPath(path: string): string {
   const extensions: Array<[string, string]> = [
     ['.tsx', 'tsx'], ['.ts', 'typescript'], ['.jsx', 'jsx'], ['.mjs', 'javascript'],
     ['.js', 'javascript'], ['.py', 'python'], ['.go', 'go'], ['.rs', 'rust'],
-    ['.cs', 'csharp'], ['.cpp', 'cpp'], ['.cc', 'cpp'], ['.cxx', 'cpp'],
+    ['.cs', 'csharp'], ['.cpp', 'cpp'], ['.cc', 'cpp'], ['.cxx', 'cpp'], ['.c', 'c'], ['.h', 'c'],
     ['.hpp', 'cpp'], ['.hxx', 'cpp'], ['.rb', 'ruby'], ['.java', 'java'],
     ['.mdx', 'markdown'], ['.md', 'markdown'],
   ]

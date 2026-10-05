@@ -6,9 +6,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Axiom builds two native artifacts per host - the CGO archd daemon and the
-# better-sqlite3 node addon - and neither cross-compiles cleanly. Every
-# platform therefore has to build and test on its own runner.
+# archd is a CGO binary and does not cross-compile cleanly, so every
+# platform has to build and test on its own runner.
 jobs:
   build:
     name: ${{ matrix.os }}
@@ -19,14 +18,14 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # go.mod's `go 1.22` is the minimum language version, not the
           # toolchain. Resolving it gave CI go1.22.12, whose internal linker
@@ -50,10 +49,32 @@ jobs:
       - name: Vet archd
         run: npm run vet:archd
 
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: |
+          unformatted="$(gofmt -l archd-go)"
+          if [ -n "$unformatted" ]; then echo "Run gofmt -w on:"; echo "$unformatted"; exit 1; fi
+
+      # Go and C++ tracing are tested against a real delve and gdb
+      # (runtime/*_live_test.go skip without them). Linux is enough to keep the
+      # integrations honest.
+      - name: Install delve and gdb
+        if: runner.os == 'Linux'
+        run: |
+          go install github.com/go-delve/delve/cmd/dlv@latest
+          sudo apt-get install -y gdb
+
       - name: Test archd
         run: npm run test:archd
 
-      # Axiom is AGPL-3.0: every shipped dependency must be compatible.
+      # The race detector found a real ordering bug once; Linux is enough to
+      # keep it honest without tripling the slowest step on every OS.
+      - name: Test archd with the race detector
+        if: runner.os == 'Linux'
+        working-directory: archd-go
+        run: go test -race ./...
+
+      # Ambio is AGPL-3.0: every shipped dependency must be compatible.
       - name: Check third-party licenses
         if: runner.os == 'Linux'
         run: node scripts/third-party-notices.mjs --check
@@ -68,3 +89,58 @@ jobs:
 
       - name: Build Electron bundles
         run: npm run build
+
+  # The canvas is covered by Playwright and the agent surface by the MCP
+  # end-to-end suite; both drive real processes (Electron, archd, the MCP
+  # server), so they run once, on Linux, under a virtual display.
+  e2e:
+    name: end-to-end (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: archd-go/go.sum
+
+      - run: npm ci
+
+      # Builds archd and the runtime adapters, then drives the real MCP server
+      # against a real daemon over stdio.
+      - name: MCP end to end
+        run: npm run test:mcp
+
+      - name: Install a virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build Electron bundles
+        run: npm run build
+
+      # Screenshot baselines are per platform, and Playwright fails a test
+      # whose baseline it has to write. Until a Linux baseline is committed,
+      # write it here first (uploaded below, to review and commit), then run
+      # the suite against it.
+      - name: Write a missing Linux screenshot baseline
+        run: |
+          if [ ! -f tests/e2e/__screenshots__/canvas.spec.ts/linux/floor-baseline.png ]; then
+            xvfb-run -a npx playwright test tests/e2e/canvas.spec.ts -g "deterministic Floor baseline" --update-snapshots=missing || true
+          fi
+
+      - name: Playwright
+        run: xvfb-run -a npx playwright test
+
+      - name: Upload Playwright results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            tests/e2e/__screenshots__/**/linux/
+          if-no-files-found: ignore

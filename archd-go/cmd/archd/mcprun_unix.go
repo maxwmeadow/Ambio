@@ -13,6 +13,6 @@ import (
 func execRuntime(runtimePath string, args []string) int {
 	argv := append([]string{runtimePath}, args...)
 	err := syscall.Exec(runtimePath, argv, mcpRunEnv())
-	fmt.Fprintf(os.Stderr, "Axiom's MCP server could not start: %v\n", err)
+	fmt.Fprintf(os.Stderr, "Ambio's MCP server could not start: %v\n", err)
 	return 1
 }

@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func (s *Server) handleFloorLayoutBatch(w http.ResponseWriter, r *http.Request) {

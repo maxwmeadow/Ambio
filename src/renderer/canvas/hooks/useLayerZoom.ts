@@ -1,5 +1,5 @@
 /**
- * useSemanticZoom - Semantic zoom opacity model for the Axiom canvas.
+ * useSemanticZoom - Semantic zoom opacity model for the Ambio canvas.
  *
  * Instead of swapping discrete layer sets, every node has a semanticDepth
  * (0 = top-level system, 1 = subsystem/module, 2 = file, 3 = symbol).

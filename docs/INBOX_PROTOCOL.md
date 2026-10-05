@@ -26,7 +26,7 @@ The full ID remains visible and selectable on the message if clipboard access fa
 The agent calls `get_inbox({messageId: "…", expectedWorkspaceId: "…"})` to claim
 exactly that request. A mismatched MCP workspace fails before any claim. This is
 the universal route for two different harnesses, or two chats in the same harness:
-MCP does not tell Axiom which human chat owns a connection. The request ID selects
+MCP does not tell Ambio which human chat owns a connection. The request ID selects
 the task; a connection lease prevents a different connector from claiming it at
 the same time. The ID is routing information, not an access-control secret or proof
 of the chat's identity. A connector already holding a lease can renew that request.
@@ -39,14 +39,14 @@ converted. New addressed work does **not** appear in an unspecific inbox check o
 legacy outbox read. Delivery passes its exact ID to one chosen host. The handoff asks
 the agent to handle only that work order; it does not invite queue draining. There is
 no reliable cross-harness hook that selects an existing human chat. Installers that support skills
-also install `axiom-inbox` beside `axiom-map`;
+also install `ambio-inbox` beside `ambio-map`;
 manual language remains the universal entry point. Installing is optional for an already
 connected agent. No hook, slash-command convention, or permanent polling loop is required.
 
 After a send, the request card exposes its ID and a copyable project-named prompt
 to paste into the agent's own chat. **Connections** reopens setup without leaving the
 project. The signal distinguishes an MCP process currently online from one that has
-successfully called an Axiom tool in this workspace. A configuration found on disk,
+successfully called an Ambio tool in this workspace. A configuration found on disk,
 an incomplete installer workflow, and unavailable status have separate states.
 Blank-project setup provides a copyable `get_inbox({verifyOnly: true,
 expectedWorkspaceId: "…"})` check and opens the canvas after the selected host
@@ -76,7 +76,7 @@ signal and a successful claim/reply are the stronger end-to-end checks.
 The panel distinguishes waiting, picked up, submitted for review, accepted,
 changes requested, cancelled, and expired claims.
 Picked up means the connector claimed the instruction, not proof of ongoing model work.
-Replies remain visible after restarting Axiom or deleting the originating canvas objects.
+Replies remain visible after restarting Ambio or deleting the originating canvas objects.
 Cancellation prevents acceptance of a later reply; it cannot stop an external coding
 process. The panel tells the user to stop that agent separately if necessary.
 
@@ -89,7 +89,7 @@ the same handoff and opens the project/app when its launcher is available. The
 request card can deliver an already-saved request, including one reopened with
 review feedback. An editor launch is labelled **work has not started yet**.
 
-| Supported host | Headless / hook / chat options investigated | Route built in Axiom |
+| Supported host | Headless / hook / chat options investigated | Route built in Ambio |
 | --- | --- | --- |
 | Claude Code (CLI, shared config with VS Code/JetBrains extensions) | `claude -p`; `SessionStart` and `UserPromptSubmit` can inject context on host activity, but do not select a conversation on Send | Start a new CLI run with per-run MCP config |
 | Claude Desktop | No documented external API for starting a specific existing chat; MCP connections can be shared | Copy + open Claude on macOS when installed; copy on other platforms |
@@ -125,7 +125,7 @@ Unverified chat routes are deliberately not offered as automatic delivery.
 ### Why hooks, notifications and elicitation are not dispatch
 
 MCP resource `list_changed` notifications announce a changed resource catalogue;
-they do not submit a user message or choose a chat. Axiom currently exposes tools
+they do not submit a user message or choose a chat. Ambio currently exposes tools
 and prompts, not a work-order resource subscription. Hosts vary in whether they
 surface resource notifications in model context. Elicitation, where a client
 supports it, asks the human for input during a tool interaction; it is not a
@@ -145,13 +145,13 @@ pin its workspace and host. It must claim before editing and renew before the
 
 Direct runs use the host's existing account. Codex keeps workspace-write
 sandboxing and refuses approval-dependent escalation. Claude uses accept-edits
-mode plus Axiom tools and named local read/check commands. Copilot allows Axiom,
+mode plus Ambio tools and named local read/check commands. Copilot allows Ambio,
 file writing, and named local check commands. No route enables a dangerous bypass,
 all-path access, all-URL access or arbitrary shell auto-approval. A task requiring
 additional permissions may need continuation in the host's interactive chat.
 
 One managed run may edit a root at a time. A launch receipt in
-`~/.axiom/delivery/` is keyed by workspace, request and review revision, and saved
+`~/.ambio/delivery/` is keyed by workspace, request and review revision, and saved
 before spawn. Double clicks and renderer reloads return that receipt. Only a
 confirmed spawn failure is automatically retryable; a process that ran and failed
 or was interrupted is never silently rerun. Requesting changes creates a new
@@ -162,10 +162,10 @@ The inbox distinguishes process launch/exit from claim/reply. Exit code zero alo
 does not mark a request answered. Output is kept locally (up to 1 MiB per run),
 with **Show agent output** and **Stop run** controls. Stop terminates the managed
 process tree where supported, keeps edits already made and does not cancel the
-durable request or release its MCP lease. Axiom asks managed runs to stop on quit.
+durable request or release its MCP lease. Ambio asks managed runs to stop on quit.
 Manual handoff remains available for recovery and unsupported chat integrations.
 
-A new worktree is not created automatically: Axiom's comparison follows the live
+A new worktree is not created automatically: Ambio's comparison follows the live
 graph root, so reviewing a different worktree would be misleading. Isolated-run
 projection and live authenticated provider smoke tests are tracked in WORK.md.
 The automated UI test exercises real Electron IPC and child processes with
@@ -178,7 +178,7 @@ model behavior, or every OS launcher installation.
 lists a commit, changed files, checks with outcomes, and remaining gaps. These are
 **agent-reported claims**, not independently verified test results. The work-order
 details show linked sessions and the current live sheet comparison separately;
-the comparison is an Axiom structural check of the current graph, not proof of
+the comparison is an Ambio structural check of the current graph, not proof of
 runtime behavior or the graph at the moment of submission.
 
 The user can **Accept result** or **Request changes** with feedback. Acceptance is a
@@ -231,7 +231,7 @@ before expiry and check ownership before continuing after interruption.
 
 This provides at-least-once delivery and idempotent final replies. It does not guarantee
 exactly-once edits in an external repository. A stale agent can still modify files outside
-Axiom. Claim tokens fence Axiom replies, not third-party tools or shell commands.
+Ambio. Claim tokens fence Ambio replies, not third-party tools or shell commands.
 
 ## Storage and HTTP
 
@@ -250,7 +250,7 @@ Endpoints (all require the local bearer token):
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId, deliveryMode: "addressed"}`; omitted mode remains legacy `open` |
+| `POST /api/canvas/send` | Save `{id, workspaceId, note, selection, sheetId, deliveryMode: "addressed", codeFitFileIds?}`; omitted mode remains legacy `open`. `codeFitFileIds` (≤200) freezes where the code disagrees with the map for those files; history and the reply then carry `codeChecks`, re-checked against the indexed code |
 | `POST /api/canvas/claim` | Claim/renew using `{workspaceId, connectionId, agent, messageId?}`; no ID sees only `open` work |
 | `POST /api/canvas/context` | Read a context page using `{workspaceId, msgId, leaseToken, offset}` |
 | `POST /api/canvas/reply` | Resolve using `{workspaceId, msgId, leaseToken, body}` |
@@ -280,20 +280,20 @@ change does not claim stronger hardware-level durability than the project's data
 
 Each MCP process binds once after its first successful resolution:
 
-1. `AXIOM_WORKSPACE_ID`, if explicitly configured.
-2. An explicit `AXIOM_ACTIVE_PROJECT` file (used by isolated harnesses).
+1. `AMBIO_WORKSPACE_ID`, if explicitly configured.
+2. An explicit `AMBIO_ACTIVE_PROJECT` file (used by isolated harnesses).
 3. Otherwise the longest registered root containing the process working directory,
    including persisted worktree roots. Equal matches in different projects fail visibly.
 
 For a host without a meaningful working directory, configure a workspace ID, or explicitly
-opt into the desktop pointer with `AXIOM_USE_ACTIVE_PROJECT=1`. The pointer is still read
+opt into the desktop pointer with `AMBIO_USE_ACTIVE_PROJECT=1`. The pointer is still read
 only at binding time; start a new MCP connection to choose another workspace. Changing
 the desktop's project cannot redirect a running agent's calls or replies.
 
 The daemon generates a local random capability in `<data>/api-token` (0600 on POSIX).
 Electron adds it from the main process to its own daemon requests; page scripts never
 receive it through IPC. MCP reads the same file and uses a 15-second request deadline.
-Overrides are `AXIOM_API_TOKEN` or `AXIOM_API_TOKEN_FILE`; `AXIOM_API_URL` must remain
+Overrides are `AMBIO_API_TOKEN` or `AMBIO_API_TOKEN_FILE`; `AMBIO_API_URL` must remain
 loopback HTTP. The token protects against unrelated browser pages and unauthenticated
 clients, not another process already running with the user's filesystem permissions.
 
@@ -342,9 +342,9 @@ throwaway indexed project. The canvas drawing is a deterministic E2E fixture;
 the inbox requests, daemon, MCP calls, agent edit, and review are live. It
 requires an authenticated Codex CLI and invokes
 that CLI with automatic approval review and a workspace-write sandbox for the
-disposable project; it does not change the user's Codex settings. After building Axiom and
+disposable project; it does not change the user's Codex settings. After building Ambio and
 archd, run:
 
 ```sh
-AXIOM_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
+AMBIO_LIVE_HOST_TEST=1 npx playwright test tests/e2e/live-host-pipeline.spec.mjs --workers=1
 ```

@@ -6,7 +6,7 @@ import type { Node } from '@xyflow/react'
 export const REVEAL_CONTAINER_PX = 480
 
 /** Marks a node that semantic zoom has hidden; see global.css. */
-export const HIDDEN_NODE_CLASS = 'axiom-node-hidden'
+export const HIDDEN_NODE_CLASS = 'ambio-node-hidden'
 
 // A leaf reveals its detail once its effective zoom (viewport zoom times the
 // node's world scale) reaches this value. Nodes consume the resolved boolean

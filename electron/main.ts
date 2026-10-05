@@ -1,9 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter, Notification } from 'electron'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
 import { estimateScope } from './scopeEstimate'
-import { parseAxiomUrl, parseLaunchArgs, type LaunchRequest } from './launchRequests'
+import { parseAmbioUrl, parseLaunchArgs, type LaunchRequest } from './launchRequests'
 import { installCliLauncher } from './cliLauncher'
 import { changelogSection, shouldShowWhatsNew } from './whatsNew'
 import { applyApplicationMenu, runMenuRole, type MenuState } from './appMenu'
@@ -19,7 +19,7 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
-import { uninstallAll, uninstallHost } from './agentUninstall'
+import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import { DeliveryRunner, deliveryTargets, deliveryArguments, checkDeliveryMessage } from './agentDelivery'
@@ -51,17 +51,23 @@ import {
 // UI, and hot reload never worked at all.
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL
 const IS_DEV = !!DEV_SERVER_URL
-const IS_E2E = process.env.AXIOM_E2E === '1'
-const IS_E2E_HOME = process.env.AXIOM_E2E_HOME === '1'  // route straight to the launcher for capture
-const CONFIG_DIR = join(os.homedir(), '.axiom')
+const IS_E2E = process.env.AMBIO_E2E === '1'
+const IS_E2E_HOME = process.env.AMBIO_E2E_HOME === '1'  // route straight to the launcher for capture
+const CONFIG_DIR = join(os.homedir(), '.ambio')
+// The app was called Axiom until 2026-10: move its folder over once, before
+// anything reads projects or settings (archd renames the map files inside).
+try {
+  const legacyDir = join(os.homedir(), '.axiom')
+  if (!fs.existsSync(CONFIG_DIR) && fs.existsSync(legacyDir)) fs.renameSync(legacyDir, CONFIG_DIR)
+} catch { /* left in place; the app starts with an empty project list */ }
 const PROJECTS_FILE = join(CONFIG_DIR, 'projects.json')
 const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
-const DATA_DIR = join(os.homedir(), '.axiom', 'data')
+const DATA_DIR = join(os.homedir(), '.ambio', 'data')
 const LOG_DIR = join(CONFIG_DIR, 'logs')
 const deliveryRunner = new DeliveryRunner(join(CONFIG_DIR, 'delivery'))
 const WINDOW_STATE_FILE = join(CONFIG_DIR, 'window-state.json')
 // Where "Report a Bug" leads. Update alongside the repository if it moves.
-const ISSUES_URL = 'https://github.com/maxwmeadow/Axiom/issues/new'
+const ISSUES_URL = 'https://github.com/maxwmeadow/Ambio/issues/new'
 // archd prefers these ports and falls back to free ones if another program
 // holds them (-auto-ports). The ports actually in use come from daemon.json.
 interface ArchdPorts { api: number; ws: number; runtime: number }
@@ -75,7 +81,7 @@ function setArchdPorts(next: ArchdPorts): void {
   mainWindow?.webContents.send('archd:ports', archdPorts)
 }
 
-// Everything the main process says also lands in ~/.axiom/logs, so a user
+// Everything the main process says also lands in ~/.ambio/logs, so a user
 // who hits a problem has something to look at, or to attach to a report.
 const logs = createLogs(LOG_DIR)
 for (const level of ['log', 'info', 'warn', 'error'] as const) {
@@ -88,7 +94,7 @@ for (const level of ['log', 'info', 'warn', 'error'] as const) {
 
 // Crashes are kept on this machine (Electron minidumps) and counted in
 // diagnostics. Nothing is uploaded: an opt-in upload needs a destination
-// Axiom does not have yet (see WORK.md).
+// Ambio does not have yet (see WORK.md).
 crashReporter.start({ uploadToServer: false })
 process.on('uncaughtException', error => console.error('[main] uncaught exception:', error))
 process.on('unhandledRejection', reason => console.error('[main] unhandled rejection:', reason))
@@ -143,7 +149,7 @@ function refreshApplicationMenu(): void {
   const recent = recentForMenu()
   applyApplicationMenu(() => mainWindow, menuState, recent)
   // Recent projects where the OS keeps them: the dock menu on macOS, the
-  // jump list on Windows (whose entries relaunch Axiom with the folder).
+  // jump list on Windows (whose entries relaunch Ambio with the folder).
   if (process.platform === 'darwin' && app.dock) {
     app.dock.setMenu(Menu.buildFromTemplate(recent.slice(0, 8).map(project => ({
       label: project.name,
@@ -240,8 +246,8 @@ function registerFolder(rootPath: string): ProjectConfig {
 
 // ─── Opening from outside the app ───────────────────────────────────────────
 //
-// `axiom .`, a folder dropped on the window or dock icon, the dock menu, the
-// Windows jump list and axiom:// links all arrive here. A path inside a known
+// `ambio .`, a folder dropped on the window or dock icon, the dock menu, the
+// Windows jump list and ambio:// links all arrive here. A path inside a known
 // project opens that project; a new folder is added like File → Open Folder.
 
 let pendingOpen: ProjectConfig | null = null
@@ -267,7 +273,7 @@ async function resolveLaunchRequest(request: LaunchRequest, confirmNewFolders: b
       buttons: ['Open', 'Cancel'],
       defaultId: 0,
       cancelId: 1,
-      message: 'Open this folder in Axiom?',
+      message: 'Open this folder in Ambio?',
       detail: folder,
     })
     if (answer.response !== 0) return null
@@ -364,13 +370,13 @@ function archdBinaryPath(): string {
 
 function mcpServerPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, 'mcp', 'axiom-mcp.mjs')
-    : join(__dirname, '..', '..', 'mcp', 'axiom-mcp.ts')
+    ? join(process.resourcesPath, 'mcp', 'ambio-mcp.mjs')
+    : join(__dirname, '..', '..', 'mcp', 'ambio-mcp.ts')
 }
 
 /**
- * How an agent starts Axiom's MCP server. A packaged install runs it on
- * Axiom's own bundled runtime through `archd mcp-run`, so nobody has to
+ * How an agent starts Ambio's MCP server. A packaged install runs it on
+ * Ambio's own bundled runtime through `archd mcp-run`, so nobody has to
  * install Node. A development checkout keeps using the developer's Node,
  * which runs the TypeScript source directly.
  */
@@ -463,9 +469,9 @@ function startArchd(): void {
 
 // ─── Attaching to a daemon that is already running ─────────────────────────
 //
-// An agent can start archd headless while Axiom is closed (see daemonAuth.ts).
+// An agent can start archd headless while Ambio is closed (see daemonAuth.ts).
 // When the app then opens it uses that daemon instead of starting a second
-// one that would lose the race for the ports. A daemon from another Axiom
+// one that would lose the race for the ports. A daemon from another Ambio
 // version is asked to step aside first.
 
 interface RunningDaemon { pid: number; version: string; headless: boolean; ports: ArchdPorts }
@@ -573,12 +579,12 @@ async function adoptSpawnedPorts(pid: number | undefined): Promise<void> {
 function reportArchdLaunchError(binary: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`[main] archd launch failed at ${binary}:`, error)
-  // Written for the person using Axiom. Only a development checkout gets the
+  // Written for the person using Ambio. Only a development checkout gets the
   // build instruction, because only there is it something they can do.
   dialog.showErrorBox(
-    'Axiom could not start its background service',
+    'Ambio could not start its background service',
     app.isPackaged
-      ? `${message}\n\nYour code is untouched. Reinstalling Axiom usually fixes this; if it keeps happening, please report it with "Report a bug" at the bottom of the Axiom launcher.`
+      ? `${message}\n\nYour code is untouched. Reinstalling Ambio usually fixes this; if it keeps happening, please report it with "Report a bug" at the bottom of the Ambio launcher.`
       : `${message}\n\nBuild the daemon with:\nnpm run build:archd`,
   )
 }
@@ -597,14 +603,14 @@ function archdFailureReason(): { reason: string; detail: string } {
   if (/address already in use|only one usage of each socket address/i.test(log)) {
     return {
       reason: 'port-in-use',
-      detail: `Another program is using Axiom's local ports (${PREFERRED_PORTS.api}/${PREFERRED_PORTS.ws}). ` +
-        'Quit any other copy of Axiom, or the program holding those ports, then restart Axiom.',
+      detail: `Another program is using Ambio's local ports (${PREFERRED_PORTS.api}/${PREFERRED_PORTS.ws}). ` +
+        'Quit any other copy of Ambio, or the program holding those ports, then restart Ambio.',
     }
   }
   return {
     reason: 'crashed',
-    detail: 'Axiom\'s background service stopped repeatedly. Your code is untouched. ' +
-      'Restart Axiom; if it keeps happening, please report it with the diagnostics attached.',
+    detail: 'Ambio\'s background service stopped repeatedly. Your code is untouched. ' +
+      'Restart Ambio; if it keeps happening, please report it with the diagnostics attached.',
   }
 }
 
@@ -732,7 +738,7 @@ function createWindow(): void {
       sandbox: true,
       webviewTag: false,
     },
-    title: 'Axiom',
+    title: 'Ambio',
     show: false,
     // E2E windows render offscreen and never enter the taskbar. They are shown
     // with showInactive() below because Chromium will not consider screenshots
@@ -778,13 +784,14 @@ function createWindow(): void {
     const rendererUrl = new URL(DEV_SERVER_URL)
     if (IS_E2E) rendererUrl.searchParams.set('e2e', '1')
     if (IS_E2E_HOME) rendererUrl.searchParams.set('home', '1')
-    if (IS_E2E && process.env.AXIOM_E2E_FIXTURE) rendererUrl.searchParams.set('fixture', process.env.AXIOM_E2E_FIXTURE)
+    if (IS_E2E && process.env.AMBIO_E2E_FIXTURE) rendererUrl.searchParams.set('fixture', process.env.AMBIO_E2E_FIXTURE)
+    if (IS_E2E && process.env.AMBIO_E2E_ROOT) rendererUrl.searchParams.set('root', process.env.AMBIO_E2E_ROOT)
     mainWindow.loadURL(rendererUrl.toString())
     if (!IS_E2E) mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     mainWindow.loadFile(
       join(__dirname, '../renderer/index.html'),
-      IS_E2E ? { query: { e2e: '1', ...(IS_E2E_HOME ? { home: '1' } : {}), ...(process.env.AXIOM_E2E_FIXTURE ? { fixture: process.env.AXIOM_E2E_FIXTURE } : {}) } } : undefined,
+      IS_E2E ? { query: { e2e: '1', ...(IS_E2E_HOME ? { home: '1' } : {}), ...(process.env.AMBIO_E2E_FIXTURE ? { fixture: process.env.AMBIO_E2E_FIXTURE } : {}), ...(process.env.AMBIO_E2E_ROOT ? { root: process.env.AMBIO_E2E_ROOT } : {}) } } : undefined,
     )
   }
 
@@ -914,7 +921,7 @@ function setupIPC(): void {
 
   // A project folder was moved or renamed. Repoint the project at its new
   // location so its map, layout and history come along, rather than making
-  // the user start over. Axiom never moves the user's files.
+  // the user start over. Ambio never moves the user's files.
   ipcMain.handle('project:relocate', async (_event, projectId: string) => {
     const project = loadRecentProjects().find(candidate => candidate.id === projectId)
     if (!project) throw new Error('Project is missing from the project registry.')
@@ -937,7 +944,7 @@ function setupIPC(): void {
     })
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
-      throw new Error(`Axiom could not move the project map to the new folder${detail ? `: ${detail}` : '.'}`)
+      throw new Error(`Ambio could not move the project map to the new folder${detail ? `: ${detail}` : '.'}`)
     }
     return refreshProjectDiskState(updateRegistryProject(projectId, current => relocateProjectConfig(current, newRoot)))
   })
@@ -972,7 +979,7 @@ function setupIPC(): void {
     return notes ? { version: releaseNotes(version) ? version : 'Unreleased', notes } : null
   })
 
-  // Settings → Privacy & Data → Delete all Axiom data. Confirmed natively,
+  // Settings → Privacy & Data → Delete all Ambio data. Confirmed natively,
   // because it cannot be undone; the app restarts as if freshly installed.
   ipcMain.handle('app:clear-all-data', async () => {
     if (!mainWindow) return false
@@ -981,8 +988,8 @@ function setupIPC(): void {
       buttons: ['Delete Everything', 'Cancel'],
       defaultId: 1,
       cancelId: 1,
-      message: 'Delete all Axiom data?',
-      detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Axiom restarts. Your code is not touched. Agent connections stay until you remove them in Settings → Agents.',
+      message: 'Delete all Ambio data?',
+      detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Ambio restarts. Your code is not touched. Agent connections stay until you remove them in Settings → Agents.',
     })
     if (answer.response !== 0) return false
     quitting = true
@@ -1005,10 +1012,10 @@ function setupIPC(): void {
     return true
   })
 
-  // Settings → Advanced → Install the axiom command.
+  // Settings → Advanced → Install the ambio command.
   ipcMain.handle('cli:install', () => {
     if (!app.isPackaged) {
-      return { ok: false, detail: 'The axiom command is installed from a packaged build; in development run the app with npm run dev.' }
+      return { ok: false, detail: 'The ambio command is installed from a packaged build; in development run the app with npm run dev.' }
     }
     try {
       return installCliLauncher({
@@ -1077,7 +1084,7 @@ function setupIPC(): void {
   ipcMain.handle('project:restore-trash', (_event, trashId: string) => {
     const entry = listTrash(DATA_DIR).find(candidate => candidate.trashId === trashId)
     if (!entry) throw new Error('That map is no longer in Recently Deleted.')
-    const owner = findProjectByRoot(loadRecentProjects(), entry.config.rootPath)
+    const owner = entry.config.rootPath ? findProjectByRoot(loadRecentProjects(), entry.config.rootPath) : undefined
     if (owner && owner.id !== entry.config.id) {
       throw new Error(`Its folder now belongs to the project "${owner.name}". Delete that project first, then restore this one.`)
     }
@@ -1105,7 +1112,7 @@ function setupIPC(): void {
 
   ipcMain.handle('project:list-backups', async (_event, projectId: string) => {
     const { status, body } = await archdJson(`/api/workspace-backups?workspace=${encodeURIComponent(projectId)}`)
-    if (status !== 200) throw failure('Axiom could not list the backups', body)
+    if (status !== 200) throw failure('Ambio could not list the backups', body)
     return Array.isArray(body) ? body : []
   })
 
@@ -1123,7 +1130,7 @@ function setupIPC(): void {
     const { status, body } = await archdJson('/api/workspace-restore-backup', {
       method: 'POST', body: JSON.stringify({ workspaceId: projectId, name }),
     })
-    if (status !== 200) throw failure('Axiom could not restore the backup', body)
+    if (status !== 200) throw failure('Ambio could not restore the backup', body)
     return true
   })
 
@@ -1132,8 +1139,8 @@ function setupIPC(): void {
     if (!project || !mainWindow) return null
     const result = await dialog.showSaveDialog(mainWindow, {
       title: `Export the map for ${project.name}`,
-      defaultPath: join(app.getPath('documents'), `${sanitizeProjectName(project.name) || 'project'}.axiommap`),
-      filters: [{ name: 'Axiom map', extensions: ['axiommap'] }],
+      defaultPath: join(app.getPath('documents'), `${sanitizeProjectName(project.name) || 'project'}.ambiomap`),
+      filters: [{ name: 'Ambio map', extensions: ['ambiomap'] }],
     })
     if (result.canceled || !result.filePath) return null
     // Written beside the target and moved into place, so a failed export
@@ -1145,7 +1152,7 @@ function setupIPC(): void {
     })
     if (status !== 200) {
       fs.rmSync(partial, { force: true })
-      throw failure(status === 404 ? 'This project has no map to export yet' : 'Axiom could not export the map', status === 404 ? null : body)
+      throw failure(status === 404 ? 'This project has no map to export yet' : 'Ambio could not export the map', status === 404 ? null : body)
     }
     fs.renameSync(partial, result.filePath)
     return result.filePath
@@ -1156,7 +1163,7 @@ function setupIPC(): void {
     const picked = await dialog.showOpenDialog(mainWindow, {
       title: 'Import a map',
       properties: ['openFile'],
-      filters: [{ name: 'Axiom map', extensions: ['axiommap'] }],
+      filters: [{ name: 'Ambio map', extensions: ['ambiomap'] }],
     })
     if (picked.canceled || !picked.filePaths[0]) return null
     const path = picked.filePaths[0]
@@ -1174,8 +1181,8 @@ function setupIPC(): void {
       if (answer.response !== 0) return null
       ;({ status, body } = await archdJson('/api/workspace-import', { method: 'POST', body: JSON.stringify({ path, replace: true }) }))
     }
-    if (status === 409) throw new Error('This map was exported by a newer version of Axiom. Update Axiom, then import it again.')
-    if (status !== 200) throw failure('Axiom could not import the map', body)
+    if (status === 409) throw new Error('This map was exported by a newer version of Ambio. Update Ambio, then import it again.')
+    if (status !== 200) throw failure('Ambio could not import the map', body)
     const manifest = body.manifest as Record<string, string>
     const id = manifest.workspaceId
     // The replaced map went to Recently Deleted; label it so it is listed there.
@@ -1216,7 +1223,7 @@ function setupIPC(): void {
       const moved = await archdJson('/api/workspace-relocate', {
         method: 'POST', body: JSON.stringify({ workspaceId: id, fromPath: manifest.rootPath, toPath: config.rootPath }),
       })
-      if (moved.status !== 200) throw failure('The map was imported, but Axiom could not point it at the new folder', moved.body)
+      if (moved.status !== 200) throw failure('The map was imported, but Ambio could not point it at the new folder', moved.body)
     }
     const existing = loadRecentProjects().find(project => project.id === id)
     const next = existing ? { ...existing, ...config } : config
@@ -1238,7 +1245,7 @@ function setupIPC(): void {
 
   // List directory contents for project setup screen
   ipcMain.handle('fs:list-dir', (_event, dirPath: string) => {
-    // Only inside projects Axiom knows; the setup screen browses a project the
+    // Only inside projects Ambio knows; the setup screen browses a project the
     // user just chose in the system folder dialog, which registered it.
     if (typeof dirPath !== 'string' || !isInside(dirPath, projectRoots())) return []
     try {
@@ -1285,7 +1292,7 @@ function setupIPC(): void {
       return failure ? { ok: false, detail: failure } : { ok: true, detail: 'Opened.' }
     }
     shell.showItemInFolder(filePath)
-    return { ok: false, detail: 'No code editor found, so Axiom showed the file in its folder instead. Choose an editor in Settings → General.' }
+    return { ok: false, detail: 'No code editor found, so Ambio showed the file in its folder instead. Choose an editor in Settings → General.' }
   })
 
   ipcMain.handle('editors:list', () => detectEditors().map(({ id, label }) => ({ id, label })))
@@ -1296,7 +1303,7 @@ function setupIPC(): void {
     const mcpPath = mcpServerPath()
     return {
       version: app.getVersion(),
-      dataDir: join(os.homedir(), '.axiom'),
+      dataDir: join(os.homedir(), '.ambio'),
       platform: process.platform,
       archdApiUrl: `http://127.0.0.1:${archdPorts.api}`,
       archdWsUrl: `ws://127.0.0.1:${archdPorts.ws}/ws`,
@@ -1365,23 +1372,26 @@ function setupIPC(): void {
         return { detail: `Handoff copied and ${target.label} opened. Paste it into the chat you choose; work has not started yet.` }
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
-    if (!fs.existsSync(mcpServerPath())) throw new Error('This Axiom install has no MCP server. Repair the installation before starting an agent.')
+    if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
     const run = await deliveryRunner.start({ ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, args: deliveryArguments(request.hostId, mcpLaunchSpec(), project.id, prompt), prompt })
     return { detail: run.detail, run }
   })
 
-  // Install Axiom into one agent modality.
+  // Install Ambio into one agent modality.
   ipcMain.handle('agent:install', (_event, hostId: string, projectRoot?: string) => {
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
     const mcpPath = mcpServerPath()
     if (!fs.existsSync(mcpPath)) {
-      return { ok: false, detail: `This Axiom install has no MCP server at ${mcpPath}.`, paths: [] }
+      return { ok: false, detail: `This Ambio install has no MCP server at ${mcpPath}.`, paths: [] }
     }
     const launch = mcpLaunchSpec()
     try {
-      return host.install(launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
+      const result = host.install(launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
+      // An agent set up before the rename would otherwise list two servers.
+      if (result.ok) removeLegacyServer(host, projectRoot)
+      return result
     } catch (error) {
       return {
         ok: false,
@@ -1391,15 +1401,21 @@ function setupIPC(): void {
     }
   })
 
-  // Install Axiom into all detected modalities for an agent family in one action.
+  // Install Ambio into all detected modalities for an agent family in one action.
   ipcMain.handle('agent:install-family', (_event, familyId: string, projectRoot?: string) => {
     const mcpPath = mcpServerPath()
     if (!fs.existsSync(mcpPath)) {
-      return { ok: false, detail: `This Axiom install has no MCP server at ${mcpPath}.`, paths: [] }
+      return { ok: false, detail: `This Ambio install has no MCP server at ${mcpPath}.`, paths: [] }
     }
     const launch = mcpLaunchSpec()
     try {
-      return installFamily(familyId, launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
+      const result = installFamily(familyId, launch.command, launch.args, NAME_ARCHITECTURE_COMMAND, projectRoot)
+      if (result.ok) {
+        for (const host of buildHosts().filter(candidate => candidate.familyId === familyId)) {
+          removeLegacyServer(host, projectRoot)
+        }
+      }
+      return result
     } catch (error) {
       return {
         ok: false,
@@ -1409,11 +1425,11 @@ function setupIPC(): void {
     }
   })
 
-  // How an agent actually connects. Axiom speaks MCP over stdio, so the thing a
+  // How an agent actually connects. Ambio speaks MCP over stdio, so the thing a
   // user needs is a server entry naming this install - never a URL. The old
   // invitation copied http://127.0.0.1:7743/mcp, which archd does not serve and
   // never did, so following the app's own instruction could not work.
-  // Point Axiom at a configuration file it could not find on its own.
+  // Point Ambio at a configuration file it could not find on its own.
   ipcMain.handle('agent:locate', async (_event, hostId: string) => {
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
@@ -1435,8 +1451,8 @@ function setupIPC(): void {
     return setOverride(CONFIG_DIR, hostId, result.filePaths[0])
   })
 
-  // Undo the installers: remove Axiom's MCP entry and workflow files from one
-  // agent, or from every agent Axiom knows about.
+  // Undo the installers: remove Ambio's MCP entry and workflow files from one
+  // agent, or from every agent Ambio knows about.
   ipcMain.handle('agent:uninstall', (_event, hostId: string, projectRoot?: string) => {
     const hosts = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
     const host = hosts.find(candidate => candidate.id === hostId)
@@ -1460,7 +1476,7 @@ function setupIPC(): void {
       available: fs.existsSync(mcpPath),
       path: mcpPath,
       config: JSON.stringify(
-        { mcpServers: { axiom: { command, args } } },
+        { mcpServers: { ambio: { command, args } } },
         null,
         2,
       ),
@@ -1476,7 +1492,7 @@ function setupIPC(): void {
   })
 
   // Diagnostics are always user-initiated: copied to the clipboard for the
-  // user to read and paste, never sent anywhere by Axiom.
+  // user to read and paste, never sent anywhere by Ambio.
   ipcMain.handle('diagnostics:copy', () => {
     const text = buildDiagnostics(200)
     clipboard.writeText(text)
@@ -1492,13 +1508,37 @@ function setupIPC(): void {
     const body = [
       '**What happened?**', '', '', '**What did you expect?**', '', '', '**Steps to reproduce**', '1. ', '',
       summary, '',
-      '_Axiom copied fuller diagnostics, including recent log lines, to your clipboard. Paste them here if you are comfortable sharing them - check them first._',
+      '_Ambio copied fuller diagnostics, including recent log lines, to your clipboard. Paste them here if you are comfortable sharing them - check them first._',
     ].join('\n')
     await shell.openExternal(`${ISSUES_URL}?${new URLSearchParams({ body }).toString()}`)
   })
 
   // Settings. Changes apply immediately where they can; reduce-motion needs a
   // restart because Chromium reads it at launch.
+  // Work-order notifications (renderer workOrderNotice.ts decides what is news).
+  // Shown only while the window is not focused; one per work order at a time.
+  const shownNotices = new Map<string, Notification>()
+  ipcMain.handle('app:notify', (_event, notice: { title?: unknown; body?: unknown; tag?: unknown }) => {
+    if (!readAppSettings().workOrderNotifications || !Notification.isSupported()) return false
+    if (mainWindow?.isFocused()) return false
+    const text = (value: unknown, limit: number) => (typeof value === 'string' ? value.slice(0, limit) : '')
+    const title = text(notice?.title, 120)
+    if (!title) return false
+    const tag = text(notice?.tag, 120)
+    shownNotices.get(tag)?.close()
+    const notification = new Notification({ title, body: text(notice?.body, 240) })
+    notification.on('click', () => {
+      if (!mainWindow) return
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    })
+    notification.on('close', () => { if (shownNotices.get(tag) === notification) shownNotices.delete(tag) })
+    shownNotices.set(tag, notification)
+    notification.show()
+    return true
+  })
+
   ipcMain.handle('settings:get', () => readAppSettings())
   ipcMain.handle('settings:set', (_event, patch: Partial<AppSettings>) => {
     const next = writeAppSettings(patch ?? {})
@@ -1540,14 +1580,19 @@ function setupIPC(): void {
   })
 
   // Help links. A fixed set, so the renderer can never open arbitrary URLs.
-  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source') => {
-    const base = 'https://github.com/maxwmeadow/Axiom'
+  ipcMain.handle('help:open', (_event, topic: 'docs' | 'privacy' | 'license' | 'releases' | 'source' | 'feedback') => {
+    const base = 'https://github.com/maxwmeadow/Ambio'
     const urls = {
       docs: `${base}#readme`,
       privacy: `${base}/blob/main/PRIVACY.md`,
       license: `${base}/blob/main/LICENSE`,
       releases: `${base}/releases`,
       source: base,
+      // Ideas and impressions, not bugs: no diagnostics are attached.
+      feedback: `${base}/issues/new?${new URLSearchParams({
+        title: 'Feedback: ',
+        body: `**What I was trying to do**\n\n\n**What worked or got in the way**\n\n\n_Ambio ${app.getVersion()}_`,
+      }).toString()}`,
     }
     const url = urls[topic]
     if (url) void shell.openExternal(url)
@@ -1558,7 +1603,7 @@ function setupIPC(): void {
       ? join(process.resourcesPath, 'licenses', 'THIRD_PARTY_NOTICES.txt')
       : join(__dirname, '..', 'licenses', 'THIRD_PARTY_NOTICES.txt')
     try { return fs.readFileSync(file, 'utf8') } catch {
-      return 'Third-party notices are generated when Axiom is packaged. In a development checkout, run: npm run notices'
+      return 'Third-party notices are generated when Ambio is packaged. In a development checkout, run: npm run notices'
     }
   })
 
@@ -1643,13 +1688,13 @@ function buildDiagnostics(logLines: number): string {
   })
 }
 
-// The body of Axiom's architecture-mapping workflow. Kept beside the installer
-// so the workflow a user invokes and the instructions Axiom means to give are
+// The body of Ambio's architecture-mapping workflow. Kept beside the installer
+// so the workflow a user invokes and the instructions Ambio means to give are
 // the same text, rather than two copies that drift.
-const NAME_ARCHITECTURE_COMMAND = `# Axiom - map this codebase's architecture
+const NAME_ARCHITECTURE_COMMAND = `# Ambio - map this codebase's architecture
 
 Map this codebase's architecture for its owner, who is watching a spatial map
-of it in Axiom. Produce a TREE OF SEMANTIC SYSTEMS.
+of it in Ambio. Produce a TREE OF SEMANTIC SYSTEMS.
 
 **What a system is.** A responsibility - something the codebase does. Name it
 the way an engineer would say it aloud explaining the project to a new
@@ -1677,7 +1722,7 @@ coordinates others. Do not infer from filenames - a file called utils.ts may be
 the core of a system. Do not begin from the systems already on the map: those
 were named automatically from word frequency and describe nothing.
 
-**Submit it incrementally** with Axiom's \`edit_systems\` tool. Call
+**Submit it incrementally** with Ambio's \`edit_systems\` tool. Call
 \`begin_session\` once, then \`add_chunk\` for small groups of systems with a
 stable chunkId per group. Each system takes a systemKey, name, description,
 optional parentKey (which may refer to another chunk), and repository-relative
@@ -1692,7 +1737,7 @@ until they do.
 
 // ─── App lifecycle ──────────────────────────────────────────────────────────
 
-// One Axiom per machine. A second copy would start a second archd that loses
+// One Ambio per machine. A second copy would start a second archd that loses
 // the race for the local ports and leaves one window silently disconnected.
 // Launching again instead brings the existing window forward.
 const hasInstanceLock = IS_E2E || app.requestSingleInstanceLock()
@@ -1704,9 +1749,9 @@ if (!hasInstanceLock) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
-    // `axiom <folder>` or an axiom:// link while Axiom is already running.
+    // `ambio <folder>` or an ambio:// link while Ambio is already running.
     const request = parseLaunchArgs(argv, workingDirectory, [app.getAppPath()])
-    void handleLaunchRequest(request, argv.some(argument => argument.startsWith('axiom:')) ? 'link' : 'cli')
+    void handleLaunchRequest(request, argv.some(argument => argument.startsWith('ambio:')) ? 'link' : 'cli')
   })
 }
 
@@ -1717,9 +1762,9 @@ app.on('open-file', (event, path) => {
 })
 app.on('open-url', (event, url) => {
   event.preventDefault()
-  void app.whenReady().then(() => handleLaunchRequest(parseAxiomUrl(url), 'link'))
+  void app.whenReady().then(() => handleLaunchRequest(parseAmbioUrl(url), 'link'))
 })
-if (app.isPackaged && !IS_E2E) app.setAsDefaultProtocolClient('axiom')
+if (app.isPackaged && !IS_E2E) app.setAsDefaultProtocolClient('ambio')
 
 app.whenReady().then(() => {
   if (!hasInstanceLock) return
@@ -1744,7 +1789,7 @@ app.whenReady().then(() => {
       callback({ requestHeaders: details.requestHeaders })
     },
   )
-  // Axiom needs no camera, microphone, location, notifications or similar.
+  // Ambio needs no camera, microphone, location, notifications or similar.
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
 
@@ -1756,11 +1801,11 @@ app.whenReady().then(() => {
   refreshApplicationMenu()
   initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
   if (!IS_E2E) void startOrAttachArchd()
-  // Launched as `axiom <folder>` or through a link (Windows/Linux pass both
+  // Launched as `ambio <folder>` or through a link (Windows/Linux pass both
   // on the command line). Development passes the app directory; skip it.
   if (app.isPackaged && !IS_E2E) {
     const request = parseLaunchArgs(process.argv, process.cwd(), [app.getAppPath()])
-    void handleLaunchRequest(request, process.argv.some(argument => argument.startsWith('axiom:')) ? 'link' : 'cli')
+    void handleLaunchRequest(request, process.argv.some(argument => argument.startsWith('ambio:')) ? 'link' : 'cli')
   }
 
   app.on('activate', () => {
@@ -1789,7 +1834,7 @@ app.on('before-quit', () => {
 process.on('SIGINT', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); process.exit(0) })
 process.on('SIGTERM', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); process.exit(0) })
 
-// Security: the window only ever shows Axiom. A link that would navigate it
+// Security: the window only ever shows Ambio. A link that would navigate it
 // elsewhere opens in the browser instead; embedded web views are refused.
 app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {

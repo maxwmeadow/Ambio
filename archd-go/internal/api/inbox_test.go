@@ -9,15 +9,15 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func inboxServer(t *testing.T) (*Server, *http.ServeMux, string) {
 	t.Helper()
 	h := hub.New()
-	s := NewServer(t.TempDir(), h, axiomruntime.NewManager(h))
+	s := NewServer(t.TempDir(), h, ambioruntime.NewManager(h))
 	d, err := s.openDB("ws")
 	if err != nil {
 		t.Fatal(err)
@@ -258,7 +258,7 @@ func TestWorkOrderReviewReopensWithHistoryAndFeedback(t *testing.T) {
 }
 func TestInboxHTTPLifecycle(t *testing.T) {
 	s, mux, _ := inboxServer(t)
-	send := map[string]any{"id": "request", "workspaceId": "ws", "note": "Review file", "selection": "[\"axiom://file/file?label=hello.go\"]"}
+	send := map[string]any{"id": "request", "workspaceId": "ws", "note": "Review file", "selection": "[\"ambio://file/file?label=hello.go\"]"}
 	for i := 0; i < 2; i++ {
 		r := inboxHTTP(t, mux, "POST", "/api/canvas/send", send)
 		if r.Code != 200 {
@@ -369,7 +369,7 @@ func TestInboxRejectsInvalidBodiesAndForeignTargets(t *testing.T) {
 		{"workspaceId": "ws", "note": strings.Repeat("x", 16001)},
 		{"workspaceId": "ws", "note": "valid", "selection": "{}"},
 		{"workspaceId": "ws", "note": "valid", "selection": "null"},
-		{"workspaceId": "ws", "note": "valid", "selection": "[\"axiom://file/foreign\"]"},
+		{"workspaceId": "ws", "note": "valid", "selection": "[\"ambio://file/foreign\"]"},
 		{"workspaceId": "ws", "note": "valid", "status": "answered"},
 		{"workspaceId": "ws", "note": "valid", "deliveryMode": "addressed"},
 		{"workspaceId": "ws", "note": "valid", "deliveryMode": "unknown"},

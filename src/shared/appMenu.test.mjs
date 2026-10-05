@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands } from './appMenu.ts'
+import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands, commandIds } from './appMenu.ts'
 
 const key = (overrides) => ({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...overrides })
 
@@ -54,7 +54,7 @@ test('macOS keeps app items in the app menu; other platforms use File and Help',
 test('every command is reachable from the menu bar on every platform', () => {
   for (const platform of ['darwin', 'win32', 'linux']) {
     const entries = buildMenu(platform).flatMap(section => section.entries)
-    const inMenu = new Set(entries.filter(entry => entry.kind === 'command').map(entry => entry.id))
+    const inMenu = new Set(commandIds(entries))
     // Open Recent always ends with Clear Recently Opened.
     if (entries.some(entry => entry.kind === 'recent')) inMenu.add('project.clearRecent')
     for (const id of Object.keys(COMMANDS)) assert.ok(inMenu.has(id), `${id} missing from the ${platform} menu`)

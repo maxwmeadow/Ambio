@@ -1,4 +1,4 @@
-# Axiom - Product Plan
+# Ambio - Product Plan
 
 > **Historical product plan (July 2026).** Its slice-by-slice build notes are
 > kept for context. The current product definition is
@@ -21,7 +21,7 @@ behavior that must not regress), [UML_UX_PLAN.md](UML_UX_PLAN.md),
 
 ## 1. The thesis
 
-**Axiom is the shared command surface where a developer and their agents build
+**Ambio is the shared command surface where a developer and their agents build
 software together.** Bidirectional UML is the *substrate* that makes that
 possible - it is not the product.
 
@@ -61,7 +61,7 @@ folders) are already a core differentiator - this is **not** literal UML.
 Mission Control is one surface for planning, reviewing, and prompting - all
 visual, all live, all bidirectional.
 
-1. **Morning delta** - open Axiom, see what agents changed while you weren't
+1. **Morning delta** - open Ambio, see what agents changed while you weren't
    watching, rendered as architectural claims. Confirm or reject.
 2. **Watch and steer** - as agents work, the map is live: planned (grey) →
    active (pulsing) → realized (green). See five parallel agents without
@@ -166,9 +166,9 @@ you were not there.
       never moves backwards; ack covers the window actually shown
 - [x] 30-day retention with prune on read
 - [x] First index is a **baseline**, not a delta. Classifier migrations
-      likewise - they change how Axiom reads code, not the code
+      likewise - they change how Ambio reads code, not the code
 - [x] `ReconcileRoot` - catch-up scan at reopen through the same
-      `ReindexFile`/`RemoveFile` paths, so work done while Axiom was **closed**
+      `ReindexFile`/`RemoveFile` paths, so work done while Ambio was **closed**
       produces a true delta. Never re-clusters, never touches layout
 
 ### Done - claims (the review unit)
@@ -233,7 +233,7 @@ Topology says what moved; only the agent that moved it can say why.
 
 - [ ] End-to-end validation with a real agent session (Antigravity + MCP)
 - [x] **Interface bypass** claims - intentionally rejected: assumes systems declare
-      public entrypoints, and Axiom's systems are clustered, not declared
+      public entrypoints, and Ambio's systems are clustered, not declared
 
 ### Where it lives
 
@@ -243,7 +243,7 @@ Backend: `archd-go/internal/db/journal.go`, `worksession.go`;
 Frontend: `src/renderer/canvas/deltaReview.ts`,
 `src/renderer/components/DeltaPanel.tsx`, delta slice in
 `src/renderer/store/graphStore.ts`.
-MCP: `mcp/axiom-mcp.ts` (`start_work` / `note_work` / `finish_work`).
+MCP: `mcp/ambio-mcp.ts` (`start_work` / `note_work` / `finish_work`).
 Live presence: `src/renderer/canvas/agentPresence.ts`,
 `nodes/AgentPresenceBadge.tsx`; parallel session ownership and scoped
 attribution: `archd-go/internal/db/worksession.go`.
@@ -255,7 +255,7 @@ attribution: `archd-go/internal/db/worksession.go`.
 **Goal:** close the forward loop. Planning, prompting and reviewing, all
 visual.
 
-This is the half that makes Axiom bidirectional in both directions. The
+This is the half that makes Ambio bidirectional in both directions. The
 reverse loop (②) is done; this is map → code.
 
 ### Planned scope
@@ -296,7 +296,7 @@ forward, a claim can be matched against one and marked **expected** or
 ### Where it lives
 
 Forward loop: `archd-go/internal/api/{asm,sheets}.go`,
-`archd-go/internal/db/{planned,sheets}.go`, `mcp/axiom-mcp.ts`,
+`archd-go/internal/db/{planned,sheets}.go`, `mcp/ambio-mcp.ts`,
 `src/renderer/store/sheetStore.ts`.
 Presence: `archd-go/internal/db/worksession.go`,
 `src/renderer/canvas/agentPresence.ts`.
@@ -354,7 +354,7 @@ what the filesystem did.
 
 ### MCP surface - ✅ (claude/mcp)
 
-- [x] 59 advertised tools → 15 core (+1 behind `AXIOM_MCP_PROFILE=debug`)
+- [x] 59 advertised tools → 15 core (+1 behind `AMBIO_MCP_PROFILE=debug`)
 - [x] ~9,600 → ~2,460 tokens per request (74% off)
 - [x] All 58 legacy handlers retained as unlisted adapters; nothing removed
 - [x] Guard tests fail the build if the surface, schema budget, or description
@@ -370,7 +370,7 @@ what the filesystem did.
       and never recorded, so an agent reclassifying files leaves no trace in
       the Morning Delta. This is the safety net that makes free curation safe:
       the agent fixes boundaries fast, you see it in the morning and can undo.
-- [ ] MCP prompts: `/axiom:implement`, `/axiom:propose`, `/axiom:review`
+- [ ] MCP prompts: `/ambio:implement`, `/ambio:propose`, `/ambio:review`
 - [ ] Hub/orphan claims (need before/after graph snapshots)
 - [ ] Split Ask / Propose / Start build in the send dialog
 - [ ] Persistent Build Plan panel replacing the modal
@@ -380,9 +380,9 @@ what the filesystem did.
 A repeatable protocol for ② lives in the session notes; the shape is:
 
 1. Seed a scratch project with two disconnected module groups **before**
-   opening it in Axiom (so the first index is a silent baseline).
+   opening it in Ambio (so the first index is a silent baseline).
 2. Open, let it index, confirm no delta and ≥2 systems. Quit.
-3. Have an agent create / edit / delete while Axiom is **closed**.
+3. Have an agent create / edit / delete while Ambio is **closed**.
 4. Reopen → the delta should appear.
 
 Honesty checks worth repeating: a create+delete pair must not appear; a

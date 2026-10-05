@@ -1,5 +1,5 @@
 'use strict'
-// Axiom Node.js runtime-layer demo target (CommonJS).
+// Ambio Node.js runtime-layer demo target (CommonJS).
 // Same seeded validator bug as the Python demo: negative amounts slip through
 // validateAmount and blow up downstream in charge().
 

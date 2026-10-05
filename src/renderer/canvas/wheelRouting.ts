@@ -1,7 +1,7 @@
 /**
  * Wheel routing between canvas zoom and scrollable node content.
  *
- * Axiom owns wheel zoom, so a scrollable region inside a node (a file's symbol
+ * Ambio owns wheel zoom, so a scrollable region inside a node (a file's symbol
  * list, a class node's member list) would never see the wheel. Marking those
  * regions `nowheel` is the wrong trade: it permanently dead-zones canvas zoom
  * over most of a revealed node, including lists too short to scroll at all.
@@ -55,7 +55,7 @@ export function wheelScrollStep(deltaY: number, clientHeight: number): number {
 export type WheelRoute =
   /** An ancestor opted out; leave the event completely alone. */
   | { kind: 'ignore' }
-  /** This region scrolls. Axiom scrolls it directly rather than relying on
+  /** This region scrolls. Ambio scrolls it directly rather than relying on
    *  native scrolling, which is unreliable inside transform-scaled nodes. */
   | { kind: 'scroll'; element: Element }
   /** Nobody claimed it: the canvas zooms. */
@@ -63,7 +63,7 @@ export type WheelRoute =
 
 /**
  * Walks from the wheel target toward the canvas root to decide who owns this
- * wheel event. Axiom always consumes the event for 'scroll' and 'zoom'; only
+ * wheel event. Ambio always consumes the event for 'scroll' and 'zoom'; only
  * an explicit `nowheel` opt-out leaves it to the browser.
  */
 export function routeWheelEvent(

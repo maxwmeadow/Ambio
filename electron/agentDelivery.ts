@@ -74,10 +74,10 @@ export function deliveryTargets(hosts: { id: string; label: string }[], env = pr
 }
 
 export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string): string[] {
-  const server = { command: mcp.command, args: [...mcp.args, `--axiom-host=${hostId}`], env: { AXIOM_WORKSPACE_ID: workspaceId } }
-  if (hostId === 'claude-code') return ['-p', '--permission-mode', 'acceptEdits', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { axiom: server } }), '--allowedTools', 'mcp__axiom,Read,Glob,Grep,Edit,Write,Bash(npm run:*),Bash(npm test:*),Bash(npx tsc:*),Bash(go test:*),Bash(go vet:*),Bash(git status:*),Bash(git diff:*)']
-  if (hostId === 'codex') return ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-c', 'approval_policy="never"', '-c', `mcp_servers.axiom.command=${JSON.stringify(server.command)}`, '-c', `mcp_servers.axiom.args=${JSON.stringify(server.args)}`, '-c', `mcp_servers.axiom.env.AXIOM_WORKSPACE_ID=${JSON.stringify(workspaceId)}`, '-c', 'mcp_servers.axiom.enabled=true', '-']
-  if (hostId === 'copilot-cli') return ['--prompt', prompt, '--additional-mcp-config', JSON.stringify({ mcpServers: { axiom: { ...server, tools: ['*'] } } }), '--allow-tool', 'axiom', '--allow-tool', 'write', '--allow-tool', 'shell(npm run:*)', '--allow-tool', 'shell(npm test:*)', '--allow-tool', 'shell(go test:*)', '--allow-tool', 'shell(go vet:*)', '--allow-tool', 'shell(git status:*)', '--allow-tool', 'shell(git diff:*)', '--no-ask-user']
+  const server = { command: mcp.command, args: [...mcp.args, `--ambio-host=${hostId}`], env: { AMBIO_WORKSPACE_ID: workspaceId } }
+  if (hostId === 'claude-code') return ['-p', '--permission-mode', 'acceptEdits', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { ambio: server } }), '--allowedTools', 'mcp__ambio,Read,Glob,Grep,Edit,Write,Bash(npm run:*),Bash(npm test:*),Bash(npx tsc:*),Bash(go test:*),Bash(go vet:*),Bash(git status:*),Bash(git diff:*)']
+  if (hostId === 'codex') return ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-c', 'approval_policy="never"', '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`, '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`, '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(workspaceId)}`, '-c', 'mcp_servers.ambio.enabled=true', '-']
+  if (hostId === 'copilot-cli') return ['--prompt', prompt, '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...server, tools: ['*'] } } }), '--allow-tool', 'ambio', '--allow-tool', 'write', '--allow-tool', 'shell(npm run:*)', '--allow-tool', 'shell(npm test:*)', '--allow-tool', 'shell(go test:*)', '--allow-tool', 'shell(go vet:*)', '--allow-tool', 'shell(git status:*)', '--allow-tool', 'shell(git diff:*)', '--no-ask-user']
   throw new Error('This host has no direct delivery route.')
 }
 
@@ -111,7 +111,7 @@ export class DeliveryRunner {
       try {
         const run = JSON.parse(fs.readFileSync(join(this.directory, name), 'utf8')) as DeliveryRun
         if (run.workspaceId !== workspaceId) return []
-        if (['starting', 'running', 'stopping'].includes(run.state) && !this.live.has(run.key)) return [{ ...run, state: 'interrupted' as const, detail: 'Axiom restarted during this run. Check the agent and its output before handing off again.' }]
+        if (['starting', 'running', 'stopping'].includes(run.state) && !this.live.has(run.key)) return [{ ...run, state: 'interrupted' as const, detail: 'Ambio restarted during this run. Check the agent and its output before handing off again.' }]
         return [run]
       } catch { return [] }
     })
@@ -122,11 +122,11 @@ export class DeliveryRunner {
     const prior = this.list(input.workspaceId).find(run => run.key === key)
     if (prior && prior.state !== 'launch-failed') return Promise.resolve(prior)
     const rootPath = fs.realpathSync(input.rootPath)
-    if ([...this.live.values()].some(({ run }) => fs.realpathSync(run.rootPath) === rootPath)) throw new Error('An Axiom-launched agent is already running in this project. Stop it or wait for its result first.')
+    if ([...this.live.values()].some(({ run }) => fs.realpathSync(run.rootPath) === rootPath)) throw new Error('An Ambio-launched agent is already running in this project. Stop it or wait for its result first.')
     for (const previous of this.list(input.workspaceId)) {
       if (previous.state !== 'interrupted' || !previous.pid) continue
       try { process.kill(previous.pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') continue }
-      throw new Error('An earlier agent process may still be running after Axiom restarted. Stop that agent before launching another in this project.')
+      throw new Error('An earlier agent process may still be running after Ambio restarted. Stop that agent before launching another in this project.')
     }
     const run: DeliveryRun = { key, workspaceId: input.workspaceId, messageId: input.messageId, revision: input.revision, hostId: input.hostId, rootPath, state: 'starting', detail: 'Starting agent…', logPath: join(this.directory, `${key}.log`), startedAt: Date.now() }
     // Exclusive receipt also protects a second Electron process.
@@ -139,7 +139,7 @@ export class DeliveryRunner {
       let child: ChildProcess
       const fail = (error: Error) => { run.state = 'launch-failed'; run.detail = `Could not launch the agent: ${error.message}`; this.live.delete(key); this.save(run); resolveRun({ ...run }) }
       try {
-        const env: NodeJS.ProcessEnv = { ...process.env, AXIOM_WORKSPACE_ID: input.workspaceId, AXIOM_AGENT_HOST: input.hostId }
+        const env: NodeJS.ProcessEnv = { ...process.env, AMBIO_WORKSPACE_ID: input.workspaceId, AMBIO_AGENT_HOST: input.hostId }
         // A GUI app's PATH may omit the directory of its resolved CLI or Node.
         const node = resolveNodeCommand()
         const pathKey = Object.keys(env).find(name => name.toLowerCase() === 'path') ?? 'PATH'
@@ -180,7 +180,7 @@ export class DeliveryRunner {
   }
   stop(workspaceId: string, key: string): void {
     const entry = this.live.get(key)
-    if (!entry || entry.run.workspaceId !== workspaceId) throw new Error('This run is no longer controlled by Axiom. Check the agent separately.')
+    if (!entry || entry.run.workspaceId !== workspaceId) throw new Error('This run is no longer controlled by Ambio. Check the agent separately.')
     if (entry.child.pid) {
       if (process.platform === 'win32') {
         const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(entry.child.pid), '/T', '/F'], { shell: false, windowsHide: true })

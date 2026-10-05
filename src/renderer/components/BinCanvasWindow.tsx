@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import type { DbFile } from '../../shared/types'
-import { AxiomCanvas } from '../canvas/AxiomCanvas'
+import { AmbioCanvas } from '../canvas/AmbioCanvas'
 import { FloatingWindow } from './FloatingWindow'
 
 /**
@@ -21,7 +21,7 @@ interface BinCanvasWindowProps {
 export function BinCanvasWindow({ workspaceId, files, onClose }: BinCanvasWindowProps) {
   return (
     <FloatingWindow
-      className="axiom-bin-window"
+      className="ambio-bin-window"
       dataAttribute="data-bin-window"
       title="Unsorted"
       subtitle={files.length === 0
@@ -31,12 +31,12 @@ export function BinCanvasWindow({ workspaceId, files, onClose }: BinCanvasWindow
       footer="Zoom in to read a file. Drag one onto a system to place it."
     >
       {files.length === 0 ? (
-        <p className="axiom-bin-window__empty">
+        <p className="ambio-bin-window__empty">
           Every indexed file belongs somewhere. Drag one in here to take it back out.
         </p>
       ) : (
         <ReactFlowProvider>
-          <AxiomCanvas binScene={{ workspaceId, files }} />
+          <AmbioCanvas binScene={{ workspaceId, files }} />
         </ReactFlowProvider>
       )}
     </FloatingWindow>

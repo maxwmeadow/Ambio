@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/delta"
 )
 
 // firstReviewLookbackMs bounds the very first delta a workspace ever shows.
@@ -113,6 +113,7 @@ func (s *Server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		summary.Claims,
 		dispatchedIntents(sqlDB, workspaceID),
 	)
+	summary.Claims = attachCodeFit(sqlDB, workspaceID, summary.Claims)
 	if sessions, err := db.GetWorkSessionsForRoot(
 		sqlDB, workspaceID, root.ID, root.Branch, since,
 	); err == nil {
@@ -247,6 +248,8 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			}
 			rootID, branch = root.ID, root.Branch
 		}
+		// Read before this session is recorded, so "since" is the previous one.
+		briefing := mapChangesSince(sqlDB, body.WorkspaceID, body.Agent, time.Now())
 		newSession := db.WorkSession{
 			ID:             uuid.NewString(),
 			WorkspaceID:    body.WorkspaceID,
@@ -276,12 +279,26 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 		activity.MarkAgent(body.WorkspaceID)
 		s.invalidateCollisionCache(body.WorkspaceID)
 		s.hub.Broadcast("work:session", session)
-		jsonOK(w, session)
+		jsonOK(w, struct {
+			db.WorkSession
+			MapChanges *mapBriefing `json:"mapChanges,omitempty"`
+		}{session, briefing})
 
 	case strings.HasSuffix(r.URL.Path, "/note"):
 		if strings.TrimSpace(body.SessionID) == "" {
 			jsonError(w, "sessionId is required", 400)
 			return
+		}
+		// What the person did since the agent last reported (mid-flight).
+		var briefing *mapBriefing
+		if before, err := db.GetWorkSession(sqlDB, body.WorkspaceID, body.SessionID); err == nil {
+			since := before.StartedAt
+			for _, note := range before.Notes {
+				if note.TS > since {
+					since = note.TS
+				}
+			}
+			briefing = briefingSince(sqlDB, body.WorkspaceID, since, time.Now())
 		}
 		if err := db.AppendWorkSessionNoteByID(
 			sqlDB, body.WorkspaceID, body.SessionID, body.Text, body.OwnerKey,
@@ -296,7 +313,10 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 		}
 		activity.MarkAgent(body.WorkspaceID)
 		s.hub.Broadcast("work:session", session)
-		jsonOK(w, session)
+		jsonOK(w, struct {
+			db.WorkSession
+			MapChanges *mapBriefing `json:"mapChanges,omitempty"`
+		}{session, briefing})
 
 	case strings.HasSuffix(r.URL.Path, "/finish"):
 		if strings.TrimSpace(body.SessionID) == "" {

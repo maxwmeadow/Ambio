@@ -248,9 +248,9 @@ interface GraphState {
   pendingFileDeletions: Record<string, number>
   finalizeFileDeletion: (id: string, key: number) => void
 
-  // Morning Delta - the net architectural diff accumulated while Axiom was
+  // Morning Delta - the net architectural diff accumulated while Ambio was
   // closed or unattended. Loaded on project open and window focus; never
-  // auto-dismissed, because an unreviewed delta is the reason to open Axiom.
+  // auto-dismissed, because an unreviewed delta is the reason to open Ambio.
   delta: DeltaSummary | null
   activeWorkSessions: DeltaWorkSession[]
 
@@ -1566,8 +1566,8 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
       useGraphStore.getState().setConnectionStatus('connected')
       void resyncSnapshot('connection').finally(() => {
         if (generation !== wsGeneration || typeof window === 'undefined') return
-        window.dispatchEvent(new Event('axiom:proposal-draft'))
-        window.dispatchEvent(new Event('axiom:proposal-refresh'))
+        window.dispatchEvent(new Event('ambio:proposal-draft'))
+        window.dispatchEvent(new Event('ambio:proposal-refresh'))
       })
     }
 
@@ -1721,10 +1721,10 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
     // App turns both into something the user can act on.
     case 'indexing:cancelled':
       store.setIndexingComplete()
-      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('axiom:indexing-cancelled', { detail: msg.payload }))
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ambio:indexing-cancelled', { detail: msg.payload }))
       break
     case 'watcher:limited':
-      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('axiom:watcher-limited', { detail: msg.payload }))
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ambio:watcher-limited', { detail: msg.payload }))
       break
     // archd has finished baseline/reconciliation, so the journal is settled
     // and the Morning Delta can be read without racing the catch-up pass.
@@ -1781,14 +1781,14 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
       if (draft.status === 'open' && (draft.chunks ?? 0) > 0) {
         store.addAgentActivity({ message: `Architecture mapping: ${draft.systems ?? 0} systems in ${draft.chunks} chunks`, level: 'info' })
       }
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event('axiom:proposal-draft'))
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('ambio:proposal-draft'))
       break
     }
     case 'architecture:proposal': {
       const notice = msg.payload as { workspaceId: string; proposalId: string }
       if (notice.workspaceId !== store.currentProject?.id) break
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('axiom:proposal', { detail: notice }))
+        window.dispatchEvent(new CustomEvent('ambio:proposal', { detail: notice }))
       }
       break
     }

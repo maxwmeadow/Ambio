@@ -3,7 +3,7 @@ package indexer
 import (
 	"sort"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // FileUpdatePatch preserves the semantic file payload and tells the Living

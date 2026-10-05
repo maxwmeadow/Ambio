@@ -1,4 +1,4 @@
-# Axiom Canvas Behavior Contract
+# Ambio Canvas Behavior Contract
 
 Status: preservation baseline for the renderer refactor  
 Baseline commit: `7e55a2a` (`Canvas: stabilize extreme-zoom resize interactions`)  
@@ -17,7 +17,7 @@ explicitly revises this contract.
 
 The contract protects the current Floor, sheet overlay, semantic zoom, node
 presentation, selection, resize, drag, connection, and persistence behavior
-while `AxiomCanvas` is decomposed and the application visual system is rebuilt.
+while `AmbioCanvas` is decomposed and the application visual system is rebuilt.
 
 ## Refactor rule
 
@@ -40,7 +40,7 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Automatic live-growth reframes are debounced through classification and
   animate pan and zoom as one camera move. A pending reframe yields while the
   user is navigating instead of being discarded or fighting manual movement.
-- React Flow's wheel zoom is disabled. Axiom owns wheel zoom.
+- React Flow's wheel zoom is disabled. Ambio owns wheel zoom.
 - Each wheel step multiplies or divides the target zoom by `1.15`.
 - Zoom eases toward its target by `15%` per animation frame.
 - The flow coordinate beneath the pointer remains beneath the pointer while
@@ -251,6 +251,26 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - The Floor remains the live base model.
 - Sheets are overlays over the Floor, not independent truth copies.
 
+### Placement on the Floor is meaning (decided 2026-10-01)
+
+See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
+
+- Dropping a file inside a system makes it belong to that system; dropping a
+  system inside another nests it; dropping either on open canvas takes it out
+  of every system. Infrastructure hosting (a frame around what it runs) is
+  visual and changes no ownership.
+- Ownership is recorded before the layout is saved, through the one recorded
+  path for meaning edits, so where a node sits and what it belongs to never
+  disagree. A refused edit rolls the layout back with an explanation.
+- Rearranging within the same parent is presentation and records nothing.
+- Inferred (cluster) systems are not drawn, so their files sit at the top
+  level; moving one there changes nothing.
+- A live system's title is renamable in place.
+- Every meaning edit confirms itself with a notice that offers Undo, and
+  appears in Review Changes attributed to you.
+- Sheets, proposal reviews and the unsorted bin only ever write their own
+  layout layer; none of this applies there.
+
 ### What a sheet is (revised 2026-07-30)
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
@@ -272,7 +292,38 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   place.
 - The same delete gesture means different things in different places, so the UI
   states which: sheet-only content is really deleted, live code on a sheet is
-  proposed for removal, live code on the Floor is really deleted.
+  proposed for removal. On the Floor, Delete never touches code: a selected
+  system is ungrouped (its contents move up a level, undoable), and a selected
+  file stays, with a notice that deleting code goes through a work order.
+  Changes that need code start from the right-click menu instead: New
+  System Here… draws a planned system on a new sheet, ready to send, and
+  Delete This File… / Delete <system>'s Code… draw the removal on a new
+  "Remove …" sheet and open the send dialog with it attached. Split System…
+  draws a "Split <system>" sheet with the system as context and two new
+  systems to name and fill before sending. Drawing a
+  connection between two live nodes on the Floor draws "A uses B" on a new
+  sheet the same way. A connection's source is always the node it was drawn
+  from, whichever overlapping handle the pointer grabbed.
+- New Sheet from Selection… (right-click a system, file or infrastructure
+  node, or New Sheet in the selection bar) starts a sheet with what is
+  selected, of every kind; right-clicking a node outside the selection
+  starts it with that node alone. Planned nodes are not carried over.
+- On a sheet, the removed node leaves that sheet's picture together with
+  what sits inside it, a notice offers Restore, and the sheet rail lists it
+  under "Removed on this sheet". Once its code is really gone it is marked
+  GONE there, and a work order that carried it counts it as done.
+- Edit → Undo / Redo step back and forward through the meaning edits made on
+  the Floor, and through moving and resizing nodes there (a move that changes
+  which system a node is in is a meaning edit and undoes as one); in a text
+  field they undo typing. Undoing one from its notice takes it off the stack.
+  Sheet removals are not on it, nor is placing a node for the first time.
+- When the code disagrees with a meaning edit (the file lives outside its new
+  system's folder, or its imports still mostly connect to another system),
+  the edit still happens; its notice says where the code disagrees and offers
+  Make the Code Match…, a work order with the fix written. It is never done
+  for you. The offer stays on the change in Review Changes while the code
+  disagrees, and the sent order shows what Ambio found when it re-checked the
+  code ("Checked by Ambio"), separate from the agent's own report.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
 - A node the sheet moves detaches from Floor containment, because a proposed
@@ -309,7 +360,7 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - The BOARD still changes with the mode, because the board is the mode. The
   nodes are not.
 - Sheet stock MUST be scoped to `.react-flow` itself, never to the
-  `.axiom-sheet-mode` container that wraps it. `.react-flow` declares these
+  `.ambio-sheet-mode` container that wraps it. `.react-flow` declares these
   tokens on itself, and a custom property declared on a closer ancestor always
   beats one inherited from further up - so setting them on the container is
   silently a no-op. This produced a real bug with no error and no warning:
@@ -395,13 +446,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   a cross-boundary claim.
 - A project's first index is its baseline, not a delta. Classifier-contract
   migrations reshape systems without entering the delta for the same reason:
-  they change how Axiom reads the code, not the code.
+  they change how Ambio reads the code, not the code.
 - Reopening a project reconciles the tree against disk through the same
-  reindex path the watcher uses, so work done while Axiom was closed produces
+  reindex path the watcher uses, so work done while Ambio was closed produces
   a true delta. Once the catch-up burst settles, the guarded live classifier
   may place new unclassified peers; authored systems and existing Floor
   layouts remain untouched.
-- Returning focus to an open Axiom window reloads the delta, so work performed
+- Returning focus to an open Ambio window reloads the delta, so work performed
   while the app was unattended surfaces without reopening the project.
 
 ### Claims are the unit of review
@@ -478,7 +529,7 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   illegibly, and a ceiling so a two-system claim never fills the viewport with
   one box.
 - Reading a delta never acknowledges it. The watermark moves only on an
-  explicit accept, and it never moves backwards, so closing Axiom mid-review
+  explicit accept, and it never moves backwards, so closing Ambio mid-review
   leaves the delta waiting.
 - An active review is a stable snapshot. A focus refresh waits until review
   ends rather than replacing claims or moving the cursor under the reader.
@@ -562,6 +613,6 @@ changing their behavior:
 6. Resize persistence controller.
 7. Layout persistence and optimistic update boundary.
 
-`AxiomCanvas` remains the integration shell until each extracted module has
+`AmbioCanvas` remains the integration shell until each extracted module has
 characterization coverage. Node components, `frameGeometry`, `packing`, and
 the resize SVG remain protected until the harness covers their contracts.

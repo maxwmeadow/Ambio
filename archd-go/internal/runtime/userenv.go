@@ -14,7 +14,7 @@ import (
 // A desktop app started from the Dock, Finder or a launcher inherits a minimal
 // PATH (/usr/bin:/bin:...), not the one the user's shell builds. Node managers
 // (fnm, nvm, volta), pyenv, Homebrew and ~/.cargo/bin all live outside it, so
-// `npm test` works in their terminal and fails when Axiom runs it. Ask the
+// `npm test` works in their terminal and fails when Ambio runs it. Ask the
 // user's shell once, the way it starts an interactive terminal, and cache it.
 
 var (
@@ -22,7 +22,7 @@ var (
 	userPath     string
 )
 
-const pathMarker = "__AXIOM_PATH__"
+const pathMarker = "__AMBIO_PATH__"
 
 func loginShellPath() string {
 	userPathOnce.Do(func() {

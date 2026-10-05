@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"ambio.local/archd/internal/db"
 )
 
 // A Claim is the unit of architectural review.
@@ -106,6 +108,12 @@ type Claim struct {
 	RealizationState    RealizationState `json:"realizationState,omitempty"`
 	RealizationEvidence []Evidence       `json:"realizationEvidence,omitempty"`
 	IntentIDs           []string         `json:"intentIds,omitempty"`
+	// UndoEventIDs are the journal rows a meaning claim came from. Passing
+	// them to /api/architecture/undo reverses the change.
+	UndoEventIDs []int64 `json:"undoEventIds,omitempty"`
+	// CodeFit lists where the code still disagrees with a meaning claim's
+	// files (db/code_fit.go), checked when the review is read.
+	CodeFit []db.CodeFitFinding `json:"codeFit,omitempty"`
 	// IntentStatus is retained only for the command-deck aggregate while that
 	// read-only surface migrates. It is intentionally excluded from the API.
 	IntentStatus string `json:"-"`
@@ -332,7 +340,16 @@ func buildClaims(
 	}
 
 	// ── System births and deaths ────────────────────────────────────────────
+	grouped := map[string]bool{}
+	for _, change := range summary.Meaning {
+		if change.Kind == "grouped" {
+			grouped[change.SubjectID] = true
+		}
+	}
 	for _, system := range summary.Systems {
+		if grouped[system.ID] && system.Change == ChangeCreated {
+			continue // reported, with its files, as a grouping below
+		}
 		kind := ClaimSystemAdded
 		title := fmt.Sprintf("New system · %s", system.Name)
 		if system.Change == ChangeDeleted {
@@ -360,6 +377,12 @@ func buildClaims(
 
 	// ── Membership: which systems gained or lost files ──────────────────────
 	claims = append(claims, membershipClaims(summary)...)
+
+	// ── Meaning: what people and agents changed about the map itself ────────
+	claims = append(claims, meaningClaims(summary)...)
+
+	// ── Infrastructure: code that started or stopped using it ───────────────
+	claims = append(claims, infraClaims(summary)...)
 
 	// ── Internal churn, one claim per system, hidden by default ─────────────
 	claims = append(claims, internalClaims(summary, internalEdges, internalNames)...)

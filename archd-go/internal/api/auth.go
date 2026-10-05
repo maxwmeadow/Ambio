@@ -14,9 +14,9 @@ import (
 
 // The capability is local to this installation; never put it in URLs or logs.
 func LocalAPIToken(dataDir string) (string, error) {
-	if token := os.Getenv("AXIOM_API_TOKEN"); token != "" {
+	if token := os.Getenv("AMBIO_API_TOKEN"); token != "" {
 		if len(token) < 32 {
-			return "", fmt.Errorf("AXIOM_API_TOKEN must have at least 32 characters")
+			return "", fmt.Errorf("AMBIO_API_TOKEN must have at least 32 characters")
 		}
 		return token, nil
 	}
@@ -61,7 +61,7 @@ func RequireLocalToken(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		provided := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if token == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
-			jsonError(w, "Axiom connection needs its local API token", http.StatusUnauthorized)
+			jsonError(w, "Ambio connection needs its local API token", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)

@@ -1,5 +1,5 @@
 /**
- * A focused Markdown reader for documents Axiom indexed.
+ * A focused Markdown reader for documents Ambio indexed.
  *
  * Parses to a structure, never to HTML. Documents come out of whatever
  * repository the user opened, so a README is untrusted input running inside

@@ -7,15 +7,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestDeleteWorkspaceErasesProposalAndBlocksLazyResurrection(t *testing.T) {
 	dataDir := t.TempDir()
 	eventHub := hub.New()
-	server := NewServer(dataDir, eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(dataDir, eventHub, ambioruntime.NewManager(eventHub))
 	sqlDB, err := server.openDB("ws")
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestDeleteWorkspaceRejectsPathTraversal(t *testing.T) {
 	t.Cleanup(func() { _ = os.RemoveAll(outside) })
 
 	eventHub := hub.New()
-	server := NewServer(dataDir, eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(dataDir, eventHub, ambioruntime.NewManager(eventHub))
 	response := httptest.NewRecorder()
 	server.handleWorkspaceByID(response, httptest.NewRequest(http.MethodDelete, "/api/workspace/../must-survive", nil))
 	if response.Code != http.StatusBadRequest {

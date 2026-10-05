@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // ClusterInput bundles all signals used by the clustering pipeline.

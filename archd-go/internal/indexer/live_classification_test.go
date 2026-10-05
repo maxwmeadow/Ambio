@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestLiveClassificationIsSemanticStableAndProtectsAuthoredIntent(t *testing.T) {

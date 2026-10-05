@@ -11,7 +11,7 @@ import {
 } from './platformPaths.ts'
 
 /**
- * Installing Axiom into an agent, per host and per modality, as an action
+ * Installing Ambio into an agent, per host and per modality, as an action
  * rather than an instruction.
  *
  * Every host reads a different file in a different format (JSON, TOML, XML),
@@ -74,7 +74,7 @@ export type ServerLocation =
 
 export interface HostConfigurationStatus {
   configured: boolean
-  /** Configuration files containing an Axiom MCP entry. */
+  /** Configuration files containing an Ambio MCP entry. */
   configuredPaths: string[]
   /** Existing files that could not be safely inspected. */
   unreadablePaths: string[]
@@ -112,7 +112,7 @@ export function writeJson(path: string, value: unknown): void {
   fs.writeFileSync(path, JSON.stringify(value, null, 2), 'utf8')
 }
 
-/** Merge an `axiom` entry into a host's JSON config under the given key. */
+/** Merge an `ambio` entry into a host's JSON config under the given key. */
 function installJsonServer(
   path: string,
   key: string,
@@ -127,14 +127,14 @@ function installJsonServer(
   if (existing === null) {
     return {
       ok: false,
-      detail: `${path} could not be read as JSON. Fix or move it, then try again - Axiom will not overwrite configuration it cannot understand.`,
+      detail: `${path} could not be read as JSON. Fix or move it, then try again - Ambio will not overwrite configuration it cannot understand.`,
       paths: [path],
     }
   }
   const servers = (existing[key] ?? {}) as Record<string, unknown>
-  existing[key] = { ...servers, axiom: { ...extraEntryFields, command, args } }
+  existing[key] = { ...servers, ambio: { ...extraEntryFields, command, args } }
   writeJson(path, existing)
-  return { ok: true, detail: `Added Axiom to ${label}.`, paths: [path] }
+  return { ok: true, detail: `Added Ambio to ${label}.`, paths: [path] }
 }
 
 function installCommandFile(path: string, brief: string): string {
@@ -156,24 +156,24 @@ function removeGeneratedFile(path: string, expectedContents: string): boolean {
 }
 
 export function inboxSkillPath(mapSkillPath: string): string {
-  return join(mapSkillPath, '..', '..', 'axiom-inbox', 'SKILL.md')
+  return join(mapSkillPath, '..', '..', 'ambio-inbox', 'SKILL.md')
 }
 
 function installAgentSkill(path: string, brief: string): string[] {
   const instructions = [
     '---',
-    'name: axiom-map',
-    'description: Map the current codebase into a semantic system architecture in Axiom. Use when asked to map, name, or propose this project architecture in Axiom.',
+    'name: ambio-map',
+    'description: Map the current codebase into a semantic system architecture in Ambio. Use when asked to map, name, or propose this project architecture in Ambio.',
     '---',
     '',
     brief,
   ].join('\n')
   const inboxPath = inboxSkillPath(path)
   installCommandFile(inboxPath, [
-    '---', 'name: axiom-inbox',
-    'description: Check instructions sent from the Axiom canvas and answer them in Axiom. Use when asked to check the Axiom inbox.',
+    '---', 'name: ambio-inbox',
+    'description: Check instructions sent from the Ambio canvas and answer them in Ambio. Use when asked to check the Ambio inbox.',
     '---', '',
-    'If the user supplied an Axiom work-order ID, call get_inbox with messageId set to that full ID and expectedWorkspaceId from the handoff. This claims only that request and fails before claiming if MCP is bound to another project. Without an ID, get_inbox checks only legacy/open messages; it must not claim work addressed to another chat. Confirm the returned workspace matches the project you are working on.',
+    'If the user supplied an Ambio work-order ID, call get_inbox with messageId set to that full ID and expectedWorkspaceId from the handoff. This claims only that request and fails before claiming if MCP is bound to another project. Without an ID, get_inbox checks only legacy/open messages; it must not claim work addressed to another chat. Confirm the returned workspace matches the project you are working on.',
     'Read the instruction and selected targets. Use get_inbox with messageHandle and contextOffset: 0 to read its original context; continue while nextOffset is nonnegative.',
     'Perform only the requested work. For substantial tasks call start_work with this messageHandle before editing; keep its returned session ID and pass it to update_work at meaningful milestones. This shows progress on the exact canvas request even when other chats share one MCP connector. Return your answer with reply_to_canvas(messageHandle, body). Identical reply retries are safe.',
     'For a sheet attachment or named design, use edit_sheet(compare) to find structural differences from the live canvas. Compare ignores pixel positions but checks nesting and typed relationships. Resolve ambiguous sheet names with the user.',
@@ -186,7 +186,7 @@ function installAgentSkill(path: string, brief: string): string[] {
 }
 
 function identifiedArgs(args: string[], hostId: string): string[] {
-  return [...args, `--axiom-host=${hostId}`]
+  return [...args, `--ambio-host=${hostId}`]
 }
 
 function upsertTomlTable(source: string, table: RegExp, block: string): string {
@@ -230,10 +230,10 @@ export function upsertJetBrainsXml(
     const argsXml = args
       .map(arg => `<arg value="${escapeXmlAttribute(arg)}" />`)
       .join('\n              ')
-    const axiomEntry = [
-      '        <entry key="axiom">',
+    const ambioEntry = [
+      '        <entry key="ambio">',
       '          <value>',
-      `            <McpServerConfiguration name="axiom" command="${escapeXmlAttribute(command)}">`,
+      `            <McpServerConfiguration name="ambio" command="${escapeXmlAttribute(command)}">`,
       '              <args>',
       `              ${argsXml}`,
       '              </args>',
@@ -248,44 +248,44 @@ export function upsertJetBrainsXml(
         '  <component name="LlmMcpServers">',
         '    <option name="servers">',
         '      <map>',
-        axiomEntry,
+        ambioEntry,
         '      </map>',
         '    </option>',
         '  </component>',
         '</application>',
       ].join('\n')
       fs.writeFileSync(path, initialXml, 'utf8')
-      return { ok: true, detail: 'Configured Axiom for JetBrains AI Assistant.', paths: [path] }
+      return { ok: true, detail: 'Configured Ambio for JetBrains AI Assistant.', paths: [path] }
     }
 
     const existing = fs.readFileSync(path, 'utf8')
     let updated: string
-    if (existing.includes('<entry key="axiom">')) {
-      updated = existing.replace(/<entry key="axiom">[\s\S]*?<\/entry>/, axiomEntry.trim())
+    if (existing.includes('<entry key="ambio">')) {
+      updated = existing.replace(/<entry key="ambio">[\s\S]*?<\/entry>/, ambioEntry.trim())
     } else if (existing.includes('<map>')) {
-      updated = existing.replace('<map>', `<map>\n${axiomEntry}`)
+      updated = existing.replace('<map>', `<map>\n${ambioEntry}`)
     } else {
       updated = existing.replace(
         '</component>',
-        `  <option name="servers">\n      <map>\n${axiomEntry}\n      </map>\n    </option>\n  </component>`,
+        `  <option name="servers">\n      <map>\n${ambioEntry}\n      </map>\n    </option>\n  </component>`,
       )
     }
 
     // Every branch above is a string replace, and a replace that matches
     // nothing returns the input untouched. Writing that back and reporting
-    // success would tell the user Axiom was installed into a file it never
+    // success would tell the user Ambio was installed into a file it never
     // changed - so an unrecognised document is a failure, not a silent no-op.
     if (updated === existing) {
       return {
         ok: false,
         detail: `Could not find an MCP server section to update in ${path}. `
-          + 'Add Axiom through Settings > Tools > AI Assistant > MCP Servers instead.',
+          + 'Add Ambio through Settings > Tools > AI Assistant > MCP Servers instead.',
         paths: [path],
       }
     }
 
     fs.writeFileSync(path, updated, 'utf8')
-    return { ok: true, detail: 'Added Axiom to JetBrains AI Assistant.', paths: [path] }
+    return { ok: true, detail: 'Added Ambio to JetBrains AI Assistant.', paths: [path] }
   } catch (error) {
     return {
       ok: false,
@@ -326,7 +326,7 @@ export function inspectHostConfiguration(
         servers !== null &&
         typeof servers === 'object' &&
         !Array.isArray(servers) &&
-        Object.prototype.hasOwnProperty.call(servers, 'axiom')
+        Object.prototype.hasOwnProperty.call(servers, 'ambio')
       ) {
         configuredPaths.add(location.path)
       }
@@ -336,7 +336,7 @@ export function inspectHostConfiguration(
     if (location.format === 'toml') {
       try {
         const config = fs.readFileSync(location.path, 'utf8')
-        if (/^\s*\[\s*mcp_servers\s*\.\s*(?:axiom|"axiom"|'axiom')\s*\]\s*(?:#.*)?$/m.test(config)) {
+        if (/^\s*\[\s*mcp_servers\s*\.\s*(?:ambio|"ambio"|'ambio')\s*\]\s*(?:#.*)?$/m.test(config)) {
           configuredPaths.add(location.path)
         }
       } catch {
@@ -348,7 +348,7 @@ export function inspectHostConfiguration(
     if (location.format === 'xml') {
       try {
         const content = fs.readFileSync(location.path, 'utf8')
-        if (content.includes('key="axiom"') || content.includes('name="axiom"')) {
+        if (content.includes('key="ambio"') || content.includes('name="ambio"')) {
           configuredPaths.add(location.path)
         }
       } catch {
@@ -371,7 +371,7 @@ export function inspectHostConfiguration(
   }
 }
 
-/** A user-supplied config location for a host Axiom could not find itself. */
+/** A user-supplied config location for a host Ambio could not find itself. */
 export type ConfigOverrides = Record<string, string>
 
 export function buildHosts(
@@ -439,8 +439,8 @@ export function buildHosts(
           },
         ] : []),
       ],
-      commandPath: () => join(homeDir, '.claude', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '/axiom-map',
+      commandPath: () => join(homeDir, '.claude', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
       triggerKind: 'slash command',
       restartAction: 'Restart CLI session',
       restartDetail: 'Close the existing terminal session and run claude in a new one, or run /skills reload.',
@@ -448,10 +448,10 @@ export function buildHosts(
         const hostArgs = identifiedArgs(args, 'claude-code')
         const result = installJsonServer(claudeCodeConfig, 'mcpServers', command, hostArgs, 'Claude Code')
         if (!result.ok) return result
-        const skillPaths = installAgentSkill(join(homeDir, '.claude', 'skills', 'axiom-map', 'SKILL.md'), brief)
+        const skillPaths = installAgentSkill(join(homeDir, '.claude', 'skills', 'ambio-map', 'SKILL.md'), brief)
         return {
           ok: true,
-          detail: 'Added Axiom and installed the /axiom-map skill. Restart Claude Code only if its skills folder was created after this session started.',
+          detail: 'Added Ambio and installed the /ambio-map skill. Restart Claude Code only if its skills folder was created after this session started.',
           paths: [...result.paths, ...skillPaths],
         }
       },
@@ -469,7 +469,7 @@ export function buildHosts(
       ],
       command: 'Ask Claude in chat to map this project',
       triggerKind: 'chat prompt',
-      promptText: "Use Axiom's tools (get_architecture, edit_systems) to map this codebase's architecture into a semantic system tree.",
+      promptText: "Use Ambio's tools (get_architecture, edit_systems) to map this codebase's architecture into a semantic system tree.",
       restartAction: 'Quit & Relaunch Claude Desktop',
       restartDetail: 'Fully quit Claude Desktop (Cmd+Q on macOS, Alt+F4 on Windows) and relaunch it.',
       install: (command, args) => {
@@ -479,7 +479,7 @@ export function buildHosts(
         if (!result.ok) return result
         return {
           ok: true,
-          detail: 'Added Axiom to Claude Desktop. Quit and restart Claude Desktop to load the tools.',
+          detail: 'Added Ambio to Claude Desktop. Quit and restart Claude Desktop to load the tools.',
           paths: result.paths,
         }
       },
@@ -506,8 +506,8 @@ export function buildHosts(
         ] : []),
         { format: 'json', path: join(homeDir, '.copilot', 'mcp-config.json'), keyPath: ['mcpServers'] },
       ],
-      commandPath: () => join(homeDir, '.copilot', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '/axiom-map',
+      commandPath: () => join(homeDir, '.copilot', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
       triggerKind: 'slash command',
       restartAction: 'Reload VS Code Window',
       restartDetail: 'Press Cmd+Shift+P (or Ctrl+Shift+P) and run "Developer: Reload Window".',
@@ -523,14 +523,14 @@ export function buildHosts(
           paths.push(...ws.paths)
           configured = configured || ws.ok
 
-          const legacyPrompt = join(projectRoot, '.github', 'prompts', 'axiom-map.prompt.md')
+          const legacyPrompt = join(projectRoot, '.github', 'prompts', 'ambio-map.prompt.md')
           if (removeGeneratedFile(legacyPrompt, brief)) paths.push(legacyPrompt)
         }
 
-        paths.push(...installAgentSkill(join(homeDir, '.copilot', 'skills', 'axiom-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(homeDir, '.copilot', 'skills', 'ambio-map', 'SKILL.md'), brief))
         return {
           ok: configured,
-          detail: 'Added Axiom and installed the /axiom-map Agent Skill for Copilot in VS Code. Reload your window to apply.',
+          detail: 'Added Ambio and installed the /ambio-map Agent Skill for Copilot in VS Code. Reload your window to apply.',
           paths,
         }
       },
@@ -546,8 +546,8 @@ export function buildHosts(
       serverLocations: () => [
         { format: 'json', path: join(homeDir, '.copilot', 'mcp-config.json'), keyPath: ['mcpServers'] },
       ],
-      commandPath: () => join(homeDir, '.copilot', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '/axiom-map',
+      commandPath: () => join(homeDir, '.copilot', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
       triggerKind: 'slash command',
       restartAction: 'Restart CLI session',
       restartDetail: 'Run /skills reload in Copilot CLI, or exit and start a new terminal session.',
@@ -555,10 +555,10 @@ export function buildHosts(
         const hostArgs = identifiedArgs(args, 'copilot-cli')
         const user = installJsonServer(copilotCliConfig, 'mcpServers', command, hostArgs, 'Copilot CLI')
         const paths = [...user.paths]
-        paths.push(...installAgentSkill(join(homeDir, '.copilot', 'skills', 'axiom-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(homeDir, '.copilot', 'skills', 'ambio-map', 'SKILL.md'), brief))
         return {
           ok: user.ok,
-          detail: 'Added Axiom and installed the /axiom-map Agent Skill for Copilot CLI.',
+          detail: 'Added Ambio and installed the /ambio-map Agent Skill for Copilot CLI.',
           paths,
         }
       },
@@ -586,8 +586,8 @@ export function buildHosts(
           ? [{ format: 'toml' as const, path: join(projectRoot, '.codex', 'config.toml') }]
           : []),
       ],
-      commandPath: () => join(homeDir, '.agents', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '$axiom-map',
+      commandPath: () => join(homeDir, '.agents', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '$ambio-map',
       triggerKind: 'skill command',
       restartAction: 'Start fresh Codex session',
       restartDetail: 'Exit the current terminal session and launch codex in your project.',
@@ -597,20 +597,20 @@ export function buildHosts(
         const existing = fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : ''
         const hostArgs = identifiedArgs(args, 'codex')
         const block = [
-          '[mcp_servers.axiom]',
+          '[mcp_servers.ambio]',
           `command = ${JSON.stringify(command)}`,
           `args = [${hostArgs.map(a => JSON.stringify(a)).join(', ')}]`,
         ].join('\n')
         const next = upsertTomlTable(
           existing,
-          /^\s*\[\s*mcp_servers\s*\.\s*(?:axiom|"axiom"|'axiom')\s*\]\s*(?:#.*)?$/,
+          /^\s*\[\s*mcp_servers\s*\.\s*(?:ambio|"ambio"|'ambio')\s*\]\s*(?:#.*)?$/,
           block,
         )
         fs.writeFileSync(path, next, 'utf8')
-        const skillPaths = installAgentSkill(join(homeDir, '.agents', 'skills', 'axiom-map', 'SKILL.md'), brief)
+        const skillPaths = installAgentSkill(join(homeDir, '.agents', 'skills', 'ambio-map', 'SKILL.md'), brief)
         return {
           ok: true,
-          detail: 'Added Axiom and installed the $axiom-map skill. Restart Codex if it is not visible yet.',
+          detail: 'Added Ambio and installed the $ambio-map skill. Restart Codex if it is not visible yet.',
           paths: [path, ...skillPaths],
         }
       },
@@ -632,8 +632,8 @@ export function buildHosts(
           ? [{ format: 'json' as const, path: join(projectRoot, '.cursor', 'mcp.json'), keyPath: ['mcpServers'] }]
           : []),
       ],
-      commandPath: () => join(homeDir, '.cursor', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '/axiom-map',
+      commandPath: () => join(homeDir, '.cursor', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
       triggerKind: 'slash command',
       restartAction: 'Reload Window in Cursor',
       restartDetail: 'Press Cmd+Shift+P (or Ctrl+Shift+P) and run "Developer: Reload Window" or restart Cursor.',
@@ -647,10 +647,10 @@ export function buildHosts(
           paths.push(...local.paths)
           configured = configured || local.ok
         }
-        paths.push(...installAgentSkill(join(homeDir, '.cursor', 'skills', 'axiom-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(homeDir, '.cursor', 'skills', 'ambio-map', 'SKILL.md'), brief))
         return {
           ok: configured,
-          detail: 'Added Axiom and installed the /axiom-map Agent Skill for Cursor. Start a new chat if it is not visible yet.',
+          detail: 'Added Ambio and installed the /ambio-map Agent Skill for Cursor. Start a new chat if it is not visible yet.',
           paths,
         }
       },
@@ -682,8 +682,8 @@ export function buildHosts(
           keyPath: ['mcpServers'],
         }] : []),
       ],
-      commandPath: () => join(homeDir, '.codeium', 'windsurf', 'skills', 'axiom-map', 'SKILL.md'),
-      command: '/axiom-map',
+      commandPath: () => join(homeDir, '.codeium', 'windsurf', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
       triggerKind: 'slash command',
       restartAction: 'Restart Windsurf',
       restartDetail: 'Quit and relaunch Windsurf or click the Refresh icon in the MCP Cascade panel.',
@@ -698,11 +698,11 @@ export function buildHosts(
           'mcpServers', command, hostArgs, 'Windsurf / Devin Local',
         )
         const paths = [...cascade.paths, ...devin.paths]
-        paths.push(...installAgentSkill(join(homeDir, '.codeium', 'windsurf', 'skills', 'axiom-map', 'SKILL.md'), brief))
-        paths.push(...installAgentSkill(join(appDataDir, 'devin', 'skills', 'axiom-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(homeDir, '.codeium', 'windsurf', 'skills', 'ambio-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(appDataDir, 'devin', 'skills', 'ambio-map', 'SKILL.md'), brief))
         return {
           ok: cascade.ok || devin.ok,
-          detail: 'Added Axiom and installed its Agent Skill for Windsurf Cascade and Devin Local.',
+          detail: 'Added Ambio and installed its Agent Skill for Windsurf Cascade and Devin Local.',
           paths,
         }
       },
@@ -735,8 +735,8 @@ export function buildHosts(
           keyPath: ['mcpServers'],
         }] : []),
       ],
-      commandPath: () => join(homeDir, '.gemini', 'config', 'skills', 'axiom-map', 'SKILL.md'),
-      command: 'Use the axiom-map skill',
+      commandPath: () => join(homeDir, '.gemini', 'config', 'skills', 'ambio-map', 'SKILL.md'),
+      command: 'Use the ambio-map skill',
       triggerKind: 'skill command',
       restartAction: 'Reload Window in Antigravity',
       restartDetail: 'Press Cmd+Shift+P (or Ctrl+Shift+P) and choose "Reload Window" or start a new agent chat.',
@@ -764,10 +764,10 @@ export function buildHosts(
           configured = configured || local.ok
         }
         if (!configured) return { ...global, paths }
-        paths.push(...installAgentSkill(join(homeDir, '.gemini', 'config', 'skills', 'axiom-map', 'SKILL.md'), brief))
+        paths.push(...installAgentSkill(join(homeDir, '.gemini', 'config', 'skills', 'ambio-map', 'SKILL.md'), brief))
         return {
           ok: true,
-          detail: 'Added Axiom and installed the axiom-map Agent Skill for Antigravity.',
+          detail: 'Added Ambio and installed the ambio-map Agent Skill for Antigravity.',
           paths,
         }
       },
@@ -793,19 +793,19 @@ export function buildHosts(
       },
       command: 'Prompt AI Assistant in chat to map this project',
       triggerKind: 'chat prompt',
-      promptText: "Use the Axiom MCP tools (get_architecture, edit_systems) to map this codebase's architecture into a tree of semantic systems.",
+      promptText: "Use the Ambio MCP tools (get_architecture, edit_systems) to map this codebase's architecture into a tree of semantic systems.",
       restartAction: 'Restart JetBrains IDE',
       restartDetail: 'Restart your JetBrains IDE (IntelliJ, WebStorm, PyCharm) or open Settings > Tools > AI Assistant > MCP Servers.',
       install: (command, args) => {
         const hostArgs = identifiedArgs(args, 'jetbrains')
-        // A user who pointed Axiom at a specific IDE profile means that one,
+        // A user who pointed Ambio at a specific IDE profile means that one,
         // not every profile discovery happens to turn up.
         if (overrides.jetbrains) {
           const res = upsertJetBrainsXml(jetbrainsConfig, command, hostArgs)
           return {
             ok: res.ok,
             detail: res.ok
-              ? `Configured Axiom for JetBrains AI Assistant at ${jetbrainsConfig}.`
+              ? `Configured Ambio for JetBrains AI Assistant at ${jetbrainsConfig}.`
               : res.detail,
             paths: res.paths,
           }
@@ -830,7 +830,7 @@ export function buildHosts(
 
         return {
           ok,
-          detail: 'Configured Axiom for JetBrains AI Assistant. You can also click "Import from Claude Desktop" in Settings > Tools > AI Assistant > MCP Servers.',
+          detail: 'Configured Ambio for JetBrains AI Assistant. You can also click "Import from Claude Desktop" in Settings > Tools > AI Assistant > MCP Servers.',
           paths,
         }
       },
@@ -850,7 +850,7 @@ export function buildHosts(
       ],
       command: 'Ask Zed AI Assistant to map this project',
       triggerKind: 'chat prompt',
-      promptText: "Use Axiom's tools to map this codebase's architecture into a semantic system tree.",
+      promptText: "Use Ambio's tools to map this codebase's architecture into a semantic system tree.",
       restartAction: 'Restart Zed',
       restartDetail: 'Restart Zed or open Settings -> AI -> MCP Servers to verify the active connection.',
       install: (command, args) => {
@@ -858,14 +858,14 @@ export function buildHosts(
         const target = zedConfig
         // Zed ignores a manually added context server unless it declares
         // source: "custom". Without this the write succeeds, the file looks
-        // right, and Zed silently never loads Axiom.
+        // right, and Zed silently never loads Ambio.
         const result = installJsonServer(
           target, 'context_servers', command, hostArgs, 'Zed Editor',
           { source: 'custom' },
         )
         return {
           ok: result.ok,
-          detail: 'Added Axiom to Zed settings.json context_servers.',
+          detail: 'Added Ambio to Zed settings.json context_servers.',
           paths: result.paths,
         }
       },
@@ -901,7 +901,7 @@ export function detectHosts(
 }
 
 /**
- * Batch-installs Axiom into all detected modalities for an agent family,
+ * Batch-installs Ambio into all detected modalities for an agent family,
  * or all modalities if none are detected yet.
  */
 export function installFamily(
@@ -944,7 +944,7 @@ export function installFamily(
   return {
     ok: allOk,
     detail: allOk
-      ? `Installed Axiom into all detected ${familyLabel} modalities (${successes.join(', ')}).`
+      ? `Installed Ambio into all detected ${familyLabel} modalities (${successes.join(', ')}).`
       : `Partially configured ${familyLabel}: ${successes.join(', ')} ready.`,
     paths: [...new Set(touchedPaths)],
   }

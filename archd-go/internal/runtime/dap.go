@@ -112,6 +112,16 @@ func (c *dapClient) request(command string, args any) (dapMessage, error) {
 	select {
 	case resp := <-ch:
 		if !resp.Success {
+			// The short message ("Failed to launch") says little; the adapter's
+			// detail is in body.error.format, e.g. the build error.
+			var detail struct {
+				Error struct {
+					Format string `json:"format"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(resp.Body, &detail) == nil && detail.Error.Format != "" && detail.Error.Format != resp.Message {
+				return resp, fmt.Errorf("dap %s failed: %s: %s", command, resp.Message, detail.Error.Format)
+			}
 			return resp, fmt.Errorf("dap %s failed: %s", command, resp.Message)
 		}
 		return resp, nil

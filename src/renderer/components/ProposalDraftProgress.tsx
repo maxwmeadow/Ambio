@@ -30,12 +30,12 @@ export function ProposalDraftProgress({ workspaceId, inline = false }: { workspa
     const onUpdate = () => { void refresh() }
     // This status is background context and can wait until the canvas frames.
     const timer = window.setTimeout(onUpdate, 250)
-    window.addEventListener('axiom:proposal-draft', onUpdate)
+    window.addEventListener('ambio:proposal-draft', onUpdate)
     window.addEventListener('focus', onUpdate)
     return () => {
       active = false
       window.clearTimeout(timer)
-      window.removeEventListener('axiom:proposal-draft', onUpdate)
+      window.removeEventListener('ambio:proposal-draft', onUpdate)
       window.removeEventListener('focus', onUpdate)
     }
   }, [workspaceId])
@@ -62,9 +62,9 @@ export function ProposalDraftProgress({ workspaceId, inline = false }: { workspa
     }
   }
   return (
-    <aside className={`axiom-draft-progress${inline ? ' axiom-draft-progress--inline' : ''}`} role="status" aria-live="polite" aria-label="Architecture mapping progress">
-      <span className="axiom-draft-progress__pulse" aria-hidden="true" />
-      <div className="axiom-draft-progress__content">
+    <aside className={`ambio-draft-progress${inline ? ' ambio-draft-progress--inline' : ''}`} role="status" aria-live="polite" aria-label="Architecture mapping progress">
+      <span className="ambio-draft-progress__pulse" aria-hidden="true" />
+      <div className="ambio-draft-progress__content">
         <strong>{recentlyUpdated ? 'Agent mapping architecture' : 'Architecture draft paused'}</strong>
         <p>{newest.systemCount} systems in {newest.chunkCount} {newest.chunkCount === 1 ? 'chunk' : 'chunks'}
           {drafts.length > 1 ? ` · ${drafts.length} open sessions` : ''}</p>
@@ -72,7 +72,7 @@ export function ProposalDraftProgress({ workspaceId, inline = false }: { workspa
       <button type="button" onClick={() => { void discard() }} disabled={discarding} title="Discard this unfinished draft and its saved chunks">
         {discarding ? 'Discarding…' : 'Discard'}
       </button>
-      {error && <span className="axiom-draft-progress__error" role="alert">{error}</span>}
+      {error && <span className="ambio-draft-progress__error" role="alert">{error}</span>}
     </aside>
   )
 }

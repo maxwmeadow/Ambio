@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
-// Excluding or re-including folders changes what Axiom reads, not the code,
+// Excluding or re-including folders changes what Ambio reads, not the code,
 // so it must never surface in the Morning Delta - while a real edit made in
 // the same window still must.
 

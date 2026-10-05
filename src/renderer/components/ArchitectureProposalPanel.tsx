@@ -181,23 +181,23 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
 
   return (
     <aside
-      className={`axiom-proposal ${embedded ? 'axiom-proposal--embedded' : 'axiom-proposal--panel'}`}
+      className={`ambio-proposal ${embedded ? 'ambio-proposal--embedded' : 'ambio-proposal--panel'}`}
       aria-label="Proposed architecture"
     >
-      <header className="axiom-proposal__header">
-        <span className="axiom-proposal__mode">Proposed architecture</span>
-        <span className="axiom-proposal__progress">{describeProgress(progress)}</span>
-        {!embedded && <button type="button" className="axiom-proposal__close" onClick={endReview} aria-label="Close review">
+      <header className="ambio-proposal__header">
+        <span className="ambio-proposal__mode">Proposed architecture</span>
+        <span className="ambio-proposal__progress">{describeProgress(progress)}</span>
+        {!embedded && <button type="button" className="ambio-proposal__close" onClick={endReview} aria-label="Close review">
           ×
         </button>}
       </header>
 
       {proposal.rationale && (
-        <p className="axiom-proposal__rationale">{proposal.rationale}</p>
+        <p className="ambio-proposal__rationale">{proposal.rationale}</p>
       )}
-      {error && <p className="axiom-proposal__error">{error}</p>}
+      {error && <p className="ambio-proposal__error">{error}</p>}
 
-      <ol className="axiom-proposal__list" ref={listRef}>
+      <ol className="ambio-proposal__list" ref={listRef}>
         {ordered.map(({ node, depth }, index) => {
           const blocked = blockedReason(node, bySystemKey)
           const refusal = refusals[node.systemKey]
@@ -207,17 +207,17 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
           return (
             <li
               key={node.systemKey}
-              className="axiom-proposal__item"
+              className="ambio-proposal__item"
               data-active={index === active || undefined}
               data-decision={node.decision}
               style={{ paddingLeft: `${12 + depth * 16}px` }}
               onClick={() => focusIndex(index)}
             >
-              <div className="axiom-proposal__row">
+              <div className="ambio-proposal__row">
                 {node.children.length > 0 ? (
                   <button
                     type="button"
-                    className="axiom-proposal__toggle"
+                    className="ambio-proposal__toggle"
                     aria-label={`${collapsed.has(node.systemKey) ? 'Expand' : 'Collapse'} ${node.name}`}
                     aria-expanded={!collapsed.has(node.systemKey)}
                     onClick={event => {
@@ -232,30 +232,30 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
                   >
                     {collapsed.has(node.systemKey) ? '>' : 'v'}
                   </button>
-                ) : <span className="axiom-proposal__toggle-spacer" />}
-                <span className="axiom-proposal__name">{node.name}</span>
-                <span className="axiom-proposal__count">
+                ) : <span className="ambio-proposal__toggle-spacer" />}
+                <span className="ambio-proposal__name">{node.name}</span>
+                <span className="ambio-proposal__count">
                   {branchFiles} {branchFiles === 1 ? 'file' : 'files'}{node.children.length > 0 ? ' in branch' : ''}
                 </span>
               </div>
 
               {isActive && node.description && (
-                <p className="axiom-proposal__purpose">{node.description}</p>
+                <p className="ambio-proposal__purpose">{node.description}</p>
               )}
 
               {isActive && node.decision === 'rejected' && node.rejectionReason && (
-                <p className="axiom-proposal__sentback">Sent back: {node.rejectionReason}</p>
+                <p className="ambio-proposal__sentback">Sent back: {node.rejectionReason}</p>
               )}
 
               {isActive && node.decision === 'pending' && rejecting === node.systemKey && (
-                <div className="axiom-proposal__reject" onClick={event => event.stopPropagation()}>
+                <div className="ambio-proposal__reject" onClick={event => event.stopPropagation()}>
                   <textarea
                     autoFocus
                     value={reason}
                     placeholder="What is wrong with it? The agent uses this to try again."
                     onChange={event => setReason(event.target.value)}
                   />
-                  <div className="axiom-proposal__reject-actions">
+                  <div className="ambio-proposal__reject-actions">
                     <button type="button" onClick={() => { setRejecting(null); setReason('') }}>Cancel</button>
                     <button type="button" disabled={!reason.trim()} onClick={() => sendBack(node.systemKey)}>
                       Send back
@@ -265,10 +265,10 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
               )}
 
               {isActive && node.decision === 'pending' && rejecting !== node.systemKey && (
-                <div className="axiom-proposal__actions" onClick={event => event.stopPropagation()}>
+                <div className="ambio-proposal__actions" onClick={event => event.stopPropagation()}>
                   <button
                     type="button"
-                    className="axiom-proposal__approve"
+                    className="ambio-proposal__approve"
                     disabled={busy}
                     onClick={() => approve(node.systemKey)}
                   >
@@ -287,14 +287,14 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
               {/* A refusal is a sentence next to the control, never a disabled
                   button that explains nothing. */}
               {isActive && (refusal || blocked) && node.decision === 'pending' && (
-                <p className="axiom-proposal__refusal">{refusal || blocked}</p>
+                <p className="ambio-proposal__refusal">{refusal || blocked}</p>
               )}
             </li>
           )
         })}
       </ol>
 
-      <footer className="axiom-proposal__footer">
+      <footer className="ambio-proposal__footer">
         <span>{embedded
           ? 'W A S D pan · J K review · Enter approve · R send back'
           : 'J K move · Enter approve · R send back · Esc leave'}</span>

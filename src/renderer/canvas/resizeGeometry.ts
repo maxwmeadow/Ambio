@@ -159,7 +159,7 @@ export function fitPresentationScale(
 
 /**
  * Convert React Flow's rendered, parent-local resize rectangle back into
- * Axiom's canonical geometry. Positions inherit only the ancestor scale;
+ * Ambio's canonical geometry. Positions inherit only the ancestor scale;
  * dimensions inherit both the ancestor and node's own scale.
  */
 export function toCanonicalResizeGeometry(

@@ -3,7 +3,7 @@ package collision
 import (
 	"testing"
 
-	"axiom.local/archd/internal/delta"
+	"ambio.local/archd/internal/delta"
 )
 
 func TestBuildSurfacesOnlyPairwiseSemanticOverlap(t *testing.T) {

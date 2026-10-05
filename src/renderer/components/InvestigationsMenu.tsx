@@ -116,12 +116,12 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId])
 
   return (
-    <div className="axiom-investigations-anchor" ref={anchorRef}>
+    <div className="ambio-investigations-anchor" ref={anchorRef}>
       <ChromeButton
         onClick={toggle}
         label="Investigations"
         active={open || !!replay}
-        ariaControls="axiom-investigations-menu"
+        ariaControls="ambio-investigations-menu"
         ariaExpanded={open}
         ariaHasPopup="menu"
       >
@@ -133,18 +133,18 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
 
       {open && createPortal(
         <>
-          <div className="axiom-investigations-scrim" onPointerDown={() => setOpen(false)} />
+          <div className="ambio-investigations-scrim" onPointerDown={() => setOpen(false)} />
           <section
-            className="axiom-investigations-menu"
-            id="axiom-investigations-menu"
+            className="ambio-investigations-menu"
+            id="ambio-investigations-menu"
             role="menu"
             aria-label="Investigation captures"
             style={{
-              '--axiom-investigations-left': `${position.left}px`,
-              '--axiom-investigations-top': `${position.top}px`,
+              '--ambio-investigations-left': `${position.left}px`,
+              '--ambio-investigations-top': `${position.top}px`,
             } as React.CSSProperties}
           >
-            <header className="axiom-investigations-menu__header">
+            <header className="ambio-investigations-menu__header">
               <div>
                 <h2>Investigation captures</h2>
                 <p>Agent investigations, ready to replay</p>
@@ -152,11 +152,11 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
               {!loading && !error && <output>{items.length}</output>}
             </header>
 
-            <div className="axiom-investigations-menu__body">
-              {loading && <div className="axiom-investigations-menu__state">Loading captures…</div>}
-              {error && <div className="axiom-investigations-menu__state axiom-investigations-menu__state--error" role="alert">{error}</div>}
+            <div className="ambio-investigations-menu__body">
+              {loading && <div className="ambio-investigations-menu__state">Loading captures…</div>}
+              {error && <div className="ambio-investigations-menu__state ambio-investigations-menu__state--error" role="alert">{error}</div>}
               {!loading && !error && items.length === 0 && (
-                <div className="axiom-investigations-menu__empty">
+                <div className="ambio-investigations-menu__empty">
                   <strong>No captures yet</strong>
                   <span>
                     Ask your agent to <code>start_investigation</code>, debug the behavior,
@@ -165,48 +165,48 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
                 </div>
               )}
               {!loading && items.map(investigation => (
-                <div className="axiom-investigations-menu__row" key={investigation.id}>
+                <div className="ambio-investigations-menu__row" key={investigation.id}>
                 <button
                   type="button"
-                  className="axiom-investigations-menu__item"
+                  className="ambio-investigations-menu__item"
                   role="menuitem"
                   disabled={openingId !== null}
                   onClick={() => void openReplay(investigation.id)}
                 >
-                  <span className="axiom-investigations-menu__item-title">
+                  <span className="ambio-investigations-menu__item-title">
                     <strong>{investigation.name}</strong>
                     <time dateTime={new Date(investigation.createdAt).toISOString()}>
                       {captureDate(investigation.createdAt)}
                     </time>
                   </span>
-                  <span className="axiom-investigations-menu__item-meta">
+                  <span className="ambio-investigations-menu__item-meta">
                     <span>{investigation.eventCount} events</span>
                     <span>{(investigation.durationMs / 1000).toFixed(1)}s</span>
                     {investigation.commit
                       ? <code>{investigation.branch}@{investigation.commit.slice(0, 7)}</code>
-                      : <code title="Axiom could not resolve a git commit, so this capture is not pinned to a code version.">no commit</code>}
+                      : <code title="Ambio could not resolve a git commit, so this capture is not pinned to a code version.">no commit</code>}
                     {investigation.origin === 'auto' && (
                       <span
-                        className="axiom-investigations-menu__flag axiom-investigations-menu__flag--auto"
-                        title="Axiom started this recording when it saw the agent begin investigating."
+                        className="ambio-investigations-menu__flag ambio-investigations-menu__flag--auto"
+                        title="Ambio started this recording when it saw the agent begin investigating."
                       >
                         auto
                       </span>
                     )}
                     {investigation.status === 'interrupted' && (
                       <span
-                        className="axiom-investigations-menu__flag"
-                        title="Recording never stopped - Axiom saved what it had captured up to that point."
+                        className="ambio-investigations-menu__flag"
+                        title="Recording never stopped - Ambio saved what it had captured up to that point."
                       >
                         interrupted
                       </span>
                     )}
                   </span>
-                  {openingId === investigation.id && <span className="axiom-investigations-menu__opening">Opening…</span>}
+                  {openingId === investigation.id && <span className="ambio-investigations-menu__opening">Opening…</span>}
                 </button>
                 <button
                   type="button"
-                  className="axiom-investigations-menu__delete"
+                  className="ambio-investigations-menu__delete"
                   aria-label={`Delete ${investigation.name}`}
                   title="Delete this capture"
                   onClick={event => { event.stopPropagation(); void remove(investigation.id) }}

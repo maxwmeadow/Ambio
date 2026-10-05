@@ -7,7 +7,7 @@ import (
 )
 
 // AgentPresence is one running MCP process with a renewable connection lease.
-// HostID identifies the harness when Axiom installed it; "unknown" preserves
+// HostID identifies the harness when Ambio installed it; "unknown" preserves
 // compatibility with manually configured and older MCP entries.
 type AgentPresence struct {
 	ConnectionID string `json:"connectionId"`

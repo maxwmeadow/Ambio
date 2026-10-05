@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 // CochangePair is a canonical (lexicographically sorted) pair of file IDs.

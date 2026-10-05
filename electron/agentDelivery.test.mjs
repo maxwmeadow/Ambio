@@ -8,7 +8,7 @@ import { DeliveryRunner, deliveryArguments, deliveryTargets, findDeliveryCli, ch
 import { buildHosts } from './agentInstallers.ts'
 
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'axiom-delivery-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-delivery-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   return root
 }
@@ -26,7 +26,7 @@ async function state(runner, workspace, expected, key) {
   assert.fail(`Expected ${expected}: ${JSON.stringify(runner.list(workspace))}`)
 }
 function input(root, overrides = {}) {
-  return { workspaceId: 'ws', messageId: 'order', hostId: 'codex', rootPath: root, revision: 'initial', launcher: { command: process.execPath, args: [] }, args: ['-e', 'process.stdin.resume(); process.stdin.on("end",()=>{ console.log(process.cwd()); console.log(process.env.AXIOM_WORKSPACE_ID) })'], prompt: 'claim exactly order', ...overrides }
+  return { workspaceId: 'ws', messageId: 'order', hostId: 'codex', rootPath: root, revision: 'initial', launcher: { command: process.execPath, args: [] }, args: ['-e', 'process.stdin.resume(); process.stdin.on("end",()=>{ console.log(process.cwd()); console.log(process.env.AMBIO_WORKSPACE_ID) })'], prompt: 'claim exactly order', ...overrides }
 }
 
 test('every installer host has a delivery route; editor hosts never masquerade as headless agents', t => {
@@ -54,19 +54,19 @@ test('native CLI detection does not accept shell shims; npm Windows installs use
 })
 
 test('CLI configurations bind each MCP process to the requested workspace and host, without permission bypass', () => {
-  const mcp = { command: 'C:\\Axiom Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
+  const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
   const prompt = 'Claim work order order, not a queue'
   for (const host of ['claude-code', 'codex', 'copilot-cli']) {
     const args = deliveryArguments(host, mcp, 'ws-123', prompt)
     assert.ok(args.join(' ').includes('ws-123'))
-    assert.ok(args.join(' ').includes(`--axiom-host=${host}`))
+    assert.ok(args.join(' ').includes(`--ambio-host=${host}`))
     assert.ok(!args.some(arg => /bypass|skip-permissions|allow-all|yolo/.test(arg)))
     if (host === 'codex') { assert.ok(args.includes('workspace-write')); assert.equal(args.at(-1), '-') }
     else {
       const flag = host === 'claude-code' ? '--mcp-config' : '--additional-mcp-config'
       const config = JSON.parse(args[args.indexOf(flag) + 1])
-      assert.equal(config.mcpServers.axiom.command, mcp.command)
-      assert.equal(config.mcpServers.axiom.env.AXIOM_WORKSPACE_ID, 'ws-123')
+      assert.equal(config.mcpServers.ambio.command, mcp.command)
+      assert.equal(config.mcpServers.ambio.env.AMBIO_WORKSPACE_ID, 'ws-123')
     }
   }
   assert.throws(() => deliveryArguments('cursor', mcp, 'ws', prompt), /no direct/)
@@ -86,7 +86,7 @@ test('real child gets literal prompt, correct cwd and workspace; duplicate click
   const root = fixture(t)
   const directory = path.join(root, 'receipts')
   const runner = new DeliveryRunner(directory, testSpawn)
-  const script = 'const fs=require("fs"); const text=fs.readFileSync(0,"utf8");fs.writeSync(1,JSON.stringify({cwd:process.cwd(),workspace:process.env.AXIOM_WORKSPACE_ID,host:process.env.AXIOM_AGENT_HOST,text}))'
+  const script = 'const fs=require("fs"); const text=fs.readFileSync(0,"utf8");fs.writeSync(1,JSON.stringify({cwd:process.cwd(),workspace:process.env.AMBIO_WORKSPACE_ID,host:process.env.AMBIO_AGENT_HOST,text}))'
   const request = input(root, { args: ['-e', script], prompt: '`touch injected` $(touch injected)\nclaim order' })
   const first = await runner.start(request)
   const duplicate = await runner.start({ ...request, hostId: 'claude-code' })

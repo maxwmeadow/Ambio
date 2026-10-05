@@ -11,9 +11,9 @@ app.whenReady().then(async () => {
     webPreferences: { backgroundThrottling: false },
   })
 
-  await win.loadFile(path.join(__dirname, 'axiom-uml-workbench.html'))
+  await win.loadFile(path.join(__dirname, 'ambio-uml-workbench.html'))
   await new Promise(resolve => setTimeout(resolve, 250))
   const image = await win.webContents.capturePage()
-  fs.writeFileSync(path.join(__dirname, 'axiom-uml-workbench.png'), image.toPNG())
+  fs.writeFileSync(path.join(__dirname, 'ambio-uml-workbench.png'), image.toPNG())
   app.quit()
 })

@@ -1,4 +1,4 @@
-// Variable reference (def-use) extraction - the static half of Axiom's
+// Variable reference (def-use) extraction - the static half of Ambio's
 // "variable references" primitive (plan Phase 7; renamed from data-flow
 // slicing after hostile review: tree-sitter is file-scoped and has no type
 // resolver, so cross-file linking is name-based heuristics, labeled as such).

@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/parser"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/parser"
 )
 
 const defaultMaxFlowFiles = 50

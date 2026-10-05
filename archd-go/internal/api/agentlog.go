@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"axiom.local/archd/internal/activity"
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/activity"
+	"ambio.local/archd/internal/db"
 )
 
 // POST /api/agent/action - record one thing an agent did, and show it live.
@@ -68,7 +68,7 @@ func (s *Server) handleAgentAction(w http.ResponseWriter, r *http.Request) {
 	s.hub.Broadcast("agent:action", action)
 
 	// An agent should not have to remember to press record. If it starts
-	// investigating and nothing is recording, Axiom starts one itself.
+	// investigating and nothing is recording, Ambio starts one itself.
 	s.maybeAutoStartInvestigation(sqlDB, action)
 
 	jsonOK(w, action)

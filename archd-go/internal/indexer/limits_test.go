@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 )
 
 func TestGeneratedAndOversizedFilesAreNotIndexed(t *testing.T) {

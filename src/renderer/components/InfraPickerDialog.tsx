@@ -52,19 +52,19 @@ const QUICK_FILTERS: Array<{ id: QuickFilter; label: string; categories: string[
 
 export function ServiceIcon({ service, size = 26 }: { service: InfraService; size?: number }) {
   const official = officialServiceIcon(service.id)
-  if (official) return <img className="axiom-infra-picker__service-icon" src={official} width={size} height={size} alt="" />
+  if (official) return <img className="ambio-infra-picker__service-icon" src={official} width={size} height={size} alt="" />
 
   const icon = brandIcon(service.brand.icon)
   if (icon) {
     return (
-      <svg className="axiom-infra-picker__service-icon" viewBox="0 0 24 24" width={size} height={size} aria-label={icon.title}>
+      <svg className="ambio-infra-picker__service-icon" viewBox="0 0 24 24" width={size} height={size} aria-label={icon.title}>
         <path d={icon.path} fill={service.brand.darkColor ?? service.brand.color} />
       </svg>
     )
   }
 
   return (
-    <svg className="axiom-infra-picker__service-icon" viewBox="0 0 24 24" width={size} height={size} aria-label={service.category}>
+    <svg className="ambio-infra-picker__service-icon" viewBox="0 0 24 24" width={size} height={size} aria-label={service.category}>
       <path
         d={CATEGORY_GLYPHS[service.category] ?? CATEGORY_GLYPHS.api}
         fill={service.brand.darkColor ?? service.brand.color ?? 'var(--text-secondary)'}
@@ -175,16 +175,16 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
 
   return (
     <div
-      className="axiom-infra-picker nodrag nopan nowheel"
+      className="ambio-infra-picker nodrag nopan nowheel"
       role="dialog"
       aria-modal="true"
       aria-label="Choose infrastructure"
       onPointerDown={event => event.stopPropagation()}
       onWheel={event => event.stopPropagation()}
     >
-      <div className="axiom-infra-picker__window">
-        <header className="axiom-infra-picker__header">
-          <div className="axiom-infra-picker__heading">
+      <div className="ambio-infra-picker__window">
+        <header className="ambio-infra-picker__header">
+          <div className="ambio-infra-picker__heading">
             <h2>Choose infrastructure</h2>
             <p>
               {props.mode === 'create'
@@ -195,14 +195,14 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
           <input
             autoFocus
             aria-label="Search infrastructure catalog"
-            className="axiom-infra-picker__search"
+            className="ambio-infra-picker__search"
             value={query}
             onChange={event => setQuery(event.target.value)}
             placeholder="Search services, providers, or infrastructure types…"
           />
           <button
             type="button"
-            className="axiom-infra-picker__close"
+            className="ambio-infra-picker__close"
             aria-label="Close infrastructure picker"
             onClick={props.onClose}
             disabled={creating}
@@ -211,14 +211,14 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
           </button>
         </header>
 
-        <div className="axiom-infra-picker__filters">
-          <div className="axiom-infra-picker__filter-row">
-            <span className="axiom-infra-picker__filter-label">Show</span>
+        <div className="ambio-infra-picker__filters">
+          <div className="ambio-infra-picker__filter-row">
+            <span className="ambio-infra-picker__filter-label">Show</span>
             {QUICK_FILTERS.map(filter => (
               <button
                 key={filter.id}
                 type="button"
-                className="axiom-infra-picker__filter-button"
+                className="ambio-infra-picker__filter-button"
                 aria-pressed={quickFilter === filter.id}
                 onClick={() => setQuickFilter(filter.id)}
               >
@@ -227,32 +227,32 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
             ))}
           </div>
 
-          <div className="axiom-infra-picker__filter-row">
-            <span className="axiom-infra-picker__filter-label">Group results</span>
+          <div className="ambio-infra-picker__filter-row">
+            <span className="ambio-infra-picker__filter-label">Group results</span>
             {(['type', 'provider'] as GroupMode[]).map(mode => (
               <button
                 key={mode}
                 type="button"
-                className="axiom-infra-picker__filter-button"
+                className="ambio-infra-picker__filter-button"
                 aria-pressed={groupMode === mode}
                 onClick={() => setGroupMode(mode)}
               >
                 {mode === 'type' ? 'Infrastructure type' : 'Provider'}
               </button>
             ))}
-            <output className="axiom-infra-picker__result-count">{matches.length} services</output>
+            <output className="ambio-infra-picker__result-count">{matches.length} services</output>
           </div>
         </div>
 
-        <div className="axiom-infra-picker__catalog">
-          {!loaded && <div className="axiom-infra-picker__empty">Loading infrastructure registry…</div>}
-          {loaded && matches.length === 0 && <div className="axiom-infra-picker__empty">No infrastructure matches “{query}”.</div>}
+        <div className="ambio-infra-picker__catalog">
+          {!loaded && <div className="ambio-infra-picker__empty">Loading infrastructure registry…</div>}
+          {loaded && matches.length === 0 && <div className="ambio-infra-picker__empty">No infrastructure matches “{query}”.</div>}
           {sortedGroups.map(([group, items]) => (
-            <section className="axiom-infra-picker__group" key={group}>
-              <h3 className="axiom-infra-picker__group-title">
+            <section className="ambio-infra-picker__group" key={group}>
+              <h3 className="ambio-infra-picker__group-title">
                 {groupMode === 'type' ? TYPE_NAMES[group] ?? group : group}
               </h3>
-              <div className="axiom-infra-picker__service-grid">
+              <div className="ambio-infra-picker__service-grid">
                 {[...items].sort((a, b) => a.name.localeCompare(b.name)).map(service => {
                   const incompatible = hasContainedNodes && !service.capabilities?.includes('container')
                   const isSelected = props.mode === 'create' && selected?.id === service.id
@@ -260,16 +260,16 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
                     <button
                       key={service.id}
                       type="button"
-                      className="axiom-infra-picker__service"
+                      className="ambio-infra-picker__service"
                       aria-pressed={isSelected}
                       data-incompatible={incompatible || undefined}
                       disabled={incompatible}
                       onClick={() => choose(service)}
                       title={incompatible ? 'This node contains hosted elements and must remain container-capable' : undefined}
-                      style={{ '--axiom-infra-service-accent': service.brand.darkColor ?? service.brand.color } as React.CSSProperties}
+                      style={{ '--ambio-infra-service-accent': service.brand.darkColor ?? service.brand.color } as React.CSSProperties}
                     >
                       <ServiceIcon service={service} />
-                      <span className="axiom-infra-picker__service-copy">
+                      <span className="ambio-infra-picker__service-copy">
                         <strong>{service.name}</strong>
                         <span>
                           {service.provider} · {TYPE_NAMES[service.category] ?? service.category}{service.subtype ? ` / ${service.subtype}` : ''}
@@ -285,24 +285,24 @@ export function InfraPickerDialog(props: InfraPickerDialogProps) {
 
         {props.mode === 'create' && (
           <form
-            className="axiom-infra-picker__footer"
+            className="ambio-infra-picker__footer"
             onSubmit={handleCreate}
           >
-            <label className="axiom-infra-picker__name-field">
+            <label className="ambio-infra-picker__name-field">
               <span>
                 Name <small>optional - defaults to the service name</small>
               </span>
               <input
-                className="axiom-infra-picker__name-input"
+                className="ambio-infra-picker__name-input"
                 value={name}
                 onChange={event => setName(event.target.value)}
                 placeholder={selected ? `e.g. "Primary ${selected.name}"` : 'Select a service first'}
                 disabled={creating}
               />
             </label>
-            <div className="axiom-infra-picker__footer-actions">
+            <div className="ambio-infra-picker__footer-actions">
               {error && <DialogError>{error}</DialogError>}
-              <div className="axiom-infra-picker__buttons">
+              <div className="ambio-infra-picker__buttons">
                 <DialogButton type="button" onClick={props.onClose} disabled={creating} variant="secondary">
                   Cancel
                 </DialogButton>

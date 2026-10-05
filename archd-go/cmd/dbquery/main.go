@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	dbPath := flag.String("db", "", "path to axiom.db")
+	dbPath := flag.String("db", "", "path to ambio.db")
 	flag.Parse()
 	if *dbPath == "" {
 		fmt.Fprintln(os.Stderr, "usage: dbquery -db <path>")
@@ -75,7 +75,9 @@ func main() {
 	for singleRows.Next() {
 		var sysName, relPath string
 		singleRows.Scan(&sysName, &relPath)
-		if singles == 0 { fmt.Printf("Single-file leaf systems:\n") }
+		if singles == 0 {
+			fmt.Printf("Single-file leaf systems:\n")
+		}
 		fmt.Printf("  [%s] → %s\n", sysName, relPath)
 		singles++
 	}
@@ -95,7 +97,9 @@ func main() {
 		var name string
 		var depth, cnt int
 		largeRows.Scan(&name, &depth, &cnt)
-		if large == 0 { fmt.Printf("Large leaf systems (≥10 files, may need sub-clustering):\n") }
+		if large == 0 {
+			fmt.Printf("Large leaf systems (≥10 files, may need sub-clustering):\n")
+		}
 		fmt.Printf("  [%s] depth=%d → %d files\n", name, depth, cnt)
 		large++
 	}
@@ -112,7 +116,9 @@ func main() {
 		var name string
 		var depth, cnt int
 		dupRows.Scan(&name, &depth, &cnt)
-		if dups == 0 { fmt.Printf("Duplicate system names at same depth:\n") }
+		if dups == 0 {
+			fmt.Printf("Duplicate system names at same depth:\n")
+		}
 		fmt.Printf("  [%s] depth=%d appears %d times\n", name, depth, cnt)
 		dups++
 	}
@@ -133,7 +139,9 @@ func printLargeLeafFiles(db *sql.DB) {
 		    GROUP BY s2.id HAVING COUNT(f2.id) >= 8
 		  )
 		ORDER BY s.depth, s.name, f.rel_path`)
-	if rows == nil { return }
+	if rows == nil {
+		return
+	}
 	defer rows.Close()
 	prev := ""
 	for rows.Next() {
@@ -162,7 +170,9 @@ func printEditorFiles(db *sql.DB) {
 		FROM tree t
 		JOIN files f ON f.system_id = t.id
 		ORDER BY t.depth, f.rel_path`)
-	if rows == nil { return }
+	if rows == nil {
+		return
+	}
 	defer rows.Close()
 	for rows.Next() {
 		var path, relPath string
@@ -192,7 +202,9 @@ func printTree(db *sql.DB, parentID interface{}, indent int) {
 			WHERE s.source='cluster' AND s.parent_id = ?
 			GROUP BY s.id ORDER BY s.name`, parentID)
 	}
-	if rows == nil { return }
+	if rows == nil {
+		return
+	}
 	defer rows.Close()
 
 	prefix := strings.Repeat("  ", indent)

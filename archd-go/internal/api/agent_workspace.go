@@ -1,7 +1,7 @@
 package api
 
 import (
-	"axiom.local/archd/internal/db"
+	"ambio.local/archd/internal/db"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,7 +27,7 @@ func (s *Server) handleAgentWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := os.ReadDir(s.dataDir)
 	if err != nil {
-		jsonError(w, "open the project in Axiom first", 404)
+		jsonError(w, "open the project in Ambio first", 404)
 		return
 	}
 	bestLength := -1
@@ -38,7 +38,7 @@ func (s *Server) handleAgentWorkspace(w http.ResponseWriter, r *http.Request) {
 		if !entry.IsDir() || !validWorkspaceID(id) || (explicit != "" && id != explicit) {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(s.dataDir, id, "axiom.db")); err != nil {
+		if _, err := os.Stat(filepath.Join(s.dataDir, id, "ambio.db")); err != nil {
 			continue
 		}
 		d, err := s.dbFor(id)
@@ -81,11 +81,11 @@ func (s *Server) handleAgentWorkspace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if ambiguous {
-		jsonError(w, "multiple workspaces match this directory; configure AXIOM_WORKSPACE_ID", 409)
+		jsonError(w, "multiple workspaces match this directory; configure AMBIO_WORKSPACE_ID", 409)
 		return
 	}
 	if best == nil {
-		jsonError(w, "no registered workspace matches; open this project in Axiom or configure AXIOM_WORKSPACE_ID", 404)
+		jsonError(w, "no registered workspace matches; open this project in Ambio or configure AMBIO_WORKSPACE_ID", 404)
 		return
 	}
 	jsonOK(w, best)

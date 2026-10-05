@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import type { DbFile, DbSystem, FloorLayout } from '../../shared/types'
-import { AxiomCanvas } from '../canvas/AxiomCanvas'
+import { AmbioCanvas } from '../canvas/AmbioCanvas'
 import { buildProposalPreviewModel } from '../canvas/proposalPreview'
 import { useProposalStore, type ProposalLayout, type ProposalSummary } from '../store/architectureProposalStore'
 
@@ -12,7 +12,7 @@ const fileNodeId = (proposalId: string, membershipId: string) =>
 
 /**
  * Data adapter only. The rendered surface and every interaction are the real
- * AxiomCanvas; this component translates proposal keys at the persistence
+ * AmbioCanvas; this component translates proposal keys at the persistence
  * boundary so unapproved nodes cannot enter the live Floor store.
  */
 export function ProposalReviewCanvas({
@@ -166,5 +166,5 @@ export function ProposalReviewCanvas({
     onSaveLayouts,
   }), [proposal.id, proposal.workspaceId, model, indexedFiles, placedBinFileIds, floorLayouts, editableNodeIds, selectedSystemKey, onSelectNode, onPreviewLayouts, onSaveLayouts])
 
-  return <AxiomCanvas reviewScene={reviewScene} />
+  return <AmbioCanvas reviewScene={reviewScene} />
 }

@@ -5,7 +5,7 @@ import { autoUpdater } from 'electron-updater'
 //
 // Windows and Linux (AppImage) download in the background and install on
 // the next restart. macOS cannot auto-install until the app is signed with an
-// Apple Developer ID - Squirrel.Mac refuses unsigned updates - so there Axiom
+// Apple Developer ID - Squirrel.Mac refuses unsigned updates - so there Ambio
 // only says a new version exists and links to the download.
 
 export type UpdateStatus =
@@ -13,7 +13,7 @@ export type UpdateStatus =
   | { state: 'available'; version: string; manual: boolean }
   | { state: 'ready'; version: string }
 
-export const RELEASES_URL = 'https://github.com/maxwmeadow/Axiom/releases/latest'
+export const RELEASES_URL = 'https://github.com/maxwmeadow/Ambio/releases/latest'
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 const FIRST_CHECK_DELAY_MS = 15_000
 

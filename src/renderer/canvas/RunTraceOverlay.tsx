@@ -125,37 +125,37 @@ export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: R
 
   return (
     <ViewportPortal>
-      <svg className="axiom-run-trace" width="1" height="1" aria-hidden="true">
+      <svg className="ambio-run-trace" width="1" height="1" aria-hidden="true">
         {scene.lines.map(line => (
-          <g key={line.key} className={`axiom-run-trace__line${line.focus ? ' axiom-run-trace__line--focus' : ''}`}
+          <g key={line.key} className={`ambio-run-trace__line${line.focus ? ' ambio-run-trace__line--focus' : ''}`}
             data-run-trace-source={line.source} data-run-trace-target={line.target}>
             <title>{line.pairs.join('\n')}</title>
-            <path d={line.path} className="axiom-run-trace__casing" vectorEffect="non-scaling-stroke" />
-            <path d={line.path} className="axiom-run-trace__stroke" vectorEffect="non-scaling-stroke" />
+            <path d={line.path} className="ambio-run-trace__casing" vectorEffect="non-scaling-stroke" />
+            <path d={line.path} className="ambio-run-trace__stroke" vectorEffect="non-scaling-stroke" />
           </g>
         ))}
       </svg>
       {scene.lines.filter(line => line.label && !calloutSymbols.has(line.focusSymbol ?? '')).map(line => (
-        <div key={`label-${line.key}`} className="axiom-run-trace__label"
+        <div key={`label-${line.key}`} className="ambio-run-trace__label"
           style={{ transform: `translate(${line.labelX}px, ${line.labelY}px) scale(${inverse}) translate(-50%, -50%)` }}>
           {line.label}
         </div>
       ))}
       {scene.placed.map(callout => (
         <div key={`callout-${callout.key}`}
-          className={`axiom-run-callout axiom-run-callout--${callout.tone}`}
+          className={`ambio-run-callout ambio-run-callout--${callout.tone}`}
           data-run-callout={callout.symbol}
           style={{ width: callout.width, transform: `translate(${callout.x}px, ${callout.y}px) scale(${inverse})` }}>
-          <div className="axiom-run-callout__head">
-            <span className="axiom-run-callout__symbol">{callout.symbol || 'watched'}</span>
+          <div className="ambio-run-callout__head">
+            <span className="ambio-run-callout__symbol">{callout.symbol || 'watched'}</span>
             {!callout.onFile && callout.fileName && (
-              <span className="axiom-run-callout__file">{callout.fileName}</span>
+              <span className="ambio-run-callout__file">{callout.fileName}</span>
             )}
-            <span className="axiom-run-callout__count">
+            <span className="ambio-run-callout__count">
               {callout.errors > 0 ? `${callout.errors} of ${callout.calls} threw` : `${callout.calls} call${callout.calls === 1 ? '' : 's'}`}
             </span>
           </div>
-          {callout.text && <div className="axiom-run-callout__text">{callout.text}</div>}
+          {callout.text && <div className="ambio-run-callout__text">{callout.text}</div>}
         </div>
       ))}
     </ViewportPortal>

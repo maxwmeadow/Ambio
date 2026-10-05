@@ -37,8 +37,8 @@ func gitChangeFixture(t *testing.T) (primary, branch, base string) {
 		t.Fatal(err)
 	}
 	runGit(t, primary, "init", "-b", "main")
-	runGit(t, primary, "config", "user.email", "axiom@example.test")
-	runGit(t, primary, "config", "user.name", "Axiom Test")
+	runGit(t, primary, "config", "user.email", "ambio@example.test")
+	runGit(t, primary, "config", "user.name", "Ambio Test")
 	writeGitFile(t, primary, "shared/base.go", "package shared\n")
 	runGit(t, primary, "add", ".")
 	runGit(t, primary, "commit", "-m", "base")

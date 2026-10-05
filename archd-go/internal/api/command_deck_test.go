@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"axiom.local/archd/internal/db"
-	"axiom.local/archd/internal/hub"
-	axiomruntime "axiom.local/archd/internal/runtime"
+	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/hub"
+	ambioruntime "ambio.local/archd/internal/runtime"
 )
 
 func TestCommandDeckSummarizesDurableProjectStateWithoutRegisteringIt(t *testing.T) {
@@ -39,7 +39,7 @@ func TestCommandDeckSummarizesDurableProjectStateWithoutRegisteringIt(t *testing
 	}
 
 	eventHub := hub.New()
-	server := NewServer(dataDir, eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(dataDir, eventHub, ambioruntime.NewManager(eventHub))
 	t.Cleanup(func() { server.closeDB("ws") })
 	request := httptest.NewRequest(http.MethodGet, "/api/command-deck?workspace=ws", nil)
 	response := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestCommandDeckKeepsBranchBriefingsIndependent(t *testing.T) {
 	}
 
 	eventHub := hub.New()
-	server := NewServer(dataDir, eventHub, axiomruntime.NewManager(eventHub))
+	server := NewServer(dataDir, eventHub, ambioruntime.NewManager(eventHub))
 	t.Cleanup(func() { server.closeDB("ws") })
 	request := httptest.NewRequest(http.MethodGet, "/api/command-deck?workspace=ws", nil)
 	response := httptest.NewRecorder()
