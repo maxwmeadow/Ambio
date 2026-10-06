@@ -56,6 +56,7 @@ collide. Full context for each item is in its section below.
 
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
+3. 🚧 `integrated-agent-chat` **Add native coding conversations without replacing existing agents.** Max authorized API-key services and a bundled local harness, keeping every external connection and work-order route. **Done when:** service setup, streaming multi-turn chat, read-only Ask, approval-based Build, work-order review, history, cancellation, recovery and packaging are implemented and tested. **Start:** `electron/agentChat.ts`, `src/renderer/components/AgentChatPanel.tsx`. (🚧 Codex, feature/integrated-agent-chat, 2026-10-06)
 
 ---
 
