@@ -116,6 +116,18 @@ export class DeliveryRunner {
       } catch { return [] }
     })
   }
+  assertRootAvailable(rootPath: string): void {
+    const root = fs.realpathSync(rootPath)
+    if ([...this.live.values()].some(({ run }) => fs.realpathSync(run.rootPath) === root)) throw new Error('An external agent is working in this project. Stop it or wait before starting integrated chat.')
+    if (!fs.existsSync(this.directory)) return
+    for (const file of fs.readdirSync(this.directory).filter(name => /^[a-f0-9]{64}\.json$/.test(name))) {
+      let run: DeliveryRun
+      try { run = JSON.parse(fs.readFileSync(join(this.directory, file), 'utf8')) } catch { continue }
+      if (!['starting', 'running', 'stopping'].includes(run.state) || !run.pid || !fs.existsSync(run.rootPath) || fs.realpathSync(run.rootPath) !== root) continue
+      try { process.kill(run.pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') continue }
+      throw new Error('An earlier external agent may still be running. Check and stop it before starting integrated chat.')
+    }
+  }
   start(input: RunInput): Promise<DeliveryRun> {
     fs.mkdirSync(this.directory, { recursive: true, mode: 0o700 })
     const key = createHash('sha256').update(JSON.stringify([input.workspaceId, input.messageId, input.revision])).digest('hex')

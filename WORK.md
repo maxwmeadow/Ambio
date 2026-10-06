@@ -56,7 +56,6 @@ collide. Full context for each item is in its section below.
 
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
-3. 🚧 `integrated-agent-chat` **Add native coding conversations without replacing existing agents.** Max authorized API-key services and a bundled local harness, keeping every external connection and work-order route. **Done when:** service setup, streaming multi-turn chat, read-only Ask, approval-based Build, work-order review, history, cancellation, recovery and packaging are implemented and tested. **Start:** `electron/agentChat.ts`, `src/renderer/components/AgentChatPanel.tsx`. (🚧 Codex, feature/integrated-agent-chat, 2026-10-06)
 
 ---
 
@@ -240,10 +239,13 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `work-order-delivery-live` **Record authenticated provider delivery smoke runs** for Claude Code, Codex and Copilot CLI, and verify launcher behavior on macOS/Windows. Automated delivery tests use simulated agents; test auth, MCP startup, host permissions and the actual claim/build/reply loop. (2026-09-30, work-order-delivery)
 - ⬜ `work-order-isolated-roots` **Isolated agent runs with truthful review.** Before creating a worktree on Send, bind indexing/comparison to the run’s root so review checks the branch the agent edited. Current direct runs use the existing live root and prevent overlapping managed runs. (2026-09-30, work-order-delivery)
 - ⬜ `more-direct-delivery` **Extend host-specific delivery adapters.** Validate Cursor Agent CLI and project-bound VS Code chat delivery; add direct routes where the destination and permissions can be verified. Keep editor/desktop copy/open fallbacks and the host capability table current. (2026-09-30, work-order-delivery)
+- ⬜ `integrated-chat-provider-live` **Authenticated native-chat smoke runs.** The bundled OpenCode harness and Electron conversation are covered with a controlled model service and real processes. Record a small Ask/Build trial using real OpenAI, Anthropic and Google keys, and check secure key persistence and packaged launch on macOS/Windows; no paid-provider credentials were available in the cloud implementation session. (2026-10-06, integrated-agent-chat)
 
 ---
 
 ## Done log
+
+- 2026-10-06 `integrated-agent-chat` Added optional Chat in Ambio beside every existing work-order destination: model-service setup, encrypted or session-only keys, credential proxy, bundled OpenCode, streaming multi-turn history, read-only Ask, approval-based Build with addressed work orders, questions, cancellation and crash recovery. Tests drive the real harness and Electron; packaging, licenses, privacy and CI updated. (feature/integrated-agent-chat)
 
 - 2026-10-03 `name` `rename` `rename-mechanics` Axiom is now **Ambio** (DECISIONS §3): every mention in code, IDs (`com.ambio.app`, `ambio://`, `AMBIO_*`, the Go module `ambio.local/archd`), files and docs. Upgrades move `~/.axiom` to `~/.ambio` and old map files to the new names (`db/legacy_name.go`, Electron main, the MCP server), read legacy registry folders, and remove an agent's old `axiom` MCP entry and skills on install or uninstall (`removeLegacyServer`). (claude/gracious-gauss-1bgdv9)
 

@@ -12,6 +12,10 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Chat in Ambio alongside existing external agents: configure an API-backed
+  model service, discuss selected architecture, continue local conversations,
+  approve actions, and build through reviewable work orders. Includes streamed
+  responses, questions, Stop, restart recovery and secure local key storage.
 - Agents receive guidance to draw structural changes on a sheet before editing
   code, reuse approved plans, and compare after building. Project reminders
   support every installed coding host; Claude Desktop receives MCP/chat guidance.

@@ -13,9 +13,9 @@
   },
   "main": "out/main/index.js",
   "scripts": {
-    "predev": "npm run build:archd && npm run build:adapters",
+    "predev": "npm run build:archd && npm run build:adapters && npm run build:agent",
     "dev": "electron-vite dev",
-    "build": "npm run build:mcp && npm run build:adapters && electron-vite build",
+    "build": "npm run build:mcp && npm run build:adapters && npm run build:agent && electron-vite build",
     "coverage:archd": "cd archd-go && go test -cover ./...",
     "coverage:node": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-test-coverage --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\"",
     "test:renderer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.mjs\" \"mcp/**/*.test.mjs\" \"electron/**/*.test.mjs\" \"adapters/**/*.test.mjs\" \"scripts/**/*.test.mjs\"",
@@ -23,7 +23,7 @@
     "test:e2e": "npm run build && playwright test",
     "test:e2e:update": "npm run build && playwright test --update-snapshots",
     "preview": "electron-vite preview",
-    "prepackage": "npm run build:archd && npm run build:mcp && npm run notices",
+    "prepackage": "npm run build:archd && npm run build:mcp && npm run notices && npm run build:agent",
     "package": "electron-vite build && electron-builder",
     "build:archd": "node scripts/archd.mjs build",
     "dbquery": "node scripts/archd.mjs dbquery",
@@ -31,7 +31,9 @@
     "vet:archd": "node scripts/archd.mjs vet",
     "build:mcp": "node scripts/build-mcp.mjs",
     "build:adapters": "node scripts/build-adapters.mjs",
-    "notices": "node scripts/third-party-notices.mjs"
+    "notices": "node scripts/third-party-notices.mjs",
+    "build:agent": "node scripts/build-agent.mjs",
+    "test:chat": "npm run build:agent && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-chat/*.e2e.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",
@@ -107,6 +109,10 @@
         {
           "from": "CHANGELOG.md",
           "to": "CHANGELOG.md"
+        },
+        {
+          "from": "out/agent",
+          "to": "agent"
         }
       ],
       "extendInfo": {
@@ -147,6 +153,10 @@
         {
           "from": "CHANGELOG.md",
           "to": "CHANGELOG.md"
+        },
+        {
+          "from": "out/agent",
+          "to": "agent"
         }
       ]
     },
@@ -174,11 +184,23 @@
         {
           "from": "CHANGELOG.md",
           "to": "CHANGELOG.md"
+        },
+        {
+          "from": "out/agent",
+          "to": "agent"
         }
       ]
     }
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "optionalDependencies": {
+    "opencode-darwin-arm64": "1.18.34",
+    "opencode-darwin-x64-baseline": "1.18.34",
+    "opencode-linux-arm64": "1.18.34",
+    "opencode-linux-x64-baseline": "1.18.34",
+    "opencode-windows-arm64": "1.18.34",
+    "opencode-windows-x64-baseline": "1.18.34"
   }
 }

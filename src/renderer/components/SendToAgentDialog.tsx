@@ -12,6 +12,7 @@ import { AgentHandoff } from './AgentHandoff'
 import { WorkOrderReview } from './WorkOrderReview'
 import { AgentDeliveryDestination, AgentDeliveryStatus, deliveryAction, useAgentDelivery } from './AgentDelivery'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
+import { AgentChatPanel } from './AgentChatPanel'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
@@ -28,6 +29,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // Which stage of work orders the thread shows; null is all of them.
   const [stage, setStage] = useState<WorkOrderStage | null>(null)
   const [mode, setMode] = useState<WorkOrderMode>('build')
+  const [capability, setCapability] = useState<'orders' | 'chat'>('orders')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -169,6 +171,16 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     <header className="ambio-inbox__header"><span className="ambio-inbox__brand"><InboxIcon name="agent" size={18} /></span><div className="ambio-inbox__heading"><h2>Agent inbox</h2><span title={graph.name}>{graph.name}</span></div>
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
+    <div className="ambio-inbox__capabilities" role="tablist" aria-label="Agent experience" onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')]
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+      buttons[next]?.focus(); buttons[next]?.click()
+    }}><button id="ambio-orders-tab" type="button" role="tab" aria-controls="ambio-agent-experience" tabIndex={capability === 'orders' ? 0 : -1} aria-selected={capability === 'orders'} onClick={() => setCapability('orders')}>Work orders</button><button id="ambio-chat-tab" type="button" role="tab" aria-controls="ambio-agent-experience" tabIndex={capability === 'chat' ? 0 : -1} aria-selected={capability === 'chat'} onClick={() => setCapability('chat')}>Chat in Ambio</button></div>
+    <div id="ambio-agent-experience" className="ambio-inbox__experience" role="tabpanel" aria-labelledby={capability === 'chat' ? 'ambio-chat-tab' : 'ambio-orders-tab'}>
+    {capability === 'chat' ? <AgentChatPanel key={graph.workspaceId} workspaceId={graph.workspaceId} selection={selection} sheetId={effectiveSheetId} onWorkOrders={() => setCapability('orders')} /> : <>
     {(error || sheet.error) && <div role="alert" className="ambio-inbox__error"><span>{error || sheet.error}</span><button type="button" onClick={() => { setError(null); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
     {sheet.messages.length > 0 && <div className="ambio-inbox__stages" role="group" aria-label="Show work orders">
       <button type="button" aria-pressed={stage === null} onClick={() => setStage(null)}>All <span>{sheet.messages.length}</span></button>
@@ -232,6 +244,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
         </div><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending ? 'Sending…' : 'Enter to send · Shift+Enter for new line'}</span><button className="ambio-inbox__send" type="submit" aria-label={deliveryAction(deliveryHost)} title={retry.current ? 'Retry original message' : deliveryAction(deliveryHost)} disabled={sending || !!delivery.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button></div>
       </form>
       {effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
+    </div>
+    </>}
     </div>
   </aside>
 }

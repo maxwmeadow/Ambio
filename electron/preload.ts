@@ -3,9 +3,22 @@ import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
 import type { DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
+import type { ChatProvider, ChatProviderInput, ChatConnectionTest, ChatConversation, ChatSnapshot, ChatSendInput } from '../src/shared/agentChat'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
+  chatProviders: (): Promise<ChatProvider[]> => ipcRenderer.invoke('chat:providers'),
+  saveChatProvider: (input: ChatProviderInput): Promise<ChatProvider> => ipcRenderer.invoke('chat:provider-save', input),
+  testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
+  removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
+  chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
+  createChat: (workspaceId: string, providerId: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId),
+  chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
+  cachedChat: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:cached', id),
+  sendChat: (input: ChatSendInput): Promise<void> => ipcRenderer.invoke('chat:send', input),
+  stopChat: (id: string): Promise<void> => ipcRenderer.invoke('chat:stop', id),
+  approveChat: (id: string, requestId: string, allow: boolean): Promise<void> => ipcRenderer.invoke('chat:approve', id, requestId, allow),
+  answerChat: (id: string, requestId: string, answers: string[][] | null): Promise<void> => ipcRenderer.invoke('chat:answer', id, requestId, answers),
   // Project management
   openProjectDialog: (): Promise<ProjectConfig | null> =>
     ipcRenderer.invoke('project:open-dialog'),
@@ -283,6 +296,18 @@ export type ArchdStatus =
 declare global {
   interface Window {
     ambio: {
+      chatProviders: () => Promise<ChatProvider[]>
+      saveChatProvider: (input: ChatProviderInput) => Promise<ChatProvider>
+      testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
+      removeChatProvider: (id: string) => Promise<void>
+      chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
+      createChat: (workspaceId: string, providerId: string) => Promise<ChatConversation>
+      chatSnapshot: (id: string) => Promise<ChatSnapshot>
+      cachedChat: (id: string) => Promise<ChatSnapshot>
+      sendChat: (input: ChatSendInput) => Promise<void>
+      stopChat: (id: string) => Promise<void>
+      approveChat: (id: string, requestId: string, allow: boolean) => Promise<void>
+      answerChat: (id: string, requestId: string, answers: string[][] | null) => Promise<void>
       openProjectDialog: () => Promise<ProjectConfig | null>
       openProject: (config: ProjectConfig) => Promise<ProjectConfig>
       chooseDirectory: () => Promise<string | null>

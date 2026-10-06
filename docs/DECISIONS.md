@@ -16,6 +16,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started · ❓ needs a decision
 
 | Date | Decision |
 |---|---|
+| 2026-10-06 | **Integrated chat is additive:** keep every external-agent connection and delivery route, and add Chat in Ambio beside Work orders. Begin with the pinned local OpenCode harness and API-key model services; provider login/subscriptions are a later authentication extension. The user configures inference on their own account. Keys stay in the main process behind a local credential proxy. Optional chat can send code/context to that provider; indexing stays local, so the earlier privacy promise is clarified in PRIVACY.md. |
 | 2026-09-29 | **Audience:** all software developers - hobbyists, professionals, students, teachers. Goals: GitHub stars and reputation now; paid **collaboration** features later. The local app must stand on its own as great software. |
 | 2026-09-29 | **Distribution:** GitHub Releases first. Ship macOS unsigned at first with clear instructions; buy the Apple Developer Program ($99/yr) before the public push. Apply to SignPath Foundation for free Windows signing. |
 | 2026-09-29 | **Telemetry:** local rotating logs + "Report a bug" / "Copy diagnostics" always; an unchecked, opt-in crash-report prompt on first run; **no usage analytics**. `PRIVACY.md` promises code, file names, paths and project names never leave the machine. |

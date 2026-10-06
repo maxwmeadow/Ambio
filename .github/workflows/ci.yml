@@ -82,6 +82,9 @@ jobs:
       - name: Test renderer, MCP, and Electron units
         run: npm run test:renderer
 
+      - name: Test integrated agent with the real harness
+        run: npm run test:chat
+
       # Vite strips types rather than checking them, so nothing in the build
       # would have caught a type error. One sat in main unnoticed until now.
       - name: Typecheck

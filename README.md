@@ -226,6 +226,31 @@ To build the daemon directly:
 npm run build:archd
 ```
 
+## Chat directly in Ambio
+
+Message Agent offers **Work orders** for your existing agents and **Chat in
+Ambio** for an integrated coding conversation. Every existing connection remains
+available.
+
+Configure a service in **Settings → Model services**, or use **Connect a model
+service** inside chat. Choose OpenAI, Anthropic, Google, or an OpenAI-compatible
+service, enter your API key, test the connection, and choose a model that supports
+tool calling. Local compatible services can use a loopback HTTP URL without a key.
+Use **Ask** for read-only discussion and **Build** to create an addressed work order
+with the selected canvas context and sheet. Review the result in Work orders;
+finishing a conversation turn does not mean architectural checks have passed.
+
+The local OpenCode harness is bundled with Ambio. Conversations resume after
+restarting; unfinished work is never silently resent. Actions needing permission
+and agent questions appear in the conversation, and Stop interrupts the turn.
+Provider calls use your account and may incur charges. A cloud model receives the
+messages and context its agent reads; see [Privacy](PRIVACY.md). Subscription
+sign-in is not part of this release. Keys use secure OS storage, or remain in
+memory only when a secure keychain is unavailable.
+
+The harness currently uses a conservative 32k-token context budget for configured
+models. Use a model supporting that context size and tool calling.
+
 ## Tests
 
 ```bash
@@ -240,6 +265,9 @@ npm run notices -- --check
 
 # MCP end-to-end tests
 npm run test:mcp
+
+# Integrated harness (controlled local model service; no paid API key needed)
+npm run test:chat
 
 # Electron and Playwright end-to-end tests
 npm run test:e2e

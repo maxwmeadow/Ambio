@@ -7,7 +7,36 @@ data flow or a limit named here, update it in the same change.
 
 ---
 
-## Processes
+## Integrated coding conversations
+
+Chat in Ambio is an additional destination in the message-agent surface; existing
+CLI/editor delivery remains intact. `electron/agentChat.ts` manages one authenticated
+loopback OpenCode server per project, persistent harness sessions, streamed text,
+tool activity, questions, approvals and cancellation. The pinned platform binary
+is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
+Provider setup is available in Settings → Model services and inside chat.
+
+`electron/chatProviders.ts` keeps provider metadata and OS-encrypted keys under
+`~/.ambio/chat`; without a secure keychain it keeps keys only in process memory.
+`chatProviderProxy.ts` injects those keys into outbound requests and redacts
+credential echoes across response chunks before the harness can persist them.
+The harness gets only a temporary local token and isolated configuration/cache/data directories;
+the renderer talks through typed preload IPC, never directly to a provider.
+
+Conversation/root/provider identity and redacted display history are persisted
+separately from archd work orders. Ask denies modifying tools and delegation.
+Build messages create normal addressed work orders with the current selection
+and sheet; the harness uses the existing workspace-bound MCP tools to claim,
+record progress, compare and reply. A completed model turn never marks a work
+order verified. Both delivery paths prevent overlapping managed runs in a root.
+Runtime receipts verify process creation time before stopping a recovered PID;
+restart reads history and does not resubmit a turn. Root relocation requires
+idle managed agents and invalidates the old conversation's root binding.
+
+`npm run test:chat` drives the actual bundled harness against a controlled model
+service and MCP server, including denied/allowed edits and restart recovery.
+`tests/e2e/agent-chat.spec.ts` covers provider setup, streamed follow-ups, history
+restoration and coexistence with the external-agent choices in Electron.
 
 ```
 Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, ...)
@@ -22,6 +51,9 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
             indexing, clustering, journal, delta, sheets, inbox,
             infra detection, runtime, per-project SQLite
 ```
+
+
+## Processes
 
 - **archd** listens only on loopback (API `7743`, WebSocket `7744`, runtime
   adapters `7745`), moving to free ports when those are taken and publishing
