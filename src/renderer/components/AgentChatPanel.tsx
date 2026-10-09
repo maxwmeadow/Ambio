@@ -41,20 +41,33 @@ export function AgentChatPanel({ workspaceId, selection, sheetId, onWorkOrders }
   useEffect(() => { let disposed = false; void Promise.all([window.ambio.chatProviders(), window.ambio.chatConversations(workspaceId)]).then(([services, threads]) => { if (disposed) return; setProviders(services); setConversations(threads); setProviderId(services[0]?.id ?? ''); if (active && !threads.some(item => item.id === active)) setActive('') }, fail); return () => { disposed = true } }, [workspaceId])
   useEffect(() => { try { localStorage.setItem(`ambio:chat-draft:${workspaceId}`, draft) } catch { /* draft remains in memory */ } }, [workspaceId, draft])
   useEffect(() => {
-    let disposed = false; let fetching = false
+    let disposed = false
     setSnapshot(null); setError('')
     try { localStorage.setItem(`ambio:chat-active:${workspaceId}`, active) } catch { /* in-memory selection still works */ }
     if (!active) return
-    void window.ambio.cachedChat(active).then(value => { if (!disposed) { setSnapshot(value); setMode(value.conversation.mode) } }, () => {})
+    // The saved copy is complete for a finished turn, so opening a conversation
+    // does not start its agent; the poll below takes over while a turn runs.
+    void window.ambio.cachedChat(active).then(value => { if (!disposed) { setSnapshot(value); setMode(value.conversation.mode) } }, fail)
+    return () => { disposed = true }
+  }, [active, workspaceId])
+  const running = !!turnRunning
+  useEffect(() => {
+    if (!active || !running) return
+    let disposed = false; let fetching = false
     const refresh = async () => {
       if (fetching) return; fetching = true
       try { const value = await window.ambio.chatSnapshot(active); if (!disposed) { setSnapshot(value); setConversations(items => items.map(item => item.id === active ? value.conversation : item)) } }
-      catch (failure) { if (!disposed) fail(failure) }
+      catch (failure) {
+        if (disposed) return
+        fail(failure)
+        // The agent may have exited; the saved state says whether to keep polling.
+        try { const value = await window.ambio.cachedChat(active); if (!disposed && !['working', 'waiting'].includes(value.conversation.state)) setSnapshot(value) } catch { /* keep the current history */ }
+      }
       finally { fetching = false }
     }
     void refresh(); const timer = setInterval(() => { void refresh() }, 1000)
     return () => { disposed = true; clearInterval(timer) }
-  }, [active, workspaceId])
+  }, [active, running])
   useEffect(() => { if (nearBottom.current) { history.current?.scrollTo({ top: history.current.scrollHeight }); setUnseen(false) } else setUnseen(true) }, [snapshot])
   const remember = (id: string) => { setActive(id); try { localStorage.setItem(`ambio:chat-active:${workspaceId}`, id) } catch { /* selection remains in memory */ } }
   const choose = (id: string) => { if (busy) return; nearBottom.current = true; remember(id) }
@@ -108,7 +121,7 @@ export function AgentChatPanel({ workspaceId, selection, sheetId, onWorkOrders }
         {snapshot?.questions.map(item => <QuestionCard key={item.id} item={item} conversationId={active} fail={fail} done={() => { void window.ambio.chatSnapshot(active).then(setSnapshot, fail) }} />)}
       </div>
       {unseen && <button className="ambio-chat__latest" type="button" onClick={() => { nearBottom.current = true; history.current?.scrollTo({ top: history.current.scrollHeight }); setUnseen(false) }}>Jump to latest ↓</button>}
-      {snapshot && <div className="ambio-chat__status" role="status"><span className={turnRunning ? 'ambio-chat__pulse' : ''} />{busy ? 'Sending…' : snapshot.conversation.state === 'waiting' ? 'Waiting for you' : snapshot.conversation.state === 'working' ? 'Working…' : snapshot.conversation.error ?? 'Ready for your next message'}{(turnRunning || snapshot.conversation.state === 'interrupted') && <button type="button" disabled={busy} onClick={() => { void window.ambio.stopChat(active).then(() => window.ambio.chatSnapshot(active)).then(setSnapshot, fail) }}>{turnRunning ? 'Stop' : 'Stop previous run'}</button>}</div>}
+      {snapshot && <div className="ambio-chat__status" role="status"><span className={turnRunning ? 'ambio-chat__pulse' : ''} />{busy ? 'Sending…' : snapshot.conversation.state === 'waiting' ? 'Waiting for you' : snapshot.conversation.state === 'working' ? 'Working…' : snapshot.conversation.error ?? 'Ready for your next message'}{(turnRunning || snapshot.conversation.state === 'interrupted') && <button type="button" disabled={busy} onClick={() => { void window.ambio.stopChat(active).then(() => turnRunning ? window.ambio.chatSnapshot(active) : window.ambio.cachedChat(active)).then(setSnapshot, fail) }}>{turnRunning ? 'Stop' : 'Stop previous run'}</button>}</div>}
       {snapshot?.conversation.workOrderId && <button type="button" className="ambio-chat__review" onClick={onWorkOrders}>Open work orders & review changes →</button>}
       <form className="ambio-chat__compose" onSubmit={submit}><div className="ambio-chat__compose-heading"><div role="radiogroup" aria-label="Conversation mode"><button type="button" role="radio" aria-checked={mode === 'ask'} disabled={busy || !!turnRunning} onClick={() => setMode('ask')}>Ask</button><button type="button" role="radio" aria-checked={mode === 'build'} disabled={busy || !!turnRunning} onClick={() => setMode('build')}>Build</button></div><span>{mode === 'ask' ? 'Read-only discussion' : 'Edits through a reviewable work order'}</span></div>
         {(selection.length > 0 || sheetId) && <label className="ambio-chat__context"><input type="checkbox" checked={attach} disabled={busy || !!turnRunning} onChange={event => setAttach(event.target.checked)} />Include {selection.length ? selection.map(ref => referenceTarget(ref).label).join(', ') : 'active sheet'}{sheetId && selection.length ? ' + active sheet' : ''}</label>}

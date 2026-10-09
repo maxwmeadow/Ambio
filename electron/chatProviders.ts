@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { ChatConnectionTest, ChatProvider, ChatProviderInput } from '../src/shared/agentChat.ts'
+import { CHAT_CONTEXT_WINDOW_MAX, CHAT_CONTEXT_WINDOW_MIN, type ChatConnectionTest, type ChatProvider, type ChatProviderInput } from '../src/shared/agentChat.ts'
 
 export interface KeyEncryption {
   available(): boolean
@@ -57,6 +57,7 @@ export class ChatProviders {
   }
   save(input: ChatProviderInput): ChatProvider {
     if (!input || !['openai', 'anthropic', 'google', 'compatible'].includes(input.kind) || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 100 || typeof input.model !== 'string' || !input.model.trim() || input.model.length > 256) throw new Error('Choose a service name, provider and model.')
+    if (input.contextWindow !== undefined && (!Number.isSafeInteger(input.contextWindow) || input.contextWindow < CHAT_CONTEXT_WINDOW_MIN || input.contextWindow > CHAT_CONTEXT_WINDOW_MAX)) throw new Error(`Enter a context window between ${CHAT_CONTEXT_WINDOW_MIN.toLocaleString('en-US')} and ${CHAT_CONTEXT_WINDOW_MAX.toLocaleString('en-US')} tokens, or leave it blank.`)
     const baseUrl = providerUrl(input.baseUrl)
     const id = input.id ?? randomUUID()
     const old = input.id ? this.get(id) : undefined
@@ -66,6 +67,7 @@ export class ChatProviders {
     const key = input.apiKey?.trim() || this.keys.get(id) || ''
     if (!key && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname)) throw new Error('Enter an API key for this service.')
     const stored: StoredProvider = { id, name: input.name.trim(), kind: input.kind, baseUrl, model: input.model.trim() }
+    if (input.contextWindow !== undefined) stored.contextWindow = input.contextWindow
     if (key && this.encryption.available()) stored.encryptedKey = this.encryption.encrypt(key).toString('base64')
     if (key) this.keys.set(id, key)
     this.providers = [...this.providers.filter(item => item.id !== id), stored]

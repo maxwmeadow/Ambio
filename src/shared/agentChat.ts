@@ -6,6 +6,8 @@ export interface ChatProvider {
   kind: ChatProviderKind
   baseUrl: string
   model: string
+  /** Tokens the model can hold; unset uses the provider default. */
+  contextWindow?: number
   hasKey: boolean
   persistentKey: boolean
 }
@@ -15,6 +17,7 @@ export interface ChatProviderInput {
   kind: ChatProviderKind
   baseUrl: string
   model: string
+  contextWindow?: number
   apiKey?: string
 }
 export interface ChatConnectionTest { models: string[]; detail: string }
@@ -52,9 +55,16 @@ export interface ChatSnapshot {
   questions: ChatQuestion[]
 }
 export interface ChatSendInput { conversationId: string; text: string; mode: ChatMode; workOrderId?: string }
-export const CHAT_PROVIDER_DEFAULTS: Record<ChatProviderKind, { name: string; baseUrl: string }> = {
-  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
-  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1' },
-  google: { name: 'Google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-  compatible: { name: 'OpenAI-compatible', baseUrl: '' },
+// contextWindow is a conservative figure for current models from each provider.
+// The harness compacts history against it, so too small a value trims early.
+export const CHAT_PROVIDER_DEFAULTS: Record<ChatProviderKind, { name: string; baseUrl: string; contextWindow: number }> = {
+  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', contextWindow: 128000 },
+  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', contextWindow: 200000 },
+  google: { name: 'Google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', contextWindow: 1000000 },
+  compatible: { name: 'OpenAI-compatible', baseUrl: '', contextWindow: 32000 },
+}
+export const CHAT_CONTEXT_WINDOW_MIN = 8000
+export const CHAT_CONTEXT_WINDOW_MAX = 10000000
+export function chatContextWindow(provider: Pick<ChatProvider, 'kind' | 'contextWindow'>): number {
+  return provider.contextWindow ?? CHAT_PROVIDER_DEFAULTS[provider.kind].contextWindow
 }

@@ -7,6 +7,7 @@ import test from 'node:test'
 import { ChatProviders, providerUrl } from './chatProviders.ts'
 import { ChatProviderProxy } from './chatProviderProxy.ts'
 import { chatAgentConfig, normalizeChatMessages } from './agentChat.ts'
+import { chatContextWindow } from '../src/shared/agentChat.ts'
 
 const secure = { available: () => true, encrypt: value => Buffer.from(`encrypted:${value}`), decrypt: value => value.toString().slice(10) }
 const ephemeral = { available: () => false, encrypt: () => { throw Error('Unavailable') }, decrypt: () => { throw Error('Unavailable') } }
@@ -76,6 +77,26 @@ test('Ask denies shell, edits, delegation and all unknown tools; Build requests 
   assert.equal(ask.bash, undefined); assert.equal(ask.edit, undefined); assert.equal(ask.task, undefined)
   const build = chatAgentConfig('build').permission
   assert.equal(build['*'], 'ask'); assert.equal(build.external_directory, 'deny'); assert.equal(build.task, 'deny')
+  assert.equal(build.ambio_reply_to_canvas, 'allow'); assert.equal(ask.ambio_reply_to_canvas, undefined)
+  assert.equal(build.ambio_edit_sheet, undefined); assert.equal(build.ambio_edit_systems, undefined)
+})
+
+test('every Ambio tool the chat agents pre-allow is one the MCP server advertises', () => {
+  // A misspelt permission silently falls back to '*', so check the names.
+  const source = fs.readFileSync(new URL('../mcp/ambio-mcp.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const core = source.slice(source.indexOf('const CORE_TOOLS = ['), source.indexOf('const DEBUG_PROFILE_TOOLS = ['))
+  const advertised = new Set([...core.matchAll(/^    name: '([^']+)',$/gm)].map(match => `ambio_${match[1]}`))
+  assert.ok(advertised.size > 0)
+  for (const mode of ['ask', 'build']) for (const name of Object.keys(chatAgentConfig(mode).permission).filter(key => key.startsWith('ambio_'))) assert.ok(advertised.has(name), `${mode}: ${name} is not an advertised tool`)
+})
+
+test('context windows default per provider and reject values the harness cannot use', t => {
+  const store = new ChatProviders(fixture(t), ephemeral)
+  assert.equal(chatContextWindow(store.save(input)), 128000)
+  assert.equal(chatContextWindow(store.save({ ...input, kind: 'compatible', baseUrl: 'http://127.0.0.1:1234/v1' })), 32000)
+  const custom = store.save({ ...input, contextWindow: 400000 })
+  assert.equal(custom.contextWindow, 400000); assert.equal(chatContextWindow(custom), 400000)
+  for (const contextWindow of [0, 100, 1.5, 1e9]) assert.throws(() => store.save({ ...input, contextWindow }), /context window/)
 })
 
 test('message normalization renders text and tool activity while excluding hidden reasoning and synthetic context', () => {

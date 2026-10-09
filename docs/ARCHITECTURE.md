@@ -33,6 +33,17 @@ Runtime receipts verify process creation time before stopping a recovered PID;
 restart reads history and does not resubmit a turn. Root relocation requires
 idle managed agents and invalidates the old conversation's root binding.
 
+The panel shows the saved history when a conversation opens and polls the
+harness only while a turn is working or waiting, so an idle conversation never
+starts OpenCode. A one-second monitor in the main process keeps running turns
+current when no panel is watching, and skips any the panel just fetched;
+history and `conversations.json` are rewritten only when they change. Each
+model service has a context window (`chatContextWindow`, provider defaults in
+`CHAT_PROVIDER_DEFAULTS`) that the harness compacts against. Ask pre-allows
+Ambio's read-only MCP tools; Build also pre-allows the work-order protocol
+(`get_inbox`, `start_work`, `update_work`, `reply_to_canvas`) and asks for
+everything else that changes code or the map.
+
 `npm run test:chat` drives the actual bundled harness against a controlled model
 service and MCP server, including denied/allowed edits and restart recovery.
 `tests/e2e/agent-chat.spec.ts` covers provider setup, streamed follow-ups, history
