@@ -12,6 +12,9 @@ import { ChatProviderProxy } from './chatProviderProxy.ts'
 type Json = Record<string, any>
 const MONITOR_INTERVAL = 1000
 const STALL_AFTER = 30000
+// OpenCode caps a response at 32k whatever the model allows; a lower limit
+// cuts off long file writes in Build.
+const CHAT_OUTPUT_TOKENS = 32000
 interface Runtime { process: ChildProcess; url: string; authorization: string; workspaceId: string; fingerprint: string; events: AbortController; liveText: Map<string, { sessionID: string; messageID: string; text: string }> }
 interface RuntimeReceipt { pid: number; stamp: string | null; rootPath: string; binary: string }
 
@@ -170,7 +173,7 @@ export class AgentChat {
     const provider: Json = {}
     for (const profile of this.options.providers.list()) {
       const id = `ambio-${profile.id}`
-      provider[id] = { name: profile.name, npm: profile.kind === 'anthropic' ? '@ai-sdk/anthropic' : profile.kind === 'google' ? '@ai-sdk/google' : profile.kind === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible', options: { apiKey: this.options.proxy.token, baseURL: `${origin}/${profile.id}` }, models: { [profile.model]: { name: profile.model, limit: { context: chatContextWindow(profile), output: 8192 } } } }
+      provider[id] = { name: profile.name, npm: profile.kind === 'anthropic' ? '@ai-sdk/anthropic' : profile.kind === 'google' ? '@ai-sdk/google' : profile.kind === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible', options: { apiKey: this.options.proxy.token, baseURL: `${origin}/${profile.id}` }, models: { [profile.model]: { name: profile.model, limit: { context: chatContextWindow(profile), output: CHAT_OUTPUT_TOKENS } } } }
     }
     const config = {
       share: 'disabled', autoupdate: false, enabled_providers: Object.keys(provider), provider,

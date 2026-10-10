@@ -55,13 +55,14 @@ export interface ChatSnapshot {
   questions: ChatQuestion[]
 }
 export interface ChatSendInput { conversationId: string; text: string; mode: ChatMode; workOrderId?: string }
-// contextWindow is a conservative figure for current models from each provider.
-// The harness compacts history against it, so too small a value trims early.
+// The harness compacts history against contextWindow, so too small a value
+// trims early. Hosted models take 1M; compatible services are often local
+// servers configured for less, so they start lower and can be raised.
 export const CHAT_PROVIDER_DEFAULTS: Record<ChatProviderKind, { name: string; baseUrl: string; contextWindow: number }> = {
-  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', contextWindow: 128000 },
-  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', contextWindow: 200000 },
+  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', contextWindow: 1000000 },
+  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', contextWindow: 1000000 },
   google: { name: 'Google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', contextWindow: 1000000 },
-  compatible: { name: 'OpenAI-compatible', baseUrl: '', contextWindow: 32000 },
+  compatible: { name: 'OpenAI-compatible', baseUrl: '', contextWindow: 128000 },
 }
 export const CHAT_CONTEXT_WINDOW_MIN = 8000
 export const CHAT_CONTEXT_WINDOW_MAX = 10000000

@@ -92,8 +92,8 @@ test('every Ambio tool the chat agents pre-allow is one the MCP server advertise
 
 test('context windows default per provider and reject values the harness cannot use', t => {
   const store = new ChatProviders(fixture(t), ephemeral)
-  assert.equal(chatContextWindow(store.save(input)), 128000)
-  assert.equal(chatContextWindow(store.save({ ...input, kind: 'compatible', baseUrl: 'http://127.0.0.1:1234/v1' })), 32000)
+  assert.equal(chatContextWindow(store.save(input)), 1000000)
+  assert.equal(chatContextWindow(store.save({ ...input, kind: 'compatible', baseUrl: 'http://127.0.0.1:1234/v1' })), 128000)
   const custom = store.save({ ...input, contextWindow: 400000 })
   assert.equal(custom.contextWindow, 400000); assert.equal(chatContextWindow(custom), 400000)
   for (const contextWindow of [0, 100, 1.5, 1e9]) assert.throws(() => store.save({ ...input, contextWindow }), /context window/)
