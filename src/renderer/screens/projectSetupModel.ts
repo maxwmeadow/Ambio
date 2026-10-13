@@ -155,3 +155,4 @@ export function formatExploredScopeSummary(counts: ExploredScopeCounts): {
 
   return { headline, subtext }
 }
+

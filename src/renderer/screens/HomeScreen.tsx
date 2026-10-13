@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
@@ -269,6 +270,7 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
             <div className="axiom-launcher__recent">
               <div className="axiom-launcher__section-label">
                 <span>RECENTLY OPENED</span>
+                <small>{recentProjects.slice(0, 6).length} PROJECTS</small>
                 <small>{filteredProjects.length} OF {recentProjects.length} PROJECTS</small>
               </div>
 
@@ -309,6 +311,37 @@ export function HomeScreen({ onOpenProject, onOpenDialog, onCreateProject }: Hom
               {removeError && (
                 <div className="axiom-launcher__remove-error" role="alert">{removeError}</div>
               )}
+              <ul>
+                {recentProjects.slice(0, 6).map(project => (
+                  <li key={project.id}>
+                    <button
+                      className="axiom-launcher__recent-open"
+                      onClick={() => onOpenProject(project)}
+                      aria-label={`Open ${project.name}`}
+                    >
+                      <span className="axiom-launcher__project-index" aria-hidden="true">◆</span>
+                      <span className="axiom-launcher__project-copy">
+                        <strong>{project.name}</strong>
+                        <small title={project.rootPath}>{project.rootPath}</small>
+                        <ProjectDeckSignals status={deckStatus[project.id]} />
+                      </span>
+                      <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
+                    </button>
+                    <button
+                      className="axiom-launcher__recent-remove"
+                      onClick={() => {
+                        setRemoveError(null)
+                        setProjectToDelete(project)
+                      }}
+                      disabled={removingProjectId !== null}
+                      aria-label={`Remove ${project.name} from recent projects`}
+                      title="Remove from recents and delete the cached index"
+                    >
+                      {removingProjectId === project.id ? '…' : '×'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
 
               {filteredProjects.length === 0 ? (
                 <div className="axiom-launcher__empty-search" role="status">
