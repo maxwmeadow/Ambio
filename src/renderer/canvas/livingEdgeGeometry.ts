@@ -58,6 +58,14 @@ export function absoluteLivingNodeRect(
   nodes: readonly Node[],
 ): LivingRect | null {
   const byId = new Map(nodes.map(node => [node.id, node]))
+  return indexedLivingNodeRect(nodeId, byId)
+}
+
+/** Reuse a scene index when resolving many flow endpoints in one projection. */
+export function indexedLivingNodeRect(
+  nodeId: string,
+  byId: ReadonlyMap<string, Node>,
+): LivingRect | null {
   const origin = byId.get(nodeId)
   if (!origin) return null
 

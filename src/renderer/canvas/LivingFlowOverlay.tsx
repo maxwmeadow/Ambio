@@ -3,7 +3,7 @@ import {
   getSmoothStepPath,
   Position,
   ViewportPortal,
-  useViewport,
+  useStore,
   type Node,
 } from '@xyflow/react'
 
@@ -13,7 +13,7 @@ import {
   relationshipVisual,
 } from './livingChoreography.ts'
 import {
-  absoluteLivingNodeRect,
+  indexedLivingNodeRect,
   chooseClosestLivingBoundaryAnchors,
   livingPulseGeometry,
   type LivingAnchorSide,
@@ -47,28 +47,36 @@ const positionBySide: Record<LivingAnchorSide, Position> = {
  */
 export function LivingFlowOverlay({
   events,
+  ...props
+}: LivingFlowOverlayProps) {
+  if (events.length === 0) return null
+  return <ActiveLivingFlowOverlay events={events} {...props} />
+}
+
+function ActiveLivingFlowOverlay({
+  events,
   nodes,
   visibilityOptions,
 }: LivingFlowOverlayProps) {
-  const { zoom } = useViewport()
-  const flows = React.useMemo(() => {
+  const zoom = useStore(state => state.transform[2])
+  const routes = React.useMemo(() => {
     const visibility = livingVisibilityIndex(nodes, visibilityOptions)
-    const nodeIds = new Set(nodes.map(node => node.id))
+    const byId = new Map(nodes.map(node => [node.id, node]))
     return events.flatMap(event => {
       const causal = livingFlowEndpoints(event)
       // Hidden endpoints still have authored geometry and must remain the real
       // flow destinations. Fall back to a visible ancestor only when a sheet
       // projection genuinely omitted the endpoint.
-      const sourceId = nodeIds.has(causal.source)
+      const sourceId = byId.has(causal.source)
         ? causal.source
         : visibility.visibleNodeId(causal.source)
-      const targetId = nodeIds.has(causal.target)
+      const targetId = byId.has(causal.target)
         ? causal.target
         : visibility.visibleNodeId(causal.target)
       if (!sourceId || !targetId || sourceId === targetId) return []
 
-      const sourceRect = absoluteLivingNodeRect(sourceId, nodes)
-      const targetRect = absoluteLivingNodeRect(targetId, nodes)
+      const sourceRect = indexedLivingNodeRect(sourceId, byId)
+      const targetRect = indexedLivingNodeRect(targetId, byId)
       if (!sourceRect || !targetRect) return []
 
       const anchors = chooseClosestLivingBoundaryAnchors(sourceRect, targetRect)
@@ -84,18 +92,23 @@ export function LivingFlowOverlay({
         borderRadius: 14,
         offset: 18,
       })
-      const pulse = livingPulseGeometry(source, target, zoom)
 
       return [{
         event,
         path,
-        pulse,
+        source,
+        target,
         color: relationshipVisual(event).color,
         sourceId,
         targetId,
       }]
     })
-  }, [events, nodes, visibilityOptions, zoom])
+  }, [events, nodes, visibilityOptions])
+  // Camera zoom changes pulse size, not the world-space route or its ancestry.
+  const flows = React.useMemo(() => routes.map(route => ({
+    ...route,
+    pulse: livingPulseGeometry(route.source, route.target, zoom),
+  })), [routes, zoom])
 
   if (flows.length === 0) return null
 

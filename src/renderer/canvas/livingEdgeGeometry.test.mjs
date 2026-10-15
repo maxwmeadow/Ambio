@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   absoluteLivingNodeRect,
+  indexedLivingNodeRect,
   chooseClosestLivingBoundaryAnchors,
   chooseLivingAnchorPair,
   livingAnchorPoint,
@@ -59,6 +60,9 @@ test('living geometry resolves nested world positions without renderer measureme
     width: 88,
     height: 44,
   })
+  const index = new Map(nodes.map(node => [node.id, node]))
+  assert.deepEqual(indexedLivingNodeRect('file', index), { x: 352, y: 188, width: 88, height: 44 })
+  assert.equal(indexedLivingNodeRect('missing', index), null)
 })
 
 test('living anchor points land on the exact selected face', () => {
