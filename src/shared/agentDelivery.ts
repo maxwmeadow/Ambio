@@ -89,6 +89,8 @@ export const CHAT_DELIVERY = '@chat'
  * picker; which ones have been tested is recorded in docs/INBOX_PROTOCOL.md.
  */
 export interface DestinationGuide {
+  /** What has to be true on this computer before it works. */
+  need: string[]
   how: string[]
   can: string[]
 }
@@ -100,6 +102,7 @@ const STARTED = (name: string, extra = 'It remembers the conversation from one m
 ]
 
 const PASTED = (name: string): DestinationGuide => ({
+  need: [`Ambio added to ${name} once, from Settings \u2192 Agents.`, `${name} open while you work.`],
   how: [
     `Send, then paste the copied handoff into a chat in ${name}.`,
     'That chat stays connected: your next messages here go to it without pasting again.',
@@ -114,6 +117,7 @@ const PASTED = (name: string): DestinationGuide => ({
 
 export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   [CHAT_DELIVERY]: {
+    need: ['A model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],
     how: [
       'Add a model service once, with your own API key, in Settings → Model services.',
       'Choose Ambio chat and send. The reply streams in here.',
@@ -126,6 +130,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'claude-code': {
+    need: ['Claude Code installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Claude Code'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -134,6 +139,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   codex: {
+    need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Codex'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -142,6 +148,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'copilot-cli': {
+    need: ['GitHub Copilot CLI installed on this computer and signed in to GitHub. Nothing needs to be open.'],
     how: STARTED('Copilot CLI'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -150,6 +157,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'antigravity-cli': {
+    need: ['Antigravity installed and signed in.', 'Ambio added to Antigravity once, from Settings \u2192 Agents. That is what lets its CLI use Ambio\u2019s tools.'],
     how: STARTED('Antigravity CLI', 'Ambio passes along what was said earlier.'),
     can: [
       'Ask and Propose: answers questions and draws plans on your map.',
@@ -157,6 +165,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'cursor-cli': {
+    need: ['Cursor\u2019s CLI installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Cursor CLI'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -164,6 +173,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'devin-cli': {
+    need: ['Windsurf\u2019s CLI installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Windsurf CLI'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -172,6 +182,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'antigravity-acp': {
+    need: ['Antigravity installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Antigravity'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -180,6 +191,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   copilot: {
+    need: ['VS Code with GitHub Copilot, and Ambio added to it once, from Settings \u2192 Agents.', 'VS Code open while you work.'],
     how: [
       'Send. VS Code opens with your message already in Copilot Chat; press send there.',
       'The first time, VS Code asks whether to open Ambio’s link. Allow it.',
@@ -192,6 +204,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   cursor: {
+    need: ['Ambio added to Cursor once, from Settings \u2192 Agents.', 'Cursor open while you work.'],
     how: [
       'Send. Cursor opens with your message already in its chat; press send there.',
       'That chat stays connected: your next messages here go straight to it.',
@@ -208,6 +221,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   jetbrains: PASTED('your JetBrains IDE'),
   zed: PASTED('Zed'),
   [WATCHING_DELIVERY]: {
+    need: ['An agent chat that has Ambio, open and told to watch Ambio.'],
     how: [
       'In any agent chat that has Ambio, say “watch Ambio”.',
       'Choose Session watching Ambio here and send. Your message lands in that chat.',
@@ -219,6 +233,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   [MANUAL_DELIVERY]: {
+    need: ['Any agent chat that has Ambio.'],
     how: [
       'Send saves your message to this conversation.',
       'Press Copy handoff on it and paste that into any agent chat that has Ambio.',
@@ -228,3 +243,33 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   },
 }
 
+export type ReadinessTone = 'ready' | 'attention' | 'blocked' | 'neutral'
+export interface DeliveryReadinessResult { tone: ReadinessTone; text: string; fix?: 'agents' }
+
+/**
+ * Whether the chosen agent can take a message right now, in that agent's own
+ * terms: a model service for Ambio chat, the CLI for one Ambio starts, Ambio
+ * added and a chat attached for one in another app. Connection details belong
+ * to Settings, not here.
+ */
+export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watchingHosts, chat }: {
+  hostId: string; hosts: DeliveryHost[]; installedIds: string[]; watchers: number; watchingHosts: string[]
+  chat?: { service: string; keyMissing: boolean }
+}): DeliveryReadinessResult {
+  if (chat) return chat.keyMissing
+    ? { tone: 'blocked', text: `The API key for ${chat.service} is missing. Add it again in Settings \u2192 Agents.`, fix: 'agents' }
+    : { tone: 'ready', text: `Runs inside Ambio with ${chat.service}. Nothing else needs to be open.` }
+  if (hostId === WATCHING_DELIVERY) return watchers > 0
+    ? { tone: 'ready', text: `${watchers === 1 ? 'A chat is' : `${watchers} chats are`} watching Ambio and will get your message.` }
+    : { tone: 'attention', text: 'No chat is watching Ambio right now. In your agent chat, say \u201cwatch Ambio\u201d.' }
+  const host = hosts.find(item => item.id === hostId)
+  if (!host) return { tone: 'neutral', text: 'Send saves your message. Copy its handoff into any agent chat that has Ambio.' }
+  if (host.route === 'run') return host.available
+    ? { tone: 'ready', text: `Ambio starts ${host.label} in this project when you send. Nothing else needs to be open.` }
+    : { tone: 'blocked', text: `${host.label} was not found on this computer.`, fix: 'agents' }
+  if (watchingHosts.includes(host.id)) return { tone: 'ready', text: `Your ${host.label} chat is attached. Messages go straight to it.` }
+  if (!installedIds.includes(host.id)) return { tone: 'blocked', text: `Ambio has not been added to ${host.label} yet.`, fix: 'agents' }
+  return { tone: 'attention', text: host.route === 'open'
+    ? `Send opens ${host.label} with your message. That chat then stays attached.`
+    : `Send copies a handoff to paste into ${host.label}. That chat then stays attached.` }
+}

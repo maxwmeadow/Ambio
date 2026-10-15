@@ -134,13 +134,12 @@
 .ambio-inbox .ambio-inbox__latest { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); border: 1px solid #627d6b; background: linear-gradient(#f8f7ef, #dbe4d8); padding: 5px 10px; color: #31584e; box-shadow: 2px 2px 0 #243d2c3b; font: 700 9px var(--font-mono, monospace); text-transform: uppercase; white-space: nowrap; }
 .ambio-inbox__bottom { position: relative; flex: none; padding: 12px 12px 12px; background: linear-gradient(#dcdcd4, #d5d8cf); border-top: 1px solid #8a9990; box-shadow: inset 0 1px #f9f7ed; }
 .ambio-inbox__handoff { margin: 0 0 10px; border: 1px solid #aab7aa; background: #e7e9e0; box-shadow: inset 1px 1px #f7f7ef; color: #3d584c; }
-.ambio-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 2px 8px; font: 9px var(--font-mono, monospace); }
-.ambio-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 3px 8px; font: 11px/1.4 var(--font-ui, sans-serif); }
+.ambio-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .ambio-inbox__signal { width: 6px; height: 6px; flex: none; border: 1px solid #8b9b8b; background: #aeb8a9; }
-.ambio-inbox__signal--live { border-color: #316f56; background: #5ca877; }
-.ambio-inbox__signal--online { border-color: #8d753c; background: #d1b56a; }
-.ambio-inbox__signal--configured { border-color: #8d753c; background: #d1b56a; }
-.ambio-inbox__signal--repair, .ambio-inbox__signal--unconfigured { border-color: #9c6b4e; background: #cf9275; }
+.ambio-inbox__signal--ready { border-color: #316f56; background: #5ca877; }
+.ambio-inbox__signal--attention { border-color: #8d753c; background: #d1b56a; }
+.ambio-inbox__signal--blocked { border-color: #9c6b4e; background: #cf9275; }
 .ambio-inbox .ambio-inbox__handoff-status button { flex: none; color: #326a5c; text-decoration: underline; text-underline-offset: 2px; font: 700 9px var(--font-mono, monospace); }
 .ambio-inbox__compose { display: flex; flex-direction: column; overflow: visible; box-sizing: border-box; padding: 0; gap: 0; background: #f4f2eb; border: 1px solid #72847a; box-shadow: inset 1px 1px #fff, inset -1px -1px #c4ccc2, 2px 2px 0 #263d2d24; }
 .ambio-inbox__compose:focus-within { border-color: #377369; box-shadow: inset 1px 1px #fff, 0 0 0 1px #4b8b7a; }

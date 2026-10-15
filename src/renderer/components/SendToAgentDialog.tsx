@@ -8,11 +8,10 @@ import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
-import { AgentHandoff } from './AgentHandoff'
 import { usePresence } from './ui/usePresence'
 import { WorkOrderReview } from './WorkOrderReview'
-import { AgentDeliveryDestination, AgentDeliveryStatus, deliveryAction, useAgentDelivery } from './AgentDelivery'
-import { CHAT_DELIVERY, WATCHING_DELIVERY } from '../../shared/agentDelivery'
+import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, useAgentDelivery } from './AgentDelivery'
+import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness } from '../../shared/agentDelivery'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
@@ -258,7 +257,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
     <div className="ambio-inbox__bottom">
-      {!toChat && <AgentHandoff workspaceId={graph.workspaceId} projectRoot={graph.rootPath} onManageConnections={onManageConnections} />}
+      <DeliveryReadiness onFix={onManageConnections} readiness={deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
+        chat: toChat ? { service: chatProvider?.name ?? 'this service', keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined })} />
       {effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="ambio-inbox__compose" onSubmit={submit}>
         <AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy} rootPath={graph.rootPath} onManageConnections={onManageConnections}

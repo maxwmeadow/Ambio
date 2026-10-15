@@ -60,8 +60,30 @@ test('every destination the picker can show explains how to use it', async () =>
   const { DESTINATION_GUIDE } = await import('../src/shared/agentDelivery.ts')
   const { buildHosts } = await import('./agentInstallers.ts')
   for (const id of [...buildHosts().map(host => host.id), 'cursor-cli', 'devin-cli', 'antigravity-acp', 'antigravity-cli', '@watching', '']) {
-    assert.ok(DESTINATION_GUIDE[id]?.how.length && DESTINATION_GUIDE[id].can.length, `no guide for ${id || 'manual'}`)
+    assert.ok(DESTINATION_GUIDE[id]?.how.length && DESTINATION_GUIDE[id].can.length && DESTINATION_GUIDE[id].need.length, `no guide for ${id || 'manual'}`)
   }
+})
+
+test('readiness is said in each kind of agent’s own terms', async () => {
+  const { deliveryReadiness, WATCHING_DELIVERY } = await import('../src/shared/agentDelivery.ts')
+  const hosts = [
+    { id: 'claude-code', label: 'Claude Code', route: 'run', available: true, detail: '' },
+    { id: 'codex', label: 'Codex', route: 'run', available: false, detail: '' },
+    { id: 'copilot', label: 'VS Code', route: 'open', available: true, detail: '' },
+  ]
+  const ready = (hostId, extra = {}) => deliveryReadiness({ hostId, hosts, installedIds: [], watchers: 0, watchingHosts: [], ...extra })
+  // A started agent needs nothing open, and no MCP connection, to be ready.
+  assert.equal(ready('claude-code').tone, 'ready')
+  assert.deepEqual([ready('codex').tone, ready('codex').fix], ['blocked', 'agents'])
+  // An agent in another app needs Ambio added, then reads as ready once attached.
+  assert.equal(ready('copilot').tone, 'blocked')
+  assert.equal(ready('copilot', { installedIds: ['copilot'] }).tone, 'attention')
+  assert.equal(ready('copilot', { installedIds: ['copilot'], watchingHosts: ['copilot'] }).tone, 'ready')
+  assert.equal(ready(WATCHING_DELIVERY).tone, 'attention')
+  assert.equal(ready(WATCHING_DELIVERY, { watchers: 2 }).tone, 'ready')
+  assert.equal(ready('', { chat: { service: 'OpenAI', keyMissing: false } }).tone, 'ready')
+  assert.equal(ready('', { chat: { service: 'OpenAI', keyMissing: true } }).fix, 'agents')
+  for (const result of [ready('claude-code'), ready('copilot'), ready('', { chat: { service: 'OpenAI', keyMissing: false } })]) assert.doesNotMatch(result.text, /MCP/)
 })
 
 test('a later turn continues the host session where the host can, and names a new one where it lets Ambio', () => {

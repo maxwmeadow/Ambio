@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, type DeliveryReadinessResult, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
@@ -130,9 +130,10 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   const name = fixed?.label ?? (chat ? chatServices?.find(service => `${CHAT_DELIVERY}:${service.id}` === hostId)?.label ?? 'Ambio chat'
     : hostId === WATCHING_DELIVERY ? 'Session watching Ambio' : host?.label ?? 'Copy the handoff myself')
   // A host with a session watching gets the message in that session.
-  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
-  const connected = hosts.filter(item => installedIds.includes(item.id))
-  const others = hosts.filter(item => !installedIds.includes(item.id))
+  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{watchingHosts.includes(item.id) ? ' · attached' : item.route !== 'run' && !installedIds.includes(item.id) ? ' · Ambio not added' : ''}</option>
+  const started = hosts.filter(item => item.route === 'run' && item.available)
+  const inApps = hosts.filter(item => item.route !== 'run')
+  const missing = hosts.filter(item => item.route === 'run' && !item.available)
   // What sending does is on the send button; the fine print waits on hover.
   const about = chat ? 'Ambio’s own agent, using your model service. Replies stream into this conversation.' : [
     watching
@@ -152,8 +153,9 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
         {chatServices.length ? chatServices.map(service => <option key={service.id} value={`${CHAT_DELIVERY}:${service.id}`}>{service.label}</option>)
           : <option value={CHAT_DELIVERY}>Ambio chat · set up a model service…</option>}
       </optgroup>}
-      {connected.length > 0 && <optgroup label="Connected to Ambio">{connected.map(option)}</optgroup>}
-      {others.length > 0 && <optgroup label="Not set up with Ambio">{others.map(option)}</optgroup>}
+      {started.length > 0 && <optgroup label="Ambio runs it for you">{started.map(option)}</optgroup>}
+      {inApps.length > 0 && <optgroup label="Opens in your app">{inApps.map(option)}</optgroup>}
+      {missing.length > 0 && <optgroup label="Not found on this computer">{missing.map(option)}</optgroup>}
       {/* A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice. */}
       {(watchers > 0 || hostId === WATCHING_DELIVERY) && <option value={WATCHING_DELIVERY}>{watchers > 0 ? `Session watching Ambio${watchers > 1 ? ` (${watchers})` : ''}` : 'Session watching Ambio · none right now'}</option>}
       <option value="">Copy the handoff myself</option>
@@ -165,9 +167,18 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
     <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select" className="ambio-inbox__delivery-title">{fixed ? 'Agent' : 'Deliver to'}</label>
       <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} /></div>
     {picker('Work-order destination', 'ambio-delivery-select')}
-    {!fixed && connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
     {introduce && <DestinationIntroduction name={name} guideId={guideId} picker={picker('Agent to read about')} onConfirm={() => setSeen(markGuideSeen(guideId))} />}
   </div>
+}
+
+/** The chosen agent's readiness, one line above the picker. */
+export function DeliveryReadiness({ readiness, onFix }: { readiness: DeliveryReadinessResult; onFix?: () => void }) {
+  return <section className="ambio-inbox__handoff" aria-label="Agent readiness">
+    <div className="ambio-inbox__handoff-status"><span className={`ambio-inbox__signal ambio-inbox__signal--${readiness.tone}`} />
+      <span title={readiness.text}>{readiness.text}</span>
+      {readiness.fix && onFix && <button type="button" onClick={onFix}>Agents</button>}
+    </div>
+  </section>
 }
 
 /** Which agents' guides this user has confirmed, on this machine. */
@@ -186,6 +197,7 @@ function DestinationGuideBody({ guideId }: { guideId: string }) {
   const guide = DESTINATION_GUIDE[guideId]
   if (!guide) return null
   return <div className="ambio-guide__body">
+    <section><h3>What you need</h3><ul>{guide.need.map(item => <li key={item}><span aria-hidden="true"><InboxIcon name="plus" size={11} /></span>{item}</li>)}</ul></section>
     <section><h3>How it works</h3><ol>{guide.how.map((step, index) => <li key={step}><span aria-hidden="true">{index + 1}</span>{step}</li>)}</ol></section>
     <section><h3>What it can do</h3><ul>{guide.can.map(item => <li key={item}><span aria-hidden="true"><InboxIcon name="check" size={12} /></span>{item}</li>)}</ul></section>
   </div>
