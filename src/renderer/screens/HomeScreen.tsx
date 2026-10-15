@@ -359,7 +359,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
 
   return (
     <main className="ambio-launcher">
-      <WorkbenchTitleBar className="ambio-launcher__titlebar" context="Project Navigator" status="READY" />
+      <WorkbenchTitleBar className="ambio-launcher__titlebar" status="READY" />
 
       <div className="ambio-launcher__body">
         <section className="ambio-launcher__introduction" aria-labelledby="ambio-launcher-title">

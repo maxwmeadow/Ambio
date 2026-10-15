@@ -216,6 +216,19 @@ and validation limits are in [testing/AGENTS_DRAW_FIRST.md](testing/AGENTS_DRAW_
 
 ## Renderer
 
+The Floor and proposed-architecture review share `canvas/AmbioCanvas.tsx`.
+Camera updates change the viewport without rebuilding the layout. Review nodes
+are already fully visible, so camera movement does not restamp their controlled
+array. Review/bin selectors ignore live-only agent/runtime channels. Empty flow
+and trace overlays do not subscribe to the camera; active overlays subscribe to
+zoom and cache world-space routing separately from screen-size pulse/callout work.
+`canvas/canvasZoomChrome.ts` tracks mounted activity badges and writes camera
+scale only to those elements; the registered non-inheriting `--ambio-zoom`
+property avoids invalidating the full diagram's styles each frame. Each nested
+canvas owns its own badges and camera. Performance regressions are covered by
+`tests/e2e/canvas-performance.spec.ts`; measurements and limits are documented in
+[testing/CANVAS_PERFORMANCE.md](testing/CANVAS_PERFORMANCE.md).
+
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is
 work item `split-ambio-canvas`). Semantic zoom reveals contents by on-screen
@@ -223,6 +236,13 @@ size; layout is deterministic frame packing that never moves persisted
 geometry. One command model (`src/shared/appMenu.ts`) drives menus, the
 palette, shortcuts and right-click menus. The renderer is sandboxed under a
 strict CSP; privileged work goes through `electron/preload.ts`.
+
+Global Settings (`app/GlobalCommands.tsx`, `styles/appChrome.css`) uses an
+860 × 640 px frame capped to the viewport with 24 px margins. Sections share
+one scrollable content panel, while the header and navigation stay in place;
+switching sections resets the panel scroll. At viewport widths of 640 px or
+less the section navigation wraps above the content. Shared screen title bars
+and the canvas title strip contain branding, menus, status and window controls.
 
 Finding things by name is one lookup for humans and agents: `⌘K`
 (`components/SearchBar.tsx`, results built in `canvas/searchResults.ts`)

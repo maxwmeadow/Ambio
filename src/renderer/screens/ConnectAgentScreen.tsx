@@ -353,7 +353,6 @@ export function ConnectAgentScreen({
     <div className="ambio-connect">
       <WorkbenchTitleBar
         className="ambio-connect__titlebar"
-        context={`${project.name} / Agent Setup`}
         status={indexing ? 'INDEXING' : 'AGENT SETUP'}
         statusTone={indexing ? 'busy' : 'ready'}
       />

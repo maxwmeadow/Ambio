@@ -8,7 +8,7 @@
 //  1. Opens (or creates) the SQLite graph database at <data>/ambio.db
 //  2. Starts an HTTP server on api-port (REST API + WebSocket on /ws)
 //  3. Reads JSON commands from stdin (sent by Electron main process via IPC pipe)
-//  4. On receiving an "open:project" command, indexes the root and watches for changes
+//  4. On POST /api/workspace, indexes the root and watches for changes
 package main
 
 import (

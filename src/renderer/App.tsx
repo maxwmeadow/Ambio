@@ -976,7 +976,6 @@ export default function App() {
           onSearch={() => setSearchOpen(true)}
           onCloseProject={closeProject}
           onManageAgentConnections={() => setAgentSetupOpen(true)}
-          projectName={currentProject.name}
           agentLogOpen={agentLogOpen}
           onToggleAgentLog={() => setAgentLogOpen(open => !open)}
         />

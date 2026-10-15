@@ -57,7 +57,6 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
   return (
     <main className="ambio-onboarding ambio-project-review">
       <WorkbenchTitleBar
-        context={`${project.name} / Architecture Review`}
         status={proposal ? describeProgress(progress).toUpperCase() : 'LOADING PROPOSAL'}
         statusTone={proposal ? (progress.settled ? 'ready' : 'busy') : 'busy'}
       />

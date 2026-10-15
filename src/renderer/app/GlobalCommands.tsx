@@ -356,7 +356,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="Settings" width={720} onClose={onClose} className="ambio-settings">
+    <Modal title="Settings" width={860} onClose={onClose} className="ambio-settings">
       <div className="ambio-settings__layout">
         <nav className="ambio-settings__nav" aria-label="Settings sections">
           {SECTIONS.map(item => (
@@ -372,7 +372,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
 
-        <div className="ambio-settings__panel" aria-busy={!loaded}>
+        <div key={section} className="ambio-settings__panel" aria-busy={!loaded}>
           {section === 'general' && (
             <>
               <Toggle

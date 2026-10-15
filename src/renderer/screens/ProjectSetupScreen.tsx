@@ -126,7 +126,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
 
   return (
     <main className="ambio-onboarding ambio-project-setup">
-      <WorkbenchTitleBar context={editing ? 'Project Settings' : 'Project Setup'} status={editing ? 'SETTINGS' : 'PRE-INDEX'} />
+      <WorkbenchTitleBar status={editing ? 'SETTINGS' : 'PRE-INDEX'} />
 
       <div className="ambio-source-setup">
         <header className="ambio-source-setup__header">

@@ -223,6 +223,13 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `windows-flow-animation-test-flake` **Live-flow E2E occasionally never records its CSS animation-start event on Windows; teardown can also leave LevelDB locked.** One combined final audit run stalled, while the earlier 14-check run and an isolated rerun of the same final build passed. Diagnose off-screen animation scheduling and bounded test-process shutdown before treating this as a canvas regression. `tests/e2e/canvas.spec.ts`. (2026-10-13)
+- ⬜ `large-review-canvas-mounting` **Large proposal review still hitches when viewport culling mounts/unmounts many detailed node subtrees.** A 756-node stress copy of a real 189-node proposal has p95 zoom frames around 92–108 ms after the camera/style fixes. Keeping every node mounted worsens typical frames; removing shadows does not solve it. Investigate buffered visibility/incremental mounts while preserving editing and silhouettes. See `docs/testing/CANVAS_PERFORMANCE.md`. (2026-10-13, Max's canvas performance audit)
+- ⬜ `canvas-zoom-index-and-diagnostics` **Secondary canvas costs:** semantic zoom sorts nodes and rebuilds ancestry maps per easing frame; pointer cursor diagnostics synchronously read hit stacks/styles during ordinary navigation. Profile larger live Floors before caching the ancestry/threshold index and making expensive pointer diagnostics opt-in. (2026-10-13, canvas performance audit)
+- ⬜ `windows-delve-live-timeout` **The live Delve Go tracing test times out at DAP launch on Windows and its fixture cleanup reports a locked directory.** Found in full daemon checks during startup-log cleanup; API/indexer/watcher tests and vet pass. Investigate debugger/toolchain compatibility and cleanup on launch failure. `archd-go/internal/runtime/delve_live_test.go:32`. (2026-10-13)
+- ⬜ `startup-reconcile-twice` **Avoid redundant startup reconciliation/detection when scope or snapshot reads lazily open a map just before POST /api/workspace.** The logged kohler startup ran infrastructure detection twice about two seconds apart. Preserve headless catch-up and newly submitted exclusions; `Server.keepWorkspaceLive`, `handleWorkspace`, `launchRootSync`. (2026-10-13, Max's startup log)
+- ⬜ `unused-stdin-bridges` **Electron still exposes unused `sendMutationIntent`/`saveNodePosition` preload bridges that send unsupported `mutation:intent`/`node:position` stdin commands.** No current renderer calls were found; audit consumers before retiring them. (2026-10-13, startup review)
+
 - Uninstalling Windsurf leaves the Devin Local skill (`<appData>/devin/skills/ambio-map`) behind: the installer writes it but `commandPath` names only the Windsurf one (`electron/agentInstallers.ts`, `agentUninstall.ts`).
 - Rename leftovers outside the repo: rename the GitHub repo to `maxwmeadow/Ambio` (links already point there), register `ambio.dev`, the npm name and a `.com`, check USPTO classes 9/42 and the `ambio` GitHub org.
 
@@ -243,6 +250,12 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 ---
 
 ## Done log
+
+- 2026-10-13 `canvas-performance-audit` Profiled real Floor/proposal data plus a 756-node stress scene; removed inherited camera-style invalidation, review zoom array churn, idle overlay subscriptions and unused live subscriptions in isolated scenes. Cached active route geometry across camera updates. Proposal style work fell about 85–90%; frame p95 improved to 25 ms in early/native Vite runs but a later final-build run reached 58 ms, so mounting/painting work remains. Added structural performance regressions and repaired the existing Windows canvas harness. See `docs/testing/CANVAS_PERFORMANCE.md`. (main)
+
+- 2026-10-13 `startup-log-cleanup` Removed obsolete `open:project` stdin dispatch; the renderer registers projects via REST. Build smoke checks use `-version` instead of leaking `-h` output; on-demand watcher logs identify API requests accurately. (main)
+
+- 2026-10-13 `settings-stable-frame` Settings uses one viewport-bounded frame for every section, with panel scrolling, fixed navigation/header and compact layouts. Removed redundant Architecture Workbench/view labels across all title bars. (main)
 
 - 2026-10-03 `name` `rename` `rename-mechanics` Axiom is now **Ambio** (DECISIONS §3): every mention in code, IDs (`com.ambio.app`, `ambio://`, `AMBIO_*`, the Go module `ambio.local/archd`), files and docs. Upgrades move `~/.axiom` to `~/.ambio` and old map files to the new names (`db/legacy_name.go`, Electron main, the MCP server), read legacy registry folders, and remove an agent's old `axiom` MCP entry and skills on install or uninstall (`removeLegacyServer`). (claude/gracious-gauss-1bgdv9)
 
