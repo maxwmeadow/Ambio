@@ -853,7 +853,7 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function setupIPC(): void {
-  // Open a project directory - returns config only; caller is responsible for sending to archd
+  // Open a project directory - returns config only; the renderer registers it via REST.
   ipcMain.handle('project:open-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openDirectory'],
@@ -874,7 +874,8 @@ function setupIPC(): void {
       join(DATA_DIR, 'active_project.json'),
       JSON.stringify({ workspaceId: currentConfig.id, name: currentConfig.name, rootPath: currentConfig.rootPath }, null, 2)
     )
-    sendToArchd({ type: 'open:project', payload: currentConfig })
+    // The renderer registers the workspace via POST /api/workspace. The Go
+    // daemon does not support the old open:project stdin command.
     activeProject = currentConfig
     // The OS recent list (macOS Recent Items, Windows recent documents).
     try { app.addRecentDocument(currentConfig.rootPath) } catch { /* not supported here */ }

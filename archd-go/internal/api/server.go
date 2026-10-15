@@ -321,7 +321,7 @@ func (s *Server) keepWorkspaceLive(workspaceID string, sqlDB *sql.DB) {
 	if watching || !stillOpen {
 		return
 	}
-	log.Printf("api: %s opened without the app; watching %s", workspaceID, live.Path)
+	log.Printf("api: %s opened on demand by an API request; watching %s", workspaceID, live.Path)
 	s.startWatcher(sqlDB, *live)
 	s.launchRootSync(sqlDB, *live, false)
 }
