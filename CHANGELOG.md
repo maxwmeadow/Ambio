@@ -7,7 +7,18 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+### Fixed
+- Smoother canvas zooming on the Floor and architecture proposal review: camera
+  changes no longer invalidate every node's styles or rebuild the review scene.
+  Idle overlays and background agent/runtime activity do less rendering work.
+- Startup no longer sends an obsolete project-open command to the daemon;
+  development builds no longer print daemon usage text after a successful build.
+- Settings keeps the same size across sections and scrolls content inside the
+  panel, with a compact layout for smaller windows.
+
 ### Changed
+- Removed the redundant Architecture Workbench and view labels from title bars
+  to give the app menus more space.
 - Axiom is now Ambio. Your maps, settings and agent connections move over
   automatically the first time you open it.
 
