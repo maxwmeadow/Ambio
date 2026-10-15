@@ -229,6 +229,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `e2e-full-run-flakes-windows` **Full Playwright runs on Windows fail one test intermittently, a different one each time; each passes on its own.** Seen 2026-10-15 across four full runs: `settings.spec.ts` "keeps its frame across sections" three times, `canvas.spec.ts` "Edit → Undo puts a moved system back" once (an 8s poll). Likely load or timing; find what each waits on. (2026-10-15)
+
 - ⬜ `agent-driver-live-validation` **Run the conversation drivers against the hosts not yet run for real.** `AMBIO_LIVE_CONVERSATION_HOST=<host> node --test mcp/e2e/conversation.live.mjs`. Passing: Claude Code, Codex, Copilot CLI, Antigravity CLI (questions; builds cannot run commands). Left: Cursor CLI, Devin CLI and Google's `agy_acp_server` (not installed), and confirming Cursor's chat link (VS Code's works: it fills the chat and waits for send). (2026-10-15, conversations)
 
 - ⬜ `windows-flow-animation-test-flake` **Live-flow E2E occasionally never records its CSS animation-start event on Windows; teardown can also leave LevelDB locked.** One combined final audit run stalled, while the earlier 14-check run and an isolated rerun of the same final build passed. Diagnose off-screen animation scheduling and bounded test-process shutdown before treating this as a canvas regression. `tests/e2e/canvas.spec.ts`. (2026-10-13)
