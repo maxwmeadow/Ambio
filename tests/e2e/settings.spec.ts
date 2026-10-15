@@ -41,7 +41,7 @@ test('settings keeps its frame across sections and expanded content', async () =
       const closeFrame = await close.boundingBox()
       expect(frame?.width).toBe(Math.min(860, viewport.width - 48))
       expect(frame?.height).toBe(Math.min(640, viewport.height - 48))
-      for (const section of ['Appearance', 'Agents', 'Privacy', 'Advanced', 'General']) {
+      for (const section of ['Appearance', 'Agents', 'Privacy & Data', 'Advanced', 'General']) {
         await nav.getByRole('button', { name: section, exact: true }).click()
         await expect(nav.getByRole('button', { name: section, exact: true })).toHaveAttribute('aria-current', 'page')
         expect(await dialog.boundingBox()).toEqual(frame)
