@@ -1,0 +1,383 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
+const contour = 'M17 108 48 31Q52 20 62 20V40L49 74Q56 68 64 68Q72 68 79 74L66 40V20Q76 20 80 31L111 108H89L85 96Q80 83 64 83Q48 83 43 96L39 108Z';
+const markInline = (fill = 'currentColor', height = 48) => `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" style="height:${height}px;width:auto;vertical-align:baseline;display:inline-block;overflow:visible;" role="img" aria-label="A">
+  <path fill="${fill}" d="${contour}"/>
+</svg>
+`;
+
+const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ambio — Integrated 'A' Wordmark Exploration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Space+Grotesk:wght@600;700&family=Syne:wght@700&display=swap" rel="stylesheet">
+  <style>
+    @font-face {
+      font-family: 'Plex';
+      src: url('../../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2');
+      font-weight: 500;
+    }
+    @font-face {
+      font-family: 'Plex';
+      src: url('../../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2');
+      font-weight: 600;
+    }
+    @font-face {
+      font-family: 'Plex';
+      src: url('../../../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-700-normal.woff2');
+      font-weight: 700;
+    }
+    @font-face {
+      font-family: 'JetBrains';
+      src: url('../../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2');
+      font-weight: 600;
+    }
+
+    :root {
+      --teal: #244b45;
+      --ivory: #f5f3ed;
+      --parchment: #e8ebe3;
+      --border: #ccd4ca;
+      --muted: #62736a;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ivory);
+      color: var(--teal);
+      font-family: 'Plex', sans-serif;
+      padding: 40px 48px;
+    }
+
+    .header-block {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 36px;
+    }
+    .header-block h1 {
+      font-size: 32px;
+      font-weight: 500;
+      letter-spacing: -0.8px;
+      margin: 0 0 8px;
+    }
+    .header-block p {
+      color: var(--muted);
+      font-size: 15px;
+      margin: 0;
+      max-width: 840px;
+    }
+
+    .section {
+      margin-bottom: 48px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .section-head {
+      padding: 16px 24px;
+      background: #f7f6f2;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .section-head h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      color: var(--teal);
+    }
+    .section-head span {
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .cases-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .case-col {
+      padding: 32px;
+    }
+    .case-col.dark {
+      background: var(--teal);
+      color: var(--ivory);
+    }
+    .case-col + .case-col {
+      border-left: 1px solid var(--border);
+    }
+
+    .study-row {
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(36, 75, 69, 0.08);
+    }
+    .case-col.dark .study-row {
+      border-color: rgba(245, 243, 237, 0.12);
+    }
+    .study-row:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .study-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .case-col.dark .study-meta {
+      color: #9eb8af;
+    }
+
+    /* Wordmark lockups where A is the mark */
+    .word-unit {
+      display: inline-flex;
+      align-items: baseline;
+      line-height: 1;
+    }
+
+    /* Specific Font Test Classes */
+    .font-plex-bold {
+      font-family: 'Plex', sans-serif;
+      font-size: 46px;
+      font-weight: 700;
+      letter-spacing: -1.2px;
+    }
+    .font-plex-semi {
+      font-family: 'Plex', sans-serif;
+      font-size: 46px;
+      font-weight: 600;
+      letter-spacing: -1.2px;
+    }
+    .font-space-bold {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 46px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+    }
+    .font-jakarta-bold {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 46px;
+      font-weight: 700;
+      letter-spacing: -1px;
+    }
+    .font-syne-bold {
+      font-family: 'Syne', sans-serif;
+      font-size: 44px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .font-jetbrains {
+      font-family: 'JetBrains', monospace;
+      font-size: 42px;
+      font-weight: 600;
+      letter-spacing: -1.5px;
+    }
+
+    /* All-Caps / Small Caps */
+    .font-caps-plex {
+      font-family: 'Plex', sans-serif;
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .font-caps-space {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-block">
+    <h1>Integrated 'A' Wordmark Studies</h1>
+    <p>
+      Exploring special-case applications where the <strong>Open Arch mark acts directly as the initial 'A'</strong> in <code>[Open Arch]mbio</code> or <code>[Open Arch]MBIO</code>.
+      We evaluate stroke weight balance, x-height continuity, and letterform geometry across 4 font pairings.
+    </p>
+  </div>
+
+  <!-- SECTION A: LOWERCASE CONTINUATION [A]mbio -->
+  <div class="section" id="section-integrated-lower">
+    <div class="section-head">
+      <h2>Direction 1: Lowercase Continuation — <code>[Open Arch]mbio</code></h2>
+      <span>Approach: Human, Accessible, Software Instrument</span>
+    </div>
+    <div class="cases-grid">
+      <!-- Light Column -->
+      <div class="case-col">
+        <!-- 1. IBM Plex Sans Bold -->
+        <div class="study-row">
+          <div class="study-meta">Option 1 · IBM Plex Sans Bold (Weight 700) — In-Stack Primary</div>
+          <div class="word-unit font-plex-bold">
+            ${markInline('#244b45', 48)}<span style="margin-left: 2px;">mbio</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Matches existing app font. The Bold 700 stem weight matches the thickness of the Arch legs perfectly.
+          </div>
+        </div>
+
+        <!-- 2. Space Grotesk Bold -->
+        <div class="study-row">
+          <div class="study-meta">Option 2 · Space Grotesk Bold (Weight 700) — Geometric / Architectural</div>
+          <div class="word-unit font-space-bold">
+            ${markInline('#244b45', 48)}<span style="margin-left: 2px;">mbio</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Deep horizontal shoulders and geometric circular 'o' create an authentic drafting CAD feel.
+          </div>
+        </div>
+
+        <!-- 3. Plus Jakarta Sans Bold -->
+        <div class="study-row">
+          <div class="study-meta">Option 3 · Plus Jakarta Sans Bold (Weight 700) — Contemporary Neo-Grotesque</div>
+          <div class="word-unit font-jakarta-bold">
+            ${markInline('#244b45', 48)}<span style="margin-left: 3px;">mbio</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Tall x-height balances the arch height gracefully; modern product aesthetic like Linear/Raycast.
+          </div>
+        </div>
+
+        <!-- 4. Syne Bold -->
+        <div class="study-row">
+          <div class="study-meta">Option 4 · Syne Bold (Weight 700) — Wide Structural Display</div>
+          <div class="word-unit font-syne-bold">
+            ${markInline('#244b45', 48)}<span style="margin-left: 4px;">mbio</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Wide architectural stance; letters share the expansive footprint of the Open Arch.
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark Column -->
+      <div class="case-col dark">
+        <!-- 1. IBM Plex Sans Bold Dark -->
+        <div class="study-row">
+          <div class="study-meta">Option 1 · IBM Plex Sans Bold (Reversed)</div>
+          <div class="word-unit font-plex-bold">
+            ${markInline('#f5f3ed', 48)}<span style="margin-left: 2px;">mbio</span>
+          </div>
+        </div>
+
+        <!-- 2. Space Grotesk Bold Dark -->
+        <div class="study-row">
+          <div class="study-meta">Option 2 · Space Grotesk Bold (Reversed)</div>
+          <div class="word-unit font-space-bold">
+            ${markInline('#f5f3ed', 48)}<span style="margin-left: 2px;">mbio</span>
+          </div>
+        </div>
+
+        <!-- 3. Plus Jakarta Sans Bold Dark -->
+        <div class="study-row">
+          <div class="study-meta">Option 3 · Plus Jakarta Sans Bold (Reversed)</div>
+          <div class="word-unit font-jakarta-bold">
+            ${markInline('#f5f3ed', 48)}<span style="margin-left: 3px;">mbio</span>
+          </div>
+        </div>
+
+        <!-- 4. Syne Bold Dark -->
+        <div class="study-row">
+          <div class="study-meta">Option 4 · Syne Bold (Reversed)</div>
+          <div class="word-unit font-syne-bold">
+            ${markInline('#f5f3ed', 48)}<span style="margin-left: 4px;">mbio</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- SECTION B: ALL-CAPS / MONUMENTAL CONTINUATION [A]MBIO -->
+  <div class="section" id="section-integrated-caps">
+    <div class="section-head">
+      <h2>Direction 2: All-Caps / Monumental — <code>[Open Arch] M B I O</code></h2>
+      <span>Approach: Architectural Signage, Shared Cap-Height, Monumental Authority</span>
+    </div>
+    <div class="cases-grid">
+      <!-- Light Column -->
+      <div class="case-col">
+        <!-- 1. IBM Plex Caps -->
+        <div class="study-row">
+          <div class="study-meta">Option 5 · IBM Plex Sans Bold Caps (Weight 700 · Tracking +0.06em)</div>
+          <div class="word-unit font-caps-plex">
+            ${markInline('#244b45', 42)}<span style="margin-left: 8px;">MBIO</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Continuous cap-height across all letters. Looks like an architectural foundation plaque.
+          </div>
+        </div>
+
+        <!-- 2. Space Grotesk Caps -->
+        <div class="study-row">
+          <div class="study-meta">Option 6 · Space Grotesk Bold Caps (Weight 700 · Tracking +0.08em)</div>
+          <div class="word-unit font-caps-space">
+            ${markInline('#244b45', 42)}<span style="margin-left: 8px;">MBIO</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Wide square 'M' and perfectly circular 'O' form an uncompromising structural baseline.
+          </div>
+        </div>
+
+        <!-- 3. JetBrains Mono Technical Caps -->
+        <div class="study-row">
+          <div class="study-meta">Option 7 · JetBrains Mono Bold Caps (Weight 600 · Developer Technical)</div>
+          <div class="word-unit font-jetbrains">
+            ${markInline('#244b45', 40)}<span style="margin-left: 6px;">MBIO</span>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+            Fixed-width developer pairing for CLI tool headers, terminal outputs, and system specs.
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark Column -->
+      <div class="case-col dark">
+        <div class="study-row">
+          <div class="study-meta">Option 5 · IBM Plex Sans Caps (Reversed)</div>
+          <div class="word-unit font-caps-plex">
+            ${markInline('#f5f3ed', 42)}<span style="margin-left: 8px;">MBIO</span>
+          </div>
+        </div>
+
+        <div class="study-row">
+          <div class="study-meta">Option 6 · Space Grotesk Caps (Reversed)</div>
+          <div class="word-unit font-caps-space">
+            ${markInline('#f5f3ed', 42)}<span style="margin-left: 8px;">MBIO</span>
+          </div>
+        </div>
+
+        <div class="study-row">
+          <div class="study-meta">Option 7 · JetBrains Mono Caps (Reversed)</div>
+          <div class="word-unit font-jetbrains">
+            ${markInline('#f5f3ed', 40)}<span style="margin-left: 6px;">MBIO</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+`;
+
+fs.writeFileSync(path.join(__dirname, 'integrated-a-study.html'), html);
+console.log('Wrote integrated-a-study.html');
+

@@ -1,0 +1,90 @@
+[
+  {
+    "font": "IBM Plex Sans",
+    "weight": 700,
+    "case": "lower",
+    "capHeight": 698,
+    "alignmentHeight": 740,
+    "scale": 0.11891891891891893,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 4
+  },
+  {
+    "font": "IBM Plex Sans",
+    "weight": 700,
+    "case": "caps",
+    "capHeight": 698,
+    "alignmentHeight": 698,
+    "scale": 0.12607449856733524,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 5
+  },
+  {
+    "font": "Space Grotesk",
+    "weight": 700,
+    "case": "lower",
+    "capHeight": 700,
+    "alignmentHeight": 700,
+    "scale": 0.12571428571428572,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 3
+  },
+  {
+    "font": "Space Grotesk",
+    "weight": 700,
+    "case": "caps",
+    "capHeight": 700,
+    "alignmentHeight": 700,
+    "scale": 0.12571428571428572,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 4
+  },
+  {
+    "font": "Manrope",
+    "weight": 800,
+    "case": "lower",
+    "capHeight": 1440,
+    "alignmentHeight": 1440,
+    "scale": 0.06111111111111111,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 4
+  },
+  {
+    "font": "Manrope",
+    "weight": 800,
+    "case": "caps",
+    "capHeight": 1440,
+    "alignmentHeight": 1440,
+    "scale": 0.06111111111111111,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 5
+  },
+  {
+    "font": "Outfit",
+    "weight": 750,
+    "case": "lower",
+    "capHeight": 707.5,
+    "alignmentHeight": 727.5,
+    "scale": 0.12096219931271478,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 3
+  },
+  {
+    "font": "Outfit",
+    "weight": 750,
+    "case": "caps",
+    "capHeight": 707.5,
+    "alignmentHeight": 707.5,
+    "scale": 0.12438162544169612,
+    "baseline": 108,
+    "markTop": 20,
+    "visibleGap": 4
+  }
+]

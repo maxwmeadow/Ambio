@@ -1,0 +1,83 @@
+[
+  {
+    "id": "geist",
+    "font": "Geist 740",
+    "xHeight": 66.53294866857395,
+    "stemWidth": 19.682153664172535,
+    "mWidth": 108.25184515294895,
+    "letters": [
+      {
+        "letter": "b",
+        "visibleLeft": 231.25184515294893,
+        "visibleWidth": 66.88982380611796,
+        "gap": 8
+      },
+      {
+        "letter": "i",
+        "visibleLeft": 307.1416689590669,
+        "visibleWidth": 20.346489876760565,
+        "gap": 9
+      },
+      {
+        "letter": "o",
+        "visibleLeft": 335.4881588358275,
+        "visibleWidth": 68.45647350902289,
+        "gap": 8
+      }
+    ]
+  },
+  {
+    "id": "manrope",
+    "font": "Manrope 780",
+    "xHeight": 66.0,
+    "stemWidth": 16.23935275607639,
+    "mWidth": 89.31644015842014,
+    "letters": [
+      {
+        "letter": "b",
+        "visibleLeft": 212.31644015842014,
+        "visibleWidth": 62.74486355251736,
+        "gap": 8
+      },
+      {
+        "letter": "i",
+        "visibleLeft": 284.0613037109375,
+        "visibleWidth": 16.23935275607639,
+        "gap": 9
+      },
+      {
+        "letter": "o",
+        "visibleLeft": 308.30065646701394,
+        "visibleWidth": 66.63968234592014,
+        "gap": 8
+      }
+    ]
+  },
+  {
+    "id": "space",
+    "font": "Space Grotesk 700",
+    "xHeight": 62.354285714285716,
+    "stemWidth": 15.840000000000002,
+    "mWidth": 87.12,
+    "letters": [
+      {
+        "letter": "b",
+        "visibleLeft": 210.12,
+        "visibleWidth": 65.62285714285714,
+        "gap": 8
+      },
+      {
+        "letter": "i",
+        "visibleLeft": 284.74285714285713,
+        "visibleWidth": 20.365714285714287,
+        "gap": 9
+      },
+      {
+        "letter": "o",
+        "visibleLeft": 313.1085714285714,
+        "visibleWidth": 65.37142857142858,
+        "gap": 8
+      }
+    ]
+  }
+]
