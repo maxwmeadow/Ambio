@@ -1,4 +1,4 @@
-type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus'
+type IconName = 'close' | 'attach' | 'send' | 'sheet' | 'canvas' | 'chevron' | 'check' | 'copy' | 'help' | 'search' | 'agent' | 'retry' | 'plus' | 'info'
 
 const paths: Record<IconName, React.ReactNode> = {
   close: <path d="m6 6 12 12M18 6 6 18" />,
@@ -14,6 +14,7 @@ const paths: Record<IconName, React.ReactNode> = {
   agent: <><path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10M7.5 4.5l9 5" /></>,
   retry: <><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.1" /></>,
 }
 
 export function InboxIcon({ name, size = 16 }: { name: IconName; size?: number }) {

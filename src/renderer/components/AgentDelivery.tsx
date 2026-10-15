@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { DELIVERY_SUPPORT, DELIVERY_SUPPORT_LABEL, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { DESTINATION_GUIDE, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
+import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
 
 export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?: string) {
@@ -127,18 +128,53 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
     ...(host?.route === 'run' && !watchingHosts.includes(hostId) ? [`Edits files in ${rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.`] : []),
   ].join(' ')
   return <div className="ambio-inbox__delivery">
-    <label>Deliver to<select aria-label="Work-order destination" title={about} value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
+    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select">Deliver to</label><DestinationGuidePopover hosts={hosts} hostId={watchingHosts.includes(hostId) ? WATCHING_DELIVERY : hostId} /></div>
+    <select id="ambio-delivery-select" aria-label="Work-order destination" title={about} value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
       {connected.length > 0 && <optgroup label="Connected to Ambio">{connected.map(option)}</optgroup>}
       {others.length > 0 && <optgroup label="Not set up with Ambio">{others.map(option)}</optgroup>}
       {/* A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice. */}
       {(watchers > 0 || hostId === WATCHING_DELIVERY) && <option value={WATCHING_DELIVERY}>{watchers > 0 ? `Session watching Ambio${watchers > 1 ? ` (${watchers})` : ''}` : 'Session watching Ambio · none right now'}</option>}
       <option value="">Copy the handoff myself</option>
-    </select></label>
-    {/* What this destination does and does not do, before anything is sent. */}
-    {(support => support && <p className="ambio-inbox__delivery-support" data-level={support.level}>
-      <strong>{DELIVERY_SUPPORT_LABEL[support.level]}</strong> {watchingHosts.includes(hostId) ? DELIVERY_SUPPORT[WATCHING_DELIVERY].summary : support.summary}
-    </p>)(DELIVERY_SUPPORT[hostId])}
+    </select>
     {connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
+  </div>
+}
+
+/** Names for the destinations that are not agent hosts. */
+const GUIDE_NAMES: Record<string, string> = { [WATCHING_DELIVERY]: 'Session watching Ambio', '': 'Copy the handoff myself' }
+
+/**
+ * The info button beside the picker: how this panel works with each agent and
+ * what that agent can do from here. Opens on the chosen one; any other can be
+ * read without changing the choice.
+ */
+function DestinationGuidePopover({ hosts, hostId }: { hosts: DeliveryHost[]; hostId: string }) {
+  const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState(hostId)
+  const anchor = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (open) setShown(hostId) }, [open, hostId])
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [open])
+  const name = (id: string) => hosts.find(host => host.id === id)?.label ?? GUIDE_NAMES[id] ?? id
+  const choices = [...hosts.map(host => host.id), WATCHING_DELIVERY, ''].filter(id => DESTINATION_GUIDE[id])
+  const guide = DESTINATION_GUIDE[shown]
+  return <div ref={anchor} className="ambio-inbox__guide" onKeyDown={event => {
+    if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
+  }}>
+    <button type="button" className="ambio-inbox__guide-button" aria-label="How each agent works here" aria-expanded={open} title="How each agent works here" onClick={() => setOpen(!open)}><InboxIcon name="info" size={13} /></button>
+    {open && <section className="ambio-inbox__guide-popover" role="dialog" aria-label="How each agent works here">
+      <header><strong>Using</strong><select aria-label="Agent to read about" value={shown} onChange={event => setShown(event.target.value)}>
+        {choices.map(id => <option key={id || 'manual'} value={id}>{name(id)}</option>)}
+      </select><button type="button" className="ambio-inbox__icon" aria-label="Close" onClick={() => setOpen(false)}><InboxIcon name="close" size={12} /></button></header>
+      {guide ? <>
+        <h4>How it works</h4><ol>{guide.how.map(step => <li key={step}>{step}</li>)}</ol>
+        <h4>What it can do</h4><ul>{guide.can.map(item => <li key={item}>{item}</li>)}</ul>
+      </> : <p>Choose an agent above.</p>}
+    </section>}
   </div>
 }
 

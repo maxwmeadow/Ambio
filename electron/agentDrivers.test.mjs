@@ -56,11 +56,11 @@ test('a question or a proposal cannot change files in any driven host; a build c
   assert.equal(turnMode(undefined), 'build')
 })
 
-test('every destination the picker can show says what works with it', async () => {
-  const { DELIVERY_SUPPORT } = await import('../src/shared/agentDelivery.ts')
+test('every destination the picker can show explains how to use it', async () => {
+  const { DESTINATION_GUIDE } = await import('../src/shared/agentDelivery.ts')
   const { buildHosts } = await import('./agentInstallers.ts')
   for (const id of [...buildHosts().map(host => host.id), 'cursor-cli', 'devin-cli', 'antigravity-acp', 'antigravity-cli', '@watching', '']) {
-    assert.ok(DELIVERY_SUPPORT[id]?.summary, `no support note for ${id || 'manual'}`)
+    assert.ok(DESTINATION_GUIDE[id]?.how.length && DESTINATION_GUIDE[id].can.length, `no guide for ${id || 'manual'}`)
   }
 })
 

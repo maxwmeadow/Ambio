@@ -146,8 +146,11 @@ What has been run for real (`mcp/e2e/conversation.live.mjs`, 2026-10-15):
   Ambio's is passed with `--additional-mcp-config` when it starts.
 
 Cursor CLI, Devin and Google's Antigravity ACP server are not installed. Those were written from
-each vendor's documentation and tested against stand-in agents. The panel
-shows each destination's status beside the picker (`DELIVERY_SUPPORT`).
+each vendor's documentation and tested against stand-in agents. Pasted
+destinations (Claude Desktop, Windsurf, Antigravity, JetBrains, Zed) and
+Cursor's deep link have not had a live conversation run; VS Code's link has.
+Test status stays here: the panel's info button (`DESTINATION_GUIDE`) only
+tells the user how to use each destination and what it can do.
 
 **Asking the user.** A started agent that wants something its turn did not
 already allow asks in the conversation instead of being refused unseen. The

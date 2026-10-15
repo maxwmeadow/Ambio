@@ -248,6 +248,8 @@
    gutter; the textarea below is ruled off as the place to type. */
 .ambio-inbox__delivery { display: grid; gap: 6px; padding: 10px 12px 0; }
 .ambio-inbox__compose > .ambio-inbox__notice { margin: 8px 12px 0; }
+.ambio-inbox__delivery { position: relative; }
+.ambio-inbox__delivery-heading { display: flex; align-items: center; gap: 6px; }
 .ambio-inbox__delivery label { display: grid; gap: 5px; color: #53635c; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
 .ambio-inbox__delivery select { width: 100%; padding: 6px 8px; font: 12px var(--font-ui, sans-serif); letter-spacing: 0; text-transform: none; color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; }
 .ambio-inbox__delivery select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
@@ -292,9 +294,13 @@
 .ambio-inbox__conversation-menu .ambio-inbox__stages { margin: 0 0 4px; }
 .ambio-inbox__conversation-menu .ambio-inbox__notice { padding: 8px 9px; }
 /* What the chosen destination can do. */
-.ambio-inbox__delivery-support { margin: 5px 0 0; color: #55645c; font: 10.5px/1.45 var(--font-ui, sans-serif); }
-.ambio-inbox__delivery-support strong { margin-right: 4px; padding: 0 4px; border: 1px solid currentColor; font: 600 9px/1.6 var(--font-mono, monospace); letter-spacing: .05em; text-transform: uppercase; }
-.ambio-inbox__delivery-support[data-level='tested'] strong { color: #2f6a5d; }
-.ambio-inbox__delivery-support[data-level='limited'] strong { color: #8a6320; }
-.ambio-inbox__delivery-support[data-level='untested'] strong { color: #7a3c22; }
-.ambio-inbox__delivery-support[data-level='paste'] strong { color: #4a5f55; }
+
+.ambio-inbox__guide-button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; color: #53635c; background: transparent; border: 0; cursor: pointer; }
+.ambio-inbox__guide-button:hover, .ambio-inbox__guide-button[aria-expanded='true'] { color: #326a5c; }
+.ambio-inbox__guide-button:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
+.ambio-inbox__guide-popover { position: absolute; z-index: 10; left: 12px; right: 12px; bottom: calc(100% + 6px); max-height: 60vh; overflow: auto; padding: 10px 12px 12px; color: #26362d; background: #f4f2ea; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; font: 12px/1.5 var(--font-ui, sans-serif); }
+.ambio-inbox__guide-popover header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ambio-inbox__guide-popover header strong { font-size: 12px; }
+.ambio-inbox__guide-popover header select { flex: 1; min-width: 0; padding: 4px 6px; font: 600 12px var(--font-ui, sans-serif); color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; }
+.ambio-inbox__guide-popover h4 { margin: 10px 0 4px; color: #53635c; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-inbox__guide-popover ol, .ambio-inbox__guide-popover ul { display: grid; gap: 4px; margin: 0; padding-left: 18px; }
