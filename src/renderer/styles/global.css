@@ -1,6 +1,6 @@
 /* Fonts are bundled (src/renderer/main.tsx): Ambio makes no network request to render itself. */
 
-/* ─── Design Tokens - dark drafting table ───────────────────────────────── */
+/* â”€â”€â”€ Design Tokens - dark drafting table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Opaque surfaces stacked like sheets on a drafting board. No translucent
    washes, no glows: structure comes from hairline rules and hard shadows. */
 :root {
@@ -228,7 +228,7 @@
   font: 600 10px/1.4 var(--font-mono);
 }
 
-/* ─── Reset ─────────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; }
 body { background: var(--bg-base); color: var(--text-primary); font-family: var(--font-ui); }
@@ -236,7 +236,7 @@ button { cursor: pointer; font: inherit; border: none; background: none; }
 input, textarea { font: inherit; background: none; border: none; outline: none; color: inherit; }
 a { color: var(--accent); text-decoration: none; }
 
-/* ─── Scrollbars ─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Scrollbars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); }
@@ -412,7 +412,7 @@ a { color: var(--accent); text-decoration: none; }
   }
 }
 
-/* ─── Xyflow overrides ──────────────────────────────────────────────────── */
+/* â”€â”€â”€ Xyflow overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Global file search is portalled so it stays independent of canvas transforms. */
 .ambio-search-backdrop {
@@ -1319,7 +1319,7 @@ a { color: var(--accent); text-decoration: none; }
   transition: none;
 }
 
-/* ─── Canvas material - warm workbench pass ─────────────────────────────────
+/* â”€â”€â”€ Canvas material - warm workbench pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The Floor reads as a parchment drafting board with cream cards and olive
    accents (see design-explorations/ambio-uml-workbench). Scoped to the React
    Flow subtree so every node - which already consumes these token names -
@@ -1400,7 +1400,7 @@ a { color: var(--accent); text-decoration: none; }
 .react-flow__edge-path { stroke: var(--border); }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent) !important; }
 
-/* ─── Utility classes ────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Utility classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 .items-center { align-items: center; }
@@ -1413,7 +1413,7 @@ a { color: var(--accent); text-decoration: none; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rounded { border-radius: var(--radius); }
 
-/* ─── Animations ─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -1422,7 +1422,7 @@ a { color: var(--accent); text-decoration: none; }
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-/* ─── Call trace animations ──────────────────────────────────────────────── */
+/* â”€â”€â”€ Call trace animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 :root {
   --trace-color: #22d3ee;
   --trace-glow:  rgba(34, 211, 238, 0.35);
@@ -1698,7 +1698,7 @@ a { color: var(--accent); text-decoration: none; }
   animation: traceFlow 0.6s linear infinite;
   filter: drop-shadow(0 0 4px var(--trace-color));
 }
-/* ─── Runtime layer animations ────────────────────────────────────────────── */
+/* â”€â”€â”€ Runtime layer animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* One-shot expanding ring replayed on every watched function call
    (FileNode remounts the element via pulseKey) */
 @keyframes runtimePulse {
@@ -1887,21 +1887,6 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 .ambio-title-strip__identity svg { flex: 0 0 auto; }
-
-.ambio-title-strip__identity strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-title-strip__divider { color: #8fa29d; }
-
-.ambio-title-strip__project {
-  overflow: hidden;
-  color: #c7d2ce;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .ambio-title-strip__status {
   margin-left: auto;
@@ -4089,7 +4074,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   -webkit-app-region: drag;
 }
 
-/* ── Platform-Aware Window Clearance ─────────────────────────────────────── */
+/* â”€â”€ Platform-Aware Window Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* macOS: Reserve clearance on the top-left for traffic lights */
 [data-platform="darwin"] .ambio-title-strip,
@@ -4112,7 +4097,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   padding-right: 0;
 }
 
-/* ── Custom Window Controls (Linux) ──────────────────────────────────────── */
+/* â”€â”€ Custom Window Controls (Linux) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .ambio-window-controls {
   display: flex;
@@ -4167,19 +4152,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   align-items: center;
   gap: 10px;
   font-size: 13px;
-}
-
-.ambio-workbench-titlebar__product strong,
-.ambio-workbench-titlebar__product span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-workbench-titlebar__product span {
-  padding-left: 10px;
-  border-left: 1px solid #71807b;
-  color: #b9c6c2;
 }
 
 .ambio-workbench-titlebar__status {
@@ -4835,7 +4807,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   letter-spacing: 0.07em;
 }
 
-/* ── Command Deck: the New Project / Open Codebase fork ────────────────────── */
+/* â”€â”€ Command Deck: the New Project / Open Codebase fork â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-launcher__forks {
   display: grid;
   gap: 12px;
@@ -4917,7 +4889,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-size: 17px;
 }
 
-/* ── New Project modal ────────────────────────────────────────────────────── */
+/* â”€â”€ New Project modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-create__scrim {
   position: fixed;
   inset: 0;
@@ -5074,7 +5046,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 .ambio-create__go:disabled,
 .ambio-create__cancel:disabled { opacity: 0.55; cursor: default; }
 
-/* ── Launcher remove confirmation modal ────────────────────────────────────── */
+/* â”€â”€ Launcher remove confirmation modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-remove-modal {
   position: relative;
   width: min(440px, 100%);
@@ -5202,7 +5174,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
     padding-right: 140px;
   }
 
-  .ambio-workbench-titlebar__product span,
   .ambio-workbench-titlebar__status {
     display: none;
   }
@@ -6858,7 +6829,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 
 
-/* ─── Morning Delta ─────────────────────────────────────────────────────────
+/* â”€â”€â”€ Morning Delta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    A review surface, not chrome. The rest of the workbench uses 8px monospace
    because it labels controls you already recognise; this panel is prose you
    have to read and act on, so it sets its own type scale and ignores the
@@ -6884,7 +6855,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
    surface at top:14px/left:50% recreates the exact collision the lane was
    built to end. */
 
-/* ── Expanded review rail ────────────────────────────────────────────────── */
+/* â”€â”€ Expanded review rail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-delta--panel {
   top: 14px;
   right: 14px;
@@ -6959,7 +6930,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-delta__close:hover { border-color: #7fb3a8; }
 
-/* ── Work sessions: what an agent said it was doing ──────────────────────── */
+/* â”€â”€ Work sessions: what an agent said it was doing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-delta__sessions {
   display: flex;
   max-height: 42%;
@@ -7027,7 +6998,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   overflow-wrap: anywhere;
 }
 
-/* ── Claim list ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Claim list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-delta__claims {
   display: flex;
   flex: 1;
@@ -7311,7 +7282,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   overflow-wrap: anywhere;
 }
 
-/* ── Footer ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-delta__footer {
   display: flex;
   flex: 0 0 auto;
@@ -7388,7 +7359,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   .ambio-delta--panel { width: 384px; }
 }
 
-/* ─── Agent activity log ────────────────────────────────────────────────────
+/* â”€â”€â”€ Agent activity log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    "I can see everything my agent is doing." Same reading-surface type scale as
    the delta panel, with violet as its mode accent - delta is sage (structural
    review), replay amber (temporal), agent violet (activity). */
@@ -7604,7 +7575,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   .ambio-agentlog { width: 344px; }
 }
 
-/* ─── Trustworthy realization states ─────────────────────────────────────── */
+/* â”€â”€â”€ Trustworthy realization states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .ambio-delta__intent[data-status="matched"] {
   border-color: #718c75;
@@ -7637,7 +7608,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #555d65;
 }
 
-/* ─── Sheet mode ────────────────────────────────────────────────────────────
+/* â”€â”€â”€ Sheet mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    How you know you are on a sheet rather than the live Floor.
 
    The signal is a change of MATERIAL, not of legibility: the board becomes a
@@ -7663,7 +7634,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   --sheet-presence: 0;
 }
 
-/* ── SHEET STOCK ────────────────────────────────────────────────────────────
+/* â”€â”€ SHEET STOCK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The other half of the pair declared on .react-flow. Node material lives in
    exactly these two blocks, using the same token names, so unifying them later
    is a matter of reconciling two lists rather than hunting the codebase.
@@ -7802,7 +7773,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   .ambio-shape-texture { transition-duration: 1ms; }
 }
 
-/* ─── Investigation recording ──────────────────────────────────────────────
+/* â”€â”€â”€ Investigation recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    A recording in progress has to be visible from across the room: the whole
    point is that someone is watching their agent work. */
 .ambio-recording {
@@ -7922,7 +7893,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #9fd0ba;
 }
 
-/* ─── Investigation case panel ───────────────────────────────────────────────
+/* â”€â”€â”€ Investigation case panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    An agent's investigation as the watcher sees it. Ink blue is its mode
    accent (forensic, blueprint); a replayed case switches to replay amber, so
    "this already happened" reads the same everywhere. Evidence severity uses
@@ -8316,7 +8287,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   .ambio-case__entry[data-kind="running"] .ambio-case__entry-label::after { animation: none; }
 }
 
-/* ─── Run trace overlay ───────────────────────────────────────────────────── */
+/* â”€â”€â”€ Run trace overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Lines are world-space curves with a constant screen stroke; labels and
    callouts are counter-scaled so they stay the same screen size at every
    zoom. See RunTraceOverlay.tsx. */
@@ -8433,7 +8404,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   .ambio-run-trace__stroke { animation: none; }
 }
 
-/* ─── Infra card ──────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Infra card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* A role on the Floor: what it is, how much code depends on it, and what
    fills it when you run the code on this machine. Sized in the card's own
    coordinates, so it reads like a system title at every zoom. */
@@ -8498,7 +8469,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   text-overflow: ellipsis;
 }
 
-/* ─── Infra inspector ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Infra inspector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-inspector-list {
   list-style: none;
   margin: 0;
@@ -8581,7 +8552,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   line-height: 1.35;
 }
 
-/* ── Model Explorer ─────────────────────────────────────────────────────── */
+/* â”€â”€ Model Explorer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ambio-explorer {
   position: absolute;
   top: 92px;

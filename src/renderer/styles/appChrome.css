@@ -187,16 +187,33 @@
 
 /* ── Settings ─────────────────────────────────────────────────────────────── */
 
+/* Keep the frame and navigation still as sections load or expand. Only the
+   active panel scrolls; the frame shrinks with the viewport, not its content. */
+.ambio-settings {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: min(640px, calc(100dvh - 48px));
+}
+
+.ambio-settings > .ambio-app-modal__body {
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+
 .ambio-settings__layout {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
 }
 
 .ambio-settings__nav {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   padding: 10px 6px;
+  overflow-y: auto;
   border-right: 1px solid #cfccc0;
   background: #dcdad2;
 }
@@ -220,7 +237,13 @@
 }
 
 .ambio-settings__panel {
+  min-width: 0;
+  min-height: 0;
   padding: 6px 20px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  overflow-wrap: anywhere;
   background: #f1efe8;
 }
 
@@ -315,6 +338,28 @@
   color: #34403c;
   font-size: 13px;
   line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+  .ambio-settings__layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .ambio-settings__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 6px;
+    border-right: 0;
+    border-bottom: 1px solid #cfccc0;
+  }
+
+  .ambio-settings__panel { padding-inline: 12px; }
+  .ambio-settings__row { flex-wrap: wrap; gap: 10px; }
+  .ambio-settings__panel select,
+  .ambio-settings__button,
+  .ambio-settings__zoom { max-width: 100%; }
+  .ambio-settings__zoom input { min-width: 0; }
 }
 
 /* ── Shortcuts and About ──────────────────────────────────────────────────── */

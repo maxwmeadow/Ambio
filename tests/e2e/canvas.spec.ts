@@ -15,6 +15,8 @@ let e2eHome: string
  */
 function isolatedHome(): { home: string; root: string } {
   const home = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
+  mkdirSync(join(home, 'AppData', 'Roaming'), { recursive: true })
+  mkdirSync(join(home, 'AppData', 'Local'), { recursive: true })
   const root = join(home, 'ambio-e2e')
   for (const dir of ['src/renderer', 'docs', 'electron']) mkdirSync(join(root, dir), { recursive: true })
   writeFileSync(join(root, 'package.json'), '{ "name": "ambio-e2e" }\n')
@@ -86,7 +88,7 @@ test.beforeEach(async () => {
   e2eHome = isolated.home
   app = await electron.launch({
     args: ['.'],
-    env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home },
+    env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home, APPDATA: join(isolated.home, 'AppData', 'Roaming'), LOCALAPPDATA: join(isolated.home, 'AppData', 'Local') },
   })
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
@@ -250,7 +252,8 @@ test.beforeEach(async () => {
     localStorage.removeItem('ambio:inbox-draft:demo:sheet')
   })
   await page.reload()
-  await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
+  await expect(page.locator('.ambio-toolbar')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
   await expect(page.locator('.ambio-canvas-minimap')).toBeVisible()
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.

@@ -77,7 +77,7 @@ test('Harbor Checkout: sheet request, linked work, structural match, submission 
   const mock = await openMockProject('commerce')
   try {
     const { page, orders, sheet } = mock
-    await expect(page.getByText('Harbor Checkout')).toBeVisible()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Harbor Checkout')
     await expect(page.locator('.react-flow__node-system').getByText('Checkout', { exact: true }).first()).toBeVisible()
     const inbox = await openInbox(page)
     const instruction = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
@@ -119,7 +119,7 @@ test('Northstar API: selected systems, failed check, feedback, second attempt an
   const mock = await openMockProject('service', 720)
   try {
     const { page, orders } = mock
-    await expect(page.getByText('Northstar API')).toBeVisible()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Northstar API')
     await expect(page.locator('.react-flow__node-system').getByText('Public API', { exact: true }).first()).toBeVisible()
     const systems = page.locator('.react-flow__node-system')
     await systems.nth(0).click({ position: { x: 18, y: 16 } })
@@ -160,7 +160,7 @@ test('Relay Operations: project question without files, then cancellation of a s
   const mock = await openMockProject('operations', 700)
   try {
     const { page, orders } = mock
-    await expect(page.getByText('Relay Operations')).toBeVisible()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Relay Operations')
     await expect(page.locator('.react-flow__node-system').getByText('Incident Console', { exact: true }).first()).toBeVisible()
     const inbox = await openInbox(page)
     await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Explain the current incident route. Do not edit code.')

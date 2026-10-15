@@ -1,16 +1,14 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { WindowControls } from './WindowControls'
 import { AppMenuBar } from '../../app/AppMenuBar'
 
 interface WorkbenchTitleBarProps {
-  context: ReactNode
   status: string
   statusTone?: 'ready' | 'busy'
   className?: string
 }
 
 export function WorkbenchTitleBar({
-  context,
   status,
   statusTone = 'ready',
   className = '',
@@ -24,8 +22,6 @@ export function WorkbenchTitleBar({
       <div className="ambio-workbench-titlebar__product">
         <AmbioMark compact />
         <AppMenuBar />
-        <strong>Ambio Architecture Workbench</strong>
-        <span>{context}</span>
       </div>
       <span
         className={

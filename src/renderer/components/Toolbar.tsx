@@ -15,13 +15,12 @@ interface ToolbarProps {
   /** Return to the project launcher, leaving this project open in archd. */
   onCloseProject: () => void
   onManageAgentConnections: () => void
-  projectName?: string
   agentLogOpen: boolean
   onToggleAgentLog: () => void
 }
 
 export function Toolbar({
-  onSearch, onCloseProject, onManageAgentConnections, projectName, agentLogOpen, onToggleAgentLog,
+  onSearch, onCloseProject, onManageAgentConnections, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
   const { fitView, getNodes } = useReactFlow()
   const isIndexing = useGraphStore(s => s.isIndexing)
@@ -71,13 +70,6 @@ export function Toolbar({
         <div className="ambio-title-strip__identity">
           <AmbioLogo />
           <AppMenuBar />
-          <strong>Ambio Architecture Workbench</strong>
-          {projectName && (
-            <>
-              <span className="ambio-title-strip__divider">-</span>
-              <span className="ambio-title-strip__project">{projectName}</span>
-            </>
-          )}
         </div>
         <div className={isIndexing ? 'ambio-title-strip__status ambio-title-strip__status--busy' : 'ambio-title-strip__status'}>
           {isIndexing ? 'INDEXING SOURCE…' : 'INDEX CLEAN'}

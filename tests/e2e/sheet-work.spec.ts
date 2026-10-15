@@ -95,7 +95,7 @@ test('sheet attachment follows live differences, survives Floor navigation, and 
       localStorage.removeItem('ambio:inbox-draft:demo:sheet')
     })
     await page.reload()
-    await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
+    await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
     const rail = page.getByRole('complementary',{name:'Drawings'})
     await rail.getByRole('button',{name:/Checkout redesign STR/}).click()
     await rail.getByRole('button',{name:'Attach Checkout redesign to agent message'}).click()
