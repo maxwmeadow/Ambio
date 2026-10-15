@@ -9,12 +9,15 @@ data flow or a limit named here, update it in the same change.
 
 ## Integrated coding conversations
 
-Chat in Ambio is an additional destination in the message-agent surface; existing
-CLI/editor delivery remains intact. `electron/agentChat.ts` manages one authenticated
+Ambio chat is one destination in the agent panel's picker (`@chat:<service>`),
+beside CLI/editor delivery. Its conversations are listed with the work-order
+threads; `useAgentChat` and `ChatTranscript` (`AgentChatPanel.tsx`) supply the
+sending and the streamed transcript, and a Build turn's work order carries the
+thread `chat:<conversation>` so it is shown inside that conversation. `electron/agentChat.ts` manages one authenticated
 loopback OpenCode server per project, persistent harness sessions, streamed text,
 tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
-Provider setup is available in Settings → Model services and inside chat.
+Provider setup is in Settings → Model services; the picker opens it when none is set up.
 
 `electron/chatProviders.ts` keeps provider metadata and OS-encrypted keys under
 `~/.ambio/chat`; without a secure keychain it keeps keys only in process memory.

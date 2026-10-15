@@ -7,6 +7,7 @@ import { MarkdownView } from '../components/MarkdownView'
 import { AgentConnections } from '../components/AgentConnections'
 import { AmbioWordmark } from '../components/ui/AmbioBrand'
 import { ChatProviderSettings } from '../components/ChatProviderSettings'
+import { CHAT_PROVIDERS_CHANGED, OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
 import type { ChatProvider } from '../../shared/agentChat'
 
 type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
@@ -70,6 +71,12 @@ export function GlobalCommands() {
 
   // Project commands enable and disable with the project.
   useEffect(() => { void window.ambio?.setMenuState?.({ projectOpen }) }, [projectOpen])
+  // The agent panel's "set up a model service" opens Settings there.
+  useEffect(() => {
+    const open = () => { setSettingsSection('models'); setDialog('settings') }
+    window.addEventListener(OPEN_MODEL_SERVICES, open)
+    return () => window.removeEventListener(OPEN_MODEL_SERVICES, open)
+  }, [])
 
   useCommandHandlers({
     'view.commandPalette': () => setDialog(current => (current === 'palette' ? null : 'palette')),
@@ -487,7 +494,7 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
             </>
           )}
 
-          {section === 'models' && <div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onClose={() => setSection('agents')} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders) }} /></div>}
+          {section === 'models' && <div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onClose={() => setSection('agents')} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
 
           {section === 'privacy' && (
             <>

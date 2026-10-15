@@ -1,5 +1,6 @@
 export type ChatProviderKind = 'openai' | 'anthropic' | 'google' | 'compatible'
-export type ChatMode = 'ask' | 'build'
+export type ChatMode = 'ask' | 'propose' | 'build'
+export const CHAT_MODES: ChatMode[] = ['ask', 'propose', 'build']
 export interface ChatProvider {
   id: string
   name: string
@@ -42,7 +43,8 @@ export interface ChatPart {
   tool?: string
   state?: string
 }
-export interface ChatMessage { id: string; role: 'user' | 'assistant'; parts: ChatPart[] }
+/** mode is the kind of turn a user message started, when the harness recorded it. */
+export interface ChatMessage { id: string; role: 'user' | 'assistant'; parts: ChatPart[]; mode?: ChatMode }
 export interface ChatApproval { id: string; permission: string; patterns: string[] }
 export interface ChatQuestion {
   id: string

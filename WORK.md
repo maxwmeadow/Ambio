@@ -271,6 +271,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ## Done log
 
+- 2026-10-15 `integrated-chat-merge` Merged Chat in Ambio into the agent conversation panel: one picker (Ambio chat per model service, setup opens Settings), one conversation list, shared Ask/Propose/Build (Propose added to the built-in agent), streamed transcript with builds reviewed inline, agent fixed per conversation. Replaced the tested/untested pills with an info popover of user-facing how-to per agent.
+
 - 2026-10-09 `chat-review-fixes` Chat in Ambio reads the saved conversation when opened and polls only while a turn runs (opening an old conversation no longer starts the agent); the main-process monitor skips conversations the panel just polled, and unchanged history is not rewritten. Each model service has a context window (1M for hosted providers, 128k for compatible services, editable) instead of a fixed 32k, and responses may run to 32k tokens instead of 8k. Build pre-allows Ambio's read and work-order tools, the dead `ambio_get_context` permission is gone, and a test checks permissions against advertised MCP tools. Streamed text is released once saved, and a turn the harness drops without a reply fails after 30 s instead of showing Working forever. (claude/practical-einstein-tw9187)
 
 - 2026-10-06 `integrated-agent-chat` Added optional Chat in Ambio beside every existing work-order destination: model-service setup, encrypted or session-only keys, credential proxy, bundled OpenCode, streaming multi-turn history, read-only Ask, approval-based Build with addressed work orders, questions, cancellation and crash recovery. Tests drive the real harness and Electron; packaging, licenses, privacy and CI updated. (feature/integrated-agent-chat)

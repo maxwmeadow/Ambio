@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DESTINATION_GUIDE, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
@@ -105,16 +105,26 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
 }
 
 export function deliveryAction(host?: DeliveryHost, hostId = '', watchingHosts: string[] = []): string {
+  if (hostId.startsWith(CHAT_DELIVERY)) return 'Send to Ambio chat'
   if (hostId === WATCHING_DELIVERY) return 'Send to watching session'
   if (host && watchingHosts.includes(host.id)) return `Send to the watching ${host.label} session`
   if (!host) return 'Send to inbox'
   return host.route === 'run' ? `Start ${host.label}` : host.route === 'open' ? `Copy + open ${host.label}` : `Copy for ${host.label}`
 }
 
-export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections }: {
+export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections, chatServices, onSetUpChat, fixed }: {
   hosts: DeliveryHost[]; hostId: string; installedIds: string[]; watchers?: number; watchingHosts?: string[]; onChange: (value: string) => void; disabled: boolean; rootPath: string
   onManageConnections?: () => void
+  /** Ambio chat's model services, offered when a conversation can start with one; undefined hides Ambio chat. */
+  chatServices?: { id: string; label: string }[]
+  onSetUpChat?: () => void
+  /** The agent an open conversation is bound to, shown instead of the picker. */
+  fixed?: { label: string; guideId: string }
 }) {
+  if (fixed) return <div className="ambio-inbox__delivery">
+    <div className="ambio-inbox__delivery-heading"><span className="ambio-inbox__delivery-title">Agent</span><DestinationGuidePopover hosts={hosts} hostId={fixed.guideId} /></div>
+    <p className="ambio-inbox__delivery-fixed">{fixed.label}<small>Start a new conversation to use another agent.</small></p>
+  </div>
   const host = hosts.find(item => item.id === hostId)
   // A host with a session watching gets the message in that session.
   const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
@@ -128,8 +138,15 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
     ...(host?.route === 'run' && !watchingHosts.includes(hostId) ? [`Edits files in ${rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.`] : []),
   ].join(' ')
   return <div className="ambio-inbox__delivery">
-    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select">Deliver to</label><DestinationGuidePopover hosts={hosts} hostId={watchingHosts.includes(hostId) ? WATCHING_DELIVERY : hostId} /></div>
-    <select id="ambio-delivery-select" aria-label="Work-order destination" title={about} value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
+    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select">Deliver to</label><DestinationGuidePopover hosts={hosts} hostId={hostId.startsWith(CHAT_DELIVERY) ? CHAT_DELIVERY : watchingHosts.includes(hostId) ? WATCHING_DELIVERY : hostId} /></div>
+    <select id="ambio-delivery-select" aria-label="Work-order destination" title={hostId.startsWith(CHAT_DELIVERY) ? 'Ambio\u2019s own agent, using your model service. Replies stream into this conversation.' : about} value={hostId} disabled={disabled} onChange={event => {
+      if (event.target.value === CHAT_DELIVERY) onSetUpChat?.()
+      else onChange(event.target.value)
+    }}>
+      {chatServices && <optgroup label="Built into Ambio">
+        {chatServices.length ? chatServices.map(service => <option key={service.id} value={`${CHAT_DELIVERY}:${service.id}`}>{service.label}</option>)
+          : <option value={CHAT_DELIVERY}>Ambio chat · set up a model service…</option>}
+      </optgroup>}
       {connected.length > 0 && <optgroup label="Connected to Ambio">{connected.map(option)}</optgroup>}
       {others.length > 0 && <optgroup label="Not set up with Ambio">{others.map(option)}</optgroup>}
       {/* A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice. */}
@@ -141,7 +158,7 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
 }
 
 /** Names for the destinations that are not agent hosts. */
-const GUIDE_NAMES: Record<string, string> = { [WATCHING_DELIVERY]: 'Session watching Ambio', '': 'Copy the handoff myself' }
+const GUIDE_NAMES: Record<string, string> = { [CHAT_DELIVERY]: 'Ambio chat', [WATCHING_DELIVERY]: 'Session watching Ambio', '': 'Copy the handoff myself' }
 
 /**
  * The info button beside the picker: how this panel works with each agent and
@@ -160,7 +177,7 @@ function DestinationGuidePopover({ hosts, hostId }: { hosts: DeliveryHost[]; hos
     return () => document.removeEventListener('pointerdown', outside)
   }, [open])
   const name = (id: string) => hosts.find(host => host.id === id)?.label ?? GUIDE_NAMES[id] ?? id
-  const choices = [...hosts.map(host => host.id), WATCHING_DELIVERY, ''].filter(id => DESTINATION_GUIDE[id])
+  const choices = [CHAT_DELIVERY, ...hosts.map(host => host.id), WATCHING_DELIVERY, ''].filter(id => DESTINATION_GUIDE[id])
   const guide = DESTINATION_GUIDE[shown]
   return <div ref={anchor} className="ambio-inbox__guide" onKeyDown={event => {
     if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }

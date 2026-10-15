@@ -73,6 +73,7 @@ export function chooseDeliveryHost({ hosts, remembered, liveIds, installedIds }:
 }): string {
   const usable = (id: string) => hosts.some(host => host.id === id && host.available)
   if (remembered === MANUAL_DELIVERY) return MANUAL_DELIVERY
+  if (remembered?.startsWith(`${CHAT_DELIVERY}:`)) return remembered
   if (remembered && usable(remembered)) return remembered
   const live = liveIds.find(usable)
   if (live) return live

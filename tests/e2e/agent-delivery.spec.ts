@@ -60,7 +60,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
-    await expect(destination.locator('option')).toHaveCount(11)
+    await expect(destination.locator('option')).toHaveCount(12)
     // The info button explains the chosen destination, and any other on request.
     await destination.selectOption('codex')
     await inbox.getByRole('button', { name: 'How each agent works here' }).click()

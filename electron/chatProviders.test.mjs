@@ -87,7 +87,7 @@ test('every Ambio tool the chat agents pre-allow is one the MCP server advertise
   const core = source.slice(source.indexOf('const CORE_TOOLS = ['), source.indexOf('const DEBUG_PROFILE_TOOLS = ['))
   const advertised = new Set([...core.matchAll(/^    name: '([^']+)',$/gm)].map(match => `ambio_${match[1]}`))
   assert.ok(advertised.size > 0)
-  for (const mode of ['ask', 'build']) for (const name of Object.keys(chatAgentConfig(mode).permission).filter(key => key.startsWith('ambio_'))) assert.ok(advertised.has(name), `${mode}: ${name} is not an advertised tool`)
+  for (const mode of ['ask', 'propose', 'build']) for (const name of Object.keys(chatAgentConfig(mode).permission).filter(key => key.startsWith('ambio_'))) assert.ok(advertised.has(name), `${mode}: ${name} is not an advertised tool`)
 })
 
 test('context windows default per provider and reject values the harness cannot use', t => {
