@@ -20,12 +20,17 @@ test('large architecture can be submitted in durable chunks without changing the
     assert.equal(accepted.isError, false, accepted.text)
     assert.equal(accepted.payload.systems, 1)
 
-    const invalid = await client.callTool('edit_systems', {
-      op: 'add_chunk', sessionId, chunkId: 'bad-path',
-      systems: [{ systemKey: 'bad', name: 'Bad', files: ['missing.py'] }],
+    // Files that cannot be placed are left out and reported; the chunk lands.
+    const partial = await client.callTool('edit_systems', {
+      op: 'add_chunk', sessionId, chunkId: 'partial',
+      systems: [{ systemKey: 'styles', name: 'Styles', files: ['missing.py', 'web/logo.svg', 'db/schema.sql'] }],
     })
-    assert.equal(invalid.isError, true)
-    assert.match(invalid.text, /missing\.py/)
+    assert.equal(partial.isError, false, partial.text)
+    assert.equal(partial.payload.systems, 2)
+    const reasons = Object.fromEntries(partial.payload.skipped.map(file => [file.path, file.reason]))
+    assert.match(reasons['missing.py'], /check the spelling/)
+    assert.match(reasons['web/logo.svg'], /does not index \.svg files/)
+    assert.match(reasons['db/schema.sql'], /database's schema/)
 
     const second = await client.callTool('edit_systems', {
       op: 'add_chunk', sessionId, chunkId: 'api',
@@ -35,22 +40,22 @@ test('large architecture can be submitted in durable chunks without changing the
 
     const status = await client.callTool('edit_systems', { op: 'session_status', sessionId })
     assert.equal(status.isError, false, status.text)
-    assert.deepEqual(status.payload.chunkIds, ['storage', 'api'])
-    assert.equal(status.payload.systems.length, 2)
+    assert.deepEqual(status.payload.chunkIds, ['storage', 'partial', 'api'])
+    assert.equal(status.payload.systems.length, 3)
 
     const retry = await client.callTool('edit_systems', first)
     assert.equal(retry.isError, false, retry.text)
-    assert.equal(retry.payload.chunks, 2)
+    assert.equal(retry.payload.chunks, 3)
 
     const mid = await (await fetch(`${apiBase}/api/snapshot/${workspaceId}`)).json()
     assert.equal(mid.systems?.length ?? 0, before.systems?.length ?? 0)
 
     const committed = await client.callTool('edit_systems', { op: 'commit_session', sessionId })
     assert.equal(committed.isError, false, committed.text)
-    assert.equal(committed.payload.systems, 2)
+    assert.equal(committed.payload.systems, 3)
 
     const proposal = await (await fetch(`${apiBase}/api/architecture-proposals/${committed.payload.proposalId}?workspace=${workspaceId}`)).json()
-    assert.equal(proposal.round.systems.length, 2)
+    assert.equal(proposal.round.systems.length, 3)
     assert.equal(proposal.round.systems.find(system => system.systemKey === 'api').depth, 1)
     const after = await (await fetch(`${apiBase}/api/snapshot/${workspaceId}`)).json()
     assert.equal(after.systems?.length ?? 0, before.systems?.length ?? 0, 'unreviewed proposal reached the live map')

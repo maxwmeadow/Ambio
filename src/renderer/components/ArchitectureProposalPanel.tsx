@@ -9,6 +9,7 @@ import {
   flattenVisibleProposalTree,
   proposalSubtreeFileCount,
   readProgress,
+  type ProposalNode,
 } from '../canvas/architectureProposal.ts'
 import { raiseInvitation, resolveInterruption } from '../store/interruptionStore.ts'
 
@@ -154,11 +155,34 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
     })
   }, [selectedSystemKey, systems])
 
+  // Follow the active system, not its row number: folding a branch above it
+  // renumbers every row below, and that must not move the list.
+  const activeKey = ordered[active]?.node.systemKey
+  const activeIndex = useRef(active)
+  activeIndex.current = active
   useEffect(() => {
-    if (!reviewOpen) return
-    const node = listRef.current?.children[active] as HTMLElement | undefined
+    if (!reviewOpen || !activeKey) return
+    const node = listRef.current?.children[activeIndex.current] as HTMLElement | undefined
     node?.scrollIntoView({ block: 'nearest' })
-  }, [reviewOpen, active])
+  }, [reviewOpen, activeKey])
+
+  const toggleBranch = useCallback((node: ProposalNode, index: number) => {
+    const folding = !collapsed.has(node.systemKey)
+    // Folding away the active system would leave the cursor on whichever row
+    // took its number; keep it on the branch that now stands for it.
+    const holds = (branch: ProposalNode): boolean =>
+      branch.children.some(child => child.systemKey === selectedSystemKey || holds(child))
+    if (folding && selectedSystemKey && holds(node)) {
+      setCursor(index)
+      selectSystem(node.systemKey)
+    }
+    setCollapsed(current => {
+      const next = new Set(current)
+      if (folding) next.add(node.systemKey)
+      else next.delete(node.systemKey)
+      return next
+    })
+  }, [collapsed, selectedSystemKey, setCursor, selectSystem])
 
   // The offer to review is a tenant of the interruption lane, like every other
   // thing that wants attention. It never opens itself: an agent finishing a
@@ -222,12 +246,7 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
                     aria-expanded={!collapsed.has(node.systemKey)}
                     onClick={event => {
                       event.stopPropagation()
-                      setCollapsed(current => {
-                        const next = new Set(current)
-                        if (next.has(node.systemKey)) next.delete(node.systemKey)
-                        else next.add(node.systemKey)
-                        return next
-                      })
+                      toggleBranch(node, index)
                     }}
                   >
                     {collapsed.has(node.systemKey) ? '>' : 'v'}
@@ -237,6 +256,36 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
                 <span className="ambio-proposal__count">
                   {branchFiles} {branchFiles === 1 ? 'file' : 'files'}{node.children.length > 0 ? ' in branch' : ''}
                 </span>
+                {/* Always in the row, so deciding never needs the row opened
+                    first. Approving a branch approves what is pending in it. */}
+                {node.decision === 'pending' ? (
+                  <span className="ambio-proposal__decide">
+                    <button
+                      type="button"
+                      className="ambio-proposal__approve"
+                      disabled={busy}
+                      aria-label={`Approve ${node.name}`}
+                      title={node.children.length > 0 ? 'Approve this and everything inside it' : 'Approve'}
+                      onClick={() => approve(node.systemKey)}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      type="button"
+                      className="ambio-proposal__sendback"
+                      disabled={busy}
+                      aria-label={`Send back ${node.name}`}
+                      title="Send back with a reason"
+                      onClick={() => { setRejecting(node.systemKey); setReason('') }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <span className="ambio-proposal__decided" data-decision={node.decision}>
+                    {node.decision === 'approved' ? '✓ Approved' : '↩ Sent back'}
+                  </span>
+                )}
               </div>
 
               {isActive && node.description && (
@@ -247,7 +296,7 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
                 <p className="ambio-proposal__sentback">Sent back: {node.rejectionReason}</p>
               )}
 
-              {isActive && node.decision === 'pending' && rejecting === node.systemKey && (
+              {node.decision === 'pending' && rejecting === node.systemKey && (
                 <div className="ambio-proposal__reject" onClick={event => event.stopPropagation()}>
                   <textarea
                     autoFocus
@@ -261,26 +310,6 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
                       Send back
                     </button>
                   </div>
-                </div>
-              )}
-
-              {isActive && node.decision === 'pending' && rejecting !== node.systemKey && (
-                <div className="ambio-proposal__actions" onClick={event => event.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="ambio-proposal__approve"
-                    disabled={busy}
-                    onClick={() => approve(node.systemKey)}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => { setRejecting(node.systemKey); setReason('') }}
-                  >
-                    Send back
-                  </button>
                 </div>
               )}
 

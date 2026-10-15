@@ -107,6 +107,7 @@ type Server struct {
 	// Agent presence is a short lease renewed by each running MCP process. It
 	// is deliberately separate from the durable action log: history proves an
 	// agent connected before, while a lease proves it is connected now.
+	permissions      permissionDesk
 	presenceMu       sync.Mutex
 	agentPresence    map[string]map[string]AgentPresence
 	presenceNow      func() time.Time
@@ -321,7 +322,7 @@ func (s *Server) keepWorkspaceLive(workspaceID string, sqlDB *sql.DB) {
 	if watching || !stillOpen {
 		return
 	}
-	log.Printf("api: %s opened without the app; watching %s", workspaceID, live.Path)
+	log.Printf("api: %s opened on demand by an API request; watching %s", workspaceID, live.Path)
 	s.startWatcher(sqlDB, *live)
 	s.launchRootSync(sqlDB, *live, false)
 }
@@ -477,6 +478,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	s.registerCaseRoutes(mux)
 	mux.HandleFunc("/api/agent/activity", s.handleAgentActivity)
 	mux.HandleFunc("/api/agent/presence", s.handleAgentPresence)
+	s.registerPermissionRoutes(mux)
 	mux.HandleFunc("/api/agent/workspace", s.handleAgentWorkspace)
 	mux.HandleFunc("/api/agent/action", s.handleAgentAction)
 	mux.HandleFunc("/api/agent/actions", s.handleAgentActions)

@@ -11,7 +11,10 @@
  * Approval is PER SYSTEM. A tree of forty candidates that must be taken or
  * left whole is a tree nobody accepts: one wrong boundary and the entire
  * proposal bounces, so the map stays named by guesswork. Nine approved and
- * three rejected has to be an ordinary outcome.
+ * three rejected has to be an ordinary outcome. Approving a system also
+ * approves whatever is still pending inside it, and the pending systems it
+ * sits inside (the daemon does this in one transaction), so a reviewer can
+ * approve whole branches or pick through them, in any order.
  *
  * And a rejection is an INSTRUCTION, not a deletion. The candidate and its
  * membership survive into the next round carrying the reason, because the
@@ -121,24 +124,28 @@ function descendsFrom(
 }
 
 /**
- * Why a candidate cannot be approved yet, or null when it can.
+ * Why a candidate cannot be approved, or null when it can.
  *
- * A proposed child cannot exist before its proposed parent, so approving out
- * of order is refused with the reason rather than greyed out - a disabled
- * control that explains nothing is how a user decides a feature is broken.
+ * Approving a subsystem approves the pending systems around it, since it
+ * cannot exist without them, so a pending container never blocks. Only a
+ * container that was sent back does: there is nowhere to put the subsystem.
  */
 export function blockedReason(
   system: ProposedSystem,
   bySystemKey: ReadonlyMap<string, ProposedSystem>,
 ): string | null {
-  if (system.parentRefType !== 'proposed_system' || !system.parentRefId) return null
-  const parent = bySystemKey.get(system.parentRefId)
-  if (!parent) return null
-  if (parent.decision === 'approved') return null
-  if (parent.decision === 'rejected') {
-    return `${parent.name} was rejected, so this cannot be placed inside it.`
+  const seen = new Set<string>([system.systemKey])
+  let current = system
+  while (current.parentRefType === 'proposed_system' && current.parentRefId && !seen.has(current.parentRefId)) {
+    const parent = bySystemKey.get(current.parentRefId)
+    if (!parent) return null
+    if (parent.decision === 'rejected') {
+      return `${parent.name} was sent back, so this cannot be placed inside it.`
+    }
+    seen.add(parent.systemKey)
+    current = parent
   }
-  return `Approve ${parent.name} first - this belongs inside it.`
+  return null
 }
 
 export interface DecisionAttempt {

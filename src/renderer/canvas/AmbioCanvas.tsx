@@ -27,7 +27,6 @@ import {
   useReactFlow,
   useStoreApi,
   useNodesInitialized,
-  useViewport,
   type Node,
   type Edge,
   type NodeTypes,
@@ -114,6 +113,8 @@ import { InfraSidebar } from '../components/InfraSidebar'
 import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
+import { canvasZoomChrome } from './canvasZoomChrome'
+import { recordCanvasRender, recordZoomVisibilityPass } from './perfMetrics'
 import { routeWheelEvent, wheelScrollStep } from './wheelRouting'
 import { rectContainsRect } from './selectionResize'
 import { sheetEditableNodeIds } from './sheetEditability'
@@ -1441,6 +1442,7 @@ function pushFloorLayoutUndo(
 }
 
 export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCanvasProps = {}) {
+  recordCanvasRender()
   const reviewMode = reviewScene !== undefined
   const binMode = binScene !== undefined
   // Both modes swap the scene data and cut every live subscription. The Floor
@@ -1449,6 +1451,19 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const reviewEditableNodeIds = reviewScene?.editableNodeIds
   const previewReviewLayouts = reviewScene?.onPreviewLayouts
   const saveReviewLayouts = reviewScene?.onSaveLayouts
+  // Ignore live-only channels at the subscription boundary, not just after
+  // reading them: agent/runtime updates must not rerender an isolated canvas.
+  type GraphState = ReturnType<typeof useGraphStore.getState>
+  const emptyReviewLiveState = useMemo(() => ({
+    infraNodes: [] as GraphState['infraNodes'],
+    dependencies: [] as GraphState['dependencies'],
+    activeTrace: [] as GraphState['activeTrace'],
+    runtimeNodes: {} as GraphState['runtimeNodes'],
+    nodeFx: {} as GraphState['nodeFx'],
+    relationshipFx: [] as GraphState['relationshipFx'],
+    activeWorkSessions: [] as GraphState['activeWorkSessions'],
+    agentAttention: {} as GraphState['agentAttention'],
+  }), [])
   const {
     systems: liveSystems, files: liveFiles, infraNodes: liveInfraNodes,
     dependencies: liveDependencies, floorLayouts: liveFloorLayouts,
@@ -1459,44 +1474,26 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     deltaReviewing: liveDeltaReviewing, deltaCursor: liveDeltaCursor,
     agentAttention: liveAgentAttention, isIndexing: liveIsIndexing,
   } = useGraphStore(useShallow(s => ({
-    agentAttention:  s.agentAttention,
-    delta:           s.delta,
-    activeWorkSessions: s.activeWorkSessions,
-    deltaReviewing:  s.deltaReviewing,
-    deltaCursor:     s.deltaCursor,
+    agentAttention:  isolatedScene ? emptyReviewLiveState.agentAttention : s.agentAttention,
+    delta:           isolatedScene ? null : s.delta,
+    activeWorkSessions: isolatedScene ? emptyReviewLiveState.activeWorkSessions : s.activeWorkSessions,
+    deltaReviewing:  isolatedScene ? false : s.deltaReviewing,
+    deltaCursor:     isolatedScene ? 0 : s.deltaCursor,
     systems:         s.systems,
     files:           s.files,
-    infraNodes:      s.infraNodes,
-    dependencies:    s.dependencies,
+    infraNodes:      isolatedScene ? emptyReviewLiveState.infraNodes : s.infraNodes,
+    dependencies:    isolatedScene ? emptyReviewLiveState.dependencies : s.dependencies,
     floorLayouts:    s.floorLayouts,
     selectedNodeId:  s.selectedNodeId,
     infraPickerNodeId: s.infraPickerNodeId,
     selectionMode:   s.selectionMode,
-    activeTrace:     s.activeTrace,
-    runtimeNodes:    s.runtimeNodes,
-    dataFlow:        s.dataFlow,
-    nodeFx:          s.nodeFx,
-    relationshipFx:  s.relationshipFx,
-    isIndexing:       s.isIndexing,
+    activeTrace:     isolatedScene ? emptyReviewLiveState.activeTrace : s.activeTrace,
+    runtimeNodes:    isolatedScene ? emptyReviewLiveState.runtimeNodes : s.runtimeNodes,
+    dataFlow:        isolatedScene ? null : s.dataFlow,
+    nodeFx:          isolatedScene ? emptyReviewLiveState.nodeFx : s.nodeFx,
+    relationshipFx:  isolatedScene ? emptyReviewLiveState.relationshipFx : s.relationshipFx,
+    isIndexing:      isolatedScene ? false : s.isIndexing,
   })))
-
-  // Disabled live-only channels must be referentially stable in review mode.
-  // Fresh [] / {} / Map instances on every drag render retriggered layout and
-  // projection effects, which then overwrote React Flow's in-flight position
-  // with the last persisted frame and made nodes teleport under the pointer.
-  const emptyReviewLiveState = useMemo(() => ({
-    infraNodes: [] as typeof liveInfraNodes,
-    dependencies: [] as typeof liveDependencies,
-    activeTrace: [] as typeof liveActiveTrace,
-    runtimeNodes: {} as typeof liveRuntimeNodes,
-    nodeFx: {} as typeof liveNodeFx,
-    relationshipFx: [] as typeof liveRelationshipFx,
-    activeWorkSessions: [] as typeof liveActiveWorkSessions,
-    // A Record, like the store's own empty value. It was a Map cast to one,
-    // which survived only because an empty Map has no enumerable keys and the
-    // consumers all early-return on Object.keys(...).length === 0.
-    agentAttention: {} as typeof liveAgentAttention,
-  }), [])
 
   // Review and the unsorted bin are data/persistence modes of this component,
   // not other canvases. Every interaction below therefore remains the live
@@ -1709,6 +1706,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const pendingInitialFitProjectRef = useRef<string | null>(null)
   const runningInitialFitProjectRef = useRef<string | null>(null)
   const canvasRootRef = useRef<HTMLDivElement>(null)
+  const zoomChromeRef = useRef<ReturnType<typeof canvasZoomChrome> | null>(null)
+  useLayoutEffect(() => {
+    if (!canvasRootRef.current) return
+    const chrome = canvasZoomChrome(canvasRootRef.current, getViewport().zoom)
+    zoomChromeRef.current = chrome
+    return () => { chrome.dispose(); zoomChromeRef.current = null }
+  }, [getViewport])
   const domSceneRecoveryRef = useRef('')
   const cursorTraceSignatureRef = useRef('')
   const selectedIdsRef = useRef<Set<string>>(new Set())
@@ -2246,7 +2250,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // naming the file, before then. Revealing the file inside the closed system
   // instead covered the system's own title.
   const caseRun = useGraphStore(s =>
-    s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
+    !isolatedScene && s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
   const runCalloutList = useMemo(
     () => (isolatedScene ? [] : runCallouts(caseRun)),
     [caseRun, isolatedScene],
@@ -3903,9 +3907,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const onMove: OnMove = useCallback((event, viewport) => {
     const zoom = viewport.zoom
     currentZoomRef.current = zoom
-    // Activity badges counter-scale against this so they stay readable when
-    // the camera pulls back. One style write per frame, no React render.
-    canvasRootRef.current?.style.setProperty('--ambio-zoom', String(zoom))
+    // Write only to activity badges, never an inherited canvas-wide variable.
+    zoomChromeRef.current?.setZoom(zoom)
     // Keep the conservative overview tier throughout the entrance animation.
     // Once fitView settles, its completion handler applies the final zoom once.
     const visibilityZoom = pendingInitialFitProjectRef.current
@@ -3929,17 +3932,24 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       targetViewportRef.current = null
     }
 
-    if (zoomRafRef.current) cancelAnimationFrame(zoomRafRef.current)
+    if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current)
+    zoomRafRef.current = null
+    // Review has no zoom-dependent visibility. Its layout projection already
+    // reveals every node; restamping a new array here reruns the entire scene
+    // projection, React Flow node adoption and diagnostics on every frame.
+    if (reviewMode) return
     zoomRafRef.current = requestAnimationFrame(() => {
+      zoomRafRef.current = null
       const draggingId = draggingNodeIdRef.current
       // Panning (zoom unchanged) never alters semantic visibility. Restamping
       // every node on each pan frame is what made panning feel janky - skip it
       // unless the zoom actually changed (or a node is being dragged).
       if (!draggingId && Math.abs(visibilityZoom - lastVisibilityZoomRef.current) < 1e-4) return
       lastVisibilityZoomRef.current = visibilityZoom
+      recordZoomVisibilityPass()
       sceneSourceRef.current = 'zoom-visibility'
       setRfNodes(curr => {
-        let updated = reviewMode ? curr.map(makeFullyVisible) : applyZoomVisibility(curr, visibilityZoom)
+        let updated = applyZoomVisibility(curr, visibilityZoom)
         if (draggingId) {
           updated = updated.map(n => n.id === draggingId ? makeFullyVisible(n) : n)
         }

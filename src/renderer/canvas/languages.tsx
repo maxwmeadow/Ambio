@@ -25,6 +25,10 @@ export const LANGUAGES: LanguageDefinition[] = [
   { id: 'c', label: 'C', extensions: ['.c', '.h'], preferredExtension: '.c', short: 'C', color: '#555599', textColor: '#fff', icon: 'c' },
   { id: 'ruby', label: 'Ruby', extensions: ['.rb'], preferredExtension: '.rb', short: 'RB', color: '#cc342d', textColor: '#fff', icon: 'ruby' },
   { id: 'java', label: 'Java / OpenJDK', extensions: ['.java'], preferredExtension: '.java', short: 'JV', color: '#f89820', textColor: '#fff', icon: 'openjdk' },
+  { id: 'css', label: 'CSS', extensions: ['.css'], preferredExtension: '.css', short: 'CSS', color: '#663399', textColor: '#fff', icon: 'css' },
+  { id: 'scss', label: 'SCSS', extensions: ['.scss'], preferredExtension: '.scss', short: 'SCSS', color: '#cc6699', textColor: '#fff', icon: 'sass' },
+  { id: 'sass', label: 'Sass', extensions: ['.sass'], preferredExtension: '.sass', short: 'SASS', color: '#cc6699', textColor: '#fff', icon: 'sass' },
+  { id: 'less', label: 'Less', extensions: ['.less'], preferredExtension: '.less', short: 'LESS', color: '#1d365d', textColor: '#fff', icon: 'less' },
   { id: 'markdown', label: 'Markdown', extensions: ['.md', '.mdx'], preferredExtension: '.md', short: 'MD', color: '#5f6f78', textColor: '#fff', icon: 'markdown' },
 ]
 

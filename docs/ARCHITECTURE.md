@@ -181,6 +181,19 @@ Launch status is distinct from MCP claim and reply status. Runs edit the existin
 graph root, can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 
+**Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
+a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`). The claim
+response hands the agent the thread's earlier turns (`db.InboxConversation`),
+so context does not depend on the host. `electron/agentDrivers.ts` holds one
+driver per started host: how to start a turn, continue the host's session,
+apply the turn's mode as permissions, and read its output. The runner stores
+host sessions per conversation and a run's activity events; `acpClient.ts`
+drives hosts that speak the Agent Client Protocol. A session told to watch
+waits on `get_inbox({watch: true})` and is offered as a destination; a turn
+can be left for the watching session of one host (`target_host`). A started
+agent's permission questions wait in archd (`api/agent_permission.go`, in
+memory) and are answered in the panel (`store/agentPermissionStore.ts`).
+
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
 files (compose, `.env`, Dockerfile, Procfile, fly/vercel/netlify/render/railway,
@@ -216,6 +229,19 @@ and validation limits are in [testing/AGENTS_DRAW_FIRST.md](testing/AGENTS_DRAW_
 
 ## Renderer
 
+The Floor and proposed-architecture review share `canvas/AmbioCanvas.tsx`.
+Camera updates change the viewport without rebuilding the layout. Review nodes
+are already fully visible, so camera movement does not restamp their controlled
+array. Review/bin selectors ignore live-only agent/runtime channels. Empty flow
+and trace overlays do not subscribe to the camera; active overlays subscribe to
+zoom and cache world-space routing separately from screen-size pulse/callout work.
+`canvas/canvasZoomChrome.ts` tracks mounted activity badges and writes camera
+scale only to those elements; the registered non-inheriting `--ambio-zoom`
+property avoids invalidating the full diagram's styles each frame. Each nested
+canvas owns its own badges and camera. Performance regressions are covered by
+`tests/e2e/canvas-performance.spec.ts`; measurements and limits are documented in
+[testing/CANVAS_PERFORMANCE.md](testing/CANVAS_PERFORMANCE.md).
+
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is
 work item `split-ambio-canvas`). Semantic zoom reveals contents by on-screen
@@ -223,6 +249,22 @@ size; layout is deterministic frame packing that never moves persisted
 geometry. One command model (`src/shared/appMenu.ts`) drives menus, the
 palette, shortcuts and right-click menus. The renderer is sandboxed under a
 strict CSP; privileged work goes through `electron/preload.ts`.
+
+Global Settings (`app/GlobalCommands.tsx`, `styles/appChrome.css`) uses an
+860 × 640 px frame capped to the viewport with 24 px margins. Sections share
+one scrollable content panel, while the header and navigation stay in place;
+switching sections resets the panel scroll. At viewport widths of 640 px or
+less the section navigation wraps above the content. Shared screen title bars
+and the canvas title strip contain branding, menus, status and window controls.
+
+Brand placements use `components/ui/AmbioBrand.tsx` and the outlined SVGs in
+`src/renderer/assets/branding/`, so no display font loads at runtime. Native
+icons live in `resources/branding/`, copied outside asar on every platform;
+`electron/branding.ts` resolves their development/packaged location. The main
+process uses the A for the window, dock, notifications and tray. Clicking the
+tray restores/focuses the window; it does not change close/quit behavior or
+provide the planned agent activity surface. `npm run brand:icons` regenerates
+the PNG, ICO and ICNS assets from the approved A. See [BRANDING.md](BRANDING.md).
 
 Finding things by name is one lookup for humans and agents: `⌘K`
 (`components/SearchBar.tsx`, results built in `canvas/searchResults.ts`)

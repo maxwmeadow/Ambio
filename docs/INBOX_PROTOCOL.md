@@ -80,6 +80,126 @@ Replies remain visible after restarting Ambio or deleting the originating canvas
 Cancellation prevents acceptance of a later reply; it cannot stop an external coding
 process. The panel tells the user to stop that agent separately if necessary.
 
+## Conversations (2026-10-13)
+
+A request is a turn in a conversation. `canvas_outbox.thread_id` groups turns
+(the first turn's own ID) and `mode` records what the turn asks for: `ask`,
+`propose` or `build`. A message from before threads is a conversation of one.
+The panel shows one conversation at a time; the composer continues it, and
+**New conversation** starts another. The mode is chosen per turn, so asking,
+asking for a plan and ordering the build are three turns of one conversation.
+
+**Ambio keeps the conversation, not the host.** No supported host lets another
+program put a prompt into an existing human chat, and not every host can
+continue its own session. So the agent that claims a turn is handed the
+earlier turns with it: `get_inbox` returns `conversation`, oldest first, each
+turn with its mode, the request, the agent's reply and the user's review. The
+last 20 turns are sent, each request and reply clipped to 6,000 characters;
+`conversationOmitted` counts older ones. Cancelled turns are left out. This
+works the same for a started run, a pasted handoff and a different host.
+
+**Session continuity is an optimisation on top.** For a host Ambio starts, the
+runner keeps the host's session ID per conversation and host
+(`~/.ambio/delivery/sessions.json`) and continues it on the next turn. A
+session that cannot be continued (expired, removed) starts the same turn fresh
+when the agent had said nothing; the conversation still reaches it through
+`get_inbox`.
+
+**The mode is the permission.** A question or a proposal may read the code
+and use Ambio's tools; only a build may change files. Each driver maps that to
+its host (`electron/agentDrivers.ts`) and passes it on every turn.
+
+| Host | Started as | Continues a session | Ask / Propose | Build |
+| --- | --- | --- | --- | --- |
+| Claude Code | `claude -p --output-format stream-json` | `--session-id` on the first turn, `--resume` after | `--permission-mode dontAsk`, Read/Glob/Grep and Ambio only | `acceptEdits` plus the listed check commands |
+| Codex | `codex exec --json`, Ambio's MCP server set to `default_tools_approval_mode="approve"` | `codex exec resume <thread>`, sandbox given as `-c sandbox_mode=` (resume has no `--sandbox`) | read-only sandbox | workspace-write sandbox |
+| Copilot CLI | An ACP session (`copilot --acp`, a public preview); `copilot --prompt` when it cannot hold one | In the ACP session; print mode reports none | ACP: as the row below. Print mode: `--allow-tool ambio` only | Print mode adds `write` and the listed check commands |
+| Cursor CLI (experimental) | `cursor-agent -p --output-format stream-json` | `--resume=<chat>` | `--mode ask` / `--mode plan` | `--force` |
+| Antigravity CLI | `agy -p <prompt> --add-dir <project>` (1.0.x has no JSON output) | No: plain print mode reports no conversation | Its own permissions: MCP calls need `mcp(ambio/*)` in `permissions.allow`, which Ambio's Antigravity install adds; any command it would ask about ends the run | The same; Ambio never passes its skip-permissions flag |
+| Devin CLI, Antigravity agent (experimental) | An Agent Client Protocol session (`devin acp`, Google's `agy_acp_server`) | `session/resume` or `session/load` when the agent offers it | Agent's ask/plan mode; edit, delete, move and execute requests are refused | Permission requests are allowed |
+
+The experimental rows are offered only when their editor (Cursor, Windsurf,
+Antigravity) is set up with Ambio and the CLI is found.
+
+What has been run for real (`mcp/e2e/conversation.live.mjs`, 2026-10-15):
+
+- **Claude Code 2.1.198:** passes four turns: claim and reply, a follow-up
+  answered from the conversation in the same session, a question that changed
+  nothing, an unlisted command asked about and run once allowed, and a listed
+  check run without a question.
+- **Codex 0.162.1:** passes three turns, continuing its session. Needed:
+  Ambio's server approved (`approval_policy="never"` otherwise refuses every
+  MCP call) and the sandbox passed as config on resume. One resumed build hit
+  a Codex Windows sandbox error ("setup refresh had errors") once and passed
+  on the next run.
+- **Antigravity CLI 1.0.16:** answers questions through Ambio, including the
+  follow-up, once the project is named with `--add-dir` and `mcp(ambio/*)` is
+  allowed (rule form from antigravity.google/docs/permissions). A build that
+  needs a shell command fails: print mode refuses the command and ends the
+  run; Ambio says so on the turn.
+- **Gemini CLI:** removed. Google moved it into Antigravity and refuses it for
+  personal accounts (seen with 0.39.1).
+
+- **Copilot CLI 1.0.98:** passes three turns as an ACP session, continuing
+  the same session, with the build's shell command put to the user and run
+  once allowed. Its ACP server ignores MCP servers named in `session/new`, so
+  Ambio's is passed with `--additional-mcp-config` when it starts.
+
+Cursor CLI, Devin and Google's Antigravity ACP server are not installed. Those were written from
+each vendor's documentation and tested against stand-in agents. The panel
+shows each destination's status beside the picker (`DELIVERY_SUPPORT`).
+
+**Asking the user.** A started agent that wants something its turn did not
+already allow asks in the conversation instead of being refused unseen. The
+question goes to archd (`POST /api/agent/permission`), which holds the
+agent's request open until the user answers in the panel or the wait runs
+out; no answer is a refusal, and a daemon restart drops the question the same
+way. Claude Code reaches it through `--permission-prompt-tool
+mcp__ambio__approve_action`, a tool the MCP server offers only to a run Ambio
+started (`AMBIO_RUN_MESSAGE_ID`). ACP agents reach it through
+`session/request_permission`: a build's edits are allowed as ordered, a
+command it wants to run is asked about, and a question or proposal is refused
+anything that changes the project. Codex and Copilot's print mode have no such
+hook and keep their fixed allow lists.
+
+**Live activity.** A driver reads the host's output for what the agent says
+and does. The runner keeps up to 400 events per run beside its log
+(`<key>.events.jsonl`) and the panel shows the latest under the working turn.
+The reply through `reply_to_canvas` is still what decides a turn is answered;
+a clean process exit is not.
+
+**Agent Client Protocol.** `electron/acpClient.ts` is a client for
+[ACP](https://agentclientprotocol.com): JSON-RPC over the agent's stdio.
+Ambio gives the agent its MCP server for the session (`session/new`
+`mcpServers`), sets the agent's own mode to match the turn, answers
+`session/request_permission` by the turn's mode, and offers the agent no file
+system or terminal of its own.
+
+**Watching (opt-in).** A user can tell a session they already have open to
+watch Ambio. That session calls `get_inbox({watch: true})`, which waits up to
+45 seconds for an open request and reports the wait as presence
+(`watchingUntil`). While a session is watching, **Deliver to** offers
+**Session watching Ambio**: the turn is saved as `open` instead of addressed,
+and the watching session picks it up with its own chat intact, then calls
+again. Nothing waits unless the user asked for it.
+
+Choosing a host that has a session watching sends to that session too
+(`targetHost` limits the open turn to that host's connections), in preference
+to starting a new run. This is how the hosts Ambio cannot start (Claude
+Desktop, Copilot in VS Code, Cursor, Windsurf, Antigravity, JetBrains, Zed)
+hold a conversation: **Deliver to** copies a handoff once that also asks the
+chat to stay attached, and every later turn reaches that chat directly.
+
+VS Code and Cursor document a link that opens their chat with a prompt in it
+(`vscode://GitHub.Copilot-Chat/chat?prompt=`, Cursor's prompt deeplink), so
+for those two the first handoff is placed in the chat instead of pasted
+(`chatDeepLink`). Seen in VS Code (2026-10-15): the first time it asks to
+allow GitHub Copilot to open the link, then opens Copilot Chat with the
+handoff filled in, in Ask mode for an Ask turn, and waits for the user to
+send it. Opened on its own, the link does not bring VS Code forward; Deliver
+opens the project first, which does. Cursor's link is unconfirmed. The other five
+document no such route, and the clipboard handoff remains theirs.
+
 ## Delivery routes (2026-09-30)
 
 **Deliver to** lists all ten installer modalities. The default is **Choose chat
@@ -116,7 +236,6 @@ Sources: [Claude CLI](https://code.claude.com/docs/en/cli-reference),
 [Cursor headless mode](https://cursor.com/docs/cli/headless),
 [Windsurf hooks](https://docs.windsurf.com/windsurf/cascade/hooks),
 [Antigravity MCP](https://antigravity.google/docs/mcp),
-[Gemini headless mode](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/headless.md),
 [JetBrains MCP](https://www.jetbrains.com/help/ai-assistant/mcp.html),
 [Zed MCP](https://zed.dev/docs/ai/mcp). Codex's installed CLI help, upstream
 Copilot/VS Code references, and Claude's upstream changelog were also inspected.
@@ -197,6 +316,11 @@ every requirement. Reopening does not stop an external agent already editing fil
   bound workspace. `get_inbox()` claims at most one legacy/open instruction. The same
   connector gets its existing live claim back and renews it. Other connectors cannot
   claim that instruction until its lease expires. An empty open queue returns immediately.
+- `get_inbox({watch: true})` waits up to 45 seconds for an open instruction, only for a
+  session the user asked to watch. A claim by ID, a context read and a connection check
+  never wait.
+- A claimed message carries `threadId`, `mode` and, when there are earlier turns,
+  `conversation` (see Conversations).
 - `get_inbox({verifyOnly: true, expectedWorkspaceId})` checks the bound workspace and
   returns `inboxReady`, workspace identity, connection ID, and host ID without claiming
   work. A check cannot include a `messageId` or `messageHandle`.

@@ -12,7 +12,7 @@ export interface HighlightedSource {
 }
 
 export type AmbioHighlightLanguage = 'typescript' | 'tsx' | 'javascript' | 'jsx' | 'python' |
-  'go' | 'rust' | 'csharp' | 'c' | 'cpp' | 'ruby' | 'java'
+  'go' | 'rust' | 'csharp' | 'c' | 'cpp' | 'ruby' | 'java' | 'css' | 'scss' | 'sass' | 'less'
 
 const LANGUAGE_ALIASES: Record<string, AmbioHighlightLanguage> = {
   typescript: 'typescript',
@@ -35,12 +35,17 @@ const LANGUAGE_ALIASES: Record<string, AmbioHighlightLanguage> = {
   ruby: 'ruby',
   rb: 'ruby',
   java: 'java',
+  css: 'css',
+  scss: 'scss',
+  sass: 'sass',
+  less: 'less',
 }
 
 const EXTENSION_LANGUAGES: Record<string, AmbioHighlightLanguage> = {
   ts: 'typescript', tsx: 'tsx', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'jsx',
   py: 'python', go: 'go', rs: 'rust', cs: 'csharp', c: 'c', cc: 'cpp', cpp: 'cpp', cxx: 'cpp',
   h: 'cpp', hpp: 'cpp', hxx: 'cpp', rb: 'ruby', java: 'java',
+  css: 'css', scss: 'scss', sass: 'sass', less: 'less',
 }
 
 function shikiLanguage(language: string, path: string): AmbioHighlightLanguage | null {

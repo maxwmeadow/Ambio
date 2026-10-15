@@ -45,14 +45,13 @@ const roots = tree.filter(node => node.parentRefType !== 'proposed_system')
 assert.ok(roots.length > 0 && roots.length < systems.length, 'expected a nested tree, not a flat list')
 console.log(`PASS  the tree is nested - ${roots.length} at the top of ${systems.length}`)
 
-// A child must be refused until its parent is approved, and the refusal must
-// name the parent rather than being a silent disabled control.
+// A child can be approved while its parent is pending: approving it approves
+// the systems around it.
 const byKey = new Map(systems.map(s => [s.systemKey, s]))
 const child = systems.find(s => s.parentRefType === 'proposed_system' && byKey.get(s.parentRefId)?.decision === 'pending')
 assert.ok(child, 'expected a child whose parent is still pending')
-const reason = blockedReason(child, byKey)
-assert.match(reason, /Approve .+ first/)
-console.log(`PASS  blocked child explains itself - "${reason}"`)
+assert.equal(blockedReason(child, byKey), null)
+console.log('PASS  a child of a pending parent is not blocked')
 
 const progress = readProgress(systems)
 const apiFiles = systems.reduce((n, s) => n + (s.fileCount ?? 0), 0)

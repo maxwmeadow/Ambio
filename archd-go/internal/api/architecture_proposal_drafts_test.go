@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"ambio.local/archd/internal/db"
@@ -68,5 +69,20 @@ func TestProposalDraftAPIChunksCommitIntoReviewOnly(t *testing.T) {
 	}
 	if systems, err := db.GetSystems(sqlDB, "ws"); err != nil || len(systems) != 0 {
 		t.Fatalf("proposal bypassed review: %#v, %v", systems, err)
+	}
+}
+
+func TestNotIndexedReasonNamesTheCause(t *testing.T) {
+	for file, want := range map[string]string{
+		"db/user_schemas.sql":  "database's schema",
+		"prisma/schema.prisma": "database's schema",
+		"web/public/logo.svg":  "does not index .svg files",
+		"skills/eoq.json":      "does not index .json files",
+		"api/handlers.py":      "check the spelling",
+		"Makefile":             "does not index this file type",
+	} {
+		if got := notIndexedReason(file); !strings.Contains(got, want) {
+			t.Errorf("notIndexedReason(%q) = %q, want it to mention %q", file, got, want)
+		}
 	}
 }

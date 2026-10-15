@@ -1422,6 +1422,25 @@ a { color: var(--accent); text-decoration: none; }
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ─── Side panels ────────────────────────────────────────────────────────────
+   Every panel on the canvas's edges enters and leaves the same way: it slides
+   from its own edge, quick to arrive and quicker to go, so opening one never
+   waits on the animation. --panel-exit matches PANEL_EXIT_MS (usePresence.ts),
+   which keeps the panel mounted until it is gone. */
+:root {
+  --panel-enter: 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --panel-exit: 150ms cubic-bezier(0.4, 0, 1, 1);
+}
+@keyframes ambioPanelInRight { from { transform: translateX(100%); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@keyframes ambioPanelOutRight { from { transform: none; opacity: 1; } to { transform: translateX(100%); opacity: 0.4; } }
+@keyframes ambioPanelInLeft { from { transform: translateX(-100%); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@keyframes ambioPanelOutLeft { from { transform: none; opacity: 1; } to { transform: translateX(-100%); opacity: 0.4; } }
+[data-closing] { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ambio-detail-panel, .ambio-inbox, .ambio-infra-sidebar { animation: none !important; }
+  .ambio-infra-sidebar-tab { transition: none !important; }
+}
 /* ─── Call trace animations ──────────────────────────────────────────────── */
 :root {
   --trace-color: #22d3ee;
@@ -1524,6 +1543,14 @@ a { color: var(--accent); text-decoration: none; }
   18%  { opacity: 1; transform: translateY(0) scale(1); }
   72%  { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-4px) scale(0.97); }
+}
+
+/* Camera values belong to activity chrome, never its descendants or the rest
+   of the diagram. This also bounds style invalidation while zooming. */
+@property --ambio-zoom {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
 }
 
 .ambio-surface-activity-pill {
@@ -1887,21 +1914,6 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 .ambio-title-strip__identity svg { flex: 0 0 auto; }
-
-.ambio-title-strip__identity strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-title-strip__divider { color: #8fa29d; }
-
-.ambio-title-strip__project {
-  overflow: hidden;
-  color: #c7d2ce;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .ambio-title-strip__status {
   margin-left: auto;
@@ -2466,8 +2478,9 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--inspector-panel);
   box-shadow: -3px 0 0 rgba(15, 20, 18, 0.18);
   color: var(--inspector-ink);
-  animation: fadeIn 0.15s ease-out;
+  animation: ambioPanelInRight var(--panel-enter) both;
 }
+.ambio-detail-panel[data-closing] { animation: ambioPanelOutRight var(--panel-exit) both; }
 
 .ambio-detail-panel__titlebar {
   height: 29px;
@@ -4169,18 +4182,8 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-size: 13px;
 }
 
-.ambio-workbench-titlebar__product strong,
-.ambio-workbench-titlebar__product span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-workbench-titlebar__product span {
-  padding-left: 10px;
-  border-left: 1px solid #71807b;
-  color: #b9c6c2;
-}
+/* Window controls sit at the far end whether or not a status is shown. */
+.ambio-workbench-titlebar__product { margin-right: auto; }
 
 .ambio-workbench-titlebar__status {
   margin-left: auto;
@@ -4241,55 +4244,35 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   letter-spacing: 0.14em;
 }
 
+.ambio-wordmark {
+  display: block;
+  width: auto;
+  height: 32px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .ambio-brand-mark {
   display: block;
-  width: 86px;
-  height: 86px;
-  margin-bottom: 18px;
-  color: var(--launcher-accent, #4f8279);
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
-.ambio-brand-mark polygon,
-.ambio-brand-mark path,
-.ambio-brand-mark circle {
-  stroke: currentColor;
+.ambio-workbench-titlebar .ambio-wordmark,
+.ambio-title-strip .ambio-wordmark {
+  height: 22px;
 }
 
-.ambio-brand-mark__shell {
-  fill: rgba(79, 130, 121, 0.12);
-  stroke-width: 1.4;
+.ambio-launcher__introduction .ambio-wordmark {
+  width: min(100%, 360px);
+  height: auto;
 }
 
-.ambio-brand-mark__core {
-  fill: rgba(79, 130, 121, 0.06);
-  stroke-width: 1;
-}
-
-.ambio-brand-mark path {
-  opacity: 0.65;
-  stroke-width: 1;
-}
-
-.ambio-brand-mark circle {
-  fill: var(--launcher-paper, #e7e4da);
-  stroke-width: 1.4;
-}
-
-.ambio-brand-mark .ambio-brand-mark__point {
-  fill: currentColor;
-  stroke: none;
-}
-
-.ambio-brand-mark--compact {
-  width: 23px;
-  height: 23px;
-  flex: 0 0 23px;
-  margin: 0;
-  color: #8fc0b5;
-}
-
-.ambio-brand-mark--compact circle {
-  fill: var(--launcher-title, #26332f);
+.ambio-about .ambio-wordmark {
+  width: 200px;
+  height: auto;
+  max-width: 100%;
 }
 
 .ambio-launcher__introduction h1 {
@@ -4370,10 +4353,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-launcher__workspace-heading {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 16px;
-  padding-bottom: 22px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--launcher-rule);
 }
 
@@ -4464,7 +4444,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   margin-bottom: 10px;
   color: #46544f;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
 }
@@ -5202,7 +5182,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
     padding-right: 140px;
   }
 
-  .ambio-workbench-titlebar__product span,
   .ambio-workbench-titlebar__status {
     display: none;
   }
@@ -5616,18 +5595,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   white-space: nowrap;
 }
 
-.ambio-setup-tree__state-label {
-  color: #68736e;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-}
-
-.ambio-setup-tree__row:not(.ambio-setup-tree__row--excluded) .ambio-setup-tree__state-label {
-  color: var(--onboarding-accent-dark);
-}
-
 .ambio-setup__summary {
   display: flex;
   min-height: 0;
@@ -5808,13 +5775,10 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-source-setup__intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 42%);
-  align-items: end;
-  gap: 32px;
+  gap: 10px;
 }
 
-.ambio-source-setup__eyebrow,
-.ambio-source-browser__header p {
+.ambio-source-setup__eyebrow {
   margin: 0 0 6px;
   color: var(--onboarding-accent-dark);
   font: 700 11px/1.2 var(--font-mono);
@@ -5831,23 +5795,46 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-source-setup__description {
-  max-width: 760px;
+  /* One line where the card is wide enough; an even break where it is not. */
+  text-wrap: balance;
   margin: 8px 0 0;
   color: #46544f;
   font-size: 14px;
   line-height: 1.55;
 }
 
+/* Where the project is: a fact to read, not a field to edit. */
 .ambio-source-setup__path {
   display: block;
   overflow: hidden;
-  padding: 10px 12px;
-  border: 1px solid #a3aaa5;
-  background: #e1e1da;
-  color: #3f4d48;
+  margin-top: 6px;
+  color: #5b6762;
   font: 12px/1.4 var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ambio-source-setup__help {
+  max-width: 760px;
+  color: #46544f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ambio-source-setup__help summary {
+  width: fit-content;
+  color: var(--onboarding-accent-dark);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.ambio-source-setup__help ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 18px;
 }
 
 .ambio-source-browser {
@@ -5859,7 +5846,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-source-browser__header {
   display: flex;
-  min-height: 72px;
+  min-height: 52px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
@@ -5872,30 +5859,8 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 .ambio-source-browser__header h2 {
   margin: 0;
   color: #17231f;
-  font-size: 20px;
-  letter-spacing: -0.015em;
-}
-
-.ambio-source-browser__legend {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  color: #4d5b55;
-  font-size: 12px;
-}
-
-.ambio-source-browser__legend > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.ambio-source-browser__legend-check {
-  width: 16px;
-  height: 16px;
-  border: 1px solid #52625c;
-  background: var(--onboarding-accent);
-  box-shadow: inset 0 0 0 3px #f3f1e9;
+  font-size: 16px;
+  letter-spacing: -0.01em;
 }
 
 .ambio-source-setup__notice {
@@ -5920,7 +5885,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-source-browser__tree .ambio-setup-tree__row {
   min-height: 52px;
-  grid-template-columns: 30px 22px 24px minmax(0, 1fr) 64px 86px;
+  grid-template-columns: 30px 22px 24px minmax(0, 1fr) auto;
   gap: 11px;
   padding: 7px 22px;
   border-top: 0;
@@ -6033,21 +5998,67 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-weight: 560;
 }
 
-.ambio-setup-tree__kind,
-.ambio-source-browser__tree .ambio-setup-tree__state-label {
-  color: #68736e;
-  font: 700 10px/1 var(--font-mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.ambio-source-browser__tree .ambio-setup-tree__state-label {
+/* What a row adds to the map: its size, or why it adds nothing. */
+.ambio-setup-tree__detail {
   justify-self: end;
-  color: var(--onboarding-accent-dark);
+  color: #5b6762;
+  font: 12px/1 var(--font-mono);
+  white-space: nowrap;
 }
 
-.ambio-source-browser__tree .ambio-setup-tree__row--excluded .ambio-setup-tree__state-label {
-  color: #8b5148;
+.ambio-setup-tree__check-spacer {
+  width: 22px;
+}
+
+/* A folder that is skipped by default and has been checked anyway. */
+.ambio-source-browser__tree .ambio-setup-tree__warning {
+  margin: 0;
+  padding-top: 9px;
+  padding-right: 22px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #d1d2cb;
+  background: #f6ead0;
+  box-shadow: inset 4px 0 #b9862c;
+  color: #6a4a12;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ambio-source-browser__tree .ambio-setup-tree__warning.ambio-setup-tree__row--depth-0 { padding-left: 110px; }
+.ambio-source-browser__tree .ambio-setup-tree__warning.ambio-setup-tree__row--depth-1 { padding-left: 138px; }
+.ambio-source-browser__tree .ambio-setup-tree__warning.ambio-setup-tree__row--depth-2 { padding-left: 166px; }
+.ambio-source-browser__tree .ambio-setup-tree__warning.ambio-setup-tree__row--depth-3 { padding-left: 194px; }
+
+/* Everything skipped automatically, as one quiet line that opens. */
+.ambio-source-browser__tree .ambio-setup-tree__skipped-toggle {
+  width: 100%;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  background: #f3f1e9;
+  color: #5b6762;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ambio-setup-tree__skipped-toggle[aria-expanded='true'] .ambio-setup-tree__expand span {
+  transform: rotate(90deg);
+}
+
+.ambio-setup-tree__skipped-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-setup-tree__skipped-action {
+  color: var(--onboarding-accent-dark);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.ambio-source-browser__tree .ambio-setup-tree__branch[data-never-read] > .ambio-setup-tree__row {
+  background: #f3f1e9;
+  color: #7d837f;
 }
 
 .ambio-source-browser__footer {
@@ -6076,14 +6087,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   margin-top: 4px;
   color: #5b6762;
   font-size: 12px;
-}
-
-.ambio-source-browser__summary-note {
-  display: block;
-  margin-top: 4px;
-  color: #72807a;
-  font-size: 11px;
-  font-style: italic;
 }
 
 .ambio-source-setup__submit {
@@ -6140,19 +6143,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
     margin: 16px;
   }
 
-  .ambio-source-setup__intro {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .ambio-source-browser__legend > span:last-child,
-  .ambio-setup-tree__kind {
-    display: none;
-  }
-
-  .ambio-source-browser__tree .ambio-setup-tree__row {
-    grid-template-columns: 30px 22px 24px minmax(0, 1fr) 86px;
-  }
 }
 
 @media (max-width: 620px) {
@@ -6164,8 +6154,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
     padding: 12px 16px;
   }
 
-  .ambio-source-browser__legend,
-  .ambio-source-browser__tree .ambio-setup-tree__state-label {
+  .ambio-setup-tree__detail {
     display: none;
   }
 
@@ -6217,47 +6206,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-review__heading h1 {
   font-size: clamp(28px, 2vw, 34px);
-}
-
-.ambio-review__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0;
-  border-bottom: 1px solid var(--onboarding-rule);
-  background: #cfcec7;
-}
-
-.ambio-review__metric {
-  padding: 14px 16px;
-  border-right: 1px solid #9ca29d;
-}
-
-.ambio-review__metric:last-child {
-  border-right: 0;
-}
-
-.ambio-review__metric dt {
-  color: #626d68;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.ambio-review__metric dd {
-  margin: 3px 0 0;
-  font-family: var(--font-mono);
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.ambio-review__metric--attention dd {
-  color: #8a5922;
-}
-
-.ambio-review__metric--complete dd {
-  color: var(--onboarding-accent-dark);
 }
 
 .ambio-review__progress {
@@ -6545,46 +6493,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   background: var(--bg-deep);
 }
 
-.ambio-review__canvas-note {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 520;
-  display: grid;
-  width: min(400px, calc(100% - 32px));
-  grid-template-columns: 8px minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid #77827d;
-  border-left: 3px solid var(--onboarding-accent);
-  background: #dddcd4;
-  box-shadow: 2px 2px 0 rgba(22, 31, 28, 0.32);
-  color: #33413c;
-}
-
-.ambio-review__canvas-signal {
-  width: 7px;
-  height: 7px;
-  margin-top: 2px;
-  border: 1px solid #315f56;
-  background: #6c9b90;
-}
-
-.ambio-review__canvas-note strong {
-  display: block;
-  margin-bottom: 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
-
-.ambio-review__canvas-note p {
-  margin: 0;
-  color: #5a6661;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .ambio-launcher__remove-error {
   margin: 8px 0;
   padding: 8px 10px;
@@ -6667,58 +6575,75 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-review__heading--proposal {
-  padding: 24px 28px 22px;
+  padding: 12px 18px 12px;
+}
+
+.ambio-review__heading--proposal::after {
+  display: none;
+}
+
+.ambio-review__heading-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .ambio-review__heading--proposal .ambio-onboarding__back {
-  margin-bottom: 14px;
-  font-size: 13px;
+  margin-bottom: 0;
+  font-size: 12px;
 }
 
 .ambio-review__heading--proposal .ambio-onboarding__step {
+  margin-bottom: 0;
   font-size: 11px;
 }
 
 .ambio-review__heading--proposal h1 {
-  max-width: 520px;
-  margin-top: 7px;
-  font-size: clamp(28px, 2vw, 36px);
-  line-height: 1.12;
+  margin: 6px 0 2px;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .ambio-review__heading--proposal p {
-  max-width: 540px;
-  margin-top: 9px;
-  font-size: 15px;
-  line-height: 1.55;
+  max-width: none;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-.ambio-review__panel--proposal .ambio-review__metric {
-  padding: 16px 18px;
-}
-
-.ambio-review__panel--proposal .ambio-review__metric dt {
-  font-size: 11px;
-}
-
-.ambio-review__panel--proposal .ambio-review__metric dd {
-  margin-top: 5px;
-  font-size: 20px;
+.ambio-review__summary {
+  color: #25312e;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .ambio-review__brief {
-  display: grid;
-  gap: 8px;
-  padding: 18px 22px;
+  padding: 8px 18px;
   border-bottom: 1px solid var(--onboarding-rule);
   background: #deddd5;
 }
 
-.ambio-review__brief p {
-  margin: 0;
+.ambio-review__brief summary {
   color: #4e5b55;
-  font-size: 14px;
-  line-height: 1.6;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ambio-review__brief[open] summary {
+  margin-bottom: 8px;
+}
+
+.ambio-review__brief[open] {
+  max-height: 34vh;
+  overflow-y: auto;
+}
+
+.ambio-review__brief p {
+  margin: 0 0 8px;
+  color: #4e5b55;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .ambio-review__brief strong {
@@ -6726,9 +6651,54 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   margin-bottom: 3px;
   color: #28352f;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.ambio-review-summary {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.ambio-review-summary__list {
+  display: grid;
+  max-height: 34vh;
+  gap: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--onboarding-rule, #b9b8b0);
+  list-style: none;
+}
+
+.ambio-review-summary__list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--onboarding-rule, #b9b8b0);
+}
+
+.ambio-review-summary__list li:last-child {
+  border-bottom: 0;
+}
+
+.ambio-review-summary__list small {
+  color: #626d68;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.ambio-review-summary__list p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #8a6320;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ambio-review-summary__meaning p {
+  margin: 0 0 8px;
 }
 
 .ambio-review__proposal-list {
@@ -6736,7 +6706,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   min-height: 0;
   flex: 1;
   min-height: 68px;
-  padding: 18px;
+  padding: 10px;
   overflow: hidden;
   background: #d3d2ca;
 }
@@ -6765,7 +6735,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 
 .ambio-review__actions--proposal {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
-  padding: 16px 18px;
+  padding: 10px 12px;
 }
 
 .ambio-review__actions--proposal p {
@@ -6782,19 +6752,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   place-items: center;
   color: #59645f;
   font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.ambio-review__canvas--proposal .ambio-review__canvas-note {
-  width: min(420px, calc(100% - 32px));
-  padding: 13px 15px;
-}
-
-.ambio-review__canvas--proposal .ambio-review__canvas-note strong {
-  font-size: 13px;
-}
-
-.ambio-review__canvas--proposal .ambio-review__canvas-note p {
   font-size: 12px;
 }
 
@@ -8651,25 +8608,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   background: #dfeae6;
 }
 
-.ambio-inbox__modes {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.ambio-inbox__modes button {
-  padding: 2px 9px;
-  border: 1px solid #a9b0ac;
-  background: #f7f6f1;
-  color: #2b3833;
-  font-size: 11px;
-}
-
-.ambio-inbox__modes button[aria-checked="true"] {
-  border-color: #3c7d76;
-  background: #dfeae6;
-  font-weight: 600;
-}
 
 /* Unexplained agent changes are the ones to read first. */
 .ambio-delta__unexplained-count {

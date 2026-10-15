@@ -63,6 +63,98 @@ type InboxItem struct {
 	// CodeChecks are a make-the-code-match order's disagreements, re-checked
 	// against the code when the order is read (code_checks.go).
 	CodeChecks []CodeCheckResult `json:"codeChecks,omitempty"`
+	// Conversation is what was said before this turn in the same thread. It
+	// is filled only for the agent claiming the turn (InboxConversation).
+	Conversation []ThreadTurn `json:"conversation,omitempty"`
+	// ConversationOmitted counts earlier turns left out of Conversation.
+	ConversationOmitted int `json:"conversationOmitted,omitempty"`
+}
+
+// ThreadTurn is one earlier exchange in a conversation: what the user asked
+// and, when there was one, what the agent answered. Ambio keeps this so the
+// agent picking up the next turn has the conversation whatever host it runs
+// in and whether or not that host remembers its own session.
+type ThreadTurn struct {
+	MessageID string `json:"messageId"`
+	Mode      string `json:"mode,omitempty"`
+	Request   string `json:"request"`
+	SheetName string `json:"sheetName,omitempty"`
+	Status    string `json:"status"`
+	CreatedAt int64  `json:"createdAt"`
+	// Reply is the agent's answer; ReplyTruncated says it was shortened here.
+	Reply          string      `json:"reply,omitempty"`
+	ReplyTruncated bool        `json:"replyTruncated,omitempty"`
+	Agent          string      `json:"agent,omitempty"`
+	Result         *WorkResult `json:"result,omitempty"`
+	// Review is the user's verdict on the answer: "accepted" or "reopened".
+	Review     string `json:"review,omitempty"`
+	ReviewNote string `json:"reviewNote,omitempty"`
+}
+
+const (
+	// ConversationTurnLimit bounds how many earlier turns an agent is handed.
+	ConversationTurnLimit = 20
+	// conversationTextLimit bounds each request and reply in that history.
+	conversationTextLimit = 6000
+)
+
+func clipConversationText(text string) (string, bool) {
+	runes := []rune(text)
+	if len(runes) <= conversationTextLimit {
+		return text, false
+	}
+	return string(runes[:conversationTextLimit]) + "…", true
+}
+
+// InboxConversation returns the turns of a thread that came before one
+// message, oldest first, and how many older ones were left out. Cancelled
+// turns are skipped: nothing was asked in the end.
+func InboxConversation(d *sql.DB, workspace, threadID, messageID string) ([]ThreadTurn, int, error) {
+	if threadID == "" {
+		return nil, 0, nil
+	}
+	rows, err := d.Query(`SELECT m.id,m.mode,m.note,
+ CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.name'),'') AS TEXT) ELSE '' END,
+ m.status,m.created_at,COALESCE(r.body,''),COALESCE(r.agent,''),COALESCE(r.result_json,''),
+ COALESCE(v.decision,''),COALESCE(v.note,'')
+ FROM canvas_outbox m LEFT JOIN canvas_replies r ON r.message_id=m.id
+ LEFT JOIN canvas_review_events v ON v.id=(SELECT id FROM canvas_review_events WHERE message_id=m.id ORDER BY rowid DESC LIMIT 1)
+ WHERE m.workspace_id=? AND m.thread_id=? AND m.id<>? AND m.status<>'cancelled'
+ AND (m.created_at,m.id)<(SELECT created_at,id FROM canvas_outbox WHERE id=?)
+ ORDER BY m.created_at DESC,m.id DESC`, workspace, threadID, messageID, messageID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	turns := []ThreadTurn{}
+	omitted := 0
+	for rows.Next() {
+		var turn ThreadTurn
+		var resultJSON string
+		if err := rows.Scan(&turn.MessageID, &turn.Mode, &turn.Request, &turn.SheetName, &turn.Status, &turn.CreatedAt,
+			&turn.Reply, &turn.Agent, &resultJSON, &turn.Review, &turn.ReviewNote); err != nil {
+			return nil, 0, err
+		}
+		if len(turns) >= ConversationTurnLimit {
+			omitted++
+			continue
+		}
+		if resultJSON != "" {
+			if err := json.Unmarshal([]byte(resultJSON), &turn.Result); err != nil {
+				return nil, 0, err
+			}
+		}
+		turn.Request, _ = clipConversationText(turn.Request)
+		turn.Reply, turn.ReplyTruncated = clipConversationText(turn.Reply)
+		turns = append(turns, turn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	for i, j := 0, len(turns)-1; i < j; i, j = i+1, j-1 {
+		turns[i], turns[j] = turns[j], turns[i]
+	}
+	return turns, omitted, nil
 }
 
 func migrateInbox(d *sql.DB) error {
@@ -112,7 +204,7 @@ func migrateInbox(d *sql.DB) error {
 	return nil
 }
 
-const inboxColumns = `m.id,m.workspace_id,m.delivery_mode,m.sheet_id,m.note,m.selection,m.change_summary,
+const inboxColumns = `m.id,m.workspace_id,m.delivery_mode,m.thread_id,m.mode,m.target_host,m.sheet_id,m.note,m.selection,m.change_summary,
  CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.name'),'') AS TEXT) ELSE '' END,
  CASE WHEN json_valid(m.sheet_context) THEN CAST(COALESCE(json_extract(m.sheet_context,'$.sheet.revision'),0) AS INTEGER) ELSE 0 END,
  m.status,m.delivered_to,m.answer_annotation_id,m.created_at,m.delivered_at,m.answered_at,
@@ -131,7 +223,7 @@ func scanInbox(row inboxScanner, now int64) (*InboxItem, error) {
 	var reviewID sql.NullString
 	var review InboxReview
 	reply := &InboxReply{}
-	err := row.Scan(&item.ID, &item.WorkspaceID, &item.DeliveryMode, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
+	err := row.Scan(&item.ID, &item.WorkspaceID, &item.DeliveryMode, &item.ThreadID, &item.Mode, &item.TargetHost, &item.SheetID, &item.Note, &item.Selection, &item.ChangeSummary,
 		&item.SentSheetName, &item.SentSheetRevision,
 		&item.Status, &item.DeliveredTo, &item.AnswerAnnotationID, &item.CreatedAt, &item.DeliveredAt, &item.AnsweredAt,
 		&item.LeaseToken, &item.LeaseExpiresAt, &item.Agent, &body, &reply.Agent, &reply.CreatedAt, &resultJSON,
@@ -305,8 +397,9 @@ func claimInbox(d *sql.DB, workspace, owner, agent, messageID string, now int64)
 	if messageID == "" {
 		err = tx.QueryRow(`SELECT m.id FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id
  WHERE m.workspace_id=? AND m.delivery_mode='open' AND m.status IN ('queued','delivered')
+ AND (m.target_host='' OR m.target_host=?)
  AND (c.message_id IS NULL OR c.expires_at<=? OR c.owner=?)
- ORDER BY CASE WHEN c.owner=? AND c.expires_at>? THEN 0 ELSE 1 END,m.created_at,m.id LIMIT 1`, workspace, now, owner, owner, now).Scan(&id)
+ ORDER BY CASE WHEN c.owner=? AND c.expires_at>? THEN 0 ELSE 1 END,m.created_at,m.id LIMIT 1`, workspace, agent, now, owner, owner, now).Scan(&id)
 	} else {
 		err = tx.QueryRow(`SELECT m.id FROM canvas_outbox m LEFT JOIN canvas_claims c ON c.message_id=m.id
  WHERE m.workspace_id=? AND m.id=? AND m.status IN ('queued','delivered')

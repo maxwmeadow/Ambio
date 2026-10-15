@@ -1,5 +1,5 @@
 import React from 'react'
-import { getBezierPath, Position, ViewportPortal, useViewport, type Node } from '@xyflow/react'
+import { getBezierPath, Position, ViewportPortal, useStore, type Node } from '@xyflow/react'
 
 import { absoluteRects, bodyRect, folderTabOf } from './folderAnchors.ts'
 import { chooseClosestLivingBoundaryAnchors, type LivingAnchorSide, type LivingRect } from './livingEdgeGeometry.ts'
@@ -42,11 +42,15 @@ const CALLOUT_GAP = 10
  * the camera pulls back to show the whole path.
  */
 export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: RunTraceOverlayProps) {
-  const { zoom } = useViewport()
+  if (!steps?.length && callouts.length === 0) return null
+  return <ActiveRunTraceOverlay steps={steps} callouts={callouts} nodes={nodes} visibilityOptions={visibilityOptions} />
+}
+
+function ActiveRunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: RunTraceOverlayProps) {
+  const zoom = useStore(state => state.transform[2])
   const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1
 
-  const scene = React.useMemo(() => {
-    if ((!steps || steps.length === 0) && callouts.length === 0) return null
+  const geometry = React.useMemo(() => {
     const visibility = livingVisibilityIndex(nodes, visibilityOptions)
     const rects = absoluteRects(nodes)
     const byId = new Map(nodes.map(node => [node.id, node]))
@@ -94,6 +98,11 @@ export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: R
         const rect = rects.get(node.id)
         return rect ? [{ id: node.id, rect }] : []
       })
+    return { lines, visibility, byId, bodyOf, visibleBoxes }
+  }, [steps, nodes, visibilityOptions])
+
+  const scene = React.useMemo(() => {
+    const { lines, visibility, byId, bodyOf, visibleBoxes } = geometry
     // Where lines meet boxes: a callout over a line's end hides which box
     // the path reached, so those spots weigh like another callout.
     const reach = 18 / safeZoom
@@ -116,7 +125,7 @@ export function RunTraceOverlay({ steps, callouts, nodes, visibilityOptions }: R
     })
 
     return { lines, placed }
-  }, [steps, callouts, nodes, visibilityOptions, safeZoom])
+  }, [geometry, callouts, safeZoom])
 
   if (!scene || (scene.lines.length === 0 && scene.placed.length === 0)) return null
   const inverse = 1 / safeZoom

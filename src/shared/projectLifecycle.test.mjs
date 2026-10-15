@@ -8,6 +8,7 @@ import {
   resolveProjectSourceBoundaries,
   sourceBoundariesAreComplete,
   projectHasEnteredWorkbench,
+  projectSetupInProgress,
 } from './projectLifecycle.ts'
 
 test('blank setup requires both the New Project button and an empty folder', () => {
@@ -76,4 +77,13 @@ test('a non-empty unindexed codebase still receives exactly one setup', () => {
   }, 300)
 
   assert.equal(unresolved, null)
+})
+
+test('setup left part-way is resumed; finished, skipped and older projects are not', () => {
+  assert.equal(projectSetupInProgress({ setupStartedAt: 100, workbenchOpenedAt: 100 }), true)
+  assert.equal(projectSetupInProgress({ setupStartedAt: 100, agentSetupCompletedAt: 200 }), false)
+  assert.equal(projectSetupInProgress({ setupStartedAt: 100, reviewCompletedAt: 200 }), false)
+  // A project from before setup was tracked has no start to resume from.
+  assert.equal(projectSetupInProgress({ workbenchOpenedAt: 100 }), false)
+  assert.equal(projectSetupInProgress({}), false)
 })

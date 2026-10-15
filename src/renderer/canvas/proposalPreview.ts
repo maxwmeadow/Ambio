@@ -14,6 +14,7 @@ function languageFromPath(path: string): string {
     ['.js', 'javascript'], ['.py', 'python'], ['.go', 'go'], ['.rs', 'rust'],
     ['.cs', 'csharp'], ['.cpp', 'cpp'], ['.cc', 'cpp'], ['.cxx', 'cpp'], ['.c', 'c'], ['.h', 'c'],
     ['.hpp', 'cpp'], ['.hxx', 'cpp'], ['.rb', 'ruby'], ['.java', 'java'],
+    ['.scss', 'scss'], ['.sass', 'sass'], ['.less', 'less'], ['.css', 'css'],
     ['.mdx', 'markdown'], ['.md', 'markdown'],
   ]
   return extensions.find(([extension]) => lower.endsWith(extension))?.[1] ?? 'unknown'

@@ -1,4 +1,7 @@
-# Ambio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="src/renderer/assets/branding/wordmark-reversed.svg" />
+  <img src="src/renderer/assets/branding/wordmark.svg" alt="Ambio" width="260" />
+</picture>
 
 **Your architecture, shared with your agents - in both directions.**
 

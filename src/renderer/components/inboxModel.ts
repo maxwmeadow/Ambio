@@ -71,3 +71,59 @@ export function workOrderNote(mode: WorkOrderMode, note: string): string {
   const contract = MODE_CONTRACT[mode]
   return contract ? `${contract}\n\n${note}` : note
 }
+
+/**
+ * A turn as the person wrote it: the request without the contract that was
+ * written into it for the agent, and what kind of turn it was. A turn from
+ * before turns carried their mode is read from its contract.
+ */
+export function turnRequest(message: { note: string; mode?: string }): { mode: WorkOrderMode; text: string } {
+  for (const mode of ['ask', 'propose'] as const) {
+    const prefix = `${MODE_CONTRACT[mode]}\n\n`
+    if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }
+  }
+  const mode = message.mode === 'ask' || message.mode === 'propose' ? message.mode : 'build'
+  return { mode, text: message.note }
+}
+
+/**
+ * A conversation: the requests that share a thread, oldest first. A request
+ * with no thread of its own (sent before conversations) is a conversation of
+ * one.
+ */
+export interface Conversation<T> {
+  id: string
+  /** The first request, as the person wrote it. */
+  title: string
+  turns: T[]
+  lastAt: number
+  /** Where the latest turn that was not cancelled stands. */
+  stage: WorkOrderStage
+}
+
+type ConversationTurn = Parameters<typeof workOrderStage>[0] & { id: string; threadId?: string; note: string; mode?: string; createdAt: number }
+
+export function conversations<T extends ConversationTurn>(messages: T[], now = Date.now()): Conversation<T>[] {
+  const byThread = new Map<string, T[]>()
+  for (const message of messages) {
+    const id = message.threadId || message.id
+    byThread.set(id, [...(byThread.get(id) ?? []), message])
+  }
+  return [...byThread].map(([id, unordered]) => {
+    const turns = [...unordered].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+    const latest = [...turns].reverse().find(turn => turn.status !== 'cancelled') ?? turns[turns.length - 1]
+    return {
+      id, turns,
+      title: turnRequest(turns[0]).text.split('\n')[0].trim(),
+      lastAt: turns[turns.length - 1].createdAt,
+      stage: workOrderStage(latest, now),
+    }
+  }).sort((a, b) => b.lastAt - a.lastAt || (a.id < b.id ? 1 : -1))
+}
+
+/** How many conversations stand at each stage, for the overview in the conversation menu. */
+export function conversationStageCounts(threads: Array<{ stage: WorkOrderStage }>): Record<WorkOrderStage, number> {
+  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, cancelled: 0 }
+  for (const thread of threads) counts[thread.stage]++
+  return counts
+}

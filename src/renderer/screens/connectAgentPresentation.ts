@@ -169,3 +169,55 @@ export function commandKind(
   if (command.startsWith('$')) return 'skill command'
   return 'instruction'
 }
+
+/** The same few words for a state everywhere an agent is listed. */
+export const AGENT_STATE_LABEL: Record<AgentHostState, string> = {
+  live: 'Connected now',
+  installed: 'Installed',
+  repair: 'Needs repair',
+  available: 'Not installed',
+  missing: 'Not found',
+}
+
+const FAMILY_ORDER: AgentHostState[] = ['live', 'repair', 'installed', 'available', 'missing']
+
+/**
+ * Agents in the order someone setting up wants them: the ones Ambio is
+ * already in, then the ones found on this computer, then the rest. The given
+ * order is kept within each group.
+ */
+export function orderAgentFamilies<T extends { id: string; label: string; modalities: AgentHostInfo[] }>(
+  families: T[],
+  results: Record<string, AgentInstallResult | undefined>,
+  liveHostIds: Set<string>,
+): Array<{ family: T; presentation: AgentFamilyPresentation }> {
+  return families
+    .map((family, index) => ({
+      family, index,
+      presentation: presentAgentFamily(family.id, family.label, family.modalities, results, liveHostIds),
+    }))
+    .sort((a, b) => FAMILY_ORDER.indexOf(a.presentation.state) - FAMILY_ORDER.indexOf(b.presentation.state) || a.index - b.index)
+    .map(({ family, presentation }) => ({ family, presentation }))
+}
+
+/** A family's row in a few words; `available` is how many more surfaces could be installed. */
+export function familySummary(presentation: AgentFamilyPresentation, available: number): string {
+  if (presentation.state === 'installed' && available > 0) return `Installed · ${available} more available`
+  if (presentation.state === 'live' && available > 0) return `Connected now · ${available} more available`
+  return AGENT_STATE_LABEL[presentation.state]
+}
+
+/**
+ * What to tell the user after an install or a removal: that it worked and the
+ * one thing to do next, or the reason it did not. The installer's own wording
+ * is kept only for failures, where its file paths matter.
+ */
+export function installOutcomeNote(
+  host: Pick<AgentHostInfo, 'label' | 'modalityLabel' | 'restartDetail'>,
+  action: 'install' | 'remove',
+  outcome: { ok: boolean; detail: string },
+): { ok: boolean; text: string } {
+  if (!outcome.ok) return { ok: false, text: outcome.detail }
+  if (action === 'remove') return { ok: true, text: `Removed from ${host.modalityLabel || host.label}.` }
+  return { ok: true, text: `Installed. Next: ${host.restartDetail.charAt(0).toLowerCase()}${host.restartDetail.slice(1)}` }
+}

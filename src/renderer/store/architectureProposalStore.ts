@@ -159,6 +159,7 @@ interface ProposalState {
   selectedSystemKey: string | null
 
   load: (workspaceId: string) => Promise<void>
+  refresh: () => Promise<void>
   decide: (systemKey: string, decision: Decision, rejectionReason?: string) => Promise<void>
   finalize: () => Promise<void>
   previewLayouts: (layouts: ProposalLayout[]) => void
@@ -232,6 +233,22 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
     }
   },
 
+  // Re-read the proposal on screen without clearing it. A decision changes a
+  // few rows of one review; emptying the store for it unmounts the canvas and
+  // the list, and loses the reviewer's place in both.
+  refresh: async () => {
+    const current = get().proposal
+    if (!current) return
+    const loadGeneration = proposalLoadGeneration
+    const detailed = await fetch(
+      `${archdApi()}/api/architecture-proposals/${current.id}?workspace=${encodeURIComponent(current.workspaceId)}`,
+    )
+    if (!detailed.ok) throw new Error(`proposal unavailable (${detailed.status})`)
+    const body = await detailed.json() as DaemonProposal
+    if (loadGeneration !== proposalLoadGeneration || get().proposal?.id !== current.id) return
+    set({ proposal: normalize(body), error: null })
+  },
+
   decide: async (systemKey, decision, rejectionReason) => {
     const { proposal, deciding } = get()
     if (!proposal || deciding.includes(systemKey)) return
@@ -269,17 +286,17 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
         // Someone else moved the proposal on. Reload rather than overwrite:
         // the whole point of the revision check is that the last write does
         // not silently win.
+        await get().refresh()
         set(state => ({
           refusals: {
             ...state.refusals,
             [systemKey]: 'This proposal changed while you were reviewing it. Reloaded.',
           },
         }))
-        await get().load(proposal.workspaceId)
         return
       }
       if (!res.ok) throw new Error(await res.text())
-      await get().load(proposal.workspaceId)
+      await get().refresh()
     } catch (error) {
       set(state => ({
         refusals: {

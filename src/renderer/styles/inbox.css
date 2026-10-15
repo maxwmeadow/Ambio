@@ -1,6 +1,8 @@
 /* The inbox is a workbench surface: instrument chrome, drafting paper, and teal readouts. */
 .ambio-inbox {
-  position: absolute; z-index: 180; display: flex; flex-direction: column; overflow: hidden;
+  /* Fixed, like Properties: a panel sliding in from beyond the right edge must
+     not add to the page's scrollable width, or the whole window shifts. */
+  position: fixed; z-index: 180; display: flex; flex-direction: column; overflow: hidden;
   --inbox-paper: #e9e7df;
   --inbox-surface: #f2f0e8;
   --inbox-ink: #27332f;
@@ -11,7 +13,9 @@
   width: min(456px, 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
   background: var(--inbox-paper); color: var(--inbox-ink); box-shadow: -5px 0 0 #1f2b2524;
   font: 13px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
+  animation: ambioPanelInRight var(--panel-enter) both;
 }
+.ambio-inbox[data-closing] { animation: ambioPanelOutRight var(--panel-exit) both; }
 .ambio-inbox button { cursor: pointer; border: 0; border-radius: 0; background: transparent; padding: 0; text-align: inherit; color: inherit; font: inherit; }
 .ambio-inbox button:disabled { cursor: default; opacity: .5; }
 .ambio-inbox button:hover:not(:disabled) { color: var(--inbox-accent); }
@@ -128,8 +132,8 @@
 .ambio-inbox .ambio-inbox__copy-reply { display: inline-flex; gap: 5px; align-items: center; margin-top: 2px; color: #607266; font: 8px var(--font-mono, monospace); text-transform: uppercase; }
 .ambio-inbox__notice { margin: 0; color: #858e86; font-size: 11px; }
 .ambio-inbox .ambio-inbox__latest { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); border: 1px solid #627d6b; background: linear-gradient(#f8f7ef, #dbe4d8); padding: 5px 10px; color: #31584e; box-shadow: 2px 2px 0 #243d2c3b; font: 700 9px var(--font-mono, monospace); text-transform: uppercase; white-space: nowrap; }
-.ambio-inbox__bottom { position: relative; flex: none; padding: 9px 11px 7px; background: linear-gradient(#dcdcd4, #d5d8cf); border-top: 1px solid #8a9990; box-shadow: inset 0 1px #f9f7ed; }
-.ambio-inbox__handoff { margin: 0 0 9px; border: 1px solid #aab7aa; background: #e7e9e0; box-shadow: inset 1px 1px #f7f7ef; color: #3d584c; }
+.ambio-inbox__bottom { position: relative; flex: none; padding: 12px 12px 12px; background: linear-gradient(#dcdcd4, #d5d8cf); border-top: 1px solid #8a9990; box-shadow: inset 0 1px #f9f7ed; }
+.ambio-inbox__handoff { margin: 0 0 10px; border: 1px solid #aab7aa; background: #e7e9e0; box-shadow: inset 1px 1px #f7f7ef; color: #3d584c; }
 .ambio-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 2px 8px; font: 9px var(--font-mono, monospace); }
 .ambio-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-inbox__signal { width: 6px; height: 6px; flex: none; border: 1px solid #8b9b8b; background: #aeb8a9; }
@@ -140,15 +144,26 @@
 .ambio-inbox .ambio-inbox__handoff-status button { flex: none; color: #326a5c; text-decoration: underline; text-underline-offset: 2px; font: 700 9px var(--font-mono, monospace); }
 .ambio-inbox__compose { display: flex; flex-direction: column; overflow: visible; box-sizing: border-box; padding: 0; gap: 0; background: #f4f2eb; border: 1px solid #72847a; box-shadow: inset 1px 1px #fff, inset -1px -1px #c4ccc2, 2px 2px 0 #263d2d24; }
 .ambio-inbox__compose:focus-within { border-color: #377369; box-shadow: inset 1px 1px #fff, 0 0 0 1px #4b8b7a; }
-.ambio-inbox__compose textarea { display: block; width: 100%; box-sizing: border-box; min-height: 54px; max-height: 180px; margin: 0; border: 0; padding: 8px 10px 2px; resize: none; background: transparent; font: 13px/1.5 var(--font-ui, sans-serif); color: var(--inbox-ink); }
+.ambio-inbox__compose textarea { display: block; width: 100%; box-sizing: border-box; min-height: 64px; max-height: 180px; margin: 10px 0 0; border: 0; border-top: 1px solid #d3d8cf; padding: 10px 12px 4px; resize: none; background: transparent; font: 13px/1.5 var(--font-ui, sans-serif); color: var(--inbox-ink); }
 .ambio-inbox__compose textarea:focus-visible { outline: none; }
 .ambio-inbox__compose textarea::placeholder { color: #949e96; }
-.ambio-inbox__compose-tools { display: flex; align-items: center; gap: 7px; padding: 1px 6px 6px; }
-.ambio-inbox__compose-tools > span { flex: 1; color: #77867b; font: 8px var(--font-mono, monospace); }
-.ambio-inbox .ambio-inbox__send { display: grid; place-items: center; width: 28px; height: 26px; border: 1px solid #285e53; box-shadow: inset 1px 1px #6caaa0, inset -1px -1px #23473f; color: white; background: #3c7d76; }
+.ambio-inbox__compose-tools { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; }
+.ambio-inbox__compose-tools > span { flex: 1; color: #77867b; font: 9px var(--font-mono, monospace); }
+.ambio-inbox__mode { position: relative; flex: none; }
+.ambio-inbox .ambio-inbox__mode-button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid #a9b0ac; background: #f7f6f1; color: #2b3833; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; }
+.ambio-inbox .ambio-inbox__mode-button:hover:not(:disabled), .ambio-inbox .ambio-inbox__mode-button[aria-expanded='true'] { border-color: #3c7d76; background: #dfeae6; }
+.ambio-inbox .ambio-inbox__mode-button svg { transform: rotate(-90deg); }
+.ambio-inbox__mode-menu { position: absolute; z-index: 9; right: 0; bottom: calc(100% + 8px); width: 270px; padding: 4px; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
+.ambio-inbox .ambio-inbox__mode-menu button { display: grid; grid-template-columns: minmax(0, 1fr) 16px; column-gap: 8px; align-items: center; width: 100%; padding: 7px 9px; border: 0; background: transparent; color: var(--inbox-ink); text-align: left; cursor: pointer; }
+.ambio-inbox .ambio-inbox__mode-menu button:hover, .ambio-inbox .ambio-inbox__mode-menu button:focus-visible { background: #d2ded2; outline: none; }
+.ambio-inbox .ambio-inbox__mode-menu button[aria-checked='true'] { background: #dfeae6; }
+.ambio-inbox__mode-menu strong { grid-column: 1; font: 600 12px var(--font-ui, sans-serif); }
+.ambio-inbox__mode-menu small { grid-column: 1; color: #5c6b63; font: 11px/1.4 var(--font-ui, sans-serif); }
+.ambio-inbox__mode-menu svg { grid-column: 2; grid-row: 1 / span 2; color: #2f6a5d; }
+.ambio-inbox .ambio-inbox__send { display: grid; place-items: center; width: 32px; height: 28px; border: 1px solid #285e53; box-shadow: inset 1px 1px #6caaa0, inset -1px -1px #23473f; color: white; background: #3c7d76; }
 .ambio-inbox .ambio-inbox__send:hover:not(:disabled) { background: #2b655a; color: white; }
 .ambio-inbox .ambio-inbox__send:disabled { color: #899a90; background: #d8dfd5; border-color: #a0ada1; box-shadow: inset 1px 1px #eef0e8; opacity: 1; }
-.ambio-inbox__attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 9px 10px 0; max-height: 98px; overflow-y: auto; }
+.ambio-inbox__attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 12px 0; max-height: 98px; overflow-y: auto; }
 .ambio-inbox__attachments .ambio-inbox__targets { margin: 0; }
 .ambio-inbox__attachment { display: flex; gap: 7px; align-items: center; min-width: 0; max-width: 100%; padding: 3px 4px 3px 3px; border: 1px solid #a6b7a7; background: #e3e9df; }
 .ambio-inbox__sheet-icon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; color: #356e62; background: #d7e3d8; border: 1px solid #b1c4b5; }
@@ -229,11 +244,57 @@
 .react-flow__node[data-proposal="pending"]::after { content: 'PROPOSED'; position: absolute; top: -18px; left: 0; font: 700 9px var(--font-mono, monospace); letter-spacing: .05em; color: #8a5a12; pointer-events: none; }
 .react-flow__node[data-proposal="rejected"] { opacity: .35; }
 .ambio-sheet-rail__new { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #c98a1b; color: #fff; font: 700 8px var(--font-mono, monospace); letter-spacing: .05em; }
-.ambio-inbox__delivery { display: grid; gap: 6px; padding: 8px 0; }
-.ambio-inbox__delivery label { display: grid; gap: 4px; font-size: 12px; }
-.ambio-inbox__delivery select { width: 100%; padding: 6px; color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; font: inherit; }
+/* The destination and mode sit inside the compose box, so they carry its
+   gutter; the textarea below is ruled off as the place to type. */
+.ambio-inbox__delivery { display: grid; gap: 6px; padding: 10px 12px 0; }
+.ambio-inbox__compose > .ambio-inbox__notice { margin: 8px 12px 0; }
+.ambio-inbox__delivery label { display: grid; gap: 5px; color: #53635c; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-inbox__delivery select { width: 100%; padding: 6px 8px; font: 12px var(--font-ui, sans-serif); letter-spacing: 0; text-transform: none; color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; }
 .ambio-inbox__delivery select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
-.ambio-inbox__delivery small { font-size: 11px; opacity: .75; overflow-wrap: anywhere; }
+.ambio-inbox__delivery small { font-size: 11px; line-height: 1.45; opacity: .75; overflow-wrap: anywhere; }
+.ambio-inbox .ambio-inbox__delivery-link { padding: 0; border: 0; background: transparent; color: #326a5c; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .ambio-inbox__delivery-run { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; font-size: 11px; }
 .ambio-inbox__delivery-run span { flex-basis: 100%; }
 .ambio-inbox .ambio-inbox__delivery-run button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--inbox-line); padding: 3px 6px; cursor: pointer; }
+
+/* Conversations: the header names the open one and lists the others. */
+.ambio-inbox__conversations { position: relative; }
+.ambio-inbox .ambio-inbox__conversation-button { display: grid; grid-template-columns: minmax(0, 1fr) 14px; align-items: center; column-gap: 6px; width: 100%; min-width: 0; padding: 3px 6px; border: 1px solid transparent; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.ambio-inbox .ambio-inbox__conversation-button:hover:not(:disabled), .ambio-inbox .ambio-inbox__conversation-button[aria-expanded='true'] { border-color: #6e9183; background: #415b51; }
+.ambio-inbox .ambio-inbox__conversation-button:disabled { cursor: default; }
+.ambio-inbox__conversation-button h2 { grid-column: 1; overflow: hidden; margin: 0; font: 600 12px/1.25 var(--font-ui, sans-serif); letter-spacing: 0; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
+.ambio-inbox__conversation-button > span { grid-column: 1; overflow: hidden; color: #b1c0b9; font: 8px/1.35 var(--font-mono, monospace); letter-spacing: .025em; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__conversation-button svg { grid-column: 2; grid-row: 1 / span 2; color: #b1c0b9; }
+.ambio-inbox__conversation-menu { position: absolute; z-index: 9; top: calc(100% + 6px); left: 0; right: 0; max-height: min(420px, 60vh); padding: 4px; overflow-y: auto; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
+.ambio-inbox .ambio-inbox__conversation-menu button { display: grid; width: 100%; gap: 2px; padding: 7px 9px; border: 0; background: transparent; color: var(--inbox-ink); text-align: left; cursor: pointer; }
+.ambio-inbox .ambio-inbox__conversation-menu button:hover, .ambio-inbox .ambio-inbox__conversation-menu button:focus-visible { background: #d2ded2; outline: none; }
+.ambio-inbox .ambio-inbox__conversation-menu button[aria-checked='true'] { background: #dfeae6; box-shadow: inset 3px 0 #2f6a5d; }
+.ambio-inbox__conversation-menu strong { overflow: hidden; font: 600 12px var(--font-ui, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__conversation-menu small { color: #5c6b63; font: 10px/1.4 var(--font-mono, monospace); }
+/* Each turn says what kind of turn it was. */
+.ambio-inbox__turn-mode { margin-left: 7px; padding: 1px 5px; border: 1px solid #9fb3a9; color: #4a5f55; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.ambio-inbox__turn-mode[data-mode='ask'] { border-color: #8aa5b8; color: #3a5a70; }
+.ambio-inbox__turn-mode[data-mode='propose'] { border-color: #b9a36c; color: #6d5718; }
+/* What a running agent is doing, under the turn it answers. */
+.ambio-inbox__activity { display: grid; flex-basis: 100%; gap: 3px; margin: 0; padding: 6px 8px; border-left: 2px solid #548b75; background: #e8eee5; list-style: none; }
+.ambio-inbox__activity li { overflow: hidden; color: #2f463c; font: 11px/1.45 var(--font-ui, sans-serif); overflow-wrap: anywhere; }
+.ambio-inbox__activity li[data-kind='tool'] { color: #49675a; font: 10px/1.45 var(--font-mono, monospace); text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__activity li[data-kind='error'] { color: #7a3c22; }
+.ambio-inbox__activity-earlier { color: #6d8177 !important; font: 9px/1.4 var(--font-mono, monospace) !important; letter-spacing: .04em; }
+/* An agent stopped on a question. */
+.ambio-inbox__permission { display: grid; gap: 6px; margin: 7px 0 0; padding: 9px 10px; border: 1px solid #b9a36c; border-left: 3px solid #8a6320; background: #f3ecd8; }
+.ambio-inbox__permission strong { color: #4f3d12; font: 600 12px/1.35 var(--font-ui, sans-serif); }
+.ambio-inbox__permission code { display: block; max-height: 96px; padding: 5px 7px; overflow: auto; background: #fbf7ea; color: #3b3320; font: 11px/1.45 var(--font-mono, monospace); overflow-wrap: anywhere; white-space: pre-wrap; }
+.ambio-inbox__permission div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ambio-inbox .ambio-inbox__permission button { padding: 4px 10px; border: 1px solid #8a7a52; background: #fbf7ea; color: #3b3320; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; }
+.ambio-inbox .ambio-inbox__permission .ambio-inbox__permission-allow { border-color: #2f6a5d; background: #2f6a5d; color: #f4f7f4; }
+.ambio-inbox__permission small { color: #7a6a43; font: 10px var(--font-ui, sans-serif); }
+.ambio-inbox__conversation-menu .ambio-inbox__stages { margin: 0 0 4px; }
+.ambio-inbox__conversation-menu .ambio-inbox__notice { padding: 8px 9px; }
+/* What the chosen destination can do. */
+.ambio-inbox__delivery-support { margin: 5px 0 0; color: #55645c; font: 10.5px/1.45 var(--font-ui, sans-serif); }
+.ambio-inbox__delivery-support strong { margin-right: 4px; padding: 0 4px; border: 1px solid currentColor; font: 600 9px/1.6 var(--font-mono, monospace); letter-spacing: .05em; text-transform: uppercase; }
+.ambio-inbox__delivery-support[data-level='tested'] strong { color: #2f6a5d; }
+.ambio-inbox__delivery-support[data-level='limited'] strong { color: #8a6320; }
+.ambio-inbox__delivery-support[data-level='untested'] strong { color: #7a3c22; }
+.ambio-inbox__delivery-support[data-level='paste'] strong { color: #4a5f55; }

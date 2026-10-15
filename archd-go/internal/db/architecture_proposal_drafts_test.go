@@ -85,8 +85,16 @@ func TestArchitectureProposalDraftReportsIncompleteMapWithoutClosingIt(t *testin
 	if _, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "bad", []DraftSystem{{SystemKey: "x", Name: "X", Files: []string{"../escape.go"}}}); err == nil {
 		t.Fatal("unsafe path accepted")
 	}
-	if _, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "missing-file", []DraftSystem{{SystemKey: "x", Name: "X", Files: []string{"missing.go"}}}); err == nil || !strings.Contains(err.Error(), "missing.go") {
-		t.Fatalf("missing path error = %v", err)
+	// A file that cannot be placed is left out and reported; the chunk lands.
+	withMissing, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "missing-file", []DraftSystem{{SystemKey: "x", Name: "X", Files: []string{"missing.go"}}})
+	if err != nil {
+		t.Fatalf("chunk with an unindexed file: %v", err)
+	}
+	if len(withMissing.Skipped) != 1 || withMissing.Skipped[0].Path != "missing.go" || withMissing.Skipped[0].SystemKey != "x" || withMissing.Skipped[0].Reason != DraftFileNotIndexed {
+		t.Fatalf("skipped = %#v", withMissing.Skipped)
+	}
+	if len(withMissing.Systems) != 1 || len(withMissing.Systems[0].Files) != 0 {
+		t.Fatalf("unindexed file was stored: %#v", withMissing.Systems)
 	}
 	if _, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "part", []DraftSystem{{SystemKey: "child", Name: "Child", ParentKey: "missing"}}); err != nil {
 		t.Fatal(err)
@@ -107,5 +115,59 @@ func TestArchitectureProposalDraftReportsIncompleteMapWithoutClosingIt(t *testin
 	}
 	if _, err := CommitArchitectureProposalDraft(database, draft.ID, "ws"); err == nil {
 		t.Fatal("aborted draft committed")
+	}
+}
+
+func TestArchitectureProposalDraftChunkSkipsUnplaceableFiles(t *testing.T) {
+	database, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := UpsertWorkspace(database, Workspace{ID: "ws", Name: "draft test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpsertRoot(database, Root{ID: "root", WorkspaceID: "ws", Path: t.TempDir(), IsPrimary: true}); err != nil {
+		t.Fatal(err)
+	}
+	for file, language := range map[string]string{"a.go": "go", "b.go": "go", "README.md": "markdown"} {
+		if err := UpsertFile(database, File{ID: file, RootID: "root", Path: file, RelPath: file, Language: language}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	draft, err := BeginArchitectureProposalDraft(database, "ws", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := []DraftSystem{{SystemKey: "core", Name: "Core", Files: []string{"a.go", "schema.sql", "README.md"}}}
+	added, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "one", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(added.Systems) != 1 || len(added.Systems[0].Files) != 1 || added.Systems[0].Files[0] != "a.go" {
+		t.Fatalf("kept files = %#v", added.Systems)
+	}
+	reasons := map[string]string{}
+	for _, skipped := range added.Skipped {
+		reasons[skipped.Path] = skipped.Reason
+	}
+	if len(reasons) != 2 || reasons["schema.sql"] != DraftFileNotIndexed || !strings.Contains(reasons["README.md"], "Documents") {
+		t.Fatalf("skipped = %#v", added.Skipped)
+	}
+	// The same request again is the same chunk, and says the same thing.
+	retried, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "one", first)
+	if err != nil || retried.ChunkCount != 1 || len(retried.Skipped) != 2 {
+		t.Fatalf("retry = %#v, %v", retried, err)
+	}
+	// A file another chunk already placed stays where it is.
+	second, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "two", []DraftSystem{{SystemKey: "edge", Name: "Edge", Files: []string{"a.go", "b.go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Skipped) != 1 || second.Skipped[0].Path != "a.go" || !strings.Contains(second.Skipped[0].Reason, "Core") {
+		t.Fatalf("duplicate skipped = %#v", second.Skipped)
+	}
+	if files := second.Systems[1].Files; len(files) != 1 || files[0] != "b.go" {
+		t.Fatalf("second chunk files = %#v", files)
 	}
 }

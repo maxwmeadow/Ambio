@@ -17,10 +17,14 @@ import type { ProjectConfig } from '../shared/types'
 
 const AGENT_SETUP_KEY = (id: string) => `agent_setup_completed_${id}`
 const LEGACY_REVIEW_KEY = (id: string) => `review_completed_${id}`
+const DELIVERY_HOST_KEY = (id: string) => `delivery_host_${id}`
+const SETUP_STEP_KEY = (id: string) => `agent_setup_step_${id}`
 
 const KEYS = [
   AGENT_SETUP_KEY,
   LEGACY_REVIEW_KEY,
+  DELIVERY_HOST_KEY,
+  SETUP_STEP_KEY,
   // Removed in favor of ProjectConfig.creationSource. Keep deleting the old
   // key so projects made by previous builds do not leave stale local state.
   (id: string) => `project_created_blank_${id}`,
@@ -75,4 +79,25 @@ export function clearProjectLocalState(projectId: string): void {
     }
     for (const key of orphans) localStorage.removeItem(key)
   } catch { /* storage may be unavailable */ }
+}
+
+/** Where this project's last request was sent; null when never chosen. */
+export function rememberedDeliveryHost(projectId: string): string | null {
+  try { return localStorage.getItem(DELIVERY_HOST_KEY(projectId)) } catch { return null }
+}
+
+export function rememberDeliveryHost(projectId: string, hostId: string): void {
+  try { localStorage.setItem(DELIVERY_HOST_KEY(projectId), hostId) } catch { /* storage may be unavailable */ }
+}
+
+/** The agent setup step this project was last on, so reopening returns to it. */
+export function rememberedSetupStep(projectId: string): number | null {
+  try {
+    const step = Number(localStorage.getItem(SETUP_STEP_KEY(projectId)))
+    return Number.isInteger(step) && step >= 1 ? step : null
+  } catch { return null }
+}
+
+export function rememberSetupStep(projectId: string, step: number): void {
+  try { localStorage.setItem(SETUP_STEP_KEY(projectId), String(step)) } catch { /* storage may be unavailable */ }
 }

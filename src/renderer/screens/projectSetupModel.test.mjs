@@ -7,8 +7,11 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
-  countExploredKinds,
-  formatExploredScopeSummary,
+  isNeverRead,
+  noiseFolderWarning,
+  scopeHeadline,
+  splitSetupRows,
+  tuckedSummary,
   shouldAutoExclude,
 } from './projectSetupModel.ts'
 
@@ -89,44 +92,28 @@ test('tree navigation helpers: findNode, toggleNode, and setChildren', () => {
   assert.equal(toggledChild[0].children?.[0].excluded, true)
 })
 
-test('countExploredKinds honestly counts discovered nodes without claiming whole-repo coverage', () => {
-  const tree = [
-    {
-      name: 'src',
-      path: '/p/src',
-      isDirectory: true,
-      kind: 'folder',
-      excluded: false,
-      expanded: true,
-      children: [
-        { name: 'main.ts', path: '/p/src/main.ts', isDirectory: false, kind: 'source', excluded: false, expanded: false },
-        { name: 'utils.ts', path: '/p/src/utils.ts', isDirectory: false, kind: 'source', excluded: true, expanded: false },
-        { name: 'guide.md', path: '/p/src/guide.md', isDirectory: false, kind: 'document', excluded: false, expanded: false },
-        { name: 'banner.png', path: '/p/src/banner.png', isDirectory: false, kind: 'unsupported', excluded: true, expanded: false },
-      ],
-    },
-    {
-      name: 'unexpanded_dir',
-      path: '/p/unexpanded',
-      isDirectory: true,
-      kind: 'folder',
-      excluded: false,
-      expanded: false,
-      // children not fetched yet
-    },
-  ]
+test('rows that need no decision are tucked away, and never-read rows are told apart', () => {
+  const node = (name, isDirectory, existing) => makeTreeNode({ name, isDirectory, path: `/p/${name}` }, existing)
+  const rows = [node('src', true), node('venv', true), node('node_modules', true), node('.git', true), node('package.json', false), node('README.md', false), node('main.py', false)]
+  const { shown, tucked } = splitSetupRows(rows)
+  assert.deepEqual(shown.map(row => row.name), ['src', 'README.md', 'main.py'])
+  assert.deepEqual(tucked.map(row => row.name), ['venv', 'node_modules', '.git', 'package.json'])
+  assert.deepEqual(tucked.map(isNeverRead), [false, true, true, true])
+  assert.equal(tuckedSummary(tucked), '4 skipped automatically: venv, node_modules, .git and 1 more')
+  assert.equal(tuckedSummary(tucked.slice(0, 2)), '2 skipped automatically: venv, node_modules')
 
-  const counts = countExploredKinds(tree)
-  assert.equal(counts.folders, 2)
-  assert.equal(counts.files, 1) // only main.ts; utils.ts is excluded
-  assert.equal(counts.documents, 1) // guide.md
-  assert.equal(counts.unsupported, 1) // banner.png
-  assert.equal(counts.totalExplored, 6)
-  assert.equal(counts.excludedCount, 2) // utils.ts and banner.png
+  // A noise folder the user chose to include is a choice again; an ordinary
+  // folder the user excluded stays among the choices.
+  const edited = [node('venv', true, new Set()), node('src', true, new Set(['/p/src/**']))]
+  assert.deepEqual(splitSetupRows(edited).shown.map(row => row.name), ['venv', 'src'])
+})
 
-  const summary = formatExploredScopeSummary(counts)
-  assert.match(summary.headline, /1 source file and 1 document discovered in this preview/)
-  assert.match(summary.subtext, /2 folders shown.*not all files on disk.*included folders recursively/)
+test('the footer states what indexing will read', () => {
+  assert.equal(scopeHeadline(null), 'Counting source files…')
+  assert.equal(scopeHeadline({ sourceFiles: 1, truncated: false }), '1 source file will be read')
+  assert.equal(scopeHeadline({ sourceFiles: 13500, truncated: false }), '13,500 source files will be read')
+  assert.equal(scopeHeadline({ sourceFiles: 250000, truncated: true }), 'More than 250,000 source files will be read')
+  assert.equal(scopeHeadline({ sourceFiles: 0, truncated: false }), 'No source files in what is checked')
 })
 
 test('collectExcluded generates wildcards for folders and omits unsupported files', () => {
@@ -176,4 +163,18 @@ test('exclusions inside folders the user never expanded survive an edit', async 
   ]
   tree = toggleNode(tree, '/repo/docs', 'excluded')
   assert.deepEqual(mergeExclusions(tree, previous).sort(), ['/repo/src/generated/**'])
+})
+
+test('checking a folder that is skipped by default earns a warning', () => {
+  const folder = (name, excluded) => ({ name, path: `/p/${name}`, isDirectory: true, kind: 'folder', excluded, expanded: false })
+  assert.equal(noiseFolderWarning(folder('venv', true)), null)
+  assert.equal(noiseFolderWarning(folder('src', false)), null)
+  // The indexer never enters these, so they cannot be checked at all.
+  assert.equal(noiseFolderWarning(folder('node_modules', false)), null)
+  assert.equal(noiseFolderWarning(folder('.venv', false)), null)
+  assert.equal(noiseFolderWarning(folder('venv', false), 4210),
+    'venv is usually a Python virtual environment: installed packages, not your code. It adds 4,210 source files to the map. Uncheck it unless you wrote what is inside.')
+  assert.equal(noiseFolderWarning(folder('coverage', false), 0),
+    'coverage is usually test coverage reports. It holds no source files Ambio reads. Uncheck it unless you wrote what is inside.')
+  assert.match(noiseFolderWarning(folder('bin', false)), /^bin is usually build output\. Uncheck it/)
 })

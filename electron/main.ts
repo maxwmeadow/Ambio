@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, session, clipboard, screen, crashReporter, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification } from 'electron'
+import { brandImage } from './branding'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
@@ -22,7 +23,9 @@ import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
-import { DeliveryRunner, deliveryTargets, deliveryArguments, checkDeliveryMessage } from './agentDelivery'
+import { configurationChecks, probeMcpServer, type ConnectionTestResult } from './agentConnectionTest'
+import { DeliveryRunner, deliveryTargets, deliveryPlan, checkDeliveryMessage, chatDeepLink } from './agentDelivery'
+import { agentDriver, turnMode } from './agentDrivers'
 import { workOrderHandoff } from '../src/shared/workOrderHandoff'
 import type { DeliveryRequest } from '../src/shared/agentDelivery'
 import {
@@ -739,6 +742,7 @@ function createWindow(): void {
       webviewTag: false,
     },
     title: 'Ambio',
+    icon: brandImage('icon.png'),
     show: false,
     // E2E windows render offscreen and never enter the taskbar. They are shown
     // with showInactive() below because Chromium will not consider screenshots
@@ -853,7 +857,7 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function setupIPC(): void {
-  // Open a project directory - returns config only; caller is responsible for sending to archd
+  // Open a project directory - returns config only; the renderer registers it via REST.
   ipcMain.handle('project:open-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openDirectory'],
@@ -874,7 +878,8 @@ function setupIPC(): void {
       join(DATA_DIR, 'active_project.json'),
       JSON.stringify({ workspaceId: currentConfig.id, name: currentConfig.name, rootPath: currentConfig.rootPath }, null, 2)
     )
-    sendToArchd({ type: 'open:project', payload: currentConfig })
+    // The renderer registers the workspace via POST /api/workspace. The Go
+    // daemon does not support the old open:project stdin command.
     activeProject = currentConfig
     // The OS recent list (macOS Recent Items, Windows recent documents).
     try { app.addRecentDocument(currentConfig.rootPath) } catch { /* not supported here */ }
@@ -1339,10 +1344,23 @@ function setupIPC(): void {
     })
   })
 
-  ipcMain.handle('agent:delivery-hosts', () => deliveryTargets(buildHosts()).map(({ launcher: _launcher, ...host }) => host))
+  // A test run uses the developer's real environment, where real agents and
+  // editors may be installed. It must never start or open one, and what it
+  // shows must not depend on that machine, so in tests every destination is
+  // offered only to a spec that brings its own stand-in agents.
+  const availableTargets = () => {
+    const targets = deliveryTargets(buildHosts())
+    if (!IS_E2E || process.env.AMBIO_E2E_AGENTS === '1') return targets
+    return targets.map(target => ({ ...target, available: false, launcher: undefined, detail: 'Not used in tests.' }))
+  }
+  ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
   ipcMain.handle('agent:delivery-runs', (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
     return deliveryRunner.list(workspaceId)
+  })
+  ipcMain.handle('agent:delivery-events', (_event, workspaceId: string, key: string, after?: number) => {
+    if (typeof workspaceId !== 'string' || typeof key !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
+    return deliveryRunner.events(workspaceId, key, typeof after === 'number' && after > 0 ? Math.floor(after) : 0)
   })
   ipcMain.handle('agent:delivery-stop', (_event, workspaceId: string, key: string) => {
     if (typeof workspaceId !== 'string' || typeof key !== 'string') throw new Error('Invalid agent run.')
@@ -1355,12 +1373,28 @@ function setupIPC(): void {
     const { status, body } = await archdJson(`/api/canvas/message?workspace=${encodeURIComponent(project.id)}&messageId=${encodeURIComponent(request.messageId)}`, { signal: AbortSignal.timeout(10000) })
     if (status !== 200 || body?.workspaceId !== project.id || body?.id !== request.messageId) throw failure('Could not find this work order in this project', body)
     checkDeliveryMessage(body, project.id, request.messageId)
-    const target = deliveryTargets(buildHosts()).find(host => host.id === request.hostId)
+    const target = availableTargets().find(host => host.id === request.hostId)
     if (!target || !target.available) throw new Error(target?.detail ?? 'Unknown agent host.')
     const prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
     if (target.route !== 'run') {
-      clipboard.writeText(prompt)
-      if (!target.launcher) return { detail: `Handoff copied for ${target.label}. Paste it into the chat you choose.` }
+      // A chat Ambio cannot start is pasted into once and asked to stay
+      // attached, so the conversation's next turns reach it without a paste.
+      const attached = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { stayAttached: true })
+      clipboard.writeText(attached)
+      // VS Code and Cursor document a link that opens their chat with a
+      // prompt in it. The project is opened first so the link lands in its
+      // window; the clipboard copy remains for when it does not.
+      const link = chatDeepLink(request.hostId, attached, turnMode(body.mode))
+      const fill = async () => {
+        // A test run must never reach into the developer's real editor.
+        if (!link || process.env.AMBIO_E2E === '1') return false
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        try { await shell.openExternal(link); return true } catch { return false }
+      }
+      if (!target.launcher) {
+        if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there; that chat then stays attached for your next messages.` }
+        return { detail: `Handoff copied for ${target.label}. Paste it into the chat you choose; it stays attached for your next messages.` }
+      }
       const launcher = target.launcher
       const args = request.hostId === 'claude-desktop' ? launcher.args : [...launcher.args, project.rootPath]
       try {
@@ -1369,11 +1403,43 @@ function setupIPC(): void {
           child.once('error', rejectLaunch)
           child.once('spawn', () => { child.unref(); resolveLaunch() })
         })
+        if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there if it has not started; that chat then stays attached for your next messages.` }
         return { detail: `Handoff copied and ${target.label} opened. Paste it into the chat you choose; work has not started yet.` }
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
-    const run = await deliveryRunner.start({ ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, args: deliveryArguments(request.hostId, mcpLaunchSpec(), project.id, prompt), prompt })
+    // A turn continues the host session its conversation already has, when
+    // the host can; the conversation itself reaches the agent through Ambio.
+    const driver = agentDriver(request.hostId)
+    const mode = turnMode(body.mode)
+    const threadId = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+    const resume = driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
+    const turn = { mode, messageId: request.messageId, cwd: project.rootPath }
+    const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
+    // An ACP agent is given Ambio's tools for the session and continues or
+    // restarts the session itself. A command a build wants to run is put to
+    // the user in the conversation first.
+    const session = driver?.acp || driver?.acpArgs
+    const acp = session ? {
+      resume,
+      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: [{ name: 'AMBIO_WORKSPACE_ID', value: project.id }] }))(mcpLaunchSpec())],
+      askUser: async (question: { title: string; detail: string; kind: string }) => {
+        const answer = await archdJson('/api/agent/permission', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(130000),
+          body: JSON.stringify({ workspaceId: project.id, messageId: request.messageId, hostId: request.hostId, ...question }),
+        })
+        return answer.status === 200 && answer.body?.decision === 'allow'
+      },
+    } : undefined
+    // A host with both ways in is tried as a session first; print mode is the
+    // same turn started the way it always was.
+    const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
+    const run = await deliveryRunner.start({
+      ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
+      args: plan.args, stdin: plan.stdin, threadId, mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
+      ...(acp ? { acp } : {}),
+      ...(driver?.acp ? {} : { fresh: printPlan }),
+    })
     return { detail: run.detail, run }
   })
 
@@ -1464,6 +1530,26 @@ function setupIPC(): void {
 
   ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, hostId))
 
+  // Check everything an agent depends on to reach Ambio: its configuration,
+  // the workflow files, and that the tool server it would launch starts.
+  ipcMain.handle('agent:test', async (_event, hostId: string, projectRoot?: string): Promise<ConnectionTestResult> => {
+    const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
+      .find(candidate => candidate.id === hostId)
+    if (!host) {
+      return { ok: false, testedAt: Date.now(), checks: [{ id: 'configured', label: 'Configuration', state: 'fail', detail: `Unknown agent "${hostId}".` }] }
+    }
+    const mcpPath = mcpServerPath()
+    const checks = configurationChecks(host.modalityLabel || host.label, inspectHostConfiguration(host, projectRoot), mcpPath)
+    if (!fs.existsSync(mcpPath)) {
+      checks.push({ id: 'server', label: 'Tool server', state: 'fail', detail: `This Ambio install has no MCP server at ${mcpPath}.` })
+    } else {
+      const launch = mcpLaunchSpec()
+      const probe = await probeMcpServer(launch.command, launch.args)
+      checks.push({ id: 'server', label: 'Tool server', state: probe.ok ? 'pass' : 'fail', detail: probe.detail })
+    }
+    return { ok: checks.every(check => check.state === 'pass'), checks, testedAt: Date.now() }
+  })
+
   ipcMain.handle('agent:connection', () => {
     const mcpPath = mcpServerPath()
     const { command, args } = mcpLaunchSpec()
@@ -1526,7 +1612,7 @@ function setupIPC(): void {
     if (!title) return false
     const tag = text(notice?.tag, 120)
     shownNotices.get(tag)?.close()
-    const notification = new Notification({ title, body: text(notice?.body, 240) })
+    const notification = new Notification({ title, body: text(notice?.body, 240), icon: brandImage('icon.png') })
     notification.on('click', () => {
       if (!mainWindow) return
       if (mainWindow.isMinimized()) mainWindow.restore()
@@ -1797,6 +1883,21 @@ app.whenReady().then(() => {
   // Recently Deleted keeps maps for 30 days.
   try { purgeExpiredTrash(DATA_DIR) } catch (error) { console.error('[main] trash purge failed', error) }
   createWindow()
+  if (!IS_E2E) {
+    if (process.platform === 'darwin') app.dock?.setIcon(brandImage('icon.png'))
+    const trayImage = brandImage(process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png')
+    if (process.platform === 'darwin') trayImage.setTemplateImage(true)
+    tray = new Tray(trayImage)
+    tray.setToolTip('Ambio')
+    const revealWindow = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+      if (mainWindow?.isMinimized()) mainWindow.restore()
+      mainWindow?.show()
+      mainWindow?.focus()
+    }
+    tray.on('click', revealWindow)
+    tray.on('double-click', revealWindow)
+  }
   setupIPC()
   refreshApplicationMenu()
   initUpdates(() => mainWindow, app.isPackaged && !IS_E2E, () => readAppSettings().checkForUpdates)
@@ -1823,6 +1924,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true
+  tray?.destroy()
+  tray = null
   deliveryRunner.stopAll()
   // An attached daemon was started by an agent and stays for it; it exits by
   // itself once idle. Only the daemon this app started is stopped.

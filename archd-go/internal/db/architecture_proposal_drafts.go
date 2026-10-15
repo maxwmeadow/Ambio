@@ -32,6 +32,19 @@ type ArchitectureProposalDraft struct {
 	ChunkIDs    []string      `json:"chunkIds"`
 	Systems     []DraftSystem `json:"systems"`
 	UpdatedAt   int64         `json:"updatedAt"`
+	// Skipped is set only on the reply to an added chunk: the files of that
+	// chunk that were left out, and why.
+	Skipped []SkippedDraftFile `json:"skipped,omitempty"`
+}
+
+// DraftFileNotIndexed is the reason for a path with no row in files. The API
+// layer says more, since it knows which file types the indexer admits.
+const DraftFileNotIndexed = "not indexed"
+
+type SkippedDraftFile struct {
+	SystemKey string `json:"systemKey"`
+	Path      string `json:"path"`
+	Reason    string `json:"reason"`
 }
 
 func BeginArchitectureProposalDraft(database *sql.DB, workspaceID, rationale string) (*ArchitectureProposalDraft, error) {
@@ -126,6 +139,10 @@ func validateDraftSystem(system DraftSystem) error {
 
 // Each chunk is atomic and idempotent. A changed retry gets a conflict rather
 // than silently replacing part of a map the agent may already have built on.
+//
+// A file that cannot be placed does not fail the chunk: it is left out and
+// returned in Skipped with the reason, so one stylesheet in a batch of forty
+// source files costs the agent a note, not a rebuilt batch.
 func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkID string, systems []DraftSystem) (*ArchitectureProposalDraft, error) {
 	if strings.TrimSpace(chunkID) == "" {
 		return nil, fmt.Errorf("chunkId is required")
@@ -138,10 +155,6 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 			return nil, err
 		}
 	}
-	raw, err := json.Marshal(systems)
-	if err != nil {
-		return nil, err
-	}
 	tx, err := database.Begin()
 	if err != nil {
 		return nil, err
@@ -151,33 +164,23 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 	if err := tx.QueryRow(`SELECT status FROM architecture_proposal_drafts WHERE id=? AND workspace_id=?`, id, workspaceID).Scan(&status); err != nil {
 		return nil, err
 	}
-	var previous string
-	err = tx.QueryRow(`SELECT systems_json FROM architecture_proposal_draft_chunks WHERE draft_id=? AND chunk_id=?`, id, chunkID).Scan(&previous)
-	if err == nil {
-		if previous != string(raw) {
-			return nil, fmt.Errorf("chunkId already exists with different systems")
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, err
-		}
-		return GetArchitectureProposalDraft(database, id, workspaceID)
-	}
-	if err != sql.ErrNoRows {
-		return nil, err
-	}
-	if status != "open" {
-		return nil, fmt.Errorf("draft is already %s", status)
-	}
-	rows, err := tx.Query(`SELECT systems_json FROM architecture_proposal_draft_chunks WHERE draft_id=?`, id)
+	rows, err := tx.Query(`SELECT chunk_id,systems_json FROM architecture_proposal_draft_chunks WHERE draft_id=?`, id)
 	if err != nil {
 		return nil, err
 	}
-	keys, files := map[string]bool{}, map[string]bool{}
+	// What the other chunks already hold. This chunk's own earlier copy is set
+	// aside so a retry is compared with it, not rejected as its own duplicate.
+	keys, fileOwner := map[string]bool{}, map[string]string{}
+	previous, retried := "", false
 	for rows.Next() {
-		var saved string
-		if err := rows.Scan(&saved); err != nil {
+		var savedID, saved string
+		if err := rows.Scan(&savedID, &saved); err != nil {
 			rows.Close()
 			return nil, err
+		}
+		if savedID == chunkID {
+			previous, retried = saved, true
+			continue
 		}
 		var previousSystems []DraftSystem
 		if err := json.Unmarshal([]byte(saved), &previousSystems); err != nil {
@@ -187,7 +190,7 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 		for _, system := range previousSystems {
 			keys[system.SystemKey] = true
 			for _, file := range system.Files {
-				files[system.RootID+":"+file] = true
+				fileOwner[system.RootID+":"+file] = system.Name
 			}
 		}
 	}
@@ -196,42 +199,71 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 		return nil, err
 	}
 	rows.Close()
-	for _, system := range systems {
-		if keys[system.SystemKey] {
-			return nil, fmt.Errorf("duplicate systemKey %q", system.SystemKey)
+	// Keep the files that are indexed and not yet placed; note the rest.
+	placed := make([]DraftSystem, len(systems))
+	skipped := []SkippedDraftFile{}
+	for index, system := range systems {
+		placed[index] = system
+		if system.Files == nil {
+			continue
 		}
-		keys[system.SystemKey] = true
-		for _, file := range system.Files {
-			fileKey := system.RootID + ":" + file
-			if files[fileKey] {
-				return nil, fmt.Errorf("duplicate file path %q", file)
-			}
-			files[fileKey] = true
-		}
-	}
-	// Validate this batch against the indexed workspace before recording it.
-	// A typo in chunk three must not force the agent to rebuild chunks one and
-	// two, and the error identifies the exact paths to correct and resend.
-	badPaths := []string{}
-	for _, system := range systems {
+		kept := make([]string, 0, len(system.Files))
 		for _, file := range system.Files {
 			var matches int
 			var language sql.NullString
 			if err := tx.QueryRow(`SELECT COUNT(*),MIN(f.language) FROM files f JOIN roots r ON r.id=f.root_id WHERE r.workspace_id=? AND f.rel_path=? AND (?='' OR r.id=?)`, workspaceID, file, system.RootID, system.RootID).Scan(&matches, &language); err != nil {
 				return nil, err
 			}
-			switch {
+			fileKey := system.RootID + ":" + file
+			reason := ""
+			switch owner, taken := fileOwner[fileKey]; {
 			case matches == 0:
-				badPaths = append(badPaths, file+" (not indexed)")
+				reason = DraftFileNotIndexed
 			case matches > 1:
-				badPaths = append(badPaths, file+" (ambiguous across roots)")
+				reason = "ambiguous across roots; set rootId on the system and assign it again"
 			case language.String == "markdown" || language.String == "text":
-				badPaths = append(badPaths, file+" (documentation belongs in Documents)")
+				reason = "documentation belongs in Documents, not in a system"
+			case taken:
+				reason = fmt.Sprintf("already placed in %q in this session", owner)
 			}
+			if reason != "" {
+				skipped = append(skipped, SkippedDraftFile{SystemKey: system.SystemKey, Path: file, Reason: reason})
+				continue
+			}
+			fileOwner[fileKey] = system.Name
+			kept = append(kept, file)
 		}
+		placed[index].Files = kept
 	}
-	if len(badPaths) > 0 {
-		return nil, fmt.Errorf("invalid proposal files: %s", strings.Join(badPaths, ", "))
+	raw, err := json.Marshal(placed)
+	if err != nil {
+		return nil, err
+	}
+	finish := func() (*ArchitectureProposalDraft, error) {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		draft, err := GetArchitectureProposalDraft(database, id, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		draft.Skipped = skipped
+		return draft, nil
+	}
+	if retried {
+		if previous != string(raw) {
+			return nil, fmt.Errorf("chunkId already exists with different systems")
+		}
+		return finish()
+	}
+	if status != "open" {
+		return nil, fmt.Errorf("draft is already %s", status)
+	}
+	for _, system := range placed {
+		if keys[system.SystemKey] {
+			return nil, fmt.Errorf("duplicate systemKey %q", system.SystemKey)
+		}
+		keys[system.SystemKey] = true
 	}
 	var ordinal int
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM architecture_proposal_draft_chunks WHERE draft_id=?`, id).Scan(&ordinal); err != nil {
@@ -244,10 +276,7 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 	if _, err := tx.Exec(`UPDATE architecture_proposal_drafts SET updated_at=? WHERE id=?`, now, id); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return GetArchitectureProposalDraft(database, id, workspaceID)
+	return finish()
 }
 
 func CommitArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (*ArchitectureProposal, error) {

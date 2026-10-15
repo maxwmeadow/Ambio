@@ -8,20 +8,18 @@ import { InvestigationsMenu } from './InvestigationsMenu'
 import { RecordingControl } from './RecordingControl'
 import { WindowControls } from './ui/WindowControls'
 import { AppMenuBar } from '../app/AppMenuBar'
+import { AmbioWordmark } from './ui/AmbioBrand'
 import { useCommandHandlers } from '../app/commands'
 
 interface ToolbarProps {
   onSearch: () => void
-  /** Return to the project launcher, leaving this project open in archd. */
-  onCloseProject: () => void
   onManageAgentConnections: () => void
-  projectName?: string
   agentLogOpen: boolean
   onToggleAgentLog: () => void
 }
 
 export function Toolbar({
-  onSearch, onCloseProject, onManageAgentConnections, projectName, agentLogOpen, onToggleAgentLog,
+  onSearch, onManageAgentConnections, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
   const { fitView, getNodes } = useReactFlow()
   const isIndexing = useGraphStore(s => s.isIndexing)
@@ -69,15 +67,8 @@ export function Toolbar({
       <header className="ambio-toolbar">
       <div className="ambio-title-strip">
         <div className="ambio-title-strip__identity">
-          <AmbioLogo />
+          <AmbioWordmark reversed />
           <AppMenuBar />
-          <strong>Ambio Architecture Workbench</strong>
-          {projectName && (
-            <>
-              <span className="ambio-title-strip__divider">-</span>
-              <span className="ambio-title-strip__project">{projectName}</span>
-            </>
-          )}
         </div>
         <div className={isIndexing ? 'ambio-title-strip__status ambio-title-strip__status--busy' : 'ambio-title-strip__status'}>
           {isIndexing ? 'INDEXING SOURCE…' : 'INDEX CLEAN'}
@@ -123,22 +114,6 @@ export function Toolbar({
           </ChromeButton>
         </div>
 
-        <div className="ambio-command-separator" />
-
-        <div className="ambio-command-group">
-          <ChromeButton
-            onClick={() => setAgentMsgOpen(true)}
-            label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} queued)` : 'Message agent'}
-            visualLabel="Message agent"
-            active={queuedMsgs > 0}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            {queuedMsgs > 0 && <span className="ambio-command-badge">{queuedMsgs}</span>}
-          </ChromeButton>
-        </div>
-
         <div className="ambio-surface-readout">
           <span>{surfaceName}</span>
           <strong>{surfaceKind}</strong>
@@ -147,15 +122,6 @@ export function Toolbar({
         <div className="ambio-command-spacer" />
 
         <div className="ambio-command-group ambio-command-group--navigation">
-          {/* The one way out, and the only project-switching control there
-              needs to be. The launcher it returns to already offers the folder
-              picker this used to sit beside, plus New Project and your recents
-              - so a second button here could only ever do less. */}
-          <ChromeButton onClick={onCloseProject} label="All projects" visualLabel="Projects">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 5h7v6H3zM14 5h7v6h-7zM3 13h7v6H3zM14 13h7v6h-7z"/>
-            </svg>
-          </ChromeButton>
           <ChromeButton onClick={onSearch} label="Search" visualLabel="Search indexed files…" shortcut="Ctrl+K">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
@@ -167,25 +133,28 @@ export function Toolbar({
             </svg>
           </ChromeButton>
         </div>
+
+        <div className="ambio-command-separator" />
+
+        {/* Last on the right: the panel it opens is on the right edge, under it. */}
+        <div className="ambio-command-group">
+          <ChromeButton
+            onClick={() => setAgentMsgOpen(open => !open)}
+            label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} queued)` : 'Message agent'}
+            visualLabel="Message agent"
+            active={agentMsgOpen || queuedMsgs > 0}
+            ariaExpanded={agentMsgOpen}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            {queuedMsgs > 0 && <span className="ambio-command-badge">{queuedMsgs}</span>}
+          </ChromeButton>
+        </div>
       </div>
 
       </header>
       <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
     </>
-  )
-}
-
-function AmbioLogo() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <polygon points="10,1 19,6 19,14 10,19 1,14 1,6" fill="color-mix(in srgb, var(--workbench-accent) 16%, transparent)" stroke="var(--workbench-accent)" strokeWidth="1.5"/>
-      <circle cx="10" cy="10" r="3" fill="var(--workbench-accent)" opacity="0.8"/>
-      <line x1="10" y1="1" x2="10" y2="7" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-      <line x1="10" y1="13" x2="10" y2="19" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-      <line x1="1" y1="6" x2="7" y2="9" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-      <line x1="13" y1="11" x2="19" y2="14" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-      <line x1="19" y1="6" x2="13" y2="9" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-      <line x1="7" y1="11" x2="1" y2="14" stroke="var(--workbench-accent)" strokeWidth="1" opacity="0.5"/>
-    </svg>
   )
 }

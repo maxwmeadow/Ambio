@@ -2,7 +2,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
-import type { DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
+import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
+import type { ConnectionTestResult } from './agentConnectionTest'
+
+export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
@@ -86,6 +89,7 @@ contextBridge.exposeInMainWorld('ambio', {
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
   listDeliveryRuns: (workspaceId: string): Promise<DeliveryRun[]> => ipcRenderer.invoke('agent:delivery-runs', workspaceId),
   stopDeliveryRun: (workspaceId: string, key: string): Promise<void> => ipcRenderer.invoke('agent:delivery-stop', workspaceId, key),
+  listDeliveryEvents: (workspaceId: string, key: string, after = 0): Promise<DeliveryEvent[]> => ipcRenderer.invoke('agent:delivery-events', workspaceId, key, after),
 
   // Install Ambio into one agent - server entry and slash command
   installAgent: (hostId: string, projectRoot?: string): Promise<AgentInstallResult> =>
@@ -98,6 +102,8 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('agent:locate', hostId),
   clearAgentHostOverride: (hostId: string): Promise<AgentOverrideResult> =>
     ipcRenderer.invoke('agent:clear-override', hostId),
+  testAgentConnection: (hostId: string, projectRoot?: string): Promise<ConnectionTestResult> =>
+    ipcRenderer.invoke('agent:test', hostId, projectRoot),
 
   // Platform & window controls
   platform: process.platform as 'darwin' | 'win32' | 'linux',
@@ -263,6 +269,9 @@ export interface AgentConnection {
 
 export interface ScopeEstimate {
   sourceFiles: number
+  documents: number
+  /** Source files under each folder, by absolute path. */
+  folders: Record<string, number>
   truncated: boolean
   largest: Array<{ path: string; name: string; sourceFiles: number }>
 }
@@ -316,10 +325,12 @@ declare global {
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>
       listDeliveryRuns: (workspaceId: string) => Promise<DeliveryRun[]>
       stopDeliveryRun: (workspaceId: string, key: string) => Promise<void>
+      listDeliveryEvents: (workspaceId: string, key: string, after?: number) => Promise<DeliveryEvent[]>
       installAgent: (hostId: string, projectRoot?: string) => Promise<AgentInstallResult>
       installFamily: (familyId: string, projectRoot?: string) => Promise<AgentInstallResult>
       locateAgentHost: (hostId: string) => Promise<AgentOverrideResult>
       clearAgentHostOverride: (hostId: string) => Promise<AgentOverrideResult>
+      testAgentConnection: (hostId: string, projectRoot?: string) => Promise<ConnectionTestResult>
       platform: 'darwin' | 'win32' | 'linux'
       minimize: () => Promise<void>
       maximize: () => Promise<void>

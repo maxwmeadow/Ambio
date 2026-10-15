@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePresence } from './ui/usePresence'
 import { useReactFlow } from '@xyflow/react'
 import type { DbInfraNode } from '../../shared/types'
 import { ServiceIcon } from './InfraPickerDialog'
@@ -34,6 +35,7 @@ const GROUPS: Array<{ label: string; roles: string[] }> = [
 
 export function InfraSidebar() {
   const open = useGraphStore(s => s.infraSidebarOpen)
+  const presence = usePresence(open)
   const setOpen = useGraphStore(s => s.setInfraSidebarOpen)
   const selectedInfraId = useGraphStore(s => s.selectedInfraId)
   const setSelectedInfra = useGraphStore(s => s.setSelectedInfra)
@@ -227,7 +229,7 @@ export function InfraSidebar() {
     </button>
   )
 
-  if (!open) {
+  if (!presence.mounted) {
     return (
       <>
         {tab}
@@ -247,7 +249,7 @@ export function InfraSidebar() {
 
   return (
     <>
-    <aside className="ambio-infra-sidebar" aria-label="Infrastructure">
+    <aside className="ambio-infra-sidebar" aria-label="Infrastructure" data-closing={presence.closing || undefined}>
       <header className="ambio-infra-sidebar__header">
         <div>
           <h2>Infrastructure</h2>

@@ -31,6 +31,7 @@
     "vet:archd": "node scripts/archd.mjs vet",
     "build:mcp": "node scripts/build-mcp.mjs",
     "build:adapters": "node scripts/build-adapters.mjs",
+    "brand:icons": "node scripts/render-brand-icons.mjs",
     "notices": "node scripts/third-party-notices.mjs"
   },
   "dependencies": {
@@ -82,12 +83,14 @@
       }
     ],
     "mac": {
+      "icon": "resources/branding/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
         "dmg",
         "zip"
       ],
       "extraResources": [
+        { "from": "resources/branding", "to": "branding" },
         {
           "from": "archd-go/archd",
           "to": "archd"
@@ -123,11 +126,13 @@
       }
     },
     "win": {
+      "icon": "resources/branding/icon.ico",
       "target": [
         "nsis",
         "zip"
       ],
       "extraResources": [
+        { "from": "resources/branding", "to": "branding" },
         {
           "from": "archd-go/archd.exe",
           "to": "archd.exe"
@@ -151,10 +156,12 @@
       ]
     },
     "linux": {
+      "icon": "resources/branding/icon.png",
       "target": [
         "AppImage"
       ],
       "extraResources": [
+        { "from": "resources/branding", "to": "branding" },
         {
           "from": "archd-go/archd",
           "to": "archd"

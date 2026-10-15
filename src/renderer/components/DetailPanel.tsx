@@ -6,6 +6,7 @@ import { apiUpdateSystem } from '../canvas/arcdApi'
 import { filenameForLanguage, LanguagePicker } from '../canvas/languages'
 import { UmlMetadataPanel } from '../canvas/nodes/UmlMetadataPanel'
 import { useGraphStore } from '../store/graphStore'
+import { usePresence } from './ui/usePresence'
 import { useRegistryStore } from '../store/registryStore'
 import {
   plannedMetadata,
@@ -27,9 +28,9 @@ const CONTENT_TITLE: Record<string, string> = {
 }
 
 export function DetailPanel() {
-  const { inspectedNodeId, files, systems, infraNodes, dependencies, setSelectedNode, setInspectedNode } = useGraphStore(
+  const { liveInspectedId, files, systems, infraNodes, dependencies, setSelectedNode, setInspectedNode } = useGraphStore(
     useShallow(s => ({
-      inspectedNodeId: s.inspectedNodeId,
+      liveInspectedId: s.inspectedNodeId,
       files: s.files,
       systems: s.systems,
       infraNodes: s.infraNodes,
@@ -39,6 +40,11 @@ export function DetailPanel() {
     }))
   )
   const plannedNodes = useSheetStore(s => s.planned)
+  // While it closes, the panel keeps showing what it was showing.
+  const lastInspected = React.useRef<string | null>(null)
+  if (liveInspectedId) lastInspected.current = liveInspectedId
+  const presence = usePresence(!!liveInspectedId)
+  const inspectedNodeId = liveInspectedId ?? (presence.closing ? lastInspected.current : null)
 
   if (!inspectedNodeId) return null
 
@@ -64,6 +70,8 @@ export function DetailPanel() {
       className="ambio-detail-panel"
       aria-label={`${typeLabel} properties`}
       data-inspected-node-id={inspectedNodeId}
+      data-closing={presence.closing || undefined}
+     
     >
       <header className="ambio-detail-panel__titlebar">
         <span>Properties</span>

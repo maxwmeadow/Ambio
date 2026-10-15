@@ -74,6 +74,14 @@ type CanvasMessage struct {
 	ID                 string  `json:"id"`
 	WorkspaceID        string  `json:"workspaceId"`
 	DeliveryMode       string  `json:"deliveryMode"`
+	// ThreadID groups the turns of one conversation; the first turn's own ID.
+	ThreadID string `json:"threadId"`
+	// Mode is what this turn asks for: "ask", "propose" or "build". Empty on
+	// messages from before turns carried it.
+	Mode string `json:"mode"`
+	// TargetHost limits an open turn to sessions of one host (the one the
+	// user told to watch); empty means any watching session may take it.
+	TargetHost string `json:"targetHost,omitempty"`
 	SheetID            *string `json:"sheetId"`
 	Note               string  `json:"note"`
 	Selection          string  `json:"selection"`     // json array of durable refs
@@ -669,14 +677,27 @@ func EnqueueCanvasMessage(db *sql.DB, m *CanvasMessage) error {
 	if m.DeliveryMode == "" {
 		m.DeliveryMode = "open"
 	}
+	if m.ThreadID == "" {
+		m.ThreadID = m.ID
+	}
+	if m.ThreadID != m.ID {
+		// A turn can only continue a conversation that exists in its workspace.
+		var known int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM canvas_outbox WHERE workspace_id=? AND thread_id=?`, m.WorkspaceID, m.ThreadID).Scan(&known); err != nil {
+			return err
+		}
+		if known == 0 {
+			return ErrInboxConflict
+		}
+	}
 	m.Status = "queued"
 	m.CreatedAt = time.Now().UnixMilli()
 	result, err := db.Exec(`
 		INSERT INTO canvas_outbox (id, workspace_id, sheet_id, note, selection,
-		                           change_summary, sheet_context, build_spec, delivery_mode, status, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
+		                           change_summary, sheet_context, build_spec, delivery_mode, thread_id, mode, target_host, status, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
 		m.ID, m.WorkspaceID, m.SheetID, m.Note, m.Selection, m.ChangeSummary, m.SheetContext, m.BuildSpec, m.DeliveryMode,
-		m.Status, m.CreatedAt)
+		m.ThreadID, m.Mode, m.TargetHost, m.Status, m.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -690,7 +711,7 @@ func EnqueueCanvasMessage(db *sql.DB, m *CanvasMessage) error {
 			return err
 		}
 		sameSheet := existing != nil && ((existing.SheetID == nil && m.SheetID == nil) || (existing.SheetID != nil && m.SheetID != nil && *existing.SheetID == *m.SheetID))
-		if existing == nil || existing.WorkspaceID != m.WorkspaceID || existing.Note != m.Note || existing.Selection != m.Selection || existing.DeliveryMode != m.DeliveryMode || !sameSheet {
+		if existing == nil || existing.WorkspaceID != m.WorkspaceID || existing.Note != m.Note || existing.Selection != m.Selection || existing.DeliveryMode != m.DeliveryMode || existing.ThreadID != m.ThreadID || existing.Mode != m.Mode || !sameSheet {
 			return ErrInboxConflict
 		}
 		*m = *existing
@@ -737,7 +758,7 @@ func DrainCanvasMessages(d *sql.DB, workspaceID, deliveredTo string) ([]CanvasMe
 
 func listCanvasMessages(db *sql.DB, workspaceID, status string) ([]CanvasMessage, error) {
 	rows, err := db.Query(`
-		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, status,
+		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, thread_id, mode, target_host, status,
 		       delivered_to, answer_annotation_id, created_at, delivered_at, answered_at
 		FROM canvas_outbox WHERE workspace_id=? AND status=? ORDER BY created_at`,
 		workspaceID, status)
@@ -749,7 +770,7 @@ func listCanvasMessages(db *sql.DB, workspaceID, status string) ([]CanvasMessage
 	for rows.Next() {
 		var m CanvasMessage
 		if err := rows.Scan(&m.ID, &m.WorkspaceID, &m.SheetID, &m.Note, &m.Selection,
-			&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
+			&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.ThreadID, &m.Mode, &m.TargetHost, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
 			&m.CreatedAt, &m.DeliveredAt, &m.AnsweredAt); err != nil {
 			return nil, err
 		}
@@ -763,7 +784,7 @@ func listCanvasMessages(db *sql.DB, workspaceID, status string) ([]CanvasMessage
 // history to decide whether an architectural claim was expected or drift.
 func GetCanvasMessages(db *sql.DB, workspaceID string) ([]CanvasMessage, error) {
 	rows, err := db.Query(`
-		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, status,
+		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, thread_id, mode, target_host, status,
 		       delivered_to, answer_annotation_id, created_at, delivered_at, answered_at
 		FROM canvas_outbox WHERE workspace_id=? ORDER BY created_at`,
 		workspaceID)
@@ -775,7 +796,7 @@ func GetCanvasMessages(db *sql.DB, workspaceID string) ([]CanvasMessage, error) 
 	for rows.Next() {
 		var m CanvasMessage
 		if err := rows.Scan(&m.ID, &m.WorkspaceID, &m.SheetID, &m.Note, &m.Selection,
-			&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
+			&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.ThreadID, &m.Mode, &m.TargetHost, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
 			&m.CreatedAt, &m.DeliveredAt, &m.AnsweredAt); err != nil {
 			return nil, err
 		}
@@ -795,7 +816,7 @@ func AnswerCanvasMessage(db *sql.DB, msgID, annotationID string) error {
 // GetCanvasMessage fetches one message by id.
 func GetCanvasMessage(db *sql.DB, id string) (*CanvasMessage, error) {
 	rows, err := db.Query(`
-		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, status,
+		SELECT id, workspace_id, sheet_id, note, selection, change_summary, sheet_context, build_spec, delivery_mode, thread_id, mode, target_host, status,
 		       delivered_to, answer_annotation_id, created_at, delivered_at, answered_at
 		FROM canvas_outbox WHERE id=?`, id)
 	if err != nil {
@@ -807,7 +828,7 @@ func GetCanvasMessage(db *sql.DB, id string) (*CanvasMessage, error) {
 	}
 	var m CanvasMessage
 	if err := rows.Scan(&m.ID, &m.WorkspaceID, &m.SheetID, &m.Note, &m.Selection,
-		&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
+		&m.ChangeSummary, &m.SheetContext, &m.BuildSpec, &m.DeliveryMode, &m.ThreadID, &m.Mode, &m.TargetHost, &m.Status, &m.DeliveredTo, &m.AnswerAnnotationID,
 		&m.CreatedAt, &m.DeliveredAt, &m.AnsweredAt); err != nil {
 		return nil, err
 	}

@@ -19,9 +19,16 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   }
   if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, 'zed'), `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(path.join(root, 'editor-opened.json'))},JSON.stringify(process.argv.slice(2)))`, { mode: 0o755 })
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  // Only the stand-in agents are on PATH. Windows also needs its own system
+  // folder there, or Electron cannot start its crash handler and exits.
+  const launchPath = process.platform === 'win32' ? [bin, path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32')].join(path.delimiter) : bin
+  // Electron resolves its data folders from these on Windows; they must exist
+  // under the stand-in home or it has nowhere to keep its crash database.
+  const windowsProfile = process.platform === 'win32' ? { APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local') } : {}
+  for (const dir of Object.values(windowsProfile)) fs.mkdirSync(dir, { recursive: true })
   const app = await electron.launch({
     args: ['.', ...(process.env.AMBIO_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])],
-    env: { ...env, HOME: home, USERPROFILE: home, PATH: bin, AMBIO_E2E: '1', AMBIO_API_TOKEN: 'ambio-isolated-ui-delivery-test-token-12345' },
+    env: { ...env, HOME: home, USERPROFILE: home, ...windowsProfile, PATH: launchPath, AMBIO_E2E: '1', AMBIO_E2E_AGENTS: '1', AMBIO_API_TOKEN: 'ambio-isolated-ui-delivery-test-token-12345' },
   })
   try {
     const page = await app.firstWindow()
@@ -59,7 +66,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
       const captured = path.join(root, `captured-${host}.json`)
-      await expect.poll(() => fs.existsSync(captured)).toBe(true)
+      // Copilot is first tried as an agent session; the stand-in cannot hold one,
+      // so the same turn then runs in print mode. Wait for the run that got the prompt.
+      await expect.poll(() => { try { return String(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
       const actual = JSON.parse(fs.readFileSync(captured, 'utf8'))
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
       expect(actual.prompt).toContain(orders.at(-1).id)

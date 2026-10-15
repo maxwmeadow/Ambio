@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path"
 	"strings"
 
 	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/indexer"
 )
 
 type beginProposalDraftRequest struct {
@@ -114,6 +116,11 @@ func (s *Server) handleArchitectureProposalDraftByID(w http.ResponseWriter, r *h
 			jsonError(w, err.Error(), proposalErrorStatus(err))
 			return
 		}
+		for index := range draft.Skipped {
+			if draft.Skipped[index].Reason == db.DraftFileNotIndexed {
+				draft.Skipped[index].Reason = notIndexedReason(draft.Skipped[index].Path)
+			}
+		}
 		s.hub.Broadcast("architecture:proposal-draft", map[string]any{"workspaceId": workspaceID, "sessionId": id, "systems": len(draft.Systems), "chunks": draft.ChunkCount, "status": draft.Status})
 		jsonOK(w, draft)
 	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "commit":
@@ -134,5 +141,21 @@ func (s *Server) handleArchitectureProposalDraftByID(w http.ResponseWriter, r *h
 		jsonOK(w, map[string]string{"status": "aborted"})
 	default:
 		http.NotFound(w, r)
+	}
+}
+
+// notIndexedReason tells an agent why a path it found on disk has no place on
+// the map, so it can tell a file type Ambio leaves out from a mistyped path.
+func notIndexedReason(file string) string {
+	ext := strings.ToLower(path.Ext(file))
+	switch {
+	case ext == ".sql" || path.Base(file) == "schema.prisma":
+		return "Ambio reads this as the database's schema (its tables appear on the database), it is not placed in a system; leave it out"
+	case indexer.IsSupportedSourceFile(file):
+		return "no indexed file at this path; check the spelling, or it is in an excluded folder"
+	case ext == "":
+		return "Ambio does not index this file type; leave it out"
+	default:
+		return "Ambio does not index " + ext + " files; leave it out"
 	}
 }

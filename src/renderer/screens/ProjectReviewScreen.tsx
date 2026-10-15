@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ProjectConfig } from '../../shared/types'
-import { describeProgress, readProgress } from '../canvas/architectureProposal'
+import { blockedReason, describeProgress, readProgress } from '../canvas/architectureProposal'
 import { ArchitectureProposalPanel } from '../components/ArchitectureProposalPanel'
 import { ProposalReviewCanvas } from '../components/ProposalReviewCanvas'
 import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
@@ -54,10 +54,28 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
     }
   }, [finalize, onFinishReview])
 
+  // What finishing will leave out. Sending a system back is quiet at the time,
+  // so the commit is where its consequences are spelled out.
+  const [confirming, setConfirming] = useState(false)
+  const sentBack = useMemo(() => {
+    const all = proposal?.systems ?? []
+    const byKey = new Map(all.map(system => [system.systemKey, system]))
+    const filesIn = (systemKey: string) => proposal?.memberships
+      .filter(item => item.disposition === 'assign' && item.targetSystemKey === systemKey).length ?? 0
+    return {
+      systems: all
+        .filter(system => system.decision === 'rejected')
+        .map(system => ({ ...system, files: filesIn(system.systemKey) })),
+      // Still undecided inside something that was sent back: they cannot be
+      // created without it, and the commit refuses to guess.
+      stranded: all.filter(system => system.decision === 'pending' && blockedReason(system, byKey)),
+    }
+  }, [proposal])
+  const strandedFiles = sentBack.systems.reduce((total, system) => total + system.files, 0)
+
   return (
     <main className="ambio-onboarding ambio-project-review">
       <WorkbenchTitleBar
-        context={`${project.name} / Architecture Review`}
         status={proposal ? describeProgress(progress).toUpperCase() : 'LOADING PROPOSAL'}
         statusTone={proposal ? (progress.settled ? 'ready' : 'busy') : 'busy'}
       />
@@ -65,35 +83,28 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
       <div className="ambio-review__workspace ambio-review__workspace--proposal">
         <section className="ambio-review__panel ambio-review__panel--proposal" aria-labelledby="review-title">
           <header className="ambio-review__heading ambio-review__heading--proposal">
-            <button className="ambio-onboarding__back" onClick={onBack} aria-label="Back to agent connection">
-              <span aria-hidden="true">←</span>
-              Agent connection
-            </button>
-            <div className="ambio-onboarding__step">STEP 04 / REVIEW THE MAP</div>
+            <div className="ambio-review__heading-bar">
+              <button className="ambio-onboarding__back" onClick={onBack} aria-label="Back to agent connection">
+                <span aria-hidden="true">←</span>
+                Agent connection
+              </button>
+              <div className="ambio-onboarding__step">STEP 04 / REVIEW THE MAP</div>
+            </div>
             <h1 id="review-title">Review the architecture your agent found</h1>
             <p>
-              This is the proposed system tree-not the current file-only Floor. Approve the boundaries
-              that fit, or send one back with a reason. Nothing becomes canonical until you approve it.
+              Approve what fits, or send it back with a reason. Approving a system approves everything inside it.
+              {proposal && <span className="ambio-review__summary"> {progress.total} {progress.total === 1 ? 'system' : 'systems'} · {proposedFiles} {proposedFiles === 1 ? 'file' : 'files'} placed.</span>}
             </p>
           </header>
 
           {proposal ? (
             <>
-              <dl className="ambio-review__metrics" aria-label="Proposal summary">
-                <ReviewMetric label="Systems" value={String(progress.total)} />
-                <ReviewMetric label="Files placed" value={String(proposedFiles)} />
-                <ReviewMetric
-                  label="Left to review"
-                  value={String(progress.pending)}
-                  tone={progress.pending > 0 ? 'attention' : 'complete'}
-                />
-              </dl>
-
               {(proposal.rationale || proposal.evidenceSummary) && (
-                <section className="ambio-review__brief" aria-label="Agent mapping brief">
+                <details className="ambio-review__brief" aria-label="Agent mapping brief">
+                  <summary>Why the agent chose this structure</summary>
                   {proposal.rationale && <p><strong>Why this structure</strong>{proposal.rationale}</p>}
                   {proposal.evidenceSummary && <p><strong>Evidence</strong>{proposal.evidenceSummary}</p>}
-                </section>
+                </details>
               )}
 
               <div className="ambio-review__proposal-list">
@@ -116,7 +127,10 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
             </p>
             <button
               className="ambio-onboarding__primary"
-              onClick={() => void finishReview()}
+              onClick={() => {
+                if (sentBack.systems.length > 0) setConfirming(true)
+                else void finishReview()
+              }}
               disabled={!proposal || finalizing}
             >
               <span>
@@ -143,33 +157,81 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
           ) : (
             <div className="ambio-review__canvas-empty">Waiting for a proposal to draw.</div>
           )}
-
-          <div className="ambio-review__canvas-note">
-            <span className="ambio-review__canvas-signal" aria-hidden="true" />
-            <div>
-              <strong>PROPOSED SYSTEM FLOOR</strong>
-              <p>The same nesting and tidy layout engine as the live Floor, without committing unapproved systems.</p>
-            </div>
-          </div>
         </section>
       </div>
-    </main>
-  )
-}
 
-function ReviewMetric({
-  label,
-  value,
-  tone = 'neutral',
-}: {
-  label: string
-  value: string
-  tone?: 'neutral' | 'attention' | 'complete'
-}) {
-  return (
-    <div className={`ambio-review__metric ambio-review__metric--${tone}`}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
+      {confirming && (
+        <div className="ambio-create__scrim" onClick={() => setConfirming(false)}>
+          <div
+            className="ambio-remove-modal ambio-review-summary"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="review-summary-title"
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => { if (event.key === 'Escape') setConfirming(false) }}
+            tabIndex={-1}
+          >
+            <div className="ambio-remove-modal__head">
+              <span className="ambio-remove-modal__kicker">BEFORE YOU FINISH</span>
+              <h3 id="review-summary-title">
+                {sentBack.systems.length} {sentBack.systems.length === 1 ? 'system was' : 'systems were'} sent back
+              </h3>
+              <button className="ambio-remove-modal__close" onClick={() => setConfirming(false)} aria-label="Cancel">×</button>
+            </div>
+
+            <ul className="ambio-review-summary__list" aria-label="Systems sent back">
+              {sentBack.systems.map(system => (
+                <li key={system.systemKey}>
+                  <strong>{system.name}</strong>
+                  {system.files > 0 && <small>{system.files} {system.files === 1 ? 'file' : 'files'}</small>}
+                  {system.rejectionReason && <p>{system.rejectionReason}</p>}
+                </li>
+              ))}
+            </ul>
+
+            <div className="ambio-remove-modal__body ambio-review-summary__meaning">
+              <p>
+                <strong>They will not be on your map.</strong>{' '}
+                {strandedFiles > 0
+                  ? `Their ${strandedFiles} ${strandedFiles === 1 ? 'file stays' : 'files stay'} in Unsorted until you or an agent places ${strandedFiles === 1 ? 'it' : 'them'}.`
+                  : 'No files are left unplaced because of this.'}
+              </p>
+              <p>
+                <strong>Your agent is not asked to redo them now.</strong>{' '}
+                Your reasons are saved and shown to an agent the next time it starts work in this project.
+              </p>
+              {progress.pending - sentBack.stranded.length > 0 && (
+                <p>
+                  <strong>Everything else is approved.</strong>{' '}
+                  The {progress.pending - sentBack.stranded.length} still undecided will be accepted as proposed.
+                </p>
+              )}
+            </div>
+
+            {sentBack.stranded.length > 0 && (
+              <div className="ambio-create__error" role="alert">
+                {sentBack.stranded.length === 1 ? 'One system is' : `${sentBack.stranded.length} systems are`} still
+                undecided inside something you sent back, so there is nowhere to put {sentBack.stranded.length === 1 ? 'it' : 'them'}:{' '}
+                {sentBack.stranded.map(system => system.name).join(', ')}. Send {sentBack.stranded.length === 1 ? 'it' : 'them'} back
+                too before finishing.
+              </div>
+            )}
+
+            <div className="ambio-remove-modal__actions">
+              <button className="ambio-remove-modal__cancel" onClick={() => setConfirming(false)} autoFocus>
+                Keep reviewing
+              </button>
+              <button
+                className="ambio-create__go"
+                disabled={sentBack.stranded.length > 0}
+                onClick={() => { setConfirming(false); void finishReview() }}
+              >
+                Finish review <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   )
 }

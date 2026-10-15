@@ -58,9 +58,6 @@ func TestArchitectureProposalApprovalIsIsolatedAndAtomic(t *testing.T) {
 			t.Fatalf("pending proposal changed membership: %#v", got)
 		}
 	}
-	if _, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "child", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"}); err == nil {
-		t.Fatal("child approval should wait for its proposed parent")
-	}
 	parent, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "parent", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"})
 	if err != nil {
 		t.Fatal(err)
@@ -73,12 +70,22 @@ func TestArchitectureProposalApprovalIsIsolatedAndAtomic(t *testing.T) {
 	if gotFirst.SystemID == nil || *gotFirst.SystemID != *parent.MaterializedSystemID {
 		t.Fatalf("approved membership not applied: %#v", gotFirst)
 	}
-	if gotSecond.SystemID != nil {
-		t.Fatalf("unapproved membership applied: %#v", gotSecond)
-	}
-	child, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "child", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"})
+	// Approving a system approves what is still pending inside it.
+	reviewed, err := GetArchitectureProposal(database, created.ID, "ws", false)
 	if err != nil {
 		t.Fatal(err)
+	}
+	var child *ArchitectureProposalSystem
+	for i := range reviewed.Round.Systems {
+		if reviewed.Round.Systems[i].SystemKey == "child" {
+			child = &reviewed.Round.Systems[i]
+		}
+	}
+	if child == nil || child.Decision != ProposalDecisionApproved || child.MaterializedSystemID == nil {
+		t.Fatalf("approving the parent did not approve its pending child: %#v", child)
+	}
+	if gotSecond.SystemID == nil || *gotSecond.SystemID != *child.MaterializedSystemID {
+		t.Fatalf("cascaded membership not applied: %#v", gotSecond)
 	}
 	materializedChild, err := GetSystem(database, *child.MaterializedSystemID)
 	if err != nil {
@@ -86,6 +93,112 @@ func TestArchitectureProposalApprovalIsIsolatedAndAtomic(t *testing.T) {
 	}
 	if materializedChild.ParentID == nil || *materializedChild.ParentID != *parent.MaterializedSystemID {
 		t.Fatalf("child parent not materialized: %#v", materializedChild)
+	}
+}
+
+func TestArchitectureProposalApprovalLeavesASentBackBranchAlone(t *testing.T) {
+	database, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := UpsertWorkspace(database, Workspace{ID: "ws", Name: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	proposal, _, _ := proposalFixture(t)
+	proposal.Round.Memberships = nil
+	proposal.Round.Coverage = "partial"
+	proposal.Round.Systems = append(proposal.Round.Systems,
+		ArchitectureProposalSystem{SystemKey: "grandchild", Name: "Grandchild", ParentRefType: "proposed_system", ParentRefID: "child", Depth: 2},
+		ArchitectureProposalSystem{SystemKey: "sibling", Name: "Sibling", ParentRefType: "proposed_system", ParentRefID: "parent", Depth: 1},
+		ArchitectureProposalSystem{SystemKey: "other", Name: "Other", ParentRefType: "scope", Depth: 0},
+	)
+	created, err := CreateArchitectureProposal(database, *proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "child", 1, ArchitectureProposalDecision{Decision: "rejected", RejectionReason: "wrong boundary", DecidedBy: "max"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "parent", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"}); err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := GetArchitectureProposal(database, created.ID, "ws", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"parent": ProposalDecisionApproved, "sibling": ProposalDecisionApproved,
+		"child": ProposalDecisionRejected, "grandchild": ProposalDecisionPending, "other": ProposalDecisionPending,
+	}
+	for _, system := range reviewed.Round.Systems {
+		if system.Decision != want[system.SystemKey] {
+			t.Fatalf("%s is %s, want %s", system.SystemKey, system.Decision, want[system.SystemKey])
+		}
+	}
+}
+
+func TestArchitectureProposalApprovingASubsystemApprovesItsContainersOnly(t *testing.T) {
+	database, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := UpsertWorkspace(database, Workspace{ID: "ws", Name: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	proposal, _, _ := proposalFixture(t)
+	proposal.Round.Memberships = nil
+	proposal.Round.Coverage = "partial"
+	proposal.Round.Systems = append(proposal.Round.Systems,
+		ArchitectureProposalSystem{SystemKey: "grandchild", Name: "Grandchild", ParentRefType: "proposed_system", ParentRefID: "child", Depth: 2},
+		ArchitectureProposalSystem{SystemKey: "leaf", Name: "Leaf", ParentRefType: "proposed_system", ParentRefID: "grandchild", Depth: 3},
+		ArchitectureProposalSystem{SystemKey: "sibling", Name: "Sibling", ParentRefType: "proposed_system", ParentRefID: "parent", Depth: 1},
+	)
+	created, err := CreateArchitectureProposal(database, *proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideArchitectureProposalSystem(database, created.ID, "ws", "grandchild", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"}); err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := GetArchitectureProposal(database, created.ID, "ws", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"parent": ProposalDecisionApproved, "child": ProposalDecisionApproved,
+		"grandchild": ProposalDecisionApproved, "leaf": ProposalDecisionApproved,
+		"sibling": ProposalDecisionPending,
+	}
+	materialized := map[string]*string{}
+	for _, system := range reviewed.Round.Systems {
+		if system.Decision != want[system.SystemKey] {
+			t.Fatalf("%s is %s, want %s", system.SystemKey, system.Decision, want[system.SystemKey])
+		}
+		materialized[system.SystemKey] = system.MaterializedSystemID
+	}
+	grandchild, err := GetSystem(database, *materialized["grandchild"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grandchild.ParentID == nil || *grandchild.ParentID != *materialized["child"] {
+		t.Fatalf("subsystem was not placed inside its approved container: %#v", grandchild)
+	}
+
+	// A container that was sent back cannot be approved around.
+	second, _, _ := proposalFixture(t)
+	second.Round.Memberships = nil
+	second.Round.Coverage = "partial"
+	other, err := CreateArchitectureProposal(database, *second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideArchitectureProposalSystem(database, other.ID, "ws", "parent", 1, ArchitectureProposalDecision{Decision: "rejected", RejectionReason: "wrong container", DecidedBy: "max"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideArchitectureProposalSystem(database, other.ID, "ws", "child", 1, ArchitectureProposalDecision{Decision: "approved", DecidedBy: "max"}); err == nil {
+		t.Fatal("approved a subsystem inside a container that was sent back")
 	}
 }
 

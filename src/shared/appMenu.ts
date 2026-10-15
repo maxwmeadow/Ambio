@@ -50,6 +50,7 @@ export type CommandId =
   | 'view.fullScreen'
   | 'agent.message'
   | 'agent.connect'
+  | 'agent.guidedSetup'
   | 'help.shortcuts'
   | 'help.whatsNew'
   | 'help.guide'
@@ -127,7 +128,8 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.resetZoom': { id: 'view.resetZoom', label: 'Actual Size Interface', accelerator: 'CmdOrCtrl+Alt+0' },
   'view.fullScreen': { id: 'view.fullScreen', label: 'Toggle Full Screen', accelerator: 'F11' },
   'agent.message': { id: 'agent.message', label: 'Message Agent…', accelerator: 'CmdOrCtrl+Enter', needsProject: true },
-  'agent.connect': { id: 'agent.connect', label: 'Connect an Agent…', needsProject: true },
+  'agent.connect': { id: 'agent.connect', label: 'Agent Connections…' },
+  'agent.guidedSetup': { id: 'agent.guidedSetup', label: 'Guided Agent Setup…', needsProject: true },
   'help.shortcuts': { id: 'help.shortcuts', label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/' },
   'help.whatsNew': { id: 'help.whatsNew', label: "What's New" },
   'help.guide': { id: 'help.guide', label: 'Setup Guide', needsProject: true },
@@ -243,7 +245,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
 
   sections.push({
     id: 'agent', label: 'Agent', entries: [
-      command('agent.message'), command('view.agentLog'), separator, command('agent.connect'),
+      command('agent.message'), command('view.agentLog'), separator, command('agent.connect'), command('agent.guidedSetup'),
     ],
   })
 

@@ -1,0 +1,182 @@
+/* Agent connections, in Settings. Reuses the Settings row and button styles;
+   everything here is the per-agent list. */
+
+.ambio-agent-connections__list {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid #cfccc0;
+  background: #f7f6f1;
+  list-style: none;
+}
+
+.ambio-agent-connections__host + .ambio-agent-connections__host {
+  border-top: 1px solid #dcd9ce;
+}
+
+.ambio-agent-connections__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.ambio-agent-connections__signal {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border: 1px solid #8b9b8b;
+  border-radius: 50%;
+  background: #c9cdc6;
+}
+
+[data-state='live'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #316f56; background: #5ca877; }
+[data-state='installed'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #8d753c; background: #d1b56a; }
+[data-state='repair'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #9c6b4e; background: #cf9275; }
+[data-state='missing'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { background: transparent; }
+
+.ambio-agent-connections__identity {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ambio-agent-connections__identity strong { font-size: 13.5px; }
+.ambio-agent-connections__identity small { color: #5f6b66; font-size: 12px; line-height: 1.45; }
+[data-state='repair'] > .ambio-agent-connections__summary .ambio-agent-connections__identity small:first-of-type { color: #8a4d33; }
+[data-state='live'] > .ambio-agent-connections__summary .ambio-agent-connections__identity small:first-of-type { color: #2c624c; }
+
+.ambio-agent-connections__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.ambio-settings__button.ambio-agent-connections__primary {
+  border-color: #2f5f56;
+  background: #2f5f56;
+  color: #f7f6f1;
+}
+
+.ambio-agent-connections__disclose,
+.ambio-agent-connections__link,
+.ambio-agent-connections__more {
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: #2f5f56;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ambio-agent-connections__disclose { min-width: 48px; text-align: right; }
+.ambio-agent-connections__more { display: block; margin: 10px 0 0; }
+.ambio-agent-connections__link:disabled { opacity: 0.5; cursor: default; }
+
+.ambio-agent-connections__note {
+  margin: 0;
+  padding: 0 14px 12px 35px;
+  color: #2c624c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ambio-agent-connections__note--failed { color: #8a4d33; }
+.ambio-agent-connections__note:empty { display: none; }
+
+.ambio-agent-connections__details {
+  display: grid;
+  gap: 14px;
+  padding: 12px 14px 14px 35px;
+  border-top: 1px dashed #dcd9ce;
+  background: #f1efe8;
+}
+
+.ambio-agent-connections__details h4 {
+  margin: 0 0 6px;
+  color: #34403c;
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ambio-agent-connections__details h4 time { font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+.ambio-agent-connections__checks,
+.ambio-agent-connections__files {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ambio-agent-connections__checks li {
+  display: grid;
+  grid-template-columns: 14px 150px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ambio-agent-connections__checks li::before { content: '·'; color: #5f6b66; font-weight: 700; text-align: center; }
+.ambio-agent-connections__checks li[data-state='pass']::before { content: '✓'; color: #316f56; }
+.ambio-agent-connections__checks li[data-state='fail']::before { content: '✕'; color: #a5563b; }
+.ambio-agent-connections__checks li[data-state='fail'] span { color: #8a4d33; }
+.ambio-agent-connections__checks span { color: #4d5a55; overflow-wrap: anywhere; }
+
+.ambio-agent-connections__files li {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.ambio-agent-connections__files span { color: #5f6b66; }
+
+.ambio-agent-connections__files code {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.ambio-agent-connections__hint { margin: 8px 0 0; color: #5f6b66; font-size: 12px; }
+
+.ambio-agent-connections__remove {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ambio-agent-connections__remove small { color: #5f6b66; font-size: 12px; line-height: 1.45; }
+
+.ambio-agent-connections__empty {
+  margin: 12px 0 0;
+  padding: 14px;
+  border: 1px dashed #b9b6aa;
+  color: #5f6b66;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .ambio-agent-connections__summary { flex-wrap: wrap; }
+  .ambio-agent-connections__identity { flex-basis: calc(100% - 21px); }
+  .ambio-agent-connections__actions { flex-wrap: wrap; margin-left: 21px; }
+  .ambio-agent-connections__details { padding-left: 14px; }
+  .ambio-agent-connections__checks li { grid-template-columns: 14px minmax(0, 1fr); }
+  .ambio-agent-connections__checks span { grid-column: 2; }
+  .ambio-agent-connections__files li { grid-template-columns: minmax(0, 1fr) auto; }
+  .ambio-agent-connections__files span { grid-column: 1 / -1; }
+  .ambio-agent-connections__remove { flex-wrap: wrap; }
+}

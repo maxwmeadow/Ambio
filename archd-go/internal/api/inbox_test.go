@@ -304,6 +304,96 @@ func TestInboxHTTPLifecycle(t *testing.T) {
 		t.Fatal(r.Code, r.Body.String())
 	}
 }
+// A conversation is several requests in one thread. The agent claiming a
+// later turn is handed what was asked and answered before it, so it has the
+// context in any host, with or without that host's own session memory.
+func TestInboxConversationCarriesEarlierTurnsToTheNextAgent(t *testing.T) {
+	_, mux, _ := inboxServer(t)
+	send := func(body map[string]any) db.CanvasMessage {
+		t.Helper()
+		body["workspaceId"], body["deliveryMode"] = "ws", "addressed"
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/send", body)
+		if r.Code != 200 {
+			t.Fatal(r.Code, r.Body.String())
+		}
+		var message db.CanvasMessage
+		if err := json.Unmarshal(r.Body.Bytes(), &message); err != nil {
+			t.Fatal(err)
+		}
+		return message
+	}
+	claim := func(connection, messageID string) db.InboxItem {
+		t.Helper()
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/claim", map[string]string{"workspaceId": "ws", "connectionId": connection, "agent": "claude-code", "messageId": messageID})
+		var result struct {
+			Messages []db.InboxItem `json:"messages"`
+		}
+		if err := json.Unmarshal(r.Body.Bytes(), &result); err != nil || len(result.Messages) != 1 {
+			t.Fatal(r.Code, r.Body.String(), err)
+		}
+		return result.Messages[0]
+	}
+	reply := func(item db.InboxItem, body string) {
+		t.Helper()
+		r := inboxHTTP(t, mux, "POST", "/api/canvas/reply", map[string]string{"workspaceId": "ws", "msgId": item.ID, "leaseToken": item.LeaseToken, "body": body})
+		if r.Code != 200 {
+			t.Fatal(r.Code, r.Body.String())
+		}
+	}
+
+	first := send(map[string]any{"id": "turn-1", "note": "Where is retry handled?", "mode": "ask"})
+	if first.ThreadID != "turn-1" || first.Mode != "ask" {
+		t.Fatalf("first turn = thread %q mode %q", first.ThreadID, first.Mode)
+	}
+	claimed := claim("agent-a", "turn-1")
+	if len(claimed.Conversation) != 0 {
+		t.Fatalf("first turn carried a conversation: %#v", claimed.Conversation)
+	}
+	reply(claimed, "In the queue worker.")
+
+	send(map[string]any{"id": "turn-2", "note": "Propose moving it to its own system.", "mode": "propose", "threadId": "turn-1"})
+	second := claim("agent-b", "turn-2")
+	if len(second.Conversation) != 1 || second.Conversation[0].Request != "Where is retry handled?" ||
+		second.Conversation[0].Reply != "In the queue worker." || second.Conversation[0].Mode != "ask" {
+		t.Fatalf("second turn conversation = %#v", second.Conversation)
+	}
+	reply(second, "Drawn on sheet Retry.")
+
+	// A cancelled turn asked for nothing in the end and is left out.
+	send(map[string]any{"id": "turn-3", "note": "Never mind this one.", "mode": "ask", "threadId": "turn-1"})
+	if r := inboxHTTP(t, mux, "POST", "/api/canvas/cancel", map[string]string{"workspaceId": "ws", "msgId": "turn-3"}); r.Code != 200 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	send(map[string]any{"id": "turn-4", "note": "Build it.", "mode": "build", "threadId": "turn-1"})
+	fourth := claim("agent-c", "turn-4")
+	if len(fourth.Conversation) != 2 || fourth.Conversation[0].MessageID != "turn-1" || fourth.Conversation[1].MessageID != "turn-2" ||
+		fourth.Conversation[1].Reply != "Drawn on sheet Retry." {
+		t.Fatalf("fourth turn conversation = %#v", fourth.Conversation)
+	}
+
+	// Another conversation in the same workspace shares nothing.
+	send(map[string]any{"id": "other-1", "note": "Unrelated question.", "mode": "ask"})
+	if other := claim("agent-d", "other-1"); len(other.Conversation) != 0 {
+		t.Fatalf("a separate conversation leaked turns: %#v", other.Conversation)
+	}
+
+	// A turn cannot join a conversation that does not exist, and the mode is
+	// one of the three contracts.
+	for _, bad := range []map[string]any{
+		{"id": "stray", "workspaceId": "ws", "deliveryMode": "addressed", "note": "x", "threadId": "no-such-thread"},
+		{"id": "odd", "workspaceId": "ws", "deliveryMode": "addressed", "note": "x", "mode": "destroy"},
+	} {
+		if r := inboxHTTP(t, mux, "POST", "/api/canvas/send", bad); r.Code == 200 {
+			t.Fatalf("accepted %v", bad)
+		}
+	}
+
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	if !strings.Contains(history.Body.String(), `"threadId":"turn-1"`) || !strings.Contains(history.Body.String(), `"mode":"propose"`) {
+		t.Fatalf("history does not report threads and modes: %s", history.Body.String())
+	}
+}
+
 func TestAddressedInboxDoesNotLeakAcrossAgentsOrChats(t *testing.T) {
 	_, mux, _ := inboxServer(t)
 	for _, id := range []string{"chat-one", "chat-two"} {

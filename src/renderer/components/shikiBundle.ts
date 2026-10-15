@@ -16,6 +16,10 @@ const createAmbioHighlighter = createBundledHighlighter({
     cpp: () => import('@shikijs/langs/cpp'),
     ruby: () => import('@shikijs/langs/ruby'),
     java: () => import('@shikijs/langs/java'),
+    css: () => import('@shikijs/langs/css'),
+    scss: () => import('@shikijs/langs/scss'),
+    sass: () => import('@shikijs/langs/sass'),
+    less: () => import('@shikijs/langs/less'),
   },
   themes: {
     'dark-modern': darkModernTheme,

@@ -76,14 +76,13 @@ test('a system under a live system is a root of the proposal tree', () => {
   assert.equal(roots.length, 1)
 })
 
-test('a child cannot be approved before its proposed parent', () => {
+test('a child can be approved before its proposed parent', () => {
   const systems = [
     system('canvas', { name: 'Living Architecture Canvas' }),
     system('zoom', { name: 'Semantic Zoom', parentRefType: 'proposed_system', parentRefId: 'canvas' }),
   ]
-  const result = checkDecision({ systemKey: 'zoom', decision: 'approved' }, index(systems))
-  assert.equal(result.ok, false)
-  assert.match(result.reason, /Approve Living Architecture Canvas first/)
+  assert.equal(blockedReason(systems[1], index(systems)), null)
+  assert.equal(checkDecision({ systemKey: 'zoom', decision: 'approved' }, index(systems)).ok, true)
 })
 
 test('a child of an approved parent can be approved', () => {
@@ -94,12 +93,14 @@ test('a child of an approved parent can be approved', () => {
   assert.equal(checkDecision({ systemKey: 'zoom', decision: 'approved' }, index(systems)).ok, true)
 })
 
-test('a rejected parent explains itself rather than saying "approve it first"', () => {
+test('a container that was sent back blocks everything inside it', () => {
   const systems = [
     system('canvas', { name: 'Living Architecture Canvas', decision: 'rejected' }),
     system('zoom', { parentRefType: 'proposed_system', parentRefId: 'canvas' }),
+    system('levels', { parentRefType: 'proposed_system', parentRefId: 'zoom' }),
   ]
-  assert.match(blockedReason(systems[1], index(systems)), /was rejected/)
+  assert.match(blockedReason(systems[1], index(systems)), /Living Architecture Canvas was sent back/)
+  assert.match(blockedReason(systems[2], index(systems)), /Living Architecture Canvas was sent back/)
 })
 
 test('rejecting requires a reason, because the reason is the point', () => {

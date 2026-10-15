@@ -14,6 +14,20 @@ export function projectHasEnteredWorkbench(
   return (project.workbenchOpenedAt ?? 0) > 0 || (project.reviewCompletedAt ?? 0) > 0
 }
 
+/**
+ * Setup was started and never finished: the app was closed, or the user left
+ * the steps, before an agent was connected (a new project) or the map was
+ * reviewed or skipped (a codebase). Reopening picks setup up again instead of
+ * dropping the user onto an unorganised canvas.
+ */
+export function projectSetupInProgress(
+  project: Pick<ProjectConfig, 'setupStartedAt' | 'agentSetupCompletedAt' | 'reviewCompletedAt'>,
+): boolean {
+  return (project.setupStartedAt ?? 0) > 0 &&
+    (project.agentSetupCompletedAt ?? 0) <= 0 &&
+    (project.reviewCompletedAt ?? 0) <= 0
+}
+
 /** Only a still-empty folder created through New Project uses the blank flow. */
 export function projectUsesBlankSetup(
   project: Pick<ProjectConfig, 'creationSource' | 'rootIsEmpty'>,

@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 4 // 3: work_order_code_checks, 4: sheet_removals
+const SchemaVersion = 5 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -828,6 +828,14 @@ func migrate(db *sql.DB) error {
 		// New canvas work orders require an explicit ID in the receiving chat.
 		// Existing messages remain open so older MCP clients can drain them.
 		`ALTER TABLE canvas_outbox ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'open'`,
+		// A request is a turn in a conversation. A message from before threads
+		// is a conversation of one, so nothing is hidden or regrouped.
+		`ALTER TABLE canvas_outbox ADD COLUMN thread_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE canvas_outbox ADD COLUMN mode TEXT NOT NULL DEFAULT ''`,
+		// An open turn may be meant for the watching session of one host.
+		`ALTER TABLE canvas_outbox ADD COLUMN target_host TEXT NOT NULL DEFAULT ''`,
+		`UPDATE canvas_outbox SET thread_id=id WHERE thread_id=''`,
+		`CREATE INDEX IF NOT EXISTS canvas_outbox_thread ON canvas_outbox(workspace_id, thread_id, created_at)`,
 		`ALTER TABLE sheet_elements ADD COLUMN design_metadata TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE sheet_elements ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.

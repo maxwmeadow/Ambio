@@ -7,11 +7,48 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+### Fixed
+- Smoother canvas zooming on the Floor and architecture proposal review: camera
+  changes no longer invalidate every node's styles or rebuild the review scene.
+  Idle overlays and background agent/runtime activity do less rendering work.
+- Startup no longer sends an obsolete project-open command to the daemon;
+  development builds no longer print daemon usage text after a successful build.
+- Settings keeps the same size across sections and scrolls content inside the
+  panel, with a compact layout for smaller windows.
+
 ### Changed
+- Removed the redundant Architecture Workbench and view labels from title bars
+  to give the app menus more space.
+- Ambio has a new Open Arch logo and wordmark across the launcher, title bars,
+  About dialog and desktop icons. The tray icon opens the app when clicked.
 - Axiom is now Ambio. Your maps, settings and agent connections move over
   automatically the first time you open it.
 
 ### Added
+- The agent panel is now a conversation. Ask a question, ask for a plan, then
+  tell the agent to build it, and each turn stays in the same conversation; the
+  agent picking up a turn is given what was said before it. Start a new
+  conversation with the + button and switch between them from the title.
+- Agents Ambio starts (Claude Code, Codex) continue their own session from one
+  turn to the next, and the panel shows what the agent is doing while it works.
+- A question or a request for a plan can no longer change your files in an
+  agent Ambio starts: only a Build turn can.
+- Tell a session you already have open to "watch Ambio" and your next messages
+  go to that chat. For agents Ambio cannot start (Claude Desktop, Copilot in VS
+  Code, Cursor, Windsurf, Antigravity, JetBrains, Zed) you paste one handoff
+  and the chat stays attached for the rest of the conversation. VS Code and
+  Cursor open with the handoff already in their chat.
+- When an agent Ambio started wants to run something its turn did not allow,
+  it asks you in the conversation and waits for your answer.
+- The conversation title shows how many other conversations are waiting for
+  your review, and its menu can list conversations by where they stand.
+- Codex and Antigravity's CLI can be started from Ambio as well as Claude
+  Code. Copilot CLI runs as a session so it keeps its place between turns.
+  Experimental: Cursor's and Windsurf's (Devin) terminal agents.
+- Under Deliver to, the panel says what the chosen agent can and cannot do in
+  a conversation, and whether that has been tested.
+- Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
+  CLI, which otherwise refuses them when started from Ambio.
 - Agents receive guidance to draw structural changes on a sheet before editing
   code, reuse approved plans, and compare after building. Project reminders
   support every installed coding host; Claude Desktop receives MCP/chat guidance.

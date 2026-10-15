@@ -115,24 +115,30 @@ function ActiveInfraLinks({
     }
   }, [links.length, containerRef])
 
-  const [placed, setPlaced] = React.useState<{ items: Placed[]; width: number; height: number }>({ items: [], width: 0, height: 0 })
+  const [placed, setPlaced] = React.useState<{ items: Placed[]; width: number; height: number; rightInset: number }>({ items: [], width: 0, height: 0, rightInset: 0 })
   React.useLayoutEffect(() => {
     const container = containerRef.current
     if (!container || links.length === 0) {
-      setPlaced(current => current.items.length === 0 ? current : { items: [], width: 0, height: 0 })
+      setPlaced(current => current.items.length === 0 ? current : { items: [], width: 0, height: 0, rightInset: 0 })
       return
     }
     const box = container.getBoundingClientRect()
     const sidebar = container.querySelector('.ambio-infra-sidebar')?.getBoundingClientRect()
     const list = container.querySelector('.ambio-infra-sidebar__list')?.getBoundingClientRect()
     if (!sidebar || !list) {
-      setPlaced({ items: [], width: 0, height: 0 })
+      setPlaced({ items: [], width: 0, height: 0, rightInset: 0 })
       return
     }
+    // The Properties panel lies over the canvas's right edge; the view ends
+    // where it begins, so nothing is drawn across it.
+    // Its laid-out width, not its rectangle: the panel slides in and out, and
+    // mid-slide its rectangle is not where it is going to be.
+    const panel = document.querySelector<HTMLElement>('.ambio-detail-panel:not([data-closing])')
+    const rightInset = panel ? Math.max(0, box.right - (window.innerWidth - panel.offsetWidth)) : 0
     const region = {
       left: sidebar.right - box.left + EDGE_INSET,
       top: EDGE_INSET,
-      right: box.width - EDGE_INSET,
+      right: box.width - rightInset - EDGE_INSET,
       bottom: box.height - EDGE_INSET,
     }
     const rowPoint = (infraId: string) => {
@@ -203,7 +209,7 @@ function ActiveInfraLinks({
         marker,
       })
     }
-    setPlaced({ items, width: box.width, height: box.height })
+    setPlaced({ items, width: box.width, height: box.height, rightInset })
   }, [links, worldRects, vx, vy, zoom, frame, containerRef, nameOf])
 
   if (placed.items.length === 0) return null
@@ -211,7 +217,7 @@ function ActiveInfraLinks({
   const outlined = new Map<string, NonNullable<Placed['target']>>()
   for (const item of placed.items) if (item.target) outlined.set(item.link.nodeId, item.target)
   return (
-    <div className="ambio-infra-links" aria-hidden={false}>
+    <div className="ambio-infra-links" aria-hidden={false} style={{ right: placed.rightInset }}>
       <svg className="ambio-infra-links__svg" width={placed.width} height={placed.height} aria-hidden="true">
         {[...outlined.entries()].map(([id, rect]) => (
           <rect key={`outline-${id}`} className="ambio-infra-links__outline"

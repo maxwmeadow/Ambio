@@ -54,7 +54,7 @@ in the surface for exactly that reason.
 | `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect, contents, require, decide |
 | `edit_sheet` | list, get, create, add, remove, restore, annotate, connect, compare, bind, apply_nesting, resolve, reopen, export, import |
-| `get_inbox` | Atomic instruction claim/renewal, or paginated context via `messageHandle` and `contextOffset`; always nonblocking |
+| `get_inbox` | Atomic instruction claim/renewal with the conversation's earlier turns, or paginated context via `messageHandle` and `contextOffset`; nonblocking unless `watch: true` (a session the user asked to watch waits up to 45s for an open request) |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
 | `reply_to_canvas` | Transactional final reply via `messageHandle`, with safe identical retries |

@@ -182,6 +182,12 @@ export interface ProjectConfig {
   sourceBoundariesReviewedAt?: number
   /** Durable entry marker. Reopening a project never repeats initial agent/review gates. */
   workbenchOpenedAt?: number
+  /**
+   * Stamped when a project first opens into its setup journey. With no
+   * completion milestone after it, setup was left part-way and is resumed.
+   * Projects from before this field have neither and open as they always did.
+   */
+  setupStartedAt?: number
   agentSetupCompletedAt?: number
   reviewCompletedAt?: number
   languageOverrides: Record<string, string>

@@ -15,6 +15,9 @@ let e2eHome: string
  */
 function isolatedHome(): { home: string; root: string } {
   const home = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
+  // Electron's Windows Crashpad needs real AppData directories inside the
+  // isolated profile, rather than paths inherited from the developer's account.
+  for (const kind of ['Roaming', 'Local']) mkdirSync(join(home, 'AppData', kind), { recursive: true })
   const root = join(home, 'ambio-e2e')
   for (const dir of ['src/renderer', 'docs', 'electron']) mkdirSync(join(root, dir), { recursive: true })
   writeFileSync(join(root, 'package.json'), '{ "name": "ambio-e2e" }\n')
@@ -86,7 +89,8 @@ test.beforeEach(async () => {
   e2eHome = isolated.home
   app = await electron.launch({
     args: ['.'],
-    env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home },
+    env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home,
+      APPDATA: join(isolated.home, 'AppData', 'Roaming'), LOCALAPPDATA: join(isolated.home, 'AppData', 'Local') },
   })
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
@@ -250,7 +254,10 @@ test.beforeEach(async () => {
     localStorage.removeItem('ambio:inbox-draft:demo:sheet')
   })
   await page.reload()
-  await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
+  // Project/view labels were intentionally removed from the title bar. Check
+  // the fixture identity in its store rather than requiring that retired text.
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore?.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
+  await expect(page.locator('.ambio-toolbar')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
   await expect(page.locator('.ambio-canvas-minimap')).toBeVisible()
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
@@ -753,11 +760,14 @@ test('presents project navigation as a desktop workbench launcher', async () => 
 
   await expect(launcher).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Ambio', level: 1 })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Command Deck' })).toBeVisible()
+  // The page is the same with projects to open as without: the introduction
+  // stays beside the project list.
+  await expect(page.getByRole('heading', { name: 'Get started' })).toBeVisible()
   await expect(openCodebase).toBeVisible()
-  await expect(page.getByText('Living code topology')).toBeVisible()
-  await expect(page.getByText('Visual agent dispatch')).toBeVisible()
-  await expect(page.getByText('Semantic zoom')).toBeVisible()
+  await expect(page.getByText('Draw it, and your agent builds it')).toBeVisible()
+  await expect(page.getByText('Agents show you the plan first')).toBeVisible()
+  await expect(page.getByText('Review changes on the map')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open logs' })).toHaveCount(0)
   await expect(page.locator('button button')).toHaveCount(0)
 
   const [titlebarBox, bodyBox] = await Promise.all([titlebar.boundingBox(), body.boundingBox()])
@@ -765,12 +775,10 @@ test('presents project navigation as a desktop workbench launcher', async () => 
   expect(bodyBox?.width).toBeGreaterThan(900)
   expect(bodyBox?.height).toBeGreaterThan(700)
   const launcherType = await page.evaluate(() => ({
-    description: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__description')!).fontSize),
     workspaceHeading: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__workspace-heading h2')!).fontSize),
     actionLabel: parseFloat(getComputedStyle(document.querySelector('.ambio-launcher__fork-copy strong')!).fontSize),
     actionHeight: document.querySelector('.ambio-launcher__fork')!.getBoundingClientRect().height,
   }))
-  expect(launcherType.description).toBeGreaterThanOrEqual(15)
   expect(launcherType.workspaceHeading).toBeGreaterThanOrEqual(26)
   expect(launcherType.actionLabel).toBeGreaterThanOrEqual(16)
   expect(launcherType.actionHeight).toBeGreaterThanOrEqual(78)
@@ -794,9 +802,10 @@ test('navigates recent projects via search and keyboard flow', async () => {
   await page.goto(launcherUrl.toString())
 
   const searchBox = page.locator('.ambio-launcher__search-box input')
-  await expect(searchBox).toBeVisible()
+  await expect(page.locator('.ambio-launcher__recent-item').first()).toBeVisible()
 
-  // Pressing '/' focuses search
+  // Pressing '/' brings up search (hidden while there are only a few
+  // projects) and focuses it
   await page.keyboard.press('/')
   await expect(searchBox).toBeFocused()
 
@@ -831,9 +840,12 @@ test('chooses project sources in a folder-first file browser', async () => {
   await page.goto(setupUrl.toString())
 
   await expect(page.getByRole('heading', { name: 'Set up Ambio Canvas Fixture' })).toBeVisible()
-  await expect(page.getByText('Choose what Ambio reads')).toBeVisible()
+  await expect(page.getByText(/Ambio reads what is checked below/)).toBeVisible()
   const sourceTree = page.getByRole('tree', { name: 'Project files and folders' })
   await expect(sourceTree).toBeVisible()
+  // What Ambio cannot read is one line until asked for, not a row per file.
+  await expect(sourceTree.getByText('package.json', { exact: true })).toHaveCount(0)
+  await sourceTree.getByRole('button', { name: /skipped automatically/ }).first().click()
   await expect(sourceTree.getByText('package.json', { exact: true })).toBeVisible()
 
   const startIndexing = page.getByRole('button', { name: /Index this project/ })
@@ -847,24 +859,22 @@ test('chooses project sources in a folder-first file browser', async () => {
   expect(rootKinds.slice(0, firstNonFolder).every(kind => kind === 'folder')).toBe(true)
   expect(rootKinds.slice(firstNonFolder).every(kind => kind !== 'folder')).toBe(true)
 
-  const packageCheckbox = page.getByLabel('Include package.json', { exact: true })
-  const packageRow = packageCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
-  await expect(packageRow.locator('.ambio-setup-tree__kind')).toHaveText('Unsupported')
-  await expect(packageRow.locator('.ambio-setup-tree__state-label')).toHaveText('Skipped')
-  await expect(packageCheckbox).toBeDisabled()
+  // A file Ambio never reads has no checkbox to puzzle over.
+  const packageRow = sourceTree.locator('.ambio-setup-tree__row').filter({ has: page.getByText('package.json', { exact: true }) })
+  await expect(packageRow.locator('.ambio-setup-tree__detail')).toHaveText('Never read')
+  await expect(page.getByLabel('Include package.json', { exact: true })).toHaveCount(0)
 
   const documentCheckbox = page.getByLabel('Include ARCHITECTURE.md', { exact: true })
   const documentRow = documentCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
-  await expect(documentRow.locator('.ambio-setup-tree__kind')).toHaveText('Document')
-  await expect(documentRow.locator('.ambio-setup-tree__state-label')).toHaveText('Documents')
+  await expect(documentRow.locator('.ambio-setup-tree__detail')).toHaveText('Document')
   await expect(documentCheckbox).toBeChecked()
 
   const sourceCheckbox = page.getByLabel('Include electron.vite.config.ts', { exact: true })
   const sourceRow = sourceCheckbox.locator('xpath=ancestor::div[contains(@class, "ambio-setup-tree__row")]')
-  await expect(sourceRow.locator('.ambio-setup-tree__kind')).toHaveText('Source')
+  await expect(sourceRow.locator('.ambio-setup-tree__detail')).toHaveText('')
   await sourceCheckbox.click()
   await expect(sourceCheckbox).not.toBeChecked()
-  await expect(sourceRow.locator('.ambio-setup-tree__state-label')).toHaveText('Excluded')
+  await expect(sourceRow.locator('.ambio-setup-tree__detail')).toHaveText('Not read')
 
   const screenBox = await page.locator('.ambio-source-setup').boundingBox()
   expect(screenBox?.width).toBeGreaterThan(1200)
@@ -955,11 +965,19 @@ test('uses two-step agent setup for blank projects without changing codebase set
   const agents = page.getByRole('list', { name: 'Supported agents' })
   // One entry per agent FAMILY, not per modality: families group Claude Code
   // with Claude Desktop, and Copilot's extension with its CLI.
-  await expect(agents.locator(':scope > li')).toHaveCount(8)
+  // Agents not on this computer wait behind one line; opened, all eight show.
+  const notFound = page.getByRole('list', { name: 'Agents not found on this computer' })
+  const showNotFound = page.getByRole('button', { name: /not found on this computer/ })
+  if (await showNotFound.count()) await showNotFound.click()
+  const allFamilies = page.locator('.ambio-connect__family-card')
+  await expect(allFamilies).toHaveCount(8)
   await expect(agents.getByText('found on this machine')).toHaveCount(0)
-  await expect(agents.getByText(/Ambio configured|workflow missing|connected now/)).toHaveCount(0)
-  await expect(agents.locator('.ambio-connect__host-signal')).toHaveCount(8)
+  await expect(agents.getByText(/Ambio configured|workflow missing/)).toHaveCount(0)
+  await expect(page.locator('.ambio-connect__family-card > .ambio-connect__family-row .ambio-connect__host-signal, .ambio-connect__surface--solo > .ambio-connect__host-signal')).toHaveCount(8)
   await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(1)
+  // Installed and connected agents lead the list.
+  await expect(agents.locator(':scope > li').first()).toHaveAttribute('data-state', /live|repair|installed/)
+  await expect(notFound.locator(':scope > li[data-state]:not([data-state="missing"])')).toHaveCount(0)
   const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
   await expect(mascot).toHaveAttribute('data-state', 'connected')
 
@@ -1191,7 +1209,8 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await expect(page.locator('.ambio-review__canvas .react-flow')).toBeVisible()
   await expect(page.locator('.ambio-review__canvas .react-flow__background')).toHaveCount(1)
   await expect(page.locator('.ambio-review__canvas .ambio-canvas-review')).toHaveCount(1)
-  await expect(page.getByText('PROPOSED SYSTEM FLOOR')).toBeVisible()
+  // Nothing floats over the review canvas; the minimap owns that corner.
+  await expect(page.getByText('PROPOSED SYSTEM FLOOR')).toHaveCount(0)
   // A review starts by freezing the same complete generated frame that the
   // live Floor freezes. No gesture may be the first sparse layout write.
   await expect.poll(() => proposalLayoutSaves).toBe(1)
@@ -1209,10 +1228,14 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
     systemName: parseFloat(getComputedStyle(document.querySelector('.ambio-proposal__name')!).fontSize),
     decisionHeight: document.querySelector('.ambio-proposal__approve')!.getBoundingClientRect().height,
   }))
-  expect(reviewScale.heading).toBeGreaterThanOrEqual(28)
+  // The heading is brief so the tree gets the room; every row carries its
+  // own approve and send-back controls.
+  expect(reviewScale.heading).toBeGreaterThanOrEqual(20)
   expect(reviewScale.purpose).toBeGreaterThanOrEqual(14)
-  expect(reviewScale.systemName).toBeGreaterThanOrEqual(18)
-  expect(reviewScale.decisionHeight).toBeGreaterThanOrEqual(40)
+  expect(reviewScale.systemName).toBeGreaterThanOrEqual(15)
+  expect(reviewScale.decisionHeight).toBeGreaterThanOrEqual(28)
+  await expect(proposalPanel.getByRole('button', { name: 'Approve Semantic Zoom' })).toBeVisible()
+  await expect(proposalPanel.getByRole('button', { name: 'Send back Semantic Zoom' })).toBeVisible()
   await expect(proposalPanel.getByText('3 files in branch', { exact: true })).toBeVisible()
 
   await proposalPanel.getByRole('button', { name: 'Collapse Living Canvas' }).click()
@@ -1981,7 +2004,7 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   await expect(agentDialog.getByRole('textbox', { name: 'Instruction for your agent' })).toBeVisible()
   // Addressed inbox routing: a send creates a work order the user hands to a
   // chat of their choosing, instead of asking any agent to drain the queue.
-  await expect(agentDialog).toContainText('No work orders yet')
+  await expect(agentDialog).toContainText('Talk to your agent')
   await expect(agentDialog.getByRole('button', { name: 'Send to inbox' })).toBeDisabled()
   await page.screenshot({path:'test-results/inbox-empty.png'})
   await agentDialog.getByRole('button', { name: 'Close agent inbox' }).click()
@@ -2688,28 +2711,83 @@ test('a map change the code disagrees with offers the work order that makes it m
   await expect(page.getByText('Ambio checked the code: it now matches the map.')).toBeVisible()
 })
 
-test('the inbox shows work orders by stage', async () => {
-  const order = (id: string, note: string, status: string, extra = {}) => ({
+test('the inbox is a conversation: follow-ups stay together and other conversations are a menu away', async () => {
+  const turn = (id: string, note: string, status: string, extra = {}) => ({
     id, workspaceId: 'demo', sheetId: null, note, selection: '[]', changeSummary: '',
     sheetContext: '', buildSpec: '', status, createdAt: 5, deliveredTo: null, answerAnnotationId: null, ...extra,
   })
-  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: {
-    nextCursor: '', availableCount: 1,
-    messages: [
-      order('wo-wait', 'Add a retry queue', 'queued'),
-      order('wo-done', 'Split the payments module', 'answered', { reply: { agent: 'Codex', body: 'Done.', createdAt: 6 } }),
-    ],
-  } }))
+  const messages = [
+    turn('old', 'Split the payments module', 'answered', { reply: { agent: 'Codex', body: 'Done.', createdAt: 6 } }),
+    turn('q1', 'Where is retry handled?', 'answered', { threadId: 'q1', mode: 'ask', createdAt: 10, reply: { agent: 'Codex', body: 'In the queue worker.', createdAt: 11 } }),
+    turn('q2', 'Add a retry queue', 'queued', { threadId: 'q1', mode: 'build', createdAt: 12 }),
+  ]
+  let sent: { threadId?: string; mode?: string; note?: string } | undefined
+  await page.route(/\/api\/canvas\/send$/, async route => {
+    sent = route.request().postDataJSON()
+    await route.fulfill({ json: { ...sent, workspaceId: 'demo', status: 'queued', createdAt: 20 } })
+  })
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [...messages].reverse() } }))
   await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
   const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-  const stages = inbox.getByRole('group', { name: 'Show work orders' })
-  await expect(stages.getByRole('button', { name: 'To review 1' })).toBeVisible()
-  await expect(inbox).toContainText('Add a retry queue')
+
+  // The most recent conversation is open, with both of its turns and what kind each was.
+  await expect(inbox.getByRole('button', { name: 'Conversation: Where is retry handled?' })).toBeVisible()
+  await expect(inbox.locator('.ambio-inbox__message')).toHaveCount(2)
+  await expect(inbox.locator('.ambio-inbox__turn-mode')).toHaveText(['Ask', 'Build'])
+  await expect(inbox).not.toContainText('Split the payments module')
+
+  // A follow-up continues that conversation.
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Now add a test for it')
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
+  await expect.poll(() => sent?.threadId).toBe('q1')
+
+  // The other conversation is in the menu, with where it stands; the title
+  // says an answer is waiting elsewhere, and the menu can show only those.
+  await expect(inbox.getByRole('button', { name: /^Conversation:/ })).toContainText('1 to review')
+  await inbox.getByRole('button', { name: /^Conversation:/ }).click()
+  const menu = inbox.getByRole('menu', { name: 'Conversations' })
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
+  await expect(menu.getByRole('menuitemradio').nth(1)).toContainText('To review')
+  const stages = menu.getByRole('group', { name: 'Show conversations' })
   await stages.getByRole('button', { name: 'To review 1' }).click()
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
+  await stages.getByRole('button', { name: 'All 2' }).click()
+  await menu.getByRole('menuitemradio').nth(1).click()
   await expect(inbox).toContainText('Split the payments module')
   await expect(inbox).not.toContainText('Add a retry queue')
-  await stages.getByRole('button', { name: 'All 2' }).click()
-  await expect(inbox).toContainText('Add a retry queue')
+
+  // A new conversation starts empty and sends without a thread to continue.
+  await inbox.getByRole('button', { name: 'New conversation' }).click()
+  await expect(inbox.locator('.ambio-inbox__message')).toHaveCount(0)
+  sent = undefined
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Something unrelated')
+  await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
+  await expect.poll(() => sent?.note).toBe('Something unrelated')
+  expect(sent?.threadId).toBeUndefined()
+})
+
+test('an agent\'s question appears on the turn it is working on and is answered in one press', async () => {
+  const turn = { id: 'build-1', workspaceId: 'demo', sheetId: null, note: 'Add the retry queue', selection: '[]', changeSummary: '',
+    sheetContext: '', buildSpec: '', status: 'delivered', leaseExpiresAt: Date.now() + 600_000, agent: 'claude-code', createdAt: 5,
+    deliveredTo: 'conn', answerAnnotationId: null, threadId: 'build-1', mode: 'build' }
+  const question = { id: 'perm-1', workspaceId: 'demo', messageId: 'build-1', hostId: 'claude-code', title: 'Use Bash', detail: 'npm install bullmq',
+    kind: 'execute', askedAt: Date.now(), expiresAt: Date.now() + 100_000 }
+  let pending = [question]
+  let decided: { id?: string; decision?: string } | undefined
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 0, messages: [turn] } }))
+  await page.route(/\/api\/agent\/permission\?/, route => route.fulfill({ json: { requests: pending } }))
+  await page.route(/\/api\/agent\/permission\/decide$/, async route => {
+    decided = route.request().postDataJSON()
+    pending = []
+    await route.fulfill({ json: decided })
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
+  const card = inbox.getByRole('group', { name: 'Permission request: Use Bash' })
+  await expect(card).toContainText('npm install bullmq')
+  await card.getByRole('button', { name: 'Allow', exact: true }).click()
+  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', id: 'perm-1', decision: 'allow' })
+  await expect(card).toHaveCount(0)
 })
 
 test('asking a question tells the agent not to change anything', async () => {
@@ -2720,7 +2798,8 @@ test('asking a question tells the agent not to change anything', async () => {
   })
   await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
   const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-  await inbox.getByRole('radio', { name: 'Ask' }).click()
+  await inbox.getByRole('button', { name: /^Request type:/ }).click()
+  await inbox.getByRole('menuitemradio', { name: 'Ask' }).click()
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Why does checkout call the MCP server?')
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
   await expect.poll(() => sent?.note).toMatch(/^This is a question\. .*\n\nWhy does checkout call the MCP server\?$/s)

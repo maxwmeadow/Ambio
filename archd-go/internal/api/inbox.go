@@ -231,6 +231,13 @@ func (s *Server) handleInboxClaim(w http.ResponseWriter, r *http.Request) {
 	for i := range items {
 		items[i].SheetContext = ""
 		items[i].BuildSpec = ""
+		// The agent gets the conversation so far with the turn it claimed.
+		turns, omitted, err := db.InboxConversation(d, body.WorkspaceID, items[i].ThreadID, items[i].ID)
+		if err != nil {
+			inboxError(w, err)
+			return
+		}
+		items[i].Conversation, items[i].ConversationOmitted = turns, omitted
 	}
 	jsonOK(w, map[string]any{"protocolVersion": 1, "workspaceId": body.WorkspaceID, "messages": items})
 }

@@ -11,7 +11,7 @@ import (
 // and today's features work on it. The fixtures were written by the older
 // versions' own code (testdata/schemagen).
 func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
-	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql"} {
+	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql"} {
 		t.Run(fixture, func(t *testing.T) {
 			dir := t.TempDir()
 			script, err := os.ReadFile(filepath.Join("testdata", fixture))
@@ -51,6 +51,10 @@ func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
 			must(t, err)
 			events, err := GetStructuralEvents(sqlDB, "ws", 0)
 			must(t, err)
+			// A request from before conversations is a conversation of one.
+			if message != nil && message.ThreadID != message.ID {
+				t.Fatalf("upgraded message thread = %q, want its own id %q", message.ThreadID, message.ID)
+			}
 			if len(systems) != 2 || len(files) != 2 || len(deps) != 1 || len(elements) != 1 || message == nil || len(events) != 1 {
 				t.Fatalf("data lost: %d systems, %d files, %d deps, %d elements, message %v, %d events",
 					len(systems), len(files), len(deps), len(elements), message != nil, len(events))

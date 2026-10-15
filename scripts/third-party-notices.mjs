@@ -105,7 +105,11 @@ function goModules() {
 }
 
 function main() {
-  const packages = [...npmPackages(), ...goModules()].sort((left, right) => left.name.localeCompare(right.name))
+  const wordmark = {
+    name: 'Ambio wordmark (derived from Manrope)', version: '780', source: 'font', license: 'OFL-1.1',
+    texts: [fs.readFileSync(path.join(ROOT, 'src/renderer/assets/branding/Manrope-OFL.txt'), 'utf8')],
+  }
+  const packages = [...npmPackages(), ...goModules(), wordmark].sort((left, right) => left.name.localeCompare(right.name))
   const blocked = packages.filter(entry => !licenseAllowed(entry.license))
   if (blocked.length > 0) {
     console.error('Third-party licenses that are not known to be AGPL-3.0 compatible:')

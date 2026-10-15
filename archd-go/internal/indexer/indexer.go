@@ -53,6 +53,8 @@ var sourceExts = map[string]bool{
 	".ts": true, ".tsx": true, ".js": true, ".mjs": true, ".cjs": true,
 	".jsx": true, ".py": true, ".go": true, ".rs": true, ".cs": true,
 	".cpp": true, ".cc": true, ".cxx": true, ".hpp": true, ".hxx": true, ".c": true, ".h": true, ".rb": true, ".java": true,
+	// Stylesheets: owned by a UI system and loaded by name, like any module.
+	".css": true, ".scss": true, ".sass": true, ".less": true,
 }
 
 var documentExts = map[string]bool{
@@ -1484,6 +1486,11 @@ func buildImportPathIndex(files []db.File) map[string]string {
 		relPath := filepath.ToSlash(filepath.Clean(file.RelPath))
 		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 		index[relPath] = file.ID
+		// A stylesheet is only ever named with its extension from code, so it
+		// must not answer for Button when Button.tsx sits beside Button.css.
+		if parser.IsStylesheet(relPath) {
+			continue
+		}
 		index[noExt] = file.ID
 
 		if strings.EqualFold(filepath.Ext(relPath), ".py") {
@@ -1542,6 +1549,9 @@ func addTailIndex(index map[string]string, files []db.File) {
 	dirFiles := map[string][]string{}
 	for _, file := range files {
 		relPath := filepath.ToSlash(filepath.Clean(file.RelPath))
+		if parser.IsStylesheet(relPath) {
+			continue // not a Java class, Ruby file or C++ source; see buildImportPathIndex
+		}
 		noExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 		segments := strings.Split(noExt, "/")
 		for k := 1; k <= len(segments); k++ {
@@ -1573,8 +1583,31 @@ func addTailIndex(index map[string]string, files []db.File) {
 	}
 }
 
-// resolveTextImport resolves the prefixed specs parser/imports_more.go
-// writes for Java, Rust, Ruby and C++. ok is false for any other spec.
+// stylesheetCandidates lists the files a stylesheet import may mean, in the
+// order Sass and Less look: the name as written, then with each extension,
+// as a partial (_name), and as a folder's index.
+func stylesheetCandidates(dir, spec string) []string {
+	target := path.Clean(path.Join(dir, spec))
+	folder, name := path.Dir(target), path.Base(target)
+	if parser.IsStylesheet(target) {
+		return []string{target, path.Join(folder, "_"+name)}
+	}
+	if path.Ext(name) != "" {
+		return []string{target} // @config "./tailwind.config.js"
+	}
+	// No extension: only ever a stylesheet, never the script of the same name.
+	keys := []string{}
+	for _, ext := range []string{".scss", ".sass", ".less", ".css"} {
+		keys = append(keys, target+ext, path.Join(folder, "_"+name+ext))
+	}
+	for _, ext := range []string{".scss", ".sass", ".less", ".css"} {
+		keys = append(keys, path.Join(target, "_index"+ext), path.Join(target, "index"+ext))
+	}
+	return keys
+}
+
+// resolveTextImport resolves the prefixed specs parser/imports_more.go and
+// parser/stylesheets.go write. ok is false for any other spec.
 func resolveTextImport(imported string, index map[string]string) (ids []string, ok bool) {
 	one := func(keys ...string) []string {
 		for _, key := range keys {
@@ -1606,6 +1639,9 @@ func resolveTextImport(imported string, index map[string]string) (ids []string, 
 	case strings.HasPrefix(imported, parser.ImportRubyReq):
 		spec := strings.TrimPrefix(imported, parser.ImportRubyReq)
 		return one("lib/"+spec, spec, tailPrefix+spec), true
+	case strings.HasPrefix(imported, parser.ImportStylesheetPath):
+		dir, spec, _ := strings.Cut(strings.TrimPrefix(imported, parser.ImportStylesheetPath), "|")
+		return one(stylesheetCandidates(dir, spec)...), true
 	case strings.HasPrefix(imported, parser.ImportCppInc):
 		dir, spec, _ := strings.Cut(strings.TrimPrefix(imported, parser.ImportCppInc), "|")
 		// The header itself when it is indexed; otherwise the file that

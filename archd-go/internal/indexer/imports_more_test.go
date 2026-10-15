@@ -137,3 +137,89 @@ func TestCFilesAndHeaders(t *testing.T) {
 		t.Fatalf("C symbols = %+v", symbols)
 	}
 }
+
+// Stylesheets are indexed and joined to what loads them: a component to its
+// CSS, a stylesheet to its imports, Sass to its partials. A stylesheet never
+// answers an extensionless import meant for the script beside it.
+func TestStylesheetsAreIndexedWithImportEdges(t *testing.T) {
+	sqlDB, root, _ := journalFixture(t)
+	files := map[string]string{
+		"web/src/Button.tsx":              "import './Button.css'\nimport styles from './Button.module.css'\nexport function Button() { return null }\n",
+		"web/src/Button.css":              "@import \"./tokens.css\";\n@import url(https://fonts.example/inter.css);\n.button { color: var(--ink); }\n",
+		"web/src/Button.module.css":       ".primary { composes: base from './base.module.css'; }\n",
+		"web/src/base.module.css":         ".base { padding: 4px; }\n",
+		"web/src/tokens.css":              ":root { --ink: #111; }\n",
+		"web/src/App.tsx":                 "import { Button } from './Button'\nimport './styles/app.scss'\nexport const App = Button\n",
+		"web/src/styles/app.scss":         "@use 'sass:math';\n@use './variables' as v;\n@use 'mixins';\n@import 'tailwindcss';\n.app { width: math.div(10px, 2); }\n",
+		"web/src/styles/_variables.scss":  "$ink: #111;\n",
+		"web/src/styles/mixins/_index.scss": "@mixin card($pad) {\n  padding: $pad;\n}\n@function double($n) { @return $n * 2; }\n",
+		"web/src/legacy/theme.less":       "@import (reference) \"palette\";\n.theme { color: @ink; }\n",
+		"web/src/legacy/palette.less":     "@ink: #111;\n",
+	}
+	for rel, body := range files {
+		abs := filepath.Join(root.Path, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := IndexRoot(sqlDB, hub.New(), root, nil); err != nil {
+		t.Fatal(err)
+	}
+	indexed, err := db.GetFilesByRoot(sqlDB, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathOf, languageOf, idOf := map[string]string{}, map[string]string{}, map[string]string{}
+	for _, file := range indexed {
+		pathOf[file.ID] = file.RelPath
+		languageOf[file.RelPath] = file.Language
+		idOf[file.RelPath] = file.ID
+	}
+	for rel, want := range map[string]string{
+		"web/src/Button.css": "css", "web/src/styles/app.scss": "scss", "web/src/legacy/theme.less": "less",
+	} {
+		if languageOf[rel] != want {
+			t.Errorf("%s indexed as %q, want %q", rel, languageOf[rel], want)
+		}
+	}
+	deps, err := db.GetDependencies(sqlDB, root.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, dep := range deps {
+		if dep.DependencyType == "IMPORTS" {
+			got = append(got, pathOf[dep.Src]+" → "+pathOf[dep.Dst])
+		}
+	}
+	sort.Strings(got)
+	want := []string{
+		"web/src/App.tsx → web/src/Button.tsx",
+		"web/src/App.tsx → web/src/styles/app.scss",
+		"web/src/Button.css → web/src/tokens.css",
+		"web/src/Button.module.css → web/src/base.module.css",
+		"web/src/Button.tsx → web/src/Button.css",
+		"web/src/Button.tsx → web/src/Button.module.css",
+		"web/src/legacy/theme.less → web/src/legacy/palette.less",
+		"web/src/styles/app.scss → web/src/styles/_variables.scss",
+		"web/src/styles/app.scss → web/src/styles/mixins/_index.scss",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("import edges:\n got %q\nwant %q", got, want)
+	}
+	symbols, err := db.GetSymbolsByFile(sqlDB, idOf["web/src/styles/mixins/_index.scss"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{}
+	for _, symbol := range symbols {
+		names = append(names, symbol.Name)
+	}
+	sort.Strings(names)
+	if strings.Join(names, ",") != "card,double" {
+		t.Fatalf("stylesheet symbols = %q, want card and double", names)
+	}
+}

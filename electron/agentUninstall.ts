@@ -130,6 +130,7 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
   }
 
   removed.push(...removeLegacyServer(host, projectRoot))
+  try { removed.push(...(host.uninstallExtras?.() ?? [])) } catch { /* the server entry is gone either way */ }
 
   if (unreadable.length > 0) {
     return {

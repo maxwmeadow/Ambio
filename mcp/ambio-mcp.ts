@@ -676,13 +676,14 @@ const CORE_TOOLS = [
   },
   {
     name: 'get_inbox',
-    description: 'Claim the exact canvas request using messageId from the user handoff. Use verifyOnly with expectedWorkspaceId to check this connection without claiming work. Without messageId, checks only legacy/open instructions. Claims last 15 minutes; pass messageHandle and contextOffset to read original context.',
+    description: 'Claim the exact canvas request using messageId from the user handoff. Use verifyOnly with expectedWorkspaceId to check this connection without claiming work. Without messageId, checks only open instructions. Claims last 15 minutes; pass messageHandle and contextOffset to read original context.',
     inputSchema: {
       type: 'object',
       properties: {
         messageId: { type: 'string', description: 'Full work-order ID from the user handoff; routes this request to this chat' },
         expectedWorkspaceId: { type: 'string', description: 'Workspace ID from the handoff; fail before claiming if this MCP connection is bound elsewhere' },
         verifyOnly: { type: 'boolean', description: 'Check inbox access for expectedWorkspaceId without claiming any request' },
+        watch: { type: 'boolean', description: 'Only if the user asked you to watch: wait for the next open request' },
         messageHandle: { type: 'string', description: 'Handle from a previously claimed message; fetch its original attached context' },
         contextOffset: { type: 'integer', minimum: 0, description: 'Context character offset, initially 0' },
       },
@@ -817,8 +818,55 @@ const DEBUG_PROFILE_TOOLS = [
 // Opt in with AMBIO_MCP_PROFILE=debug.
 const DEBUG_PROFILE_ENABLED = (process.env.AMBIO_MCP_PROFILE ?? '').toLowerCase() === 'debug'
 
+// A run Ambio started names the turn it answers (AMBIO_RUN_MESSAGE_ID). Only
+// that run is offered approve_action: the host calls it, not the model, when
+// the agent wants to do something its turn did not already allow, and the
+// question goes to the user in the conversation. Sessions a person started
+// never see the tool, so it costs their context nothing.
+const RUN_MESSAGE_ID = process.env.AMBIO_RUN_MESSAGE_ID ?? ''
+const APPROVE_ACTION_TOOL = {
+  name: 'approve_action',
+  description: 'Asks the user in Ambio whether a tool call may run. Called by the host for permission prompts, not by the agent.',
+  inputSchema: {
+    type: 'object',
+    properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+    required: ['tool_name'],
+  },
+}
+
+/** What a tool call would do, as the line the user decides on. */
+function actionDetail(input: unknown): string {
+  if (!input || typeof input !== 'object') return ''
+  const fields = input as Record<string, unknown>
+  for (const key of ['command', 'file_path', 'path', 'url', 'query']) {
+    if (typeof fields[key] === 'string' && fields[key]) return String(fields[key]).slice(0, 4000)
+  }
+  return JSON.stringify(input).slice(0, 4000)
+}
+
+async function approveAction(args: Record<string, any>) {
+  const allow = { behavior: 'allow', updatedInput: args.input ?? {} }
+  let verdict: Record<string, unknown> = { behavior: 'deny', message: 'Ambio could not ask the user, so this was not allowed.' }
+  try {
+    const project = await getActiveProject()
+    const response = await fetch(`${API_BASE}/api/agent/permission`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: project.workspaceId, messageId: RUN_MESSAGE_ID, hostId: agentHostId,
+        title: `Use ${String(args.tool_name ?? 'a tool').slice(0, 120)}`, detail: actionDetail(args.input), kind: 'execute',
+      }),
+    })
+    if (response.ok) {
+      const answer = await response.json() as { decision?: string; answered?: boolean }
+      verdict = answer.decision === 'allow' ? allow
+        : { behavior: 'deny', message: answer.answered ? 'The user did not allow this. Do not retry it; continue without it or say what you could not do.' : 'The user did not answer in time, so this was not allowed.' }
+    }
+  } catch { /* the refusal above stands */ }
+  return { content: [{ type: 'text', text: JSON.stringify(verdict) }] }
+}
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: DEBUG_PROFILE_ENABLED ? [...CORE_TOOLS, ...DEBUG_PROFILE_TOOLS] : CORE_TOOLS,
+  tools: [...(DEBUG_PROFILE_ENABLED ? [...CORE_TOOLS, ...DEBUG_PROFILE_TOOLS] : CORE_TOOLS), ...(RUN_MESSAGE_ID ? [APPROVE_ACTION_TOOL] : [])],
 }))
 
 // ─── Tool execution ────────────────────────────────────────────────────────
@@ -826,6 +874,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: rawArgs } = request.params
   let args = rawArgs as Record<string, any> ?? {}
+  // The host reads this answer as JSON, so it takes none of the notes other
+  // tool results carry, and it is not an agent action to log.
+  if (name === APPROVE_ACTION_TOOL.name && RUN_MESSAGE_ID) return approveAction(args)
   // Preserved for the log: what the AGENT actually called, before routing.
   const callerArgs = args
 
@@ -1025,9 +1076,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           body: JSON.stringify({ workspaceId: project.workspaceId, chunkId: args.chunkId, systems: args.systems ?? [] }),
         })
         if (!response.ok) throw new Error(`Could not add proposal chunk: ${await response.text()}`)
-        const draft = await response.json() as { sessionId: string; status: string; chunkCount: number; systems: unknown[] }
+        const draft = await response.json() as { sessionId: string; status: string; chunkCount: number; systems: unknown[]; skipped?: Array<{ systemKey: string; path: string; reason: string }> }
         if (draft.status === 'open') await postAgentActivity(project.workspaceId, `Mapped ${draft.systems.length} systems in ${draft.chunkCount} proposal chunks`, 'info')
-        result = { status: draft.status, sessionId: draft.sessionId, chunkId: args.chunkId, chunks: draft.chunkCount, systems: draft.systems.length }
+        result = {
+          status: draft.status, sessionId: draft.sessionId, chunkId: args.chunkId, chunks: draft.chunkCount, systems: draft.systems.length,
+          // The chunk is saved either way; files that could not be placed were
+          // left out of it and are listed with the reason.
+          ...(draft.skipped?.length ? {
+            skipped: draft.skipped,
+            note: `Chunk saved. ${draft.skipped.length} file(s) were left out; see skipped for why. Do not resend this chunk.`,
+          } : {}),
+        }
         break
       }
 
@@ -2603,7 +2662,22 @@ Steps to execute:
           if (handle.workspaceId !== project.workspaceId) throw new Error('This message belongs to another workspace')
           result = await inboxRequest('context', { ...handle, offset: args.contextOffset ?? 0 })
         } else {
-          const data = await inboxRequest('claim', { workspaceId: project.workspaceId, connectionId, agent: agentHostId, messageId: args.messageId ?? '' })
+          const claim = () => inboxRequest('claim', { workspaceId: project.workspaceId, connectionId, agent: agentHostId, messageId: args.messageId ?? '' })
+          let data = await claim()
+          // Watching: the user asked this session to stay on the inbox. Wait
+          // for the next open request, telling Ambio a session is waiting so
+          // the canvas can offer to send to it. Bounded well inside every
+          // host's tool timeout; the agent calls again to keep watching.
+          const watching = call === 'await_canvas' && args.watch === true && !args.messageId
+          if (watching) {
+            const deadline = Date.now() + WATCH_MILLIS
+            while (data.messages.length === 0 && Date.now() < deadline) {
+              await markWatching(project.workspaceId, deadline - Date.now() + WATCH_POLL_MILLIS * 2)
+              await new Promise(resolve => setTimeout(resolve, WATCH_POLL_MILLIS))
+              data = await claim()
+            }
+            await markWatching(project.workspaceId, data.messages.length ? 1 : WATCH_RETURN_MILLIS)
+          }
           result = {
             ...data, workspace: project,
             messages: data.messages.map((item: any) => {
@@ -2619,8 +2693,10 @@ Steps to execute:
               })).toString('base64url') }
             }),
             note: data.messages.length
-              ? 'Read any review feedback if this work order was reopened. Submit with reply_to_canvas(messageHandle, body, result) for user review; result may include changedFiles, checks, commit and remaining gaps. Read attached context using get_inbox(messageHandle, contextOffset: 0). For substantial work, call start_work with this messageHandle and pass its returned sessionId to update_work. For sheet work, read edit_sheet(compare) for current nesting/relationship differences; implement and verify, then resolve with the latest revision/token when equivalent. Unapproved proposals are discussion context only. Recheck this exact messageId before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
-              : 'No open instructions. Addressed work requires the messageId from the user handoff.',
+              ? 'conversation, when present, is what was already asked and answered in this conversation, oldest first; act on this request in that light. Read any review feedback if this work order was reopened. Submit with reply_to_canvas(messageHandle, body, result) for user review; result may include changedFiles, checks, commit and remaining gaps. Read attached context using get_inbox(messageHandle, contextOffset: 0). For substantial work, call start_work with this messageHandle and pass its returned sessionId to update_work. For sheet work, read edit_sheet(compare) for current nesting/relationship differences; implement and verify, then resolve with the latest revision/token when equivalent. Unapproved proposals are discussion context only. Recheck this exact messageId before the lease expires to renew it. Reading and claiming do not authorize work beyond the instruction.'
+              : watching
+                ? 'No request arrived yet. Call get_inbox with watch: true again to keep watching, and stop when the user tells you to.'
+                : 'No open instructions. Addressed work requires the messageId from the user handoff.',
           }
         }
         break
@@ -2685,6 +2761,22 @@ Steps to execute:
 // or workspace database reset while this same agent process stays alive.
 let announcedWorkspace: string | null = null
 
+// How long one watch call waits, how often it looks, and how long a session
+// still counts as watching after a call returns (the gap before it calls again).
+const WATCH_MILLIS = 45_000
+const WATCH_POLL_MILLIS = 2_000
+const WATCH_RETURN_MILLIS = 20_000
+
+async function markWatching(workspaceId: string, forMillis: number) {
+  try {
+    await fetch(`${API_BASE}/api/agent/presence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, connectionId, hostId: agentHostId, watchingForMs: Math.max(1, Math.round(forMillis)) }),
+    })
+  } catch { /* watching still works; the canvas only cannot show it */ }
+}
+
 async function markToolPresence(workspaceId: string) {
   try {
     await fetch(`${API_BASE}/api/agent/presence`, {
@@ -2748,9 +2840,13 @@ async function renewPresence() {
 }
 
 async function main() {
-  void renewPresence()
-  const presence = setInterval(() => { void renewPresence() }, 5_000)
-  presence.unref?.()
+  // Ambio's own connection test starts this server to list its tools. It is
+  // not an agent, so it must not appear as one.
+  if (process.env.AMBIO_SELF_TEST !== '1') {
+    void renewPresence()
+    const presence = setInterval(() => { void renewPresence() }, 5_000)
+    presence.unref?.()
+  }
   const transport = new StdioServerTransport()
   await server.connect(transport)
   console.error('[ambio-mcp] SQLite-over-HTTP MCP server started, ready for queries.')

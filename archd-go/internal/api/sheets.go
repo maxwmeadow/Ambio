@@ -896,6 +896,12 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		Note         string  `json:"note"`
 		Selection    string  `json:"selection"`
 		DeliveryMode string  `json:"deliveryMode"`
+		// ThreadID continues a conversation; empty starts one. Mode is what
+		// this turn asks for.
+		ThreadID string `json:"threadId"`
+		Mode     string `json:"mode"`
+		// TargetHost leaves an open turn for the watching session of one host.
+		TargetHost string `json:"targetHost"`
 		// CodeFitFileIDs asks Ambio to verify, after the reply, that the code
 		// agrees with where the map puts these files (make the code match).
 		CodeFitFileIDs []string `json:"codeFitFileIds"`
@@ -903,7 +909,18 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 	if !decodeInbox(w, r, &input) {
 		return
 	}
-	m := db.CanvasMessage{ID: input.ID, WorkspaceID: input.WorkspaceID, SheetID: input.SheetID, Note: strings.TrimSpace(input.Note), Selection: input.Selection, DeliveryMode: input.DeliveryMode}
+	m := db.CanvasMessage{ID: input.ID, WorkspaceID: input.WorkspaceID, SheetID: input.SheetID, Note: strings.TrimSpace(input.Note), Selection: input.Selection, DeliveryMode: input.DeliveryMode, ThreadID: input.ThreadID, Mode: input.Mode, TargetHost: input.TargetHost}
+	if m.Mode != "" && m.Mode != "ask" && m.Mode != "propose" && m.Mode != "build" {
+		jsonError(w, "mode must be ask, propose or build", 400)
+		return
+	}
+	if len(m.ThreadID) > 128 || len(m.TargetHost) > 128 {
+		jsonError(w, "threadId or targetHost is too long", 400)
+		return
+	}
+	if m.ThreadID == "" {
+		m.ThreadID = m.ID
+	}
 	if m.DeliveryMode == "" {
 		m.DeliveryMode = "open"
 	}
@@ -936,7 +953,7 @@ func (s *Server) handleCanvasSend(w http.ResponseWriter, r *http.Request) {
 		}
 		if previous != nil {
 			sameSheet := (previous.SheetID == nil && m.SheetID == nil) || (previous.SheetID != nil && m.SheetID != nil && *previous.SheetID == *m.SheetID)
-			if previous.WorkspaceID != m.WorkspaceID || previous.Note != m.Note || previous.Selection != m.Selection || previous.DeliveryMode != m.DeliveryMode || !sameSheet {
+			if previous.WorkspaceID != m.WorkspaceID || previous.Note != m.Note || previous.Selection != m.Selection || previous.DeliveryMode != m.DeliveryMode || previous.ThreadID != m.ThreadID || previous.Mode != m.Mode || !sameSheet {
 				inboxError(w, db.ErrInboxConflict)
 				return
 			}

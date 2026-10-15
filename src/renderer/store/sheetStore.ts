@@ -1,6 +1,7 @@
 // Sheets - curated diagrams over the live model (docs/history/UML_UX_PLAN.md U1) plus the
 // canvas→agent message channel (U-C). The Floor (live master canvas) is
 // activeSheetId === null.
+import { handlePermissionPatch } from './agentPermissionStore.ts'
 import { create } from 'zustand'
 import type { SheetMember } from '../canvas/sheetFromSelection'
 import { workOrderNotice } from './workOrderNotice.ts'
@@ -83,6 +84,10 @@ export interface CanvasMessage {
   id: string
   workspaceId: string
   deliveryMode?: 'open' | 'addressed'
+  /** The conversation this turn belongs to; absent on older messages, which stand alone. */
+  threadId?: string
+  /** What the turn asks for; absent before turns carried it. */
+  mode?: 'ask' | 'propose' | 'build' | ''
   sheetId: string | null
   sentSheetName?: string
   sentSheetRevision?: number
@@ -374,7 +379,7 @@ interface SheetState {
   updateElementLayout: (workspaceId: string, elementId: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   updateElementMetadata: (workspaceId: string, elementId: string, metadata: PlannedNodeMetadata) => Promise<void>
   removeElement: (workspaceId: string, sheetId: string, elementId: string) => Promise<void>
-  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string, codeFitFileIds?: string[]) => Promise<void>
+  sendToAgent: (workspaceId: string, note: string, selection: string[], sheetId: string | null, id?: string, codeFitFileIds?: string[], turn?: { threadId?: string; mode?: 'ask' | 'propose' | 'build'; open?: boolean; targetHost?: string }) => Promise<void>
   lastCreatedPlannedId: string | null   // node enters inline name-edit on mount
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
@@ -940,14 +945,20 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
   },
 
-  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID(), codeFitFileIds = []) => {
+  sendToAgent: async (workspaceId, note, selection, sheetId, id = crypto.randomUUID(), codeFitFileIds = [], turn = {}) => {
     const res = await fetch(`${archdApi()}/api/canvas/send`, {
       method: 'POST',
       signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id, workspaceId, note, sheetId, deliveryMode: 'addressed',
+        // An open request is for a session already watching Ambio; any other
+        // is addressed to the one agent the user hands its ID to.
+        id, workspaceId, note, sheetId, deliveryMode: turn.open ? 'open' : 'addressed',
         selection: JSON.stringify(selection),
+        // A turn continues a conversation, or starts one when it names none.
+        ...(turn.threadId && turn.threadId !== id ? { threadId: turn.threadId } : {}),
+        ...(turn.mode ? { mode: turn.mode } : {}),
+        ...(turn.open && turn.targetHost ? { targetHost: turn.targetHost } : {}),
         // Ambio re-checks these files against the map after the reply.
         ...(codeFitFileIds.length > 0 ? { codeFitFileIds } : {}),
       }),
@@ -978,6 +989,7 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
   const s = useSheetStore.getState()
   const workspace = (patch.payload as { workspaceId?: string } | null)?.workspaceId
   if (workspace && workspace !== s.workspaceId) return
+  if (handlePermissionPatch(patch, s.workspaceId)) return
   switch (patch.type) {
     case 'sheet:upserted': {
       const sheet = patch.payload as Sheet

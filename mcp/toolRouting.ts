@@ -205,7 +205,10 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
     }
 
     case 'get_inbox': {
-      return { tool: 'get_canvas_updates', args: compact({ messageId: args.messageId, expectedWorkspaceId: args.expectedWorkspaceId, verifyOnly: args.verifyOnly, messageHandle: args.messageHandle, contextOffset: args.contextOffset }) }
+      // Waiting is only ever asked for by name (watch): a plain check, a
+      // claim by ID and a context read all return at once.
+      const watch = args.watch === true && !args.messageId && !args.messageHandle && !args.verifyOnly
+      return { tool: watch ? 'await_canvas' : 'get_canvas_updates', args: compact({ messageId: args.messageId, expectedWorkspaceId: args.expectedWorkspaceId, verifyOnly: args.verifyOnly, messageHandle: args.messageHandle, contextOffset: args.contextOffset, watch: watch ? true : undefined }) }
     }
 
     case 'get_build_plan': {

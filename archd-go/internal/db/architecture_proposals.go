@@ -716,23 +716,34 @@ func DecideArchitectureProposalSystem(database *sql.DB, proposalID, workspaceID,
 	if err := tx.QueryRow(`SELECT system_key,name,description,parent_ref_type,parent_ref_id,depth,decision,rejection_reason,materialized_system_id FROM architecture_proposal_systems WHERE proposal_id=? AND revision=? AND system_key=?`, proposalID, revision, systemKey).Scan(&system.SystemKey, &system.Name, &system.Description, &system.ParentRefType, &system.ParentRefID, &system.Depth, &system.Decision, &system.RejectionReason, &system.MaterializedSystemID); err != nil {
 		return nil, err
 	}
-	if system.Decision != ProposalDecisionPending {
-		if system.Decision == decision.Decision {
-			return &system, tx.Commit()
-		}
+	if system.Decision != ProposalDecisionPending && system.Decision != decision.Decision {
 		return nil, fmt.Errorf("proposal system already %s", system.Decision)
 	}
 	now := time.Now().UnixMilli()
 	if decision.Decision == ProposalDecisionRejected {
+		if system.Decision == ProposalDecisionRejected {
+			return &system, tx.Commit()
+		}
 		if _, err := tx.Exec(`UPDATE architecture_proposal_systems SET decision='rejected',rejection_reason=?,decided_by=?,decided_at=? WHERE proposal_id=? AND revision=? AND system_key=? AND decision='pending'`, decision.RejectionReason, decision.DecidedBy, now, proposalID, revision, systemKey); err != nil {
 			return nil, err
 		}
 	} else {
-		wroteFloorLayout, err := approveArchitectureProposalSystemTx(tx, proposalID, workspaceID, revision, &system, decision.DecidedBy, now)
+		wroteFloorLayout := false
+		if system.Decision == ProposalDecisionPending {
+			if wroteFloorLayout, err = approvePendingAncestorsTx(tx, proposalID, workspaceID, revision, &system, decision.DecidedBy, now); err != nil {
+				return nil, err
+			}
+			wrote, err := approveArchitectureProposalSystemTx(tx, proposalID, workspaceID, revision, &system, decision.DecidedBy, now)
+			if err != nil {
+				return nil, err
+			}
+			wroteFloorLayout = wroteFloorLayout || wrote
+		}
+		wroteDescendants, err := approvePendingDescendantsTx(tx, proposalID, workspaceID, revision, systemKey, decision.DecidedBy, now)
 		if err != nil {
 			return nil, err
 		}
-		if wroteFloorLayout {
+		if wroteFloorLayout || wroteDescendants {
 			if err := bumpFloorLayoutRevisionTx(tx, workspaceID); err != nil {
 				return nil, err
 			}
@@ -751,6 +762,88 @@ func DecideArchitectureProposalSystem(database *sql.DB, proposalID, workspaceID,
 		}
 	}
 	return nil, sql.ErrNoRows
+}
+
+// approvePendingAncestorsTx approves the pending systems a system sits inside,
+// outermost first, because a system cannot exist on the Floor without its
+// container. Approving a subsystem therefore says yes to the boundaries around
+// it and to nothing beside it: its siblings stay pending. A container that was
+// sent back refuses the approval instead.
+func approvePendingAncestorsTx(tx *sql.Tx, proposalID, workspaceID string, revision int, system *ArchitectureProposalSystem, decidedBy string, now int64) (bool, error) {
+	pending := make([]ArchitectureProposalSystem, 0)
+	seen := map[string]bool{system.SystemKey: true}
+	for current := system; current.ParentRefType == "proposed_system" && !seen[current.ParentRefID]; {
+		var parent ArchitectureProposalSystem
+		if err := tx.QueryRow(`SELECT system_key,name,description,parent_ref_type,parent_ref_id,depth,decision,rejection_reason,materialized_system_id FROM architecture_proposal_systems WHERE proposal_id=? AND revision=? AND system_key=?`, proposalID, revision, current.ParentRefID).Scan(&parent.SystemKey, &parent.Name, &parent.Description, &parent.ParentRefType, &parent.ParentRefID, &parent.Depth, &parent.Decision, &parent.RejectionReason, &parent.MaterializedSystemID); err != nil {
+			return false, fmt.Errorf("proposed parent %s: %w", current.ParentRefID, err)
+		}
+		if parent.Decision == ProposalDecisionRejected {
+			return false, fmt.Errorf("%s was sent back, so nothing can be approved inside it", parent.Name)
+		}
+		if parent.Decision == ProposalDecisionApproved {
+			break
+		}
+		seen[parent.SystemKey] = true
+		pending = append(pending, parent)
+		current = &pending[len(pending)-1]
+	}
+	wroteFloorLayout := false
+	for i := len(pending) - 1; i >= 0; i-- {
+		wrote, err := approveArchitectureProposalSystemTx(tx, proposalID, workspaceID, revision, &pending[i], decidedBy, now)
+		if err != nil {
+			return false, fmt.Errorf("could not approve %s: %w", pending[i].Name, err)
+		}
+		wroteFloorLayout = wroteFloorLayout || wrote
+	}
+	return wroteFloorLayout, nil
+}
+
+// approvePendingDescendantsTx approves everything still pending inside an
+// approved system, so approving a branch is one decision and a reviewer only
+// descends into it to disagree. A system that was sent back stays sent back,
+// and so does whatever is pending beneath it.
+func approvePendingDescendantsTx(tx *sql.Tx, proposalID, workspaceID string, revision int, systemKey, decidedBy string, now int64) (bool, error) {
+	rows, err := tx.Query(`SELECT system_key,name,description,parent_ref_type,parent_ref_id,depth,decision,rejection_reason,materialized_system_id FROM architecture_proposal_systems WHERE proposal_id=? AND revision=? AND decision='pending' AND parent_ref_type='proposed_system' ORDER BY depth,name,system_key`, proposalID, revision)
+	if err != nil {
+		return false, err
+	}
+	pending := make([]ArchitectureProposalSystem, 0)
+	for rows.Next() {
+		var system ArchitectureProposalSystem
+		if err := rows.Scan(&system.SystemKey, &system.Name, &system.Description, &system.ParentRefType, &system.ParentRefID, &system.Depth, &system.Decision, &system.RejectionReason, &system.MaterializedSystemID); err != nil {
+			rows.Close()
+			return false, err
+		}
+		pending = append(pending, system)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return false, err
+	}
+	if err := rows.Close(); err != nil {
+		return false, err
+	}
+
+	approved := map[string]bool{systemKey: true}
+	wroteFloorLayout := false
+	// Parents sort before children by depth; the outer loop only matters if a
+	// stored depth has drifted from the parent links.
+	for progressed := true; progressed; {
+		progressed = false
+		for i := range pending {
+			if approved[pending[i].SystemKey] || !approved[pending[i].ParentRefID] {
+				continue
+			}
+			wrote, err := approveArchitectureProposalSystemTx(tx, proposalID, workspaceID, revision, &pending[i], decidedBy, now)
+			if err != nil {
+				return false, fmt.Errorf("could not approve %s: %w", pending[i].Name, err)
+			}
+			approved[pending[i].SystemKey] = true
+			wroteFloorLayout = wroteFloorLayout || wrote
+			progressed = true
+		}
+	}
+	return wroteFloorLayout, nil
 }
 
 // FinalizeArchitectureProposal is the commit boundary for review. Every

@@ -11,7 +11,7 @@ import (
 )
 
 func TestFileAdmissionSeparatesSourceDocumentsAndAssets(t *testing.T) {
-	for _, name := range []string{"main.go", "README.md", "notes.txt", "docs/architecture.rst"} {
+	for _, name := range []string{"main.go", "README.md", "notes.txt", "docs/architecture.rst", "web/app.css", "web/theme.scss", "web/old.sass", "web/vars.less"} {
 		if !IsSupportedSourceFile(name) {
 			t.Fatalf("expected %s to be indexable", name)
 		}
@@ -26,7 +26,7 @@ func TestFileAdmissionSeparatesSourceDocumentsAndAssets(t *testing.T) {
 			t.Fatalf("binary asset %s must not enter the index", name)
 		}
 	}
-	if IsDocumentationFile("main.go") {
+	if IsDocumentationFile("main.go") || IsDocumentationFile("web/app.css") {
 		t.Fatal("source code must not be classified as documentation")
 	}
 }

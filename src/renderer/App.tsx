@@ -47,6 +47,7 @@ import type { ProjectConfig } from '../shared/types'
 import {
   completeSourceBoundaries,
   projectHasEnteredWorkbench,
+  projectSetupInProgress,
   projectUsesBlankSetup,
   resolveProjectSourceBoundaries,
   sourceBoundariesAreComplete,
@@ -381,16 +382,25 @@ export default function App() {
     // Undo history belongs to the project it was made in.
     clearUndo()
     let config = migrateLegacyProjectLifecycle(incomingConfig)
-    let returning = projectHasEnteredWorkbench(config)
+    // Setup that was started and not finished is resumed, however far the
+    // project got: it has been opened and indexed, but nobody has organised
+    // it, and the bare canvas is not where to leave someone.
+    const resumingSetup = projectSetupInProgress(config)
+    let returning = !resumingSetup && projectHasEnteredWorkbench(config)
     // Older builds did not persist this milestone. Their existing index is
     // durable evidence that opening should go straight to the workbench.
-    if (!returning && window.ambio) {
+    if (!returning && !resumingSetup && window.ambio) {
       try {
         const scope = await fetch(`${archdApi()}/api/workspace-scope/${encodeURIComponent(config.id)}?rootPath=${encodeURIComponent(config.rootPath)}`)
         if (scope.ok && ((await scope.json()) as { indexed?: boolean }).indexed) returning = true
       } catch { /* a genuinely new project still follows its initial journey */ }
     }
-    config = { ...config, workbenchOpenedAt: config.workbenchOpenedAt || Date.now() }
+    config = {
+      ...config,
+      workbenchOpenedAt: config.workbenchOpenedAt || Date.now(),
+      // Recorded with the project, so the journey survives closing the app.
+      ...(returning ? {} : { setupStartedAt: config.setupStartedAt || Date.now() }),
+    }
     setCurrentProject(config)
     setStoreProject(config)
     // Questions and failures belong to the project that raised them. A new
@@ -688,9 +698,17 @@ export default function App() {
     }
   }, [routeProjectBySourceBoundaryState])
 
+  // Opening takes a moment (it asks archd about the project first). The setup
+  // screen stays up until the project is open, so the launcher never shows
+  // through between the two.
+  const confirmingSetup = useRef<string | null>(null)
   const confirmSetup = useCallback((config: ProjectConfig) => {
-    setPendingSetup(null)
-    openProject(config)
+    if (confirmingSetup.current === config.id) return
+    confirmingSetup.current = config.id
+    void openProject(config).catch(() => {}).finally(() => {
+      confirmingSetup.current = null
+      setPendingSetup(current => (current?.id === config.id ? null : current))
+    })
   }, [openProject])
 
   const cancelSetup = useCallback(() => {
@@ -747,7 +765,7 @@ export default function App() {
       else raiseNotice('no-delta', 'Nothing to review', 'No architectural changes since your last review.')
     },
     'agent.message': () => { window.dispatchEvent(new Event('ambio:open-agent-dispatch')) },
-    'agent.connect': () => { if (currentProject) setAgentSetupOpen(true) },
+    'agent.guidedSetup': () => { if (currentProject) setAgentSetupOpen(true) },
     'help.guide': () => { useOnboardingStore.getState().reveal() },
     'project.clearRecent': () => {
       void window.ambio?.clearRecentProjects()
@@ -874,7 +892,7 @@ export default function App() {
   }
 
   // Project setup configuration screen (after folder picked, before indexing)
-  if (pendingSetup) {
+  if (pendingSetup && currentProject?.id !== pendingSetup.id) {
     return (
       <ProjectSetupScreen
         baseConfig={pendingSetup}
@@ -974,9 +992,7 @@ export default function App() {
         {/* Top toolbar */}
         <Toolbar
           onSearch={() => setSearchOpen(true)}
-          onCloseProject={closeProject}
-          onManageAgentConnections={() => setAgentSetupOpen(true)}
-          projectName={currentProject.name}
+          onManageAgentConnections={() => emitCommand('agent.connect')}
           agentLogOpen={agentLogOpen}
           onToggleAgentLog={() => setAgentLogOpen(open => !open)}
         />

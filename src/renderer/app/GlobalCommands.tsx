@@ -4,6 +4,8 @@ import { DEFAULT_SETTINGS, UI_ZOOM_MAX, UI_ZOOM_MIN, type AppSettings } from '..
 import { useGraphStore } from '../store/graphStore'
 import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
 import { MarkdownView } from '../components/MarkdownView'
+import { AgentConnections } from '../components/AgentConnections'
+import { AmbioWordmark } from '../components/ui/AmbioBrand'
 
 type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
 
@@ -20,6 +22,7 @@ function isEditable(target: EventTarget | null): boolean {
 export function GlobalCommands() {
   const projectOpen = useGraphStore(state => state.currentProject !== null)
   const [dialog, setDialog] = useState<Dialog>(null)
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('general')
   const [toast, setToast] = useState<string | null>(null)
   const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string } | null>(null)
 
@@ -68,7 +71,9 @@ export function GlobalCommands() {
 
   useCommandHandlers({
     'view.commandPalette': () => setDialog(current => (current === 'palette' ? null : 'palette')),
-    'app.settings': () => setDialog('settings'),
+    'app.settings': () => { setSettingsSection('general'); setDialog('settings') },
+    // Agent connections are a section of Settings, with or without a project.
+    'agent.connect': () => { setSettingsSection('agents'); setDialog('settings') },
     'help.shortcuts': () => setDialog(current => (current === 'shortcuts' ? null : 'shortcuts')),
     'app.about': () => setDialog('about'),
     'app.checkUpdates': () => {
@@ -107,7 +112,7 @@ export function GlobalCommands() {
   return (
     <>
       {dialog === 'palette' && <CommandPalette projectOpen={projectOpen} platform={platform} onClose={() => setDialog(null)} />}
-      {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'settings' && <SettingsDialog key={settingsSection} initialSection={settingsSection} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog platform={platform} onClose={() => setDialog(null)} />}
       {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
       {dialog === 'acknowledgements' && <AcknowledgementsDialog onClose={() => setDialog(null)} />}
@@ -281,7 +286,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="About Ambio" width={420} onClose={onClose}>
       <div className="ambio-about">
-        <strong>Ambio</strong>
+        <AmbioWordmark />
         <p>Version {info?.version ?? '…'}{info && !info.isPackaged ? ' (development)' : ''}</p>
         <p>A live architecture map of your codebase, shared with your coding agents.</p>
         <p>Free software under the GNU Affero General Public License v3.0.</p>
@@ -326,8 +331,8 @@ const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'advanced', label: 'Advanced' },
 ]
 
-function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const [section, setSection] = useState<SettingsSection>('general')
+function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () => void; initialSection?: SettingsSection }) {
+  const [section, setSection] = useState<SettingsSection>(initialSection)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [loaded, setLoaded] = useState(false)
   const [initialMotion, setInitialMotion] = useState<AppSettings['reduceMotion'] | null>(null)
@@ -335,7 +340,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState('')
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [editors, setEditors] = useState<Array<{ id: string; label: string }>>([])
-  const projectOpen = useGraphStore(state => state.currentProject !== null)
+  const project = useGraphStore(state => state.currentProject)
 
   useEffect(() => {
     if (!window.ambio) { setLoaded(true); return }
@@ -356,7 +361,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="Settings" width={720} onClose={onClose} className="ambio-settings">
+    <Modal title="Settings" width={860} onClose={onClose} className="ambio-settings">
       <div className="ambio-settings__layout">
         <nav className="ambio-settings__nav" aria-label="Settings sections">
           {SECTIONS.map(item => (
@@ -372,7 +377,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
 
-        <div className="ambio-settings__panel" aria-busy={!loaded}>
+        <div key={section} className="ambio-settings__panel" aria-busy={!loaded}>
           {section === 'general' && (
             <>
               <Toggle
@@ -442,18 +447,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                   <strong>Interface zoom</strong>
                   <small>Scales all of Ambio. Also {formatAccelerator('CmdOrCtrl+=', currentPlatform())} and {formatAccelerator('CmdOrCtrl+-', currentPlatform())}.</small>
                 </div>
-                <div className="ambio-settings__zoom">
-                  <input
-                    type="range"
-                    min={UI_ZOOM_MIN}
-                    max={UI_ZOOM_MAX}
-                    step={0.1}
-                    value={settings.uiZoom}
-                    aria-label="Interface zoom"
-                    onChange={event => update({ uiZoom: Number(event.target.value) })}
-                  />
-                  <output>{Math.round(settings.uiZoom * 100)}%</output>
-                </div>
+                <ZoomSlider value={settings.uiZoom} onCommit={value => update({ uiZoom: value })} />
               </div>
               <div className="ambio-settings__row">
                 <div>
@@ -477,24 +471,12 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           {section === 'agents' && (
             <>
-              <p className="ambio-settings__text">
-                Ambio installs itself into your coding agents (Claude Code, Cursor, Codex and others) from the
-                Connect an Agent screen, which also repairs a connection that stopped working.
-              </p>
-              <div className="ambio-settings__row">
-                <div>
-                  <strong>Connect an agent</strong>
-                  <small>{projectOpen ? 'Opens the connection screen for this project.' : 'Open a project first.'}</small>
-                </div>
-                <button
-                  type="button"
-                  className="ambio-settings__button"
-                  disabled={!projectOpen}
-                  onClick={() => { onClose(); setTimeout(() => emitCommand('agent.connect'), 0) }}
-                >
-                  Connect…
-                </button>
-              </div>
+              <AgentConnections
+                workspaceId={project?.id}
+                projectRoot={project?.rootPath}
+                projectName={project?.name}
+                onGuidedSetup={project ? () => { onClose(); setTimeout(() => emitCommand('agent.guidedSetup'), 0) } : undefined}
+              />
               <RemoveFromAgents />
             </>
           )}
@@ -534,6 +516,40 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * The zoom applies when the slider is let go, not while it moves: rescaling
+ * the window mid-drag moves the slider out from under the pointer, which reads
+ * as the next drag position and makes the zoom jump around.
+ */
+function ZoomSlider({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState<number | null>(null)
+  const shown = draft ?? value
+  const commit = () => {
+    if (draft === null) return
+    if (draft !== value) onCommit(draft)
+    setDraft(null)
+  }
+  return (
+    <div className="ambio-settings__zoom">
+      <input
+        type="range"
+        min={UI_ZOOM_MIN}
+        max={UI_ZOOM_MAX}
+        step={0.1}
+        value={shown}
+        aria-label="Interface zoom"
+        aria-valuetext={`${Math.round(shown * 100)}%`}
+        onChange={event => setDraft(Number(event.target.value))}
+        onPointerUp={commit}
+        onPointerCancel={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+      />
+      <output>{Math.round(shown * 100)}%</output>
+    </div>
   )
 }
 

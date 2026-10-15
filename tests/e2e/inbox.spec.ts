@@ -41,7 +41,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
       localStorage.removeItem('ambio:inbox-draft:demo:sheet')
     })
     await page.reload()
-    await expect(page.getByText('Ambio Canvas Fixture')).toBeVisible()
+    await expect(page.locator('.react-flow__node-system').first()).toBeVisible()
     await expect(page.locator('.react-flow__node-system').first()).toBeVisible()
     await page.waitForTimeout(800)
     // Select two actual canvas systems; the composer must see both.

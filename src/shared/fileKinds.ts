@@ -5,9 +5,21 @@ const SOURCE_EXTENSIONS = new Set([
   '.py', '.go', '.rs', '.cs',
   '.cpp', '.cc', '.cxx', '.hpp', '.hxx', '.c', '.h',
   '.rb', '.java',
+  '.css', '.scss', '.sass', '.less',
 ])
 
 const DOCUMENT_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc'])
+
+/**
+ * Folders the indexer never enters, whatever a project's settings say
+ * (archd's skipDirs, internal/indexer/indexer.go). Folders whose name starts
+ * with a dot are skipped the same way.
+ */
+const ALWAYS_SKIPPED_DIRS = new Set(['node_modules', '.git', '.idea', '.vscode', 'dist', 'build', 'out', '.next', '__pycache__', 'vendor', 'target'])
+
+export function isAlwaysSkippedDir(name: string): boolean {
+  return ALWAYS_SKIPPED_DIRS.has(name) || name.startsWith('.')
+}
 
 function extensionOf(path: string): string {
   const name = path.replace(/\\/g, '/').split('/').pop() ?? path

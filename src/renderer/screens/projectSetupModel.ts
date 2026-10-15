@@ -1,4 +1,4 @@
-import { classifyProjectFile, type ProjectFileKind } from '../../shared/fileKinds.ts'
+import { classifyProjectFile, isAlwaysSkippedDir, type ProjectFileKind } from '../../shared/fileKinds.ts'
 
 export interface DirEntry {
   name: string
@@ -119,60 +119,66 @@ export function collectExcluded(nodes: TreeNode[]): string[] {
   return result
 }
 
-export interface ExploredScopeCounts {
-  folders: number
-  files: number
-  documents: number
-  unsupported: number
-  totalExplored: number
-  excludedCount: number
+/**
+ * A row nobody can include: a file type Ambio does not read, or a folder the
+ * indexer never enters. It is shown for orientation, without a checkbox.
+ */
+export function isNeverRead(node: TreeNode): boolean {
+  return node.kind === 'unsupported' || (node.isDirectory && isAlwaysSkippedDir(node.name))
 }
 
 /**
- * Counts kinds discovered in the lazily loaded tree.
- * NOTE: These are strictly counts of explored nodes in the tree, NOT an
- * exhaustive census of the repository on disk.
+ * Rows worth a decision, and the rest. Tucked away are the rows that can
+ * never be read and the noise folders still skipped by default; including a
+ * noise folder moves it up among the choices.
  */
-export function countExploredKinds(nodes: TreeNode[]): ExploredScopeCounts {
-  const result: ExploredScopeCounts = {
-    folders: 0,
-    files: 0,
-    documents: 0,
-    unsupported: 0,
-    totalExplored: 0,
-    excludedCount: 0,
+export function splitSetupRows(nodes: TreeNode[]): { shown: TreeNode[]; tucked: TreeNode[] } {
+  const shown: TreeNode[] = []
+  const tucked: TreeNode[] = []
+  for (const node of nodes) {
+    const noise = node.isDirectory && node.excluded && shouldAutoExclude(node.name)
+    if (isNeverRead(node) || noise) tucked.push(node)
+    else shown.push(node)
   }
-  const visit = (branch: TreeNode[]) => {
-    for (const node of branch) {
-      result.totalExplored += 1
-      if (node.excluded) {
-        result.excludedCount += 1
-      }
-      if (node.kind === 'unsupported') {
-        result.unsupported += 1
-        continue
-      }
-      if (node.excluded) continue
-      if (node.kind === 'folder') result.folders += 1
-      else if (node.kind === 'document') result.documents += 1
-      else if (node.kind === 'source') result.files += 1
-      if (node.children) visit(node.children)
-    }
-  }
-  visit(nodes)
-  return result
+  return { shown, tucked }
 }
 
-export function formatExploredScopeSummary(counts: ExploredScopeCounts): {
-  headline: string
-  subtext: string
-} {
-  const sourcePart = `${counts.files} source ${counts.files === 1 ? 'file' : 'files'}`
-  const docPart = `${counts.documents} ${counts.documents === 1 ? 'document' : 'documents'}`
-  const folderPart = `${counts.folders} ${counts.folders === 1 ? 'folder' : 'folders'}`
+/** "5 skipped automatically: .git, .venv, node_modules and 2 more" */
+export function tuckedSummary(tucked: TreeNode[]): string {
+  const names = tucked.slice(0, 3).map(node => node.name)
+  const rest = tucked.length - names.length
+  return `${tucked.length} skipped automatically: ${names.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`
+}
 
-  const headline = `${sourcePart} and ${docPart} discovered in this preview`
-  const subtext = `${folderPart} shown. Counts cover loaded folders, not all files on disk; indexing scans included folders recursively.`
+/** What pressing Index will read, from a real count of the checked scope. */
+export function scopeHeadline(estimate: { sourceFiles: number; truncated: boolean } | null): string {
+  if (!estimate) return 'Counting source files…'
+  if (estimate.sourceFiles === 0 && !estimate.truncated) return 'No source files in what is checked'
+  const files = `${estimate.sourceFiles.toLocaleString('en-US')} source ${estimate.sourceFiles === 1 ? 'file' : 'files'}`
+  return `${estimate.truncated ? 'More than ' : ''}${files} will be read`
+}
 
-  return { headline, subtext }
+const NOISE_KINDS: Record<string, string> = {
+  venv: 'a Python virtual environment: installed packages, not your code',
+  coverage: 'test coverage reports',
+  bin: 'build output',
+  obj: 'build output',
+  Library: 'files Unity generates',
+  Temp: 'temporary files',
+  Logs: 'log files',
+  UserSettings: 'editor settings',
+}
+
+/**
+ * A warning for a folder that is skipped by default and has been checked. It
+ * is the user's call, but they should make it knowing what the folder usually
+ * holds and how much it adds.
+ */
+export function noiseFolderWarning(node: TreeNode, sourceFiles?: number): string | null {
+  if (!node.isDirectory || node.excluded || isNeverRead(node) || !shouldAutoExclude(node.name)) return null
+  const what = NOISE_KINDS[node.name] ?? 'generated or third-party files'
+  const size = sourceFiles === undefined ? ''
+    : sourceFiles === 0 ? ' It holds no source files Ambio reads.'
+      : ` It adds ${sourceFiles.toLocaleString('en-US')} source ${sourceFiles === 1 ? 'file' : 'files'} to the map.`
+  return `${node.name} is usually ${what}.${size} Uncheck it unless you wrote what is inside.`
 }

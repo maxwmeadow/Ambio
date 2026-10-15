@@ -93,6 +93,11 @@ func ParseFile(absPath, relPath string) (*Result, error) {
 		return result, nil
 	}
 
+	if isStylesheetLanguage(lang) {
+		parseStylesheet(src, lang, relPath, result)
+		return result, nil
+	}
+
 	grammar := grammarFor(lang)
 	if grammar == nil {
 		return result, nil // unsupported language - return metadata only
@@ -158,6 +163,8 @@ func detectLanguage(path string) string {
 		return "ruby"
 	case ".java":
 		return "java"
+	case ".css", ".scss", ".sass", ".less":
+		return stylesheetExts[strings.ToLower(filepath.Ext(path))]
 	case ".md", ".mdx":
 		return "markdown"
 	case ".txt", ".rst", ".adoc":

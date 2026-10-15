@@ -62,8 +62,11 @@ export function getClaudeDesktopConfigCandidates(
   const roaming = join(explicitAppDataDir ?? paths.appDataDir, 'Claude', 'claude_desktop_config.json')
   if (!paths.isWin) return [roaming]
 
+  // The machine's own LOCALAPPDATA belongs to the machine's own home. Asked
+  // about any other home (a test's, another user's), it would point at this
+  // user's real Store install: read as someone else's, and written to.
   const localAppData = localAppDataDir
-    ?? process.env.LOCALAPPDATA
+    ?? (homeDir === os.homedir() ? process.env.LOCALAPPDATA : undefined)
     ?? join(homeDir, 'AppData', 'Local')
   const packagesRoot = join(localAppData, 'Packages')
 

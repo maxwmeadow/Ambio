@@ -135,6 +135,16 @@ test('an empty fileIds list is not a call-graph request', () => {
   assert.equal(routeTool('trace_calls', { from: 'a', to: 'b', fileIds: [] }).tool, 'get_call_path')
 })
 
+test('the inbox waits only when asked to watch, and never while claiming by ID', () => {
+  assert.deepEqual(routeTool('get_inbox', { watch: true }), { tool: 'await_canvas', args: { watch: true } })
+  assert.deepEqual(routeTool('get_inbox', { watch: true, expectedWorkspaceId: 'ws' }), { tool: 'await_canvas', args: { expectedWorkspaceId: 'ws', watch: true } })
+  // A claim by ID, a context read and a connection check answer at once.
+  assert.deepEqual(routeTool('get_inbox', { watch: true, messageId: 'work-order-1' }), { tool: 'get_canvas_updates', args: { messageId: 'work-order-1' } })
+  assert.equal(routeTool('get_inbox', { watch: true, messageHandle: 'handle' }).tool, 'get_canvas_updates')
+  assert.equal(routeTool('get_inbox', { watch: true, verifyOnly: true, expectedWorkspaceId: 'ws' }).tool, 'get_canvas_updates')
+  assert.equal(routeTool('get_inbox', { watch: false }).tool, 'get_canvas_updates')
+})
+
 test('the inbox stays nonblocking and forwards bounded context requests', () => {
   assert.equal(routeTool('get_inbox', {}).tool, 'get_canvas_updates')
   const waiting = routeTool('get_inbox', { waitSeconds: 30 })

@@ -1,25 +1,87 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DeliveryHost, DeliveryRun } from '../../shared/agentDelivery'
+import { DELIVERY_SUPPORT, DELIVERY_SUPPORT_LABEL, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { archdApi } from '../archdEndpoint.ts'
+import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
 
-export function useAgentDelivery(workspaceId: string, isOpen: boolean) {
+export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?: string) {
   const [hosts, setHosts] = useState<DeliveryHost[]>([])
-  const [hostId, setHostId] = useState('')
+  const [hostId, setHostIdState] = useState('')
+  const [installedIds, setInstalledIds] = useState<string[]>([])
+  // Once the user picks a destination in this panel, a refresh must not move it.
+  const chosen = useRef(false)
+  const setHostId = (value: string) => {
+    chosen.current = true
+    setHostIdState(value)
+    rememberDeliveryHost(workspaceId, value)
+  }
   const [runs, setRuns] = useState<DeliveryRun[]>([])
+  // What each run has said and done, by run key, for the turn it answers.
+  const [events, setEvents] = useState<Record<string, DeliveryEvent[]>>({})
+  const seen = useRef<Record<string, DeliveryEvent[]>>({})
   const [notice, setNotice] = useState('')
+  // Sessions the user told to watch Ambio, waiting on the inbox right now,
+  // by the host each belongs to.
+  const [watchingHosts, setWatchingHosts] = useState<string[]>([])
+  const watchers = watchingHosts.length
   const [busy, setBusy] = useState('')
   const lock = useRef(false)
   const workspace = useRef(workspaceId)
   workspace.current = workspaceId
-  useEffect(() => { setHostId(''); setRuns([]); setNotice('') }, [workspaceId])
+  useEffect(() => { chosen.current = false; setHostIdState(''); setInstalledIds([]); setRuns([]); setEvents({}); seen.current = {}; setNotice('') }, [workspaceId])
   useEffect(() => {
     if (!isOpen) return
     let active = true
-    void window.ambio.listDeliveryHosts().then(items => { if (active) setHosts(items) }, () => { if (active) setNotice('Agent destinations unavailable. You can still save and copy a handoff.') })
-    const refresh = () => { void window.ambio.listDeliveryRuns(workspaceId).then(items => { if (active) setRuns(items) }, () => { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }) }
-    refresh()
-    const timer = setInterval(refresh, 3000)
-    return () => { active = false; clearInterval(timer) }
-  }, [workspaceId, isOpen])
+    // Start on an agent that can receive the request: the one used last here,
+    // else one connected now, else one Ambio is installed in.
+    const installed = Promise.resolve().then(() => window.ambio.listAgentHosts(rootPath))
+      .then(items => items.filter(item => item.configured && item.workflowInstalled).map(item => item.id), () => [] as string[])
+    const live = fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
+      .then(response => response.ok ? response.json() as Promise<{ connections?: Array<{ hostId: string }> }> : {})
+      .then(body => (body as { connections?: Array<{ hostId: string }> }).connections?.map(item => item.hostId) ?? [], () => [] as string[])
+    const watching = () => fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
+      .then(response => response.ok ? response.json() as Promise<{ connections?: Array<{ hostId: string; watchingUntil?: number }> }> : {})
+      .then(body => ((body as { connections?: Array<{ hostId: string; watchingUntil?: number }> }).connections ?? []).filter(item => (item.watchingUntil ?? 0) > Date.now()).map(item => item.hostId), () => [] as string[])
+    void window.ambio.listDeliveryHosts().then(async items => {
+      const [installedNow, liveNow, watchingNow] = await Promise.all([installed, live, watching()])
+      if (!active) return
+      setHosts(items)
+      setInstalledIds([...new Set([...liveNow, ...installedNow])])
+      setWatchingHosts(watchingNow)
+      if (!chosen.current) {
+        const remembered = rememberedDeliveryHost(workspaceId)
+        // A session that is watching right now is where the conversation was
+        // last happening; go back to it.
+        setHostIdState(remembered === WATCHING_DELIVERY && watchingNow.length > 0 ? WATCHING_DELIVERY
+          : chooseDeliveryHost({ hosts: items, remembered: remembered === WATCHING_DELIVERY ? null : remembered, liveIds: liveNow, installedIds: installedNow }))
+      }
+    }, () => { if (active) setNotice('Agent destinations unavailable. You can still save and copy a handoff.') })
+    // A run in progress is followed closely; otherwise the list is only kept current.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const refresh = async () => {
+      let live = false
+      try {
+        const items = await window.ambio.listDeliveryRuns(workspaceId)
+        if (!active) return
+        setRuns(items)
+        for (const run of items) {
+          const working = run.state === 'starting' || run.state === 'running' || run.state === 'stopping'
+          live ||= working
+          // Read a finished run once more, for what it said last.
+          const known = seen.current[run.key]
+          if (!working && known && (known as DeliveryEvent[] & { settled?: boolean }).settled) continue
+          const fresh = await window.ambio.listDeliveryEvents?.(workspaceId, run.key, 0) ?? []
+          if (!active) return
+          const next = Object.assign(fresh, { settled: !working })
+          if (!known || known.length !== fresh.length || !working) { seen.current = { ...seen.current, [run.key]: next }; setEvents(seen.current) }
+        }
+      } catch { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }
+      const watchingNow = await watching()
+      if (active) setWatchingHosts(current => current.length === watchingNow.length && current.every((host, index) => host === watchingNow[index]) ? current : watchingNow)
+      if (active) timer = setTimeout(() => { void refresh() }, live ? 1000 : 3000)
+    }
+    void refresh()
+    return () => { active = false; clearTimeout(timer) }
+  }, [workspaceId, isOpen, rootPath])
   const deliver = async (messageId: string, destination = hostId) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
@@ -38,32 +100,66 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean) {
       if (workspace.current === workspaceId) setRuns(await window.ambio.listDeliveryRuns(workspaceId))
     } catch (error) { if (workspace.current === workspaceId) setNotice(String(error)) }
   }
-  return { hosts, hostId, setHostId, runs, notice, busy, deliver, stop }
+  return { hosts, hostId, setHostId, installedIds, runs, events, watchers, watchingHosts, notice, setNotice, busy, deliver, stop }
 }
 
-export function deliveryAction(host?: DeliveryHost): string {
+export function deliveryAction(host?: DeliveryHost, hostId = '', watchingHosts: string[] = []): string {
+  if (hostId === WATCHING_DELIVERY) return 'Send to watching session'
+  if (host && watchingHosts.includes(host.id)) return `Send to the watching ${host.label} session`
   if (!host) return 'Send to inbox'
   return host.route === 'run' ? `Start ${host.label}` : host.route === 'open' ? `Copy + open ${host.label}` : `Copy for ${host.label}`
 }
 
-export function AgentDeliveryDestination({ hosts, hostId, onChange, disabled, rootPath }: {
-  hosts: DeliveryHost[]; hostId: string; onChange: (value: string) => void; disabled: boolean; rootPath: string
+export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections }: {
+  hosts: DeliveryHost[]; hostId: string; installedIds: string[]; watchers?: number; watchingHosts?: string[]; onChange: (value: string) => void; disabled: boolean; rootPath: string
+  onManageConnections?: () => void
 }) {
   const host = hosts.find(item => item.id === hostId)
+  // A host with a session watching gets the message in that session.
+  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
+  const connected = hosts.filter(item => installedIds.includes(item.id))
+  const others = hosts.filter(item => !installedIds.includes(item.id))
+  // What sending does is on the send button; the fine print waits on hover.
+  const about = [
+    hostId === WATCHING_DELIVERY || watchingHosts.includes(hostId)
+      ? 'Leaves the request for the session you told to watch Ambio. It answers in its own chat, with everything already said there.'
+      : host?.detail ?? 'Save the request, then copy its handoff into the agent chat you choose.',
+    ...(host?.route === 'run' && !watchingHosts.includes(hostId) ? [`Edits files in ${rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.`] : []),
+  ].join(' ')
   return <div className="ambio-inbox__delivery">
-    <label>Deliver to<select aria-label="Work-order destination" value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
-      <option value="">Choose chat manually</option>
-      {hosts.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : ''}</option>)}
+    <label>Deliver to<select aria-label="Work-order destination" title={about} value={hostId} disabled={disabled} onChange={event => onChange(event.target.value)}>
+      {connected.length > 0 && <optgroup label="Connected to Ambio">{connected.map(option)}</optgroup>}
+      {others.length > 0 && <optgroup label="Not set up with Ambio">{others.map(option)}</optgroup>}
+      {/* A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice. */}
+      {(watchers > 0 || hostId === WATCHING_DELIVERY) && <option value={WATCHING_DELIVERY}>{watchers > 0 ? `Session watching Ambio${watchers > 1 ? ` (${watchers})` : ''}` : 'Session watching Ambio · none right now'}</option>}
+      <option value="">Copy the handoff myself</option>
     </select></label>
-    <small>{host?.detail ?? 'Save the request, then copy its handoff into the agent chat you choose.'}</small>
-    {host?.route === 'run' && <small title={rootPath}>Edits files in {rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.</small>}
+    {/* What this destination does and does not do, before anything is sent. */}
+    {(support => support && <p className="ambio-inbox__delivery-support" data-level={support.level}>
+      <strong>{DELIVERY_SUPPORT_LABEL[support.level]}</strong> {watchingHosts.includes(hostId) ? DELIVERY_SUPPORT[WATCHING_DELIVERY].summary : support.summary}
+    </p>)(DELIVERY_SUPPORT[hostId])}
+    {connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
   </div>
 }
 
-export function AgentDeliveryStatus({ run, hosts, onStop }: { run?: DeliveryRun; hosts: DeliveryHost[]; onStop: (run: DeliveryRun) => void }) {
+/** How many of a run's latest events the turn shows while it works. */
+const ACTIVITY_SHOWN = 6
+
+export function AgentDeliveryStatus({ run, hosts, events = [], answered = false, onStop }: {
+  run?: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; answered?: boolean; onStop: (run: DeliveryRun) => void
+}) {
   if (!run) return null
+  const working = run.state === 'running' || run.state === 'starting'
+  // Once the agent has answered, its reply is the record; the play-by-play
+  // stays in the output file. An error is kept, because it explains a turn
+  // that never got an answer.
+  const shown = answered ? [] : working ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
   return <div className="ambio-inbox__delivery-run" role="status">
-    <span><strong>{hosts.find(host => host.id === run.hostId)?.label ?? run.hostId}</strong> · {run.detail}</span>
+    <span><strong>{hosts.find(host => host.id === run.hostId)?.label ?? run.hostId}</strong> · {run.detail}{run.resumed && working ? ' Continuing its earlier session.' : ''}</span>
+    {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
+      {events.length > shown.length && working && <li className="ambio-inbox__activity-earlier">{events.length - shown.length} earlier</li>}
+      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}</li>)}
+    </ol>}
     {(run.state === 'running' || run.state === 'starting') && <button type="button" onClick={() => onStop(run)}>Stop run</button>}
     <button type="button" onClick={() => window.ambio.showInFolder(run.logPath)}>Show agent output</button>
   </div>

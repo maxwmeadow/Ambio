@@ -73,6 +73,8 @@ export function installCliLauncher(options: {
   }
   const installed = join(target, name)
   try { fs.rmSync(installed, { force: true }) } catch { /* replaced below */ }
-  fs.symlinkSync(own, installed)
+  // A link keeps one copy to update. Where links are not permitted (some
+  // mounted and locked-down file systems), the script itself is placed there.
+  try { fs.symlinkSync(own, installed) } catch { fs.writeFileSync(installed, script, { mode: 0o755 }) }
   return { ok: true, path: installed, detail: `Installed ${installed}. Open a new terminal and run: ambio .` }
 }

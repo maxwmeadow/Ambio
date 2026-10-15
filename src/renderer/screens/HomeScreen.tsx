@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig, TrashedProject } from '../../shared/types'
 import { clearProjectLocalState } from '../projectLocalState'
-import { AmbioMark, WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
-import { handleLauncherKey, launcherProjects } from './homeScreenModel'
+import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
+import { AmbioWordmark } from '../components/ui/AmbioBrand'
+import { SEARCH_FROM_PROJECTS, handleLauncherKey, launcherProjects } from './homeScreenModel'
+import { projectSetupInProgress } from '../../shared/projectLifecycle'
 import { useUpdateStatus } from '../useUpdateStatus'
 import { emitCommand } from '../app/commands'
 import { archdApi } from '../archdEndpoint.ts'
@@ -32,9 +34,9 @@ interface CommandDeckStatus {
 }
 
 const WORKBENCH_CAPABILITIES = [
-  { index: '01', title: 'Living code topology', detail: 'Automatically maps system boundaries, imports, and call graphs as code changes.' },
-  { index: '02', title: 'Visual agent dispatch', detail: 'Sketch new components on canvas; connected MCP agents turn your design into code.' },
-  { index: '03', title: 'Semantic zoom', detail: 'Glide seamlessly from high-level architecture down to files, symbols, and live source.' },
+  { index: '01', title: 'Draw it, and your agent builds it', detail: 'Sketch a change on a sheet and send it as a work order. Ambio checks what was built against what you drew.' },
+  { index: '02', title: 'Agents show you the plan first', detail: 'Connected agents draw what they intend to build on your map. You approve, correct or reject it before any code moves.' },
+  { index: '03', title: 'Review changes on the map', detail: 'See what an agent changed as systems and relationships, then accept or undo it, instead of reading a 40-file diff.' },
 ] as const
 
 // Mirror of the folder-name sanitiser in main.ts, for the live path preview.
@@ -75,6 +77,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   const [searchQuery, setSearchQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [searchRevealed, setSearchRevealed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const recentListRef = useRef<HTMLUListElement>(null)
 
@@ -120,8 +123,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
 
       switch (action.type) {
         case 'FOCUS_SEARCH':
-          searchInputRef.current?.focus()
-          searchInputRef.current?.select()
+          // With few projects the box is not shown until it is asked for.
+          setSearchRevealed(true)
+          requestAnimationFrame(() => {
+            searchInputRef.current?.focus()
+            searchInputRef.current?.select()
+          })
           break
         case 'NAVIGATE':
           setActiveIndex(action.nextIndex ?? null)
@@ -357,23 +364,22 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
   const safeName = safeFolderName(newName)
   const canCreate = !!newLocation && !!safeName && !createBusy
 
+  const showSearch = searchRevealed || searchQuery.length > 0 || recentProjects.length >= SEARCH_FROM_PROJECTS
+
   return (
     <main className="ambio-launcher">
-      <WorkbenchTitleBar className="ambio-launcher__titlebar" context="Project Navigator" status="READY" />
+      <WorkbenchTitleBar className="ambio-launcher__titlebar" />
 
       <div className="ambio-launcher__body">
         <section className="ambio-launcher__introduction" aria-labelledby="ambio-launcher-title">
-          <div className="ambio-launcher__eyebrow">SPATIAL ARCHITECTURE WORKBENCH</div>
-          <AmbioMark />
-          <h1 id="ambio-launcher-title">Ambio</h1>
+          <h1 id="ambio-launcher-title"><AmbioWordmark /></h1>
           <p className="ambio-launcher__statement">
             See your entire codebase.<br />
             Steer what your agents build.
           </p>
           <p className="ambio-launcher__description">
-            A live architecture canvas wired directly to your repository and AI coding agents.
-            Explore real system topology, sketch new features as visual blueprints, and review
-            agent changes spatially instead of reading 40-file diffs.
+            A live map of your code, connected to your coding agents. Explore how the system fits together,
+            sketch what you want built, and review what agents changed on the map instead of in a long diff.
           </p>
 
           <ol className="ambio-launcher__capabilities">
@@ -391,28 +397,25 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
 
         <section className="ambio-launcher__workspace" aria-labelledby="ambio-workspace-title">
           <div className="ambio-launcher__workspace-heading">
-            <span>START</span>
-            <div>
-              <h2 id="ambio-workspace-title">Command Deck</h2>
-              <p>See what changed, what agents are doing, and what intent is still open — then enter the canvas.</p>
-            </div>
+            <h2 id="ambio-workspace-title">Get started</h2>
+            <p>Open the code you are working on, or start a new project from nothing.</p>
           </div>
 
           <div className="ambio-launcher__forks">
-            <button className="ambio-launcher__fork ambio-launcher__fork--new" onClick={startNew}>
-              <span className="ambio-launcher__fork-glyph" aria-hidden="true">＋</span>
-              <span className="ambio-launcher__fork-copy">
-                <strong>New Project</strong>
-                <small>Create an empty workspace and sketch architecture for agents to build.</small>
-              </span>
-              <span className="ambio-launcher__fork-arrow" aria-hidden="true">→</span>
-            </button>
-
             <button className="ambio-launcher__fork ambio-launcher__fork--open" onClick={openDialog}>
               <span className="ambio-launcher__fork-glyph" aria-hidden="true">▤</span>
               <span className="ambio-launcher__fork-copy">
                 <strong>Open Codebase</strong>
-                <small>Index an existing repository into a living, agent-connected architecture map.</small>
+                <small>Map a project you already have.</small>
+              </span>
+              <span className="ambio-launcher__fork-arrow" aria-hidden="true">→</span>
+            </button>
+
+            <button className="ambio-launcher__fork ambio-launcher__fork--new" onClick={startNew}>
+              <span className="ambio-launcher__fork-glyph" aria-hidden="true">＋</span>
+              <span className="ambio-launcher__fork-copy">
+                <strong>New Project</strong>
+                <small>Start empty and design before any code exists.</small>
               </span>
               <span className="ambio-launcher__fork-arrow" aria-hidden="true">→</span>
             </button>
@@ -422,10 +425,12 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
             <div className="ambio-launcher__recent">
               <div className="ambio-launcher__section-label">
                 <span>{projectList.mode === 'search' ? 'MATCHING PROJECTS' : projectList.mode === 'all' ? 'ALL PROJECTS' : 'RECENTLY OPENED'}</span>
-                <small>{filteredProjects.length} OF {recentProjects.length} PROJECTS</small>
+                {filteredProjects.length < recentProjects.length && (
+                  <small>{filteredProjects.length} OF {recentProjects.length}</small>
+                )}
               </div>
 
-              <div className="ambio-launcher__search-box">
+              {showSearch && <div className="ambio-launcher__search-box">
                 <span className="ambio-launcher__search-icon" aria-hidden="true">⌕</span>
                 <input
                   ref={searchInputRef}
@@ -437,7 +442,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                   }}
                   onFocus={() => setIsSearchFocused(true)}
                   onBlur={() => setIsSearchFocused(false)}
-                  placeholder="Search all projects (/ to focus, ↑↓ to navigate)…"
+                  placeholder="Search projects…"
                   aria-label="Search all projects"
                   spellCheck={false}
                 />
@@ -457,7 +462,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                 ) : (
                   <kbd className="ambio-launcher__search-shortcut" title="Press / to focus search">/</kbd>
                 )}
-              </div>
+              </div>}
 
               {removeError && (
                 <div className="ambio-launcher__remove-error" role="alert">{removeError}</div>
@@ -501,7 +506,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                                   <span className="ambio-launcher__deck-signal ambio-launcher__deck-signal--attention">FOLDER NOT FOUND · LOCATE</span>
                                 </span>
                               )
-                              : <ProjectDeckSignals status={deckStatus[project.id]} />}
+                              : <ProjectDeckSignals status={deckStatus[project.id]} setupUnfinished={projectSetupInProgress(project)} />}
                           </span>
                           <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
                         </button>
@@ -578,7 +583,7 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
 
           <footer className="ambio-launcher__local-note">
             <span aria-hidden="true" />
-            <p><strong>LOCAL WORKSPACE</strong> Project indexes and layout state remain on this machine.</p>
+            <p>Your code and maps stay on this computer.</p>
           </footer>
           {window.ambio && <SupportLinks trashCount={trash.length} onOpenTrash={() => { setTrashError(null); setTrashOpen(true) }} />}
         </section>
@@ -810,10 +815,9 @@ function daysLeft(expiresAt: number): string {
 }
 
 function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenTrash: () => void }) {
-  const [copied, setCopied] = useState(false)
   const update = useUpdateStatus()
   return (
-    <nav className="ambio-launcher__support" aria-label="Help and support">
+    <nav className="ambio-launcher__support" aria-label="Maps and settings">
       {update.state !== 'idle' && (
         <>
           <button type="button" className="ambio-launcher__update" onClick={() => void window.ambio.installUpdate()}>
@@ -832,35 +836,21 @@ function SupportLinks({ trashCount, onOpenTrash }: { trashCount: number; onOpenT
           <span aria-hidden="true">·</span>
         </>
       )}
-      <button type="button" onClick={() => emitCommand('help.feedback')}>Send feedback</button>
-      <span aria-hidden="true">·</span>
-      <button type="button" onClick={() => void window.ambio.reportBug()}>Report a bug</button>
-      <span aria-hidden="true">·</span>
-      <button
-        type="button"
-        onClick={() => {
-          void window.ambio.copyDiagnostics().then(() => {
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-          })
-        }}
-      >
-        {copied ? 'Diagnostics copied' : 'Copy diagnostics'}
-      </button>
-      <span aria-hidden="true">·</span>
-      <button type="button" onClick={() => void window.ambio.openLogsFolder()}>Open logs</button>
-      <span aria-hidden="true">·</span>
       <button type="button" onClick={() => emitCommand('app.settings')}>Settings</button>
     </nav>
   )
 }
 
-function ProjectDeckSignals({ status }: { status?: CommandDeckStatus }) {
+function ProjectDeckSignals({ status, setupUnfinished }: { status?: CommandDeckStatus; setupUnfinished: boolean }) {
+  // Opening this project goes back into setup; say so before anything else.
+  const unfinished = setupUnfinished
+    ? <span className="ambio-launcher__deck-signal ambio-launcher__deck-signal--attention">SETUP NOT FINISHED</span>
+    : null
   if (!status) {
-    return <span className="ambio-launcher__deck-signals ambio-launcher__deck-signals--loading">READING MAP…</span>
+    return <span className="ambio-launcher__deck-signals ambio-launcher__deck-signals--loading">{unfinished ?? 'READING MAP…'}</span>
   }
   if (!status.indexed) {
-    return <span className="ambio-launcher__deck-signals">NOT INDEXED</span>
+    return <span className="ambio-launcher__deck-signals">{unfinished ?? 'NOT INDEXED YET'}</span>
   }
   const signals: Array<{ label: string; tone?: string }> = []
   if (status.activeWork.length > 0) {
@@ -884,12 +874,13 @@ function ProjectDeckSignals({ status }: { status?: CommandDeckStatus }) {
   if (status.pendingProposals > 0) {
     signals.push({ label: `${status.pendingProposals} PROPOSAL${status.pendingProposals === 1 ? '' : 'S'}` })
   }
-  if (signals.length === 0) {
-    signals.push({ label: `${status.systems} SYSTEMS · MAP CLEAN`, tone: 'clean' })
+  if (signals.length === 0 && !unfinished) {
+    signals.push({ label: `${status.systems} SYSTEM${status.systems === 1 ? '' : 'S'}`, tone: 'clean' })
   }
   return (
     <span className="ambio-launcher__deck-signals">
-      {signals.slice(0, 3).map(signal => (
+      {unfinished}
+      {signals.slice(0, unfinished ? 2 : 3).map(signal => (
         <span
           key={signal.label}
           className={signal.tone

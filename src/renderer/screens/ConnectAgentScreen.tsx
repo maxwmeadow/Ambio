@@ -1,17 +1,21 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
 import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
+  AGENT_STATE_LABEL,
   commandKind,
   connectionCheckPrompt,
+  familySummary,
+  installOutcomeNote,
+  orderAgentFamilies,
   presentAgentHost,
-  presentAgentFamily,
   type AgentHostState,
 } from './connectAgentPresentation'
 import { archdApi } from '../archdEndpoint.ts'
+import { rememberSetupStep, rememberedSetupStep } from '../projectLocalState'
 
 // Each surface states its own condition in two or three words. The full
 // sentence stays on the dot's tooltip, where it does not crowd the row.
@@ -32,14 +36,6 @@ function surfaceTooltip(host: AgentHostInfo, state: AgentHostState): string {
       return `Not found on this machine. Ambio looked for ${host.configPath}. `
         + 'Already have this installed? It may live somewhere Ambio does not check yet - use Rescan after opening it once.'
   }
-}
-
-const SURFACE_STATE_LABEL: Record<AgentHostState, string> = {
-  live: 'Process online',
-  installed: 'Installed',
-  repair: 'Needs repair',
-  available: 'Ready to install',
-  missing: 'Not found',
 }
 
 const POLL_MS = 2000
@@ -87,15 +83,27 @@ const progress = new Map<string, Phase>()
 export function ConnectAgentScreen({
   project, fileCount, indexing, blankProject, backLabel = '← Projects', onComplete, onReview, onSkip, onBack,
 }: Props) {
-  const [activeStep, setActiveStep] = useState<SetupStep>(1)
+  // Reopening the project returns to the step it was left on.
+  const [activeStep, setActiveStepState] = useState<SetupStep>(() => {
+    const saved = rememberedSetupStep(project.id) ?? 1
+    return Math.min(saved, blankProject ? 2 : 4) as SetupStep
+  })
+  const setActiveStep = useCallback((step: SetupStep) => {
+    setActiveStepState(step)
+    rememberSetupStep(project.id, step)
+  }, [project.id])
   const [copied, setCopied] = useState(false)
   const [hosts, setHosts] = useState<AgentHostInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, AgentInstallResult>>({})
   const [installing, setInstalling] = useState<string | null>(null)
-  // Families with more than one modality collapse by default: the row states
-  // what it is, and the surfaces underneath are opened deliberately.
-  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(() => new Set())
+  // A family opens by itself while one of its surfaces needs a decision
+  // (install or repair); after that the user's own toggle wins.
+  const [toggledFamilies, setToggledFamilies] = useState<Record<string, boolean>>({})
+  const [showMissing, setShowMissing] = useState(false)
+  // One line under a surface after an install or a removal, and one under a
+  // family when installing all of it failed.
+  const [notes, setNotes] = useState<Record<string, { ok: boolean; text: string }>>({})
   const [rescanning, setRescanning] = useState(false)
   const [locateNotices, setLocateNotices] = useState<Record<string, string>>({})
   const [hasLivePresence, setHasLivePresence] = useState(false)
@@ -197,6 +205,41 @@ export function ConnectAgentScreen({
     return () => clearInterval(timer)
   }, [blankProject, phase, project.id, setPhase])
 
+  // A mapping has started once the agent has saved its first chunk. That is
+  // progress, not a proposal: the proposal exists when the agent finishes.
+  const [mapping, setMapping] = useState(false)
+  useEffect(() => {
+    if (blankProject) return
+    let active = true
+    const check = async () => {
+      try {
+        const res = await fetch(`${archdApi()}/api/architecture-proposal-drafts?workspace=${encodeURIComponent(project.id)}`)
+        if (!res.ok) return
+        const drafts = await res.json() as Array<{ chunkCount: number }>
+        if (active) setMapping(drafts.some(draft => draft.chunkCount > 0))
+      } catch { /* the next poll retries */ }
+    }
+    const onDraft = () => { void check() }
+    onDraft()
+    const timer = setInterval(onDraft, POLL_MS)
+    window.addEventListener('ambio:proposal-draft', onDraft)
+    return () => {
+      active = false
+      clearInterval(timer)
+      window.removeEventListener('ambio:proposal-draft', onDraft)
+    }
+  }, [blankProject, project.id])
+
+  // The first chunk moves the screen on from "ask your agent" to the review
+  // step by itself. Once only, so Back to the command is not undone.
+  const movedToReview = useRef(false)
+  useEffect(() => {
+    if (blankProject || movedToReview.current || activeStep !== 3) return
+    if (!mapping && phase !== 'proposed') return
+    movedToReview.current = true
+    setActiveStep(4)
+  }, [blankProject, activeStep, mapping, phase, setActiveStep])
+
   const selectedHost = useMemo(
     () => hosts.find(host => host.id === selectedHostId) ?? hosts[0] ?? null,
     [hosts, selectedHostId],
@@ -268,16 +311,12 @@ export function ConnectAgentScreen({
     try {
       const outcome = await window.ambio.installAgent(candidate.id, project.rootPath)
       setResults(current => ({ ...current, [candidate.id]: outcome }))
+      setNotes(current => ({ ...current, [candidate.id]: installOutcomeNote(candidate, 'install', outcome) }))
       if (outcome.ok) showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } catch (error) {
-      setResults(current => ({
-        ...current,
-        [candidate.id]: {
-          ok: false,
-          detail: error instanceof Error ? error.message : 'Ambio could not inspect the updated configuration.',
-          paths: [],
-        },
-      }))
+      const detail = error instanceof Error ? error.message : 'Ambio could not inspect the updated configuration.'
+      setResults(current => ({ ...current, [candidate.id]: { ok: false, detail, paths: [] } }))
+      setNotes(current => ({ ...current, [candidate.id]: { ok: false, text: detail } }))
     } finally {
       setInstalling(null)
     }
@@ -287,34 +326,37 @@ export function ConnectAgentScreen({
     setInstalling(candidate.id)
     try {
       const outcome = await window.ambio.uninstallAgent(candidate.id, project.rootPath)
-      setResults(current => ({ ...current, [candidate.id]: outcome }))
+      // An earlier install result must not keep the row looking installed.
+      setResults(current => { const { [candidate.id]: _removed, ...rest } = current; return rest })
+      setNotes(current => ({ ...current, [candidate.id]: installOutcomeNote(candidate, 'remove', outcome) }))
       showHosts(await window.ambio.listAgentHosts(project.rootPath))
     } finally {
       setInstalling(null)
     }
   }
 
+  // One install for every surface of a family that is on this computer and
+  // does not have Ambio yet. Each of those surfaces then says its own next
+  // step; a failure is said once, on the family.
   const installFamily = async (family: AgentFamilyGroup) => {
+    const targets = family.modalities.filter(modality =>
+      presentAgentHost(modality, results[modality.id], liveHostIds.has(modality.id)).state === 'available')
     setInstalling(family.id)
     try {
       const outcome = await window.ambio.installFamily(family.id, project.rootPath)
-      setResults(current => {
-        const next = { ...current }
-        for (const m of family.modalities) {
-          next[m.id] = outcome
-        }
-        return next
-      })
-      if (outcome.ok) showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      if (outcome.ok) {
+        setResults(current => ({ ...current, ...Object.fromEntries(targets.map(target => [target.id, outcome])) }))
+        setNotes(current => {
+          const { [family.id]: _cleared, ...rest } = current
+          return { ...rest, ...Object.fromEntries(targets.map(target => [target.id, installOutcomeNote(target, 'install', outcome)])) }
+        })
+        showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      } else {
+        setNotes(current => ({ ...current, [family.id]: { ok: false, text: outcome.detail } }))
+      }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Could not install family.'
-      setResults(current => {
-        const next = { ...current }
-        for (const m of family.modalities) {
-          next[m.id] = { ok: false, detail, paths: [] }
-        }
-        return next
-      })
+      const detail = error instanceof Error ? error.message : 'Could not install into these agents.'
+      setNotes(current => ({ ...current, [family.id]: { ok: false, text: detail } }))
     } finally {
       setInstalling(null)
     }
@@ -349,11 +391,152 @@ export function ConnectAgentScreen({
 
   const stepLabels = blankProject ? BLANK_PROJECT_STEPS : CODEBASE_STEPS
 
+  const orderedFamilies = orderAgentFamilies(families, results, liveHostIds)
+  const missingCount = orderedFamilies.filter(item => item.presentation.state === 'missing').length
+  const readyHosts = hosts.filter(host => {
+    const state = presentAgentHost(host, results[host.id], liveHostIds.has(host.id)).state
+    return state === 'installed' || state === 'live'
+  })
+
+  // One surface of an agent: its state and the one thing to do about it.
+  // `family` is given when the surface is the family's only one and so takes
+  // the family's row.
+  const renderSurface = (modality: AgentHostInfo, family?: AgentFamilyGroup) => {
+    const pres = presentAgentHost(modality, results[modality.id], liveHostIds.has(modality.id))
+    const busy = installing === modality.id
+    const name = modality.modalityLabel || modality.label
+    const ready = pres.state === 'installed' || pres.state === 'live'
+    const note = notes[modality.id]
+    const install = () => { chooseHost(modality.id); void installHost(modality) }
+    return (
+      <div
+        key={modality.id}
+        className={family ? 'ambio-connect__surface ambio-connect__surface--solo' : 'ambio-connect__surface'}
+        data-state={pres.state}
+        data-agent-surface={modality.id}
+      >
+        {family ? (
+          <span
+            className="ambio-connect__host-signal"
+            data-state={pres.state}
+            data-tooltip={surfaceTooltip(modality, pres.state)}
+            aria-label={`${family.label}: ${AGENT_STATE_LABEL[pres.state]}`}
+          />
+        ) : (
+          <span className="ambio-connect__modality-dot" data-state={pres.state} title={surfaceTooltip(modality, pres.state)} />
+        )}
+        <span className="ambio-connect__surface-label">
+          {family ? <strong>{family.label}</strong> : name}
+          {modality.sharedSurfaces.length > 0 && (
+            <small>Also covers {modality.sharedSurfaces.map(surface => surface.label).join(' and ')}</small>
+          )}
+        </span>
+        <span className="ambio-connect__surface-actions">
+          {pres.state !== 'available' && (
+            <span className="ambio-connect__surface-state">{AGENT_STATE_LABEL[pres.state]}</span>
+          )}
+          {ready && readyHosts.length > 1 && (
+            selectedHost?.id === modality.id
+              ? <span className="ambio-connect__surface-chosen">Setting up with this</span>
+              : <button type="button" className="ambio-connect__quiet" onClick={() => chooseHost(modality.id)}>Use this one</button>
+          )}
+          {(pres.state === 'available' || pres.state === 'repair') && (
+            <button type="button" className="ambio-connect__install" disabled={busy} onClick={install}>
+              {busy ? 'Working…' : pres.state === 'repair' ? 'Repair' : 'Install'}
+            </button>
+          )}
+          {ready && (
+            <button type="button" className="ambio-connect__quiet" disabled={busy}
+              title={`Write Ambio's connection and workflow files for ${name} again`} onClick={install}>
+              {busy ? 'Working…' : 'Repair'}
+            </button>
+          )}
+          {(ready || pres.state === 'repair') && (
+            <button type="button" className="ambio-connect__quiet" disabled={busy}
+              title={`Remove Ambio's connection and workflow from ${name}`} onClick={() => void removeHost(modality)}>
+              Remove
+            </button>
+          )}
+          {/* "Not found" should never be the end of the conversation - the
+              tool may simply live somewhere Ambio does not know. */}
+          {modality.configOverride ? (
+            <button type="button" className="ambio-connect__quiet" onClick={() => void clearHostOverride(modality)}>Clear</button>
+          ) : pres.state === 'missing' ? (
+            <button type="button" className="ambio-connect__quiet" onClick={() => void locateHost(modality)}>Locate…</button>
+          ) : null}
+        </span>
+
+        {modality.configOverride && (
+          <span className="ambio-connect__surface-override">Using {modality.configOverride}</span>
+        )}
+        {locateNotices[modality.id] && (
+          <span className="ambio-connect__surface-override">{locateNotices[modality.id]}</span>
+        )}
+        {note && <p className="ambio-connect__install-result" data-ok={note.ok} role="status">{note.text}</p>}
+      </div>
+    )
+  }
+
+  const renderFamily = ({ family, presentation }: ReturnType<typeof orderAgentFamilies<AgentFamilyGroup>>[number]) => {
+    if (family.modalities.length === 1) {
+      return (
+        <li key={family.id} className="ambio-connect__family-card" data-state={presentation.state}>
+          {renderSurface(family.modalities[0], family)}
+        </li>
+      )
+    }
+    const available = family.modalities.filter(modality =>
+      presentAgentHost(modality, results[modality.id], liveHostIds.has(modality.id)).state === 'available').length
+    const expanded = toggledFamilies[family.id] ?? (presentation.state === 'available' || presentation.state === 'repair')
+    const familyNote = notes[family.id]
+    return (
+      <li key={family.id} className="ambio-connect__family-card" data-state={presentation.state} data-expanded={expanded}>
+        <button
+          type="button"
+          className="ambio-connect__family-row"
+          aria-expanded={expanded}
+          aria-controls={`surfaces-${family.id}`}
+          onClick={() => setToggledFamilies(previous => ({ ...previous, [family.id]: !expanded }))}
+        >
+          <span
+            className="ambio-connect__host-signal"
+            data-state={presentation.state}
+            data-tooltip={presentation.detail}
+            aria-label={`${family.label} status: ${presentation.detail}`}
+          />
+          <strong>{family.label}</strong>
+          <span className="ambio-connect__family-summary">{familySummary(presentation, available)}</span>
+          <span className="ambio-connect__family-chevron" aria-hidden="true" />
+        </button>
+
+        {expanded && (
+          <div id={`surfaces-${family.id}`} className="ambio-connect__surfaces">
+            {family.modalities.map(modality => renderSurface(modality))}
+            {(available > 1 || familyNote) && (
+              <div className="ambio-connect__surfaces-footer">
+                {familyNote && <p className="ambio-connect__install-result" data-ok={familyNote.ok} role="status">{familyNote.text}</p>}
+                {available > 1 && (
+                  <button
+                    type="button"
+                    className="ambio-connect__install ambio-connect__install--batch"
+                    disabled={installing === family.id}
+                    onClick={() => void installFamily(family)}
+                  >
+                    {installing === family.id ? 'Working…' : `Install all ${available}`}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </li>
+    )
+  }
+
   return (
     <div className="ambio-connect">
       <WorkbenchTitleBar
         className="ambio-connect__titlebar"
-        context={`${project.name} / Agent Setup`}
         status={indexing ? 'INDEXING' : 'AGENT SETUP'}
         statusTone={indexing ? 'busy' : 'ready'}
       />
@@ -362,13 +545,8 @@ export function ConnectAgentScreen({
         <header className="ambio-connect__header">
           <button type="button" className="ambio-connect__back" onClick={onBack}>{backLabel}</button>
           <div className="ambio-connect__identity">
-            <div>
-              <p className="ambio-connect__eyebrow">{project.name}</p>
-              <h1>Bring an agent into Ambio</h1>
-            </div>
-            <span className="ambio-connect__indexed">
-              {indexing ? 'Reading source…' : `${fileCount} source ${fileCount === 1 ? 'file' : 'files'}`}
-            </span>
+            <h1>Bring an agent into Ambio</h1>
+            {indexing && <span className="ambio-connect__indexed">Reading source…</span>}
           </div>
         </header>
 
@@ -397,238 +575,61 @@ export function ConnectAgentScreen({
         <div className="ambio-connect__workspace">
           <section id="agent-setup-stage" className="ambio-connect__stage" role="tabpanel">
             {activeStep === 1 && (
-              <div className="ambio-connect__step-panel">
-                <p className="ambio-connect__step-kicker">Step 1 of {blankProject ? 2 : 4}</p>
+              <div className="ambio-connect__step-panel ambio-connect__step-panel--pinned">
                 <h2>Add Ambio to your agent</h2>
                 <p className="ambio-connect__step-copy">
-                  {blankProject
-                    ? 'Choose the agent and harness you use. Ambio adds its MCP connection and reusable workflows.'
-                    : 'Choose the agent and harness you use. Ambio adds its MCP connection, canvas inbox, and mapping workflow.'}
+                  Pick the coding agent you use. Ambio installs itself into it, so the agent can see your map and take
+                  requests from the canvas.
                 </p>
 
-                <div className="ambio-connect__list-bar">
-                  <span className="ambio-connect__list-hint">
-                    Ambio scans the machine it is running on. Installed something since this screen opened?
-                  </span>
-                  <button
-                    type="button"
-                    className="ambio-connect__rescan"
-                    onClick={() => void rescan()}
-                    disabled={rescanning}
-                    aria-label="Rescan"
-                    aria-busy={rescanning}
-                  >
-                    <span className="ambio-connect__rescan-label" data-busy={rescanning}>
-                      Rescan
-                    </span>
-                    {rescanning && (
-                      <span className="ambio-connect__rescan-spinner" aria-hidden="true" />
-                    )}
-                  </button>
+                <div className="ambio-connect__scroll">
+                  <ul className="ambio-connect__families" aria-label="Supported agents">
+                    {orderedFamilies.filter(item => item.presentation.state !== 'missing').map(renderFamily)}
+                  </ul>
+                  {orderedFamilies.every(item => item.presentation.state === 'missing') && hosts.length > 0 && (
+                    <p className="ambio-connect__none-found">
+                      No supported agent was found on this computer. Install one, then rescan, or open the list below
+                      and point Ambio at its configuration file.
+                    </p>
+                  )}
+
+                  <div className="ambio-connect__list-bar">
+                    {orderedFamilies.some(item => item.presentation.state === 'missing') ? (
+                      <button
+                        type="button"
+                        className="ambio-connect__more"
+                        aria-expanded={showMissing}
+                        onClick={() => setShowMissing(value => !value)}
+                      >
+                        {showMissing ? 'Hide' : 'Show'} {missingCount} not found on this computer
+                      </button>
+                    ) : <span />}
+                    <button
+                      type="button"
+                      className="ambio-connect__rescan"
+                      onClick={() => void rescan()}
+                      disabled={rescanning}
+                      aria-label="Rescan"
+                      aria-busy={rescanning}
+                      title="Look again for agents on this computer"
+                    >
+                      <span className="ambio-connect__rescan-label" data-busy={rescanning}>
+                        Rescan
+                      </span>
+                      {rescanning && (
+                        <span className="ambio-connect__rescan-spinner" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
+                  {showMissing && (
+                    <ul className="ambio-connect__families" aria-label="Agents not found on this computer">
+                      {orderedFamilies.filter(item => item.presentation.state === 'missing').map(renderFamily)}
+                    </ul>
+                  )}
                 </div>
 
-                <ul className="ambio-connect__families" aria-label="Supported agents and modalities">
-                  {families.map(family => {
-                    const familyPres = presentAgentFamily(
-                      family.id,
-                      family.label,
-                      family.modalities,
-                      results,
-                      liveHostIds,
-                    )
-                    const isExpanded = expandedFamilies.has(family.id)
-                    const showBatch = familyPres.canBatchInstall && familyPres.batchAction !== 'none'
-
-                    return (
-                      <li
-                        key={family.id}
-                        className="ambio-connect__family-card"
-                        data-state={familyPres.state}
-                        data-expanded={isExpanded}
-                      >
-                        {/* The row discloses; it never installs. Every install
-                            button lives on the surface it belongs to, so the
-                            action is always in the same place. */}
-                        <button
-                          type="button"
-                          className="ambio-connect__family-row"
-                          aria-expanded={isExpanded}
-                          aria-controls={`surfaces-${family.id}`}
-                          onClick={() => setExpandedFamilies(previous => {
-                            const next = new Set(previous)
-                            if (next.has(family.id)) next.delete(family.id)
-                            else next.add(family.id)
-                            return next
-                          })}
-                        >
-                          <span
-                            className="ambio-connect__host-signal"
-                            data-state={familyPres.state}
-                            data-tooltip={familyPres.detail}
-                            aria-label={`${family.label} status: ${familyPres.detail}`}
-                          />
-                          <strong>{family.label}</strong>
-                          <span className="ambio-connect__family-summary">
-                            {familyPres.installedCount > 0
-                              ? `${familyPres.installedCount} of ${familyPres.totalCount} configured`
-                              : familyPres.detectedCount > 0
-                                ? `${familyPres.detectedCount} detected`
-                                : 'Not found'}
-                          </span>
-                          <span className="ambio-connect__family-chevron" aria-hidden="true" />
-                        </button>
-
-                        {isExpanded && (
-                          <div id={`surfaces-${family.id}`} className="ambio-connect__surfaces">
-                            {family.modalities.map(modality => {
-                              const pres = presentAgentHost(
-                                modality,
-                                results[modality.id],
-                                liveHostIds.has(modality.id),
-                              )
-                              const modalityResult = results[modality.id]
-                              const busy = installing === modality.id
-                              return (
-                                <Fragment key={modality.id}>
-                                <div
-                                  className="ambio-connect__surface"
-                                  data-state={pres.state}
-                                >
-                                  <span
-                                    className="ambio-connect__modality-dot"
-                                    data-state={pres.state}
-                                    title={surfaceTooltip(modality, pres.state)}
-                                  />
-                                  <span className="ambio-connect__surface-label">
-                                    {modality.modalityLabel || modality.label}
-                                  </span>
-                                  <span className="ambio-connect__surface-actions">
-                                    {pres.action === 'none' ? (
-                                      <span className="ambio-connect__surface-state">
-                                        {SURFACE_STATE_LABEL[pres.state]}
-                                      </span>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="ambio-connect__install"
-                                        disabled={busy}
-                                        onClick={() => {
-                                          chooseHost(modality.id)
-                                          void installHost(modality)
-                                        }}
-                                      >
-                                        {busy
-                                          ? 'Working…'
-                                          : pres.action === 'install'
-                                            ? 'Install'
-                                            : pres.action === 'repair'
-                                              ? 'Repair'
-                                              : 'Reinstall'}
-                                      </button>
-                                    )}
-
-                                    {(pres.state === 'live' || pres.state === 'installed' || pres.state === 'repair') && (
-                                      <button
-                                        type="button"
-                                        className="ambio-connect__surface-locate"
-                                        disabled={busy}
-                                        title={`Remove Ambio's connection and workflow from ${modality.modalityLabel || modality.label}`}
-                                        onClick={() => void removeHost(modality)}
-                                      >
-                                        Remove
-                                      </button>
-                                    )}
-
-                                    {/* "Not found" should never be the end of
-                                        the conversation - the tool may simply
-                                        live somewhere Ambio does not know. */}
-                                    {modality.configOverride ? (
-                                      <button
-                                        type="button"
-                                        className="ambio-connect__surface-locate"
-                                        onClick={() => void clearHostOverride(modality)}
-                                      >
-                                        Clear
-                                      </button>
-                                    ) : pres.state === 'missing' ? (
-                                      <button
-                                        type="button"
-                                        className="ambio-connect__surface-locate"
-                                        onClick={() => void locateHost(modality)}
-                                      >
-                                        Locate…
-                                      </button>
-                                    ) : null}
-                                  </span>
-
-                                  {modality.configOverride && (
-                                    <span className="ambio-connect__surface-override">
-                                      Using {modality.configOverride}
-                                    </span>
-                                  )}
-
-                                  {locateNotices[modality.id] && (
-                                    <span className="ambio-connect__surface-override">
-                                      {locateNotices[modality.id]}
-                                    </span>
-                                  )}
-                                  {modalityResult && (
-                                    <p
-                                      className="ambio-connect__install-result"
-                                      data-ok={modalityResult.ok}
-                                    >
-                                      {modalityResult.detail}
-                                    </p>
-                                  )}
-                                </div>
-
-                                {modality.sharedSurfaces.map(surface => (
-                                  <div
-                                    key={surface.id}
-                                    className="ambio-connect__surface ambio-connect__surface--shared"
-                                    data-state={pres.state}
-                                  >
-                                    <span
-                                      className="ambio-connect__modality-dot"
-                                      data-state={pres.state}
-                                      title={surfaceTooltip(modality, pres.state)}
-                                    />
-                                    <span className="ambio-connect__surface-label">
-                                      {surface.label}
-                                    </span>
-                                    <span className="ambio-connect__surface-state">
-                                      Uses the {modality.modalityLabel} configuration
-                                    </span>
-                                  </div>
-                                ))}
-                                </Fragment>
-                              )
-                            })}
-
-                            {showBatch && (
-                              <div className="ambio-connect__surfaces-footer">
-                                <button
-                                  type="button"
-                                  className="ambio-connect__install ambio-connect__install--batch"
-                                  disabled={installing === family.id}
-                                  onClick={() => void installFamily(family)}
-                                >
-                                  {installing === family.id
-                                    ? 'Working…'
-                                    : familyPres.batchAction === 'install'
-                                      ? 'Install all detected'
-                                      : 'Reinstall all'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-
                 <StepActions
+                  hint={selectedReady ? undefined : 'Install Ambio into an agent to continue.'}
                   nextLabel={selectedReady ? `Continue with ${selectedHost?.modalityLabel || selectedHost?.label}` : 'Continue'}
                   onNext={() => setActiveStep(2)}
                   nextDisabled={!selectedReady}
@@ -803,19 +804,21 @@ export function ConnectAgentScreen({
             {activeStep === 4 && !blankProject && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 4 of 4</p>
-                <h2>{phase === 'proposed' ? 'Your architecture is ready' : 'Wait for the proposal'}</h2>
+                <h2>{phase === 'proposed' ? 'Your architecture is ready' : mapping ? 'Your agent is mapping the project' : 'Wait for the proposal'}</h2>
                 <p className="ambio-connect__step-copy">
                   {phase === 'proposed'
                     ? 'Your agent finished mapping the codebase. Review its systems, nesting, and file placement before anything becomes canonical.'
-                    : hasLivePresence
-                      ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected and working. Ambio will light this step when the proposal arrives.`
-                      : 'Keep Ambio open while the agent maps the project. You can return to any earlier step without losing progress.'}
+                    : mapping
+                      ? 'The first part of the map has arrived. The proposal is not ready until the agent says it is done; the button to review it appears here when it does.'
+                      : hasLivePresence
+                        ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected and working. Ambio will light this step when the proposal arrives.`
+                        : 'Keep Ambio open while the agent maps the project. You can return to any earlier step without losing progress.'}
                 </p>
                 {phase === 'proposed' ? (
                   <button type="button" className="ambio-connect__review" onClick={onReview}>Review architecture →</button>
                 ) : (
                   <div className="ambio-connect__waiting-line" aria-live="polite">
-                    <span aria-hidden="true" /> Waiting for a mapping proposal
+                    <span aria-hidden="true" /> {mapping ? 'Mapping in progress · still waiting for the proposal' : 'Waiting for a mapping proposal'}
                   </div>
                 )}
                 <ProposalDraftProgress workspaceId={project.id} inline />
@@ -831,7 +834,7 @@ export function ConnectAgentScreen({
 
         {!blankProject && (
           <footer className="ambio-connect__footer">
-            <span>Steps are always available; you can move back and forth at any time.</span>
+            <span />
             <button type="button" onClick={onSkip}>Open canvas without mapping</button>
           </footer>
         )}
@@ -846,7 +849,10 @@ function StepActions({
   nextLabel,
   onNext,
   nextDisabled = false,
+  hint,
 }: {
+  /** What is still needed before the next step, beside a disabled button. */
+  hint?: string
   backLabel?: string
   onBack?: () => void
   nextLabel?: string
@@ -856,6 +862,7 @@ function StepActions({
   if (!onBack && !onNext) return null
   return (
     <div className="ambio-connect__step-actions">
+      {hint && <span className="ambio-connect__step-hint">{hint}</span>}
       {onBack && <button type="button" className="ambio-connect__secondary" onClick={onBack}>{backLabel}</button>}
       {onNext && <button type="button" className="ambio-connect__primary" onClick={onNext} disabled={nextDisabled}>{nextLabel} →</button>}
     </div>

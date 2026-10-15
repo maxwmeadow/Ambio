@@ -55,6 +55,9 @@ test('the schema cost stays within budget', () => {
 test('debug tooling is not advertised by default', () => {
   assert.match(source, /AMBIO_MCP_PROFILE/)
   assert.match(source, /DEBUG_PROFILE_ENABLED \? \[\.\.\.CORE_TOOLS, \.\.\.DEBUG_PROFILE_TOOLS\] : CORE_TOOLS/)
+  // The permission tool is only for a run Ambio started, never part of the core surface.
+  assert.match(source, /RUN_MESSAGE_ID \? \[APPROVE_ACTION_TOOL\] : \[\]/)
+  assert.ok(!/name: 'approve_action'/.test(coreBlock))
 })
 
 test('no legacy tool name leaks back into the listing', () => {

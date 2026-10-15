@@ -403,6 +403,49 @@ test('two addressed requests keep separate work sessions on one MCP connector', 
   }
 })
 
+test('a conversation reaches the agent with its earlier turns, and a watching session picks up the next one', async () => {
+  const send = body => fetch(`${harness.apiBase}/api/canvas/send`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId: harness.workspaceId, ...body }),
+  })
+  const asked = await send({ id: 'chat-1', deliveryMode: 'addressed', mode: 'ask', note: 'Where is the task store?' })
+  assert.equal(asked.status, 200, await asked.text())
+  const first = await client.callTool('get_inbox', { messageId: 'chat-1', expectedWorkspaceId: harness.workspaceId })
+  assert.equal(first.isError, false, first.text)
+  assert.equal(first.payload.messages[0].mode, 'ask')
+  assert.equal(first.payload.messages[0].conversation, undefined, 'the first turn has nothing before it')
+  const answered = await client.callTool('reply_to_canvas', { messageHandle: first.payload.messages[0].messageHandle, body: 'In storage/task_store.py.' })
+  assert.equal(answered.isError, false, answered.text)
+
+  // The user tells this session to watch. It waits, and Ambio can see that.
+  const watching = client.callTool('get_inbox', { watch: true })
+  let seen = false
+  for (let attempt = 0; attempt < 40 && !seen; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const presence = await (await fetch(`${harness.apiBase}/api/agent/presence?workspace=${encodeURIComponent(harness.workspaceId)}`)).json()
+    seen = (presence.connections ?? []).some(connection => (connection.watchingUntil ?? 0) > Date.now())
+  }
+  assert.ok(seen, 'Ambio never saw the session watching')
+
+  // The next turn of the same conversation is left open for it.
+  const proposed = await send({ id: 'chat-2', deliveryMode: 'open', threadId: 'chat-1', mode: 'propose', note: 'Propose giving it its own system.' })
+  assert.equal(proposed.status, 200, await proposed.text())
+  const picked = await watching
+  assert.equal(picked.isError, false, picked.text)
+  const turn = picked.payload.messages[0]
+  assert.equal(turn?.id, 'chat-2', picked.text)
+  assert.equal(turn.mode, 'propose')
+  assert.equal(turn.threadId, 'chat-1')
+  assert.deepEqual(turn.conversation.map(earlier => [earlier.mode, earlier.request, earlier.reply]), [['ask', 'Where is the task store?', 'In storage/task_store.py.']])
+  assert.match(picked.payload.note, /conversation/)
+  const drawn = await client.callTool('reply_to_canvas', { messageHandle: turn.messageHandle, body: 'Drawn on a sheet for you to confirm.' })
+  assert.equal(drawn.isError, false, drawn.text)
+
+  // A turn cannot be attached to a conversation that does not exist.
+  const stray = await send({ id: 'chat-stray', deliveryMode: 'addressed', threadId: 'no-such-conversation', note: 'Hello?' })
+  assert.notEqual(stray.status, 200)
+})
+
 test('the loop prompts are advertised and filled in', async () => {
   const listed = await client.request('prompts/list', {})
   const names = listed.result.prompts.map(prompt => prompt.name)

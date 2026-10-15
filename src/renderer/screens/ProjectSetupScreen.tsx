@@ -12,9 +12,12 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
-  countExploredKinds,
-  formatExploredScopeSummary,
+  isNeverRead,
   mergeExclusions,
+  noiseFolderWarning,
+  scopeHeadline,
+  splitSetupRows,
+  tuckedSummary,
 } from './projectSetupModel'
 
 interface ProjectSetupScreenProps {
@@ -89,8 +92,6 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
   }, [tree, existing])
 
   const excludedPaths = useMemo(() => collectExcluded(tree), [tree])
-  const explored = useMemo(() => countExploredKinds(tree), [tree])
-  const scopeSummary = useMemo(() => formatExploredScopeSummary(explored), [explored])
 
   // How big this scope really is, recounted as folders are toggled. Big
   // trees are usually big because of generated or third-party code.
@@ -99,11 +100,19 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     [editing, tree, baseConfig.ignoredPaths, excludedPaths],
   )
   const [estimate, setEstimate] = useState<ScopeEstimate | null>(null)
+  // A folder's size is only counted while it is checked; remember it so an
+  // unchecked folder still says what it would add.
+  const [sizes, setSizes] = useState<Record<string, number>>({})
+  const canEstimate = Boolean(window.ambio?.estimateScope)
   useEffect(() => {
     if (!window.ambio?.estimateScope || loading) return
     let active = true
     const timer = setTimeout(() => {
-      void window.ambio.estimateScope(rootPath, effectiveExclusions).then(result => { if (active) setEstimate(result) })
+      void window.ambio.estimateScope(rootPath, effectiveExclusions).then(result => {
+        if (!active) return
+        setEstimate(result)
+        if (result) setSizes(previous => ({ ...previous, ...result.folders }))
+      })
     }, 400)
     return () => { active = false; clearTimeout(timer) }
   }, [rootPath, effectiveExclusions, loading])
@@ -126,7 +135,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
 
   return (
     <main className="ambio-onboarding ambio-project-setup">
-      <WorkbenchTitleBar context={editing ? 'Project Settings' : 'Project Setup'} status={editing ? 'SETTINGS' : 'PRE-INDEX'} />
+      <WorkbenchTitleBar status={editing ? 'SETTINGS' : 'SETUP'} />
 
       <div className="ambio-source-setup">
         <header className="ambio-source-setup__header">
@@ -161,30 +170,30 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
               </div>
             ) : (
               <div>
-                <p className="ambio-source-setup__eyebrow">Choose what Ambio reads</p>
                 <h1>Set up {projectName}</h1>
+                <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>
                 <p className="ambio-source-setup__description">
-                  Source files are included by default. Common generated and dependency folders are skipped automatically;
-                  documentation stays searchable outside the canvas, and unsupported assets are never indexed.
+                  Ambio reads what is checked below and draws it as your map. The defaults suit most projects.
+                  Uncheck anything that is not your own code, such as generated files, vendored libraries or fixtures.
                 </p>
               </div>
             )}
-            <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>
+            {editing && <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>}
+            <details className="ambio-source-setup__help">
+              <summary>What does Ambio read?</summary>
+              <ul>
+                <li><strong>Source code</strong> (TypeScript, JavaScript, Python, Go, Rust, C#, C and C++, Ruby, Java, and stylesheets) becomes the map.</li>
+                <li><strong>Documents</strong> (Markdown and text files) are kept searchable in Documents and are not drawn on the map.</li>
+                <li><strong>Everything else</strong> (images, data, JSON and other configuration) is not read.</li>
+                <li><strong>Dependency and build folders</strong> such as node_modules and dist, and folders whose name starts with a dot, are never read.</li>
+              </ul>
+            </details>
           </div>
         </header>
 
         <section className="ambio-source-browser" aria-labelledby="source-browser-title">
           <header className="ambio-source-browser__header">
-            <div>
-              <p>Project contents</p>
-              <h2 id="source-browser-title">Files and folders</h2>
-            </div>
-            <div className="ambio-source-browser__legend" aria-label="Selection key">
-              <span><i className="ambio-source-browser__legend-check" aria-hidden="true" /> Source → canvas</span>
-              <span>Documents → library</span>
-              <span>Excluded → skipped</span>
-              <span>Unsupported → ignored</span>
-            </div>
+            <h2 id="source-browser-title">Checked folders and files are read</h2>
           </header>
 
           {loadError && <div className="ambio-source-setup__notice" role="alert">{loadError}</div>}
@@ -211,30 +220,18 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             ) : tree.length === 0 ? (
               <div className="ambio-setup-tree__state">This project is empty.</div>
             ) : (
-              tree.map(node => (
-                <TreeRow
-                  key={node.path}
-                  node={node}
-                  depth={0}
-                  onToggleExclude={toggleExclude}
-                  onToggleExpand={toggleExpand}
-                />
-              ))
+              <TreeLevel nodes={tree} depth={0} sizes={sizes} onToggleExclude={toggleExclude} onToggleExpand={toggleExpand} />
             )}
           </div>
 
           <footer className="ambio-source-browser__footer">
             <div className="ambio-source-browser__summary" aria-live="polite">
-              <strong>
-                {scopeSummary.headline}
-              </strong>
-              <span>
-                {excludedPaths.length === 0 ? 'No items excluded' : `${excludedPaths.length} ${excludedPaths.length === 1 ? 'item' : 'items'} excluded`}
-                {explored.unsupported > 0 ? ` · ${explored.unsupported} unsupported skipped` : ''}
-              </span>
-              <small className="ambio-source-browser__summary-note">
-                {scopeSummary.subtext}
-              </small>
+              <strong>{canEstimate ? scopeHeadline(estimate) : 'Everything checked will be read'}</strong>
+              {estimate && estimate.documents > 0 && (
+                <span>
+                  {estimate.documents.toLocaleString()} {estimate.documents === 1 ? 'document' : 'documents'} kept searchable, not drawn on the map
+                </span>
+              )}
             </div>
             <button
               className="ambio-source-setup__submit"
@@ -257,33 +254,71 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
 /** Above this many source files the setup screen suggests trimming the scope. */
 const LARGE_SCOPE_FILES = 15_000
 
-interface TreeRowProps {
-  node: TreeNode
+interface TreeLevelProps {
   depth: number
+  /** Source files under each folder, by path, where known. */
+  sizes: Record<string, number>
   onToggleExclude: (path: string) => void
   onToggleExpand: (path: string) => void | Promise<void>
 }
 
-function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps) {
+/**
+ * One folder's contents: the rows worth a decision, then one line standing
+ * for everything skipped automatically, which opens to show what that is.
+ */
+function TreeLevel({ nodes, ...rest }: TreeLevelProps & { nodes: TreeNode[] }) {
+  const [open, setOpen] = useState(false)
+  const { shown, tucked } = useMemo(() => splitSetupRows(nodes), [nodes])
+  const depthClass = `ambio-setup-tree__row--depth-${Math.min(rest.depth, 8)}`
+  return (
+    <>
+      {shown.map(node => <TreeRow key={node.path} node={node} {...rest} />)}
+      {tucked.length > 0 && (
+        <div className="ambio-setup-tree__skipped" role="none">
+          <button
+            type="button"
+            className={`ambio-setup-tree__row ambio-setup-tree__skipped-toggle ${depthClass}`}
+            aria-expanded={open}
+            onClick={() => setOpen(value => !value)}
+          >
+            <span className="ambio-setup-tree__expand" aria-hidden="true"><span>›</span></span>
+            <span className="ambio-setup-tree__skipped-summary">{tuckedSummary(tucked)}</span>
+            <span className="ambio-setup-tree__skipped-action">{open ? 'Hide' : 'Show'}</span>
+          </button>
+          {open && tucked.map(node => <TreeRow key={node.path} node={node} {...rest} />)}
+        </div>
+      )}
+    </>
+  )
+}
+
+function TreeRow({ node, depth, sizes, onToggleExclude, onToggleExpand }: TreeLevelProps & { node: TreeNode }) {
   const depthClass = `ambio-setup-tree__row--depth-${Math.min(depth, 8)}`
-  const kindLabel = node.kind === 'source'
-    ? 'Source'
-    : node.kind === 'document'
-      ? 'Document'
-      : node.kind === 'unsupported'
-        ? 'Unsupported'
-        : 'Folder'
+  const neverRead = isNeverRead(node)
+  const size = sizes[node.path]
+  const warning = noiseFolderWarning(node, size)
+  // What the row adds to the map, or why it adds nothing.
+  const detail = neverRead
+    ? 'Never read'
+    : node.isDirectory
+      ? size !== undefined
+        ? `${size.toLocaleString()} source ${size === 1 ? 'file' : 'files'}${node.excluded ? ' · not read' : ''}`
+        : node.excluded ? 'Not read' : ''
+      : node.excluded
+        ? 'Not read'
+        : node.kind === 'document' ? 'Document' : ''
 
   return (
     <div
       className="ambio-setup-tree__branch"
       role="treeitem"
       aria-level={depth + 1}
-      aria-expanded={node.isDirectory ? node.expanded : undefined}
+      aria-expanded={node.isDirectory && !neverRead ? node.expanded : undefined}
       data-kind={node.kind}
+      data-never-read={neverRead || undefined}
     >
       <div className={`ambio-setup-tree__row ${depthClass}${node.excluded ? ' ambio-setup-tree__row--excluded' : ''}`}>
-        {node.isDirectory ? (
+        {node.isDirectory && !neverRead ? (
           <button
             className="ambio-setup-tree__expand"
             onClick={() => void onToggleExpand(node.path)}
@@ -295,16 +330,19 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
           <span className="ambio-setup-tree__expand-spacer" aria-hidden="true" />
         )}
 
-        <label className="ambio-setup-tree__check">
-          <input
-            type="checkbox"
-            checked={!node.excluded}
-            onChange={() => onToggleExclude(node.path)}
-            aria-label={`Include ${node.name}`}
-            disabled={node.kind === 'unsupported'}
-          />
-          <span aria-hidden="true" />
-        </label>
+        {neverRead ? (
+          <span className="ambio-setup-tree__check-spacer" aria-hidden="true" />
+        ) : (
+          <label className="ambio-setup-tree__check">
+            <input
+              type="checkbox"
+              checked={!node.excluded}
+              onChange={() => onToggleExclude(node.path)}
+              aria-label={`Include ${node.name}`}
+            />
+            <span aria-hidden="true" />
+          </label>
+        )}
 
         <span
           className={node.isDirectory
@@ -313,23 +351,13 @@ function TreeRow({ node, depth, onToggleExclude, onToggleExpand }: TreeRowProps)
           aria-hidden="true"
         />
         <span className="ambio-setup-tree__name" title={node.path}>{node.name}</span>
-        <span className="ambio-setup-tree__kind">{kindLabel}</span>
-        <span className="ambio-setup-tree__state-label">
-          {node.kind === 'unsupported' ? 'Skipped' : node.kind === 'document' ? 'Documents' : node.excluded ? 'Excluded' : 'Included'}
-        </span>
+        <span className="ambio-setup-tree__detail">{detail}</span>
       </div>
+      {warning && <p className={`ambio-setup-tree__warning ${depthClass}`} role="status">{warning}</p>}
 
-      {node.expanded && node.children && (
+      {node.expanded && node.children && !neverRead && (
         <div role="group">
-          {node.children.map(child => (
-            <TreeRow
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              onToggleExclude={onToggleExclude}
-              onToggleExpand={onToggleExpand}
-            />
-          ))}
+          <TreeLevel nodes={node.children} depth={depth + 1} sizes={sizes} onToggleExclude={onToggleExclude} onToggleExpand={onToggleExpand} />
         </div>
       )}
     </div>

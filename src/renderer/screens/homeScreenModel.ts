@@ -17,6 +17,9 @@ export function filterRecentProjects(projects: ProjectConfig[], query: string): 
 /** How many projects the launcher lists before "Show all". */
 export const RECENT_PROJECT_LIMIT = 8
 
+/** Below this many projects a search box is furniture; "/" still opens it. */
+export const SEARCH_FROM_PROJECTS = 6
+
 export interface LauncherProjectList {
   /** Rows to render, most recently opened first. */
   visible: ProjectConfig[]

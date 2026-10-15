@@ -14,6 +14,9 @@ type AgentPresence struct {
 	HostID       string `json:"hostId"`
 	LastSeenAt   int64  `json:"lastSeenAt"`
 	LastToolAt   int64  `json:"lastToolAt,omitempty"`
+	// WatchingUntil is set while the session is waiting on the inbox for the
+	// next request (get_inbox with wait), so the canvas can send to it.
+	WatchingUntil int64 `json:"watchingUntil,omitempty"`
 }
 
 func (s *Server) handleAgentPresence(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +27,8 @@ func (s *Server) handleAgentPresence(w http.ResponseWriter, r *http.Request) {
 			ConnectionID string `json:"connectionId"`
 			HostID       string `json:"hostId"`
 			VerifiedTool bool   `json:"verifiedTool"`
+			// WatchingForMs says the session is waiting on the inbox this long.
+			WatchingForMs int64 `json:"watchingForMs"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "invalid body", http.StatusBadRequest)
@@ -56,6 +61,15 @@ func (s *Server) handleAgentPresence(w http.ResponseWriter, r *http.Request) {
 		existed = existed && previous.HostID == body.HostID && previous.LastSeenAt >= now-s.agentPresenceTTL.Milliseconds()
 		if existed {
 			presence.LastToolAt = previous.LastToolAt
+			if previous.WatchingUntil > now {
+				presence.WatchingUntil = previous.WatchingUntil
+			}
+		}
+		if body.WatchingForMs > 0 {
+			if body.WatchingForMs > 120_000 {
+				body.WatchingForMs = 120_000
+			}
+			presence.WatchingUntil = now + body.WatchingForMs
 		}
 		if body.VerifiedTool {
 			presence.LastToolAt = now
