@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
@@ -121,25 +122,29 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   /** The agent an open conversation is bound to, shown instead of the picker. */
   fixed?: { label: string; guideId: string }
 }) {
-  if (fixed) return <div className="ambio-inbox__delivery">
-    <div className="ambio-inbox__delivery-heading"><span className="ambio-inbox__delivery-title">Agent</span><DestinationGuidePopover hosts={hosts} hostId={fixed.guideId} /></div>
-    <p className="ambio-inbox__delivery-fixed">{fixed.label}<small>Start a new conversation to use another agent.</small></p>
-  </div>
+  const [seen, setSeen] = useState(seenGuides)
   const host = hosts.find(item => item.id === hostId)
+  const chat = hostId.startsWith(CHAT_DELIVERY)
+  const watching = hostId === WATCHING_DELIVERY || watchingHosts.includes(hostId)
+  const guideId = fixed?.guideId ?? (chat ? CHAT_DELIVERY : watching ? WATCHING_DELIVERY : hostId)
+  const name = fixed?.label ?? (chat ? chatServices?.find(service => `${CHAT_DELIVERY}:${service.id}` === hostId)?.label ?? 'Ambio chat'
+    : hostId === WATCHING_DELIVERY ? 'Session watching Ambio' : host?.label ?? 'Copy the handoff myself')
   // A host with a session watching gets the message in that session.
   const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
   const connected = hosts.filter(item => installedIds.includes(item.id))
   const others = hosts.filter(item => !installedIds.includes(item.id))
   // What sending does is on the send button; the fine print waits on hover.
-  const about = [
-    hostId === WATCHING_DELIVERY || watchingHosts.includes(hostId)
+  const about = chat ? 'Ambio’s own agent, using your model service. Replies stream into this conversation.' : [
+    watching
       ? 'Leaves the request for the session you told to watch Ambio. It answers in its own chat, with everything already said there.'
       : host?.detail ?? 'Save the request, then copy its handoff into the agent chat you choose.',
     ...(host?.route === 'run' && !watchingHosts.includes(hostId) ? [`Edits files in ${rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.`] : []),
   ].join(' ')
-  return <div className="ambio-inbox__delivery">
-    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select">Deliver to</label><DestinationGuidePopover hosts={hosts} hostId={hostId.startsWith(CHAT_DELIVERY) ? CHAT_DELIVERY : watchingHosts.includes(hostId) ? WATCHING_DELIVERY : hostId} /></div>
-    <select id="ambio-delivery-select" aria-label="Work-order destination" title={hostId.startsWith(CHAT_DELIVERY) ? 'Ambio\u2019s own agent, using your model service. Replies stream into this conversation.' : about} value={hostId} disabled={disabled} onChange={event => {
+  // The picker, the info button's guide and the first-use introduction are
+  // one choice: changing any of them changes the destination.
+  const picker = (label: string, id?: string) => fixed
+    ? <p className="ambio-inbox__delivery-fixed" id={id}>{fixed.label}<small>Start a new conversation to use another agent.</small></p>
+    : <select id={id} aria-label={label} title={about} value={hostId} disabled={disabled} onChange={event => {
       if (event.target.value === CHAT_DELIVERY) onSetUpChat?.()
       else onChange(event.target.value)
     }}>
@@ -153,46 +158,85 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
       {(watchers > 0 || hostId === WATCHING_DELIVERY) && <option value={WATCHING_DELIVERY}>{watchers > 0 ? `Session watching Ambio${watchers > 1 ? ` (${watchers})` : ''}` : 'Session watching Ambio · none right now'}</option>}
       <option value="">Copy the handoff myself</option>
     </select>
-    {connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
+  // Each kind of agent works differently, so the first time one is chosen its
+  // guide is put in front of the user until they confirm they have read it.
+  const introduce = hosts.length > 0 && !!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)
+  return <div className="ambio-inbox__delivery">
+    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select" className="ambio-inbox__delivery-title">{fixed ? 'Agent' : 'Deliver to'}</label>
+      <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} /></div>
+    {picker('Work-order destination', 'ambio-delivery-select')}
+    {!fixed && connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
+    {introduce && <DestinationIntroduction name={name} guideId={guideId} picker={picker('Agent to read about')} onConfirm={() => setSeen(markGuideSeen(guideId))} />}
   </div>
 }
 
-/** Names for the destinations that are not agent hosts. */
-const GUIDE_NAMES: Record<string, string> = { [CHAT_DELIVERY]: 'Ambio chat', [WATCHING_DELIVERY]: 'Session watching Ambio', '': 'Copy the handoff myself' }
+/** Which agents' guides this user has confirmed, on this machine. */
+const GUIDES_SEEN_KEY = 'ambio:destination-guides-seen'
+function seenGuides(): string[] {
+  try { const saved = JSON.parse(localStorage.getItem(GUIDES_SEEN_KEY) ?? '[]'); return Array.isArray(saved) ? saved.filter(item => typeof item === 'string') : [] } catch { return [] }
+}
+function markGuideSeen(guideId: string): string[] {
+  const next = [...new Set([...seenGuides(), guideId])]
+  try { localStorage.setItem(GUIDES_SEEN_KEY, JSON.stringify(next)) } catch { /* shown again next time */ }
+  return next
+}
+
+/** How an agent works from the panel and what it can do, as numbered steps and a list. */
+function DestinationGuideBody({ guideId }: { guideId: string }) {
+  const guide = DESTINATION_GUIDE[guideId]
+  if (!guide) return null
+  return <div className="ambio-guide__body">
+    <section><h3>How it works</h3><ol>{guide.how.map((step, index) => <li key={step}><span aria-hidden="true">{index + 1}</span>{step}</li>)}</ol></section>
+    <section><h3>What it can do</h3><ul>{guide.can.map(item => <li key={item}><span aria-hidden="true"><InboxIcon name="check" size={12} /></span>{item}</li>)}</ul></section>
+  </div>
+}
 
 /**
- * The info button beside the picker: how this panel works with each agent and
- * what that agent can do from here. Opens on the chosen one; any other can be
- * read without changing the choice.
+ * The info button beside the picker: the chosen agent's guide, with the
+ * same picker inside so another agent can be read about and chosen.
  */
-function DestinationGuidePopover({ hosts, hostId }: { hosts: DeliveryHost[]; hostId: string }) {
+function DestinationGuidePopover({ name, guideId, picker }: { name: string; guideId: string; picker: ReactNode }) {
   const [open, setOpen] = useState(false)
-  const [shown, setShown] = useState(hostId)
   const anchor = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (open) setShown(hostId) }, [open, hostId])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
   }, [open])
-  const name = (id: string) => hosts.find(host => host.id === id)?.label ?? GUIDE_NAMES[id] ?? id
-  const choices = [CHAT_DELIVERY, ...hosts.map(host => host.id), WATCHING_DELIVERY, ''].filter(id => DESTINATION_GUIDE[id])
-  const guide = DESTINATION_GUIDE[shown]
   return <div ref={anchor} className="ambio-inbox__guide" onKeyDown={event => {
-    if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
+    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
   }}>
-    <button type="button" className="ambio-inbox__guide-button" aria-label="How each agent works here" aria-expanded={open} title="How each agent works here" onClick={() => setOpen(!open)}><InboxIcon name="info" size={13} /></button>
-    {open && <section className="ambio-inbox__guide-popover" role="dialog" aria-label="How each agent works here">
-      <header><strong>Using</strong><select aria-label="Agent to read about" value={shown} onChange={event => setShown(event.target.value)}>
-        {choices.map(id => <option key={id || 'manual'} value={id}>{name(id)}</option>)}
-      </select><button type="button" className="ambio-inbox__icon" aria-label="Close" onClick={() => setOpen(false)}><InboxIcon name="close" size={12} /></button></header>
-      {guide ? <>
-        <h4>How it works</h4><ol>{guide.how.map(step => <li key={step}>{step}</li>)}</ol>
-        <h4>What it can do</h4><ul>{guide.can.map(item => <li key={item}>{item}</li>)}</ul>
-      </> : <p>Choose an agent above.</p>}
+    <button type="button" className="ambio-inbox__guide-button" aria-label="How each agent works here" aria-expanded={open} title="How each agent works here" onClick={() => setOpen(!open)}><InboxIcon name="info" size={14} /></button>
+    {open && <section className="ambio-guide ambio-guide--popover" role="dialog" aria-label="How each agent works here">
+      <header className="ambio-guide__header"><span className="ambio-guide__eyebrow">How it works here</span><h2>{name}</h2>
+        <button type="button" className="ambio-guide__close" aria-label="Close" onClick={() => setOpen(false)}><InboxIcon name="close" size={14} /></button></header>
+      <div className="ambio-guide__picker"><span>Agent</span>{picker}</div>
+      <DestinationGuideBody guideId={guideId} />
     </section>}
   </div>
+}
+
+/**
+ * The first time an agent is chosen: its guide, full screen, until the user
+ * confirms. The same picker is offered so they can choose another instead.
+ */
+function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: string; guideId: string; picker: ReactNode; onConfirm: () => void }) {
+  return createPortal(<div className="ambio-guide-backdrop" onKeyDown={event => {
+    // Confirming is the only way past; Escape must not close the panel behind it.
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); event.nativeEvent.stopImmediatePropagation() }
+  }}>
+    <section className="ambio-guide ambio-guide--intro" role="dialog" aria-modal="true" aria-label={`Before you use ${name}`}>
+      <header className="ambio-guide__header"><span className="ambio-guide__eyebrow">Before you use this agent</span><h2>{name}</h2>
+        <p>Every agent works a little differently from this panel. Here is what to expect from this one.</p></header>
+      <div className="ambio-guide__picker"><span>Agent</span>{picker}</div>
+      <DestinationGuideBody guideId={guideId} />
+      <footer className="ambio-guide__footer">
+        <p><span className="ambio-guide__info-mark"><InboxIcon name="info" size={14} /></span>To read this again, press the info button next to Deliver to in the agent panel.</p>
+        <button type="button" className="ambio-guide__confirm" autoFocus onClick={onConfirm}>Got it</button>
+      </footer>
+    </section>
+  </div>, document.body)
 }
 
 /** How many of a run's latest events the turn shows while it works. */

@@ -43,6 +43,8 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
+    const intro = page.getByRole('dialog', { name: /^Before you use / })
+    await intro.getByRole('button', { name: 'Got it' }).click()
     await expect(destination.locator('optgroup[label="Built into Ambio"] option')).toHaveText(['Ambio chat · set up a model service…'])
     // Ambio chat is one more agent to pick; with no service it opens setup.
     await destination.selectOption({ label: 'Ambio chat · set up a model service…' })
@@ -57,6 +59,9 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await settings.getByRole('button', { name: 'Save service' }).click()
     await settings.getByRole('button', { name: 'Close', exact: true }).click()
     await destination.selectOption({ label: 'Ambio chat · My local test service · fixture-model' })
+    // Ambio chat works differently from the others, so it is introduced too.
+    await expect(intro).toContainText('A conversation keeps the model it started with')
+    await intro.getByRole('button', { name: 'Got it' }).click()
     await inbox.getByRole('button', { name: /^Request type/ }).click()
     await inbox.getByRole('menuitemradio', { name: 'Ask' }).click()
     const composer = inbox.getByRole('textbox', { name: 'Instruction for your agent' })

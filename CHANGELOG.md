@@ -45,8 +45,10 @@ in the app as "What's New" after updating, so write it for users.
 - Codex and Antigravity's CLI can be started from Ambio as well as Claude
   Code. Copilot CLI runs as a session so it keeps its place between turns.
   Experimental: Cursor's and Windsurf's (Devin) terminal agents.
-- The info button beside Deliver to explains how each agent works from the
-  panel and what it can do.
+- The first time you choose an agent, Ambio shows how it works from the panel
+  and what it can do, and waits for you to confirm. The info button beside
+  Deliver to shows the same guide any time, and choosing an agent there
+  changes where your message goes.
 - Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
   CLI, which otherwise refuses them when started from Ambio.
 - Ambio chat: Ambio's own agent, picked like any other in the agent panel.

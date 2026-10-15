@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
+import { skipAgentGuides } from './agentGuides'
 
 type Order = Record<string, any>
 
@@ -6,6 +7,7 @@ async function openMockProject(fixture: 'commerce' | 'service' | 'operations', h
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_FIXTURE: fixture } })
   const page = await app.firstWindow()
+  await skipAgentGuides(page)
   await page.setViewportSize({ width: 1280, height })
   const orders: Order[] = []
   const workspaceId = `fixture-${fixture}`

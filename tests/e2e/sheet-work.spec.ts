@@ -1,10 +1,12 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { skipAgentGuides } from './agentGuides'
 
 test('work-order review distinguishes the sent sheet from a later revision', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
   try {
     const page = await app.firstWindow()
+    await skipAgentGuides(page)
     const sheet = { id: 'sheet_design', workspaceId: 'demo', name: 'Checkout revised', purpose: 'New scope', kind: 'structure', folder: '', createdBy: 'user', revision: 5, createdAt: 1, updatedAt: 2 }
     let sheetAvailable = true
     const message = {
@@ -67,6 +69,7 @@ test('sheet attachment follows live differences, survives Floor navigation, and 
   const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
   try {
     const page = await app.firstWindow()
+    await skipAgentGuides(page)
     await page.setViewportSize({ width: 1440, height: 1000 })
     const sheet: any = { id:'sheet_design',workspaceId:'demo',name:'Checkout redesign',purpose:'Restructure checkout',kind:'structure',folder:'',createdBy:'user',revision:4,createdAt:1,updatedAt:1 }
     let equivalent = false

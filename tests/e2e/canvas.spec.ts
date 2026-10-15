@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { skipAgentGuides } from './agentGuides'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -91,6 +92,7 @@ test.beforeEach(async () => {
     env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home, APPDATA: join(isolated.home, 'AppData', 'Roaming'), LOCALAPPDATA: join(isolated.home, 'AppData', 'Local') },
   })
   page = await app.firstWindow()
+  await skipAgentGuides(page)
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
     const url = route.request().url()

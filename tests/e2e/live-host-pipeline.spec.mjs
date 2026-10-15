@@ -51,6 +51,9 @@ for (const withSheet of [false, true]) {
         store.getState().setCurrentProject({ ...current, rootPath })
       }, harness.projectDir)
       await page.getByRole('button', { name: /^Message agent/ }).click()
+      // First use of an agent shows its guide until confirmed.
+      const intro = page.getByRole('dialog', { name: /^Before you use / })
+      if (await intro.waitFor({ timeout: 5000 }).then(() => true, () => false)) await intro.getByRole('button', { name: 'Got it' }).click()
       const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
       // The desktop keeps drafts across runs. Select this test's scope explicitly.
       const removeAttachedSheet = inbox.getByRole('button', { name: 'Remove attached sheet' })
