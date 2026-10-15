@@ -1,5 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification, safeStorage, net } from 'electron'
 import { brandImage } from './branding'
+import { AgentChat } from './agentChat'
+import { ChatProviders } from './chatProviders'
+import { ChatProviderProxy } from './chatProviderProxy'
+import type { ChatProviderInput, ChatSendInput } from '../src/shared/agentChat'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
@@ -68,6 +72,7 @@ const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
 const DATA_DIR = join(os.homedir(), '.ambio', 'data')
 const LOG_DIR = join(CONFIG_DIR, 'logs')
 const deliveryRunner = new DeliveryRunner(join(CONFIG_DIR, 'delivery'))
+let agentChat: AgentChat | undefined
 const WINDOW_STATE_FILE = join(CONFIG_DIR, 'window-state.json')
 // Where "Report a Bug" leads. Update alongside the repository if it moves.
 const ISSUES_URL = 'https://github.com/maxwmeadow/Ambio/issues/new'
@@ -857,6 +862,44 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function setupIPC(): void {
+  const chatDirectory = join(CONFIG_DIR, 'chat')
+  const networkFetch = net.fetch.bind(net) as typeof fetch
+  const chatProviders = new ChatProviders(chatDirectory, {
+    available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+    encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value),
+  }, networkFetch)
+  const chatProxy = new ChatProviderProxy(chatProviders, networkFetch)
+  const chatProject = (id: string) => {
+    const project = loadRecentProjects().find(item => item.id === id)
+    if (!project || !fs.existsSync(project.rootPath)) throw new Error('Open this project before starting a conversation.')
+    return project
+  }
+  agentChat = new AgentChat({
+    directory: chatDirectory,
+    binary: app.isPackaged ? join(process.resourcesPath, 'agent', process.platform === 'win32' ? 'opencode.exe' : 'opencode') : join(__dirname, '../agent', process.platform === 'win32' ? 'opencode.exe' : 'opencode'),
+    providers: chatProviders, proxy: chatProxy, project: chatProject, mcp: mcpLaunchSpec,
+    assertExternalIdle: root => deliveryRunner.assertRootAvailable(root),
+    workOrder: async (project, id) => {
+      if (typeof id !== 'string' || id.length > 256) throw new Error('Invalid work order.')
+      const { status, body } = await archdJson(`/api/canvas/message?workspace=${encodeURIComponent(project.id)}&messageId=${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(10000) })
+      if (status !== 200) throw new Error('This work order is unavailable.')
+      checkDeliveryMessage(body, project.id, id)
+      return workOrderHandoff(project.name, project.id, project.rootPath, id)
+    },
+  })
+  const ensureChatIdle = () => { if (agentChat!.hasActive()) throw new Error('Stop active conversations before changing model services.') }
+  ipcMain.handle('chat:providers', () => chatProviders.list())
+  ipcMain.handle('chat:provider-save', (_event, input: ChatProviderInput) => { ensureChatIdle(); return chatProviders.save(input) })
+  ipcMain.handle('chat:provider-test', (_event, input: ChatProviderInput) => chatProviders.test(input))
+  ipcMain.handle('chat:provider-remove', (_event, id: string) => { ensureChatIdle(); chatProviders.remove(id) })
+  ipcMain.handle('chat:list', (_event, workspaceId: string) => agentChat!.list(workspaceId))
+  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string) => agentChat!.create(workspaceId, providerId))
+  ipcMain.handle('chat:snapshot', (_event, id: string) => agentChat!.snapshot(id))
+  ipcMain.handle('chat:cached', (_event, id: string) => agentChat!.cached(id))
+  ipcMain.handle('chat:send', (_event, input: ChatSendInput) => agentChat!.send(input))
+  ipcMain.handle('chat:stop', (_event, id: string) => agentChat!.stop(id))
+  ipcMain.handle('chat:approve', (_event, id: string, requestId: string, allow: boolean) => { if (typeof allow !== 'boolean') throw new Error('Invalid approval.'); return agentChat!.approve(id, requestId, allow) })
+  ipcMain.handle('chat:answer', (_event, id: string, requestId: string, answers: string[][] | null) => agentChat!.answer(id, requestId, answers))
   // Open a project directory - returns config only; the renderer registers it via REST.
   ipcMain.handle('project:open-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
@@ -936,6 +979,7 @@ function setupIPC(): void {
       buttonLabel: 'Use This Folder',
     })
     if (result.canceled || !result.filePaths[0]) return null
+    if (fs.existsSync(project.rootPath)) { agentChat?.assertRootAvailable(project.rootPath); deliveryRunner.assertRootAvailable(project.rootPath) }
     const newRoot = result.filePaths[0]
     const owner = findProjectByRoot(loadRecentProjects(), newRoot)
     if (owner && owner.id !== projectId) {
@@ -998,6 +1042,8 @@ function setupIPC(): void {
     })
     if (answer.response !== 0) return false
     quitting = true
+    await agentChat?.close()
+    deliveryRunner.stopAll()
     if (attachedDaemon) {
       try {
         await fetch(`http://127.0.0.1:${archdPorts.api}/api/daemon/shutdown`, {
@@ -1009,7 +1055,7 @@ function setupIPC(): void {
     }
     stopArchd()
     await new Promise(resolve => setTimeout(resolve, 500))
-    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin')]) {
+    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin'), join(CONFIG_DIR, 'chat')]) {
       try { fs.rmSync(target, { recursive: true, force: true }) } catch (error) { console.error('[main] could not delete', target, error) }
     }
     app.relaunch()
@@ -1074,6 +1120,7 @@ function setupIPC(): void {
   ipcMain.handle('project:remove', async (_event, projectId: string) => {
     const token = readDaemonToken()
     const project = loadRecentProjects().find(candidate => candidate.id === projectId)
+    if (project && fs.existsSync(project.rootPath)) { agentChat?.assertRootAvailable(project.rootPath); deliveryRunner.assertRootAvailable(project.rootPath) }
     const trashPath = await removeProjectData({ projectId, dataDir: DATA_DIR, apiPort: archdPorts.api, trash: true,
       request: (input, init) => fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } }),
     })
@@ -1408,6 +1455,7 @@ function setupIPC(): void {
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+    agentChat?.assertRootAvailable(project.rootPath)
     // A turn continues the host session its conversation already has, when
     // the host can; the conversation itself reaches the agent through Ambio.
     const driver = agentDriver(request.hostId)
@@ -1922,7 +1970,12 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
+let chatShutdownComplete = false
+app.on('before-quit', event => {
+  if (agentChat && !chatShutdownComplete) {
+    event.preventDefault()
+    void agentChat.close().finally(() => { chatShutdownComplete = true; app.quit() })
+  }
   quitting = true
   tray?.destroy()
   tray = null
@@ -1934,8 +1987,8 @@ app.on('before-quit', () => {
 })
 
 // Ensure archd is killed if the process is terminated via Ctrl+C or signal
-process.on('SIGINT', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); process.exit(0) })
-process.on('SIGTERM', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); process.exit(0) })
+process.on('SIGINT', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); void (agentChat?.close() ?? Promise.resolve()).finally(() => process.exit(0)) })
+process.on('SIGTERM', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); void (agentChat?.close() ?? Promise.resolve()).finally(() => process.exit(0)) })
 
 // Security: the window only ever shows Ambio. A link that would navigate it
 // elsewhere opens in the browser instead; embedded web views are refused.

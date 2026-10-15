@@ -63,10 +63,17 @@ function npmPackages() {
       let manifest = null
       try { manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) } catch { /* optional, not installed here */ }
       if (manifest && manifest.version === child.version) {
-        const license = typeof manifest.license === 'string'
+        let license = typeof manifest.license === 'string'
           ? manifest.license
           : manifest.license?.type ?? manifest.licenses?.map(entry => entry.type ?? entry).join(' OR ')
-        found.set(key, { name, version: child.version, license, texts: licenseTexts(dir), source: 'npm' })
+        let texts = licenseTexts(dir)
+        // The pinned native packages omit SPDX metadata. Use the license from
+        // the matching upstream release, never a blanket unknown-license pass.
+        if (/^opencode-(linux|darwin|windows)-(x64|arm64)(-baseline)?$/.test(name) && child.version === '1.18.34') {
+          license = 'MIT'
+          texts = [fs.readFileSync(path.join(ROOT, 'scripts', 'licenses', 'opencode-1.18.34.txt'), 'utf8').trim()]
+        }
+        found.set(key, { name, version: child.version, license, texts, source: 'npm' })
       }
       walk(child)
     }

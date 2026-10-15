@@ -15,6 +15,7 @@ import { AgentDeliveryDestination, AgentDeliveryStatus, deliveryAction, useAgent
 import { WATCHING_DELIVERY } from '../../shared/agentDelivery'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
+import { AgentChatPanel } from './AgentChatPanel'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
@@ -36,6 +37,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // a new conversation that has no turn yet.
   const [threadId, setThreadId] = useState<string | null | undefined>(undefined)
   const [mode, setMode] = useState<WorkOrderMode>('build')
+  const [capability, setCapability] = useState<'orders' | 'chat'>('orders')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [unseen, setUnseen] = useState(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -193,6 +195,16 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       <button type="button" className="ambio-inbox__icon" disabled={locked || currentThreadId === null} onClick={() => { setThreadId(null); textarea.current?.focus() }} aria-label="New conversation" title="Start a new conversation"><InboxIcon name="plus" /></button>
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
+    <div className="ambio-inbox__capabilities" role="tablist" aria-label="Agent experience" onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')]
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+      buttons[next]?.focus(); buttons[next]?.click()
+    }}><button id="ambio-orders-tab" type="button" role="tab" aria-controls="ambio-agent-experience" tabIndex={capability === 'orders' ? 0 : -1} aria-selected={capability === 'orders'} onClick={() => setCapability('orders')}>Work orders</button><button id="ambio-chat-tab" type="button" role="tab" aria-controls="ambio-agent-experience" tabIndex={capability === 'chat' ? 0 : -1} aria-selected={capability === 'chat'} onClick={() => setCapability('chat')}>Chat in Ambio</button></div>
+    <div id="ambio-agent-experience" className="ambio-inbox__experience" role="tabpanel" aria-labelledby={capability === 'chat' ? 'ambio-chat-tab' : 'ambio-orders-tab'}>
+    {capability === 'chat' ? <AgentChatPanel key={graph.workspaceId} workspaceId={graph.workspaceId} selection={selection} sheetId={effectiveSheetId} onWorkOrders={() => setCapability('orders')} /> : <>
     {(error || sheet.error) && <div role="alert" className="ambio-inbox__error"><span>{error || sheet.error}</span><button type="button" onClick={() => { setError(null); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
     <div className="ambio-inbox__thread">
       <div ref={history} className={`ambio-inbox__history${shown.length ? ' ambio-inbox__history--messages' : ''}`} aria-label="Messages" onScroll={() => { const el = history.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (nearBottom.current) setUnseen(false) }}>
@@ -247,6 +259,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
         </div><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked} onChange={value => { setMode(value); textarea.current?.focus() }} /><button className="ambio-inbox__send" type="submit" aria-label={deliveryAction(deliveryHost, delivery.hostId, delivery.watchingHosts)} title={retry.current ? 'Retry original message' : deliveryAction(deliveryHost, delivery.hostId, delivery.watchingHosts)} disabled={sending || !!delivery.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button></div>
       </form>
       {effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
+    </div>
+    </>}
     </div>
   </aside>
 }

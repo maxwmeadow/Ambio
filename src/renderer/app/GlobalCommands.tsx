@@ -6,6 +6,8 @@ import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
 import { MarkdownView } from '../components/MarkdownView'
 import { AgentConnections } from '../components/AgentConnections'
 import { AmbioWordmark } from '../components/ui/AmbioBrand'
+import { ChatProviderSettings } from '../components/ChatProviderSettings'
+import type { ChatProvider } from '../../shared/agentChat'
 
 type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
 
@@ -321,12 +323,13 @@ function AcknowledgementsDialog({ onClose }: { onClose: () => void }) {
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
-type SettingsSection = 'general' | 'appearance' | 'agents' | 'privacy' | 'advanced'
+type SettingsSection = 'general' | 'appearance' | 'agents' | 'models' | 'privacy' | 'advanced'
 
 const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'agents', label: 'Agents' },
+  { id: 'models', label: 'Model services' },
   { id: 'privacy', label: 'Privacy & Data' },
   { id: 'advanced', label: 'Advanced' },
 ]
@@ -341,6 +344,8 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [editors, setEditors] = useState<Array<{ id: string; label: string }>>([])
   const project = useGraphStore(state => state.currentProject)
+  const [chatProviders, setChatProviders] = useState<ChatProvider[]>([])
+  const projectOpen = project !== null
 
   useEffect(() => {
     if (!window.ambio) { setLoaded(true); return }
@@ -352,6 +357,7 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
     void window.ambio.getAppPaths().then(setPaths)
     void window.ambio.getAppInfo().then(info => setVersion(info.version))
     void window.ambio.listEditors?.().then(setEditors)
+    void window.ambio.chatProviders().then(setChatProviders)
     return window.ambio.onSettingsChanged(setSettings)
   }, [])
 
@@ -481,10 +487,12 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
             </>
           )}
 
+          {section === 'models' && <div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onClose={() => setSection('agents')} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders) }} /></div>}
+
           {section === 'privacy' && (
             <>
               <p className="ambio-settings__text">
-                Your code, project maps and history stay on this machine. Ambio does not collect usage analytics.
+                Project maps and history stay on this machine. Integrated chat sends messages and agent-read context to your chosen model service. Ambio does not collect usage analytics.
                 Diagnostics are only ever copied by you.
               </p>
               <PathRow label="Project data" path={paths?.data} onOpen={() => void window.ambio?.openAppPath('data')} />
