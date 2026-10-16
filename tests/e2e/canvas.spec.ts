@@ -957,29 +957,20 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await expect(card).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Bring an agent into Ambio' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Choose your agent' })).toBeVisible()
-  // Ambio chat and the agents Ambio runs need no setup; that is said first.
-  await expect(page.getByRole('region', { name: 'Agents that need no setup' })).toBeVisible()
-
   const steps = page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')
   await expect(steps).toHaveCount(2)
   await expect(steps.nth(0)).toHaveAttribute('aria-selected', 'true')
 
-  const agents = page.getByRole('list', { name: 'Supported agents' })
-  // One entry per agent FAMILY, not per modality: families group Claude Code
-  // with Claude Desktop, and Copilot's extension with its CLI.
-  // Agents not on this computer wait behind one line; opened, all eight show.
-  const notFound = page.getByRole('list', { name: 'Agents not found on this computer' })
-  const showNotFound = page.getByRole('button', { name: /not found on this computer/ })
+  // One list of agents and one action for the chosen one. Agents Ambio runs
+  // come first; Ambio chat is offered even before a model service exists.
+  const agents = page.getByRole('radiogroup', { name: 'Agents' })
+  await expect(agents.getByRole('heading', { name: /Ambio runs it/ })).toBeVisible()
+  await expect(agents.getByRole('heading', { name: /In another app/ })).toBeVisible()
+  await expect(agents.getByRole('radio', { name: /Ambio chat/ })).toBeVisible()
+  const showNotFound = agents.getByRole('button', { name: /not found on this computer/ })
   if (await showNotFound.count()) await showNotFound.click()
-  const allFamilies = page.locator('.ambio-connect__family-card')
-  await expect(allFamilies).toHaveCount(8)
-  await expect(agents.getByText('found on this machine')).toHaveCount(0)
-  await expect(agents.getByText(/Ambio configured|workflow missing/)).toHaveCount(0)
-  await expect(page.locator('.ambio-connect__family-card > .ambio-connect__family-row .ambio-connect__host-signal, .ambio-connect__surface--solo > .ambio-connect__host-signal')).toHaveCount(8)
-  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(1)
-  // Installed and connected agents lead the list.
-  await expect(agents.locator(':scope > li').first()).toHaveAttribute('data-state', /live|repair|installed/)
-  await expect(notFound.locator(':scope > li[data-state]:not([data-state="missing"])')).toHaveCount(0)
+  await expect(agents.getByRole('radio', { checked: true })).toHaveCount(1)
+  await expect(page.locator('.ambio-choose__footer .ambio-connect__primary, .ambio-choose__footer .ambio-connect__secondary')).toHaveCount(1)
   const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
   await expect(mascot).toHaveAttribute('data-state', 'connected')
 
@@ -1020,7 +1011,6 @@ test('uses two-step agent setup for blank projects without changing codebase set
 
   agentConnected = false
   await expect(mascot).toHaveAttribute('data-state', 'sleeping', { timeout: 5_000 })
-  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(0)
   await expect(openCanvas).toBeDisabled()
 
   agentConnected = true
@@ -2876,21 +2866,22 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   setupUrl.searchParams.delete('blank')
   await page.goto(setupUrl.toString())
   await expect(page.getByRole('heading', { name: 'Choose who maps this project' })).toBeVisible()
-  const mapWith = page.getByRole('region', { name: 'Map with an agent Ambio runs' })
-  await expect(mapWith.getByRole('combobox', { name: 'Agent to map with' })).toHaveValue('claude-code')
+  const agents = page.getByRole('radiogroup', { name: 'Agents' })
+  const footer = page.locator('.ambio-choose__footer')
+  const claude = agents.getByRole('radio', { name: /Claude Code \(CLI\)/ })
+  await expect(claude).toHaveAttribute('aria-checked', 'true')
   // Ambio chat is offered even before a model service exists, and leads to setting one up.
-  await expect(mapWith.getByRole('combobox', { name: 'Agent to map with' }).locator('option')).toContainText(['Claude Code (CLI)', 'Ambio chat · your own API key (set up first)'])
-  await mapWith.getByRole('combobox', { name: 'Agent to map with' }).selectOption('chat-setup')
-  await expect(mapWith.getByRole('button', { name: 'Set up a model service' })).toBeVisible()
-  await mapWith.getByRole('combobox', { name: 'Agent to map with' }).selectOption('claude-code')
+  await agents.getByRole('radio', { name: /Ambio chat/ }).click()
+  await expect(footer.getByRole('button', { name: 'Set up a model service' })).toBeVisible()
+  await claude.click()
   // Adding Ambio for the user's own sessions starts on, and can be turned off.
-  const sessions = mapWith.getByRole('checkbox', { name: /Also add Ambio to your own/ })
+  const sessions = footer.getByRole('checkbox', { name: /Also add Ambio to your own/ })
   if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }
   // The mascot follows the chosen agent: one Ambio runs is ready without connecting.
   const caption = page.locator('.ambio-connect__mascot p[aria-live]')
   await expect(caption).toHaveText('Ready - Claude Code (CLI) is ready. Press Map to start.')
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
-  await mapWith.getByRole('button', { name: 'Map with Claude Code (CLI)' }).click()
+  await footer.getByRole('button', { name: 'Map with Claude Code (CLI) →' }).click()
   const activity = page.getByRole('region', { name: 'Mapping activity' })
   await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
   await expect(activity).toContainText('get_architecture')

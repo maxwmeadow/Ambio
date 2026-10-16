@@ -4,7 +4,7 @@ import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agen
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
 import { useSheetStore } from '../store/sheetStore'
 import { workOrderNote } from '../components/inboxModel'
-import { OPEN_MODEL_SERVICES, CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
+import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
 
 /**
  * Mapping a project with an agent Ambio runs itself: Ambio chat, or a CLI on
@@ -31,28 +31,21 @@ function rememberMappingRun(run: MappingRun | null, workspaceId: string): void {
   try { run ? localStorage.setItem(runKey(workspaceId), JSON.stringify(run)) : localStorage.removeItem(runKey(workspaceId)) } catch { /* followed in memory */ }
 }
 
-type Choice = { id: string; label: string; kind: 'chat'; provider: ChatProvider } | { id: string; label: string; kind: 'run'; host: DeliveryHost }
+/** An agent Ambio can run to map a project, or Ambio chat before it is set up. */
+export type RunnableChoice =
+  | { id: string; label: string; kind: 'chat'; provider: ChatProvider }
+  | { id: string; label: string; kind: 'run'; host: DeliveryHost }
   // Ambio chat before a model service exists: offered so it is never invisible.
   | { id: string; label: string; kind: 'setup' }
 
-const CHAT_SETUP = 'chat-setup'
+export const CHAT_SETUP = 'chat-setup'
 
-/** What the mapping section has chosen, for the mascot beside it. */
-export type MappingChoice = { label: string; kind: 'chat' | 'run' | 'setup' } | null
+/** What setup has chosen, for the mascot beside it. */
+export type MappingChoice = { label: string; kind: 'chat' | 'run' | 'setup' | 'app' } | null
 
-export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted, onChoice }: {
-  workspaceId: string
-  projectRoot: string
-  /** Ambio's installers, to offer adding Ambio to the user's own sessions of the chosen CLI. */
-  agentHosts: AgentHostInfo[]
-  onStarted: (run: MappingRun) => void
-  onChoice?: (choice: MappingChoice) => void
-}) {
-  const [choices, setChoices] = useState<Choice[] | null>(null)
-  const [chosen, setChosen] = useState('')
-  const [addToSessions, setAddToSessions] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+/** Ambio chat's services and the CLIs on this computer, kept current as services change. */
+export function useRunnableChoices(): RunnableChoice[] | null {
+  const [choices, setChoices] = useState<RunnableChoice[] | null>(null)
   useEffect(() => {
     let active = true
     const load = async () => {
@@ -61,83 +54,51 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted, 
         window.ambio.chatProviders().catch(() => [] as ChatProvider[]),
       ])
       if (!active) return
-      const next: Choice[] = [
-        ...providers.map(provider => ({ id: `chat:${provider.id}`, label: `Ambio chat · ${provider.name} · ${provider.model}`, kind: 'chat' as const, provider })),
+      setChoices([
         ...targets.filter(target => target.route === 'run' && target.available).map(host => ({ id: host.id, label: host.label, kind: 'run' as const, host })),
-        ...(providers.length ? [] : [{ id: CHAT_SETUP, label: 'Ambio chat · your own API key (set up first)', kind: 'setup' as const }]),
-      ]
-      setChoices(next)
-      // A service just added replaces the setup choice that asked for it.
-      setChosen(current => current === CHAT_SETUP && providers.length ? next[0].id
-        : next.some(choice => choice.id === current) ? current : next[0]?.id ?? '')
+        ...providers.map(provider => ({ id: `chat:${provider.id}`, label: 'Ambio chat', kind: 'chat' as const, provider })),
+        ...(providers.length ? [] : [{ id: CHAT_SETUP, label: 'Ambio chat', kind: 'setup' as const }]),
+      ])
     }
     void load()
     window.addEventListener(CHAT_PROVIDERS_CHANGED, load)
     return () => { active = false; window.removeEventListener(CHAT_PROVIDERS_CHANGED, load) }
   }, [])
-  const choice = choices?.find(item => item.id === chosen)
-  const choiceLabel = choice ? (choice.kind === 'chat' ? 'Ambio chat' : choice.label) : ''
-  useEffect(() => { onChoice?.(choice ? { label: choiceLabel, kind: choice.kind } : null) }, [choice?.id, choiceLabel])
-  // Adding Ambio to a CLI serves the user's own sessions; Ambio's runs do not need it.
-  const installer = choice?.kind === 'run' ? agentHosts.find(host => host.id === choice.host.id && host.modality === 'cli') : undefined
-  const offerInstall = !!installer && !(installer.configured && installer.workflowInstalled)
-
-  const start = async () => {
-    if (!choice || busy) return
-    if (choice.kind === 'setup') { window.dispatchEvent(new Event(OPEN_MODEL_SERVICES)); return }
-    setBusy(true); setError('')
-    try {
-      if (offerInstall && addToSessions) {
-        // The mapping does not wait on this; a failure is said and the run goes ahead.
-        const outcome = await window.ambio.installAgent(installer!.id, projectRoot).catch(failure => ({ ok: false, detail: String(failure) }))
-        if (!outcome.ok) setError(`Ambio could not be added to your own ${choice.label} sessions: ${outcome.detail} The mapping still runs.`)
-      }
-      const brief = await window.ambio.mappingBrief()
-      let run: MappingRun
-      if (choice.kind === 'chat') {
-        const conversation = await window.ambio.createChat(workspaceId, choice.provider.id)
-        await window.ambio.sendChat({ conversationId: conversation.id, text: brief, mode: 'propose' })
-        run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label }
-      } else {
-        const messageId = crypto.randomUUID()
-        await useSheetStore.getState().sendToAgent(workspaceId, workOrderNote('propose', brief), [], null, messageId, [], { threadId: messageId, mode: 'propose' })
-        await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id })
-        run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label }
-      }
-      rememberMappingRun(run, workspaceId)
-      onStarted(run)
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure))
-    } finally { setBusy(false) }
-  }
-
-  if (choices === null) return <section className="ambio-map-with" aria-label="Map with an agent Ambio runs"><p className="ambio-map-with__copy">Looking for agents Ambio can run…</p></section>
-  return <section className="ambio-map-with" aria-label="Map with an agent Ambio runs">
-    <h3>Let Ambio run it</h3>
-    {choices.length === 0 ? <p className="ambio-map-with__copy">
-      No agent Ambio can run was found. Install Claude Code, Codex or GitHub Copilot CLI and sign in.
-    </p> : <>
-      <p className="ambio-map-with__copy">Ambio starts the agent in this project and shows its progress here. Nothing to install or restart.</p>
-      <div className="ambio-map-with__row">
-        <select aria-label="Agent to map with" value={chosen} disabled={busy} onChange={event => setChosen(event.target.value)}>
-          {choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>
-        <button type="button" className="ambio-connect__primary" disabled={busy || !choice} onClick={() => { void start() }}>{busy ? 'Starting…' : choice?.kind === 'setup' ? 'Set up a model service' : `Map with ${choice?.kind === 'chat' ? 'Ambio chat' : choice?.label ?? 'this agent'}`}</button>
-      </div>
-      {choice?.kind === 'setup' && <p className="ambio-map-with__copy">Ambio chat uses a model service with your own API key (OpenAI, Anthropic, Google or a compatible one) and Ambio&rsquo;s tools, so it can map the project with nothing else installed. Add the service once in Settings → Agents, then come back here.</p>}
-      {offerInstall && <label className="ambio-map-with__sessions">
-        <input type="checkbox" checked={addToSessions} disabled={busy} onChange={event => setAddToSessions(event.target.checked)} />
-        <span><strong>Also add Ambio to your own {choice!.label} sessions</strong>
-          <small>Recommended. Your own sessions outside Ambio can then see this map, draw plans on it and take messages from the canvas. Ambio&rsquo;s runs work either way, and you can remove it any time in Settings → Agents.</small></span>
-      </label>}
-    </>}
-    {error && <p className="ambio-map-with__error" role="alert">{error}</p>}
-  </section>
+  return choices
 }
 
-/** What the mapping agent is doing, live, with a way to stop it. */
+/**
+ * Start mapping with an agent Ambio runs. Adding Ambio to the user's own
+ * sessions of that CLI is attempted first when asked; it never blocks the run.
+ * Returns the run, and a warning when the add did not work.
+ */
+export async function startMapping({ choice, workspaceId, projectRoot, installer }: {
+  choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo
+}): Promise<{ run: MappingRun; warning?: string }> {
+  let warning: string | undefined
+  if (installer) {
+    const outcome = await window.ambio.installAgent(installer.id, projectRoot).catch(failure => ({ ok: false, detail: String(failure) }))
+    if (!outcome.ok) warning = `Ambio could not be added to your own ${choice.label} sessions: ${outcome.detail} The mapping still runs.`
+  }
+  const brief = await window.ambio.mappingBrief()
+  let run: MappingRun
+  if (choice.kind === 'chat') {
+    const conversation = await window.ambio.createChat(workspaceId, choice.provider.id)
+    await window.ambio.sendChat({ conversationId: conversation.id, text: brief, mode: 'propose' })
+    run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label }
+  } else {
+    const messageId = crypto.randomUUID()
+    await useSheetStore.getState().sendToAgent(workspaceId, workOrderNote('propose', brief), [], null, messageId, [], { threadId: messageId, mode: 'propose' })
+    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id })
+    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label }
+  }
+  rememberMappingRun(run, workspaceId)
+  return { run, warning }
+}
+
 export type MappingState = 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
 
+/** What the mapping agent is doing, live, with a way to stop it. */
 export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; onDismiss: () => void; onState?: (state: MappingState) => void }) {
   const [lines, setLines] = useState<string[]>([])
   const [state, setState] = useState<MappingState>('working')
