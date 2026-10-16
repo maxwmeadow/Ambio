@@ -1400,6 +1400,8 @@ function setupIPC(): void {
     if (!IS_E2E || process.env.AMBIO_E2E_AGENTS === '1') return targets
     return targets.map(target => ({ ...target, available: false, launcher: undefined, detail: 'Not used in tests.' }))
   }
+  // What an agent Ambio runs is asked to do to map a project: the same brief the installed workflow carries.
+  ipcMain.handle('agent:mapping-brief', () => NAME_ARCHITECTURE_COMMAND)
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
   ipcMain.handle('agent:delivery-runs', (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []

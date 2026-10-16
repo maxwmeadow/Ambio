@@ -1009,3 +1009,28 @@
   color: #6b7a72;
   font-size: 10.5px;
 }
+
+/* Mapping with an agent Ambio runs: the first choice in setup. */
+.ambio-map-with { display: grid; gap: 9px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid #8fb2a3; background: #eef4ef; color: #23362f; }
+.ambio-map-with h3 { margin: 0; font-size: 13px; }
+.ambio-map-with__copy { margin: 0; color: #4f6159; font-size: 12px; line-height: 1.5; }
+.ambio-map-with__row { display: flex; gap: 8px; align-items: stretch; }
+.ambio-map-with__row select { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #b0beb5; background: #fbfaf5; color: inherit; font: inherit; font-size: 12px; }
+.ambio-map-with__sessions { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; cursor: pointer; }
+.ambio-map-with__sessions input { margin-top: 2px; accent-color: #34735f; }
+.ambio-map-with__sessions span { display: grid; gap: 2px; }
+.ambio-map-with__sessions small { color: #5d6e66; font-size: 11px; line-height: 1.45; }
+.ambio-map-with__link { padding: 0; border: 0; background: none; color: #2f6a5d; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.ambio-map-with__error { margin: 0; color: #8c493a; font-size: 12px; }
+.ambio-map-with--activity header { display: flex; align-items: center; gap: 8px; }
+.ambio-map-with--activity header strong { flex: 1; font-size: 13px; }
+.ambio-map-with__pulse { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #5ca877; }
+.ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: ambio-map-pulse 1.4s ease-in-out infinite; }
+.ambio-map-with--activity:is([data-state='failed'], [data-state='stopped']) .ambio-map-with__pulse { background: #cf9275; }
+.ambio-map-with--activity[data-state='waiting'] .ambio-map-with__pulse { background: #d1b56a; }
+.ambio-map-with__lines { display: grid; gap: 3px; margin: 0; padding: 8px 10px; list-style: none; background: #f8f7f2; border: 1px solid #d3dccf; font: 11px/1.45 var(--font-mono, monospace); color: #3d4f47; }
+.ambio-map-with__lines li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-connect__other { margin: 4px 0 2px; font-size: 13px; color: #23362f; }
+.ambio-connect__other-copy { margin: 0 0 10px; color: #56655e; font-size: 12px; line-height: 1.5; }
+@keyframes ambio-map-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: none; } }

@@ -956,7 +956,9 @@ test('uses two-step agent setup for blank projects without changing codebase set
   const card = page.locator('.ambio-connect__card')
   await expect(card).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Bring an agent into Ambio' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Add Ambio to your agent' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Choose your agent' })).toBeVisible()
+  // Ambio chat and the agents Ambio runs need no setup; that is said first.
+  await expect(page.getByRole('region', { name: 'Agents that need no setup' })).toBeVisible()
 
   const steps = page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')
   await expect(steps).toHaveCount(2)
@@ -2853,4 +2855,42 @@ test('wheel zoom continues over revealed file content through 100x', async () =>
   expect(afterToggle?.width).toBeCloseTo(beforeToggle!.width, 1)
   expect(afterToggle?.height).toBeCloseTo(beforeToggle!.height, 1)
   await expectResizeChrome('file_canvas')
+})
+
+test('setup maps a codebase with an agent Ambio runs and follows it live', async () => {
+  // Last in this file: it replaces the delivery handlers for the rest of the app's life.
+  await app.evaluate(({ ipcMain }) => {
+    const state = globalThis as unknown as { delivered: Array<{ workspaceId: string; messageId: string; hostId: string }> }
+    state.delivered = []
+    ipcMain.removeHandler('agent:delivery-hosts')
+    ipcMain.handle('agent:delivery-hosts', () => [{ id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' }])
+    ipcMain.removeHandler('agent:deliver')
+    ipcMain.handle('agent:deliver', (_event, request) => { state.delivered.push(request); return { detail: 'Agent launched.' } })
+    ipcMain.removeHandler('agent:delivery-runs')
+    ipcMain.handle('agent:delivery-runs', () => state.delivered.map(request => ({ key: 'mapping-run', workspaceId: request.workspaceId, messageId: request.messageId, revision: 'initial', hostId: request.hostId, rootPath: '', state: 'running', detail: 'Agent launched.', logPath: '', startedAt: 1 })))
+    ipcMain.removeHandler('agent:delivery-events')
+    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => after > 0 ? [] : [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }])
+  })
+  const setupUrl = new URL(page.url())
+  setupUrl.searchParams.set('connect', '1')
+  setupUrl.searchParams.delete('blank')
+  await page.goto(setupUrl.toString())
+  await expect(page.getByRole('heading', { name: 'Choose who maps this project' })).toBeVisible()
+  const mapWith = page.getByRole('region', { name: 'Map with an agent Ambio runs' })
+  await expect(mapWith.getByRole('combobox', { name: 'Agent to map with' })).toHaveValue('claude-code')
+  // Adding Ambio for the user's own sessions starts on, and can be turned off.
+  const sessions = mapWith.getByRole('checkbox', { name: /Also add Ambio to your own/ })
+  if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }
+  await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
+  await mapWith.getByRole('button', { name: 'Map with Claude Code (CLI)' }).click()
+  const activity = page.getByRole('region', { name: 'Mapping activity' })
+  await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
+  await expect(activity).toContainText('get_architecture')
+  await expect(page.getByRole('heading', { name: 'Claude Code (CLI) is mapping this project' })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
+  await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
+  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string }> }).delivered)
+  expect(delivered.map(request => request.hostId)).toEqual(['claude-code'])
+  await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
+  await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })

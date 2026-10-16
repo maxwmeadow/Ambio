@@ -3,6 +3,7 @@ import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
 import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
+import { MapWithAgent, MappingActivity, rememberedMappingRun, type MappingRun } from './MapWithAgent'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
   AGENT_STATE_LABEL,
@@ -67,12 +68,12 @@ interface AgentFamilyGroup {
 }
 
 const BLANK_PROJECT_STEPS: Array<{ id: SetupStep; label: string }> = [
-  { id: 1, label: 'Add Ambio' },
+  { id: 1, label: 'Choose agent' },
   { id: 2, label: 'Connect' },
 ]
 
 const CODEBASE_STEPS: Array<{ id: SetupStep; label: string }> = [
-  { id: 1, label: 'Add Ambio' },
+  { id: 1, label: 'Choose agent' },
   { id: 2, label: 'Restart' },
   { id: 3, label: 'Map project' },
   { id: 4, label: 'Review' },
@@ -110,6 +111,8 @@ export function ConnectAgentScreen({
   const [liveHostIds, setLiveHostIds] = useState<Set<string>>(() => new Set())
   const [verifiedHostIds, setVerifiedHostIds] = useState<Set<string>>(() => new Set())
   const [phase, setPhaseState] = useState<Phase>(() => progress.get(project.id) ?? 'waiting')
+  // A mapping Ambio is running itself needs no install, restart or command.
+  const [mappingRun, setMappingRun] = useState<MappingRun | null>(() => blankProject ? null : rememberedMappingRun(project.id))
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userSelectedHost = useRef(false)
 
@@ -252,7 +255,7 @@ export function ConnectAgentScreen({
 
   const mascotState = !blankProject && phase === 'proposed'
     ? 'proposal-ready'
-    : hasLivePresence
+    : hasLivePresence || mappingRun
       ? 'connected'
       : 'sleeping'
 
@@ -378,6 +381,7 @@ export function ConnectAgentScreen({
   }
 
   const stepComplete = (step: SetupStep) => {
+    if (mappingRun && (step === 1 || step === 2)) return true
     if (step === 1) {
       return hosts.some(host => {
         const state = presentAgentHost(host, results[host.id], liveHostIds.has(host.id)).state
@@ -389,7 +393,9 @@ export function ConnectAgentScreen({
     return false
   }
 
-  const stepLabels = blankProject ? BLANK_PROJECT_STEPS : CODEBASE_STEPS
+  // A mapping Ambio runs skips the restart; the step says so rather than claiming one happened.
+  const stepLabels = blankProject ? BLANK_PROJECT_STEPS
+    : mappingRun ? CODEBASE_STEPS.map(step => step.id === 2 ? { ...step, label: 'No restart needed' } : step) : CODEBASE_STEPS
 
   const orderedFamilies = orderAgentFamilies(families, results, liveHostIds)
   const missingCount = orderedFamilies.filter(item => item.presentation.state === 'missing').length
@@ -576,13 +582,25 @@ export function ConnectAgentScreen({
           <section id="agent-setup-stage" className="ambio-connect__stage" role="tabpanel">
             {activeStep === 1 && (
               <div className="ambio-connect__step-panel ambio-connect__step-panel--pinned">
-                <h2>Add Ambio to your agent</h2>
+                <h2>{blankProject ? 'Choose your agent' : 'Choose who maps this project'}</h2>
                 <p className="ambio-connect__step-copy">
-                  Pick the coding agent you use. Ambio installs itself into it, so the agent can see your map and take
-                  requests from the canvas.
+                  {blankProject
+                    ? 'Ambio chat and agents Ambio runs need no setup. An agent in another app needs Ambio added to it once.'
+                    : 'Let Ambio run an agent for you, or use one in another app.'}
                 </p>
 
                 <div className="ambio-connect__scroll">
+                  {blankProject
+                    ? <section className="ambio-map-with" aria-label="Agents that need no setup">
+                      <h3>Ambio chat and agents Ambio runs</h3>
+                      <p className="ambio-map-with__copy">Nothing to install. Open the canvas and choose one in the agent panel when you send your first message.</p>
+                      <div className="ambio-map-with__row"><button type="button" className="ambio-connect__primary" onClick={onComplete}>Open canvas</button></div>
+                    </section>
+                    : mappingRun
+                      ? <MappingActivity run={mappingRun} onDismiss={() => setMappingRun(null)} />
+                      : <MapWithAgent workspaceId={project.id} projectRoot={project.rootPath} agentHosts={hosts} onStarted={run => { setMappingRun(run); setActiveStep(3) }} />}
+                  <h3 className="ambio-connect__other">{blankProject ? 'Or connect an agent in another app' : 'Or use an agent in another app'}</h3>
+                  <p className="ambio-connect__other-copy">Add Ambio to it here, restart it, then {blankProject ? 'check the connection' : 'ask it to map the project'}. Adding Ambio also lets your own sessions of an agent use your map.</p>
                   <ul className="ambio-connect__families" aria-label="Supported agents">
                     {orderedFamilies.filter(item => item.presentation.state !== 'missing').map(renderFamily)}
                   </ul>
@@ -628,12 +646,12 @@ export function ConnectAgentScreen({
                   )}
                 </div>
 
-                <StepActions
-                  hint={selectedReady ? undefined : 'Install Ambio into an agent to continue.'}
+                {!mappingRun && <StepActions
+                  hint={selectedReady ? undefined : 'Add Ambio to an agent in another app to continue that way.'}
                   nextLabel={selectedReady ? `Continue with ${selectedHost?.modalityLabel || selectedHost?.label}` : 'Continue'}
                   onNext={() => setActiveStep(2)}
                   nextDisabled={!selectedReady}
-                />
+                />}
               </div>
             )}
 
@@ -653,7 +671,7 @@ export function ConnectAgentScreen({
                 ) : selectedOnline ? (
                   <>
                     <p className="ambio-connect__step-copy">
-                      The MCP process is online. Ask the agent to check inbox access before opening the canvas.
+                      {selectedHost?.modalityLabel || selectedHost?.label} is connected. Ask it to check that it can use Ambio before opening the canvas.
                     </p>
                     <div className="ambio-connect__command" data-kind="connection check">
                       <span>{connectionCheckPrompt(project)}</span>
@@ -691,7 +709,16 @@ export function ConnectAgentScreen({
               </div>
             )}
 
-            {activeStep === 2 && !blankProject && (
+            {activeStep === 2 && !blankProject && mappingRun && (
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 2 of 4</p>
+                <h2>Nothing to restart</h2>
+                <p className="ambio-connect__step-copy">Ambio runs {mappingRun.label} for you, so there is nothing to install or restart.</p>
+                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} nextLabel="Follow the mapping" onNext={() => setActiveStep(3)} />
+              </div>
+            )}
+
+            {activeStep === 2 && !blankProject && !mappingRun && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 2 of 4</p>
                 <h2>{selectedHost?.restartAction || `Restart ${selectedHost?.modalityLabel || selectedHost?.label}`}</h2>
@@ -737,7 +764,18 @@ export function ConnectAgentScreen({
               </div>
             )}
 
-            {activeStep === 3 && !blankProject && (
+            {activeStep === 3 && !blankProject && mappingRun && (
+              <div className="ambio-connect__step-panel">
+                <p className="ambio-connect__step-kicker">Step 3 of 4</p>
+                <h2>{mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label} is mapping this project</h2>
+                <p className="ambio-connect__step-copy">You can watch it work here. The map arrives in parts; review opens when the agent says it is done.</p>
+                <MappingActivity run={mappingRun} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                <ProposalDraftProgress workspaceId={project.id} inline />
+                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} nextLabel="Continue to review" onNext={() => setActiveStep(4)} />
+              </div>
+            )}
+
+            {activeStep === 3 && !blankProject && !mappingRun && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 3 of 4</p>
                 <h2>Ask {selectedHost?.modalityLabel || selectedHost?.label} to map this project</h2>
@@ -821,6 +859,7 @@ export function ConnectAgentScreen({
                     <span aria-hidden="true" /> {mapping ? 'Mapping in progress · still waiting for the proposal' : 'Waiting for a mapping proposal'}
                   </div>
                 )}
+                {mappingRun && phase !== 'proposed' && <MappingActivity run={mappingRun} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />}
                 <ProposalDraftProgress workspaceId={project.id} inline />
                 <StepActions backLabel="Back" onBack={() => setActiveStep(3)} />
               </div>
@@ -828,7 +867,7 @@ export function ConnectAgentScreen({
           </section>
 
           <aside className="ambio-connect__mascot">
-            <AgentMascot state={mascotState} hostLabel={selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
+            <AgentMascot state={mascotState} hostLabel={mappingRun?.label || selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
           </aside>
         </div>
 

@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('agent:hosts', projectRoot),
 
   listDeliveryHosts: (): Promise<DeliveryHost[]> => ipcRenderer.invoke('agent:delivery-hosts'),
+  mappingBrief: (): Promise<string> => ipcRenderer.invoke('agent:mapping-brief'),
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
   listDeliveryRuns: (workspaceId: string): Promise<DeliveryRun[]> => ipcRenderer.invoke('agent:delivery-runs', workspaceId),
   stopDeliveryRun: (workspaceId: string, key: string): Promise<void> => ipcRenderer.invoke('agent:delivery-stop', workspaceId, key),
@@ -347,6 +348,7 @@ declare global {
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>
       listDeliveryHosts: () => Promise<DeliveryHost[]>
+      mappingBrief: () => Promise<string>
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>
       listDeliveryRuns: (workspaceId: string) => Promise<DeliveryRun[]>
       stopDeliveryRun: (workspaceId: string, key: string) => Promise<void>

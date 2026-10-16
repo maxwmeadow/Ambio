@@ -51,6 +51,13 @@ in the app as "What's New" after updating, so write it for users.
   changes where your message goes.
 - Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
   CLI, which otherwise refuses them when started from Ambio.
+- Setup can map your project for you: choose Ambio chat or an agent on this
+  computer, press Map, and watch it work. Nothing to install or restart. Adding
+  Ambio to your own sessions of that agent is on by default and can be turned
+  off. Agents in other apps are set up as before.
+- The agent panel says whether the chosen agent is ready in that agent's own
+  terms, and Settings → Agents lists Ambio chat, the agents Ambio runs and the
+  agents in other apps separately.
 - Ambio chat: Ambio's own agent, picked like any other in the agent panel.
   Set up a model service with your API key, then ask, propose or build in the
   same conversation; replies stream in, and builds come back for review. Includes streamed

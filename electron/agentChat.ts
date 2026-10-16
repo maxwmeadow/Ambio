@@ -59,8 +59,9 @@ const AMBIO_READ_TOOLS = ['get_architecture', 'search_symbols', 'get_symbols', '
 // The work-order protocol a Build turn must follow. These change Ambio's
 // record of the work, never code, so they do not ask on every step.
 const AMBIO_WORK_ORDER_TOOLS = ['get_inbox', 'start_work', 'update_work', 'reply_to_canvas']
-// A proposal is drawn on a sheet for the user to approve; it changes no code.
-const AMBIO_PLAN_TOOLS = ['edit_sheet', 'plan_element']
+// A proposal is drawn for the user to approve - a sheet, or a proposed map of
+// the project - and changes no code.
+const AMBIO_PLAN_TOOLS = ['edit_sheet', 'plan_element', 'edit_systems']
 const allow = (tools: string[]) => Object.fromEntries(tools.map(tool => [`ambio_${tool}`, 'allow']))
 
 export function chatAgentConfig(mode: ChatMode): Json {

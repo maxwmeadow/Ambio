@@ -56,9 +56,6 @@ collide. Full context for each item is in its section below.
 
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
-3. 🚧 `readiness-by-kind` - say what "ready" means per kind of agent (Ambio chat: a model service; started CLIs: found and signed in; editor/desktop chats: installed, open, attached). Panel status strip, picker groups, a "What you need" section in each guide; no MCP jargon outside troubleshooting. [renderer agent panel]
-4. 🚧 `agents-settings-one-page` - one Settings → Agents page with Ambio chat (model services), Agents Ambio runs, Agents in other apps; the tool check lives there. [renderer settings]
-5. 🚧 `setup-map-with-agent` - setup offers "Map with <agent>" that Ambio runs itself (Ambio chat or a started CLI) with live progress, and keeps install → restart → command for agents in other apps. Installing Ambio for your own sessions stays on by default, can be turned off, and says why on is best. Blank projects: choose an agent instead of Connect. [renderer setup, electron delivery]
 
 ---
 
@@ -273,6 +270,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 ---
 
 ## Done log
+
+- 2026-10-16 `readiness-by-kind` `agents-settings-one-page` `setup-map-with-agent` Readiness is said per kind of agent (panel strip, picker groups, a What you need section in each guide; no MCP wording outside troubleshooting). Settings → Agents holds Ambio chat's model services, the agents Ambio runs and the agents in other apps. Setup step 1 offers Map with <agent>, run by Ambio as a Propose turn with live activity and Stop; adding Ambio to the user's own sessions of that CLI is on by default and can be turned off. Classic install → restart → command remains for agents in other apps.
 
 - 2026-10-15 `integrated-chat-merge` Merged Chat in Ambio into the agent conversation panel: one picker (Ambio chat per model service, setup opens Settings), one conversation list, shared Ask/Propose/Build (Propose added to the built-in agent), streamed transcript with builds reviewed inline, agent fixed per conversation. Replaced the tested/untested pills with an info popover of user-facing how-to per agent.
 

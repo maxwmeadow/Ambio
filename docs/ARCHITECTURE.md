@@ -17,7 +17,14 @@ thread `chat:<conversation>` so it is shown inside that conversation. `electron/
 loopback OpenCode server per project, persistent harness sessions, streamed text,
 tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
-Provider setup is in Settings → Model services; the picker opens it when none is set up.
+Provider setup is in Settings → Agents; the picker opens it when none is set up.
+
+Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) sends the
+mapping brief (`agent:mapping-brief`, the same text the installed workflow
+carries) as a Propose turn: a work order delivered to a CLI Ambio runs, or an
+Ambio chat conversation, whose Propose agent may call `edit_systems`. Progress
+comes from the run's events or the chat snapshot; the proposal itself arrives
+through the usual draft and proposal endpoints.
 
 `electron/chatProviders.ts` keeps provider metadata and OS-encrypted keys under
 `~/.ambio/chat`; without a secure keychain it keeps keys only in process memory.
