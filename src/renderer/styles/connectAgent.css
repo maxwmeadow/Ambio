@@ -1016,7 +1016,7 @@
 .ambio-map-with__copy { margin: 0; color: #4f6159; font-size: 12px; line-height: 1.5; }
 .ambio-map-with__error { margin: 0; color: #8c493a; font-size: 12px; }
 .ambio-map-with--activity header { display: flex; align-items: center; gap: 8px; }
-.ambio-map-with--activity header strong { flex: 1; font-size: 13px; }
+.ambio-map-with--activity header strong { font-size: 13px; }
 .ambio-map-with__pulse { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #5ca877; }
 .ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: ambio-map-pulse 1.4s ease-in-out infinite; }
 .ambio-map-with--activity:is([data-state='failed'], [data-state='stopped']) .ambio-map-with__pulse { background: #cf9275; }
@@ -1056,3 +1056,6 @@
 .ambio-choose__sessions span { display: grid; gap: 2px; }
 .ambio-choose__sessions small { color: #5d6e66; font-size: 11px; line-height: 1.45; }
 .ambio-choose__note[data-ok='false'] { color: #8c493a; }
+.ambio-map-with__heading { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ambio-map-with__heading small { color: #5d6e66; font-size: 11px; }
+.ambio-connect__waiting-line .ambio-choose__quiet { margin-left: auto; }

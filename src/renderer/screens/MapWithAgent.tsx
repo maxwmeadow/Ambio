@@ -3,8 +3,8 @@ import type { AgentHostInfo } from '../../../electron/preload'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agentDelivery'
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
 import { useSheetStore } from '../store/sheetStore'
-import { workOrderNote } from '../components/inboxModel'
 import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
+import { useProposalDrafts } from '../components/ProposalDraftProgress'
 
 /**
  * Mapping a project with an agent Ambio runs itself: Ambio chat, or a CLI on
@@ -68,6 +68,13 @@ export function useRunnableChoices(): RunnableChoice[] | null {
 }
 
 /**
+ * What a mapping turn is, ahead of the brief. A Propose turn's usual contract
+ * asks for a sheet; a mapping writes a proposed map with edit_systems, which
+ * the user reviews, so it says that instead.
+ */
+export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Follow the brief below and propose the architecture with edit_systems; the human reviews the proposal before it becomes the map. Do not draw a sheet for this.'
+
+/**
  * Start mapping with an agent Ambio runs. Adding Ambio to the user's own
  * sessions of that CLI is attempted first when asked; it never blocks the run.
  * Returns the run, and a warning when the add did not work.
@@ -84,11 +91,15 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
   let run: MappingRun
   if (choice.kind === 'chat') {
     const conversation = await window.ambio.createChat(workspaceId, choice.provider.id)
-    await window.ambio.sendChat({ conversationId: conversation.id, text: brief, mode: 'propose' })
+    await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}
+
+${brief}`, mode: 'propose' })
     run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label }
   } else {
     const messageId = crypto.randomUUID()
-    await useSheetStore.getState().sendToAgent(workspaceId, workOrderNote('propose', brief), [], null, messageId, [], { threadId: messageId, mode: 'propose' })
+    await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT}
+
+${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
     await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id })
     run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label }
   }
@@ -105,6 +116,7 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
   const [detail, setDetail] = useState('')
   const [current, setCurrent] = useState<DeliveryRun | null>(null)
   const after = useRef(0)
+  const drafts = useProposalDrafts(run.workspaceId, 2000)
   useEffect(() => {
     let active = true
     // A finished run is not polled again; for Ambio chat that would wake its agent.
@@ -153,10 +165,16 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
   const label = run.kind === 'chat' ? 'Ambio chat' : run.label
   return <section className="ambio-map-with ambio-map-with--activity" aria-label="Mapping activity" data-state={state}>
     <header><span className="ambio-map-with__pulse" aria-hidden="true" />
-      <strong>{state === 'working' ? `${label} is mapping the project` : state === 'waiting' ? `${label} is waiting for you` : state === 'done' ? `${label} finished its run` : state === 'stopped' ? 'Mapping stopped' : 'Mapping did not finish'}</strong>
+      <span className="ambio-map-with__heading">
+        <strong>{state === 'working' ? `${label} is mapping the project` : state === 'waiting' ? `${label} is waiting for you` : state === 'done' ? `${label} finished its run` : state === 'stopped' ? 'Mapping stopped' : 'Mapping did not finish'}</strong>
+        <small>{drafts.newest ? `${drafts.newest.systemCount} ${drafts.newest.systemCount === 1 ? 'system' : 'systems'} drawn so far` : 'Reading the code; no systems drawn yet'}</small>
+      </span>
       {state === 'working' || state === 'waiting'
         ? <button type="button" className="ambio-connect__secondary" onClick={() => { void stop() }}>Stop</button>
-        : <button type="button" className="ambio-connect__secondary" onClick={() => { rememberMappingRun(null, run.workspaceId); onDismiss() }}>Choose again</button>}
+        : <>
+          {drafts.newest && <button type="button" className="ambio-choose__quiet" disabled={drafts.discarding} onClick={() => { void drafts.discard() }}>Discard partial map</button>}
+          <button type="button" className="ambio-connect__secondary" onClick={() => { rememberMappingRun(null, run.workspaceId); onDismiss() }}>Choose again</button>
+        </>}
     </header>
     {lines.length > 0 && <ol className="ambio-map-with__lines" aria-live="polite">{lines.map((line, index) => <li key={`${index}:${line}`}>{line}</li>)}</ol>}
     {detail && <p className="ambio-map-with__copy">{detail}</p>}

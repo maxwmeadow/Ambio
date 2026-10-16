@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
-import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
+import { useProposalDrafts } from '../components/ProposalDraftProgress'
 import { MappingActivity, rememberedMappingRun, type MappingChoice, type MappingRun, type MappingState } from './MapWithAgent'
 import { ChooseAgent } from './ChooseAgent'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
@@ -218,7 +218,7 @@ export function ConnectAgentScreen({
   const movedToReview = useRef(false)
   useEffect(() => {
     if (blankProject || movedToReview.current || activeStep !== 3) return
-    if (!mapping && phase !== 'proposed') return
+    if (mappingRun ? phase !== 'proposed' : !mapping && phase !== 'proposed') return
     movedToReview.current = true
     setActiveStep(4)
   }, [blankProject, activeStep, mapping, phase, setActiveStep])
@@ -534,11 +534,10 @@ export function ConnectAgentScreen({
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 3 of 4</p>
                 <h2>{mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label} is mapping this project</h2>
-                <p className="ambio-connect__step-copy">You can watch it work here. The map arrives in parts; review opens when the agent says it is done.</p>
+                <p className="ambio-connect__step-copy">Review opens here when the agent says the map is done.</p>
                 <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
                 {mappingWarning && <p className="ambio-map-with__error" role="status">{mappingWarning}</p>}
-                <ProposalDraftProgress workspaceId={project.id} inline />
-                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} nextLabel="Continue to review" onNext={() => setActiveStep(4)} />
+                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} />
               </div>
             )}
 
@@ -609,25 +608,23 @@ export function ConnectAgentScreen({
             {activeStep === 4 && !blankProject && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 4 of 4</p>
-                <h2>{phase === 'proposed' ? 'Your architecture is ready' : mapping ? 'Your agent is mapping the project' : 'Wait for the proposal'}</h2>
+                <h2>{phase === 'proposed' ? 'Your architecture is ready'
+                  : mappingRun ? `${mappingLabel} is mapping this project`
+                    : mapping ? 'Your agent is mapping the project' : 'Wait for the proposal'}</h2>
                 <p className="ambio-connect__step-copy">
                   {phase === 'proposed'
-                    ? 'Your agent finished mapping the codebase. Review its systems, nesting, and file placement before anything becomes canonical.'
-                    : mapping
-                      ? 'The first part of the map has arrived. The proposal is not ready until the agent says it is done; the button to review it appears here when it does.'
+                    ? 'Review its systems, nesting and file placement before anything becomes part of your map.'
+                    : mappingRun || mapping
+                      ? 'Review opens here when the agent says the map is done.'
                       : hasLivePresence
-                        ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected and working. Ambio will light this step when the proposal arrives.`
-                        : 'Keep Ambio open while the agent maps the project. You can return to any earlier step without losing progress.'}
+                        ? `${selectedHost?.modalityLabel || selectedHost?.label} is connected. Review opens here when its map arrives.`
+                        : 'Keep Ambio open while the agent maps the project.'}
                 </p>
-                {phase === 'proposed' ? (
-                  <button type="button" className="ambio-connect__review" onClick={onReview}>Review architecture →</button>
-                ) : (
-                  <div className="ambio-connect__waiting-line" aria-live="polite">
-                    <span aria-hidden="true" /> {mapping ? 'Mapping in progress · still waiting for the proposal' : 'Waiting for a mapping proposal'}
-                  </div>
-                )}
-                {mappingRun && phase !== 'proposed' && <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />}
-                <ProposalDraftProgress workspaceId={project.id} inline />
+                {phase === 'proposed'
+                  ? <button type="button" className="ambio-connect__review" onClick={onReview}>Review architecture →</button>
+                  : mappingRun
+                    ? <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                    : <DraftLine workspaceId={project.id} />}
                 <StepActions backLabel="Back" onBack={() => setActiveStep(3)} />
               </div>
             )}
@@ -645,6 +642,18 @@ export function ConnectAgentScreen({
           </footer>
         )}
       </main>
+    </div>
+  )
+}
+
+/** How far an agent in another app has got, in one line, with a way to drop its partial map. */
+function DraftLine({ workspaceId }: { workspaceId: string }) {
+  const drafts = useProposalDrafts(workspaceId, POLL_MS)
+  return (
+    <div className="ambio-connect__waiting-line" aria-live="polite">
+      <span aria-hidden="true" />
+      {drafts.newest ? `Mapping in progress · ${drafts.newest.systemCount} ${drafts.newest.systemCount === 1 ? 'system' : 'systems'} so far` : 'Waiting for the map to start'}
+      {drafts.newest && <button type="button" className="ambio-choose__quiet" disabled={drafts.discarding} onClick={() => { void drafts.discard() }}>Discard partial map</button>}
     </div>
   )
 }
