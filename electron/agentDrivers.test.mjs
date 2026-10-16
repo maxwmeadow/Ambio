@@ -196,7 +196,7 @@ test('Antigravity\'s own CLI runs in print mode, continues its conversation and 
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'agy.exe' : 'agy'), '', { mode: 0o755 })
   const offered = deliveryTargets([{ id: 'antigravity', label: 'Antigravity' }], { PATH: bin }, process.platform, root).find(target => target.id === 'antigravity-cli')
   assert.equal(offered?.route, 'run')
-  assert.match(offered.detail, /Experimental.*must be allowed/)
+  assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
 })
 
 test('a host that exits cleanly after being stopped from using Ambio is a failed turn that says how to fix it', async t => {
@@ -256,7 +256,7 @@ test('Cursor\'s terminal agent is offered only when Cursor is set up and the age
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'cursor-agent.exe' : 'cursor-agent'), '', { mode: 0o755 })
   const offered = deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli')
   assert.equal(offered?.route, 'run')
-  assert.match(offered.detail, /Experimental/)
+  assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
   assert.ok(!deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).some(target => target.id === 'cursor-cli'))
 })
 
