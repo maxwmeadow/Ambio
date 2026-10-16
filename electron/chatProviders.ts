@@ -68,6 +68,9 @@ export class ChatProviders {
     if (!key && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname)) throw new Error('Enter an API key for this service.')
     const stored: StoredProvider = { id, name: input.name.trim(), kind: input.kind, baseUrl, model: input.model.trim() }
     if (input.contextWindow !== undefined) stored.contextWindow = input.contextWindow
+    // The models found when the service was tested, kept so a conversation can choose among them.
+    const models = Array.isArray(input.models) ? input.models : old?.models
+    if (models?.length) stored.models = models.filter(model => typeof model === 'string' && model.trim() && model.length <= 256).slice(0, 500)
     if (key && this.encryption.available()) stored.encryptedKey = this.encryption.encrypt(key).toString('base64')
     if (key) this.keys.set(id, key)
     this.providers = [...this.providers.filter(item => item.id !== id), stored]

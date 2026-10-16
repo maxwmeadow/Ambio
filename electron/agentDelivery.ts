@@ -131,13 +131,13 @@ export function chatDeepLink(hostId: string, prompt: string, mode: TurnMode = 'b
 }
 
 /** How one turn is started in a host: its arguments, stdin and session. */
-export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string } = {}): DriverPlan {
+export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string } = {}): DriverPlan {
   const driver = agentDriver(hostId)
   if (!driver) throw new Error('This host has no direct delivery route.')
-  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd })
+  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model })
 }
 
-export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string } = {}): string[] {
+export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string } = {}): string[] {
   return deliveryPlan(hostId, mcp, workspaceId, prompt, turn).args
 }
 

@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes, createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:net'
-import { CHAT_MODES, chatContextWindow, type ChatConversation, type ChatMode, type ChatSendInput, type ChatSnapshot, type ChatMessage } from '../src/shared/agentChat.ts'
+import { CHAT_MODES, chatContextWindow, chatModels, type ChatConversation, type ChatMode, type ChatSendInput, type ChatSnapshot, type ChatMessage } from '../src/shared/agentChat.ts'
 import { DRAW_FIRST_WORKFLOW } from '../src/shared/agentWorkflow.ts'
 import type { ChatProviders } from './chatProviders.ts'
 import { ChatProviderProxy } from './chatProviderProxy.ts'
@@ -177,7 +177,7 @@ export class AgentChat {
     const provider: Json = {}
     for (const profile of this.options.providers.list()) {
       const id = `ambio-${profile.id}`
-      provider[id] = { name: profile.name, npm: profile.kind === 'anthropic' ? '@ai-sdk/anthropic' : profile.kind === 'google' ? '@ai-sdk/google' : profile.kind === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible', options: { apiKey: this.options.proxy.token, baseURL: `${origin}/${profile.id}` }, models: { [profile.model]: { name: profile.model, limit: { context: chatContextWindow(profile), output: CHAT_OUTPUT_TOKENS } } } }
+      provider[id] = { name: profile.name, npm: profile.kind === 'anthropic' ? '@ai-sdk/anthropic' : profile.kind === 'google' ? '@ai-sdk/google' : profile.kind === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible', options: { apiKey: this.options.proxy.token, baseURL: `${origin}/${profile.id}` }, models: Object.fromEntries(chatModels(profile).map(model => [model, { name: model, limit: { context: chatContextWindow(profile), output: CHAT_OUTPUT_TOKENS } }])) }
     }
     const config = {
       share: 'disabled', autoupdate: false, enabled_providers: Object.keys(provider), provider,
@@ -273,12 +273,12 @@ export class AgentChat {
       this.persist()
     })
   }
-  async create(workspaceId: string, providerId: string): Promise<ChatConversation> {
+  async create(workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> {
     const project = this.options.project(workspaceId)
     const provider = this.options.providers.get(providerId)
     const runtime = await this.runtime(workspaceId)
     const session = await this.call(runtime, '/session', { title: 'New conversation' })
-    const conversation: ChatConversation = { id: session.id, workspaceId, rootPath: fs.realpathSync(project.rootPath), providerId, model: provider.model, title: 'New conversation', mode: 'ask', createdAt: Date.now(), updatedAt: Date.now(), state: 'idle' }
+    const conversation: ChatConversation = { id: session.id, workspaceId, rootPath: fs.realpathSync(project.rootPath), providerId, model: typeof model === 'string' && chatModels(provider).includes(model) ? model : provider.model, title: 'New conversation', mode: 'ask', createdAt: Date.now(), updatedAt: Date.now(), state: 'idle' }
     this.conversations.push(conversation); this.persist()
     return { ...conversation }
   }
@@ -329,7 +329,9 @@ export class AgentChat {
     if (['working', 'waiting'].includes(conversation.state)) throw new Error('Wait for this turn or stop it before sending another message.')
     const provider = this.options.providers.get(conversation.providerId)
     if (!provider.hasKey && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(provider.baseUrl).hostname)) throw new Error('Re-enter your API key in Model services to continue.')
-    if (provider.model !== conversation.model) throw new Error('This service model changed. Start a new conversation with the updated model.')
+    // A turn may use any model the service offers; the conversation remembers the last one.
+    const model = input.model ?? conversation.model
+    if (typeof model !== 'string' || !chatModels(provider).includes(model)) throw new Error(`${provider.name} no longer offers ${model}. Choose another model.`)
     this.assertRootAvailable(conversation.rootPath, conversation.id)
     this.options.assertExternalIdle(conversation.rootPath)
     const runtime = await this.runtime(conversation.workspaceId)
@@ -337,6 +339,7 @@ export class AgentChat {
     this.assertRootAvailable(conversation.rootPath, conversation.id)
     this.options.assertExternalIdle(conversation.rootPath)
     if (['working', 'waiting'].includes(conversation.state)) throw new Error('A turn is already running.')
+    conversation.model = model
     conversation.mode = input.mode; conversation.state = 'working'; conversation.error = undefined; conversation.updatedAt = Date.now()
     this.sending.add(conversation.id)
     conversation.title = conversation.title === 'New conversation' ? input.text.trim().slice(0, 70) : conversation.title
@@ -350,7 +353,7 @@ export class AgentChat {
         conversation.workOrderId = input.workOrderId
       }
       submitted = true
-      await this.call(runtime, `/session/${conversation.id}/prompt_async`, { agent: `ambio-${input.mode}`, model: { providerID: `ambio-${provider.id}`, modelID: conversation.model }, parts: [{ type: 'text', text: instruction }] })
+      await this.call(runtime, `/session/${conversation.id}/prompt_async`, { agent: `ambio-${input.mode}`, model: { providerID: `ambio-${provider.id}`, modelID: model }, parts: [{ type: 'text', text: instruction }] })
       this.persist()
     } catch (error) {
       // A lost acknowledgement does not prove that the prompt was rejected.

@@ -79,8 +79,8 @@ export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any co
  * sessions of that CLI is attempted first when asked; it never blocks the run.
  * Returns the run, and a warning when the add did not work.
  */
-export async function startMapping({ choice, workspaceId, projectRoot, installer }: {
-  choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo
+export async function startMapping({ choice, workspaceId, projectRoot, installer, model }: {
+  choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo; model?: string
 }): Promise<{ run: MappingRun; warning?: string }> {
   let warning: string | undefined
   if (installer) {
@@ -90,17 +90,17 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
   const brief = await window.ambio.mappingBrief()
   let run: MappingRun
   if (choice.kind === 'chat') {
-    const conversation = await window.ambio.createChat(workspaceId, choice.provider.id)
+    const conversation = await window.ambio.createChat(workspaceId, choice.provider.id, model)
     await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}
 
-${brief}`, mode: 'propose' })
+${brief}`, mode: 'propose', ...(model ? { model } : {}) })
     run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label }
   } else {
     const messageId = crypto.randomUUID()
     await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT}
 
 ${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
-    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id })
+    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id, ...(model ? { model } : {}) })
     run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label }
   }
   rememberMappingRun(run, workspaceId)

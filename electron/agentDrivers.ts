@@ -32,7 +32,12 @@ export interface DriverTurn {
   prompt: string
   /** The host session an earlier turn of this conversation ran in. */
   resume?: string
+  /** The model the user chose for this turn; unset keeps the host's default. */
+  model?: string
 }
+
+/** The usual flag for choosing a model, for hosts that take one. */
+const modelFlag = (turn: DriverTurn): string[] => turn.model ? ['--model', turn.model] : []
 
 export interface DriverPlan {
   args: string[]
@@ -115,6 +120,7 @@ const claudeCode: AgentDriver = {
       args: [
         '-p', '--output-format', 'stream-json', '--verbose',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),
+        ...modelFlag(turn),
         // A question or a proposal reads the code and talks to Ambio; only a
         // build may change files. dontAsk refuses whatever is not listed.
         '--permission-mode', building ? 'acceptEdits' : 'dontAsk',
@@ -167,6 +173,7 @@ const codex: AgentDriver = {
           ? ['-c', `sandbox_mode=${JSON.stringify(turn.mode === 'build' ? 'workspace-write' : 'read-only')}`]
           : ['--sandbox', turn.mode === 'build' ? 'workspace-write' : 'read-only']),
         '--skip-git-repo-check',
+        ...(turn.model ? ['-c', `model=${JSON.stringify(turn.model)}`] : []),
         '-c', 'approval_policy="never"',
         '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
         '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
@@ -203,12 +210,13 @@ const copilotCli: AgentDriver = {
   // Copilot's ACP server does not load MCP servers a client names in
   // session/new (copilot 1.0.98: the session had none of Ambio's tools), so
   // Ambio's is given on its command line, as print mode does.
-  acpArgs: turn => ['--acp', '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } })],
+  acpArgs: turn => ['--acp', ...modelFlag(turn), '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } })],
   plan(turn) {
     const building = turn.mode === 'build'
     return {
       args: [
         '--prompt', turn.prompt,
+        ...modelFlag(turn),
         '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } }),
         '--allow-tool', 'ambio',
         ...(building ? ['--allow-tool', 'write', ...CHECK_COMMANDS.flatMap(command => ['--allow-tool', `shell(${command}:*)`])] : []),
@@ -237,6 +245,7 @@ const cursorCli: AgentDriver = {
         // read-only modes. The mode is given on every turn: a resumed chat
         // otherwise keeps the one it was last in.
         ...(turn.mode === 'build' ? ['--force'] : ['--mode', turn.mode === 'ask' ? 'ask' : 'plan']),
+        ...modelFlag(turn),
         turn.prompt,
       ],
     }
@@ -285,7 +294,7 @@ const antigravityCli: AgentDriver = {
       // a flag it does not know ends the run before it starts.
       // The folder is named as the workspace: print mode otherwise has none,
       // and the project's .agents/mcp_config.json is never loaded.
-      args: ['-p', turn.prompt, ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : [])],
+      args: ['-p', turn.prompt, ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
       // Closed at once: agy reads stdin even when the prompt is an argument.
       stdin: undefined,
     }

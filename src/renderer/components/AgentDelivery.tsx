@@ -84,11 +84,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     void refresh()
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
-  const deliver = async (messageId: string, destination = hostId) => {
+  const deliver = async (messageId: string, destination = hostId, model?: string) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}) })
       if (workspace.current !== workspaceId) return
       setNotice(result.detail)
       if (result.run) setRuns(items => [...items.filter(item => item.key !== result.run!.key), result.run!])

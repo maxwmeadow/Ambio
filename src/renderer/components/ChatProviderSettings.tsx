@@ -23,7 +23,7 @@ export function ChatProviderSettings({ providers, onSaved, onClose }: { provider
   }
   const save = async (event: FormEvent) => {
     event.preventDefault(); if (busy) return; setBusy(true); setError('')
-    try { const profile = await window.ambio.saveChatProvider(input); setInput(value => ({ ...value, apiKey: '' })); onSaved(profile) }
+    try { const profile = await window.ambio.saveChatProvider({ ...input, ...(models.length ? { models } : {}) }); setInput(value => ({ ...value, apiKey: '' })); onSaved(profile) }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not save service.') }
     finally { setBusy(false) }
   }

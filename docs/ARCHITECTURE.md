@@ -19,6 +19,14 @@ tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
 Provider setup is in Settings → Agents; the picker opens it when none is set up.
 
+Models: `electron/agentModels.ts` lists what each agent Ambio runs can use, read
+the way that agent publishes it (Claude Code's aliases, Codex's
+`~/.codex/models_cache.json`, `copilot help config`, `agy models`), cached per
+session (`agent:models`). A delivery request may carry a model, which each
+driver passes with its own flag. Ambio chat services keep the models found when
+tested, and a turn may use any of them. The choice is made in the composer
+(`AgentModelMenu`) and in setup, remembered per agent.
+
 Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) sends the
 mapping brief (`agent:mapping-brief`, the same text the installed workflow
 carries) as a Propose turn: a work order delivered to a CLI Ambio runs, or an

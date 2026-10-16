@@ -51,6 +51,10 @@ in the app as "What's New" after updating, so write it for users.
   changes where your message goes.
 - Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
   CLI, which otherwise refuses them when started from Ambio.
+- Choose the model an agent runs with, beside Ask / Propose / Build and next
+  to setup's Map button. Claude Code, Codex, Copilot CLI and Antigravity CLI
+  offer the models they publish; Ambio chat offers every model its service
+  lists, and can switch between them within a conversation.
 - Setup can map your project for you: choose Ambio chat or an agent on this
   computer, press Map, and watch it work. Nothing to install or restart. Adding
   Ambio to your own sessions of that agent is on by default and can be turned

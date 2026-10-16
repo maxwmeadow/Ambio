@@ -271,6 +271,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ## Done log
 
+- 2026-10-16 `model-choice` Model picker beside the request type and in setup's Map step: CLIs Ambio runs list their own published models (Claude aliases, Codex cache, `copilot help config`, `agy models`) and get them by flag; Ambio chat services keep their tested model list and a turn may use any. Agents in other apps choose in their own app. Also fixed: deliveryPlan dropped turn fields it did not name.
+
 - 2026-10-16 `readiness-by-kind` `agents-settings-one-page` `setup-map-with-agent` Readiness is said per kind of agent (panel strip, picker groups, a What you need section in each guide; no MCP wording outside troubleshooting). Settings → Agents holds Ambio chat's model services, the agents Ambio runs and the agents in other apps. Setup step 1 offers Map with <agent>, run by Ambio as a Propose turn with live activity and Stop; adding Ambio to the user's own sessions of that CLI is on by default and can be turned off. Classic install → restart → command remains for agents in other apps.
 
 - 2026-10-15 `integrated-chat-merge` Merged Chat in Ambio into the agent conversation panel: one picker (Ambio chat per model service, setup opens Settings), one conversation list, shared Ask/Propose/Build (Propose added to the built-in agent), streamed transcript with builds reviewed inline, agent fixed per conversation. Replaced the tested/untested pills with an info popover of user-facing how-to per agent.

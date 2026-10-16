@@ -40,7 +40,12 @@ export interface DeliveryRequest {
   workspaceId: string
   messageId: string
   hostId: string
+  /** The model to run the agent with; unset uses the agent's own default. */
+  model?: string
 }
+
+/** A model an agent can be asked to use. */
+export interface ModelOption { id: string; label: string }
 
 export interface DeliveryResult {
   detail: string

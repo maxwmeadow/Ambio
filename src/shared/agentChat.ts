@@ -9,6 +9,8 @@ export interface ChatProvider {
   model: string
   /** Tokens the model can hold; unset uses the provider default. */
   contextWindow?: number
+  /** Every model the service offered when it was tested; `model` is the default. */
+  models?: string[]
   hasKey: boolean
   persistentKey: boolean
 }
@@ -19,6 +21,7 @@ export interface ChatProviderInput {
   baseUrl: string
   model: string
   contextWindow?: number
+  models?: string[]
   apiKey?: string
 }
 export interface ChatConnectionTest { models: string[]; detail: string }
@@ -56,7 +59,13 @@ export interface ChatSnapshot {
   approvals: ChatApproval[]
   questions: ChatQuestion[]
 }
-export interface ChatSendInput { conversationId: string; text: string; mode: ChatMode; workOrderId?: string }
+/** model picks one of the service's models for this turn; unset keeps the conversation's. */
+export interface ChatSendInput { conversationId: string; text: string; mode: ChatMode; workOrderId?: string; model?: string }
+
+/** The models a conversation on this service can use, its default first. */
+export function chatModels(provider: Pick<ChatProvider, 'model' | 'models'>): string[] {
+  return [...new Set([provider.model, ...(provider.models ?? [])])]
+}
 // The harness compacts history against contextWindow, so too small a value
 // trims early. Hosted models take 1M; compatible services are often local
 // servers configured for less, so they start lower and can be raised.

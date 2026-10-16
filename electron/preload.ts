@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
-import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
+import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun, ModelOption } from '../src/shared/agentDelivery'
 import type { ConnectionTestResult } from './agentConnectionTest'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('ambio', {
   testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
   removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
   chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
-  createChat: (workspaceId: string, providerId: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId),
+  createChat: (workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model),
   chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
   cachedChat: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:cached', id),
   sendChat: (input: ChatSendInput): Promise<void> => ipcRenderer.invoke('chat:send', input),
@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('ambio', {
 
   listDeliveryHosts: (): Promise<DeliveryHost[]> => ipcRenderer.invoke('agent:delivery-hosts'),
   mappingBrief: (): Promise<string> => ipcRenderer.invoke('agent:mapping-brief'),
+  agentModels: (hostId: string): Promise<ModelOption[]> => ipcRenderer.invoke('agent:models', hostId),
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
   listDeliveryRuns: (workspaceId: string): Promise<DeliveryRun[]> => ipcRenderer.invoke('agent:delivery-runs', workspaceId),
   stopDeliveryRun: (workspaceId: string, key: string): Promise<void> => ipcRenderer.invoke('agent:delivery-stop', workspaceId, key),
@@ -311,7 +312,7 @@ declare global {
       testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
       removeChatProvider: (id: string) => Promise<void>
       chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
-      createChat: (workspaceId: string, providerId: string) => Promise<ChatConversation>
+      createChat: (workspaceId: string, providerId: string, model?: string) => Promise<ChatConversation>
       chatSnapshot: (id: string) => Promise<ChatSnapshot>
       cachedChat: (id: string) => Promise<ChatSnapshot>
       sendChat: (input: ChatSendInput) => Promise<void>
@@ -349,6 +350,7 @@ declare global {
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>
       listDeliveryHosts: () => Promise<DeliveryHost[]>
       mappingBrief: () => Promise<string>
+      agentModels: (hostId: string) => Promise<ModelOption[]>
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>
       listDeliveryRuns: (workspaceId: string) => Promise<DeliveryRun[]>
       stopDeliveryRun: (workspaceId: string, key: string) => Promise<void>

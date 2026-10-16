@@ -334,3 +334,5 @@
 :is(.ambio-guide__confirm, .ambio-guide__close, .ambio-guide__picker select):focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
 @keyframes ambio-guide-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ambio-guide-backdrop { animation: none; } }
+.ambio-inbox__model .ambio-inbox__model-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__model-menu { width: 300px; max-height: 320px; overflow-y: auto; }

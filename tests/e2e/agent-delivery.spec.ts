@@ -94,6 +94,12 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
       await destination.selectOption(host)
       if (host === 'copilot-cli') await confirm()
+      // Claude Code's models are offered beside the request type; the choice reaches its command line.
+      if (host === 'claude-code') {
+        await inbox.getByRole('button', { name: 'Model: Default model' }).click()
+        await inbox.getByRole('menuitemradio', { name: 'Opus (latest)' }).click()
+        await expect(inbox.getByRole('button', { name: 'Model: Opus (latest)' })).toBeVisible()
+      }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
       const captured = path.join(root, `captured-${host}.json`)
@@ -102,6 +108,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect.poll(() => { try { return String(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
       const actual = JSON.parse(fs.readFileSync(captured, 'utf8'))
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
+      if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
       await expect(inbox.locator('.ambio-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')

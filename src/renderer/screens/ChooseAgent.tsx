@@ -3,6 +3,8 @@ import type { AgentHostInfo } from '../../../electron/preload'
 import type { AgentHostState } from './connectAgentPresentation'
 import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingChoice, type MappingRun, type RunnableChoice } from './MapWithAgent'
 import { OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
+import { AgentModelSelect, useAgentModel } from '../components/AgentModelMenu'
+import { chatModels } from '../../shared/agentChat'
 
 /**
  * Setup's first step: one list of agents and one action for the one chosen.
@@ -75,6 +77,12 @@ export function ChooseAgent({
     onChoice(run ? { label: run.label, kind: run.kind } : app ? { label: appName, kind: 'app' } : null)
   }, [run?.id, app?.id])
 
+  // The model the mapping runs with, remembered with the agent panel's choice for the same agent.
+  const model = useAgentModel({
+    key: run?.kind === 'run' ? run.host.id : run?.kind === 'chat' ? `chat:${run.provider.id}` : '',
+    hostId: run?.kind === 'run' ? run.host.id : undefined,
+    chatOptions: run?.kind === 'chat' ? chatModels(run.provider).map(id => ({ id, label: id })) : undefined,
+  })
   // Adding Ambio to a CLI serves the user's own sessions; Ambio's runs do not need it.
   const installer = run?.kind === 'run' ? hosts.find(host => host.id === run.host.id && host.modality === 'cli') : undefined
   const offerInstall = !blankProject && !!installer && !(installer.configured && installer.workflowInstalled)
@@ -82,7 +90,7 @@ export function ChooseAgent({
   const map = async (choice: Exclude<RunnableChoice, { kind: 'setup' }>) => {
     setBusy(true); setError('')
     try {
-      const { run: started, warning } = await startMapping({ choice, workspaceId, projectRoot, installer: offerInstall && addToSessions ? installer : undefined })
+      const { run: started, warning } = await startMapping({ choice, workspaceId, projectRoot, installer: offerInstall && addToSessions ? installer : undefined, model: model.value || undefined })
       onStarted(started, warning)
     } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)) }
     finally { setBusy(false) }
@@ -118,7 +126,7 @@ export function ChooseAgent({
           <small>Recommended: your sessions outside Ambio can then see this map and draw on it. Remove it any time in Settings → Agents.</small></span>
       </label>
       : <p>{run.kind === 'chat' ? `Uses ${run.provider.name} · ${run.provider.model}. ` : ''}Ambio starts it here and shows its progress. Nothing to install or restart.</p>
-    action = <button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Starting…' : `Map with ${run.label} →`}</button>
+    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Starting…' : `Map with ${run.label} →`}</button></div>
   } else if (app && appState) {
     const working = installing === app.id
     const next = blankProject ? 'check the connection' : 'ask it to map the project'

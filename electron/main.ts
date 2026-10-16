@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification, safeStorage, net } from 'electron'
 import { brandImage } from './branding'
+import { listModels, validModel } from './agentModels'
 import { AgentChat } from './agentChat'
 import { ChatProviders } from './chatProviders'
 import { ChatProviderProxy } from './chatProviderProxy'
@@ -893,7 +894,7 @@ function setupIPC(): void {
   ipcMain.handle('chat:provider-test', (_event, input: ChatProviderInput) => chatProviders.test(input))
   ipcMain.handle('chat:provider-remove', (_event, id: string) => { ensureChatIdle(); chatProviders.remove(id) })
   ipcMain.handle('chat:list', (_event, workspaceId: string) => agentChat!.list(workspaceId))
-  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string) => agentChat!.create(workspaceId, providerId))
+  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string) => agentChat!.create(workspaceId, providerId, model))
   ipcMain.handle('chat:snapshot', (_event, id: string) => agentChat!.snapshot(id))
   ipcMain.handle('chat:cached', (_event, id: string) => agentChat!.cached(id))
   ipcMain.handle('chat:send', (_event, input: ChatSendInput) => agentChat!.send(input))
@@ -1402,6 +1403,11 @@ function setupIPC(): void {
   }
   // What an agent Ambio runs is asked to do to map a project: the same brief the installed workflow carries.
   ipcMain.handle('agent:mapping-brief', () => NAME_ARCHITECTURE_COMMAND)
+  // The models an agent Ambio runs can be asked to use; empty when it publishes none.
+  ipcMain.handle('agent:models', (_event, hostId: string) => {
+    const target = availableTargets().find(host => host.id === hostId && host.route === 'run' && host.available)
+    return target ? listModels(hostId, target.launcher, os.homedir()) : []
+  })
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
   ipcMain.handle('agent:delivery-runs', (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
@@ -1464,7 +1470,7 @@ function setupIPC(): void {
     const mode = turnMode(body.mode)
     const threadId = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
     const resume = driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
-    const turn = { mode, messageId: request.messageId, cwd: project.rootPath }
+    const turn = { mode, messageId: request.messageId, cwd: project.rootPath, ...(validModel(request.model) ? { model: request.model } : {}) }
     const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
     // An ACP agent is given Ambio's tools for the session and continues or
     // restarts the session itself. A command a build wants to run is put to

@@ -84,15 +84,15 @@ export function useAgentChat(workspaceId: string, isOpen: boolean, activeId: str
   }, [activeId, running])
 
   /** Send one turn; starts the conversation when there is none. Returns its id. */
-  const send = async ({ conversationId, providerId, text, mode, selection, sheetId, codeFitFileIds }: {
-    conversationId: string | null; providerId: string; text: string; mode: ChatMode; selection: string[]; sheetId: string | null; codeFitFileIds: string[]
+  const send = async ({ conversationId, providerId, text, mode, selection, sheetId, codeFitFileIds, model }: {
+    conversationId: string | null; providerId: string; text: string; mode: ChatMode; selection: string[]; sheetId: string | null; codeFitFileIds: string[]; model?: string
   }): Promise<string | null> => {
     if (lock.current) return null
     lock.current = true; setBusy(true); setError('')
     let id = conversationId
     try {
       if (!id) {
-        const conversation = await window.ambio.createChat(workspaceId, providerId)
+        const conversation = await window.ambio.createChat(workspaceId, providerId, model)
         id = conversation.id
         setConversations(items => [conversation, ...items])
       }
@@ -109,7 +109,7 @@ export function useAgentChat(workspaceId: string, isOpen: boolean, activeId: str
         message += `${CONTEXT_MARK}${selection.join('\n')}${sheetId ? `\nSheet ID: ${sheetId}. Read its current revision using Ambio's tools.` : ''}`
       }
       if (message.length > 32000) throw new Error('This message and its attached context exceed 32,000 characters. Shorten the message or remove the attachment.')
-      await window.ambio.sendChat({ conversationId: id, text: message, mode, workOrderId })
+      await window.ambio.sendChat({ conversationId: id, text: message, mode, workOrderId, ...(model ? { model } : {}) })
       pendingOrder.current = null
       try { localStorage.removeItem(pendingKey) } catch { /* acknowledged in memory */ }
       const value = await window.ambio.cachedChat(id)

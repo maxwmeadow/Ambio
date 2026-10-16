@@ -1059,3 +1059,5 @@
 .ambio-map-with__heading { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .ambio-map-with__heading small { color: #5d6e66; font-size: 11px; }
 .ambio-connect__waiting-line .ambio-choose__quiet { margin-left: auto; }
+.ambio-choose__actions { display: flex; flex: none; gap: 8px; align-items: stretch; }
+.ambio-choose__model { max-width: 200px; padding: 6px 8px; border: 1px solid #b0beb5; background: #fbfaf5; color: #23362f; font: inherit; font-size: 11px; }

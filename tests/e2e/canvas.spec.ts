@@ -2854,6 +2854,8 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     state.delivered = []
     ipcMain.removeHandler('agent:delivery-hosts')
     ipcMain.handle('agent:delivery-hosts', () => [{ id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' }])
+    ipcMain.removeHandler('agent:models')
+    ipcMain.handle('agent:models', () => [{ id: 'fable', label: 'Fable (latest)' }, { id: 'opus', label: 'Opus (latest)' }])
     ipcMain.removeHandler('agent:deliver')
     ipcMain.handle('agent:deliver', (_event, request) => { state.delivered.push(request); return { detail: 'Agent launched.' } })
     ipcMain.removeHandler('agent:delivery-runs')
@@ -2884,6 +2886,8 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   const caption = page.locator('.ambio-connect__mascot p[aria-live]')
   await expect(caption).toHaveText('Ready - Claude Code (CLI) is ready. Press Map to start.')
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
+  // The model is chosen right beside the button that starts the run.
+  await footer.getByRole('combobox', { name: 'Model' }).selectOption('opus')
   await footer.getByRole('button', { name: 'Map with Claude Code (CLI) →' }).click()
   const activity = page.getByRole('region', { name: 'Mapping activity' })
   await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
@@ -2894,8 +2898,8 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
   await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
   await expect(caption).toHaveText('Working - Claude Code (CLI) is mapping the project.')
-  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string }> }).delivered)
-  expect(delivered.map(request => request.hostId)).toEqual(['claude-code'])
+  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
+  expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
   await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })
