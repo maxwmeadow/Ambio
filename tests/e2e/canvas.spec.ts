@@ -2878,6 +2878,11 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(page.getByRole('heading', { name: 'Choose who maps this project' })).toBeVisible()
   const mapWith = page.getByRole('region', { name: 'Map with an agent Ambio runs' })
   await expect(mapWith.getByRole('combobox', { name: 'Agent to map with' })).toHaveValue('claude-code')
+  // Ambio chat is offered even before a model service exists, and leads to setting one up.
+  await expect(mapWith.getByRole('combobox', { name: 'Agent to map with' }).locator('option')).toContainText(['Claude Code (CLI)', 'Ambio chat · your own API key (set up first)'])
+  await mapWith.getByRole('combobox', { name: 'Agent to map with' }).selectOption('chat-setup')
+  await expect(mapWith.getByRole('button', { name: 'Set up a model service' })).toBeVisible()
+  await mapWith.getByRole('combobox', { name: 'Agent to map with' }).selectOption('claude-code')
   // Adding Ambio for the user's own sessions starts on, and can be turned off.
   const sessions = mapWith.getByRole('checkbox', { name: /Also add Ambio to your own/ })
   if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }

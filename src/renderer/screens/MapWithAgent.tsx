@@ -32,6 +32,10 @@ function rememberMappingRun(run: MappingRun | null, workspaceId: string): void {
 }
 
 type Choice = { id: string; label: string; kind: 'chat'; provider: ChatProvider } | { id: string; label: string; kind: 'run'; host: DeliveryHost }
+  // Ambio chat before a model service exists: offered so it is never invisible.
+  | { id: string; label: string; kind: 'setup' }
+
+const CHAT_SETUP = 'chat-setup'
 
 export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }: {
   workspaceId: string
@@ -56,9 +60,12 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }
       const next: Choice[] = [
         ...providers.map(provider => ({ id: `chat:${provider.id}`, label: `Ambio chat · ${provider.name} · ${provider.model}`, kind: 'chat' as const, provider })),
         ...targets.filter(target => target.route === 'run' && target.available).map(host => ({ id: host.id, label: host.label, kind: 'run' as const, host })),
+        ...(providers.length ? [] : [{ id: CHAT_SETUP, label: 'Ambio chat · your own API key (set up first)', kind: 'setup' as const }]),
       ]
       setChoices(next)
-      setChosen(current => next.some(choice => choice.id === current) ? current : next[0]?.id ?? '')
+      // A service just added replaces the setup choice that asked for it.
+      setChosen(current => current === CHAT_SETUP && providers.length ? next[0].id
+        : next.some(choice => choice.id === current) ? current : next[0]?.id ?? '')
     }
     void load()
     window.addEventListener(CHAT_PROVIDERS_CHANGED, load)
@@ -71,6 +78,7 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }
 
   const start = async () => {
     if (!choice || busy) return
+    if (choice.kind === 'setup') { window.dispatchEvent(new Event(OPEN_MODEL_SERVICES)); return }
     setBusy(true); setError('')
     try {
       if (offerInstall && addToSessions) {
@@ -101,16 +109,16 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }
   return <section className="ambio-map-with" aria-label="Map with an agent Ambio runs">
     <h3>Let Ambio run it</h3>
     {choices.length === 0 ? <p className="ambio-map-with__copy">
-      No agent Ambio can run was found. Add a model service for Ambio chat, or install Claude Code, Codex or GitHub Copilot CLI and sign in.{' '}
-      <button type="button" className="ambio-map-with__link" onClick={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}>Add a model service</button>
+      No agent Ambio can run was found. Install Claude Code, Codex or GitHub Copilot CLI and sign in.
     </p> : <>
       <p className="ambio-map-with__copy">Ambio starts the agent in this project and shows its progress here. Nothing to install or restart.</p>
       <div className="ambio-map-with__row">
         <select aria-label="Agent to map with" value={chosen} disabled={busy} onChange={event => setChosen(event.target.value)}>
           {choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
-        <button type="button" className="ambio-connect__primary" disabled={busy || !choice} onClick={() => { void start() }}>{busy ? 'Starting…' : `Map with ${choice?.kind === 'chat' ? 'Ambio chat' : choice?.label ?? 'this agent'}`}</button>
+        <button type="button" className="ambio-connect__primary" disabled={busy || !choice} onClick={() => { void start() }}>{busy ? 'Starting…' : choice?.kind === 'setup' ? 'Set up a model service' : `Map with ${choice?.kind === 'chat' ? 'Ambio chat' : choice?.label ?? 'this agent'}`}</button>
       </div>
+      {choice?.kind === 'setup' && <p className="ambio-map-with__copy">Ambio chat uses a model service with your own API key (OpenAI, Anthropic, Google or a compatible one) and Ambio&rsquo;s tools, so it can map the project with nothing else installed. Add the service once in Settings → Agents, then come back here.</p>}
       {offerInstall && <label className="ambio-map-with__sessions">
         <input type="checkbox" checked={addToSessions} disabled={busy} onChange={event => setAddToSessions(event.target.checked)} />
         <span><strong>Also add Ambio to your own {choice!.label} sessions</strong>
