@@ -165,7 +165,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'cursor-cli': {
-    need: ['Cursor\u2019s CLI installed on this computer and signed in. Nothing needs to be open.'],
+    need: ['Cursor\u2019s CLI installed on this computer and signed in.', 'Ambio added to Cursor once, from Settings \u2192 Agents.'],
     how: STARTED('Cursor CLI'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
@@ -173,8 +173,8 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'devin-cli': {
-    need: ['Windsurf\u2019s CLI installed on this computer and signed in. Nothing needs to be open.'],
-    how: STARTED('Windsurf CLI'),
+    need: ['Devin CLI installed on this computer and signed in. Nothing needs to be open.'],
+    how: STARTED('Devin CLI'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
       'Build: changes your code and hands the result back for review.',
@@ -183,7 +183,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   },
   'antigravity-acp': {
     need: ['Antigravity installed on this computer and signed in. Nothing needs to be open.'],
-    how: STARTED('Antigravity'),
+    how: STARTED('the Antigravity agent'),
     can: [
       'Ask and Propose: reads your code and map, never changes files.',
       'Build: changes your code and hands the result back for review.',

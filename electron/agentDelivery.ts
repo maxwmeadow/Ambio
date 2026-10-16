@@ -80,16 +80,16 @@ export function deliveryTargets(hosts: { id: string; label: string }[], env = pr
   const companions: DeliveryTarget[] = []
   if (hosts.some(host => host.id === 'cursor')) {
     const launcher = findDeliveryCli('cursor-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'cursor-cli', label: 'Cursor CLI', route: 'run', available: true, launcher, detail: 'Experimental. Starts Cursor\u2019s terminal agent in this project; it uses the Ambio connection installed for Cursor.' })
+    if (launcher) companions.push({ id: 'cursor-cli', label: 'Cursor CLI', route: 'run', available: true, launcher, detail: 'Cursor\u2019s terminal agent, started by Ambio in this project.' })
   }
   for (const [editor, id, label] of [['windsurf', 'devin-cli', 'Devin CLI'], ['antigravity', 'antigravity-acp', 'Antigravity agent']] as const) {
     if (!hosts.some(host => host.id === editor)) continue
     const launcher = findDeliveryCli(id, env, platform, home)
-    if (launcher) companions.push({ id, label, route: 'run', available: true, launcher, detail: `Experimental. Starts ${label} in this project as an agent session, with Ambio\u2019s tools attached for the session.` })
+    if (launcher) companions.push({ id, label, route: 'run', available: true, launcher, detail: `${label}, started by Ambio in this project.` })
   }
   if (hosts.some(host => host.id === 'antigravity')) {
     const launcher = findDeliveryCli('antigravity-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, launcher, detail: 'Experimental. Starts Antigravity\u2019s terminal agent in this project. It uses the Ambio connection installed for Antigravity, and Ambio\u2019s tools must be allowed in Antigravity CLI\u2019s own settings or the turn gets no reply.' })
+    if (launcher) companions.push({ id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, launcher, detail: 'Antigravity\u2019s terminal agent, started by Ambio in this project.' })
   }
   return [...hosts.map(({ id, label }) => {
     const host = { id, label }

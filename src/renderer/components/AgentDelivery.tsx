@@ -134,18 +134,11 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   const started = hosts.filter(item => item.route === 'run' && item.available)
   const inApps = hosts.filter(item => item.route !== 'run')
   const missing = hosts.filter(item => item.route === 'run' && !item.available)
-  // What sending does is on the send button; the fine print waits on hover.
-  const about = chat ? 'Ambio’s own agent, using your model service. Replies stream into this conversation.' : [
-    watching
-      ? 'Leaves the request for the session you told to watch Ambio. It answers in its own chat, with everything already said there.'
-      : host?.detail ?? 'Save the request, then copy its handoff into the agent chat you choose.',
-    ...(host?.route === 'run' && !watchingHosts.includes(hostId) ? [`Edits files in ${rootPath}. Uses your host account; usage may be billed. Stop the run before starting another here.`] : []),
-  ].join(' ')
   // The picker, the info button's guide and the first-use introduction are
   // one choice: changing any of them changes the destination.
   const picker = (label: string, id?: string) => fixed
     ? <p className="ambio-inbox__delivery-fixed" id={id}>{fixed.label}<small>Start a new conversation to use another agent.</small></p>
-    : <select id={id} aria-label={label} title={about} value={hostId} disabled={disabled} onChange={event => {
+    : <select id={id} aria-label={label} value={hostId} disabled={disabled} onChange={event => {
       if (event.target.value === CHAT_DELIVERY) onSetUpChat?.()
       else onChange(event.target.value)
     }}>

@@ -57,6 +57,10 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await expect(settings.getByRole('status')).toContainText('Connected')
     await expect(settings.getByLabel('Service model')).toHaveValue('fixture-model')
     await settings.getByRole('button', { name: 'Save service' }).click()
+    // Model services are part of Settings → Agents, beside the agents Ambio runs and those in other apps.
+    await expect(settings.getByRole('heading', { name: 'Agents Ambio runs' })).toBeVisible()
+    await expect(settings.getByRole('heading', { name: 'Agents in other apps' })).toBeVisible()
+    await page.screenshot({ path: 'test-results/settings-agents.png' })
     await settings.getByRole('button', { name: 'Close', exact: true }).click()
     await destination.selectOption({ label: 'Ambio chat · My local test service · fixture-model' })
     // Ambio chat works differently from the others, so it is introduced too.

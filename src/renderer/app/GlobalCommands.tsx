@@ -73,7 +73,7 @@ export function GlobalCommands() {
   useEffect(() => { void window.ambio?.setMenuState?.({ projectOpen }) }, [projectOpen])
   // The agent panel's "set up a model service" opens Settings there.
   useEffect(() => {
-    const open = () => { setSettingsSection('models'); setDialog('settings') }
+    const open = () => { setSettingsSection('agents'); setDialog('settings'); setTimeout(() => document.getElementById('ambio-agents-chat')?.scrollIntoView({ block: 'start' }), 50) }
     window.addEventListener(OPEN_MODEL_SERVICES, open)
     return () => window.removeEventListener(OPEN_MODEL_SERVICES, open)
   }, [])
@@ -330,13 +330,12 @@ function AcknowledgementsDialog({ onClose }: { onClose: () => void }) {
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
-type SettingsSection = 'general' | 'appearance' | 'agents' | 'models' | 'privacy' | 'advanced'
+type SettingsSection = 'general' | 'appearance' | 'agents' | 'privacy' | 'advanced'
 
 const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'agents', label: 'Agents' },
-  { id: 'models', label: 'Model services' },
   { id: 'privacy', label: 'Privacy & Data' },
   { id: 'advanced', label: 'Advanced' },
 ]
@@ -489,12 +488,12 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
                 projectRoot={project?.rootPath}
                 projectName={project?.name}
                 onGuidedSetup={project ? () => { onClose(); setTimeout(() => emitCommand('agent.guidedSetup'), 0) } : undefined}
+                chat={<div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
               />
               <RemoveFromAgents />
             </>
           )}
 
-          {section === 'models' && <div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onClose={() => setSection('agents')} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
 
           {section === 'privacy' && (
             <>
