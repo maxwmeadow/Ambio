@@ -130,7 +130,8 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
           const events: DeliveryEvent[] = await window.ambio.listDeliveryEvents(run.workspaceId, latest.key, after.current)
           if (!active) return
           if (events.length) {
-            after.current = events[events.length - 1].at
+            // The cursor is how many events have been read, not a time.
+            after.current += events.length
             setLines(previous => [...previous, ...events.map(event => event.text.split('\n').find(line => line.trim()) ?? '')].filter(Boolean).slice(-6))
           }
           setState(latest.state === 'running' || latest.state === 'starting' || latest.state === 'stopping' ? 'working'

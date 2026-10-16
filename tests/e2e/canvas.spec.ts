@@ -2859,7 +2859,10 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     ipcMain.removeHandler('agent:delivery-runs')
     ipcMain.handle('agent:delivery-runs', () => state.delivered.map(request => ({ key: 'mapping-run', workspaceId: request.workspaceId, messageId: request.messageId, revision: 'initial', hostId: request.hostId, rootPath: '', state: 'running', detail: 'Agent launched.', logPath: '', startedAt: 1 })))
     ipcMain.removeHandler('agent:delivery-events')
-    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => after > 0 ? [] : [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }])
+    // Events arrive while the run goes on; the cursor is how many were already read.
+    const started = Date.now()
+    const events = [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }, { at: 6, kind: 'tool', text: 'Read · src/app.ts' }]
+    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => events.slice(0, Date.now() - started > 2500 ? 2 : 1).slice(after))
   })
   const setupUrl = new URL(page.url())
   setupUrl.searchParams.set('connect', '1')
@@ -2885,6 +2888,8 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   const activity = page.getByRole('region', { name: 'Mapping activity' })
   await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
   await expect(activity).toContainText('get_architecture')
+  // A later event shows up without leaving the step.
+  await expect(activity).toContainText('Read · src/app.ts', { timeout: 10_000 })
   await expect(page.getByRole('heading', { name: 'Claude Code (CLI) is mapping this project' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
   await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
