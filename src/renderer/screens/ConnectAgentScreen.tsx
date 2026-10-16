@@ -3,7 +3,7 @@ import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
 import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
-import { MapWithAgent, MappingActivity, rememberedMappingRun, type MappingRun } from './MapWithAgent'
+import { MapWithAgent, MappingActivity, rememberedMappingRun, type MappingChoice, type MappingRun, type MappingState } from './MapWithAgent'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
   AGENT_STATE_LABEL,
@@ -113,6 +113,8 @@ export function ConnectAgentScreen({
   const [phase, setPhaseState] = useState<Phase>(() => progress.get(project.id) ?? 'waiting')
   // A mapping Ambio is running itself needs no install, restart or command.
   const [mappingRun, setMappingRun] = useState<MappingRun | null>(() => blankProject ? null : rememberedMappingRun(project.id))
+  const [mappingState, setMappingState] = useState<MappingState | null>(null)
+  const [mappingChoice, setMappingChoice] = useState<MappingChoice>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userSelectedHost = useRef(false)
 
@@ -253,11 +255,23 @@ export function ConnectAgentScreen({
     return families.find(f => f.id === selectedHost.familyId) ?? null
   }, [families, selectedHost])
 
-  const mascotState = !blankProject && phase === 'proposed'
-    ? 'proposal-ready'
-    : hasLivePresence || mappingRun
-      ? 'connected'
-      : 'sleeping'
+  // The mascot follows the chosen agent, in that agent's terms: an agent Ambio
+  // runs is ready without connecting; one in another app waits for its chat.
+  const otherAppName = selectedHost?.modalityLabel || selectedHost?.label || 'your agent'
+  const otherAppInstalled = !!selectedHost && selectedHost.configured && selectedHost.workflowInstalled
+  const mappingLabel = mappingRun ? (mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label) : ''
+  const mappingActive = !!mappingRun && (mappingState === null || mappingState === 'working' || mappingState === 'waiting')
+  const mascot: { state: 'sleeping' | 'connected' | 'proposal-ready'; caption?: string } =
+    !blankProject && phase === 'proposed' ? { state: 'proposal-ready' }
+      : mappingActive ? { state: 'connected', caption: mappingState === 'waiting' ? `Waiting - ${mappingLabel} needs your answer.` : `Working - ${mappingLabel} is mapping the project.` }
+        : mappingRun ? { state: 'connected', caption: `Ready - the last mapping ${mappingState === 'stopped' ? 'was stopped' : mappingState === 'done' ? 'finished without a proposal' : 'did not finish'}. Choose again to retry.` }
+          : hasLivePresence ? { state: 'connected', caption: `Ready - ${liveHostIds.size && selectedHost && liveHostIds.has(selectedHost.id) ? otherAppName : 'your agent'} is connected.` }
+            : !blankProject && activeStep === 1 && mappingChoice?.kind === 'setup' ? { state: 'sleeping', caption: 'Asleep - set up a model service to use Ambio chat.' }
+              : !blankProject && activeStep === 1 && mappingChoice ? { state: 'connected', caption: `Ready - ${mappingChoice.label} is ready. Press Map to start.` }
+                : blankProject && activeStep === 1 ? { state: 'connected', caption: 'Ready - Ambio chat and the agents Ambio runs need no setup.' }
+                  : otherAppInstalled ? { state: 'sleeping', caption: `Waiting - restart ${otherAppName} so it can connect.` }
+                    : { state: 'sleeping', caption: 'Asleep - no agent is ready yet.' }
+  const mascotState = mascot.state
 
   const selectedPresentation = selectedHost
     ? presentAgentHost(selectedHost, results[selectedHost.id], liveHostIds.has(selectedHost.id))
@@ -597,8 +611,8 @@ export function ConnectAgentScreen({
                       <div className="ambio-map-with__row"><button type="button" className="ambio-connect__primary" onClick={onComplete}>Open canvas</button></div>
                     </section>
                     : mappingRun
-                      ? <MappingActivity run={mappingRun} onDismiss={() => setMappingRun(null)} />
-                      : <MapWithAgent workspaceId={project.id} projectRoot={project.rootPath} agentHosts={hosts} onStarted={run => { setMappingRun(run); setActiveStep(3) }} />}
+                      ? <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => setMappingRun(null)} />
+                      : <MapWithAgent workspaceId={project.id} projectRoot={project.rootPath} agentHosts={hosts} onChoice={setMappingChoice} onStarted={run => { setMappingState(null); setMappingRun(run); setActiveStep(3) }} />}
                   <h3 className="ambio-connect__other">{blankProject ? 'Or connect an agent in another app' : 'Or use an agent in another app'}</h3>
                   <p className="ambio-connect__other-copy">Add Ambio to it here, restart it, then {blankProject ? 'check the connection' : 'ask it to map the project'}. Adding Ambio also lets your own sessions of an agent use your map.</p>
                   <ul className="ambio-connect__families" aria-label="Supported agents">
@@ -769,7 +783,7 @@ export function ConnectAgentScreen({
                 <p className="ambio-connect__step-kicker">Step 3 of 4</p>
                 <h2>{mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label} is mapping this project</h2>
                 <p className="ambio-connect__step-copy">You can watch it work here. The map arrives in parts; review opens when the agent says it is done.</p>
-                <MappingActivity run={mappingRun} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
                 <ProposalDraftProgress workspaceId={project.id} inline />
                 <StepActions backLabel="Back" onBack={() => setActiveStep(1)} nextLabel="Continue to review" onNext={() => setActiveStep(4)} />
               </div>
@@ -859,7 +873,7 @@ export function ConnectAgentScreen({
                     <span aria-hidden="true" /> {mapping ? 'Mapping in progress · still waiting for the proposal' : 'Waiting for a mapping proposal'}
                   </div>
                 )}
-                {mappingRun && phase !== 'proposed' && <MappingActivity run={mappingRun} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />}
+                {mappingRun && phase !== 'proposed' && <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />}
                 <ProposalDraftProgress workspaceId={project.id} inline />
                 <StepActions backLabel="Back" onBack={() => setActiveStep(3)} />
               </div>
@@ -867,7 +881,7 @@ export function ConnectAgentScreen({
           </section>
 
           <aside className="ambio-connect__mascot">
-            <AgentMascot state={mascotState} hostLabel={mappingRun?.label || selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
+            <AgentMascot state={mascotState} caption={mascot.caption} hostLabel={mappingLabel || selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
           </aside>
         </div>
 

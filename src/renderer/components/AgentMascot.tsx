@@ -4,6 +4,8 @@ import '../styles/agentMascot.css'
 export type AgentMascotState = 'sleeping' | 'connected' | 'proposal-ready'
 
 export interface AgentMascotProps {
+  /** What the chosen agent is doing, said instead of the default line for this state. */
+  caption?: string
   state: AgentMascotState
   hostLabel?: string
   className?: string
@@ -624,7 +626,7 @@ function BlueprintSheet({ instanceId }: BlueprintSheetProps) {
 
 /* ------------------------------------------------------------- Main State - */
 
-export function AgentMascot({ state, hostLabel, className }: AgentMascotProps) {
+export function AgentMascot({ state, hostLabel, caption, className }: AgentMascotProps) {
   const rawId = useId()
   const instanceId = rawId.replace(/[^a-zA-Z0-9_-]/g, '')
 
@@ -654,6 +656,8 @@ export function AgentMascot({ state, hostLabel, className }: AgentMascotProps) {
             desc: `The Ambio field agent is grinning triumphantly over the top edge of a verified architecture blueprint held open in both mitts, showing clean mapped systems and a freshly struck brass approval stamp. The architecture proposal from ${host} is ready to review.`,
             caption: `Survey complete - the architecture proposal from ${host} is ready to review.`,
           }
+
+  if (caption) copy.caption = caption
 
   return (
     <div className={[NS, className].filter(Boolean).join(' ')} data-state={state}>

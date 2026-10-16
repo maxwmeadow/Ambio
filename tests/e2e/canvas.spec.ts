@@ -2886,6 +2886,9 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   // Adding Ambio for the user's own sessions starts on, and can be turned off.
   const sessions = mapWith.getByRole('checkbox', { name: /Also add Ambio to your own/ })
   if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }
+  // The mascot follows the chosen agent: one Ambio runs is ready without connecting.
+  const caption = page.locator('.ambio-connect__mascot p[aria-live]')
+  await expect(caption).toHaveText('Ready - Claude Code (CLI) is ready. Press Map to start.')
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
   await mapWith.getByRole('button', { name: 'Map with Claude Code (CLI)' }).click()
   const activity = page.getByRole('region', { name: 'Mapping activity' })
@@ -2894,6 +2897,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await expect(page.getByRole('heading', { name: 'Claude Code (CLI) is mapping this project' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
   await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
+  await expect(caption).toHaveText('Working - Claude Code (CLI) is mapping the project.')
   const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string }> }).delivered)
   expect(delivered.map(request => request.hostId)).toEqual(['claude-code'])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })

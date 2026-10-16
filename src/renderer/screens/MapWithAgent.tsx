@@ -37,12 +37,16 @@ type Choice = { id: string; label: string; kind: 'chat'; provider: ChatProvider 
 
 const CHAT_SETUP = 'chat-setup'
 
-export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }: {
+/** What the mapping section has chosen, for the mascot beside it. */
+export type MappingChoice = { label: string; kind: 'chat' | 'run' | 'setup' } | null
+
+export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted, onChoice }: {
   workspaceId: string
   projectRoot: string
   /** Ambio's installers, to offer adding Ambio to the user's own sessions of the chosen CLI. */
   agentHosts: AgentHostInfo[]
   onStarted: (run: MappingRun) => void
+  onChoice?: (choice: MappingChoice) => void
 }) {
   const [choices, setChoices] = useState<Choice[] | null>(null)
   const [chosen, setChosen] = useState('')
@@ -72,6 +76,8 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }
     return () => { active = false; window.removeEventListener(CHAT_PROVIDERS_CHANGED, load) }
   }, [])
   const choice = choices?.find(item => item.id === chosen)
+  const choiceLabel = choice ? (choice.kind === 'chat' ? 'Ambio chat' : choice.label) : ''
+  useEffect(() => { onChoice?.(choice ? { label: choiceLabel, kind: choice.kind } : null) }, [choice?.id, choiceLabel])
   // Adding Ambio to a CLI serves the user's own sessions; Ambio's runs do not need it.
   const installer = choice?.kind === 'run' ? agentHosts.find(host => host.id === choice.host.id && host.modality === 'cli') : undefined
   const offerInstall = !!installer && !(installer.configured && installer.workflowInstalled)
@@ -130,9 +136,11 @@ export function MapWithAgent({ workspaceId, projectRoot, agentHosts, onStarted }
 }
 
 /** What the mapping agent is doing, live, with a way to stop it. */
-export function MappingActivity({ run, onDismiss }: { run: MappingRun; onDismiss: () => void }) {
+export type MappingState = 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
+
+export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; onDismiss: () => void; onState?: (state: MappingState) => void }) {
   const [lines, setLines] = useState<string[]>([])
-  const [state, setState] = useState<'working' | 'done' | 'failed' | 'stopped' | 'waiting'>('working')
+  const [state, setState] = useState<MappingState>('working')
   const [detail, setDetail] = useState('')
   const [current, setCurrent] = useState<DeliveryRun | null>(null)
   const after = useRef(0)
@@ -175,6 +183,7 @@ export function MappingActivity({ run, onDismiss }: { run: MappingRun; onDismiss
     const timer = setInterval(() => { void poll() }, 1500)
     return () => { active = false; clearInterval(timer) }
   }, [run])
+  useEffect(() => { onState?.(state) }, [state])
   const stop = async () => {
     if (run.kind === 'chat') await window.ambio.stopChat(run.conversationId)
     else if (current) await window.ambio.stopDeliveryRun(run.workspaceId, current.key)
