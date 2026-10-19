@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { execFile } from 'node:child_process'
 import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
@@ -62,7 +63,7 @@ export function antigravityModels(output: string): ModelOption[] {
 
 function run(launcher: DriverLauncher, args: string[]): Promise<string> {
   return new Promise(resolve => {
-    const child = execFile(launcher.command, [...launcher.args, ...args], { timeout: 30000, windowsHide: true, maxBuffer: 1 << 20, shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) },
+    const child = execFile(launcher.command, [...launcher.args, ...args], { cwd: tmpdir(), timeout: 30000, windowsHide: true, maxBuffer: 1 << 20, shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) },
       (_error, stdout) => resolve(String(stdout ?? '')))
     // Some CLIs (agy) read stdin even when told what to do; nothing is coming.
     child.stdin?.end()
