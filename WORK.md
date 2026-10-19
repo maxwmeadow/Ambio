@@ -56,6 +56,7 @@ collide. Full context for each item is in its section below.
 
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
+3. ⬜ `agent-permission-modes` - user-controlled permission levels for agents Ambio runs, mapped to each agent's own modes; full access is the temporary default. [electron drivers, settings, agent panel]
 
 ---
 
@@ -258,6 +259,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `map-with-agent-live` **Map a real project with each agent Ambio runs, from setup.** Claude Code was run once before the mapping contract and live-activity fixes; Codex, Copilot CLI, Antigravity CLI and Ambio chat have not mapped for real, nor with a non-default model. (2026-10-19, session)
 - ⬜ `models-for-other-agents` **Offer models for Cursor CLI, Devin CLI and ACP agents.** They run with their own default today. ACP sessions report models in `session/new`; Cursor and Devin need their list commands confirmed. (2026-10-19, session)
 - ⬜ `hidden-console-live-check` **Confirm no console window opens for Copilot CLI and Antigravity CLI turns on Windows** after the hidden-console change (`electron/hiddenConsole.ts`); a helper that asks for its own console would still show one. (2026-10-19, session)
+- ⬜ `agent-permission-modes` **Let users choose how much an agent Ambio runs may do, per agent and per mode.** Today every agent Ambio starts gets full access (decision 2026-10-19): Build unrestricted (Claude `bypassPermissions`, Codex `danger-full-access`, Copilot `--yolo`, Antigravity `--dangerously-skip-permissions`, ACP all approved); Ask/Propose keep commands without file editing where possible. Wanted: Ambio-side levels, e.g. *Ask me* (routed through the existing permission desk: `/api/agent/permission`, Claude's `--permission-prompt-tool mcp__ambio__approve_action`, ACP `session/request_permission`), *Auto* (each agent's own auto mode: Claude `auto`, Codex `--approve-for-me` with `workspace-write`, Antigravity `--mode auto`; Copilot has none beyond `--allow-all-tools` with project paths), *Full access* (today's). Chosen in Settings → Agents and beside the model picker; remembered per agent; guides and readiness say the level in force; a level an agent cannot honour is said, not silently widened. Needs live tests per agent of what each mode refuses headless. (2026-10-19, Max)
 
 - ⬜ `unassigned-regrouped` **Files taken out of every system can be regrouped by the clusterer.** Unassigned files are classifier-managed, so ungrouping a top-level system or dragging a file to empty canvas may be undone by the next cluster pass. Decide whether a human "unassign" should pin the file as deliberately unsorted. (2026-10-01, meaning-edits-recorded)
 - ⬜ `readme-screenshots` **README screenshots** of the Floor, a sheet and Review Changes, once the rename and theme settle. (2026-09-30, docs cleanup)

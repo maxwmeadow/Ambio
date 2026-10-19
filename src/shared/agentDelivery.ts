@@ -100,6 +100,12 @@ export interface DestinationGuide {
   can: string[]
 }
 
+/**
+ * Agents Ambio runs are given every permission they offer, so a turn never
+ * stops on a step nobody is there to approve. Said in each of their guides.
+ */
+const FULL_ACCESS = 'Ambio runs it with your account\u2019s full permissions so it never stops to ask. Use it on projects and computers you trust.'
+
 const STARTED = (name: string, extra = 'It remembers the conversation from one message to the next.'): string[] => [
   `Choose ${name} and send. Ambio starts it in this project for you; nothing else needs to be open.`,
   'You can watch what it is doing under your message, and its reply arrives in the conversation.',
@@ -138,61 +144,63 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     need: ['Claude Code installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Claude Code'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes your code and hands the result back for review.',
-      'If it wants to run a command you did not expect, it asks you here first.',
+      'Ask and Propose: reads your code and map and can run commands, with its file-editing tools switched off.',
+      'Build: full access. It edits files and runs any command without asking, then hands the result back for review.',
+      FULL_ACCESS,
     ],
   },
   codex: {
     need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Codex'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes files inside this project only, and hands the result back for review.',
-      'It runs commands without asking, but cannot reach outside this project.',
+      'Ask and Propose: runs commands in a read-only sandbox, so it can look at anything but cannot change files.',
+      'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',
+      FULL_ACCESS,
     ],
   },
   'copilot-cli': {
     need: ['GitHub Copilot CLI installed on this computer and signed in to GitHub. Nothing needs to be open.'],
     how: STARTED('Copilot CLI'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes your code and hands the result back for review.',
-      'Before it runs a command, it asks you here.',
+      'Ask and Propose: can use every tool except writing files.',
+      'Build: full access to tools, files and the web without asking, then hands the result back for review.',
+      FULL_ACCESS,
     ],
   },
   'antigravity-cli': {
     need: ['Antigravity installed and signed in.', 'Ambio added to Antigravity once, from Settings \u2192 Agents. That is what lets its CLI use Ambio\u2019s tools.'],
     how: STARTED('Antigravity CLI', 'Ambio passes along what was said earlier.'),
     can: [
-      'Ask and Propose: answers questions and draws plans on your map.',
-      'Build: can change files, but cannot run commands such as tests or installs. Choose another agent for builds that need them.',
+      'Ask and Propose: answers questions and draws plans on your map. It is told not to change files, but Antigravity has no setting that stops it.',
+      'Build: full access. It edits files and runs any command without asking, then hands the result back for review.',
+      FULL_ACCESS,
     ],
   },
   'cursor-cli': {
     need: ['Cursor\u2019s CLI installed on this computer and signed in.', 'Ambio added to Cursor once, from Settings \u2192 Agents.'],
     how: STARTED('Cursor CLI'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes your code and hands the result back for review.',
+      'Ask and Propose: works in Cursor\u2019s read-only modes.',
+      'Build: edits files and runs commands without asking, then hands the result back for review.',
+      FULL_ACCESS,
     ],
   },
   'devin-cli': {
     need: ['Devin CLI installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Devin CLI'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes your code and hands the result back for review.',
-      'Before it runs a command, it asks you here.',
+      'Ask and Propose: can run commands; any change to your files is refused.',
+      'Build: everything it asks to do is approved without asking you, and the result comes back for review.',
+      FULL_ACCESS,
     ],
   },
   'antigravity-acp': {
     need: ['Antigravity installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('the Antigravity agent'),
     can: [
-      'Ask and Propose: reads your code and map, never changes files.',
-      'Build: changes your code and hands the result back for review.',
-      'Before it runs a command, it asks you here.',
+      'Ask and Propose: can run commands; any change to your files is refused.',
+      'Build: everything it asks to do is approved without asking you, and the result comes back for review.',
+      FULL_ACCESS,
     ],
   },
   copilot: {

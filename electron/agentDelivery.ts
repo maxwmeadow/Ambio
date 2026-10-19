@@ -155,7 +155,7 @@ export interface RunInput {
   /** Started instead when a continued session will not start: the same turn, fresh. */
   fresh?: () => { args: string[]; stdin?: string; sessionId?: string }
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
-  acp?: { mcpServers: AcpMcpServer[]; resume?: string; askUser?: (question: { title: string; detail: string; kind: string }) => Promise<boolean> }
+  acp?: { mcpServers: AcpMcpServer[]; resume?: string }
 }
 
 /** How many events a run keeps for the inbox to show. */
@@ -323,7 +323,7 @@ export class DeliveryRunner {
       let acpStopReason: string | undefined
       let acpError: string | undefined
       const acp = !(attempt.acp && input.acp) ? undefined : new AcpClient({
-        cwd: rootPath, prompt: input.prompt, mode: input.mode ?? 'build', mcpServers: input.acp.mcpServers, resume: input.acp.resume, askUser: input.acp.askUser,
+        cwd: rootPath, prompt: input.prompt, mode: input.mode ?? 'build', mcpServers: input.acp.mcpServers, resume: input.acp.resume,
         send: line => { try { child.stdin?.write(`${line}\n`) } catch { /* the close handler reports an agent that has gone */ } },
         onSession: session, onEvent: report,
       })

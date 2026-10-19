@@ -51,6 +51,10 @@ in the app as "What's New" after updating, so write it for users.
   changes where your message goes.
 - Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
   CLI, which otherwise refuses them when started from Ambio.
+- Agents Ambio runs now have full access, so a turn no longer stops on a step
+  nobody was there to approve: Build runs unrestricted, and Ask and Propose can
+  run commands but not edit files where the agent allows that. Each agent's
+  guide says what it may do. Choosing permission levels yourself is planned.
 - Choose the model an agent runs with, beside Ask / Propose / Build and next
   to setup's Map button. Claude Code, Codex, Copilot CLI and Antigravity CLI
   offer the models they publish; Ambio chat offers every model its service

@@ -1473,19 +1473,11 @@ function setupIPC(): void {
     const turn = { mode, messageId: request.messageId, cwd: project.rootPath, ...(validModel(request.model) ? { model: request.model } : {}) }
     const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
     // An ACP agent is given Ambio's tools for the session and continues or
-    // restarts the session itself. A command a build wants to run is put to
-    // the user in the conversation first.
+    // restarts the session itself.
     const session = driver?.acp || driver?.acpArgs
     const acp = session ? {
       resume,
       mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: [{ name: 'AMBIO_WORKSPACE_ID', value: project.id }] }))(mcpLaunchSpec())],
-      askUser: async (question: { title: string; detail: string; kind: string }) => {
-        const answer = await archdJson('/api/agent/permission', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(130000),
-          body: JSON.stringify({ workspaceId: project.id, messageId: request.messageId, hostId: request.hostId, ...question }),
-        })
-        return answer.status === 200 && answer.body?.decision === 'allow'
-      },
     } : undefined
     // A host with both ways in is tried as a session first; print mode is the
     // same turn started the way it always was.
