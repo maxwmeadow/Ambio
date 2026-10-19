@@ -8,6 +8,7 @@ import { resolveNodeCommand } from './platformPaths.ts'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
+import { hiddenConsoleStdio } from './hiddenConsole.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -290,7 +291,7 @@ export class DeliveryRunner {
         env[pathKey] = [dirname(input.launcher.command), ...(isAbsolute(node) ? [dirname(node)] : []), ...environmentPath(env).split(delimiter)].join(delimiter)
         if (input.launcher.bundledNode) env.ELECTRON_RUN_AS_NODE = '1'
         else delete env.ELECTRON_RUN_AS_NODE
-        child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+        child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: hiddenConsoleStdio(['pipe', 'pipe', 'pipe']) })
       } catch (error) { fail(error as Error); return }
       this.live.set(key, { child, run })
       let logged = 0
