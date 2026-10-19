@@ -1009,3 +1009,56 @@
   color: #6b7a72;
   font-size: 10.5px;
 }
+
+/* Mapping with an agent Ambio runs: the first choice in setup. */
+.ambio-map-with { display: grid; gap: 9px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid #8fb2a3; background: #eef4ef; color: #23362f; }
+.ambio-map-with h3 { margin: 0; font-size: 13px; }
+.ambio-map-with__copy { margin: 0; color: #4f6159; font-size: 12px; line-height: 1.5; }
+.ambio-map-with__error { margin: 0; color: #8c493a; font-size: 12px; }
+.ambio-map-with--activity header { display: flex; align-items: center; gap: 8px; }
+.ambio-map-with--activity header strong { font-size: 13px; }
+.ambio-map-with__pulse { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #5ca877; }
+.ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: ambio-map-pulse 1.4s ease-in-out infinite; }
+.ambio-map-with--activity:is([data-state='failed'], [data-state='stopped']) .ambio-map-with__pulse { background: #cf9275; }
+.ambio-map-with--activity[data-state='waiting'] .ambio-map-with__pulse { background: #d1b56a; }
+.ambio-map-with__lines { display: grid; align-content: start; gap: 3px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 8px 10px; list-style: none; background: #f8f7f2; border: 1px solid #d3dccf; font: 11px/1.45 var(--font-mono, monospace); color: #3d4f47; }
+.ambio-map-with__lines li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ambio-map-with__lines:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
+@keyframes ambio-map-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: none; } }
+
+/* Setup step 1: one list of agents, one action for the chosen one. */
+.ambio-choose { display: grid; gap: 18px; }
+.ambio-choose__group { display: grid; gap: 6px; }
+.ambio-choose__group h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 2px; color: #23362f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.ambio-choose__group h3 span { color: #6b7a72; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.ambio-choose__option { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 8px 14px; border: 1px solid #d4d8d1; background: #fbfaf6; color: #23362f; font: inherit; text-align: left; cursor: pointer; }
+.ambio-choose__option:hover:not(:disabled) { border-color: #8fb2a3; }
+.ambio-choose__option[aria-checked='true'] { border-color: #34735f; background: #eef4ef; box-shadow: inset 3px 0 0 #34735f; }
+.ambio-choose__option:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
+.ambio-choose__option:disabled { cursor: default; opacity: .6; }
+.ambio-choose__option strong { font-size: 13px; }
+.ambio-choose__option small { display: inline-flex; align-items: center; gap: 6px; color: #5d6e66; font-size: 11px; }
+.ambio-choose__option small::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #b9c2bc; }
+.ambio-choose__option[data-tone='ready'] small::before { background: #5ca877; }
+.ambio-choose__option[data-tone='attention'] small::before { background: #d1b56a; }
+.ambio-choose__radio { width: 16px; height: 16px; border: 1.5px solid #8d9a93; border-radius: 50%; }
+.ambio-choose__option[aria-checked='true'] .ambio-choose__radio { border-color: #34735f; background: radial-gradient(circle, #34735f 0 4px, transparent 4.5px); }
+.ambio-choose__more { display: flex; justify-content: space-between; gap: 12px; padding-top: 2px; }
+.ambio-choose__quiet { padding: 0; border: 0; background: none; color: #2f6a5d; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ambio-choose__quiet:disabled { color: #8d9a93; cursor: default; }
+.ambio-choose__empty { margin: 0; color: #6b7a72; font-size: 12px; }
+.ambio-choose__footer { display: flex; align-items: center; gap: 16px; margin-top: 12px; padding-top: 14px; border-top: 1px solid #dde1da; }
+.ambio-choose__footer > button { flex: none; }
+.ambio-choose__detail { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.ambio-choose__detail p { margin: 0; color: #4f6159; font-size: 12px; line-height: 1.5; }
+.ambio-choose__sessions { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; cursor: pointer; }
+.ambio-choose__sessions input { margin-top: 2px; accent-color: #34735f; }
+.ambio-choose__sessions span { display: grid; gap: 2px; }
+.ambio-choose__sessions small { color: #5d6e66; font-size: 11px; line-height: 1.45; }
+.ambio-choose__note[data-ok='false'] { color: #8c493a; }
+.ambio-map-with__heading { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ambio-map-with__heading small { color: #5d6e66; font-size: 11px; }
+.ambio-connect__waiting-line .ambio-choose__quiet { margin-left: auto; }
+.ambio-choose__actions { display: flex; flex: none; gap: 8px; align-items: stretch; }
+.ambio-choose__model { max-width: 200px; padding: 6px 8px; border: 1px solid #b0beb5; background: #fbfaf5; color: #23362f; font: inherit; font-size: 11px; }

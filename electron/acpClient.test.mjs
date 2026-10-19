@@ -90,13 +90,17 @@ function turn(root, overrides = {}) {
 
 test('a turn\'s mode decides what an ACP agent may do and which of its own modes it runs in', () => {
   const options = [{ optionId: 'yes', kind: 'allow_once' }, { optionId: 'always', kind: 'allow_always' }, { optionId: 'no', kind: 'reject_once' }]
-  for (const kind of ['edit', 'delete', 'move', 'execute']) {
+  // Changing the project's files is a build's alone.
+  for (const kind of ['edit', 'delete', 'move']) {
     assert.equal(acpPermission('build', kind, options), 'yes')
     assert.equal(acpPermission('ask', kind, options), 'no')
     assert.equal(acpPermission('propose', kind, options), 'no')
   }
-  // Looking, and talking to Ambio, are allowed in every mode.
-  for (const kind of ['read', 'search', 'fetch', 'think', 'other', undefined]) assert.equal(acpPermission('ask', kind, options), 'yes')
+  // Running commands, looking, and talking to Ambio are allowed in every mode.
+  for (const kind of ['execute', 'read', 'search', 'fetch', 'think', 'other', undefined]) {
+    assert.equal(acpPermission('ask', kind, options), 'yes')
+    assert.equal(acpPermission('build', kind, options), 'yes')
+  }
   // With no fitting answer offered, the request is cancelled, never guessed.
   assert.equal(acpPermission('ask', 'edit', [{ optionId: 'yes', kind: 'allow_once' }]), undefined)
   assert.equal(acpPermission('build', 'edit', [{ optionId: 'always', kind: 'allow_always' }]), 'always')
@@ -170,26 +174,17 @@ test('an ACP agent that cannot start or stops early is a failed run that says wh
   assert.match(early.detail, /stopped early \(max_tokens\)/)
 })
 
-test('a build asks the user before an ACP agent runs a command, and their answer is the agent\'s answer', async t => {
+test('an ACP agent is allowed to run commands without anyone being asked, in a build and in a question', async t => {
   const root = fixture(t)
   const shell = (command, args, options) => testSpawn(command, args, { ...options, env: { ...options.env, TOOL_KIND: 'execute', TOOL_TITLE: 'Run npm install' } })
-  for (const [allowed, optionId] of [[true, 'yes'], [false, 'no']]) {
-    const runner = new DeliveryRunner(path.join(root, `runs-${optionId}`), shell)
-    const asked = []
-    const base = turn(root)
-    const run = await settled(runner, 'ws', (await runner.start({ ...base, acp: { ...base.acp, askUser: async question => { asked.push(question); return allowed } } })).key)
+  for (const mode of ['build', 'ask']) {
+    const runner = new DeliveryRunner(path.join(root, `runs-${mode}`), shell)
+    const run = await settled(runner, 'ws', (await runner.start(turn(root, { mode }))).key)
     assert.equal(run.state, 'completed', run.detail)
-    assert.deepEqual(asked, [{ title: 'Run npm install', detail: 'npm install', kind: 'execute' }])
     const events = runner.events('ws', run.key).map(event => event.text)
-    assert.equal(events.at(-1), `Permission ${optionId} for: Claim work order x`)
-    assert.equal(events.some(text => text === 'Not allowed · Run npm install'), !allowed)
+    assert.equal(events.at(-1), 'Permission yes for: Claim work order x', mode)
+    assert.ok(!events.some(text => /^Refused|^Not allowed/.test(text)), events.join(' | '))
   }
-  // An edit is what a build was ordered to do; it is not asked about.
-  const runner = new DeliveryRunner(path.join(root, 'runs-edit'), testSpawn)
-  let questions = 0
-  const base = turn(root)
-  await settled(runner, 'ws', (await runner.start({ ...base, acp: { ...base.acp, askUser: async () => { questions++; return false } } })).key)
-  assert.equal(questions, 0)
 })
 
 test('a host that cannot hold an ACP session runs the same turn in print mode', async t => {

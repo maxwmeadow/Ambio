@@ -8,7 +8,7 @@ import { DeliveryRunner, chatDeepLink, deliveryPlan, deliveryTargets, findDelive
 import { agentDriver, turnMode } from './agentDrivers.ts'
 
 const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
-const HOSTS = ['claude-code', 'codex', 'copilot-cli', 'cursor-cli']
+const HOSTS = ['claude-code', 'codex', 'copilot-cli', 'cursor-cli', 'antigravity-cli']
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-drivers-'))
@@ -29,39 +29,70 @@ async function settled(runner, workspace, key) {
   assert.fail(`run did not settle: ${JSON.stringify(runner.list(workspace))}`)
 }
 
-test('a question or a proposal cannot change files in any driven host; a build can', () => {
+test('agents Ambio runs get every permission they offer; a question or a proposal loses only file editing', () => {
   for (const host of HOSTS) {
     for (const mode of ['ask', 'propose']) {
       const args = deliveryPlan(host, mcp, 'ws', 'Claim work order x', { mode }).args
-      const line = args.join(' ')
-      assert.ok(!/bypass|skip-permissions|allow-all|yolo|--force/.test(line), `${host} ${mode}: ${line}`)
       if (host === 'claude-code') {
-        assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk')
-        assert.equal(args[args.indexOf('--allowedTools') + 1], 'mcp__ambio,Read,Glob,Grep')
+        assert.equal(args[args.indexOf('--permission-mode') + 1], 'bypassPermissions')
         assert.match(args[args.indexOf('--disallowedTools') + 1], /Edit,Write/)
+        assert.ok(!args.includes('--allowedTools'))
       }
+      // Commands run; the sandbox stops writes.
       if (host === 'codex') assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only')
-      if (host === 'copilot-cli') assert.deepEqual(args.filter((arg, index) => args[index - 1] === '--allow-tool'), ['ambio'])
+      if (host === 'copilot-cli') {
+        assert.ok(args.includes('--allow-all-tools') && !args.includes('--yolo'))
+        assert.equal(args[args.indexOf('--deny-tool') + 1], 'write')
+      }
       if (host === 'cursor-cli') assert.equal(args[args.indexOf('--mode') + 1], mode === 'ask' ? 'ask' : 'plan')
+      if (host === 'antigravity-cli') assert.ok(args.includes('--dangerously-skip-permissions'))
     }
     const build = deliveryPlan(host, mcp, 'ws', 'Claim work order x', { mode: 'build' }).args
-    assert.ok(!build.some(arg => /bypass|skip-permissions|allow-all|yolo/.test(arg)), `${host} build`)
-    if (host === 'claude-code') assert.equal(build[build.indexOf('--permission-mode') + 1], 'acceptEdits')
-    if (host === 'codex') assert.equal(build[build.indexOf('--sandbox') + 1], 'workspace-write')
-    if (host === 'copilot-cli') assert.ok(build.includes('write'))
+    if (host === 'claude-code') {
+      assert.equal(build[build.indexOf('--permission-mode') + 1], 'bypassPermissions')
+      assert.ok(!build.includes('--disallowedTools') && !build.includes('--permission-prompt-tool'))
+    }
+    if (host === 'codex') assert.equal(build[build.indexOf('--sandbox') + 1], 'danger-full-access')
+    if (host === 'copilot-cli') assert.ok(build.includes('--yolo') && !build.includes('--deny-tool'))
     if (host === 'cursor-cli') assert.ok(build.includes('--force'))
+    if (host === 'antigravity-cli') assert.ok(build.includes('--dangerously-skip-permissions'))
   }
+  // A continued Codex session is given the same sandbox.
+  const resumed = deliveryPlan('codex', mcp, 'ws', 'p', { mode: 'build', resume: 'thread-1' }).args
+  assert.ok(resumed.includes('sandbox_mode="danger-full-access"'))
   assert.equal(turnMode('ask'), 'ask')
   assert.equal(turnMode(''), 'build')
   assert.equal(turnMode(undefined), 'build')
 })
 
-test('every destination the picker can show says what works with it', async () => {
-  const { DELIVERY_SUPPORT } = await import('../src/shared/agentDelivery.ts')
+test('every destination the picker can show explains how to use it', async () => {
+  const { DESTINATION_GUIDE } = await import('../src/shared/agentDelivery.ts')
   const { buildHosts } = await import('./agentInstallers.ts')
   for (const id of [...buildHosts().map(host => host.id), 'cursor-cli', 'devin-cli', 'antigravity-acp', 'antigravity-cli', '@watching', '']) {
-    assert.ok(DELIVERY_SUPPORT[id]?.summary, `no support note for ${id || 'manual'}`)
+    assert.ok(DESTINATION_GUIDE[id]?.how.length && DESTINATION_GUIDE[id].can.length && DESTINATION_GUIDE[id].need.length, `no guide for ${id || 'manual'}`)
   }
+})
+
+test('readiness is said in each kind of agent’s own terms', async () => {
+  const { deliveryReadiness, WATCHING_DELIVERY } = await import('../src/shared/agentDelivery.ts')
+  const hosts = [
+    { id: 'claude-code', label: 'Claude Code', route: 'run', available: true, detail: '' },
+    { id: 'codex', label: 'Codex', route: 'run', available: false, detail: '' },
+    { id: 'copilot', label: 'VS Code', route: 'open', available: true, detail: '' },
+  ]
+  const ready = (hostId, extra = {}) => deliveryReadiness({ hostId, hosts, installedIds: [], watchers: 0, watchingHosts: [], ...extra })
+  // A started agent needs nothing open, and no MCP connection, to be ready.
+  assert.equal(ready('claude-code').tone, 'ready')
+  assert.deepEqual([ready('codex').tone, ready('codex').fix], ['blocked', 'agents'])
+  // An agent in another app needs Ambio added, then reads as ready once attached.
+  assert.equal(ready('copilot').tone, 'blocked')
+  assert.equal(ready('copilot', { installedIds: ['copilot'] }).tone, 'attention')
+  assert.equal(ready('copilot', { installedIds: ['copilot'], watchingHosts: ['copilot'] }).tone, 'ready')
+  assert.equal(ready(WATCHING_DELIVERY).tone, 'attention')
+  assert.equal(ready(WATCHING_DELIVERY, { watchers: 2 }).tone, 'ready')
+  assert.equal(ready('', { chat: { service: 'OpenAI', keyMissing: false } }).tone, 'ready')
+  assert.equal(ready('', { chat: { service: 'OpenAI', keyMissing: true } }).fix, 'agents')
+  for (const result of [ready('claude-code'), ready('copilot'), ready('', { chat: { service: 'OpenAI', keyMissing: false } })]) assert.doesNotMatch(result.text, /MCP/)
 })
 
 test('a later turn continues the host session where the host can, and names a new one where it lets Ambio', () => {
@@ -94,15 +125,11 @@ test('a later turn continues the host session where the host can, and names a ne
   assert.throws(() => deliveryPlan('cursor', mcp, 'ws', 'p'), /no direct/)
 })
 
-test('a started build asks the user for what it was not already allowed, on the turn it answers', () => {
+test('a started turn still names its request to Ambio, and Cursor accepts its workspace itself', () => {
   const build = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-7' }).args
-  assert.equal(build[build.indexOf('--permission-prompt-tool') + 1], 'mcp__ambio__approve_action')
   assert.equal(JSON.parse(build[build.indexOf('--mcp-config') + 1]).mcpServers.ambio.env.AMBIO_RUN_MESSAGE_ID, 'turn-7')
-  // A question has nothing to ask permission for: what is not listed is refused.
-  const ask = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'ask', messageId: 'turn-7' }).args
-  assert.ok(!ask.includes('--permission-prompt-tool'))
-  // Without a turn to put the question on, the tool is not offered.
-  assert.ok(!deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build' }).args.includes('--permission-prompt-tool'))
+  // Nothing is asked: every permission is already granted.
+  assert.ok(!build.includes('--permission-prompt-tool'))
   // Cursor's headless run accepts the workspace and Ambio's MCP server itself.
   const cursor = deliveryPlan('cursor-cli', mcp, 'ws', 'p', { mode: 'ask' }).args
   assert.ok(cursor.includes('--trust') && cursor.includes('--approve-mcps'))
@@ -153,14 +180,15 @@ test('VS Code and Cursor are opened with the handoff in their chat; other editor
   for (const host of ['windsurf', 'zed', 'jetbrains', 'claude-desktop', 'antigravity']) assert.equal(chatDeepLink(host, prompt), undefined)
 })
 
-test('Antigravity\'s own CLI runs in print mode, continues its conversation and is never told to skip permissions', t => {
+test('Antigravity\'s own CLI runs in print mode with every permission granted, and continues its conversation', t => {
   const driver = agentDriver('antigravity-cli')
   const first = driver.plan({ hostId: 'antigravity-cli', mode: 'build', mcp, workspaceId: 'ws', prompt: 'Claim work order x' })
-  assert.deepEqual(first.args, ['-p', 'Claim work order x'])
+  // Its print mode cannot ask, so every permission is granted up front.
+  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--dangerously-skip-permissions'])
   assert.equal(first.stdin, undefined)
   const next = driver.plan({ hostId: 'antigravity-cli', mode: 'ask', mcp, workspaceId: 'ws', prompt: 'p', resume: 'conv-1' })
   assert.deepEqual(next.args.slice(-2), ['--conversation', 'conv-1'])
-  assert.ok(!next.args.some(arg => /skip-permissions|yolo|bypass/.test(arg)))
+  assert.ok(next.args.includes('--dangerously-skip-permissions'))
   assert.equal(driver.read(JSON.stringify({ type: 'init', conversation_id: 'conv-1' })).sessionId, 'conv-1')
   assert.deepEqual(driver.read(JSON.stringify({ type: 'step_update', step: { type: 'tool', status: 'started', tool: { name: 'read_file', args: { path: 'a.ts' } } } })).events, [{ kind: 'tool', text: 'read_file · a.ts' }])
   assert.deepEqual(driver.read(JSON.stringify({ type: 'step_update', step: { type: 'agent_response', text: 'Done.' } })).events, [{ kind: 'text', text: 'Done.' }])
@@ -174,7 +202,7 @@ test('Antigravity\'s own CLI runs in print mode, continues its conversation and 
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'agy.exe' : 'agy'), '', { mode: 0o755 })
   const offered = deliveryTargets([{ id: 'antigravity', label: 'Antigravity' }], { PATH: bin }, process.platform, root).find(target => target.id === 'antigravity-cli')
   assert.equal(offered?.route, 'run')
-  assert.match(offered.detail, /Experimental.*must be allowed/)
+  assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
 })
 
 test('a host that exits cleanly after being stopped from using Ambio is a failed turn that says how to fix it', async t => {
@@ -197,14 +225,7 @@ test('a host that exits cleanly after being stopped from using Ambio is a failed
   // Any other refusal ends the run too, and says which permission it was.
   assert.match(driver.readError('a tool required the "command" permission that headless mode cannot prompt for').events[0].text, /"command" permission/)
   // The project folder is named as the workspace, or its MCP config is never loaded.
-  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--add-dir', '/proj'])
-})
-
-test('a Claude Code build may run its listed checks in either shell without asking', () => {
-  const allowed = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build' }).args
-  const tools = allowed[allowed.indexOf('--allowedTools') + 1].split(',')
-  for (const shell of ['Bash', 'PowerShell']) assert.ok(tools.includes(`${shell}(npm test:*)`) && tools.includes(`${shell}(git status:*)`), shell)
-  assert.ok(!tools.includes('Bash') && !tools.includes('PowerShell'))
+  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--dangerously-skip-permissions', '--add-dir', '/proj'])
 })
 
 test('an npm-installed CLI is found by the entry its package declares, or the one it used to have', t => {
@@ -234,7 +255,7 @@ test('Cursor\'s terminal agent is offered only when Cursor is set up and the age
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'cursor-agent.exe' : 'cursor-agent'), '', { mode: 0o755 })
   const offered = deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli')
   assert.equal(offered?.route, 'run')
-  assert.match(offered.detail, /Experimental/)
+  assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
   assert.ok(!deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).some(target => target.id === 'cursor-cli'))
 })
 

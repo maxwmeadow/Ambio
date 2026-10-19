@@ -32,7 +32,12 @@ export interface DriverTurn {
   prompt: string
   /** The host session an earlier turn of this conversation ran in. */
   resume?: string
+  /** The model the user chose for this turn; unset keeps the host's default. */
+  model?: string
 }
+
+/** The usual flag for choosing a model, for hosts that take one. */
+const modelFlag = (turn: DriverTurn): string[] => turn.model ? ['--model', turn.model] : []
 
 export interface DriverPlan {
   args: string[]
@@ -98,9 +103,12 @@ function toolTarget(input: unknown): string {
   return ''
 }
 
-// Checks a build may run without asking. Anything else still needs the host's
-// own permission, which a run with nobody at the keyboard does not get.
-const CHECK_COMMANDS = ['npm run', 'npm test', 'npx tsc', 'go test', 'go vet', 'git status', 'git diff']
+// Agents Ambio runs are given as much access as each one allows: nobody is at
+// their keyboard to approve a step, and a refused step ends the turn. A build
+// runs unrestricted. Ask and Propose may run any command (searching, listing,
+// tests) but have their file-editing tools switched off where the agent can
+// do that; the turn's contract tells them not to change anything. Each
+// destination's guide says what this means for it.
 
 const claudeCode: AgentDriver = {
   resumable: true,
@@ -115,18 +123,12 @@ const claudeCode: AgentDriver = {
       args: [
         '-p', '--output-format', 'stream-json', '--verbose',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),
-        // A question or a proposal reads the code and talks to Ambio; only a
-        // build may change files. dontAsk refuses whatever is not listed.
-        '--permission-mode', building ? 'acceptEdits' : 'dontAsk',
+        ...modelFlag(turn),
+        // Every permission is granted; a question or a proposal loses only the
+        // tools that write files (deny rules hold even when bypassing).
+        '--permission-mode', 'bypassPermissions',
         '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { ambio: mcpServer(turn) } }),
-        '--allowedTools', building
-          // On Windows Claude Code runs commands through its PowerShell tool,
-          // so the checks are listed for both shells.
-          ? ['mcp__ambio', 'Read', 'Glob', 'Grep', 'Edit', 'Write', ...CHECK_COMMANDS.flatMap(command => [`Bash(${command}:*)`, `PowerShell(${command}:*)`])].join(',')
-          : 'mcp__ambio,Read,Glob,Grep',
-        // A build that wants something beyond its edits and the listed checks
-        // asks the user in the conversation instead of being refused unseen.
-        ...(building ? (turn.messageId ? ['--permission-prompt-tool', 'mcp__ambio__approve_action'] : []) : ['--disallowedTools', 'Edit,Write,NotebookEdit']),
+        ...(building ? [] : ['--disallowedTools', 'Edit,Write,MultiEdit,NotebookEdit']),
       ],
     }
   },
@@ -159,14 +161,15 @@ const codex: AgentDriver = {
       stdin: turn.prompt,
       args: [
         'exec', ...(turn.resume ? ['resume', turn.resume] : []), '--json',
-        // Codex's sandbox is the permission: read-only for a question or a
-        // proposal, the workspace for a build. MCP calls are not shell.
+        // Codex's sandbox is the permission: a question or a proposal runs any
+        // command but cannot write (read-only); a build has full access.
         // `codex exec resume` has no --sandbox (codex-cli 0.162), so a continued
         // session is given the same sandbox as a config override.
         ...(turn.resume
-          ? ['-c', `sandbox_mode=${JSON.stringify(turn.mode === 'build' ? 'workspace-write' : 'read-only')}`]
-          : ['--sandbox', turn.mode === 'build' ? 'workspace-write' : 'read-only']),
+          ? ['-c', `sandbox_mode=${JSON.stringify(turn.mode === 'build' ? 'danger-full-access' : 'read-only')}`]
+          : ['--sandbox', turn.mode === 'build' ? 'danger-full-access' : 'read-only']),
         '--skip-git-repo-check',
+        ...(turn.model ? ['-c', `model=${JSON.stringify(turn.model)}`] : []),
         '-c', 'approval_policy="never"',
         '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
         '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
@@ -195,6 +198,11 @@ const codex: AgentDriver = {
   },
 }
 
+/** Copilot CLI: everything for a build; every tool but writing files otherwise. */
+const copilotAccess = (turn: DriverTurn): string[] => turn.mode === 'build'
+  ? ['--yolo']
+  : ['--allow-all-tools', '--allow-all-paths', '--allow-all-urls', '--deny-tool', 'write']
+
 const copilotCli: AgentDriver = {
   // Copilot's print mode does not report the session it ran in. Its ACP
   // server (a public preview) keeps sessions, so that is tried first and
@@ -203,15 +211,14 @@ const copilotCli: AgentDriver = {
   // Copilot's ACP server does not load MCP servers a client names in
   // session/new (copilot 1.0.98: the session had none of Ambio's tools), so
   // Ambio's is given on its command line, as print mode does.
-  acpArgs: turn => ['--acp', '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } })],
+  acpArgs: turn => ['--acp', ...modelFlag(turn), ...copilotAccess(turn), '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } })],
   plan(turn) {
-    const building = turn.mode === 'build'
     return {
       args: [
         '--prompt', turn.prompt,
+        ...modelFlag(turn),
         '--additional-mcp-config', JSON.stringify({ mcpServers: { ambio: { ...mcpServer(turn), tools: ['*'] } } }),
-        '--allow-tool', 'ambio',
-        ...(building ? ['--allow-tool', 'write', ...CHECK_COMMANDS.flatMap(command => ['--allow-tool', `shell(${command}:*)`])] : []),
+        ...copilotAccess(turn),
         '--no-ask-user',
       ],
     }
@@ -237,6 +244,7 @@ const cursorCli: AgentDriver = {
         // read-only modes. The mode is given on every turn: a resumed chat
         // otherwise keeps the one it was last in.
         ...(turn.mode === 'build' ? ['--force'] : ['--mode', turn.mode === 'ask' ? 'ask' : 'plan']),
+        ...modelFlag(turn),
         turn.prompt,
       ],
     }
@@ -272,7 +280,7 @@ function antigravityRefusal(line: string): DriverOutput {
   const needed = /required the "([a-z_]+)" permission/i.exec(line)?.[1]
   if (!needed) return NOTHING
   return { events: [{ kind: 'error', text: needed === 'mcp'
-    ? 'Antigravity CLI did not let the agent use Ambio’s tools: its print mode cannot ask you for permission. Install Ambio into Antigravity again from Agent Connections (it allows them), or add "mcp(ambio/*)" to permissions.allow in ~/.gemini/antigravity-cli/settings.json, then send again.'
+    ? 'Antigravity CLI did not let the agent use Ambio’s tools: its print mode cannot ask you for permission. Add Ambio to Antigravity again in Settings → Agents (that allows them), or add "mcp(ambio/*)" to permissions.allow in ~/.gemini/antigravity-cli/settings.json, then send again.'
     : `Antigravity CLI stopped the turn: the agent needed the "${needed}" permission, which its print mode cannot ask you for, and it ends the run on a refusal. Send this turn to Antigravity's own chat instead, or allow that action in ~/.gemini/antigravity-cli/settings.json.` }] }
 }
 const antigravityCli: AgentDriver = {
@@ -285,7 +293,9 @@ const antigravityCli: AgentDriver = {
       // a flag it does not know ends the run before it starts.
       // The folder is named as the workspace: print mode otherwise has none,
       // and the project's .agents/mcp_config.json is never loaded.
-      args: ['-p', turn.prompt, ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : [])],
+      // Its print mode cannot ask, so without this any command ends the turn.
+      // Nothing narrower exists: Ask and Propose rely on the turn's contract.
+      args: ['-p', turn.prompt, '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
       // Closed at once: agy reads stdin even when the prompt is an argument.
       stdin: undefined,
     }

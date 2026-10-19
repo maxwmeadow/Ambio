@@ -52,10 +52,13 @@ test('large architecture can be submitted in durable chunks without changing the
 
     const committed = await client.callTool('edit_systems', { op: 'commit_session', sessionId })
     assert.equal(committed.isError, false, committed.text)
-    assert.equal(committed.payload.systems, 3)
+    // Styles kept none of its files, so it is left out of review and named to the agent.
+    assert.equal(committed.payload.systems, 2)
+    assert.deepEqual(committed.payload.droppedSystems, ['Styles'])
 
     const proposal = await (await fetch(`${apiBase}/api/architecture-proposals/${committed.payload.proposalId}?workspace=${workspaceId}`)).json()
-    assert.equal(proposal.round.systems.length, 3)
+    assert.equal(proposal.round.systems.length, 2)
+    assert.ok(!proposal.round.systems.some(system => system.systemKey === 'styles'))
     assert.equal(proposal.round.systems.find(system => system.systemKey === 'api').depth, 1)
     const after = await (await fetch(`${apiBase}/api/snapshot/${workspaceId}`)).json()
     assert.equal(after.systems?.length ?? 0, before.systems?.length ?? 0, 'unreviewed proposal reached the live map')

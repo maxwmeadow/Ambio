@@ -35,7 +35,7 @@ interface CommandDeckStatus {
 
 const WORKBENCH_CAPABILITIES = [
   { index: '01', title: 'Draw it, and your agent builds it', detail: 'Sketch a change on a sheet and send it as a work order. Ambio checks what was built against what you drew.' },
-  { index: '02', title: 'Agents show you the plan first', detail: 'Connected agents draw what they intend to build on your map. You approve, correct or reject it before any code moves.' },
+  { index: '02', title: 'Agents show you the plan first', detail: 'Your agents draw what they intend to build on your map. You approve, correct or reject it before any code moves.' },
   { index: '03', title: 'Review changes on the map', detail: 'See what an agent changed as systems and relationships, then accept or undo it, instead of reading a 40-file diff.' },
 ] as const
 

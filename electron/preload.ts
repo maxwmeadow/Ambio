@@ -2,22 +2,26 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
-import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
+import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun, ModelOption } from '../src/shared/agentDelivery'
 import type { ConnectionTestResult } from './agentConnectionTest'
-import type { ChatGPTState, ChatGPTModel } from '../src/shared/chatgpt'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
+import type { ChatProvider, ChatProviderInput, ChatConnectionTest, ChatConversation, ChatSnapshot, ChatSendInput } from '../src/shared/agentChat'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
-  getChatGPTState: (): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:state'),
-  signInChatGPT: (profileId?: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:sign-in', profileId),
-  cancelChatGPTSignIn: (): Promise<void> => ipcRenderer.invoke('chatgpt:cancel-sign-in'),
-  selectChatGPTProfile: (id: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-profile', id),
-  signOutChatGPT: (): Promise<{ state: ChatGPTState; detail: string }> => ipcRenderer.invoke('chatgpt:sign-out'),
-  listChatGPTModels: (): Promise<ChatGPTModel[]> => ipcRenderer.invoke('chatgpt:models'),
-  selectChatGPTModel: (slug: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-model', slug),
-  manageChatGPTUsage: (): Promise<void> => ipcRenderer.invoke('chatgpt:usage'),
+  chatProviders: (): Promise<ChatProvider[]> => ipcRenderer.invoke('chat:providers'),
+  saveChatProvider: (input: ChatProviderInput): Promise<ChatProvider> => ipcRenderer.invoke('chat:provider-save', input),
+  testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
+  removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
+  chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
+  createChat: (workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model),
+  chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
+  cachedChat: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:cached', id),
+  sendChat: (input: ChatSendInput): Promise<void> => ipcRenderer.invoke('chat:send', input),
+  stopChat: (id: string): Promise<void> => ipcRenderer.invoke('chat:stop', id),
+  approveChat: (id: string, requestId: string, allow: boolean): Promise<void> => ipcRenderer.invoke('chat:approve', id, requestId, allow),
+  answerChat: (id: string, requestId: string, answers: string[][] | null): Promise<void> => ipcRenderer.invoke('chat:answer', id, requestId, answers),
   // Project management
   openProjectDialog: (): Promise<ProjectConfig | null> =>
     ipcRenderer.invoke('project:open-dialog'),
@@ -95,6 +99,8 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('agent:hosts', projectRoot),
 
   listDeliveryHosts: (): Promise<DeliveryHost[]> => ipcRenderer.invoke('agent:delivery-hosts'),
+  mappingBrief: (): Promise<string> => ipcRenderer.invoke('agent:mapping-brief'),
+  agentModels: (hostId: string): Promise<ModelOption[]> => ipcRenderer.invoke('agent:models', hostId),
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
   listDeliveryRuns: (workspaceId: string): Promise<DeliveryRun[]> => ipcRenderer.invoke('agent:delivery-runs', workspaceId),
   stopDeliveryRun: (workspaceId: string, key: string): Promise<void> => ipcRenderer.invoke('agent:delivery-stop', workspaceId, key),
@@ -301,14 +307,18 @@ export type ArchdStatus =
 declare global {
   interface Window {
     ambio: {
-      getChatGPTState: () => Promise<ChatGPTState>
-      signInChatGPT: (profileId?: string) => Promise<ChatGPTState>
-      cancelChatGPTSignIn: () => Promise<void>
-      selectChatGPTProfile: (id: string) => Promise<ChatGPTState>
-      signOutChatGPT: () => Promise<{ state: ChatGPTState; detail: string }>
-      listChatGPTModels: () => Promise<ChatGPTModel[]>
-      selectChatGPTModel: (slug: string) => Promise<ChatGPTState>
-      manageChatGPTUsage: () => Promise<void>
+      chatProviders: () => Promise<ChatProvider[]>
+      saveChatProvider: (input: ChatProviderInput) => Promise<ChatProvider>
+      testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
+      removeChatProvider: (id: string) => Promise<void>
+      chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
+      createChat: (workspaceId: string, providerId: string, model?: string) => Promise<ChatConversation>
+      chatSnapshot: (id: string) => Promise<ChatSnapshot>
+      cachedChat: (id: string) => Promise<ChatSnapshot>
+      sendChat: (input: ChatSendInput) => Promise<void>
+      stopChat: (id: string) => Promise<void>
+      approveChat: (id: string, requestId: string, allow: boolean) => Promise<void>
+      answerChat: (id: string, requestId: string, answers: string[][] | null) => Promise<void>
       openProjectDialog: () => Promise<ProjectConfig | null>
       openProject: (config: ProjectConfig) => Promise<ProjectConfig>
       chooseDirectory: () => Promise<string | null>
@@ -339,6 +349,8 @@ declare global {
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>
       listDeliveryHosts: () => Promise<DeliveryHost[]>
+      mappingBrief: () => Promise<string>
+      agentModels: (hostId: string) => Promise<ModelOption[]>
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>
       listDeliveryRuns: (workspaceId: string) => Promise<DeliveryRun[]>
       stopDeliveryRun: (workspaceId: string, key: string) => Promise<void>

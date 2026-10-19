@@ -53,15 +53,15 @@ test('native CLI detection does not accept shell shims; npm Windows installs use
   assert.deepEqual(findDeliveryCli('claude-code', { PATH: root, APPDATA: root }, 'win32', root, 'bundled-runtime'), { command: 'bundled-runtime', args: [script], bundledNode: true })
 })
 
-test('CLI configurations bind each MCP process to the requested workspace and host, without permission bypass', () => {
+test('CLI configurations bind each MCP process to the requested workspace and host', () => {
   const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
   const prompt = 'Claim work order order, not a queue'
   for (const host of ['claude-code', 'codex', 'copilot-cli']) {
     const args = deliveryArguments(host, mcp, 'ws-123', prompt)
     assert.ok(args.join(' ').includes('ws-123'))
     assert.ok(args.join(' ').includes(`--ambio-host=${host}`))
-    assert.ok(!args.some(arg => /bypass|skip-permissions|allow-all|yolo/.test(arg)))
-    if (host === 'codex') { assert.ok(args.includes('workspace-write')); assert.equal(args.at(-1), '-') }
+    // A build is given full access (decision 2026-10-19); see agentDrivers.test.mjs.
+    if (host === 'codex') { assert.ok(args.includes('danger-full-access')); assert.equal(args.at(-1), '-') }
     else {
       const flag = host === 'claude-code' ? '--mcp-config' : '--additional-mcp-config'
       const config = JSON.parse(args[args.indexOf(flag) + 1])

@@ -134,13 +134,12 @@
 .ambio-inbox .ambio-inbox__latest { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); border: 1px solid #627d6b; background: linear-gradient(#f8f7ef, #dbe4d8); padding: 5px 10px; color: #31584e; box-shadow: 2px 2px 0 #243d2c3b; font: 700 9px var(--font-mono, monospace); text-transform: uppercase; white-space: nowrap; }
 .ambio-inbox__bottom { position: relative; flex: none; padding: 12px 12px 12px; background: linear-gradient(#dcdcd4, #d5d8cf); border-top: 1px solid #8a9990; box-shadow: inset 0 1px #f9f7ed; }
 .ambio-inbox__handoff { margin: 0 0 10px; border: 1px solid #aab7aa; background: #e7e9e0; box-shadow: inset 1px 1px #f7f7ef; color: #3d584c; }
-.ambio-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 2px 8px; font: 9px var(--font-mono, monospace); }
-.ambio-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__handoff-status { display: flex; align-items: center; gap: 7px; min-height: 25px; padding: 3px 8px; font: 11px/1.4 var(--font-ui, sans-serif); }
+.ambio-inbox__handoff-status > span:nth-child(2) { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .ambio-inbox__signal { width: 6px; height: 6px; flex: none; border: 1px solid #8b9b8b; background: #aeb8a9; }
-.ambio-inbox__signal--live { border-color: #316f56; background: #5ca877; }
-.ambio-inbox__signal--online { border-color: #8d753c; background: #d1b56a; }
-.ambio-inbox__signal--configured { border-color: #8d753c; background: #d1b56a; }
-.ambio-inbox__signal--repair, .ambio-inbox__signal--unconfigured { border-color: #9c6b4e; background: #cf9275; }
+.ambio-inbox__signal--ready { border-color: #316f56; background: #5ca877; }
+.ambio-inbox__signal--attention { border-color: #8d753c; background: #d1b56a; }
+.ambio-inbox__signal--blocked { border-color: #9c6b4e; background: #cf9275; }
 .ambio-inbox .ambio-inbox__handoff-status button { flex: none; color: #326a5c; text-decoration: underline; text-underline-offset: 2px; font: 700 9px var(--font-mono, monospace); }
 .ambio-inbox__compose { display: flex; flex-direction: column; overflow: visible; box-sizing: border-box; padding: 0; gap: 0; background: #f4f2eb; border: 1px solid #72847a; box-shadow: inset 1px 1px #fff, inset -1px -1px #c4ccc2, 2px 2px 0 #263d2d24; }
 .ambio-inbox__compose:focus-within { border-color: #377369; box-shadow: inset 1px 1px #fff, 0 0 0 1px #4b8b7a; }
@@ -248,6 +247,8 @@
    gutter; the textarea below is ruled off as the place to type. */
 .ambio-inbox__delivery { display: grid; gap: 6px; padding: 10px 12px 0; }
 .ambio-inbox__compose > .ambio-inbox__notice { margin: 8px 12px 0; }
+.ambio-inbox__delivery { position: relative; }
+.ambio-inbox__delivery-heading { display: flex; align-items: center; gap: 6px; }
 .ambio-inbox__delivery label { display: grid; gap: 5px; color: #53635c; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
 .ambio-inbox__delivery select { width: 100%; padding: 6px 8px; font: 12px var(--font-ui, sans-serif); letter-spacing: 0; text-transform: none; color: inherit; background: var(--inbox-surface); border: 1px solid var(--inbox-line); border-radius: 0; }
 .ambio-inbox__delivery select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
@@ -292,9 +293,55 @@
 .ambio-inbox__conversation-menu .ambio-inbox__stages { margin: 0 0 4px; }
 .ambio-inbox__conversation-menu .ambio-inbox__notice { padding: 8px 9px; }
 /* What the chosen destination can do. */
-.ambio-inbox__delivery-support { margin: 5px 0 0; color: #55645c; font: 10.5px/1.45 var(--font-ui, sans-serif); }
-.ambio-inbox__delivery-support strong { margin-right: 4px; padding: 0 4px; border: 1px solid currentColor; font: 600 9px/1.6 var(--font-mono, monospace); letter-spacing: .05em; text-transform: uppercase; }
-.ambio-inbox__delivery-support[data-level='tested'] strong { color: #2f6a5d; }
-.ambio-inbox__delivery-support[data-level='limited'] strong { color: #8a6320; }
-.ambio-inbox__delivery-support[data-level='untested'] strong { color: #7a3c22; }
-.ambio-inbox__delivery-support[data-level='paste'] strong { color: #4a5f55; }
+
+.ambio-inbox .ambio-inbox__guide-button { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; color: #2f6a5d; background: #dde8df; border: 1px solid #a9c1b2; border-radius: 50%; cursor: pointer; }
+.ambio-inbox .ambio-inbox__guide-button:is(:hover, [aria-expanded='true']):not(:disabled) { color: #f4f8f0; background: #2f6a5d; border-color: #2f6a5d; }
+.ambio-inbox__guide-button:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
+.ambio-inbox__delivery-title { color: #53635c; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-inbox__delivery-fixed { display: grid; gap: 2px; margin: 0; padding: 6px 8px; font: 600 12px var(--font-ui, sans-serif); background: var(--inbox-surface); border: 1px solid var(--inbox-line); }
+.ambio-inbox__delivery-fixed small { font-weight: 400; font-size: 10.5px; opacity: .7; }
+
+/* How an agent works here: the info popover and the first-use introduction. */
+.ambio-guide { color: #26362d; background: #f6f4ec; border: 1px solid #2f4a3c; font: 13px/1.55 var(--font-ui, sans-serif); }
+.ambio-guide--popover { position: absolute; z-index: 10; left: 12px; right: 12px; bottom: calc(100% + 8px); max-height: 70vh; overflow: auto; box-shadow: 6px 6px 0 #182b1e66; }
+.ambio-guide__header { position: relative; padding: 14px 44px 14px 16px; color: #eef4ec; background: #1f3a2e; }
+.ambio-guide__eyebrow { display: block; margin-bottom: 3px; color: #9fd1bd; font: 700 9.5px var(--font-mono, monospace); letter-spacing: .1em; text-transform: uppercase; }
+.ambio-guide__header h2 { margin: 0; font: 700 18px/1.25 var(--font-ui, sans-serif); }
+.ambio-guide__header p { margin: 6px 0 0; color: #c9dccf; font-size: 13px; }
+:is(.ambio-inbox, .ambio-guide-backdrop) .ambio-guide__close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; color: #c9dccf; background: transparent; border: 1px solid #4d6b5c; cursor: pointer; }
+:is(.ambio-inbox, .ambio-guide-backdrop) .ambio-guide__close:hover { color: #fff; border-color: #9fd1bd; }
+.ambio-guide__picker { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #d3dccf; background: #ebefe5; }
+.ambio-guide__picker > span { color: #53635c; font: 700 9.5px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-guide__picker select { flex: 1; min-width: 0; padding: 6px 8px; font: 600 13px var(--font-ui, sans-serif); color: inherit; background: #fbfaf5; border: 1px solid #a9b8ab; border-radius: 0; }
+.ambio-guide__picker .ambio-inbox__delivery-fixed { flex: 1; }
+.ambio-guide__body { display: grid; gap: 14px; padding: 14px 16px 16px; }
+.ambio-guide__body h3 { margin: 0 0 8px; color: #2f6a5d; font: 700 10px var(--font-mono, monospace); letter-spacing: .1em; text-transform: uppercase; }
+.ambio-guide__body ol, .ambio-guide__body ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ambio-guide__body li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+.ambio-guide__body li > span { display: grid; place-items: center; width: 22px; height: 22px; color: #f4f8f0; background: #2f6a5d; border-radius: 50%; font: 700 11px var(--font-mono, monospace); }
+.ambio-guide__body ul li > span { color: #2f6a5d; background: #d6e6db; }
+.ambio-guide-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: #0f1d1599; backdrop-filter: blur(3px); animation: ambio-guide-in .18s ease-out; }
+.ambio-guide--intro { width: min(580px, 100%); max-height: calc(100vh - 48px); overflow: auto; box-shadow: 10px 10px 0 #0b161066; font-size: 14px; }
+.ambio-guide--intro .ambio-guide__header { padding: 22px 24px 20px; }
+.ambio-guide--intro .ambio-guide__header h2 { font-size: 24px; }
+.ambio-guide--intro :is(.ambio-guide__picker, .ambio-guide__body) { padding-left: 24px; padding-right: 24px; }
+.ambio-guide--intro .ambio-guide__body { gap: 18px; padding-top: 18px; padding-bottom: 20px; }
+.ambio-guide__footer { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-top: 1px solid #d3dccf; background: #ebefe5; }
+.ambio-guide__footer p { display: flex; align-items: center; gap: 8px; flex: 1; margin: 0; color: #4c5d53; font-size: 12.5px; }
+.ambio-guide__info-mark { display: inline-grid; flex: none; place-items: center; width: 22px; height: 22px; color: #2f6a5d; background: #dde8df; border: 1px solid #a9c1b2; border-radius: 50%; }
+.ambio-guide__confirm { flex: none; padding: 9px 22px; color: #f4f8f0; background: #2f6a5d; border: 1px solid #2f6a5d; font: 700 13px var(--font-ui, sans-serif); cursor: pointer; }
+.ambio-guide__confirm:hover { background: #24564b; }
+:is(.ambio-guide__confirm, .ambio-guide__close, .ambio-guide__picker select):focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
+@keyframes ambio-guide-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ambio-guide-backdrop { animation: none; } }
+.ambio-inbox__model .ambio-inbox__model-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-inbox__model-menu { width: 300px; max-height: 320px; overflow-y: auto; }
+/* The panel's hover colour is for light buttons; the conversation title sits on the dark header. */
+.ambio-inbox .ambio-inbox__conversation-button:is(:hover, [aria-expanded='true']):not(:disabled) { color: #f4f7f2; }
+.ambio-inbox .ambio-inbox__conversation-menu button[role='menuitemradio']:is(:hover, :focus-visible) { color: var(--inbox-ink); }
+/* The stage filters are a row of chips, not menu rows. */
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages { padding: 6px 6px 8px; border-bottom: 1px solid #cfd3cc; background: transparent; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button { display: inline-flex; align-items: baseline; gap: 4px; width: auto; padding: 2px 8px; border: 1px solid #a9b0ac; background: #f7f6f1; color: #2b3833; font: 11px var(--font-ui, sans-serif); box-shadow: none; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button:hover { border-color: #6e9183; background: #eef3ee; color: #2b3833; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button[aria-pressed='true'] { border-color: #3c7d76; background: #dfeae6; color: #1f4a40; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button span { margin: 0; color: #68736e; font: 10px var(--font-mono, monospace); }

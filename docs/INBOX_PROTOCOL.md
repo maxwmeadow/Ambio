@@ -146,21 +146,26 @@ What has been run for real (`mcp/e2e/conversation.live.mjs`, 2026-10-15):
   Ambio's is passed with `--additional-mcp-config` when it starts.
 
 Cursor CLI, Devin and Google's Antigravity ACP server are not installed. Those were written from
-each vendor's documentation and tested against stand-in agents. The panel
-shows each destination's status beside the picker (`DELIVERY_SUPPORT`).
+each vendor's documentation and tested against stand-in agents. Pasted
+destinations (Claude Desktop, Windsurf, Antigravity, JetBrains, Zed) and
+Cursor's deep link have not had a live conversation run; VS Code's link has.
+Test status stays here: the panel's info button (`DESTINATION_GUIDE`) only
+tells the user how to use each destination and what it can do.
 
-**Asking the user.** A started agent that wants something its turn did not
-already allow asks in the conversation instead of being refused unseen. The
-question goes to archd (`POST /api/agent/permission`), which holds the
-agent's request open until the user answers in the panel or the wait runs
-out; no answer is a refusal, and a daemon restart drops the question the same
-way. Claude Code reaches it through `--permission-prompt-tool
-mcp__ambio__approve_action`, a tool the MCP server offers only to a run Ambio
-started (`AMBIO_RUN_MESSAGE_ID`). ACP agents reach it through
-`session/request_permission`: a build's edits are allowed as ordered, a
-command it wants to run is asked about, and a question or proposal is refused
-anything that changes the project. Codex and Copilot's print mode have no such
-hook and keep their fixed allow lists.
+**Permissions (for now: full access).** Nobody is at a started agent's
+keyboard, and a refused step ends the turn, so agents Ambio runs are given every
+permission they offer (decision 2026-10-19). A build runs unrestricted: Claude
+Code `--permission-mode bypassPermissions`, Codex `--sandbox
+danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
+`--dangerously-skip-permissions`, Cursor CLI `--force`, and ACP agents have every
+request approved. Ask and Propose may run commands but lose file editing where
+the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
+read-only sandbox, Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
+edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
+Propose also skip permissions and rely on the turn's contract. Each guide says
+this. The permission desk (`POST /api/agent/permission`, `approve_action`)
+remains for the per-agent permission settings planned in WORK.md
+(`agent-permission-modes`).
 
 **Live activity.** A driver reads the host's output for what the agent says
 and does. The runner keeps up to 400 events per run beside its log

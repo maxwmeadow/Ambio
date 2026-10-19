@@ -180,11 +180,9 @@
   .ambio-agent-connections__files span { grid-column: 1 / -1; }
   .ambio-agent-connections__remove { flex-wrap: wrap; }
 }
-.ambio-chatgpt {
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-color, #444);
-}
-.ambio-chatgpt h3 { margin: 0 0 8px; }
-.ambio-chatgpt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.ambio-chatgpt select { max-width: 65%; }
+
+.ambio-agent-connections__kind { display: grid; gap: 8px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--settings-line, #d3dccf); }
+.ambio-agent-connections__kind:last-of-type { border-bottom: 0; }
+.ambio-agent-connections__kind > h3 { margin: 0; font-size: 14px; }
+.ambio-agent-connections__kind .ambio-chat__settings { padding: 0; overflow: visible; }
+.ambio-agent-connections__kind .ambio-chat__settings [role=status] { margin: 0; font-size: 12px; }

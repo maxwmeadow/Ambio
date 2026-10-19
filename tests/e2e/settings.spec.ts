@@ -25,13 +25,16 @@ test('settings keeps its frame across sections, loading and expanded content', a
         await new Promise(resolve => setTimeout(resolve, 150))
         return Array.from({ length: 12 }, (_, index) => ({
           id: `fixture-${index}`, label: `Fixture agent ${index}`, modalityLabel: `Fixture agent ${index}`,
-          familyId: `fixture-${index}`, familyLabel: 'Fixture', modality: 'cli', sharedSurfaces: [],
+          familyId: `fixture-${index}`, familyLabel: 'Fixture', modality: index < 6 ? 'cli' : 'desktop', sharedSurfaces: [],
           detected: index < 10, configured: index < 10, configuredPaths: ['/fixture/config.json'],
           unreadablePaths: [], workflowInstalled: true, workflowPath: '/fixture/workflow.md',
           configPath: '/fixture/config.json', configOverride: null, command: null,
           restartAction: 'Restart agent', restartDetail: 'Restart to load the connection.', triggerKind: 'instruction',
         }))
       })
+      // Nor the agents this computer could run.
+      ipcMain.removeHandler('agent:delivery-hosts')
+      ipcMain.handle('agent:delivery-hosts', () => [])
     })
     const page = await app.firstWindow()
     await page.setViewportSize({ width: 1400, height: 900 })
@@ -81,7 +84,7 @@ test('settings keeps its frame across sections, loading and expanded content', a
           await panel.evaluate(element => { element.scrollTop = element.scrollHeight })
           await expect.poll(() => panel.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
           await expect(dialog.getByRole('button', { name: 'Remove…', exact: true })).toBeInViewport()
-          await dialog.getByRole('button', { name: 'Show 2 agents not found on this computer' }).click()
+          await dialog.getByRole('button', { name: 'Show 2 apps not found on this computer' }).click()
           await expect(dialog.locator('.ambio-agent-connections__host')).toHaveCount(12)
           expect(await dialog.boundingBox()).toEqual(frame)
           expect(await nav.boundingBox()).toEqual(navFrame)

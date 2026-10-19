@@ -49,10 +49,32 @@ in the app as "What's New" after updating, so write it for users.
 - Codex and Antigravity's CLI can be started from Ambio as well as Claude
   Code. Copilot CLI runs as a session so it keeps its place between turns.
   Experimental: Cursor's and Windsurf's (Devin) terminal agents.
-- Under Deliver to, the panel says what the chosen agent can and cannot do in
-  a conversation, and whether that has been tested.
+- The first time you choose an agent, Ambio shows how it works from the panel
+  and what it can do, and waits for you to confirm. The info button beside
+  Deliver to shows the same guide any time, and choosing an agent there
+  changes where your message goes.
 - Installing Ambio into Antigravity also allows Ambio's tools in Antigravity's
   CLI, which otherwise refuses them when started from Ambio.
+- Agents Ambio runs now have full access, so a turn no longer stops on a step
+  nobody was there to approve: Build runs unrestricted, and Ask and Propose can
+  run commands but not edit files where the agent allows that. Each agent's
+  guide says what it may do. Choosing permission levels yourself is planned.
+- Choose the model an agent runs with, beside Ask / Propose / Build and next
+  to setup's Map button. Claude Code, Codex, Copilot CLI and Antigravity CLI
+  offer the models they publish; Ambio chat offers every model its service
+  lists, and can switch between them within a conversation.
+- Setup can map your project for you: choose Ambio chat or an agent on this
+  computer, press Map, and watch it work. Nothing to install or restart. Adding
+  Ambio to your own sessions of that agent is on by default and can be turned
+  off. Agents in other apps are set up as before.
+- The agent panel says whether the chosen agent is ready in that agent's own
+  terms, and Settings → Agents lists Ambio chat, the agents Ambio runs and the
+  agents in other apps separately.
+- Ambio chat: Ambio's own agent, picked like any other in the agent panel.
+  Set up a model service with your API key, then ask, propose or build in the
+  same conversation; replies stream in, and builds come back for review. Includes streamed
+  responses, questions, Stop, restart recovery and secure local key storage.
+  Set each service's context window to match your model.
 - Agents receive guidance to draw structural changes on a sheet before editing
   code, reuse approved plans, and compare after building. Project reminders
   support every installed coding host; Claude Desktop receives MCP/chat guidance.

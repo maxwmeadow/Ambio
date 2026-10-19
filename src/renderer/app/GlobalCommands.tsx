@@ -6,6 +6,9 @@ import { currentPlatform, emitCommand, useCommandHandlers } from './commands'
 import { MarkdownView } from '../components/MarkdownView'
 import { AgentConnections } from '../components/AgentConnections'
 import { AmbioWordmark } from '../components/ui/AmbioBrand'
+import { ChatProviderSettings } from '../components/ChatProviderSettings'
+import { CHAT_PROVIDERS_CHANGED, OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
+import type { ChatProvider } from '../../shared/agentChat'
 
 type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
 
@@ -68,6 +71,12 @@ export function GlobalCommands() {
 
   // Project commands enable and disable with the project.
   useEffect(() => { void window.ambio?.setMenuState?.({ projectOpen }) }, [projectOpen])
+  // The agent panel's "set up a model service" opens Settings there.
+  useEffect(() => {
+    const open = () => { setSettingsSection('agents'); setDialog('settings'); setTimeout(() => document.getElementById('ambio-agents-chat')?.scrollIntoView({ block: 'start' }), 50) }
+    window.addEventListener(OPEN_MODEL_SERVICES, open)
+    return () => window.removeEventListener(OPEN_MODEL_SERVICES, open)
+  }, [])
 
   useCommandHandlers({
     'view.commandPalette': () => setDialog(current => (current === 'palette' ? null : 'palette')),
@@ -341,6 +350,8 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [editors, setEditors] = useState<Array<{ id: string; label: string }>>([])
   const project = useGraphStore(state => state.currentProject)
+  const [chatProviders, setChatProviders] = useState<ChatProvider[]>([])
+  const projectOpen = project !== null
 
   useEffect(() => {
     if (!window.ambio) { setLoaded(true); return }
@@ -352,6 +363,7 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
     void window.ambio.getAppPaths().then(setPaths)
     void window.ambio.getAppInfo().then(info => setVersion(info.version))
     void window.ambio.listEditors?.().then(setEditors)
+    void window.ambio.chatProviders().then(setChatProviders)
     return window.ambio.onSettingsChanged(setSettings)
   }, [])
 
@@ -476,15 +488,17 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
                 projectRoot={project?.rootPath}
                 projectName={project?.name}
                 onGuidedSetup={project ? () => { onClose(); setTimeout(() => emitCommand('agent.guidedSetup'), 0) } : undefined}
+                chat={<div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
               />
               <RemoveFromAgents />
             </>
           )}
 
+
           {section === 'privacy' && (
             <>
               <p className="ambio-settings__text">
-                Indexing, project maps and history stay on this machine. Conversations you send to an agent can share project context with its provider. Ambio does not collect usage analytics.
+                Project maps and history stay on this machine. Integrated chat sends messages and agent-read context to your chosen model service. Ambio does not collect usage analytics.
                 Diagnostics are only ever copied by you.
               </p>
               <PathRow label="Project data" path={paths?.data} onOpen={() => void window.ambio?.openAppPath('data')} />

@@ -77,7 +77,23 @@ export function workOrderNote(mode: WorkOrderMode, note: string): string {
  * written into it for the agent, and what kind of turn it was. A turn from
  * before turns carried their mode is read from its contract.
  */
+/**
+ * What a mapping turn is, ahead of the brief. A Propose turn's usual contract
+ * asks for a sheet; a mapping writes a proposed map with edit_systems, which
+ * the user reviews, so it says that instead.
+ */
+export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Follow the brief below and propose the architecture with edit_systems; the human reviews the proposal before it becomes the map. Do not draw a sheet for this.'
+
+/** How a mapping turn reads in the conversation, instead of its whole brief. */
+export const MAPPING_TITLE = 'Map this project\u2019s architecture'
+
+/** The person-facing text of a request: a mapping turn reads as its title. */
+export function requestText(text: string): string {
+  return text.startsWith(MAPPING_CONTRACT) ? MAPPING_TITLE : text
+}
+
 export function turnRequest(message: { note: string; mode?: string }): { mode: WorkOrderMode; text: string } {
+  if (message.note.startsWith(MAPPING_CONTRACT)) return { mode: 'propose', text: MAPPING_TITLE }
   for (const mode of ['ask', 'propose'] as const) {
     const prefix = `${MODE_CONTRACT[mode]}\n\n`
     if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }

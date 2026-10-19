@@ -1,13 +1,14 @@
 # Privacy
 
-Ambio is local-first. Indexing, project maps and history stay on your machine.
-When you choose to send a conversation to an AI provider, that agent can send
-the conversation and project context it reads to the provider.
+Ambio is local-first. Indexing, project maps and architecture history stay on
+your machine. Optional integrated chat sends your messages and the project
+context its agent reads to the model service you configure.
 
 ## What stays on your machine
 
-- **Your source code.** Ambio indexes it locally to build the map. An agent you
-  ask to work on the project can send code and context to its provider.
+- **Your source code during indexing.** Ambio reads it locally to build the
+  map; indexing does not upload it. Integrated chat has the separate behavior
+  described below.
 - **Project maps and history:** systems, layout, sheets, the change journal
   and agent activity, stored under `~/.ambio/data`.
 - **Settings and the project list:** `~/.ambio`.
@@ -36,22 +37,30 @@ When you connect an agent (Claude Code, Cursor, Codex, …), the agent talks to
 Ambio over a local connection on your machine. What the agent then sends to
 its own provider is governed by that agent's privacy policy, not Ambio's.
 
-If you connect ChatGPT in Settings → Agents, Ambio opens OpenAI's sign-in in
-your browser and stores the connection in OS-encrypted local storage under
-`~/.ambio/chatgpt`. Tokens never enter the renderer, project maps or diagnostics.
-Model discovery contacts OpenAI. Sending a turn to ChatGPT starts a local
-Codex harness that sends the conversation and the project context it reads to
-OpenAI's public Responses API using your approved ChatGPT plan. Requests use
-`store: false`; this does not mean OpenAI receives no data or has no processing
-policy. OpenAI's terms, privacy policy and your plan controls govern that use.
-The local harness also keeps conversation history in its account-specific
-folder under `~/.ambio/chatgpt/harness`.
+## Ambio chat
 
-Sign out stops Ambio-launched ChatGPT runs, clears that registration's local
-tokens and attempts remote revocation. It retains the registration and local
-history. If revocation cannot be confirmed, Ambio tells you to disconnect it
-in ChatGPT Settings. Manage usage opens ChatGPT's usage controls. Details:
-[ChatGPT plan connection](docs/CHATGPT_PLAN.md).
+Integrated chat is optional. You choose a model service and supply its API key
+(local compatible services can run without one). Your messages, attached
+architecture context, and code or command results the coding agent reads are
+sent to that service for inference. Its privacy, retention and billing terms
+apply. A locally running harness does not make a cloud model offline.
+
+Requests go from this computer to your chosen service through a local
+credential proxy. They do not go through an Ambio inference backend. The agent
+receives a temporary local token; your real service key stays in Electron's
+main process. Keys use the operating system's secure storage when available.
+If secure storage is unavailable, the key stays in memory for this app session
+and you must enter it again after restarting; Ambio does not save it as plaintext.
+
+Conversations and the harness's local history/cache live under `~/.ambio/chat`.
+They may contain source and command output. They are not included in map exports
+or automatically shared. Delete all Ambio data also removes this chat data and
+saved keys. The bundled harness may fetch supporting packages from npm into its
+local cache; automatic conversation sharing and harness updates are disabled.
+
+Ask mode restricts the agent to read-only tools. Build mode can change your
+project and uses work orders and interactive action approvals. Stopping a turn
+does not undo changes already made.
 
 ## If this changes
 

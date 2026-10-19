@@ -1,10 +1,12 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { skipAgentGuides } from './agentGuides'
 
 test('canvas inbox attaches selection, retries a lost response, and restores the reply after reload', async () => {
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const app = await electron.launch({ args: ['.'], env: { ...env, AMBIO_E2E: '1' } })
   try {
     const page = await app.firstWindow()
+    await skipAgentGuides(page)
     await page.setViewportSize({ width: 1400, height: 900 })
     const messages: any[] = []
     const sends: any[] = []
@@ -64,10 +66,11 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await expect(panel.locator('.ambio-inbox__compose .ambio-inbox__targets button')).toHaveCount(2)
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
-    await expect(panel.getByRole('region', { name: 'Agent connection and handoff' })).toBeVisible()
+    // Readiness is said for the chosen destination, never as MCP status.
+    await expect(panel.getByRole('region', { name: 'Agent readiness' })).toContainText('Copy its handoff into any agent chat')
+    await expect(panel.getByRole('region', { name: 'Agent readiness' })).not.toContainText('MCP')
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
     await expect(panel.locator('.ambio-inbox__work-order code')).toHaveText(sends[0].id)
-    await expect(panel.getByRole('button', { name: 'Connections' })).toBeVisible()
     expect(sends).toHaveLength(2)
     expect(sends[0].id).toBe(sends[1].id)
     expect(sends[0].deliveryMode).toBe('addressed')

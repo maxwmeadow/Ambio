@@ -35,7 +35,7 @@ export function presentAgentHost(
   if (connectedNow) {
     return {
       state: 'live',
-      detail: `${host.modalityLabel || host.label} has an MCP process online for this project. Tool access is checked separately.`,
+      detail: `${host.modalityLabel || host.label} is connected to this project. Ask it to check that it can use Ambio.`,
       action: 'reinstall',
     }
   }

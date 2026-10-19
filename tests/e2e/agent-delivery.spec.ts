@@ -32,7 +32,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   })
   try {
     const page = await app.firstWindow()
-    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(11)
+    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(10)
     await page.setViewportSize({ width: 1280, height: 1000 })
     const orders: any[] = []
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
@@ -61,8 +61,45 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
     await expect(destination.locator('option')).toHaveCount(12)
+    // The first time an agent is chosen, its guide stands in front of everything until confirmed.
+    const intro = page.getByRole('dialog', { name: /^Before you use / })
+    const confirm = () => intro.getByRole('button', { name: 'Got it' }).click()
+    await expect(intro).toBeVisible()
+    await confirm()
+    await destination.selectOption('codex')
+    await expect(intro).toHaveAccessibleName('Before you use OpenAI Codex (CLI)')
+    await expect(intro).toContainText('Choose Codex and send.')
+    await expect(intro).toContainText('press the info button next to Deliver to')
+    await page.screenshot({ path: 'test-results/agent-delivery-introduction.png' })
+    await confirm()
+    await expect(intro).toBeHidden()
+    // The info button shows the same guide, and its picker is the destination picker.
+    await inbox.getByRole('button', { name: 'How each agent works here' }).click()
+    const guide = inbox.getByRole('dialog', { name: 'How each agent works here' })
+    const guidePicker = guide.getByRole('combobox', { name: 'Agent to read about' })
+    await expect(guidePicker).toHaveValue('codex')
+    await expect(guide).toContainText('Choose Codex and send.')
+    await page.screenshot({ path: 'test-results/agent-delivery-guide.png' })
+    await guidePicker.selectOption('claude-code')
+    await expect(destination).toHaveValue('claude-code')
+    // A first choice made from the guide is introduced too.
+    await expect(intro).toHaveAccessibleName('Before you use Claude Code (CLI)')
+    await confirm()
+    await destination.selectOption('codex')
+    await expect(intro).toBeHidden()
+    await inbox.getByRole('button', { name: 'How each agent works here' }).click()
+    await expect(guidePicker).toHaveValue('codex')
+    await page.keyboard.press('Escape')
+    await expect(guide).toBeHidden()
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
       await destination.selectOption(host)
+      if (host === 'copilot-cli') await confirm()
+      // Claude Code's models are offered beside the request type; the choice reaches its command line.
+      if (host === 'claude-code') {
+        await inbox.getByRole('button', { name: 'Model: Default model' }).click()
+        await inbox.getByRole('menuitemradio', { name: 'Opus (latest)' }).click()
+        await expect(inbox.getByRole('button', { name: 'Model: Opus (latest)' })).toBeVisible()
+      }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
       const captured = path.join(root, `captured-${host}.json`)
@@ -71,6 +108,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect.poll(() => { try { return String(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
       const actual = JSON.parse(fs.readFileSync(captured, 'utf8'))
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
+      if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
       await expect(inbox.locator('.ambio-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')
@@ -87,6 +125,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     expect(orders.at(-1).id).toBe(firstMessageId)
     if (process.platform !== 'win32') {
       await destination.selectOption('zed')
+      await confirm()
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Discuss this in Zed.')
       await inbox.locator('form').getByRole('button', { name: 'Copy + open Zed Editor' }).click()
       await expect.poll(() => fs.existsSync(path.join(root, 'editor-opened.json'))).toBe(true)

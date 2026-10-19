@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `chatgpt-native-api` **Connect ChatGPT plan sign-in to Ambio's integrated OpenCode chat.** Reuse the encrypted OAuth profiles; send eligible Responses API requests through the existing credential proxy, preserving native chat tools/history/approvals. Remove the Codex-backed ChatGPT destination. (🚧 Codex, codex/chatgpt-plan-sign-in, 2026-10-19)
+
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
@@ -56,6 +58,7 @@ collide. Full context for each item is in its section below.
 
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
+3. ⬜ `agent-permission-modes` - user-controlled permission levels for agents Ambio runs, mapped to each agent's own modes; full access is the temporary default. [electron drivers, settings, agent panel]
 
 ---
 
@@ -76,6 +79,8 @@ turn the item into build work, and remove the ❓.
 - ❓ `morning-delta-revisit` **Revisit the morning delta.** It has drifted to the point where it barely exists and cannot be found from the canvas. Decide whether it is still a feature (what changed since you last looked, explained), fold it into Review Changes, or remove it; if it stays, give it an entry point and a reason to open it.
 - ❓ `branches-and-worktrees-ux` **Rethink how branching and worktrees work in the app.** Today a branch change or a new worktree surfaces as an abrupt, ugly popup. Design the real model: how the map follows the checked-out branch, how worktrees appear (one project or several: see `worktrees-one-or-two`), where the current branch is shown and switched, and what happens to layout, sheets and history across branches.
 - ❓ `demo-project` **Ship a demo project after all?** Decided "not now" (DECISIONS). The research suggests the first ten minutes decide adoption, and the bidirectional loop needs a codebase and an agent to show. Recommendation: a guided first run on the user's own project instead of a bundled demo, plus the README video.
+- ❓ `chat-privacy-promise` **Does optional integrated chat change the privacy promise?** The `integrated-agent-chat` branch added its own DECISIONS row (2026-10-06) and rewrote PRIVACY.md and the in-app privacy text: chat sends messages and the code the agent reads to the user's chosen model service. The 2026-09-29 decision promised code never leaves the machine. Recommendation: accept, since chat is opt-in, uses the user's own account and indexing stays local; keep the promise unchanged for everything except a service the user configures. Confirm or reword before merging that branch.
+- ❓ `chat-bundle-size` **Ship OpenCode in every installer?** The pinned binary is about 185 MB uncompressed per platform (`scripts/build-agent.mjs`), more than the rest of the app, for an optional feature. Options: bundle it (works offline, current); download it on first use of Chat in Ambio with a pinned version and checksum; or ship chat later. Recommendation: download on first use, verified against a checksum in the repo.
 
 ---
 
@@ -253,6 +258,11 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
+- ⬜ `map-with-agent-live` **Map a real project with each agent Ambio runs, from setup.** Claude Code was run once before the mapping contract and live-activity fixes; Codex, Copilot CLI, Antigravity CLI and Ambio chat have not mapped for real, nor with a non-default model. (2026-10-19, session)
+- ⬜ `models-for-other-agents` **Offer models for Cursor CLI, Devin CLI and ACP agents.** They run with their own default today. ACP sessions report models in `session/new`; Cursor and Devin need their list commands confirmed. (2026-10-19, session)
+- ⬜ `hidden-console-live-check` **Confirm no console window opens for Copilot CLI and Antigravity CLI turns on Windows** after the hidden-console change (`electron/hiddenConsole.ts`); a helper that asks for its own console would still show one. (2026-10-19, session)
+- ⬜ `agent-permission-modes` **Let users choose how much an agent Ambio runs may do, per agent and per mode.** Today every agent Ambio starts gets full access (decision 2026-10-19): Build unrestricted (Claude `bypassPermissions`, Codex `danger-full-access`, Copilot `--yolo`, Antigravity `--dangerously-skip-permissions`, ACP all approved); Ask/Propose keep commands without file editing where possible. Wanted: Ambio-side levels, e.g. *Ask me* (routed through the existing permission desk: `/api/agent/permission`, Claude's `--permission-prompt-tool mcp__ambio__approve_action`, ACP `session/request_permission`), *Auto* (each agent's own auto mode: Claude `auto`, Codex `--approve-for-me` with `workspace-write`, Antigravity `--mode auto`; Copilot has none beyond `--allow-all-tools` with project paths), *Full access* (today's). Chosen in Settings → Agents and beside the model picker; remembered per agent; guides and readiness say the level in force; a level an agent cannot honour is said, not silently widened. Needs live tests per agent of what each mode refuses headless. (2026-10-19, Max)
+
 - ⬜ `unassigned-regrouped` **Files taken out of every system can be regrouped by the clusterer.** Unassigned files are classifier-managed, so ungrouping a top-level system or dragging a file to empty canvas may be undone by the next cluster pass. Decide whether a human "unassign" should pin the file as deliberately unsorted. (2026-10-01, meaning-edits-recorded)
 - ⬜ `readme-screenshots` **README screenshots** of the Floor, a sheet and Review Changes, once the rename and theme settle. (2026-09-30, docs cleanup)
 - ⬜ `draw-first-editor-smoke` **Live draw-first trials on the other supported hosts** - use the host matrix in `docs/testing/AGENTS_DRAW_FIRST.md`; record plan-before-code, human approval, existing-plan reuse, and a small fix without a new sheet. Copilot CLI has an opt-in trial; editor/Desktop runs still need a real host. (2026-09-30, agents-draw-first implementation)
@@ -260,14 +270,24 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `work-order-delivery-live` **Record authenticated provider delivery smoke runs** for Claude Code, Codex and Copilot CLI, and verify launcher behavior on macOS/Windows. Automated delivery tests use simulated agents; test auth, MCP startup, host permissions and the actual claim/build/reply loop. (2026-09-30, work-order-delivery)
 - ⬜ `work-order-isolated-roots` **Isolated agent runs with truthful review.** Before creating a worktree on Send, bind indexing/comparison to the run’s root so review checks the branch the agent edited. Current direct runs use the existing live root and prevent overlapping managed runs. (2026-09-30, work-order-delivery)
 - ⬜ `more-direct-delivery` **Extend host-specific delivery adapters.** Validate Cursor Agent CLI and project-bound VS Code chat delivery; add direct routes where the destination and permissions can be verified. Keep editor/desktop copy/open fallbacks and the host capability table current. (2026-09-30, work-order-delivery)
+- ⬜ `integrated-chat-provider-live` **Authenticated native-chat smoke runs.** The bundled OpenCode harness and Electron conversation are covered with a controlled model service and real processes. Record a small Ask/Build trial using real OpenAI, Anthropic and Google keys, and check secure key persistence and packaged launch on macOS/Windows; no paid-provider credentials were available in the cloud implementation session. (2026-10-06, integrated-agent-chat)
 
-- ⬜ `chatgpt-plan-live-validation` **Validate the direct ChatGPT connection with real accounts and packaged OS credential stores.** Browser consent, one completed Ask/Propose/Build loop, renewal, account switching, usage limits and revocation on macOS/Windows/Linux. Automated protocol, mock-harness and UI tests pass; no real-account sign-in was performed. Steps: [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, ChatGPT plan integration)
+- ⬜ `chat-windows-stamp` **Windows process stamps block the main process.** `processStamp` in `electron/agentChat.ts` runs PowerShell synchronously (up to 3 s) after every harness launch and when checking a leftover receipt. If the stamp could not be read at launch, a recycled PID leaves the project blocked with "could not be verified" until that unrelated process exits. Make the launch stamp asynchronous and retry it, and let Stop clear a receipt whose stamp was never recorded once the PID is gone or belongs to another executable. (2026-10-09, chat review)
+- ⬜ `chat-orphan-work-order` **A Build message that fails to send leaves its work order on the canvas.** `AgentChatPanel` creates the work order before `sendChat`; a refusal (another agent busy, missing key) leaves it addressed to nobody. Retrying reuses the same ID, so it is not duplicated. Either check availability before creating it or offer to send it elsewhere. (2026-10-09, chat review)
 
 ---
 
 ## Done log
 
-- 2026-10-19 `chatgpt-plan-sign-in` Added the documented open-source ChatGPT OAuth flow, OS-encrypted account profiles, renewal/revocation and model/usage controls; ChatGPT conversations run through a local Codex app-server using the public Responses API with account-scoped sessions, mode sandboxes, Stop and redacted activity. Covered by synthetic OAuth/protocol and Electron UI tests; the installed harness completed a mock-API turn. Real-account/packaged-OS validation remains in Inbox. (codex/chatgpt-plan-sign-in)
+Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-19 `setup-and-agent-polish` Setup step 1 is one list of agents with one action; mapping activity stays live and carries the draft count; mapping turns have their own contract (propose with edit_systems); the setup mascot follows the chosen agent; agent CLIs keep a hidden console on Windows so their helpers open no windows; `npm run dev` skips rebuilding archd and recopying OpenCode when current; Agent menu reads Agents… / Set Up Agent…; README and PRIVACY describe the agents Ambio runs and Ambio chat.
+
+- 2026-10-16 `model-choice` Model picker beside the request type and in setup's Map step: CLIs Ambio runs list their own published models (Claude aliases, Codex cache, `copilot help config`, `agy models`) and get them by flag; Ambio chat services keep their tested model list and a turn may use any. Agents in other apps choose in their own app. Also fixed: deliveryPlan dropped turn fields it did not name.
+
+- 2026-10-16 `readiness-by-kind` `agents-settings-one-page` `setup-map-with-agent` Readiness is said per kind of agent (panel strip, picker groups, a What you need section in each guide; no MCP wording outside troubleshooting). Settings → Agents holds Ambio chat's model services, the agents Ambio runs and the agents in other apps. Setup step 1 offers Map with <agent>, run by Ambio as a Propose turn with live activity and Stop; adding Ambio to the user's own sessions of that CLI is on by default and can be turned off. Classic install → restart → command remains for agents in other apps.
+
+- 2026-10-15 `integrated-chat-merge` Merged Chat in Ambio into the agent conversation panel: one picker (Ambio chat per model service, setup opens Settings), one conversation list, shared Ask/Propose/Build (Propose added to the built-in agent), streamed transcript with builds reviewed inline, agent fixed per conversation. Replaced the tested/untested pills with an info popover of user-facing how-to per agent.
 
 - 2026-10-15 `agent-conversations-live` Real conversations pass for Claude Code, Codex and Antigravity CLI. Fixes they found: Codex needs Ambio's server approved and its resume takes the sandbox as config; Antigravity CLI needs the project as `--add-dir` and `mcp(ambio/*)` allowed (now added by the Antigravity install and removed by uninstall); Copilot CLI's npm entry is read from its package. Gemini CLI removed (moved into Antigravity). The agent panel shows what each destination can do. (main, uncommitted)
 
@@ -281,6 +301,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - 2026-10-13 `startup-log-cleanup` Removed obsolete `open:project` stdin dispatch; the renderer registers projects via REST. Build smoke checks use `-version` instead of leaking `-h` output; on-demand watcher logs identify API requests accurately. (main)
 
 - 2026-10-13 `settings-stable-frame` Settings uses one viewport-bounded frame for every section, with panel scrolling, fixed navigation/header and compact layouts. Removed redundant Architecture Workbench/view labels across all title bars. (main)
+
+- 2026-10-09 `chat-review-fixes` Chat in Ambio reads the saved conversation when opened and polls only while a turn runs (opening an old conversation no longer starts the agent); the main-process monitor skips conversations the panel just polled, and unchanged history is not rewritten. Each model service has a context window (1M for hosted providers, 128k for compatible services, editable) instead of a fixed 32k, and responses may run to 32k tokens instead of 8k. Build pre-allows Ambio's read and work-order tools, the dead `ambio_get_context` permission is gone, and a test checks permissions against advertised MCP tools. Streamed text is released once saved, and a turn the harness drops without a reply fails after 30 s instead of showing Working forever. (claude/practical-einstein-tw9187)
 
 - 2026-10-08 `branding-production` Approved 02 wordmark installed in first-run/project launchers, shared setup title bars, toolbar, About and README; original A used for favicon, window/dock, notifications, tray and packaged app icons. Production SVGs, OFL attribution and native icon generation documented in `docs/BRANDING.md`. (main)
 
@@ -300,6 +322,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - 2026-10-08 `branding-custom-lettering` Custom SVG M/B/I/O drawn around the unchanged Open Arch A: shared crown apertures, heavy stems and curved openings. Full wordmarks, individual letter assets and a visually checked responsive preview in `docs/design-explorations/branding/custom-wordmark.html`; exploratory, no app branding changed.
 
+- 2026-10-06 `integrated-agent-chat` Added optional Chat in Ambio beside every existing work-order destination: model-service setup, encrypted or session-only keys, credential proxy, bundled OpenCode, streaming multi-turn history, read-only Ask, approval-based Build with addressed work orders, questions, cancellation and crash recovery. Tests drive the real harness and Electron; packaging, licenses, privacy and CI updated. (feature/integrated-agent-chat)
+
 - 2026-10-06 `branding-integrated-wordmarks` Reopened the logo-as-A direction at Max's request: four font pairings in lowercase/caps, eight outlined SVG exports and a visually checked responsive comparison. Visible-outline baseline/ascender alignment replaces padded inline SVG sizing; approved mark unchanged. `docs/design-explorations/branding/integrated-wordmarks.html`.
 
 - 2026-10-06 `branding-open-arch` Max selected study 02 in one colour and reversed; added a focused preview and solid teal/ivory SVGs, preserving the outline as one continuous contour. Two-tone is not the selected direction. No app branding changed.
@@ -307,8 +331,6 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - 2026-10-06 `branding-vector-studies` Three editable SVG A-and-bridge identity studies with two-tone/monochrome assets and a visually checked comparison page at `docs/design-explorations/branding/index.html`; exploratory only, no app branding changed.
 
 - 2026-10-03 `name` `rename` `rename-mechanics` Axiom is now **Ambio** (DECISIONS §3): every mention in code, IDs (`com.ambio.app`, `ambio://`, `AMBIO_*`, the Go module `ambio.local/archd`), files and docs. Upgrades move `~/.axiom` to `~/.ambio` and old map files to the new names (`db/legacy_name.go`, Electron main, the MCP server), read legacy registry folders, and remove an agent's old `axiom` MCP entry and skills on install or uninstall (`removeLegacyServer`). (claude/gracious-gauss-1bgdv9)
-
-Newest first. One line each: date, slug, what changed, branch/commit.
 
 - 2026-10-01 Ruby tracing has a live test through rdbg (three calls counted; Ruby is call-only), finding rdbg in the debug gem when AMBIO_RDBG_PATH is unset. (claude/gracious-gauss-1bgdv9)
 - 2026-10-01 C++ tracing has a live test through gdb's DAP mode (three calls to a watched function, with arguments); CI installs gdb next to delve. `internal/runtime` 30% → 40%. (claude/gracious-gauss-1bgdv9)

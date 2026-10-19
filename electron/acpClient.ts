@@ -31,7 +31,6 @@ export interface AcpTurn {
    * was ordered; a command it wants to run is asked about first. Without
    * this, a build's requests are allowed as before.
    */
-  askUser?: (question: { title: string; detail: string; kind: string }) => Promise<boolean>
 }
 
 export interface AcpOutcome {
@@ -43,9 +42,10 @@ export interface AcpOutcome {
 
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void }
 
-// A question or a proposal may look and may talk to Ambio; it may not change
-// the project. ACP names what a tool call does, so the rule is on the kind.
-const CHANGES_THE_PROJECT = new Set(['edit', 'delete', 'move', 'execute'])
+// A question or a proposal may look, run commands and talk to Ambio; it may
+// not edit the project's files. A build is allowed everything it asks for.
+// ACP names what a tool call does, so the rule is on the kind.
+const CHANGES_THE_PROJECT = new Set(['edit', 'delete', 'move'])
 
 function clip(text: string, max = 400): string {
   const flat = text.replace(/\s+/g, ' ').trim()
@@ -126,16 +126,6 @@ export class AcpClient {
         this.turn.send(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { outcome: optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } } }))
       if (this.turn.mode !== 'build' && CHANGES_THE_PROJECT.has(kind ?? 'other')) {
         this.turn.onEvent({ kind: 'tool', text: `Refused · ${title} (this turn does not change the project)` })
-      }
-      if (this.turn.mode === 'build' && kind === 'execute' && this.turn.askUser) {
-        const detail = typeof params.toolCall?.rawInput?.command === 'string' ? params.toolCall.rawInput.command : ''
-        void this.turn.askUser({ title, detail, kind }).catch(() => false).then(allowed => {
-          if (this.closed) return
-          if (!allowed) this.turn.onEvent({ kind: 'tool', text: `Not allowed · ${title}` })
-          const pick = (kinds: string[]) => kinds.map(wanted => options.find(option => option.kind === wanted)).find(Boolean)?.optionId
-          answer(allowed ? pick(['allow_once', 'allow_always']) : pick(['reject_once', 'reject_always']))
-        })
-        return
       }
       answer(acpPermission(this.turn.mode, kind, options))
       return

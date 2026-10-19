@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { skipAgentGuides } from './agentGuides'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -91,6 +92,7 @@ test.beforeEach(async () => {
     env: { ...env, AMBIO_E2E: '1', AMBIO_E2E_ROOT: isolated.root, HOME: isolated.home, USERPROFILE: isolated.home, APPDATA: join(isolated.home, 'AppData', 'Roaming'), LOCALAPPDATA: join(isolated.home, 'AppData', 'Local') },
   })
   page = await app.firstWindow()
+  await skipAgentGuides(page)
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
     const url = route.request().url()
@@ -954,28 +956,21 @@ test('uses two-step agent setup for blank projects without changing codebase set
   const card = page.locator('.ambio-connect__card')
   await expect(card).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Bring an agent into Ambio' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Add Ambio to your agent' })).toBeVisible()
-
+  await expect(page.getByRole('heading', { name: 'Choose your agent' })).toBeVisible()
   const steps = page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')
   await expect(steps).toHaveCount(2)
   await expect(steps.nth(0)).toHaveAttribute('aria-selected', 'true')
 
-  const agents = page.getByRole('list', { name: 'Supported agents' })
-  // One entry per agent FAMILY, not per modality: families group Claude Code
-  // with Claude Desktop, and Copilot's extension with its CLI.
-  // Agents not on this computer wait behind one line; opened, all eight show.
-  const notFound = page.getByRole('list', { name: 'Agents not found on this computer' })
-  const showNotFound = page.getByRole('button', { name: /not found on this computer/ })
+  // One list of agents and one action for the chosen one. Agents Ambio runs
+  // come first; Ambio chat is offered even before a model service exists.
+  const agents = page.getByRole('radiogroup', { name: 'Agents' })
+  await expect(agents.getByRole('heading', { name: /Ambio runs it/ })).toBeVisible()
+  await expect(agents.getByRole('heading', { name: /In another app/ })).toBeVisible()
+  await expect(agents.getByRole('radio', { name: /Ambio chat/ })).toBeVisible()
+  const showNotFound = agents.getByRole('button', { name: /not found on this computer/ })
   if (await showNotFound.count()) await showNotFound.click()
-  const allFamilies = page.locator('.ambio-connect__family-card')
-  await expect(allFamilies).toHaveCount(8)
-  await expect(agents.getByText('found on this machine')).toHaveCount(0)
-  await expect(agents.getByText(/Ambio configured|workflow missing/)).toHaveCount(0)
-  await expect(page.locator('.ambio-connect__family-card > .ambio-connect__family-row .ambio-connect__host-signal, .ambio-connect__surface--solo > .ambio-connect__host-signal')).toHaveCount(8)
-  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(1)
-  // Installed and connected agents lead the list.
-  await expect(agents.locator(':scope > li').first()).toHaveAttribute('data-state', /live|repair|installed/)
-  await expect(notFound.locator(':scope > li[data-state]:not([data-state="missing"])')).toHaveCount(0)
+  await expect(agents.getByRole('radio', { checked: true })).toHaveCount(1)
+  await expect(page.locator('.ambio-choose__footer .ambio-connect__primary, .ambio-choose__footer .ambio-connect__secondary')).toHaveCount(1)
   const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
   await expect(mascot).toHaveAttribute('data-state', 'connected')
 
@@ -1016,7 +1011,6 @@ test('uses two-step agent setup for blank projects without changing codebase set
 
   agentConnected = false
   await expect(mascot).toHaveAttribute('data-state', 'sleeping', { timeout: 5_000 })
-  await expect(agents.locator('.ambio-connect__host-signal[data-state="live"]')).toHaveCount(0)
   await expect(openCanvas).toBeDisabled()
 
   agentConnected = true
@@ -2747,6 +2741,12 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
   await expect(menu.getByRole('menuitemradio').nth(1)).toContainText('To review')
   const stages = menu.getByRole('group', { name: 'Show conversations' })
+  // The stage filters sit in one row of chips, and the open title stays readable.
+  const chips = await stages.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().top))
+  expect(new Set(chips.map(Math.round)).size).toBe(1)
+  const title = inbox.getByRole('button', { name: /^Conversation:/ }).locator('h2')
+  expect(await title.evaluate(element => getComputedStyle(element).color)).toBe('rgb(244, 247, 242)')
+  await page.screenshot({ path: 'test-results/conversation-menu.png' })
   await stages.getByRole('button', { name: 'To review 1' }).click()
   await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
   await stages.getByRole('button', { name: 'All 2' }).click()
@@ -2851,4 +2851,61 @@ test('wheel zoom continues over revealed file content through 100x', async () =>
   expect(afterToggle?.width).toBeCloseTo(beforeToggle!.width, 1)
   expect(afterToggle?.height).toBeCloseTo(beforeToggle!.height, 1)
   await expectResizeChrome('file_canvas')
+})
+
+test('setup maps a codebase with an agent Ambio runs and follows it live', async () => {
+  // Last in this file: it replaces the delivery handlers for the rest of the app's life.
+  await app.evaluate(({ ipcMain }) => {
+    const state = globalThis as unknown as { delivered: Array<{ workspaceId: string; messageId: string; hostId: string }> }
+    state.delivered = []
+    ipcMain.removeHandler('agent:delivery-hosts')
+    ipcMain.handle('agent:delivery-hosts', () => [{ id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' }])
+    ipcMain.removeHandler('agent:models')
+    ipcMain.handle('agent:models', () => [{ id: 'fable', label: 'Fable (latest)' }, { id: 'opus', label: 'Opus (latest)' }])
+    ipcMain.removeHandler('agent:deliver')
+    ipcMain.handle('agent:deliver', (_event, request) => { state.delivered.push(request); return { detail: 'Agent launched.' } })
+    ipcMain.removeHandler('agent:delivery-runs')
+    ipcMain.handle('agent:delivery-runs', () => state.delivered.map(request => ({ key: 'mapping-run', workspaceId: request.workspaceId, messageId: request.messageId, revision: 'initial', hostId: request.hostId, rootPath: '', state: 'running', detail: 'Agent launched.', logPath: '', startedAt: 1 })))
+    ipcMain.removeHandler('agent:delivery-events')
+    // Events arrive while the run goes on; the cursor is how many were already read.
+    const started = Date.now()
+    const events = [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }, { at: 6, kind: 'tool', text: 'Read · src/app.ts' }]
+    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => events.slice(0, Date.now() - started > 2500 ? 2 : 1).slice(after))
+  })
+  const setupUrl = new URL(page.url())
+  setupUrl.searchParams.set('connect', '1')
+  setupUrl.searchParams.delete('blank')
+  await page.goto(setupUrl.toString())
+  await expect(page.getByRole('heading', { name: 'Choose who maps this project' })).toBeVisible()
+  const agents = page.getByRole('radiogroup', { name: 'Agents' })
+  const footer = page.locator('.ambio-choose__footer')
+  const claude = agents.getByRole('radio', { name: /Claude Code \(CLI\)/ })
+  await expect(claude).toHaveAttribute('aria-checked', 'true')
+  // Ambio chat is offered even before a model service exists, and leads to setting one up.
+  await agents.getByRole('radio', { name: /Ambio chat/ }).click()
+  await expect(footer.getByRole('button', { name: 'Set up a model service' })).toBeVisible()
+  await claude.click()
+  // Adding Ambio for the user's own sessions starts on, and can be turned off.
+  const sessions = footer.getByRole('checkbox', { name: /Also add Ambio to your own/ })
+  if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }
+  // The mascot follows the chosen agent: one Ambio runs is ready without connecting.
+  const caption = page.locator('.ambio-connect__mascot p[aria-live]')
+  await expect(caption).toHaveText('Ready - Claude Code (CLI) is ready. Press Map to start.')
+  await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
+  // The model is chosen right beside the button that starts the run.
+  await footer.getByRole('combobox', { name: 'Model' }).selectOption('opus')
+  await footer.getByRole('button', { name: 'Map with Claude Code (CLI) →' }).click()
+  const activity = page.getByRole('region', { name: 'Mapping activity' })
+  await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
+  await expect(activity).toContainText('get_architecture')
+  // A later event shows up without leaving the step.
+  await expect(activity).toContainText('Read · src/app.ts', { timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Claude Code (CLI) is mapping this project' })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
+  await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
+  await expect(caption).toHaveText('Working - Claude Code (CLI) is mapping the project.')
+  const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
+  expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
+  await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
+  await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })
