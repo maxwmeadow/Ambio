@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `chatgpt-plan-sign-in` **Use a ChatGPT plan directly in Ambio.** Implement the documented open-source Sign in with ChatGPT flow, protected local credentials, account/model controls, and a Codex app-server conversation destination with Ambio's tools. **Done when:** browser OAuth, renewal, disconnect, model discovery and conversation delivery have regression coverage; document a real-account smoke test. (🚧 Codex, codex/chatgpt-plan-sign-in, 2026-10-19)
+
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
