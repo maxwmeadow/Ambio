@@ -197,7 +197,7 @@ export function ChatTranscript({ chat, workspaceId, workOrders, agentLabel }: {
     {(chat.running || state === 'interrupted' || state === 'failed') && <div className="ambio-chat__status" role="status">
       <span className={chat.running ? 'ambio-chat__pulse' : ''} />
       {state === 'waiting' ? 'Waiting for you' : state === 'working' ? 'Working…' : snapshot.conversation.error ?? 'Stopped'}
-      {(chat.running || state === 'interrupted') && <button type="button" disabled={chat.busy} onClick={() => { void chat.stop() }}>{chat.running ? 'Stop' : 'Stop previous run'}</button>}
+      {state === 'interrupted' && <button type="button" disabled={chat.busy} onClick={() => { void chat.stop() }}>Stop previous run</button>}
     </div>}
   </>
 }

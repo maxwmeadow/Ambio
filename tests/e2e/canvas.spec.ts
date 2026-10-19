@@ -2713,6 +2713,12 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
     turn('q1', 'Where is retry handled?', 'answered', { threadId: 'q1', mode: 'ask', createdAt: 10, reply: { agent: 'Codex', body: 'In the queue worker.', createdAt: 11 } }),
     turn('q2', 'Add a retry queue', 'queued', { threadId: 'q1', mode: 'build', createdAt: 12 }),
   ]
+  let cancelled = ''
+  await page.route(/\/api\/canvas\/cancel$/, async route => {
+    cancelled = route.request().postDataJSON().msgId
+    messages[2] = { ...messages[2], status: 'cancelled' }
+    await route.fulfill({ json: {} })
+  })
   let sent: { threadId?: string; mode?: string; note?: string } | undefined
   await page.route(/\/api\/canvas\/send$/, async route => {
     sent = route.request().postDataJSON()
@@ -2728,7 +2734,10 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   await expect(inbox.locator('.ambio-inbox__turn-mode')).toHaveText(['Ask', 'Build'])
   await expect(inbox).not.toContainText('Split the payments module')
 
-  // A follow-up continues that conversation.
+  // A turn still waiting holds the message box; Stop withdraws it, and a follow-up continues the conversation.
+  await expect(inbox.getByRole('textbox', { name: 'Instruction for your agent' })).toBeDisabled()
+  await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect.poll(() => cancelled).toBe('q2')
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Now add a test for it')
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
   await expect.poll(() => sent?.threadId).toBe('q1')
@@ -2747,8 +2756,9 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   const title = inbox.getByRole('button', { name: /^Conversation:/ }).locator('h2')
   expect(await title.evaluate(element => getComputedStyle(element).color)).toBe('rgb(244, 247, 242)')
   await page.screenshot({ path: 'test-results/conversation-menu.png' })
-  await stages.getByRole('button', { name: 'To review 1' }).click()
-  await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
+  // With its waiting build stopped, this conversation is back to review too.
+  await stages.getByRole('button', { name: 'To review 2' }).click()
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
   await stages.getByRole('button', { name: 'All 2' }).click()
   await menu.getByRole('menuitemradio').nth(1).click()
   await expect(inbox).toContainText('Split the payments module')

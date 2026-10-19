@@ -90,7 +90,8 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     try {
       const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}) })
       if (workspace.current !== workspaceId) return
-      setNotice(result.detail)
+      // A run says where it stands on its turn; the notice is for routes that need the user.
+      setNotice(result.run ? '' : result.detail)
       if (result.run) setRuns(items => [...items.filter(item => item.key !== result.run!.key), result.run!])
     } catch (error) {
       if (workspace.current === workspaceId) setNotice(`Work order saved; delivery did not start. ${error instanceof Error ? error.message : String(error)}`)
@@ -247,22 +248,33 @@ function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: s
 /** How many of a run's latest events the turn shows while it works. */
 const ACTIVITY_SHOWN = 6
 
-export function AgentDeliveryStatus({ run, hosts, events = [], answered = false, onStop }: {
-  run?: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; answered?: boolean; onStop: (run: DeliveryRun) => void
+/** A run that has not ended yet. */
+export const runWorking = (run?: DeliveryRun) => !!run && (run.state === 'starting' || run.state === 'running' || run.state === 'stopping')
+
+/**
+ * Where an unanswered turn stands, in one line under it: the agent working
+ * (with what it is doing), or how its run ended. Stopping is the message
+ * box's job; once the agent answers, its reply is the record.
+ */
+export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
+  run: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; onRetry?: () => void
 }) {
-  if (!run) return null
-  const working = run.state === 'running' || run.state === 'starting'
-  // Once the agent has answered, its reply is the record; the play-by-play
-  // stays in the output file. An error is kept, because it explains a turn
-  // that never got an answer.
-  const shown = answered ? [] : working ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
-  return <div className="ambio-inbox__delivery-run" role="status">
-    <span><strong>{hosts.find(host => host.id === run.hostId)?.label ?? run.hostId}</strong> · {run.detail}{run.resumed && working ? ' Continuing its earlier session.' : ''}</span>
+  const label = hosts.find(host => host.id === run.hostId)?.label ?? run.hostId
+  const working = runWorking(run)
+  // While it works, the latest of what it does; once it ends, why it ended.
+  const shown = working ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
+  const line = working ? `${label} is working${run.resumed ? ', continuing its earlier session' : ''}…`
+    : run.state === 'stopped' ? `${label} was stopped.`
+      : run.state === 'completed' ? `${label} finished without replying.`
+        : `${label} stopped without an answer.`
+  return <div className="ambio-inbox__turn-status" data-state={working ? 'working' : 'ended'} role="status">
+    <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {events.length > shown.length && working && <li className="ambio-inbox__activity-earlier">{events.length - shown.length} earlier</li>}
       {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}</li>)}
     </ol>}
-    {(run.state === 'running' || run.state === 'starting') && <button type="button" onClick={() => onStop(run)}>Stop run</button>}
-    <button type="button" onClick={() => window.ambio.showInFolder(run.logPath)}>Show agent output</button>
+    <div className="ambio-inbox__turn-actions">
+      {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}
+      <button type="button" className="ambio-inbox__turn-link" onClick={() => window.ambio.showInFolder(run.logPath)}>Show output</button>
+    </div>
   </div>
 }

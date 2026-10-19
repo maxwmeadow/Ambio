@@ -53,6 +53,11 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
           }
         }, body)
       }
+      if (url.pathname === '/api/canvas/cancel') {
+        const { msgId } = route.request().postDataJSON()
+        const order = orders.find(item => item.id === msgId)
+        if (order) order.status = 'cancelled'
+      }
       if (url.pathname === '/api/canvas/history') body = { messages: [...orders].reverse(), nextCursor: '', availableCount: orders.length }
       if (url.pathname === '/api/agent/presence') body = { connected: false, connections: [] }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
@@ -101,7 +106,10 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await expect(inbox.getByRole('button', { name: 'Model: Opus (latest)' })).toBeVisible()
       }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
+      const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
+      // The previous unanswered turn is withdrawn first, so the new order lands a moment later.
+      await expect.poll(() => orders.length).toBe(sentBefore + 1)
       const captured = path.join(root, `captured-${host}.json`)
       // Copilot is first tried as an agent session; the stand-in cannot hold one,
       // so the same turn then runs in print mode. Wait for the run that got the prompt.
@@ -111,14 +119,16 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
-      await expect(inbox.locator('.ambio-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')
-      await expect(inbox.locator('.ambio-inbox__status').last()).toHaveText('Waiting for an agent')
+      // The stand-in exits without replying: the turn says so in one line, and the next message replaces it.
+      await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText(host === 'copilot-cli' ? `${label} stopped without an answer.` : `${label} finished without replying.`)
+      await expect(inbox.locator('.ambio-inbox__turn-status').last().getByRole('button', { name: 'Try again' })).toBeVisible()
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
     expect(orders).toHaveLength(3)
-    await expect(inbox.getByRole('button', { name: 'Show agent output' })).toHaveCount(3)
+    // Earlier turns whose runs ended unanswered were withdrawn when the next message went.
+    await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled'])
+    await expect(inbox.getByRole('button', { name: 'Show output' })).toHaveCount(1)
     const firstMessageId = orders.at(-1).id
-    await expect(inbox.locator('.ambio-inbox__message').last().getByRole('button', { name: 'Start GitHub Copilot (CLI)' })).toBeDisabled()
     const modifiedAt = fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs
     await page.evaluate(messageId => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)
     expect(fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs).toBe(modifiedAt)
