@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatGPTModel, ChatGPTState } from '../../shared/chatgpt'
+import { CHAT_PROVIDERS_CHANGED } from './AgentChatPanel'
 
 /** Account and model controls; credentials remain behind the preload boundary. */
-export function ChatGPTConnection() {
+export function ChatGPTConnection({ onChanged }: { onChanged?: () => void }) {
   const [state, setState] = useState<ChatGPTState>()
   const [models, setModels] = useState<ChatGPTModel[]>([])
   const [busy, setBusy] = useState('')
@@ -12,11 +13,9 @@ export function ChatGPTConnection() {
   const update = async (next: ChatGPTState) => {
     if (!active.current) return
     setState(next); setModels([])
-    window.dispatchEvent(new Event('ambio-chatgpt-changed'))
-    if (next.profiles.some(item => item.id === next.activeId && item.sharing)) {
-      const available = await window.ambio.listChatGPTModels()
-      if (active.current) setModels(available)
-    }
+    if (next.modelError) setNotice(next.modelError)
+    const selected = next.profiles.find(item => item.id === next.activeId && item.sharing)
+    setModels((selected?.models ?? []).map(slug => ({ slug, displayName: slug })))
   }
   useEffect(() => {
     active.current = true
@@ -27,7 +26,11 @@ export function ChatGPTConnection() {
     setBusy(name); setNotice('')
     try {
       const next = await operation()
-      if (next) await update(next)
+      if (next) {
+        await update(next)
+        onChanged?.()
+        window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED))
+      }
     } catch (error) {
       if (active.current) setNotice(error instanceof Error ? error.message : String(error))
     } finally { if (active.current) setBusy('') }
@@ -35,8 +38,7 @@ export function ChatGPTConnection() {
   return <section aria-label="ChatGPT connection" className="ambio-chatgpt">
     <h3>ChatGPT</h3>
     <p className="ambio-settings__text">Use your eligible ChatGPT plan for conversations in Ambio. Sign in in your browser and approve plan usage. Requests share your plan's limits.</p>
-    {state && !state.secureStorage && <p role="status">Unlock your OS credential store to connect. ChatGPT credentials require secure storage.</p>}
-    {state && !state.harnessInstalled && <p className="ambio-settings__text">Install <a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex CLI</a> to run ChatGPT conversations, then restart Ambio. Sign-in does not require a separate Codex account.</p>}
+    {state && !state.secureStorage && <p className="ambio-settings__text">Unlock your OS credential store to connect. ChatGPT credentials require secure storage.</p>}
     {(state?.profiles.length ?? 0) > 0 && <div className="ambio-settings__row">
       <label htmlFor="chatgpt-account">ChatGPT account</label>
       <select id="chatgpt-account" value={state?.activeId ?? ''} disabled={!!busy} onChange={event => void act('switch', () => window.ambio.selectChatGPTProfile(event.target.value))}>
@@ -63,9 +65,9 @@ export function ChatGPTConnection() {
         return result.state
       })}>Sign out</button>}
       <button type="button" className="ambio-settings__button" onClick={() => void act('usage', () => window.ambio.manageChatGPTUsage())}>Manage usage</button>
-      {profile?.sharing && <button type="button" className="ambio-settings__button" disabled={!!busy} onClick={() => void act('refresh', () => window.ambio.getChatGPTState())}>Refresh models</button>}
+      {profile?.sharing && <button type="button" className="ambio-settings__button" disabled={!!busy} onClick={() => void act('refresh', async () => { await window.ambio.listChatGPTModels(); return window.ambio.getChatGPTState() })}>Refresh models</button>}
     </div>
-    <p className="ambio-settings__text">Choose ChatGPT under Deliver to in a conversation. Ask and Propose can read the project; Build can edit it. The conversation and project context the agent reads are sent to OpenAI when you send a turn.</p>
+    <p className="ambio-settings__text">Choose Ambio chat · ChatGPT when starting a conversation. Your ChatGPT plan powers Ambio's built-in agent, with the same tools, history and approval controls. Messages and project context the agent reads are sent to OpenAI.</p>
     {notice && <p className="ambio-settings__text" role="status">{notice}</p>}
     {!state && notice && <button type="button" className="ambio-settings__button" disabled={!!busy} onClick={() => void act('refresh', () => window.ambio.getChatGPTState())}>Retry connection status</button>}
   </section>

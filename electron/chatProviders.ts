@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { CHAT_CONTEXT_WINDOW_MAX, CHAT_CONTEXT_WINDOW_MIN, type ChatConnectionTest, type ChatProvider, type ChatProviderInput } from '../src/shared/agentChat.ts'
+import type { ChatGPTAuth } from './chatgptAuth.ts'
 
 export interface KeyEncryption {
   available(): boolean
@@ -26,8 +27,10 @@ export class ChatProviders {
   private directory: string
   private encryption: KeyEncryption
   private request: typeof fetch
-  constructor(directory: string, encryption: KeyEncryption, request: typeof fetch = fetch) {
+  private chatgpt?: Pick<ChatGPTAuth, 'state' | 'authorize'>
+  constructor(directory: string, encryption: KeyEncryption, request: typeof fetch = fetch, chatgpt?: Pick<ChatGPTAuth, 'state' | 'authorize'>) {
     this.directory = directory; this.encryption = encryption; this.request = request
+    this.chatgpt = chatgpt
     try { this.providers = JSON.parse(fs.readFileSync(join(directory, 'providers.json'), 'utf8')) } catch { /* first run */ }
     if (!Array.isArray(this.providers)) this.providers = []
     for (const profile of this.providers) {
@@ -43,7 +46,15 @@ export class ChatProviders {
     fs.renameSync(`${file}.tmp`, file)
   }
   list(): ChatProvider[] {
-    return this.providers.map(({ encryptedKey, ...profile }) => ({ ...profile, hasKey: this.keys.has(profile.id), persistentKey: !!encryptedKey && this.keys.has(profile.id) }))
+    let subscriptions: ChatProvider[] = []
+    try {
+      subscriptions = this.chatgpt?.state().profiles.filter(profile => profile.model).map(profile => ({
+        id: profile.id, name: `ChatGPT · ${profile.label}`, kind: 'openai', auth: 'chatgpt',
+        baseUrl: 'https://api.openai.com/v1', model: profile.model!, models: profile.models,
+        hasKey: profile.sharing, persistentKey: profile.sharing,
+      })) ?? []
+    } catch { /* Locked subscription storage does not disable API-key services. */ }
+    return [...subscriptions, ...this.providers.map(({ encryptedKey, ...profile }) => ({ ...profile, hasKey: this.keys.has(profile.id), persistentKey: !!encryptedKey && this.keys.has(profile.id) }))]
   }
   get(id: string): ChatProvider {
     const profile = this.list().find(item => item.id === id)
@@ -51,6 +62,15 @@ export class ChatProviders {
     return profile
   }
   key(id: string): string { this.get(id); return this.keys.get(id) ?? '' }
+  forgetCredential(id: string): void { this.keys.delete(id) }
+  /** Resolves and renews credentials in Electron, pinned to the conversation's account. */
+  async credential(id: string): Promise<string> {
+    const profile = this.get(id)
+    if (profile.auth !== 'chatgpt') return this.key(id)
+    const token = await this.chatgpt!.authorize(id)
+    this.keys.set(id, token) // memory only, also used to redact provider errors
+    return token
+  }
   redact(text: string): string {
     for (const key of this.keys.values()) if (key) text = text.split(key).join('[redacted]')
     return text
@@ -61,6 +81,7 @@ export class ChatProviders {
     const baseUrl = providerUrl(input.baseUrl)
     const id = input.id ?? randomUUID()
     const old = input.id ? this.get(id) : undefined
+    if (old?.auth === 'chatgpt') throw new Error('Manage this connection with the ChatGPT sign-in controls.')
     if (old && old.kind !== input.kind) throw new Error('Add a new service to change provider type.')
     if (old && old.baseUrl !== baseUrl && !input.apiKey?.trim()) throw new Error('Enter the key for the new service URL. Saved keys are not forwarded to a different service.')
     if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 8192 || /[\r\n]/.test(input.apiKey))) throw new Error('Invalid API key.')
@@ -77,7 +98,10 @@ export class ChatProviders {
     this.persist()
     return this.get(id)
   }
-  remove(id: string) { this.get(id); this.providers = this.providers.filter(item => item.id !== id); this.keys.delete(id); this.persist() }
+  remove(id: string) {
+    if (this.get(id).auth === 'chatgpt') throw new Error('Use Sign out in the ChatGPT connection controls.')
+    this.providers = this.providers.filter(item => item.id !== id); this.keys.delete(id); this.persist()
+  }
   async test(input: ChatProviderInput): Promise<ChatConnectionTest> {
     const baseUrl = providerUrl(input.baseUrl)
     if (input.id && !input.apiKey?.trim()) {

@@ -21,7 +21,7 @@ interface Tokens {
 }
 interface Profile {
   id: string; label: string; clientId: string; subject?: string; email?: string
-  tokens?: Tokens; model?: string
+  tokens?: Tokens; model?: string; models?: string[]
 }
 interface Store { version: 1; profiles: Profile[]; activeId?: string }
 export interface CredentialEncryption {
@@ -80,7 +80,7 @@ export class ChatGPTAuth {
     if (!/^urn:uuid:[0-9a-f-]{36}$/.test(id)) throw new Error('The ChatGPT installation identifier is invalid.')
     return id
   }
-  state(harnessInstalled = false): ChatGPTState {
+  state(): ChatGPTState {
     const store = this.read()
     const active = store.profiles.find(profile => profile.id === store.activeId)
     return {
@@ -88,9 +88,10 @@ export class ChatGPTAuth {
         id: profile.id, label: profile.label, email: profile.email,
         connected: !!profile.tokens && !profile.tokens.pendingIdentity,
         sharing: this.canShare(profile),
+        model: profile.model, models: profile.models,
       })),
       activeId: store.activeId, model: active?.model, signingIn: !!this.authorization,
-      secureStorage: this.options.encryption.available(), harnessInstalled,
+      secureStorage: this.options.encryption.available(),
     }
   }
   private canShare(profile: Profile): boolean {
@@ -277,7 +278,11 @@ export class ChatGPTAuth {
   listModels(): Promise<ChatGPTModel[]> {
     return this.exclusive(async () => {
       const store = this.read(), profile = this.selected(store)
-      return this.models(await this.access(store, profile))
+      const models = await this.models(await this.access(store, profile))
+      profile.models = models.map(model => model.slug)
+      if (!models.some(model => model.slug === profile.model)) profile.model = models[0]?.slug
+      this.save(store)
+      return models
     })
   }
   selectModel(slug: string): Promise<void> {
@@ -289,15 +294,12 @@ export class ChatGPTAuth {
     })
   }
   /** Main-process only: never expose this result to IPC or persist it in a run receipt. */
-  prepareTurn(): Promise<{ token: string; model: string; profileId: string }> {
+  authorize(profileId: string): Promise<string> {
     return this.exclusive(async () => {
-      const store = this.read(), profile = this.selected(store)
-      const token = await this.access(store, profile)
-      const models = await this.models(token)
-      const model = models.find(model => model.slug === profile.model) ?? models[0]
-      if (!model) throw new Error('No ChatGPT models are available for this account.')
-      profile.model = model.slug; this.save(store)
-      return { token, model: model.slug, profileId: profile.id }
+      const store = this.read()
+      const profile = store.profiles.find(item => item.id === profileId && item.subject)
+      if (!profile) throw new Error('This ChatGPT connection is unavailable. Reconnect it in Model services.')
+      return this.access(store, profile)
     })
   }
   signOut(): Promise<string> {

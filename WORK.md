@@ -49,8 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `chatgpt-native-api` **Connect ChatGPT plan sign-in to Ambio's integrated OpenCode chat.** Reuse the encrypted OAuth profiles; send eligible Responses API requests through the existing credential proxy, preserving native chat tools/history/approvals. Remove the Codex-backed ChatGPT destination. (🚧 Codex, codex/chatgpt-plan-sign-in, 2026-10-19)
-
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
@@ -275,11 +273,15 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `chat-windows-stamp` **Windows process stamps block the main process.** `processStamp` in `electron/agentChat.ts` runs PowerShell synchronously (up to 3 s) after every harness launch and when checking a leftover receipt. If the stamp could not be read at launch, a recycled PID leaves the project blocked with "could not be verified" until that unrelated process exits. Make the launch stamp asynchronous and retry it, and let Stop clear a receipt whose stamp was never recorded once the PID is gone or belongs to another executable. (2026-10-09, chat review)
 - ⬜ `chat-orphan-work-order` **A Build message that fails to send leaves its work order on the canvas.** `AgentChatPanel` creates the work order before `sendChat`; a refusal (another agent busy, missing key) leaves it addressed to nobody. Retrying reuses the same ID, so it is not duplicated. Either check availability before creating it or offer to send it elsewhere. (2026-10-09, chat review)
 
+- ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. Synthetic OAuth and real bundled OpenCode tests pass; live account entitlement and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
+
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-19 `chatgpt-native-api` ChatGPT OAuth accounts now power the existing native OpenCode chat through its credential proxy and the public Responses API. Preserves native history/tools/modes/approvals, enforces plan request restrictions and completed streams, pins conversations to accounts and stops failed requests without replay. Removed the Codex-backed ChatGPT adapter and destination. Browser sign-in, model/usage controls and encrypted credentials are integrated under native model services. Automated native/unit/MCP/UI coverage; real-account validation remains in Inbox. (codex/chatgpt-plan-sign-in)
 
 - 2026-10-19 `setup-and-agent-polish` Setup step 1 is one list of agents with one action; mapping activity stays live and carries the draft count; mapping turns have their own contract (propose with edit_systems); the setup mascot follows the chosen agent; agent CLIs keep a hidden console on Windows so their helpers open no windows; `npm run dev` skips rebuilding archd and recopying OpenCode when current; Agent menu reads Agents… / Set Up Agent…; README and PRIVACY describe the agents Ambio runs and Ambio chat.
 

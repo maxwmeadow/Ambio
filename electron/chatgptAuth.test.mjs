@@ -10,6 +10,7 @@ import { ChatGPTAuth } from './chatgptAuth.ts'
 const { privateKey, publicKey } = await generateKeyPair('RS256')
 const jwk = { ...await exportJWK(publicKey), kid: 'test-key', alg: 'RS256' }
 const scopes = 'openid email profile offline_access resource.invoke chatgpt.tokens.use.direct'
+const authorization = auth => auth.authorize(auth.state().activeId)
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 async function fixture(t, options = {}) {
@@ -86,7 +87,7 @@ async function fixture(t, options = {}) {
 test('browser PKCE sign-in encrypts credentials, verifies identity and persists the installation and registration', async t => {
   const f = await fixture(t)
   await f.auth.signIn()
-  const state = f.auth.state(true)
+  const state = f.auth.state()
   assert.equal(state.profiles[0].sharing, true)
   assert.equal(state.profiles[0].email, 'same@example.com')
   assert.equal(JSON.stringify(state).includes('secret'), false)
@@ -94,7 +95,8 @@ test('browser PKCE sign-in encrypts credentials, verifies identity and persists 
   for (const secret of ['initial-access-secret', 'initial-refresh-secret', 'same@example.com']) assert.equal(ciphertext.includes(secret), false)
   assert.deepEqual(await f.auth.listModels(), [{ slug: 'model-one', displayName: 'Model One' }, { slug: 'model-two', displayName: 'model-two' }])
   await f.auth.selectModel('model-two')
-  assert.equal((await f.auth.prepareTurn()).model, 'model-two')
+  assert.equal(await authorization(f.auth), 'initial-access-secret')
+  assert.equal(f.auth.state().model, 'model-two')
   await assert.rejects(f.auth.selectModel('hidden'), /not available/)
   const restarted = new ChatGPTAuth(f.configuration)
   assert.equal(restarted.state().activeId, state.activeId)
@@ -111,7 +113,7 @@ test('identity-only consent cannot power requests', async t => {
   await auth.signIn()
   assert.equal(auth.state().profiles[0].connected, true)
   assert.equal(auth.state().profiles[0].sharing, false)
-  await assert.rejects(auth.prepareTurn(), /plan usage is not enabled/)
+  await assert.rejects(authorization(auth), /plan usage is not enabled/)
 })
 
 test('denied, cancelled and invalid nonce sign-ins do not activate an account', async t => {
@@ -150,21 +152,21 @@ test('same-email registrations remain separate and a mismatched returning identi
 test('concurrent requests serialize rotating refresh tokens and persist the replacement', async t => {
   const { auth, requests, configuration } = await fixture(t, { expires: 0.01 })
   await auth.signIn()
-  const [one, two] = await Promise.all([auth.prepareTurn(), auth.prepareTurn()])
-  assert.equal(one.token, 'rotated-access-secret')
-  assert.equal(two.token, one.token)
+  const [one, two] = await Promise.all([authorization(auth), authorization(auth)])
+  assert.equal(one, 'rotated-access-secret')
+  assert.equal(two, one)
   assert.equal(requests.filter(item => new URLSearchParams(item.init?.body).get('grant_type') === 'refresh_token').length, 1)
-  assert.equal((await new ChatGPTAuth(configuration).prepareTurn()).token, one.token)
+  assert.equal((await authorization(new ChatGPTAuth(configuration))), one)
 })
 
 test('a JWKS outage after rotation preserves pending credentials through restart without consuming the refresh token again', async t => {
   const { auth, controls, requests, configuration } = await fixture(t, { expires: 0.01, refreshIdentity: true })
   await auth.signIn()
   controls.failKeys = true
-  await assert.rejects(auth.prepareTurn(), /verify/)
+  await assert.rejects(authorization(auth), /verify/)
   assert.equal(auth.state().profiles[0].sharing, false)
   controls.failKeys = false
-  assert.equal((await new ChatGPTAuth(configuration).prepareTurn()).token, 'rotated-access-secret')
+  assert.equal((await authorization(new ChatGPTAuth(configuration))), 'rotated-access-secret')
   assert.equal(requests.filter(item => new URLSearchParams(item.init?.body).get('grant_type') === 'refresh_token').length, 1)
 })
 
@@ -175,7 +177,7 @@ test('sign-out clears local credentials, retains registration, and reports uncon
   controls.revoked = false
   assert.match(await auth.signOut(), /Remote revocation could not be confirmed/)
   assert.equal(auth.state().profiles[0].connected, false)
-  await assert.rejects(auth.prepareTurn(), /Sign in/)
+  await assert.rejects(authorization(auth), /Sign in/)
   const revoke = requests.find(item => item.endpoint.endsWith('/revoke'))
   assert.equal(new URLSearchParams(revoke.init.body).get('client_id'), 'oaiapp_one')
   await auth.signIn(id)

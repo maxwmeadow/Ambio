@@ -7,9 +7,18 @@ import type { ConnectionTestResult } from './agentConnectionTest'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
 import type { ChatProvider, ChatProviderInput, ChatConnectionTest, ChatConversation, ChatSnapshot, ChatSendInput } from '../src/shared/agentChat'
+import type { ChatGPTState, ChatGPTModel } from '../src/shared/chatgpt'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
+  getChatGPTState: (): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:state'),
+  signInChatGPT: (id?: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:sign-in', id),
+  cancelChatGPTSignIn: (): Promise<void> => ipcRenderer.invoke('chatgpt:cancel-sign-in'),
+  selectChatGPTProfile: (id: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-profile', id),
+  signOutChatGPT: (): Promise<{ state: ChatGPTState; detail: string }> => ipcRenderer.invoke('chatgpt:sign-out'),
+  listChatGPTModels: (): Promise<ChatGPTModel[]> => ipcRenderer.invoke('chatgpt:models'),
+  selectChatGPTModel: (slug: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-model', slug),
+  manageChatGPTUsage: (): Promise<void> => ipcRenderer.invoke('chatgpt:usage'),
   chatProviders: (): Promise<ChatProvider[]> => ipcRenderer.invoke('chat:providers'),
   saveChatProvider: (input: ChatProviderInput): Promise<ChatProvider> => ipcRenderer.invoke('chat:provider-save', input),
   testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
@@ -307,6 +316,14 @@ export type ArchdStatus =
 declare global {
   interface Window {
     ambio: {
+      getChatGPTState: () => Promise<ChatGPTState>
+      signInChatGPT: (id?: string) => Promise<ChatGPTState>
+      cancelChatGPTSignIn: () => Promise<void>
+      selectChatGPTProfile: (id: string) => Promise<ChatGPTState>
+      signOutChatGPT: () => Promise<{ state: ChatGPTState; detail: string }>
+      listChatGPTModels: () => Promise<ChatGPTModel[]>
+      selectChatGPTModel: (slug: string) => Promise<ChatGPTState>
+      manageChatGPTUsage: () => Promise<void>
       chatProviders: () => Promise<ChatProvider[]>
       saveChatProvider: (input: ChatProviderInput) => Promise<ChatProvider>
       testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>

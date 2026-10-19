@@ -1,4 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification, safeStorage, net } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { ChatGPTAuth } from './chatgptAuth'
+import { CHATGPT_USAGE_URL } from '../src/shared/chatgpt'
 import { brandImage } from './branding'
 import { listModels, validModel } from './agentModels'
 import { AgentChat } from './agentChat'
@@ -865,10 +868,13 @@ function createWindow(): void {
 function setupIPC(): void {
   const chatDirectory = join(CONFIG_DIR, 'chat')
   const networkFetch = net.fetch.bind(net) as typeof fetch
-  const chatProviders = new ChatProviders(chatDirectory, {
-    available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+  const credentialEncryption = {
+    available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || !['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())),
     encrypt: value => safeStorage.encryptString(value), decrypt: value => safeStorage.decryptString(value),
-  }, networkFetch)
+  } satisfies import('./chatProviders').KeyEncryption
+  const chatgpt = new ChatGPTAuth({ directory: join(CONFIG_DIR, 'chatgpt'), encryption: credentialEncryption, fetch: networkFetch, openBrowser: url => shell.openExternal(url) })
+  app.once('before-quit', () => chatgpt.cancelSignIn())
+  const chatProviders = new ChatProviders(chatDirectory, credentialEncryption, networkFetch, chatgpt)
   const chatProxy = new ChatProviderProxy(chatProviders, networkFetch)
   const chatProject = (id: string) => {
     const project = loadRecentProjects().find(item => item.id === id)
@@ -889,15 +895,68 @@ function setupIPC(): void {
     },
   })
   const ensureChatIdle = () => { if (agentChat!.hasActive()) throw new Error('Stop active conversations before changing model services.') }
+  let changingChatGPT = false
+  const chatGPTHandler = (channel: string, handler: (...args: any[]) => unknown) => {
+    ipcMain.handle(channel, (event, ...args) => {
+      const frame = event.senderFrame
+      const expected = DEV_SERVER_URL ? new URL(DEV_SERVER_URL).origin : pathToFileURL(join(__dirname, '../renderer/index.html')).href
+      const page = frame ? new URL(frame.url) : undefined
+      if (page) { page.search = ''; page.hash = '' }
+      const trusted = page && (DEV_SERVER_URL ? page.origin === expected : page.href === expected)
+      if (event.sender !== mainWindow?.webContents || frame !== event.sender.mainFrame || !trusted) throw new Error('Untrusted ChatGPT request.')
+      if (IS_E2E && channel !== 'chatgpt:state') throw new Error('Live ChatGPT operations are disabled in automated app tests.')
+      return handler(...args)
+    })
+  }
+  const changeChatGPT = async (operation: () => Promise<unknown>) => {
+    ensureChatIdle()
+    if (changingChatGPT) throw new Error('Finish or cancel the current ChatGPT connection change first.')
+    changingChatGPT = true
+    try { return await operation() } finally { changingChatGPT = false }
+  }
+  const refreshChatGPT = async () => {
+    const state = chatgpt.state()
+    if (state.profiles.some(profile => profile.id === state.activeId && profile.sharing)) {
+      try { await chatgpt.listModels() }
+      catch (error) { return { ...chatgpt.state(), modelError: error instanceof Error ? error.message : 'ChatGPT models are unavailable. Use Refresh models to try again.' } }
+    }
+    return chatgpt.state()
+  }
+  chatGPTHandler('chatgpt:state', () => chatgpt.state())
+  chatGPTHandler('chatgpt:sign-in', (id?: string) => changeChatGPT(async () => {
+    if (id !== undefined && (typeof id !== 'string' || id.length > 100)) throw new Error('Invalid ChatGPT connection.')
+    await chatgpt.signIn(id)
+    return refreshChatGPT()
+  }))
+  chatGPTHandler('chatgpt:cancel-sign-in', () => chatgpt.cancelSignIn())
+  chatGPTHandler('chatgpt:select-profile', (id: string) => changeChatGPT(async () => {
+    if (typeof id !== 'string' || id.length > 100) throw new Error('Invalid ChatGPT connection.')
+    await chatgpt.selectProfile(id)
+    return refreshChatGPT()
+  }))
+  chatGPTHandler('chatgpt:sign-out', () => changeChatGPT(async () => {
+    const id = chatgpt.state().activeId
+    const detail = await chatgpt.signOut()
+    if (id) chatProviders.forgetCredential(id)
+    return { state: chatgpt.state(), detail }
+  }))
+  chatGPTHandler('chatgpt:models', () => changeChatGPT(() => chatgpt.listModels()))
+  chatGPTHandler('chatgpt:select-model', (slug: string) => changeChatGPT(async () => {
+    if (typeof slug !== 'string' || slug.length > 200) throw new Error('Invalid ChatGPT model.')
+    await chatgpt.selectModel(slug)
+    return chatgpt.state()
+  }))
+  chatGPTHandler('chatgpt:usage', () => shell.openExternal(CHATGPT_USAGE_URL))
+  const ensureChatReady = () => { if (changingChatGPT) throw new Error('Finish or cancel ChatGPT sign-in before sending another conversation.') }
   ipcMain.handle('chat:providers', () => chatProviders.list())
   ipcMain.handle('chat:provider-save', (_event, input: ChatProviderInput) => { ensureChatIdle(); return chatProviders.save(input) })
   ipcMain.handle('chat:provider-test', (_event, input: ChatProviderInput) => chatProviders.test(input))
   ipcMain.handle('chat:provider-remove', (_event, id: string) => { ensureChatIdle(); chatProviders.remove(id) })
   ipcMain.handle('chat:list', (_event, workspaceId: string) => agentChat!.list(workspaceId))
-  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string) => agentChat!.create(workspaceId, providerId, model))
+  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string) => { ensureChatReady(); return agentChat!.create(workspaceId, providerId, model) })
   ipcMain.handle('chat:snapshot', (_event, id: string) => agentChat!.snapshot(id))
   ipcMain.handle('chat:cached', (_event, id: string) => agentChat!.cached(id))
-  ipcMain.handle('chat:send', (_event, input: ChatSendInput) => agentChat!.send(input))
+  ipcMain.handle('chat:send', (_event, input: ChatSendInput) => { ensureChatReady(); return agentChat!.send(input) })
   ipcMain.handle('chat:stop', (_event, id: string) => agentChat!.stop(id))
   ipcMain.handle('chat:approve', (_event, id: string, requestId: string, allow: boolean) => { if (typeof allow !== 'boolean') throw new Error('Invalid approval.'); return agentChat!.approve(id, requestId, allow) })
   ipcMain.handle('chat:answer', (_event, id: string, requestId: string, answers: string[][] | null) => agentChat!.answer(id, requestId, answers))
@@ -1042,6 +1101,7 @@ function setupIPC(): void {
       detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Ambio restarts. Your code is not touched. Agent connections stay until you remove them in Settings → Agents.',
     })
     if (answer.response !== 0) return false
+    chatgpt.cancelSignIn()
     quitting = true
     await agentChat?.close()
     deliveryRunner.stopAll()
@@ -1056,7 +1116,7 @@ function setupIPC(): void {
     }
     stopArchd()
     await new Promise(resolve => setTimeout(resolve, 500))
-    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin'), join(CONFIG_DIR, 'chat')]) {
+    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin'), join(CONFIG_DIR, 'chat'), join(CONFIG_DIR, 'chatgpt')]) {
       try { fs.rmSync(target, { recursive: true, force: true }) } catch (error) { console.error('[main] could not delete', target, error) }
     }
     app.relaunch()

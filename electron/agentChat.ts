@@ -104,8 +104,10 @@ export class AgentChat {
   private polled = new Map<string, number>()
   // Last JSON written per file, so an unchanged poll does not touch the disk.
   private written = new Map<string, string>()
+  private subscriptionAborts = new Set<string>()
   constructor(options: ChatManagerOptions) {
     this.options = options
+    options.proxy.onChatGPTFailure = (providerId, sessionId, message) => { void this.failSubscription(providerId, sessionId, message) }
     try { this.conversations = JSON.parse(fs.readFileSync(join(options.directory, 'conversations.json'), 'utf8')) } catch { /* first run */ }
     if (!Array.isArray(this.conversations)) this.conversations = []
     for (const conversation of this.conversations) {
@@ -114,6 +116,23 @@ export class AgentChat {
     }
   }
   private historyFile(id: string) { return join(this.options.directory, `${id}.json`) }
+  private async failSubscription(providerId: string, id: string, message: string): Promise<void> {
+    const conversation = this.conversations.find(item => item.id === id && item.providerId === providerId)
+    if (!conversation || !['working', 'waiting'].includes(conversation.state) || this.subscriptionAborts.has(id) || this.closed) return
+    this.subscriptionAborts.add(id)
+    // Keep the writer lock until the native turn is stopped. Its general
+    // retry policy must not replay a partial subscription request.
+    conversation.error = message
+    const runtime = this.runtimes.get(conversation.workspaceId)
+    try {
+      if (runtime) {
+        try { await this.call(runtime, `/session/${id}/abort`, {}) }
+        catch { await this.stopRuntime(runtime) }
+      }
+      conversation.state = 'failed'; conversation.error = message
+    } catch { conversation.error = `${message} Stop this turn before trying again.` }
+    finally { this.subscriptionAborts.delete(id); if (!this.closed) this.persist() }
+  }
   private runtimeDirectory(workspaceId: string) { return join(this.options.directory, 'runtime', createHash('sha256').update(workspaceId).digest('hex')) }
   private receipt(workspaceId: string): RuntimeReceipt | null {
     const file = join(this.runtimeDirectory(workspaceId), 'process.json')
@@ -329,7 +348,7 @@ export class AgentChat {
     const conversation = this.get(input.conversationId)
     if (['working', 'waiting'].includes(conversation.state)) throw new Error('Wait for this turn or stop it before sending another message.')
     const provider = this.options.providers.get(conversation.providerId)
-    if (!provider.hasKey && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(provider.baseUrl).hostname)) throw new Error('Re-enter your API key in Model services to continue.')
+    if (!provider.hasKey && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(provider.baseUrl).hostname)) throw new Error(provider.auth === 'chatgpt' ? 'Reconnect ChatGPT and approve plan usage in Model services to continue.' : 'Re-enter your API key in Model services to continue.')
     // A turn may use any model the service offers; the conversation remembers the last one.
     const model = input.model ?? conversation.model
     if (typeof model !== 'string' || !chatModels(provider).includes(model)) throw new Error(`${provider.name} no longer offers ${model}. Choose another model.`)

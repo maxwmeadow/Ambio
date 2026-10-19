@@ -23,17 +23,19 @@ test('ChatGPT settings handle consent, models, account switching and sign-out th
       } finally { foreign.destroy() }
     })
     expect(rejected).toContain('Untrusted ChatGPT request')
+    const mainPage = await app.firstWindow()
+    expect((await mainPage.evaluate(() => window.ambio.getChatGPTState())).signingIn).toBe(false)
     await app.evaluate(({ ipcMain }) => {
-      const state: any = { profiles: [], secureStorage: true, harnessInstalled: true, signingIn: false }
+      const state: any = { profiles: [], secureStorage: true, signingIn: false }
       const handle = (channel: string, callback: (...args: any[]) => unknown) => {
         ipcMain.removeHandler(channel); ipcMain.handle(channel, (_event, ...args) => callback(...args))
       }
       handle('chatgpt:state', () => state)
       handle('chatgpt:sign-in', (profileId?: string) => {
-        if (profileId) state.profiles.find((profile: any) => profile.id === profileId).sharing = true
+        if (profileId) Object.assign(state.profiles.find((profile: any) => profile.id === profileId), { sharing: true, model: 'model-one', models: ['model-one', 'model-two'] })
         else {
           const id = `connection-${state.profiles.length + 1}`
-          state.profiles.push({ id, label: `Connection ${state.profiles.length + 1}`, email: 'same@example.com', connected: true, sharing: state.profiles.length > 0 })
+          state.profiles.push({ id, label: `Connection ${state.profiles.length + 1}`, email: 'same@example.com', connected: true, sharing: state.profiles.length > 0, model: 'model-one', models: ['model-one', 'model-two'] })
           state.activeId = id
         }
         return state
@@ -54,6 +56,7 @@ test('ChatGPT settings handle consent, models, account switching and sign-out th
     await dialog.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Agents', exact: true }).click()
     const connection = dialog.getByRole('region', { name: 'ChatGPT connection' })
     await expect(connection.getByRole('button', { name: 'Continue with ChatGPT' })).toBeEnabled()
+    await expect(connection).not.toContainText('Codex CLI')
     await connection.getByRole('button', { name: 'Continue with ChatGPT' }).click()
     await expect(connection).toContainText('plan usage was not approved')
     await expect(connection.getByRole('combobox', { name: 'ChatGPT model' })).toHaveCount(0)

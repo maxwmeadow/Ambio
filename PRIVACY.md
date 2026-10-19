@@ -39,8 +39,9 @@ its own provider is governed by that agent's privacy policy, not Ambio's.
 
 ## Ambio chat
 
-Integrated chat is optional. You choose a model service and supply its API key
-(local compatible services can run without one). Your messages, attached
+Integrated chat is optional. You connect an eligible ChatGPT plan or choose
+a model service and supply its API key (local compatible services can run
+without one). Your messages, attached
 architecture context, and code or command results the coding agent reads are
 sent to that service for inference. Its privacy, retention and billing terms
 apply. A locally running harness does not make a cloud model offline.
@@ -52,10 +53,23 @@ main process. Keys use the operating system's secure storage when available.
 If secure storage is unavailable, the key stays in memory for this app session
 and you must enter it again after restarting; Ambio does not save it as plaintext.
 
+ChatGPT sign-in opens OpenAI's authorization in your browser. Account profiles,
+registration IDs and OAuth tokens use OS-encrypted storage under
+`~/.ambio/chatgpt`; secure storage is required, with no plaintext fallback.
+The main process renews these credentials and injects the selected account's
+token only into public OpenAI API requests. The bundled agent and its tools
+receive only the local proxy capability, never the OpenAI token. Plan requests
+use non-stored streaming Responses; OpenAI still receives and processes the
+conversation and context under its terms and your plan controls. They do not
+fall back to API-key billing or another account. Manage usage opens ChatGPT's
+usage controls. Sign out clears the selected connection's local tokens and
+attempts revocation; Ambio reports if remote revocation cannot be confirmed.
+
 Conversations and the harness's local history/cache live under `~/.ambio/chat`.
 They may contain source and command output. They are not included in map exports
 or automatically shared. Delete all Ambio data also removes this chat data and
-saved keys. The bundled harness may fetch supporting packages from npm into its
+saved keys and ChatGPT connections. This removes local credentials; to remove
+remote grants, disconnect Ambio in ChatGPT Settings as well. The bundled harness may fetch supporting packages from npm into its
 local cache; automatic conversation sharing and harness updates are disabled.
 
 Ask mode restricts the agent to read-only tools. Build mode can change your

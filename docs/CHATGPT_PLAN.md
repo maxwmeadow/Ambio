@@ -1,123 +1,100 @@
-# ChatGPT plan usage in Ambio
+# ChatGPT plan usage in native Ambio chat
 
-Ambio's local open-source desktop app can use **Sign in with ChatGPT**.
-Eligible accounts authorize Ambio to use their ChatGPT plan for AI requests;
-this requires neither an OpenAI API key nor a separate Codex sign-in.
-Availability, models and limits depend on OpenAI's current policy. The
-developer quickstart currently identifies Plus and Pro as eligible plans.
-Signing in alone does not approve plan usage.
-
-Verified against OpenAI's documentation on 2026-10-19:
-
-- [Quickstart and availability](https://developers.openai.com/siwc/quickstart)
-- [Open-source/local integration](https://developers.openai.com/siwc/token-sharing-open-source)
-- [Browser authorization](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
-- [Accounts, renewal and revocation](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
-- [Models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
-- [Codex harness configuration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
-- [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
-
-Paid or remotely hosted versions require OpenAI's approval through its
-[interest form](https://openai.com/form/sign-in-with-chatgpt-interest/).
-This integration is for the local open-source application. It does not add
-Anthropic subscription support or rely on the unverified Anthropic claims in
-the pasted research.
+Eligible users can connect a ChatGPT plan directly to **Ambio chat**, the
+built-in OpenCode-based agent. OpenAI inference uses the public Responses API.
+No Codex CLI, separate Codex login or OpenAI API key is required. The existing
+native chat, local tools, history, modes and action approvals remain in use.
 
 ## Connect and use
 
-1. Install a current [Codex CLI](https://developers.openai.com/codex/cli).
-   Ambio uses its local harness for tools, sandboxing and conversation history.
-   Restart Ambio after installing it.
-2. Open **Settings → Agents → ChatGPT** and choose **Continue with ChatGPT**.
-   Finish sign-in in the system browser, select a workspace and approve plan
-   usage. The callback returns to a temporary listener on `127.0.0.1`.
-3. Choose a model in the same settings section. The list comes from the
-   account's public `/v1/models` catalog, not Codex's bundled catalog.
-4. In a conversation, choose **Deliver to → ChatGPT**. Ask and Propose use a
-   read-only project sandbox. Build allows writes in the project, with network
-   access disabled for commands. Sandbox escalation requests are declined,
-   as with Ambio's existing Codex driver.
-5. Use **Manage usage** to inspect plan limits in ChatGPT. There is no fallback
-   to API-key billing. A populated model list does not prove that an inference
-   request will succeed.
+1. Open **Settings → Agents → Ambio chat → ChatGPT** and choose **Continue
+   with ChatGPT**. Finish browser sign-in, select a workspace and approve plan
+   usage. Signing in without plan permission does not enable inference.
+2. Choose a default ChatGPT model. **Refresh models** updates the account's
+   catalog from OpenAI; the conversation's model menu offers those models.
+3. Start a conversation and choose **Ambio chat · ChatGPT · Connection …**.
+   The composer shows **Using ChatGPT plan** and **Manage usage**.
+4. Chat normally. Ask, Propose and Build retain the native agent's existing
+   tool permissions, work-order behavior and approvals. Requests share the
+   account's plan limits. There is no fallback to API billing or another
+   connected account.
 
-**Add account or workspace** creates a separate registration. Connection
-labels distinguish registrations even when email addresses match. Reconnect
-reuses the registration; Sign out clears its tokens and attempts remote
-revocation. If revocation cannot be confirmed, the interface says so and
-directs you to ChatGPT Settings. Changing accounts or signing out stops
-Ambio-launched ChatGPT runs. Account changes do not delete Ambio's conversation
-history: subsequent agents receive that same conversation, as when changing
-any delivery destination.
+Each registration has a stable Connection label and distinct provider ID,
+including registrations with identical email addresses. A conversation stays
+bound to its original registration. Selecting a different account in settings
+changes the account being managed, not an existing conversation's identity.
+Reconnect reuses the issued client ID; adding an account or workspace creates
+another registration. Model-service changes require active turns to stop.
 
-Delete all Ambio data clears the harness history, while preserving agent
-connections, including ChatGPT sign-in, as stated in its confirmation dialog.
+Sign out removes that registration's local tokens and attempts remote
+revocation, while retaining its registration and existing conversation
+history. Ambio reports if revocation cannot be confirmed; disconnect it in
+ChatGPT Settings in that case. Delete all Ambio data removes both chat history
+and local ChatGPT connections, but does not itself revoke remote grants.
 
-## Implementation and storage
+## Credentials and request handling
 
-`electron/chatgptAuth.ts` independently implements the documented protocol.
-OpenAI's reference DevKit uses a noncommercial license and is not bundled or
-copied into Ambio. The new dependency is the MIT-licensed `jose` JWT library,
-version 5 to support Electron 31's Node runtime.
+`electron/chatgptAuth.ts` independently implements the published SIWC OAuth
+protocol. It uses fresh state, nonce and S256 PKCE, a stable installation host
+ID, issued per-registration client IDs and signature-verified OpenID tokens.
+Identity issuer, audience, expiry, nonce and returning subject are checked.
+Granted plan scopes determine whether a connection can run requests.
 
-Each installation persists an opaque UUID host ID. Each registration retains
-its issued client ID. Authorization uses fresh state, OIDC nonce and S256
-PKCE. ID tokens are verified against OpenAI's signing keys, including issuer,
-audience, expiry, subject and authorization nonce. Returning sign-ins and
-refreshed identity tokens must match the saved subject. Granted scopes,
-rather than successful sign-in, determine plan permission.
+Accounts and credentials use Electron's OS-backed `safeStorage` in
+`~/.ambio/chatgpt/accounts.enc`, with atomic writes and owner-only Unix
+permissions. Linux's unprotected storage backend is refused. There is no
+plaintext fallback. Refresh is serialized by the app's primary process;
+rotated tokens requiring identity verification remain unusable until that
+verification succeeds, including after an interrupted refresh and restart.
 
-Account records, labels, scopes and tokens are encrypted through Electron
-`safeStorage` in `~/.ambio/chatgpt/accounts.enc`, with atomic replacement and
-owner-only Unix permissions. Linux's unprotected `basic_text` backend is
-refused. The host ID is non-secret. Renewal is serialized within the app's
-single primary Electron process. Rotated tokens with a new ID token remain
-unusable until identity verification succeeds, including after a restart.
-Unreadable credential files are preserved, never silently replaced.
+`ChatProviders` exposes each account as a managed native model service.
+Tokens are not copied into the API-key provider file. The existing
+`ChatProviderProxy` resolves the conversation's original account and renews
+its token before each upstream request. OpenCode receives only a temporary
+loopback proxy capability. OpenAI tokens never enter its environment, tool
+context, renderer state or history.
 
-The main process renews credentials before each turn and passes the access
-token only in the harness child's environment. Arguments, receipts and
-renderer IPC never contain it. The token is excluded from the harness's shell
-environment and cleared in Ambio's MCP child environment. Raw app-server
-stdout/stderr is not logged; parsed activity is redacted before logging.
-These boundaries do not protect against arbitrary code already running in
-the trusted main or harness process.
+Subscription requests are restricted to the public model-list and Responses
+endpoints. `chatgptResponses.ts` enforces `store: false`, `stream: true`,
+complete input history, supported request fields and namespaced local tools.
+Tool outputs and encrypted reasoning remain in the native conversation's
+context. Only a completed response establishes successful inference. Failed,
+incomplete or interrupted streams produce an actionable error, and Ambio
+stops that native turn to prevent automatic replay of a partial plan request.
+Credential echoes are redacted before reaching the harness or its history.
 
-The harness has a separate `CODEX_HOME` per account registration under
-`~/.ambio/chatgpt/harness/`. It uses the public Responses API with OAuth and
-HTTP/SSE. Shell and local MCP tools remain in Codex. Ambio retains launch
-receipts, Stop, activity events and conversation replies through its existing
-delivery and MCP interfaces. Harness sessions are keyed by project,
-conversation and account registration. Only `turn/completed` with status
-`completed` marks successful inference.
+The previous Codex app-server adapter and separate ChatGPT CLI destination
+have been removed. Existing users' external Codex/MCP connections are unaffected.
+OpenAI's noncommercial reference DevKit is not bundled or copied into Ambio;
+the OAuth implementation uses the MIT-licensed `jose` library.
 
-## Verification
+## Validation and remaining live checks
 
-Automated coverage uses synthetic signed tokens, encrypted temporary storage,
-mocked OpenAI endpoints and a real stand-in app-server subprocess. It covers
-PKCE and callback state, denied/cancelled consent, nonce verification, scope
-gating, same-email registrations, reconnect, model selection, serialized
-rotation, recovery after rotation, sign-out, encryption failures, thread
-resume, permissions, protocol failure and token-free logs.
+Automated coverage uses synthetic signed tokens and temporary encrypted
+storage. The real bundled OpenCode binary is tested against mocked OpenAI
+Responses streams through the actual credential proxy: native inference,
+namespaced Ambio MCP tools, follow-up history and interrupted-stream failure.
+UI tests cover consent, model selection, account switching and sign-out.
+Existing API-key/native chat and external agent routes are regression-tested.
 
-Validation in this workspace: TypeScript, 656 unit tests, 34 MCP end-to-end
-tests against a freshly built daemon, three headless Electron UI tests, the
-production bundle and the dependency license check passed. The installed
-Codex CLI 0.159.0-alpha.3 also completed a turn against a local synthetic
-Responses API, sending bearer authentication, `store: false` and
-`stream: true`. That checks harness wiring, not OpenAI account entitlement.
+A real OpenAI account sign-in and subscription inference were not run in this
+environment. Before release, validate browser consent and one completed native
+Ask/Propose/Build loop with an eligible plan, then check attribution and limits
+in ChatGPT Settings. Also verify renewal, remote revocation, account switching,
+usage-limit errors, cancellation, locked OS storage and packaged-app upgrades
+on macOS, Windows and Linux.
 
-A live account sign-in and completed inference were **not** run in the coding
-environment. Release validation must cover:
+## Official references
 
-1. Browser sign-in with an eligible account on macOS, Windows and Linux with
-   an OS credential store. Confirm the displayed account and plan permission.
-2. One short Ask turn answered through Ambio's MCP inbox. Confirm the chosen
-   model completes and usage appears under Ambio in ChatGPT Settings.
-3. Propose, then Build in a disposable project. Verify mode limits, map tools,
-   canvas reply, continued thread and Stop.
-4. Restart Ambio, renew an expired token, switch registrations and reconnect
-   after sign-out or remote revocation.
-5. Denied plan permission, exhausted usage, interrupted network and denied OS
-   storage. Confirm that errors preserve data and never use API billing.
-   Check credential-store access after a packaged-app upgrade.
+Verified against OpenAI documentation on 2026-10-19. The developer quickstart
+currently identifies Plus and Pro as eligible. Models and limits depend on
+account eligibility and OpenAI policy. Paid or remotely hosted applications
+require separate approval; this integration targets the local open-source app.
+
+- [Quickstart and availability](https://developers.openai.com/siwc/quickstart)
+- [Open-source/local integration](https://developers.openai.com/siwc/token-sharing-open-source)
+- [Registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+- [Accounts, renewal and revocation](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
+- [Models and direct Responses requests](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
+- [Preview requirements and limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+- [Commercial/hosted interest form](https://openai.com/form/sign-in-with-chatgpt-interest/)

@@ -128,9 +128,9 @@ const PASTED = (name: string): DestinationGuide => ({
 
 export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   [CHAT_DELIVERY]: {
-    need: ['A model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],
+    need: ['A ChatGPT plan connection or a model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],
     how: [
-      'Add a model service once, with your own API key, in Settings → Model services.',
+      'Connect ChatGPT or add an API-key model service in Settings → Agents.',
       'Choose Ambio chat and send. The reply streams in here.',
       'A conversation keeps the model it started with; start a new conversation to use another.',
     ],
@@ -267,10 +267,10 @@ export interface DeliveryReadinessResult { tone: ReadinessTone; text: string; fi
  */
 export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watchingHosts, chat }: {
   hostId: string; hosts: DeliveryHost[]; installedIds: string[]; watchers: number; watchingHosts: string[]
-  chat?: { service: string; keyMissing: boolean }
+  chat?: { service: string; keyMissing: boolean; auth?: 'chatgpt' }
 }): DeliveryReadinessResult {
   if (chat) return chat.keyMissing
-    ? { tone: 'blocked', text: `The API key for ${chat.service} is missing. Add it again in Settings \u2192 Agents.`, fix: 'agents' }
+    ? { tone: 'blocked', text: chat.auth === 'chatgpt' ? 'Reconnect ChatGPT and approve plan usage in Settings → Agents.' : `The API key for ${chat.service} is missing. Add it again in Settings \u2192 Agents.`, fix: 'agents' }
     : { tone: 'ready', text: `Runs inside Ambio with ${chat.service}. Nothing else needs to be open.` }
   if (hostId === WATCHING_DELIVERY) return watchers > 0
     ? { tone: 'ready', text: `${watchers === 1 ? 'A chat is' : `${watchers} chats are`} watching Ambio and will get your message.` }

@@ -5,6 +5,8 @@ export interface ChatGPTProfile {
   email?: string
   connected: boolean
   sharing: boolean
+  model?: string
+  models?: string[]
 }
 
 export interface ChatGPTState {
@@ -13,7 +15,7 @@ export interface ChatGPTState {
   model?: string
   signingIn: boolean
   secureStorage: boolean
-  harnessInstalled: boolean
+  modelError?: string
 }
 
 export interface ChatGPTModel { slug: string; displayName: string }

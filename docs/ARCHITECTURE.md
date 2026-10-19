@@ -103,17 +103,22 @@ issued per-registration client IDs survive reconnects. Renderer IPC exposes
 display state and named account/model operations only, with sender/frame/URL
 validation. No OAuth credential enters the renderer or daemon.
 
-ChatGPT is an additional conversation delivery destination. Main supplies a
-renewed access token to a local Codex app-server process configured for the
-public Responses API; a separate per-registration `CODEX_HOME` isolates its
-history and configuration from the user's normal Codex installation.
-`electron/codexAppServer.ts` drives initialize, thread start/resume and turns,
-reports activity, declines sandbox escalation, and requires completed inference.
-Ask/Propose are read-only; Build is restricted to the project. The existing
-delivery runner provides receipts, Stop, account-scoped session keys and
-redacted activity logs. Replies still use Ambio's normal MCP inbox protocol.
-Credentials have no API-key billing fallback. Setup, protocol references and
-remaining real-account validation: [CHATGPT_PLAN.md](CHATGPT_PLAN.md).
+ChatGPT is a managed model service for the existing integrated OpenCode chat.
+`ChatProviders` exposes one service per OAuth registration, including its saved
+model catalog, without duplicating tokens in the API-key file. Each native
+conversation retains its provider ID; selecting another account in settings
+cannot redirect an existing conversation's requests. The credential proxy
+resolves and renews that account's token in Electron for each upstream request.
+The bundled agent and its tools receive only the proxy's local capability.
+
+`electron/chatgptResponses.ts` applies the public Responses API restrictions:
+non-stored streaming, complete history, developer instructions, and namespaced
+local tools. It translates failed/incomplete streams and missing completion
+into errors understood by the native model adapter. Existing OpenCode tools,
+Ask/Propose/Build permissions, approvals, streaming history and cancellation
+remain the execution path. Codex is not used. Plan credentials never fall back
+to API-key billing or another account. Setup and live-account validation:
+[CHATGPT_PLAN.md](CHATGPT_PLAN.md).
 
 
 ## Data
