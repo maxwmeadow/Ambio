@@ -32,7 +32,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   })
   try {
     const page = await app.firstWindow()
-    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(10)
+    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(11)
     await page.setViewportSize({ width: 1280, height: 1000 })
     const orders: any[] = []
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
@@ -60,7 +60,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
-    await expect(destination.locator('option')).toHaveCount(11)
+    await expect(destination.locator('option')).toHaveCount(12)
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
       await destination.selectOption(host)
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)

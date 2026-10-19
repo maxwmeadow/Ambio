@@ -25,6 +25,8 @@ export interface DeliveryRun {
   mode?: 'ask' | 'propose' | 'build'
   /** The host's own session, kept so the conversation's next turn can continue it. */
   sessionId?: string
+  /** Account registration for a provider whose sessions must remain separate. */
+  sessionScope?: string
   /** This run continued the session an earlier turn left behind. */
   resumed?: boolean
 }
@@ -89,6 +91,7 @@ export function chooseDeliveryHost({ hosts, remembered, liveIds, installedIds }:
 export type DeliverySupportLevel = 'tested' | 'limited' | 'untested' | 'paste'
 
 export const DELIVERY_SUPPORT: Record<string, { level: DeliverySupportLevel; summary: string }> = {
+  chatgpt: { level: 'untested', summary: 'Experimental. Uses your connected ChatGPT plan through Codex CLI. Ask and Propose run read-only; Build can edit this project. Manage plan limits in Settings → Agents.' },
   'claude-code': { level: 'tested', summary: 'Tested end to end. Continues its session between turns, Ask and Propose cannot change files, and a build asks you before commands it was not given.' },
   'antigravity-cli': { level: 'limited', summary: 'Tested. Answers questions and plans with Ambio\u2019s tools, but a build cannot run shell commands (its print mode refuses them) and it does not keep a session between turns.' },
   codex: { level: 'tested', summary: 'Tested end to end. Continues its session between turns, and Ask and Propose run read-only. It does not ask you before commands; its sandbox limits what a build can touch.' },

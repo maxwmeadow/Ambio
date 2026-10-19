@@ -80,7 +80,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
       if (active) timer = setTimeout(() => { void refresh() }, live ? 1000 : 3000)
     }
     void refresh()
-    return () => { active = false; clearTimeout(timer) }
+    const refreshChatGPT = () => {
+      void window.ambio.listDeliveryHosts().then(items => { if (active) setHosts(items) }, () => {})
+    }
+    window.addEventListener('ambio-chatgpt-changed', refreshChatGPT)
+    return () => { active = false; clearTimeout(timer); window.removeEventListener('ambio-chatgpt-changed', refreshChatGPT) }
   }, [workspaceId, isOpen, rootPath])
   const deliver = async (messageId: string, destination = hostId) => {
     if (!destination || lock.current) return
@@ -116,9 +120,10 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
 }) {
   const host = hosts.find(item => item.id === hostId)
   // A host with a session watching gets the message in that session.
-  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
-  const connected = hosts.filter(item => installedIds.includes(item.id))
-  const others = hosts.filter(item => !installedIds.includes(item.id))
+  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{!item.available ? item.id === 'chatgpt' ? ' · connect in Settings → Agents' : ' · CLI not found' : watchingHosts.includes(item.id) ? ' · watching' : ''}</option>
+  const isConnected = (item: DeliveryHost) => installedIds.includes(item.id) || item.id === 'chatgpt' && item.available
+  const connected = hosts.filter(isConnected)
+  const others = hosts.filter(item => !isConnected(item))
   // What sending does is on the send button; the fine print waits on hover.
   const about = [
     hostId === WATCHING_DELIVERY || watchingHosts.includes(hostId)
@@ -138,6 +143,7 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
     {(support => support && <p className="ambio-inbox__delivery-support" data-level={support.level}>
       <strong>{DELIVERY_SUPPORT_LABEL[support.level]}</strong> {watchingHosts.includes(hostId) ? DELIVERY_SUPPORT[WATCHING_DELIVERY].summary : support.summary}
     </p>)(DELIVERY_SUPPORT[hostId])}
+    {hostId === 'chatgpt' && <small>Using ChatGPT plan · <button type="button" className="ambio-inbox__delivery-link" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></small>}
     {connected.length === 0 && onManageConnections && <small>No agent is set up with Ambio yet. <button type="button" className="ambio-inbox__delivery-link" onClick={onManageConnections}>Connect one</button></small>}
   </div>
 }

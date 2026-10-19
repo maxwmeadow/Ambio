@@ -33,6 +33,28 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 - The **MCP server** finds the project from the agent's working directory and
   starts archd on demand. Agents never need Node installed.
 
+### Direct ChatGPT plan connection
+
+`electron/chatgptAuth.ts` owns browser OAuth, dynamic client registration,
+verified account profiles, encrypted `safeStorage` credentials, serialized
+token renewal and public model discovery. A stable installation host ID and
+issued per-registration client IDs survive reconnects. Renderer IPC exposes
+display state and named account/model operations only, with sender/frame/URL
+validation. No OAuth credential enters the renderer or daemon.
+
+ChatGPT is an additional conversation delivery destination. Main supplies a
+renewed access token to a local Codex app-server process configured for the
+public Responses API; a separate per-registration `CODEX_HOME` isolates its
+history and configuration from the user's normal Codex installation.
+`electron/codexAppServer.ts` drives initialize, thread start/resume and turns,
+reports activity, declines sandbox escalation, and requires completed inference.
+Ask/Propose are read-only; Build is restricted to the project. The existing
+delivery runner provides receipts, Stop, account-scoped session keys and
+redacted activity logs. Replies still use Ambio's normal MCP inbox protocol.
+Credentials have no API-key billing fallback. Setup, protocol references and
+remaining real-account validation: [CHATGPT_PLAN.md](CHATGPT_PLAN.md).
+
+
 ## Data
 
 - One SQLite database per project: `~/.ambio/data/<project id>/ambio.db`

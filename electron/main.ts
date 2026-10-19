@@ -1,4 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, session, clipboard, screen, crashReporter, Notification, safeStorage, net } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { ChatGPTAuth } from './chatgptAuth'
+import { chatGPTAppServerArguments } from './codexAppServer'
+import { CHATGPT_USAGE_URL } from '../src/shared/chatgpt'
 import { brandImage } from './branding'
 import { readWindowState, restorableBounds, writeWindowState } from './windowState'
 import { initUpdates } from './updates'
@@ -24,7 +28,7 @@ import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstal
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import { configurationChecks, probeMcpServer, type ConnectionTestResult } from './agentConnectionTest'
-import { DeliveryRunner, deliveryTargets, deliveryPlan, checkDeliveryMessage, chatDeepLink } from './agentDelivery'
+import { DeliveryRunner, deliveryTargets, deliveryPlan, checkDeliveryMessage, chatDeepLink, findDeliveryCli } from './agentDelivery'
 import { agentDriver, turnMode } from './agentDrivers'
 import { workOrderHandoff } from '../src/shared/workOrderHandoff'
 import type { DeliveryRequest } from '../src/shared/agentDelivery'
@@ -68,6 +72,17 @@ const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
 const DATA_DIR = join(os.homedir(), '.ambio', 'data')
 const LOG_DIR = join(CONFIG_DIR, 'logs')
 const deliveryRunner = new DeliveryRunner(join(CONFIG_DIR, 'delivery'))
+const chatgpt = new ChatGPTAuth({
+  directory: join(CONFIG_DIR, 'chatgpt'),
+  encryption: {
+    available: () => safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || !['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())),
+    encrypt: text => safeStorage.encryptString(text),
+    decrypt: data => safeStorage.decryptString(data),
+  },
+  openBrowser: url => shell.openExternal(url),
+  fetch: (url, init) => net.fetch(url instanceof URL ? url.toString() : url, init),
+})
+let chatGPTGeneration = 0
 const WINDOW_STATE_FILE = join(CONFIG_DIR, 'window-state.json')
 // Where "Report a Bug" leads. Update alongside the repository if it moves.
 const ISSUES_URL = 'https://github.com/maxwmeadow/Ambio/issues/new'
@@ -857,6 +872,45 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function setupIPC(): void {
+  // ChatGPT operations may only originate in our loaded main frame. The
+  // renderer gets display state and named operations, never OAuth tokens.
+  const chatGPTHandler = (channel: string, handler: (...args: any[]) => unknown) => {
+    ipcMain.handle(channel, (event, ...args) => {
+      const frame = event.senderFrame
+      const expected = DEV_SERVER_URL ? new URL(DEV_SERVER_URL).origin : pathToFileURL(join(__dirname, '../renderer/index.html')).href
+      const trusted = frame && (DEV_SERVER_URL ? new URL(frame.url).origin === expected : frame.url === expected)
+      if (event.sender !== mainWindow?.webContents || frame !== event.sender.mainFrame || !trusted) throw new Error('Untrusted ChatGPT request.')
+      if (IS_E2E && channel !== 'chatgpt:state') throw new Error('Live ChatGPT operations are disabled in automated app tests.')
+      return handler(...args)
+    })
+  }
+  const chatGPTState = () => chatgpt.state(!!findDeliveryCli('codex'))
+  chatGPTHandler('chatgpt:state', chatGPTState)
+  chatGPTHandler('chatgpt:sign-in', async (profileId?: string) => {
+    if (profileId !== undefined && (typeof profileId !== 'string' || profileId.length > 100)) throw new Error('Invalid ChatGPT connection.')
+    chatGPTGeneration++; deliveryRunner.stopHost('chatgpt')
+    await chatgpt.signIn(profileId)
+    return chatGPTState()
+  })
+  chatGPTHandler('chatgpt:cancel-sign-in', () => chatgpt.cancelSignIn())
+  chatGPTHandler('chatgpt:select-profile', async (profileId: string) => {
+    if (typeof profileId !== 'string' || profileId.length > 100) throw new Error('Invalid ChatGPT connection.')
+    chatGPTGeneration++; deliveryRunner.stopHost('chatgpt')
+    await chatgpt.selectProfile(profileId)
+    return chatGPTState()
+  })
+  chatGPTHandler('chatgpt:sign-out', async () => {
+    chatGPTGeneration++; deliveryRunner.stopHost('chatgpt')
+    const detail = await chatgpt.signOut()
+    return { state: chatGPTState(), detail }
+  })
+  chatGPTHandler('chatgpt:models', () => chatgpt.listModels())
+  chatGPTHandler('chatgpt:select-model', async (slug: string) => {
+    if (typeof slug !== 'string' || slug.length > 200) throw new Error('Invalid ChatGPT model.')
+    await chatgpt.selectModel(slug)
+    return chatGPTState()
+  })
+  chatGPTHandler('chatgpt:usage', () => shell.openExternal(CHATGPT_USAGE_URL))
   // Open a project directory - returns config only; the renderer registers it via REST.
   ipcMain.handle('project:open-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
@@ -994,9 +1048,10 @@ function setupIPC(): void {
       defaultId: 1,
       cancelId: 1,
       message: 'Delete all Ambio data?',
-      detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Ambio restarts. Your code is not touched. Agent connections stay until you remove them in Settings → Agents.',
+      detail: 'Every project map, layout, sheet and change history, your settings, and the logs are deleted from this computer, and Ambio restarts. Your code is not touched. Agent connections, including ChatGPT sign-in, stay until you remove them in Settings → Agents.',
     })
     if (answer.response !== 0) return false
+    chatGPTGeneration++; chatgpt.cancelSignIn(); deliveryRunner.stopAll()
     quitting = true
     if (attachedDaemon) {
       try {
@@ -1009,7 +1064,7 @@ function setupIPC(): void {
     }
     stopArchd()
     await new Promise(resolve => setTimeout(resolve, 500))
-    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin')]) {
+    for (const target of [DATA_DIR, PROJECTS_FILE, SETTINGS_FILE, WINDOW_STATE_FILE, LOG_DIR, join(CONFIG_DIR, 'bin'), join(CONFIG_DIR, 'chatgpt', 'harness')]) {
       try { fs.rmSync(target, { recursive: true, force: true }) } catch (error) { console.error('[main] could not delete', target, error) }
     }
     app.relaunch()
@@ -1350,6 +1405,14 @@ function setupIPC(): void {
   // offered only to a spec that brings its own stand-in agents.
   const availableTargets = () => {
     const targets = deliveryTargets(buildHosts())
+    const launcher = findDeliveryCli('codex')
+    let connected = false, detail = 'Connect ChatGPT in Settings → Agents to use your plan.'
+    try {
+      const state = chatGPTState()
+      connected = state.profiles.some(profile => profile.id === state.activeId && profile.sharing)
+      if (connected) detail = launcher ? 'Using your ChatGPT plan. Manage usage in Settings → Agents.' : 'Install Codex CLI to run the local ChatGPT harness, then restart Ambio.'
+    } catch { detail = 'Unlock your OS credential store in Settings → Agents to use ChatGPT.' }
+    targets.push({ id: 'chatgpt', label: 'ChatGPT', route: 'run', available: connected && !!launcher, launcher, detail })
     if (!IS_E2E || process.env.AMBIO_E2E_AGENTS === '1') return targets
     return targets.map(target => ({ ...target, available: false, launcher: undefined, detail: 'Not used in tests.' }))
   }
@@ -1408,6 +1471,24 @@ function setupIPC(): void {
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+    if (request.hostId === 'chatgpt') {
+      const generation = chatGPTGeneration
+      const credentials = await chatgpt.prepareTurn()
+      if (generation !== chatGPTGeneration) throw new Error('The ChatGPT connection changed. Send the turn again with the selected account.')
+      const mode = turnMode(body.mode)
+      const threadId = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+      const resume = deliveryRunner.session(project.id, threadId, 'chatgpt', credentials.profileId)
+      const harnessHome = join(CONFIG_DIR, 'chatgpt', 'harness', credentials.profileId)
+      fs.mkdirSync(harnessHome, { recursive: true, mode: 0o700 })
+      const run = await deliveryRunner.start({
+        ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
+        args: chatGPTAppServerArguments({ hostId: 'chatgpt', mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, mode, messageId: request.messageId }),
+        threadId, mode, sessionScope: credentials.profileId, sessionId: resume, resumed: !!resume,
+        codexAppServer: { model: credentials.model, token: credentials.token, version: app.getVersion(), resume },
+        environment: { AMBIO_CHATGPT_ACCESS_TOKEN: credentials.token, CODEX_HOME: harnessHome, OPENAI_API_KEY: undefined, CODEX_API_KEY: undefined },
+      })
+      return { detail: run.detail, run }
+    }
     // A turn continues the host session its conversation already has, when
     // the host can; the conversation itself reaches the agent through Ambio.
     const driver = agentDriver(request.hostId)
@@ -1923,6 +2004,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  chatgpt.cancelSignIn()
   quitting = true
   tray?.destroy()
   tray = null

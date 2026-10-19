@@ -4,11 +4,20 @@ import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
 import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun } from '../src/shared/agentDelivery'
 import type { ConnectionTestResult } from './agentConnectionTest'
+import type { ChatGPTState, ChatGPTModel } from '../src/shared/chatgpt'
 
 export type { ConnectionCheck, ConnectionTestResult } from './agentConnectionTest'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
+  getChatGPTState: (): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:state'),
+  signInChatGPT: (profileId?: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:sign-in', profileId),
+  cancelChatGPTSignIn: (): Promise<void> => ipcRenderer.invoke('chatgpt:cancel-sign-in'),
+  selectChatGPTProfile: (id: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-profile', id),
+  signOutChatGPT: (): Promise<{ state: ChatGPTState; detail: string }> => ipcRenderer.invoke('chatgpt:sign-out'),
+  listChatGPTModels: (): Promise<ChatGPTModel[]> => ipcRenderer.invoke('chatgpt:models'),
+  selectChatGPTModel: (slug: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:select-model', slug),
+  manageChatGPTUsage: (): Promise<void> => ipcRenderer.invoke('chatgpt:usage'),
   // Project management
   openProjectDialog: (): Promise<ProjectConfig | null> =>
     ipcRenderer.invoke('project:open-dialog'),
@@ -292,6 +301,14 @@ export type ArchdStatus =
 declare global {
   interface Window {
     ambio: {
+      getChatGPTState: () => Promise<ChatGPTState>
+      signInChatGPT: (profileId?: string) => Promise<ChatGPTState>
+      cancelChatGPTSignIn: () => Promise<void>
+      selectChatGPTProfile: (id: string) => Promise<ChatGPTState>
+      signOutChatGPT: () => Promise<{ state: ChatGPTState; detail: string }>
+      listChatGPTModels: () => Promise<ChatGPTModel[]>
+      selectChatGPTModel: (slug: string) => Promise<ChatGPTState>
+      manageChatGPTUsage: () => Promise<void>
       openProjectDialog: () => Promise<ProjectConfig | null>
       openProject: (config: ProjectConfig) => Promise<ProjectConfig>
       chooseDirectory: () => Promise<string | null>

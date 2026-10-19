@@ -25,6 +25,10 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Connect an eligible ChatGPT plan in Settings → Agents and choose ChatGPT in
+  conversations. Includes browser sign-in, encrypted credentials, account and
+  model selection, usage controls and a local Codex harness for Ask, Propose
+  and Build. Requires Codex CLI; real-account validation is still pending.
 - The agent panel is now a conversation. Ask a question, ask for a plan, then
   tell the agent to build it, and each turn stays in the same conversation; the
   agent picking up a turn is given what was said before it. Start a new

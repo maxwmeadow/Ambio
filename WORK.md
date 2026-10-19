@@ -49,8 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `chatgpt-plan-sign-in` **Use a ChatGPT plan directly in Ambio.** Implement the documented open-source Sign in with ChatGPT flow, protected local credentials, account/model controls, and a Codex app-server conversation destination with Ambio's tools. **Done when:** browser OAuth, renewal, disconnect, model discovery and conversation delivery have regression coverage; document a real-account smoke test. (🚧 Codex, codex/chatgpt-plan-sign-in, 2026-10-19)
-
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
@@ -263,9 +261,13 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `work-order-isolated-roots` **Isolated agent runs with truthful review.** Before creating a worktree on Send, bind indexing/comparison to the run’s root so review checks the branch the agent edited. Current direct runs use the existing live root and prevent overlapping managed runs. (2026-09-30, work-order-delivery)
 - ⬜ `more-direct-delivery` **Extend host-specific delivery adapters.** Validate Cursor Agent CLI and project-bound VS Code chat delivery; add direct routes where the destination and permissions can be verified. Keep editor/desktop copy/open fallbacks and the host capability table current. (2026-09-30, work-order-delivery)
 
+- ⬜ `chatgpt-plan-live-validation` **Validate the direct ChatGPT connection with real accounts and packaged OS credential stores.** Browser consent, one completed Ask/Propose/Build loop, renewal, account switching, usage limits and revocation on macOS/Windows/Linux. Automated protocol, mock-harness and UI tests pass; no real-account sign-in was performed. Steps: [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, ChatGPT plan integration)
+
 ---
 
 ## Done log
+
+- 2026-10-19 `chatgpt-plan-sign-in` Added the documented open-source ChatGPT OAuth flow, OS-encrypted account profiles, renewal/revocation and model/usage controls; ChatGPT conversations run through a local Codex app-server using the public Responses API with account-scoped sessions, mode sandboxes, Stop and redacted activity. Covered by synthetic OAuth/protocol and Electron UI tests; the installed harness completed a mock-API turn. Real-account/packaged-OS validation remains in Inbox. (codex/chatgpt-plan-sign-in)
 
 - 2026-10-15 `agent-conversations-live` Real conversations pass for Claude Code, Codex and Antigravity CLI. Fixes they found: Codex needs Ambio's server approved and its resume takes the sandbox as config; Antigravity CLI needs the project as `--add-dir` and `mcp(ambio/*)` allowed (now added by the Antigravity install and removed by uninstall); Copilot CLI's npm entry is read from its package. Gemini CLI removed (moved into Antigravity). The agent panel shows what each destination can do. (main, uncommitted)
 

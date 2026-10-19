@@ -3,6 +3,7 @@ import type { AgentHostInfo, ConnectionTestResult } from '../../../electron/prel
 import { archdApi } from '../archdEndpoint.ts'
 import { agentConnectionState, sortAgentConnections, type AgentConnectionState, type AgentPresenceEntry } from './agentConnectionsModel.ts'
 import '../styles/agentConnections.css'
+import { ChatGPTConnection } from './ChatGPTConnection'
 
 const STATE_LABEL: Record<AgentConnectionState, string> = {
   live: 'Connected now',
@@ -216,13 +217,14 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     )
   }
 
-  if (hosts === null) return <p className="ambio-settings__text">Looking for agents…</p>
+  if (hosts === null) return <div className="ambio-agent-connections"><ChatGPTConnection /><p className="ambio-settings__text">Looking for agents…</p></div>
 
   const connected = shown.filter(host => agentConnectionState(host, presence) === 'live').length
   const installed = shown.filter(host => host.configured).length
 
   return (
     <div className="ambio-agent-connections">
+      <ChatGPTConnection />
       <p className="ambio-settings__text">
         {installed === 0
           ? 'Ambio is not installed in any agent yet. Install it into the ones you use; each then sees your map and can receive work orders.'

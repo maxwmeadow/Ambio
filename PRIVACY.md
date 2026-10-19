@@ -1,11 +1,13 @@
 # Privacy
 
-Ambio is local-first. Your code, your project maps and everything Ambio learns
-about them stay on your machine.
+Ambio is local-first. Indexing, project maps and history stay on your machine.
+When you choose to send a conversation to an AI provider, that agent can send
+the conversation and project context it reads to the provider.
 
 ## What stays on your machine
 
-- **Your source code.** Ambio reads it to build the map. It never uploads it.
+- **Your source code.** Ambio indexes it locally to build the map. An agent you
+  ask to work on the project can send code and context to its provider.
 - **Project maps and history:** systems, layout, sheets, the change journal
   and agent activity, stored under `~/.ambio/data`.
 - **Settings and the project list:** `~/.ambio`.
@@ -33,6 +35,23 @@ Ambio does not collect usage analytics.
 When you connect an agent (Claude Code, Cursor, Codex, …), the agent talks to
 Ambio over a local connection on your machine. What the agent then sends to
 its own provider is governed by that agent's privacy policy, not Ambio's.
+
+If you connect ChatGPT in Settings → Agents, Ambio opens OpenAI's sign-in in
+your browser and stores the connection in OS-encrypted local storage under
+`~/.ambio/chatgpt`. Tokens never enter the renderer, project maps or diagnostics.
+Model discovery contacts OpenAI. Sending a turn to ChatGPT starts a local
+Codex harness that sends the conversation and the project context it reads to
+OpenAI's public Responses API using your approved ChatGPT plan. Requests use
+`store: false`; this does not mean OpenAI receives no data or has no processing
+policy. OpenAI's terms, privacy policy and your plan controls govern that use.
+The local harness also keeps conversation history in its account-specific
+folder under `~/.ambio/chatgpt/harness`.
+
+Sign out stops Ambio-launched ChatGPT runs, clears that registration's local
+tokens and attempts remote revocation. It retains the registration and local
+history. If revocation cannot be confirmed, Ambio tells you to disconnect it
+in ChatGPT Settings. Manage usage opens ChatGPT's usage controls. Details:
+[ChatGPT plan connection](docs/CHATGPT_PLAN.md).
 
 ## If this changes
 

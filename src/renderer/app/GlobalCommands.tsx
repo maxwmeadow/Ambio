@@ -484,7 +484,7 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
           {section === 'privacy' && (
             <>
               <p className="ambio-settings__text">
-                Your code, project maps and history stay on this machine. Ambio does not collect usage analytics.
+                Indexing, project maps and history stay on this machine. Conversations you send to an agent can share project context with its provider. Ambio does not collect usage analytics.
                 Diagnostics are only ever copied by you.
               </p>
               <PathRow label="Project data" path={paths?.data} onOpen={() => void window.ambio?.openAppPath('data')} />
