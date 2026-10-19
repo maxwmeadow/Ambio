@@ -66,3 +66,11 @@ test('a handoff for a chat Ambio cannot start asks it to stay attached; a plain 
   assert.equal(attached, `${plain} ${STAY_ATTACHED}`)
   assert.match(attached, /get_inbox with watch: true/)
 })
+
+test('a mapping turn reads as its title, not its brief', async () => {
+  const { turnRequest, requestText, MAPPING_CONTRACT, MAPPING_TITLE } = await import('./inboxModel.ts')
+  const note = `${MAPPING_CONTRACT}\n\n# Ambio - map this codebase's architecture\n...`
+  assert.deepEqual(turnRequest({ note, mode: 'propose' }), { mode: 'propose', text: MAPPING_TITLE })
+  assert.equal(requestText(note), MAPPING_TITLE)
+  assert.equal(requestText('Why is checkout slow?'), 'Why is checkout slow?')
+})

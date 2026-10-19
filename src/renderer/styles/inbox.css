@@ -336,3 +336,12 @@
 @media (prefers-reduced-motion: reduce) { .ambio-guide-backdrop { animation: none; } }
 .ambio-inbox__model .ambio-inbox__model-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-inbox__model-menu { width: 300px; max-height: 320px; overflow-y: auto; }
+/* The panel's hover colour is for light buttons; the conversation title sits on the dark header. */
+.ambio-inbox .ambio-inbox__conversation-button:is(:hover, [aria-expanded='true']):not(:disabled) { color: #f4f7f2; }
+.ambio-inbox .ambio-inbox__conversation-menu button[role='menuitemradio']:is(:hover, :focus-visible) { color: var(--inbox-ink); }
+/* The stage filters are a row of chips, not menu rows. */
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages { padding: 6px 6px 8px; border-bottom: 1px solid #cfd3cc; background: transparent; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button { display: inline-flex; align-items: baseline; gap: 4px; width: auto; padding: 2px 8px; border: 1px solid #a9b0ac; background: #f7f6f1; color: #2b3833; font: 11px var(--font-ui, sans-serif); box-shadow: none; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button:hover { border-color: #6e9183; background: #eef3ee; color: #2b3833; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button[aria-pressed='true'] { border-color: #3c7d76; background: #dfeae6; color: #1f4a40; }
+.ambio-inbox .ambio-inbox__conversation-menu .ambio-inbox__stages button span { margin: 0; color: #68736e; font: 10px var(--font-mono, monospace); }

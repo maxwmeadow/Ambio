@@ -2741,6 +2741,12 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
   await expect(menu.getByRole('menuitemradio').nth(1)).toContainText('To review')
   const stages = menu.getByRole('group', { name: 'Show conversations' })
+  // The stage filters sit in one row of chips, and the open title stays readable.
+  const chips = await stages.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().top))
+  expect(new Set(chips.map(Math.round)).size).toBe(1)
+  const title = inbox.getByRole('button', { name: /^Conversation:/ }).locator('h2')
+  expect(await title.evaluate(element => getComputedStyle(element).color)).toBe('rgb(244, 247, 242)')
+  await page.screenshot({ path: 'test-results/conversation-menu.png' })
   await stages.getByRole('button', { name: 'To review 1' }).click()
   await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
   await stages.getByRole('button', { name: 'All 2' }).click()

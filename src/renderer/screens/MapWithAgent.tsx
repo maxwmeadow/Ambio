@@ -4,6 +4,7 @@ import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agen
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
 import { useSheetStore } from '../store/sheetStore'
 import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
+import { MAPPING_CONTRACT } from '../components/inboxModel'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
 
 /**
@@ -66,13 +67,6 @@ export function useRunnableChoices(): RunnableChoice[] | null {
   }, [])
   return choices
 }
-
-/**
- * What a mapping turn is, ahead of the brief. A Propose turn's usual contract
- * asks for a sheet; a mapping writes a proposed map with edit_systems, which
- * the user reviews, so it says that instead.
- */
-export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Follow the brief below and propose the architecture with edit_systems; the human reviews the proposal before it becomes the map. Do not draw a sheet for this.'
 
 /**
  * Start mapping with an agent Ambio runs. Adding Ambio to the user's own

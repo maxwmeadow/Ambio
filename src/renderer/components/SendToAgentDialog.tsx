@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
-import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode, type WorkOrderStage, conversations, conversationStageCounts, turnRequest } from './inboxModel'
+import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode, type WorkOrderStage, conversations, conversationStageCounts, requestText, turnRequest } from './inboxModel'
 import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
@@ -123,7 +123,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     ...chat.conversations.map(conversation => {
       const builds = allThreads.find(thread => thread.id === chatThreadId(conversation.id))
       const stage: WorkOrderStage | undefined = ['working', 'waiting'].includes(conversation.state) ? 'working' : builds?.stage
-      return { id: conversation.id, title: conversation.title, lastAt: Math.max(conversation.updatedAt, builds?.lastAt ?? 0), stage, detail: `Ambio chat${stage ? ` · ${WORK_ORDER_STAGES.find(item => item.stage === stage)?.label}` : ''}`, chat: true }
+      return { id: conversation.id, title: requestText(conversation.title), lastAt: Math.max(conversation.updatedAt, builds?.lastAt ?? 0), stage, detail: `Ambio chat${stage ? ` · ${WORK_ORDER_STAGES.find(item => item.stage === stage)?.label}` : ''}`, chat: true }
     }),
   ].sort((a, b) => b.lastAt - a.lastAt)
   // An unconfirmed send stays in the conversation it was written in.

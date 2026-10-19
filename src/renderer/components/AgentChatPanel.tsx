@@ -5,7 +5,7 @@ import { InboxIcon } from './InboxIcon'
 import { WorkOrderReview } from './WorkOrderReview'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { useSheetStore, type CanvasMessage } from '../store/sheetStore'
-import { inboxStatus, WORK_ORDER_MODES, workOrderNote } from './inboxModel'
+import { inboxStatus, requestText, WORK_ORDER_MODES, workOrderNote } from './inboxModel'
 import '../styles/agentChat.css'
 
 /**
@@ -146,7 +146,7 @@ export function chatUserTurn(text: string): { text: string; workOrderId?: string
   const handoff = HANDOFF.exec(text)
   const body = handoff ? text.slice(handoff[0].length) : text
   const context = body.indexOf(CONTEXT_MARK)
-  return { text: context >= 0 ? body.slice(0, context) : body, ...(handoff ? { workOrderId: handoff[1] } : {}) }
+  return { text: requestText(context >= 0 ? body.slice(0, context) : body), ...(handoff ? { workOrderId: handoff[1] } : {}) }
 }
 
 /** The service a conversation uses, as the panel names it. */
