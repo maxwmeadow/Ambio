@@ -45,10 +45,12 @@ you and your agents that keeps you both on the same page:
 - **A live map that is never stale.** Files are grouped into nested systems by
   what they do, not by folder, and the map updates as files change. Agents
   propose how the code is organised; you approve or correct it.
-- **Your agents read and write the same model.** Claude Code, Codex, Copilot,
-  Cursor, Windsurf, Antigravity, JetBrains and Zed connect through MCP: they
-  ask where things are and what depends on what, author systems, record
-  infrastructure, draw sheets, and pick up work orders.
+- **Your agents read and write the same model.** Ambio can run Claude Code,
+  Codex, Copilot CLI and Antigravity CLI for you, or its own Ambio chat with
+  your API key; Copilot in VS Code, Cursor, Claude Desktop, Windsurf,
+  Antigravity, JetBrains and Zed connect through MCP. Either way they ask where
+  things are and what depends on what, author systems, record infrastructure,
+  draw sheets, and pick up work orders.
 - **Infrastructure in view.** Databases, queues, caches, external APIs and
   hosting are detected from code and config, with the tables, topics and keys
   your code uses. They sit in a sidebar and draw their connections onto the map
@@ -93,11 +95,12 @@ Everything Ambio knows about your code stays on your machine - see
 
 1. Open a codebase in Ambio.
 2. Review which folders and files belong in the index.
-3. Add Ambio to a supported agent harness from the setup card.
-4. Restart that agent so it loads the MCP server and mapping workflow.
-5. Run the harness-specific mapping command shown by Ambio.
-6. Review the proposed systems, nesting, and file placement.
-7. Approve the proposal to make it the live canvas state.
+3. Choose who maps it. An agent Ambio runs (Claude Code, Codex, Copilot CLI,
+   Antigravity CLI, or Ambio chat) maps it when you press **Map**, with its
+   progress shown live; pick its model beside the button. For an agent in
+   another app, add Ambio to it, restart it, and run the mapping command shown.
+4. Review the proposed systems, nesting, and file placement.
+5. Approve the proposal to make it the live canvas state.
 
 The currently supported installers are:
 
@@ -229,30 +232,34 @@ To build the daemon directly:
 npm run build:archd
 ```
 
-## Chat directly in Ambio
+## Talk to your agents
 
-Message Agent offers **Work orders** for your existing agents and **Chat in
-Ambio** for an integrated coding conversation. Every existing connection remains
-available.
+**Message Agent** opens one conversation panel for every agent. Choose where a
+message goes under **Deliver to**; the info button beside it explains how each
+agent works from the panel and what it can do, and the first time you choose an
+agent Ambio shows that explanation until you confirm it.
 
-Configure a service in **Settings → Model services**, or use **Connect a model
-service** inside chat. Choose OpenAI, Anthropic, Google, or an OpenAI-compatible
-service, enter your API key, test the connection, and choose a model that supports
-tool calling. Local compatible services can use a loopback HTTP URL without a key.
-Use **Ask** for read-only discussion and **Build** to create an addressed work order
-with the selected canvas context and sheet. Review the result in Work orders;
-finishing a conversation turn does not mean architectural checks have passed.
+- **Ask** reads and answers; **Propose** draws the change on your map for you
+  to approve; **Build** changes code and hands the result back for review.
+- Pick the model beside the request type. Agents Ambio runs offer the models
+  they publish; Ambio chat offers its service's models.
+- Agents Ambio runs need only their CLI, signed in. Agents in other apps need
+  Ambio added once (Settings → Agents) and stay attached to the conversation
+  after the first message.
+
+**Ambio chat** is Ambio's own agent, using your model service. Add one in
+**Settings → Agents**: choose OpenAI, Anthropic, Google, or an OpenAI-compatible
+service, enter your API key, test the connection, and save. Local compatible
+services can use a loopback HTTP URL without a key. Set each service's context
+window to match your model. A conversation keeps its service; start a new one
+to use another agent.
 
 The local OpenCode harness is bundled with Ambio. Conversations resume after
 restarting; unfinished work is never silently resent. Actions needing permission
 and agent questions appear in the conversation, and Stop interrupts the turn.
 Provider calls use your account and may incur charges. A cloud model receives the
-messages and context its agent reads; see [Privacy](PRIVACY.md). Subscription
-sign-in is not part of this release. Keys use secure OS storage, or remain in
-memory only when a secure keychain is unavailable.
-
-The harness currently uses a conservative 32k-token context budget for configured
-models. Use a model supporting that context size and tool calling.
+messages and context its agent reads; see [Privacy](PRIVACY.md). Keys use secure
+OS storage, or remain in memory only when a secure keychain is unavailable.
 
 ## Tests
 

@@ -281,7 +281,7 @@ function antigravityRefusal(line: string): DriverOutput {
   const needed = /required the "([a-z_]+)" permission/i.exec(line)?.[1]
   if (!needed) return NOTHING
   return { events: [{ kind: 'error', text: needed === 'mcp'
-    ? 'Antigravity CLI did not let the agent use Ambio’s tools: its print mode cannot ask you for permission. Install Ambio into Antigravity again from Agent Connections (it allows them), or add "mcp(ambio/*)" to permissions.allow in ~/.gemini/antigravity-cli/settings.json, then send again.'
+    ? 'Antigravity CLI did not let the agent use Ambio’s tools: its print mode cannot ask you for permission. Add Ambio to Antigravity again in Settings → Agents (that allows them), or add "mcp(ambio/*)" to permissions.allow in ~/.gemini/antigravity-cli/settings.json, then send again.'
     : `Antigravity CLI stopped the turn: the agent needed the "${needed}" permission, which its print mode cannot ask you for, and it ends the run on a refusal. Send this turn to Antigravity's own chat instead, or allow that action in ~/.gemini/antigravity-cli/settings.json.` }] }
 }
 const antigravityCli: AgentDriver = {

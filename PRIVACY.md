@@ -37,7 +37,7 @@ When you connect an agent (Claude Code, Cursor, Codex, …), the agent talks to
 Ambio over a local connection on your machine. What the agent then sends to
 its own provider is governed by that agent's privacy policy, not Ambio's.
 
-## Chat in Ambio
+## Ambio chat
 
 Integrated chat is optional. You choose a model service and supply its API key
 (local compatible services can run without one). Your messages, attached
