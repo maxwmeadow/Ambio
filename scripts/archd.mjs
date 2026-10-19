@@ -9,7 +9,8 @@
 // Keeping that choice here means package.json stays free of absolute paths,
 // so the same `npm run` commands work on every platform.
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -45,6 +46,30 @@ if (process.platform === 'win32') {
   // Go that setup-go puts on Path would then be invisible to archd.sh.
   const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
   env[pathKey] = `${msysRoot}\\usr\\bin;${env[pathKey] ?? ''}`
+}
+
+// Linking archd against SQLite through cgo takes most of half a minute on
+// Windows even when nothing changed, and `npm run dev` builds it every time.
+// A binary newer than every Go source, go.mod/go.sum and package.json (its
+// version is stamped in) is current. AMBIO_FORCE_ARCHD_BUILD=1 builds anyway.
+function newestSource(dir) {
+  let newest = 0
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'testdata' || entry.name.startsWith('.')) continue
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) newest = Math.max(newest, newestSource(path))
+    else if (/\.(go|c|h)$|^go\.(mod|sum)$/.test(entry.name)) newest = Math.max(newest, statSync(path).mtimeMs)
+  }
+  return newest
+}
+if ((process.argv[2] ?? 'build') === 'build' && process.env.AMBIO_FORCE_ARCHD_BUILD !== '1') {
+  const binary = join(ROOT, 'archd-go', process.platform === 'win32' ? 'archd.exe' : 'archd')
+  const built = existsSync(binary) ? statSync(binary).mtimeMs : 0
+  const sources = Math.max(newestSource(join(ROOT, 'archd-go')), statSync(join(ROOT, 'package.json')).mtimeMs)
+  if (built > sources) {
+    console.log(`archd is up to date - ${binary}`)
+    process.exit(0)
+  }
 }
 
 // Invoked relative to the repo root so the path stays valid inside MSYS2,
