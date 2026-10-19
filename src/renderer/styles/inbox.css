@@ -10,7 +10,7 @@
   --inbox-line: #aeb8ae;
   --inbox-accent: #2d625c;
   top: var(--chrome-toolbar-height, 82px); right: 0; bottom: var(--chrome-status-height, 28px);
-  width: min(456px, 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
+  width: min(var(--inbox-width, 456px), 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
   background: var(--inbox-paper); color: var(--inbox-ink); box-shadow: -5px 0 0 #1f2b2524;
   font: 13px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
   animation: ambioPanelInRight var(--panel-enter) both;
@@ -383,3 +383,24 @@
 .ambio-inbox .ambio-inbox__file-link { display: inline; padding: 0 4px; border: 1px solid #c4d1c7; background: #eef3ee; color: #2f5d50; font: 11px var(--font-mono, monospace); cursor: pointer; overflow-wrap: anywhere; }
 .ambio-inbox .ambio-inbox__file-link:hover { border-color: #6e9183; background: #e2ece4; color: #1f4a40; }
 .ambio-inbox .ambio-inbox__turn-status > p.ambio-inbox__turn-quiet { display: block; color: #7a5b2e; font-size: 11px; }
+/* The left edge resizes the panel; double-click returns it to its width. */
+.ambio-inbox__resize { position: absolute; z-index: 20; top: 0; bottom: 0; left: -3px; width: 7px; cursor: ew-resize; touch-action: none; }
+.ambio-inbox__resize:hover, .ambio-inbox__resize:active { background: linear-gradient(90deg, transparent 2px, #6caaa0 2px, #6caaa0 4px, transparent 4px); }
+@media (max-width: 700px) { .ambio-inbox__resize { display: none; } }
+/* The agent, with its model joined to it, in the message box's row. */
+.ambio-inbox__compose { position: relative; }
+.ambio-inbox__compose-tools { flex-wrap: nowrap; }
+/* The agent picker takes the row's spare width and gives it back first; mode and Send keep theirs. */
+.ambio-inbox__compose-tools > span { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ambio-inbox__compose-tools > span:empty { display: none; }
+.ambio-inbox__compose-tools > .ambio-inbox__mode { margin-left: auto; }
+.ambio-inbox__agent-picker { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.ambio-inbox__agent-group { display: flex; align-items: stretch; min-width: 0; height: 28px; flex: 0 1 auto; }
+.ambio-inbox__agent-group > .ambio-inbox__model { flex: 0 1 auto; min-width: 0; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { max-width: 100%; }
+.ambio-inbox__agent-group > select { flex: 0 1 auto; width: 100%; min-width: 72px; max-width: 200px; height: 28px; padding: 0 22px 0 8px; border: 1px solid #a9b0ac; background-color: #f7f6f1; color: #2b3833; font: 600 11px var(--font-ui, sans-serif); text-overflow: ellipsis; }
+.ambio-inbox__agent-group > select:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
+.ambio-inbox__agent-group > .ambio-inbox__delivery-fixed { display: flex; align-items: center; max-width: 220px; padding: 0 8px; border: 1px solid #a9b0ac; background: #ebefe6; font: 600 11px var(--font-ui, sans-serif); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { height: 28px; border-left: 0; background: #eef1ea; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { max-width: 120px; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-menu { left: 0; right: auto; }

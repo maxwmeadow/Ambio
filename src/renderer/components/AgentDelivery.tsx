@@ -114,7 +114,7 @@ export function deliveryAction(host?: DeliveryHost, hostId = '', watchingHosts: 
   return host.route === 'run' ? `Start ${host.label}` : host.route === 'open' ? `Copy + open ${host.label}` : `Copy for ${host.label}`
 }
 
-export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections, chatServices, onSetUpChat, fixed }: {
+export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers = 0, watchingHosts = [], onChange, disabled, rootPath, onManageConnections, chatServices, onSetUpChat, fixed, children }: {
   hosts: DeliveryHost[]; hostId: string; installedIds: string[]; watchers?: number; watchingHosts?: string[]; onChange: (value: string) => void; disabled: boolean; rootPath: string
   onManageConnections?: () => void
   /** Ambio chat's model services, offered when a conversation can start with one; undefined hides Ambio chat. */
@@ -122,6 +122,8 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   onSetUpChat?: () => void
   /** The agent an open conversation is bound to, shown instead of the picker. */
   fixed?: { label: string; guideId: string }
+  /** Shown joined to the picker's right edge: the model choice. */
+  children?: ReactNode
 }) {
   const [seen, setSeen] = useState(seenGuides)
   const host = hosts.find(item => item.id === hostId)
@@ -137,8 +139,10 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   const missing = hosts.filter(item => item.route === 'run' && !item.available)
   // The picker, the info button's guide and the first-use introduction are
   // one choice: changing any of them changes the destination.
-  const picker = (label: string, id?: string) => fixed
-    ? <p className="ambio-inbox__delivery-fixed" id={id}>{fixed.label}<small>Start a new conversation to use another agent.</small></p>
+  const picker = (label: string, id?: string, compact = false) => fixed
+    ? compact
+      ? <span className="ambio-inbox__delivery-fixed" id={id} title="Start a new conversation to use another agent.">{fixed.label}</span>
+      : <p className="ambio-inbox__delivery-fixed" id={id}>{fixed.label}<small>Start a new conversation to use another agent.</small></p>
     : <select id={id} aria-label={label} value={hostId} disabled={disabled} onChange={event => {
       if (event.target.value === CHAT_DELIVERY) onSetUpChat?.()
       else onChange(event.target.value)
@@ -157,10 +161,10 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   // Each kind of agent works differently, so the first time one is chosen its
   // guide is put in front of the user until they confirm they have read it.
   const introduce = hosts.length > 0 && !!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)
-  return <div className="ambio-inbox__delivery">
-    <div className="ambio-inbox__delivery-heading"><label htmlFor="ambio-delivery-select" className="ambio-inbox__delivery-title">{fixed ? 'Agent' : 'Deliver to'}</label>
-      <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} /></div>
-    {picker('Work-order destination', 'ambio-delivery-select')}
+  // One control in the message box's row: the agent, its model joined to it, and the guide.
+  return <div className="ambio-inbox__agent-picker">
+    <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>{picker('Work-order destination', 'ambio-delivery-select', true)}{children}</div>
+    <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} />
     {introduce && <DestinationIntroduction name={name} guideId={guideId} picker={picker('Agent to read about')} onConfirm={() => setSeen(markGuideSeen(guideId))} />}
   </div>
 }
@@ -238,7 +242,7 @@ function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: s
       <div className="ambio-guide__picker"><span>Agent</span>{picker}</div>
       <DestinationGuideBody guideId={guideId} />
       <footer className="ambio-guide__footer">
-        <p><span className="ambio-guide__info-mark"><InboxIcon name="info" size={14} /></span>To read this again, press the info button next to Deliver to in the agent panel.</p>
+        <p><span className="ambio-guide__info-mark"><InboxIcon name="info" size={14} /></span>To read this again, press the info button next to the agent in the message box.</p>
         <button type="button" className="ambio-guide__confirm" autoFocus onClick={onConfirm}>Got it</button>
       </footer>
     </section>

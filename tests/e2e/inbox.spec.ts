@@ -67,8 +67,8 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
     // Readiness is said for the chosen destination, never as MCP status.
-    await expect(panel.getByRole('region', { name: 'Agent readiness' })).toContainText('Copy its handoff into any agent chat')
-    await expect(panel.getByRole('region', { name: 'Agent readiness' })).not.toContainText('MCP')
+    // Readiness is said only when something needs the user; copying a handoff needs nothing.
+    await expect(panel.getByRole('region', { name: 'Agent readiness' })).toHaveCount(0)
     // One line says where the turn stands; the message box waits with a Stop in place of Send.
     await expect(panel.locator('.ambio-inbox__turn-status')).toContainText('Waiting for an agent.')
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()

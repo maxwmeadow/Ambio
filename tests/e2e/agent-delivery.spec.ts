@@ -74,7 +74,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await destination.selectOption('codex')
     await expect(intro).toHaveAccessibleName('Before you use OpenAI Codex (CLI)')
     await expect(intro).toContainText('Choose Codex and send.')
-    await expect(intro).toContainText('press the info button next to Deliver to')
+    await expect(intro).toContainText('press the info button next to the agent in the message box')
     await page.screenshot({ path: 'test-results/agent-delivery-introduction.png' })
     await confirm()
     await expect(intro).toBeHidden()
@@ -144,5 +144,15 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect(inbox.getByRole('status').filter({ hasText: 'work has not started yet' })).toBeVisible()
     }
     await page.screenshot({ path: 'test-results/agent-delivery.png' })
+    // The panel widens from its left edge, and keeps that width.
+    const before = (await inbox.boundingBox())!
+    const handle = (await inbox.getByRole('separator', { name: 'Resize the agent panel' }).boundingBox())!
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle.x - 200, handle.y + handle.height / 2, { steps: 5 })
+    await page.mouse.up()
+    await expect.poll(async () => Math.round((await inbox.boundingBox())!.width - before.width)).toBeGreaterThan(190)
+    expect(Number(await page.evaluate(() => localStorage.getItem('ambio:inbox-width')))).toBeGreaterThan(before.width + 190)
+    await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-wide.png' })
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })
