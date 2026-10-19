@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AgentHostInfo } from '../../../electron/preload'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../../shared/agentDelivery'
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
@@ -109,6 +109,9 @@ ${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
 
 export type MappingState = 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
 
+/** How much of a run's activity is kept on screen. */
+const LOG_LINES = 500
+
 /** What the mapping agent is doing, live, with a way to stop it. */
 export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; onDismiss: () => void; onState?: (state: MappingState) => void }) {
   const [lines, setLines] = useState<string[]>([])
@@ -116,6 +119,10 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
   const [detail, setDetail] = useState('')
   const [current, setCurrent] = useState<DeliveryRun | null>(null)
   const after = useRef(0)
+  // The whole run can be read back; the view follows new lines unless the user scrolled up.
+  const log = useRef<HTMLOListElement>(null)
+  const following = useRef(true)
+  useLayoutEffect(() => { const el = log.current; if (el && following.current) el.scrollTop = el.scrollHeight }, [lines])
   const drafts = useProposalDrafts(run.workspaceId, 2000)
   useEffect(() => {
     let active = true
@@ -129,7 +136,7 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
           const snapshot: ChatSnapshot = await window.ambio.chatSnapshot(run.conversationId)
           if (!active) return
           const parts = snapshot.messages.filter(message => message.role === 'assistant').flatMap(message => message.parts)
-          setLines(parts.slice(-6).map(part => part.kind === 'tool' ? `${part.tool ?? 'tool'}${part.state ? ` · ${part.state}` : ''}` : part.text.split('\n').find(line => line.trim()) ?? '').filter(Boolean))
+          setLines(parts.map(part => part.kind === 'tool' ? `${part.tool ?? 'tool'}${part.state ? ` · ${part.state}` : ''}` : part.text.trim()).filter(Boolean).slice(-LOG_LINES))
           const status = snapshot.conversation.state
           setState(status === 'working' ? 'working' : status === 'waiting' ? 'waiting' : status === 'interrupted' ? 'stopped' : status === 'failed' ? 'failed' : 'done')
           finished = !['working', 'waiting'].includes(status)
@@ -144,7 +151,7 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
           if (events.length) {
             // The cursor is how many events have been read, not a time.
             after.current += events.length
-            setLines(previous => [...previous, ...events.map(event => event.text.split('\n').find(line => line.trim()) ?? '')].filter(Boolean).slice(-6))
+            setLines(previous => [...previous, ...events.map(event => event.text.trim())].filter(Boolean).slice(-LOG_LINES))
           }
           setState(latest.state === 'running' || latest.state === 'starting' || latest.state === 'stopping' ? 'working'
             : latest.state === 'completed' ? 'done' : latest.state === 'stopped' ? 'stopped' : 'failed')
@@ -176,7 +183,10 @@ export function MappingActivity({ run, onDismiss, onState }: { run: MappingRun; 
           <button type="button" className="ambio-connect__secondary" onClick={() => { rememberMappingRun(null, run.workspaceId); onDismiss() }}>Choose again</button>
         </>}
     </header>
-    {lines.length > 0 && <ol className="ambio-map-with__lines" aria-live="polite">{lines.map((line, index) => <li key={`${index}:${line}`}>{line}</li>)}</ol>}
+    {lines.length > 0 && <ol ref={log} className="ambio-map-with__lines" aria-label="Agent activity" tabIndex={0}
+      onScroll={() => { const el = log.current; if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
+      {lines.map((line, index) => <li key={`${index}:${line}`}>{line}</li>)}
+    </ol>}
     {detail && <p className="ambio-map-with__copy">{detail}</p>}
   </section>
 }

@@ -1021,8 +1021,9 @@
 .ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: ambio-map-pulse 1.4s ease-in-out infinite; }
 .ambio-map-with--activity:is([data-state='failed'], [data-state='stopped']) .ambio-map-with__pulse { background: #cf9275; }
 .ambio-map-with--activity[data-state='waiting'] .ambio-map-with__pulse { background: #d1b56a; }
-.ambio-map-with__lines { display: grid; gap: 3px; margin: 0; padding: 8px 10px; list-style: none; background: #f8f7f2; border: 1px solid #d3dccf; font: 11px/1.45 var(--font-mono, monospace); color: #3d4f47; }
-.ambio-map-with__lines li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-map-with__lines { display: grid; align-content: start; gap: 3px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 8px 10px; list-style: none; background: #f8f7f2; border: 1px solid #d3dccf; font: 11px/1.45 var(--font-mono, monospace); color: #3d4f47; }
+.ambio-map-with__lines li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ambio-map-with__lines:focus-visible { outline: 2px solid #69a799; outline-offset: 1px; }
 @keyframes ambio-map-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .ambio-map-with--activity[data-state='working'] .ambio-map-with__pulse { animation: none; } }
 
