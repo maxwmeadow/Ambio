@@ -367,3 +367,19 @@
 .ambio-inbox__turn-state { margin-left: auto; padding: 0 5px; border: 1px solid #b8c4bc; color: #4f6159; font: 600 8px/1.6 var(--font-mono, monospace); letter-spacing: .06em; text-transform: uppercase; }
 .ambio-inbox__turn-state[data-state='accepted'] { border-color: #8fb2a3; color: #2f6a5d; }
 .ambio-inbox__turn-state + time { margin-left: 6px; }
+/* Agent Markdown beyond paragraphs and lists. */
+.ambio-inbox__prose p { white-space: normal; }
+.ambio-inbox__prose > :last-child { margin-bottom: 0; }
+.ambio-inbox__prose li > p { margin: 0; }
+.ambio-inbox__prose li > ul, .ambio-inbox__prose li > ol { margin: 3px 0 0; }
+.ambio-inbox__prose hr { margin: 12px 0; border: 0; border-top: 1px solid #d3dccf; }
+.ambio-inbox__prose blockquote { margin: 0 0 10px; padding: 2px 10px; border-left: 3px solid #b9c7bd; color: #4f6159; }
+.ambio-inbox__prose a { color: #2f6a5d; text-decoration: underline; text-underline-offset: 2px; }
+.ambio-inbox__prose pre code { padding: 0; background: none; }
+.ambio-inbox__table { margin: 0 0 10px; overflow-x: auto; }
+.ambio-inbox__table table { border-collapse: collapse; font-size: 12px; }
+.ambio-inbox__table :is(th, td) { padding: 4px 8px; border: 1px solid #d3dccf; text-align: left; vertical-align: top; }
+.ambio-inbox__table th { background: #e9ede5; font-weight: 600; }
+.ambio-inbox .ambio-inbox__file-link { display: inline; padding: 0 4px; border: 1px solid #c4d1c7; background: #eef3ee; color: #2f5d50; font: 11px var(--font-mono, monospace); cursor: pointer; overflow-wrap: anywhere; }
+.ambio-inbox .ambio-inbox__file-link:hover { border-color: #6e9183; background: #e2ece4; color: #1f4a40; }
+.ambio-inbox .ambio-inbox__turn-status > p.ambio-inbox__turn-quiet { display: block; color: #7a5b2e; font-size: 11px; }

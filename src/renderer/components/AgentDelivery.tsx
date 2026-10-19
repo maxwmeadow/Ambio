@@ -248,6 +248,14 @@ function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: s
 /** How many of a run's latest events the turn shows while it works. */
 const ACTIVITY_SHOWN = 6
 
+/** A duration as a person says it: "40s", "3 min", "1 h 5 min". */
+function elapsed(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.round(seconds / 60)
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
+}
+
 /** A run that has not ended yet. */
 export const runWorking = (run?: DeliveryRun) => !!run && (run.state === 'starting' || run.state === 'running' || run.state === 'stopping')
 
@@ -261,14 +269,24 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
 }) {
   const label = hosts.find(host => host.id === run.hostId)?.label ?? run.hostId
   const working = runWorking(run)
+  // A clock, so a long turn reads as alive or as stuck instead of as nothing.
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!working) return
+    const timer = setInterval(() => setNow(Date.now()), 10000)
+    return () => clearInterval(timer)
+  }, [working])
+  const lastSign = Math.max(run.startedAt, events.at(-1)?.at ?? 0)
+  const quiet = working ? now - lastSign : 0
   // While it works, the latest of what it does; once it ends, why it ended.
   const shown = working ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
-  const line = working ? `${label} is working${run.resumed ? ', continuing its earlier session' : ''}…`
+  const line = working ? `${label} is working${run.resumed ? ', continuing its earlier session' : ''} · ${elapsed(now - run.startedAt)}`
     : run.state === 'stopped' ? `${label} was stopped.`
       : run.state === 'completed' ? `${label} finished without replying.`
         : `${label} stopped without an answer.`
   return <div className="ambio-inbox__turn-status" data-state={working ? 'working' : 'ended'} role="status">
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
+    {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
       {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}</li>)}
     </ol>}

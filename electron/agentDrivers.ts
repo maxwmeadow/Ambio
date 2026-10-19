@@ -283,52 +283,76 @@ function antigravityRefusal(line: string): DriverOutput {
     ? 'Antigravity CLI did not let the agent use Ambio’s tools: its print mode cannot ask you for permission. Add Ambio to Antigravity again in Settings → Agents (that allows them), or add "mcp(ambio/*)" to permissions.allow in ~/.gemini/antigravity-cli/settings.json, then send again.'
     : `Antigravity CLI stopped the turn: the agent needed the "${needed}" permission, which its print mode cannot ask you for, and it ends the run on a refusal. Send this turn to Antigravity's own chat instead, or allow that action in ~/.gemini/antigravity-cli/settings.json.` }] }
 }
+// Antigravity streams a response as text deltas; each step's text is gathered
+// here and reported whole when the step is done. Keyed by conversation and step.
+const antigravityText = new Map<string, string>()
+
 const antigravityCli: AgentDriver = {
-  // Plain print mode does not say which conversation it was, so there is no
-  // session to continue; the conversation reaches it through get_inbox.
-  resumable: false,
+  // stream-json (agy 1.4) names the conversation, so a later turn continues it.
+  resumable: true,
   plan(turn) {
     return {
-      // Plain print mode: the released CLI (1.0.x) has no --output-format, and
-      // a flag it does not know ends the run before it starts.
+      // stream-json reports each step as it happens; plain print mode said
+      // nothing until the whole turn was over.
       // The folder is named as the workspace: print mode otherwise has none,
       // and the project's .agents/mcp_config.json is never loaded.
       // Its print mode cannot ask, so without this any command ends the turn.
       // Nothing narrower exists: Ask and Propose rely on the turn's contract.
-      args: ['-p', turn.prompt, '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
+      args: ['-p', turn.prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
       // Closed at once: agy reads stdin even when the prompt is an argument.
       stdin: undefined,
     }
   },
   read(line) {
     const message = parse(line)
-    // Print mode writes the agent's answer as text; a build that can emit
-    // JSON events is read as those.
+    // Anything not JSON is said as it is (an older agy's plain answer, or a warning).
     if (!message) {
       if (/required the "[a-z_]+" permission/i.test(line)) return antigravityRefusal(line)
+      if (/flag provided but not defined: -output-format/i.test(line)) return { events: [{ kind: 'error', text: 'This Antigravity CLI is too old to report its progress. Update it (agy update) and send again.' }] }
       return line.trim() ? { events: [{ kind: 'text', text: clip(line, 600) }] } : NOTHING
     }
-    const sessionId = typeof message.conversation_id === 'string' ? message.conversation_id
-      : typeof message.conversationId === 'string' ? message.conversationId : undefined
-    if (message.type === 'result') {
-      const failed = typeof message.status === 'string' && !['SUCCESS', 'RUNNING', 'WAITING'].includes(message.status)
-      return { sessionId, events: failed ? [{ kind: 'error', text: clip(String(message.error ?? `The run ended ${message.status}.`)) }] : [] }
+    // agy 1.4: {"event": name, [name]: payload}; earlier builds put the payload at the top.
+    const event = String(message.event ?? message.type ?? '')
+    const payload = (event && typeof message[event] === 'object' ? message[event] : null) ?? message.step ?? message
+    const sessionId = typeof payload.conversation_id === 'string' ? payload.conversation_id
+      : typeof message.conversation_id === 'string' ? message.conversation_id
+        : typeof payload.conversationId === 'string' ? payload.conversationId : undefined
+    if (event === 'init') return { sessionId, events: [] }
+    if (event === 'result') {
+      const failed = typeof payload.status === 'string' && !['SUCCESS', 'RUNNING', 'WAITING'].includes(payload.status)
+      return { sessionId, events: failed ? [{ kind: 'error', text: clip(String(payload.error ?? `The run ended ${payload.status}.`)) }] : [] }
     }
-    if (message.type !== 'step_update') return { sessionId, events: [] }
-    const step = message.step ?? message
-    const kind = String(step.type ?? step.step_type ?? '')
+    if (event !== 'step_update') return { sessionId, events: [] }
+    const kind = String(payload.step_type ?? payload.type ?? '')
+    const state = String(payload.state ?? payload.status ?? '')
+    // A step is reported once, when it begins (or when nothing says it has a state).
+    const beginning = !state || /^active$|start|pending|running/i.test(state)
     if (kind === 'tool') {
-      const name = step.tool?.name ?? step.name ?? step.tool_name ?? 'tool'
-      // Reported once, when the step begins.
-      if (step.status && !/start|pending|running/i.test(String(step.status))) return { sessionId, events: [] }
-      return { sessionId, events: [{ kind: 'tool', text: [String(name), toolTarget(step.tool?.args ?? step.args ?? step.input)].filter(Boolean).join(' · ') }] }
+      if (!beginning) return { sessionId, events: [] }
+      const name = payload.tool_name ?? payload.tool_info?.name ?? payload.tool?.name ?? payload.name ?? 'tool'
+      const parameters = payload.tool_info?.parameters ?? payload.tool?.args ?? payload.args ?? payload.input
+      const command = typeof parameters?.CommandLine === 'string' ? clip(parameters.CommandLine, 120) : ''
+      return { sessionId, events: [{ kind: 'tool', text: [String(name), command || toolTarget(parameters)].filter(Boolean).join(' · ') }] }
     }
-    // Whole responses only; the deltas that build one up are not events.
-    const text = kind === 'agent_response' && !step.delta ? step.text ?? step.content ?? '' : ''
-    return { sessionId, events: typeof text === 'string' && text.trim() ? [{ kind: 'text', text: clip(text, 1200) }] : [] }
+    if (kind === 'agent_response') {
+      const key = `${sessionId}:${payload.step_index}`
+      if (typeof payload.text_delta === 'string') antigravityText.set(key, (antigravityText.get(key) ?? '') + payload.text_delta)
+      // Earlier builds sent the whole text at once; their deltas are not events.
+      const whole = typeof payload.text === 'string' && !payload.delta ? payload.text : ''
+      if (!/^done$/i.test(state) && !whole) return { sessionId, events: [] }
+      const text = whole || antigravityText.get(key) || ''
+      antigravityText.delete(key)
+      return { sessionId, events: text.trim() ? [{ kind: 'text', text: clip(text, 1200) }] : [] }
+    }
+    // Other steps (waiting on a background task, a subagent, a search) are said by their kind.
+    if (kind && kind !== 'user_input' && beginning && state) return { sessionId, events: [{ kind: 'tool', text: kind.replace(/_/g, ' ') }] }
+    return { sessionId, events: [] }
   },
   readError(line) {
-    return antigravityRefusal(line)
+    const refusal = antigravityRefusal(line)
+    if (refusal.events.length) return refusal
+    // Its own word on a long wait ("waiting up to 30m0s for 1 background task"), a retry or a limit.
+    return /waiting|idle|retry|rate.?limit|quota|timed? ?out/i.test(line) ? { events: [{ kind: 'tool', text: clip(line, 300) }] } : NOTHING
   },
 }
 

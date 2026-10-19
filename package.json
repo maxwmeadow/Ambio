@@ -44,6 +44,8 @@
     "electron-updater": "^6.2.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "react-markdown": "^9.1.0",
+    "remark-gfm": "^4.0.1",
     "shiki": "^4.3.1",
     "simple-icons": "^16.25.0",
     "zustand": "^5.0.14"
@@ -92,7 +94,10 @@
         "zip"
       ],
       "extraResources": [
-        { "from": "resources/branding", "to": "branding" },
+        {
+          "from": "resources/branding",
+          "to": "branding"
+        },
         {
           "from": "archd-go/archd",
           "to": "archd"
@@ -138,7 +143,10 @@
         "zip"
       ],
       "extraResources": [
-        { "from": "resources/branding", "to": "branding" },
+        {
+          "from": "resources/branding",
+          "to": "branding"
+        },
         {
           "from": "archd-go/archd.exe",
           "to": "archd.exe"
@@ -171,7 +179,10 @@
         "AppImage"
       ],
       "extraResources": [
-        { "from": "resources/branding", "to": "branding" },
+        {
+          "from": "resources/branding",
+          "to": "branding"
+        },
         {
           "from": "archd-go/archd",
           "to": "archd"

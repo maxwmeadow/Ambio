@@ -2919,3 +2919,37 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
   await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })
+
+test('an agent reply reads as formatted Markdown, with project files as chips', async () => {
+  const { root, file } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { root: state.currentProject.rootPath as string, file: state.files[0].relPath.replace(/\\/g, '/') as string }
+  })
+  const href = `file:///${root.replace(/\\/g, '/')}/${file}#L5-L9`
+  // What agents wrote: a "\b" decoded into a backspace, a one-backtick fence,
+  // file links, an inline project path, emphasis, a rule and a table.
+  const body = [
+    '## Analysis', '', `It re-exports \u0008uild_query. *Only* the **facade** changes.`, '',
+    '`python', 'from .query_builder import build_query', '`', '',
+    `- Consumer: [${file}](${href})`, `- Also see \`${file}\``, '', '---', '',
+    '| Symbol | Breaks |', '| --- | --- |', '| build_query | executor |',
+  ].join('\n')
+  const reply = { id: 'md-1', workspaceId: 'demo', sheetId: null, note: 'What depends on this?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'md-1', createdAt: 50, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'antigravity', body, createdAt: 51 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose')
+  await expect(prose.locator('h4')).toHaveText('Analysis')
+  await expect(prose).toContainText('It re-exports build_query.')
+  await expect(prose).not.toContainText('\u0008')
+  await expect(prose.locator('em')).toHaveText('Only')
+  await expect(prose.locator('strong')).toHaveText('facade')
+  await expect(prose.locator('.ambio-inbox__code')).toContainText('from .query_builder import build_query')
+  await expect(prose.locator('.ambio-inbox__code')).toContainText('python')
+  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText([`${file}:5–9`, file])
+  await expect(prose).not.toContainText('file:///')
+  await expect(prose.locator('hr')).toHaveCount(1)
+  await expect(prose.locator('table td')).toHaveText(['build_query', 'executor'])
+  await page.screenshot({ path: 'test-results/agent-markdown.png' })
+  await page.unroute(/\/api\/canvas\/history\?/)
+})
