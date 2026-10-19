@@ -1106,9 +1106,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           body: JSON.stringify({ workspaceId: project.workspaceId }),
         })
         if (!response.ok) throw new Error(`Could not commit proposal session: ${await response.text()}`)
-        const proposal = await response.json() as { id: string; round?: { systems?: unknown[] } }
+        const proposal = await response.json() as { id: string; round?: { systems?: unknown[]; droppedSystems?: string[] } }
         await postAgentActivity(project.workspaceId, `Architecture proposal ready for review: ${proposal.round?.systems?.length ?? 0} systems`, 'success')
-        result = { status: 'proposed', sessionId: args.sessionId, proposalId: proposal.id, systems: proposal.round?.systems?.length ?? 0 }
+        const dropped = proposal.round?.droppedSystems ?? []
+        result = {
+          status: 'proposed', sessionId: args.sessionId, proposalId: proposal.id, systems: proposal.round?.systems?.length ?? 0,
+          // Systems whose files Ambio does not index (JSON, SQL, docs) are left out rather than shown empty.
+          ...(dropped.length ? { droppedSystems: dropped, note: `${dropped.length} system(s) owned no file Ambio indexes and were left out: ${dropped.join(', ')}.` } : {}),
+        }
         break
       }
 

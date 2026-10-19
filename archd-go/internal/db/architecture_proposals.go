@@ -40,6 +40,9 @@ type ArchitectureProposalRound struct {
 	Systems         []ArchitectureProposalSystem     `json:"systems"`
 	Memberships     []ArchitectureProposalMembership `json:"memberships"`
 	Layouts         []ArchitectureProposalLayout     `json:"layouts"`
+	// DroppedSystems names the systems left out when the round was stored
+	// because nothing in them owned a file. Reported once, not persisted.
+	DroppedSystems []string `json:"droppedSystems,omitempty"`
 }
 
 type ArchitectureProposalSystem struct {
@@ -221,6 +224,47 @@ func CreateArchitectureProposal(database *sql.DB, proposal ArchitectureProposal)
 		return nil, err
 	}
 	return &proposal, nil
+}
+
+// dropEmptySystems leaves out every proposed system that owns no file, directly
+// or through a subsystem. An agent that groups files Ambio does not index
+// (JSON, SQL, documentation) has those files skipped, and the system it made
+// for them would otherwise reach review as an empty box with nothing to
+// approve. A container stays whenever anything beneath it has a file.
+func dropEmptySystems(round *ArchitectureProposalRound) error {
+	owns := make(map[string]bool, len(round.Systems))
+	for _, membership := range round.Memberships {
+		if membership.Disposition == "assign" || membership.Disposition == "retain" {
+			owns[membership.TargetSystemKey] = true
+		}
+	}
+	parent := make(map[string]string, len(round.Systems))
+	for _, system := range round.Systems {
+		if system.ParentRefType == "proposed_system" {
+			parent[system.SystemKey] = system.ParentRefID
+		}
+	}
+	// Each system that owns a file keeps itself and every system above it.
+	keep := make(map[string]bool, len(round.Systems))
+	for key := range owns {
+		for current, seen := key, 0; current != "" && !keep[current] && seen <= len(round.Systems); current, seen = parent[current], seen+1 {
+			keep[current] = true
+		}
+	}
+	kept := round.Systems[:0:0]
+	round.DroppedSystems = nil
+	for _, system := range round.Systems {
+		if keep[system.SystemKey] {
+			kept = append(kept, system)
+		} else {
+			round.DroppedSystems = append(round.DroppedSystems, system.Name)
+		}
+	}
+	if len(kept) == 0 && len(round.Systems) > 0 {
+		return fmt.Errorf("no proposed system owns a file Ambio indexes; assign indexed source files to the systems")
+	}
+	round.Systems = kept
+	return nil
 }
 
 func insertProposalRound(tx *sql.Tx, proposalID string, round *ArchitectureProposalRound) error {

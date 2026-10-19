@@ -342,6 +342,11 @@ func CommitArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (
 	if len(round.Memberships) > 0 {
 		round.Coverage = "complete"
 	}
+	// A system made only of files Ambio does not index had them skipped as
+	// each chunk was saved; it is left out rather than shown empty in review.
+	if err := dropEmptySystems(&round); err != nil {
+		return nil, err
+	}
 	// A proposal id derived from the draft makes commit retryable if the daemon
 	// exits after creating the proposal but before updating the draft status.
 	proposal, err := CreateArchitectureProposal(database, ArchitectureProposal{ID: id, WorkspaceID: workspaceID, ParentScopeType: "workspace", CreatedBy: "agent", Round: round})

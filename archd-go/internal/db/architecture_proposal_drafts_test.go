@@ -171,3 +171,47 @@ func TestArchitectureProposalDraftChunkSkipsUnplaceableFiles(t *testing.T) {
 		t.Fatalf("second chunk files = %#v", files)
 	}
 }
+
+func TestArchitectureProposalDraftLeavesOutSystemsWithNoIndexedFiles(t *testing.T) {
+	database, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := UpsertWorkspace(database, Workspace{ID: "ws", Name: "draft test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpsertRoot(database, Root{ID: "root", WorkspaceID: "ws", Path: t.TempDir(), IsPrimary: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpsertFile(database, File{ID: "api.go", RootID: "root", Path: "api.go", RelPath: "api.go", Language: "go"}); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := BeginArchitectureProposalDraft(database, "ws", "API and its config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// "Config" is made only of a file Ambio does not index; "Server" holds a
+	// subsystem with a file, so it stays although it owns none itself.
+	if _, err := AddArchitectureProposalDraftChunk(database, draft.ID, "ws", "part-1", []DraftSystem{
+		{SystemKey: "server", Name: "Server"},
+		{SystemKey: "api", Name: "API", ParentKey: "server", Files: []string{"api.go"}},
+		{SystemKey: "config", Name: "Config", ParentKey: "server", Files: []string{"settings.json"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	proposal, err := CommitArchitectureProposalDraft(database, draft.ID, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	for _, system := range proposal.Round.Systems {
+		kept = append(kept, system.SystemKey)
+	}
+	if strings.Join(kept, ",") != "server,api" {
+		t.Fatalf("kept systems = %v, want server and api", kept)
+	}
+	if strings.Join(proposal.Round.DroppedSystems, ",") != "Config" {
+		t.Fatalf("dropped systems = %v, want Config", proposal.Round.DroppedSystems)
+	}
+}
