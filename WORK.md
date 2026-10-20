@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `canvas-performance-kohler` **Audit and improve Floor/sheet zoom, selection and navigation performance.** Profile isolated Kohler and larger fixtures; remove avoidable camera/render work and document remaining depth limits. **Done when:** measured before/after evidence, interaction regressions and relevant checks pass. (🚧 Codex, codex/canvas-performance, 2026-10-19)
+
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
