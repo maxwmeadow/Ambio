@@ -40,9 +40,9 @@ test('shortcuts are written the way each platform writes them', () => {
 
 test('macOS keeps app items in the app menu; other platforms use File and Help', () => {
   const mac = buildMenu('darwin').map(section => section.id)
-  assert.deepEqual(mac, ['app', 'file', 'edit', 'view', 'go', 'map', 'agent', 'window', 'help'])
+  assert.deepEqual(mac, ['app', 'file', 'edit', 'view', 'go', 'map', 'tools', 'agent', 'window', 'help'])
   const windows = buildMenu('win32')
-  assert.deepEqual(windows.map(section => section.id), ['file', 'edit', 'view', 'go', 'map', 'agent', 'help'])
+  assert.deepEqual(windows.map(section => section.id), ['file', 'edit', 'view', 'go', 'map', 'tools', 'agent', 'help'])
   const help = windows.find(section => section.id === 'help').entries
   assert.ok(help.some(entry => entry.kind === 'command' && entry.id === 'app.about'))
   const developer = buildMenu('linux', { developer: true }).find(section => section.id === 'view').entries

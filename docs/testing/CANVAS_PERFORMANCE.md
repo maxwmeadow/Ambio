@@ -1,4 +1,149 @@
-# Canvas performance audit — 2026-10-13
+# Canvas performance audits
+
+## Kohler follow-up — 2026-10-20
+
+Branch: `codex/canvas-performance`. Production Electron 31 renderer, native
+Windows, 1400 × 900 viewport. Read-only SQLite access captured Kohler's current
+81-system / 143-file inventory and 218 saved layout rows into temporary fixtures.
+Indexed documentation/unplaced files are filtered by the ordinary canvas path.
+The live database, project and sheet were never edited. The Ambio MCP connector
+was unavailable (first no running app, then missing-token errors), so its
+investigation recorder could not be used; the existing isolated Electron harness
+and CDP CPU profiles supplied runtime evidence instead.
+
+### Largest contributors
+
+1. **Lost sheet measurements defeat viewport culling.** Sheet projection created
+   controlled nodes without carrying React Flow's `measured` field forward;
+   dimension notifications were discarded outside a resize. React Flow's
+   `parseHandles` clears `handleBounds` on such a node, and `getNodesInside`
+   force-includes uninitialized nodes even outside the viewport. Every subsequent
+   sheet update therefore mounted off-screen subtrees again. An instrumented
+   pre-fix workload mounted 10,832 wrappers, with some nodes mounted 112 times.
+   Retaining dimensions in a separate presentation map brought this to about
+   310 mounts (at most four for any node over two in/out cycles). They never
+   enter persisted layout or freeze a drag snapshot.
+2. **Sheet layout and object churn.** `composedNodes` depended on `rfNodes` and
+   selection, rerunning frame layout, virtual model construction, symbol metadata
+   generation and callback creation. Sheet geometry/callbacks are now cached
+   independently. Presentation merges retain untouched node/data identities and
+   measured dimensions. Camera movement only updates visibility; layout edits
+   still rebuild geometry. Structural E2E checks forbid layout builds from a
+   settled wheel/selection update.
+3. **Whole-scene selection replacement.** `stampSelection` cloned every object,
+   even for a repeated selection. It now changes only nodes whose selected bit
+   changes and returns the same array for a no-op. This affects canvas clicks,
+   search and reply chips as well as sheets.
+4. **Semantic zoom repeated structural work.** Every easing frame sorted by
+   depth and built ancestry/id maps, even between reveal thresholds. A weak
+   cache carries the parent-first order and sorted geometry/detail thresholds
+   across visibility-only results. Between thresholds it performs a binary
+   search and returns the input; immutable geometry/measurement edits invalidate
+   it. Thresholds, ordering, pointer anchoring and easing remain unchanged.
+5. **Navigation races and diagnostic reads.** Search assumed a card would be
+   measured after 50 ms; multiple chip requests could queue older delayed fits,
+   and a wheel loop could continue during a flight. Search and chips now share
+   a measurement-aware, latest-pending-request route that cancels wheel easing
+   and scheduled growth fits on its canvas. Cursor hit testing/style reads on
+   every pointer move and accidentally enabled bin drag tracing are opt-in.
+6. **Large sheets could miss culling altogether.** The culling threshold used
+   the underlying Floor's size, excluding planned nodes. It now counts the
+   composed scene. A regression covers 180 planned systems over a small Floor.
+
+### Evidence and remaining limits
+
+The reproducible workload sends 96 wheel steps, alternating every 24, followed
+by a one-second settle. It records rAF intervals, long tasks, CDP script/layout/
+style/task duration, node mounts and canvas/layout counters. Input delivery is
+main-thread paced, so a slow run takes longer; cumulative durations are workload
+totals, not frame costs. CPU profiles confirm React DOM/style work, mounting,
+removal and symbol fetches in the slow sheet case. Frame timings vary with host
+load; structural mount/identity checks are the stronger causal evidence.
+
+The baseline sheet was an empty overlay over the real map, which isolates the
+sheet path from proposal content. An additional fixture uses the actual sheet's
+five elements, two planned relationships and one removal. The proposal case is
+a generated review from the same system/file inventory, not a live proposal.
+
+| Workload / metric | Before | Final, two repeated runs |
+| --- | ---: | ---: |
+| Kohler Floor p95 zoom frame | 58.3 ms | 33.3 / 33.3 ms |
+| Kohler empty sheet p95 zoom frame | 208.5 ms | 33.3 / 49.9 ms |
+| Sheet main-thread task time | 22.83 s | 6.47 / 8.52 s |
+| Sheet script time | 12.21 s | 2.33 / 3.01 s |
+| Sheet style recalculation | 4.10 s | 0.44 / 0.51 s |
+| Sheet long tasks | 115 | 2 / 4 |
+| Sheet mounts, instrumented before measurement fix | 10,832 | 308 / 310 |
+
+The actual Kohler sheet measured p95 33.4 ms, four long tasks and 305 mounts.
+Final proposal-review p95 was 41.7 / 66.6 ms versus 33.3 ms in the first baseline;
+this pass does **not** establish a proposal-review timing improvement. Review
+was already bypassing sheet composition, and its mounting/painting limit remains.
+Earlier intermediate Floor runs reached 16.7 ms, but the repeated final results
+above are the appropriate ones to report. Even the improved ordinary sheet had
+125–158 ms maximum intervals: this is materially better, not an always-smooth
+guarantee. The roughly 97% mount reduction is more robust than an FPS claim.
+
+A separate, dense synthetic scene used 96 systems with six files each (672
+nodes). Proposal review mounted about 26,866 document elements and measured
+83.3 ms p95 with 54 long tasks. The semantically collapsed Floor/sheet had
+16.7 / 16.6 ms p95, but their worst reveal intervals were **1,658 / 683 ms**.
+Those cold mass-mount stalls are not solved by this pass and would be hidden
+by reporting p95 alone. A duplicated-map experiment placed the camera in sparse
+space and was rejected as evidence of dense-scene scalability.
+
+### Before exposing arbitrary depths
+
+The remaining cost is concentrated at reveal/viewport boundaries: React Flow
+still mounts whole rich node subtrees synchronously. File cards construct both
+compact and opacity-hidden detailed chrome; revealed symbol lists render every
+row. Empty symbol responses deliberately aren't cached (to allow indexing to
+catch up), so repeatedly mounting symbol-less cards can also repeat requests.
+Large proposal reviews keep every semantic level exposed, making this the
+closest current stress case for arbitrary-depth visibility. Culling helps, but
+many small nodes can still fit inside one screen and produce a huge DOM.
+
+The next work is buffered mounting and lighter detail representations, with
+bounded/virtualized symbol rows and measurable limits on mounted detail. Depth
+options should change visibility over the same stable scene and retain both
+measurements and identities. Keep viewport culling independent of the visibility
+policy. Re-run dense, multi-level fixtures, cold navigation and repeated
+threshold crossings; track longest stalls as well as p95 against 16.7 ms at
+60 Hz (8.3 ms at 120 Hz). The current implementation is not ready to promise
+unlimited fully detailed exposure at any depth.
+
+### Validation
+
+- Production build and `npx tsc --noEmit` passed.
+- Full unit suite: 669 passed, one skipped.
+- 23 canvas/performance interaction checks passed, followed by a focused final
+  12-case pass including the new planned-sheet culling regression and approved
+  Floor screenshot. Coverage includes search, reply chips, selection, sheet
+  edits/layering/removals, resizing, dragging, 100× zoom, and live scene updates.
+- Six repeated real-snapshot profiles, the actual sheet profile, and all three
+  dense synthetic profiles passed their structural checks. Timing limits are
+  intentionally observational rather than machine-dependent CI assertions.
+- The production bundle used for these profiles precedes concurrent chat/inbox
+  edits in this checkout; those changes are excluded from this performance
+  commit and from its claims. No daemon/MCP implementation was changed here.
+
+### Reproduce locally
+
+Build first. Ordinary deterministic regressions need no real project:
+
+```powershell
+npm run build
+npx playwright test tests/e2e/canvas-performance.spec.ts
+```
+
+For timings, use `AMBIO_PERF_PROFILE=1`; optionally set `AMBIO_PERF_SNAPSHOT` to
+a local CanvasSnapshot JSON, `AMBIO_PERF_SHEET` to a sheet API payload, and
+`AMBIO_PERF_SYSTEM_COUNT=96` (without a snapshot) for a 672-node synthetic scene.
+No fixture is uploaded or committed. `AMBIO_PERF_CPU=1` saves CDP profiles under
+ignored `out/`. Run without
+other builds/tests competing for the main thread and repeat comparisons.
+
+## Original audit — 2026-10-13
 
 The Floor and proposed architecture share `AmbioCanvas`. This audit used the
 current Kohler snapshot and its 62-system, 127-file proposal, copied into isolated

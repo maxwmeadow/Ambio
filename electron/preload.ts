@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('ambio', {
   saveChatProvider: (input: ChatProviderInput): Promise<ChatProvider> => ipcRenderer.invoke('chat:provider-save', input),
   testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
   removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
+  deleteChat: (id: string): Promise<void> => ipcRenderer.invoke('chat:delete', id),
   chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
   createChat: (workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model),
   chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
@@ -190,8 +191,13 @@ contextBridge.exposeInMainWorld('ambio', {
   whatsNew: (): Promise<{ version: string; notes: string } | null> => ipcRenderer.invoke('app:whats-new'),
   clearAllData: (): Promise<boolean> => ipcRenderer.invoke('app:clear-all-data'),
   /** A system notification (if the setting allows); clicking it brings Ambio forward. */
-  notify: (notice: { title: string; body: string; tag: string }): Promise<boolean> => ipcRenderer.invoke('app:notify', notice),
+  notify: (notice: { title: string; body: string; tag: string; workspaceId?: string; threadId?: string }): Promise<boolean> => ipcRenderer.invoke('app:notify', notice),
 
+  onOpenConversation: (callback: (target: { workspaceId: string; threadId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, target: { workspaceId: string; threadId: string }) => callback(target)
+    ipcRenderer.on('app:open-conversation', handler)
+    return () => ipcRenderer.removeListener('app:open-conversation', handler)
+  },
   // Menus and commands
   setMenuState: (state: { projectOpen: boolean }): Promise<void> => ipcRenderer.invoke('menu:state', state),
   runMenuRole: (role: SystemRole): Promise<void> => ipcRenderer.invoke('menu:role', role),
@@ -328,6 +334,7 @@ declare global {
       saveChatProvider: (input: ChatProviderInput) => Promise<ChatProvider>
       testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
       removeChatProvider: (id: string) => Promise<void>
+      deleteChat: (id: string) => Promise<void>
       chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
       createChat: (workspaceId: string, providerId: string, model?: string) => Promise<ChatConversation>
       chatSnapshot: (id: string) => Promise<ChatSnapshot>
@@ -407,10 +414,11 @@ declare global {
       takeWhatsNew: () => Promise<{ version: string; notes: string } | null>
       whatsNew: () => Promise<{ version: string; notes: string } | null>
       clearAllData: () => Promise<boolean>
-      notify: (notice: { title: string; body: string; tag: string }) => Promise<boolean>
+      notify: (notice: { title: string; body: string; tag: string; workspaceId?: string; threadId?: string }) => Promise<boolean>
       setMenuState: (state: { projectOpen: boolean }) => Promise<void>
       runMenuRole: (role: SystemRole) => Promise<void>
       developerMenuEnabled: () => Promise<boolean>
+      onOpenConversation: (callback: (target: { workspaceId: string; threadId: string }) => void) => () => void
       onMenuCommand: (callback: (id: CommandId) => void) => () => void
       zoom: (action: 'in' | 'out' | 'reset') => Promise<number>
       toggleFullScreen: () => Promise<void>

@@ -7,8 +7,8 @@ import {
   apiListInvestigations,
   type InvestigationMeta,
 } from '../canvas/arcdApi'
-import { ChromeButton } from './ui/ChromeButton'
 import { archdApi } from '../archdEndpoint.ts'
+import { useCommandHandlers } from '../app/commands'
 
 const MENU_WIDTH = 360
 
@@ -39,24 +39,21 @@ function captureDate(createdAt: number): string {
 
 export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
   const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLElement>(null)
   const [items, setItems] = useState<InvestigationMeta[]>([])
   const [loading, setLoading] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const [readiness, setReadiness] = useState<LanguageReadiness[]>([])
-  const anchorRef = useRef<HTMLDivElement>(null)
-  const replay = useGraphStore(state => state.replay)
   const startReplay = useGraphStore(state => state.startReplay)
 
   const updatePosition = useCallback(() => {
-    const bounds = anchorRef.current?.getBoundingClientRect()
-    if (!bounds) return
     const left = Math.max(
       VIEWPORT_GUTTER,
-      Math.min(bounds.left, window.innerWidth - MENU_WIDTH - VIEWPORT_GUTTER),
+      (window.innerWidth - MENU_WIDTH) / 2,
     )
-    setPosition({ left, top: bounds.bottom + 5 })
+    setPosition({ left, top: 88 })
   }, [])
 
   const load = useCallback(async () => {
@@ -88,6 +85,7 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
     setOpen(true)
     void load()
   }
+  useCommandHandlers({ 'investigation.browse': toggle })
 
   const remove = async (id: string) => {
     setError(null)
@@ -114,6 +112,7 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
 
   useLayoutEffect(() => {
     if (!open) return
+    menuRef.current?.focus()
     updatePosition()
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
@@ -139,25 +138,13 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId])
 
   return (
-    <div className="ambio-investigations-anchor" ref={anchorRef}>
-      <ChromeButton
-        onClick={toggle}
-        label="Investigations"
-        active={open || !!replay}
-        ariaControls="ambio-investigations-menu"
-        ariaExpanded={open}
-        ariaHasPopup="menu"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="9"/>
-          <polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none"/>
-        </svg>
-      </ChromeButton>
-
+    <>
       {open && createPortal(
         <>
           <div className="ambio-investigations-scrim" onPointerDown={() => setOpen(false)} />
           <section
+            ref={menuRef}
+            tabIndex={-1}
             className="ambio-investigations-menu"
             id="ambio-investigations-menu"
             role="menu"
@@ -182,8 +169,7 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
                 <div className="ambio-investigations-menu__empty">
                   <strong>No captures yet</strong>
                   <span>
-                    Ask your agent to find the cause of a bug. Its investigation is
-                    recorded here, ready to replay step by step.
+                    Start a recording from Tools, or ask your agent to investigate a problem. Saved recordings appear here.
                   </span>
                 </div>
               )}
@@ -263,6 +249,6 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
         </>,
         document.body,
       )}
-    </div>
+    </>
   )
 }

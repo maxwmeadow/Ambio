@@ -1,3 +1,4 @@
+import { turnRequest } from '../components/inboxModel.ts'
 import type { CanvasMessage } from './sheetStore'
 
 /**
@@ -15,9 +16,10 @@ export interface WorkOrderNotice {
 
 const BODY_LIMIT = 160
 
-function orderName(message: CanvasMessage): string {
+function orderName(message: CanvasMessage, title?: string): string {
+  if (title) return `“${title.slice(0, 90)}”`
   if (message.sentSheetName) return `“${message.sentSheetName}”`
-  const firstLine = message.note.split('\n').find(line => line.trim())?.trim() ?? ''
+  const firstLine = turnRequest(message).text.split('\n').find(line => line.trim())?.trim() ?? ''
   if (!firstLine) return 'your work order'
   return `“${firstLine.length > 60 ? `${firstLine.slice(0, 59)}…` : firstLine}”`
 }
@@ -26,19 +28,19 @@ function agentName(message: CanvasMessage): string {
   return message.reply?.agent || message.agent || message.deliveredTo || 'An agent'
 }
 
-export function workOrderNotice(previous: CanvasMessage | undefined, next: CanvasMessage): WorkOrderNotice | null {
+export function workOrderNotice(previous: CanvasMessage | undefined, next: CanvasMessage, title?: string): WorkOrderNotice | null {
   const tag = `work-order:${next.id}`
   if (next.status === 'answered' && next.reply) {
     if (previous?.status === 'answered' && previous.reply?.createdAt === next.reply.createdAt) return null
     const firstLine = next.reply.body.split('\n').find(line => line.trim())?.trim() ?? ''
     return {
-      title: `${agentName(next)} replied to ${orderName(next)}`,
+      title: `${agentName(next)} replied to ${orderName(next, title)}`,
       body: firstLine.length > BODY_LIMIT ? `${firstLine.slice(0, BODY_LIMIT - 1)}…` : (firstLine || 'Open Ambio to review it.'),
       tag,
     }
   }
   if (next.status === 'delivered' && previous?.status !== 'delivered') {
-    return { title: `${agentName(next)} picked up ${orderName(next)}`, body: 'You will be told when it replies.', tag }
+    return { title: `${agentName(next)} picked up ${orderName(next, title)}`, body: 'You will be told when it replies.', tag }
   }
   return null
 }

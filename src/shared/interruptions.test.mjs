@@ -33,6 +33,14 @@ test('within one kind the oldest is shown first so a backlog drains in order', (
   assert.deepEqual(ranked.map(i => i.id), ['first', 'second', 'third'])
 })
 
+test('background progress yields to decisions, failures and invitations', () => {
+  assert.deepEqual(rankInterruptions([
+    at('reading', 'progress', 0), at('saved', 'notice', 1), at('review', 'invitation', 2),
+    at('offline', 'failure', 3), at('permission', 'decision', 4),
+  ], 0).map(item => item.id), ['permission', 'offline', 'review', 'reading', 'saved'])
+  assert.equal(isDismissible(at('reading', 'progress', 0, { dismissible: false })), false)
+})
+
 test('identical timestamps still order stably instead of flickering', () => {
   const items = [at('b', 'failure', 5), at('a', 'failure', 5)]
   assert.deepEqual(rankInterruptions(items, 0).map(i => i.id), ['a', 'b'])

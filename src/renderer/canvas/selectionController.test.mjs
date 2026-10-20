@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+
+test('selection preserves every unaffected node and a repeated selection preserves the array', () => {
+  const nodes = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  const selected = stampSelection(nodes, new Set(['b']))
+  assert.equal(selected[0], nodes[0])
+  assert.notEqual(selected[1], nodes[1])
+  assert.equal(selected[2], nodes[2])
+  assert.equal(stampSelection(selected, new Set(['b'])), selected)
+})
 import {
   emptySelection,
   isAdditiveEvent,

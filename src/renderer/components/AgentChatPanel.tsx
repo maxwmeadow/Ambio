@@ -6,6 +6,7 @@ import { WorkOrderReview } from './WorkOrderReview'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { useSheetStore, type CanvasMessage } from '../store/sheetStore'
 import { inboxStatus, requestText, WORK_ORDER_MODES, workOrderNote } from './inboxModel'
+import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
 import '../styles/agentChat.css'
 
 /**
@@ -32,7 +33,9 @@ export function useAgentChat(workspaceId: string, isOpen: boolean, activeId: str
   const [snapshot, setSnapshot] = useState<ChatSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const generation = useRef(0)
   const lock = useRef(false)
+  const lastStates = useRef(new Map<string, string>())
   const pendingKey = `ambio:chat-order:${workspaceId}`
   // A Build turn's work order keeps its id across retries, so a lost
   // acknowledgement never creates a second one.
@@ -43,12 +46,23 @@ export function useAgentChat(workspaceId: string, isOpen: boolean, activeId: str
   const fail = (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure))
   const reload = useCallback(async () => {
     if (!workspaceId || !window.ambio?.chatProviders) return
+    const request = ++generation.current
     try {
       const [services, threads] = await Promise.all([window.ambio.chatProviders(), window.ambio.chatConversations(workspaceId)])
+      if (generation.current !== request) return
+      for (const thread of threads) {
+        const previous = lastStates.current.get(thread.id)
+        if (previous && ['working', 'waiting'].includes(previous) && thread.state === 'idle' && !thread.workOrderId && !document.hasFocus()) void window.ambio.notify({ title: `New reply: ${useConversationPreferences.getState().items[conversationKey(workspaceId, thread.id)]?.title || thread.title}`, body: 'Open the conversation to read it.', tag: `chat:${thread.id}`, workspaceId, threadId: thread.id })
+        lastStates.current.set(thread.id, thread.state)
+      }
       setProviders(services); setConversations(threads)
     } catch (failure) { fail(failure) }
   }, [workspaceId])
-  useEffect(() => { if (isOpen) void reload() }, [isOpen, reload])
+  useEffect(() => {
+    void reload()
+    const timer = setInterval(() => { void reload() }, 3000)
+    return () => clearInterval(timer)
+  }, [reload])
   useEffect(() => {
     const changed = () => { void reload() }
     window.addEventListener(CHAT_PROVIDERS_CHANGED, changed)
@@ -133,7 +147,13 @@ export function useAgentChat(workspaceId: string, isOpen: boolean, activeId: str
   })
   const approve = (requestId: string, allow: boolean) => activeId && act(() => window.ambio.approveChat(activeId, requestId, allow))
   const answered = () => { if (activeId) void window.ambio.chatSnapshot(activeId).then(setSnapshot, fail) }
-  return { providers, conversations, snapshot, busy, error, setError, running, send, stop, approve, answered, fail }
+  const remove = async (id: string) => {
+    generation.current++
+    await window.ambio.deleteChat(id)
+    setConversations(items => items.filter(item => item.id !== id))
+    if (activeId === id) setSnapshot(null)
+  }
+  return { providers, conversations, remove, snapshot, busy, error, setError, running, send, stop, approve, answered, fail }
 }
 
 export type AgentChatState = ReturnType<typeof useAgentChat>

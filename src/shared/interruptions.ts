@@ -19,15 +19,17 @@
  * · decision   - work is blocked until the user answers. An agent is waiting.
  * · failure    - something broke. The user must know; nothing is waiting on them.
  * · invitation - an offer to act, valuable but never urgent.
+ * · progress   - ongoing work, only when it needs a visible status or action.
  * · notice     - confirmation of something that already succeeded.
  */
-export type InterruptionKind = 'decision' | 'failure' | 'invitation' | 'notice'
+export type InterruptionKind = 'decision' | 'failure' | 'invitation' | 'progress' | 'notice'
 
 const KIND_RANK: Record<InterruptionKind, number> = {
   decision: 0,
   failure: 1,
   invitation: 2,
-  notice: 3,
+  progress: 3,
+  notice: 4,
 }
 
 export interface InterruptionAction {
@@ -47,6 +49,7 @@ export interface Interruption {
   kind: InterruptionKind
   title: string
   body?: string
+  progress?: { value: number; max: number }
   createdAt: number
   actions?: InterruptionAction[]
   /**
@@ -65,7 +68,7 @@ export interface Interruption {
    *
    * Without it, dismissing only removes the entry from the queue - which is
    * wrong for anything whose "not now" has to be remembered. The delta needs
-   * to record that it was set aside so the status bar can offer it back, and
+   * to record that it was set aside so Review Changes can offer it back, and
    * so it does not immediately reappear on the next file change. Raisers that
    * need nothing beyond removal simply omit this.
    */

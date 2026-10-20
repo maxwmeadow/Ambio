@@ -3,6 +3,7 @@
 export interface AmbioPerfMetrics {
   canvasRenderCount: number
   zoomVisibilityPasses: number
+  sheetLayoutBuilds: number
   resizerMounts: number
   resizerRenderCount: number
   symbolFetches: number
@@ -13,6 +14,7 @@ export interface AmbioPerfMetrics {
 const metrics: AmbioPerfMetrics = {
   canvasRenderCount: 0,
   zoomVisibilityPasses: 0,
+  sheetLayoutBuilds: 0,
   resizerMounts: 0,
   resizerRenderCount: 0,
   symbolFetches: 0,
@@ -31,6 +33,7 @@ export function getPerfMetrics(): AmbioPerfMetrics {
 export function resetPerfMetrics(): void {
   metrics.canvasRenderCount = 0
   metrics.zoomVisibilityPasses = 0
+  metrics.sheetLayoutBuilds = 0
   metrics.resizerMounts = 0
   metrics.resizerRenderCount = 0
   metrics.symbolFetches = 0
@@ -44,6 +47,10 @@ export function recordCanvasRender(): void {
 
 export function recordZoomVisibilityPass(): void {
   metrics.zoomVisibilityPasses++
+}
+
+export function recordSheetLayoutBuild(): void {
+  metrics.sheetLayoutBuilds++
 }
 
 export function recordResizerRender(): void {

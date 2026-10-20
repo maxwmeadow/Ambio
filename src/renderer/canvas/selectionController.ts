@@ -90,10 +90,14 @@ export function selectionAfterDragStart(
  * riding alongside it.
  */
 export function stampSelection(nodes: Node[], selectedIds: ReadonlySet<string>): Node[] {
-  return nodes.map(node => ({
-    ...node,
-    selected: selectedIds.has(node.id),
-  }))
+  let changed = false
+  const next = nodes.map(node => {
+    const selected = selectedIds.has(node.id)
+    if (Boolean(node.selected) === selected) return node
+    changed = true
+    return { ...node, selected }
+  })
+  return changed ? next : nodes
 }
 
 export function selectedNodeIds(nodes: Node[]): string[] {

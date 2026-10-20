@@ -7,6 +7,9 @@ import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, type Sheet } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
 import { SheetRemovedList } from './SheetRemovedList'
+import { useSheetView } from '../canvas/sheetView'
+import { COMMANDS } from '../../shared/appMenu'
+import { SheetChangeDetails } from './SheetChangeDetails'
 import { SheetProposalReview } from './SheetProposalReview'
 
 const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
@@ -35,6 +38,8 @@ function SheetIcon() {
 }
 
 export function SheetRail() {
+  const allRelationships = useSheetView(s => s.allRelationships)
+  const toggleRelationships = useSheetView(s => s.toggleRelationships)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const { sheets, activeSheetId, visibleSheetIds, fetchSheets, openSheet, toggleSheetVisibility, createSheet, deleteSheet } =
     useSheetStore(useShallow(s => ({
@@ -264,6 +269,8 @@ export function SheetRail() {
         })}
       </div>
       <SheetProposalReview workspaceId={workspaceId} />
+      {activeSheetId && <label className="ambio-sheet-rail__relationships"><input type="checkbox" checked={allRelationships} onChange={toggleRelationships} />{COMMANDS['view.sheetRelationships'].label}</label>}
+      <SheetChangeDetails />
       <SheetRemovedList workspaceId={workspaceId} />
       {resolvedSheets.length > 0 && <div className="ambio-sheet-rail__archive">
         <button type="button" aria-expanded={showResolved} onClick={() => setShowResolved(value => !value)}>Resolved sheets ({resolvedSheets.length})</button>

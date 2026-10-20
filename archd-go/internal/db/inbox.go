@@ -577,3 +577,32 @@ func CancelInbox(d *sql.DB, workspace, id string) error {
 	}
 	return nil
 }
+
+// DeleteInboxConversation removes the transcript, preserving sheets, code and
+// the structural journal. Work-session attribution outlives its chat.
+func DeleteInboxConversation(d *sql.DB, workspace, thread string) error {
+	if strings.TrimSpace(thread) == "" {
+		return errors.New("conversation is required")
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var active int
+	if err := tx.QueryRow(`SELECT count(*) FROM canvas_outbox WHERE workspace_id=? AND (thread_id=? OR (thread_id='' AND id=?)) AND status IN ('queued','delivered')`, workspace, thread, thread).Scan(&active); err != nil {
+		return err
+	}
+	if active > 0 {
+		return ErrInboxConflict
+	}
+	// Replies, claims and review events cascade; old answer annotations are
+	// transcript content, not independently authored sheet notes.
+	if _, err := tx.Exec(`DELETE FROM annotations WHERE id IN (SELECT answer_annotation_id FROM canvas_outbox WHERE workspace_id=? AND (thread_id=? OR (thread_id='' AND id=?)))`, workspace, thread, thread); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM canvas_outbox WHERE workspace_id=? AND (thread_id=? OR (thread_id='' AND id=?))`, workspace, thread, thread); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

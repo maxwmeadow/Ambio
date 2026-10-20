@@ -1,3 +1,4 @@
+import { SheetChangeBadge } from './SheetChangeBadge'
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { LivingInspectionWindow, SystemNodeData } from '../sceneTypes'
@@ -428,7 +429,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
 
   const dimmed = !!(d as any).dimmed
 
-  const strokeColor = isDropTarget ? color : 'var(--border)'
+  const strokeColor = d.relationshipFocus ? '#387769' : isDropTarget ? color : 'var(--border)'
   const strokeW = isDropTarget ? 2.5 : 1
   const deploymentCorner = headerCorner
   const shellPath = isDeploymentBoundary
@@ -462,6 +463,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none', cursor: 'grab' }}>
+      <SheetChangeBadge change={d.sheetChange} width={shellSize.w} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.2, presentationScale))} />
       {/* Shell plane: the silhouette and contents ride preview translate,
           reveal scale, and blur. Interaction chrome (resizer, connection

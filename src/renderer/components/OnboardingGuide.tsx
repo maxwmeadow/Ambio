@@ -46,7 +46,8 @@ const COPY: Record<OnboardingStage, {
 }
 
 export function OnboardingGuide({ projectId }: { projectId: string }) {
-  const { loadedProjectId, progress, patch, dismiss, complete } = useOnboardingStore(useShallow(state => ({
+  const { loadedProjectId, visible, progress, patch, dismiss, complete } = useOnboardingStore(useShallow(state => ({
+    visible: state.visible,
     loadedProjectId: state.projectId,
     progress: state.progress,
     patch: state.patch,
@@ -74,7 +75,7 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
   // Progress belongs to a project. Until the store is pointed at this one, the
   // guide neither reads nor writes it - a switch would otherwise record this
   // project's sheets against the previous project's progress.
-  const ready = loadedProjectId === projectId
+  const ready = loadedProjectId === projectId && visible
 
   // The guide follows a real sheet, not a local flag. Three things it must
   // survive, all of which used to restart the walkthrough and mint a duplicate:
@@ -141,7 +142,7 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
   if (!ready) return null
 
   // Hiding sticks across launches - "not now" that reappears every morning is
-  // just nagging. The status bar keeps the way back while the loop is open.
+  // just nagging. Help → Setup Guide keeps the way back.
   if (progress.dismissed) return null
 
   const createFirstIncrement = async () => {
@@ -193,7 +194,7 @@ export function OnboardingGuide({ projectId }: { projectId: string }) {
         className="ambio-onboarding-guide__close"
         onClick={dismiss}
         aria-label="Hide the setup guide"
-        title="Hide - reopen from the status bar"
+        title="Hide — reopen from Help → Setup Guide"
       >
         ×
       </button>

@@ -7,6 +7,9 @@ import type { NodeResizeParams } from './resizeGeometry'
 // patch (new file/system), `edit` = an existing file was just rewritten,
 // `classify` = a loose file settled into a proposed architectural system.
 // `key` bumps per event so a repeat animation re-fires. See graphStore.nodeFx.
+/** What a sheet changes about a node, shown as a badge on it. */
+export type SheetChange = 'addition' | 'move' | 'rename' | 'move rename'
+
 export interface NodeFx {
   kind:
     | 'enter' | 'edit' | 'classify' | 'exit'
@@ -44,6 +47,8 @@ export interface AgentPresence {
 }
 
 export interface SystemNodeData {
+  sheetChange?: SheetChange
+  relationshipFocus?: boolean
   id: string
   name: string
   /** On a sheet that proposes a rename: the name the map has today. */
@@ -108,6 +113,8 @@ export interface SystemNodeData {
 }
 
 export interface FileNodeData {
+  sheetChange?: SheetChange
+  relationshipFocus?: boolean
   id: string
   label: string
   relPath: string
@@ -147,6 +154,7 @@ export interface FileNodeData {
 }
 
 export interface InfraNodeData {
+  sheetChange?: SheetChange
   id: string
   label: string
   name: string

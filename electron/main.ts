@@ -952,6 +952,7 @@ function setupIPC(): void {
   ipcMain.handle('chat:provider-save', (_event, input: ChatProviderInput) => { ensureChatIdle(); return chatProviders.save(input) })
   ipcMain.handle('chat:provider-test', (_event, input: ChatProviderInput) => chatProviders.test(input))
   ipcMain.handle('chat:provider-remove', (_event, id: string) => { ensureChatIdle(); chatProviders.remove(id) })
+  ipcMain.handle('chat:delete', (_event, id: string) => agentChat!.remove(id))
   ipcMain.handle('chat:list', (_event, workspaceId: string) => agentChat!.list(workspaceId))
   ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string) => { ensureChatReady(); return agentChat!.create(workspaceId, providerId, model) })
   ipcMain.handle('chat:snapshot', (_event, id: string) => agentChat!.snapshot(id))
@@ -1712,7 +1713,7 @@ function setupIPC(): void {
   // Work-order notifications (renderer workOrderNotice.ts decides what is news).
   // Shown only while the window is not focused; one per work order at a time.
   const shownNotices = new Map<string, Notification>()
-  ipcMain.handle('app:notify', (_event, notice: { title?: unknown; body?: unknown; tag?: unknown }) => {
+  ipcMain.handle('app:notify', (_event, notice: { title?: unknown; body?: unknown; tag?: unknown; workspaceId?: unknown; threadId?: unknown }) => {
     if (!readAppSettings().workOrderNotifications || !Notification.isSupported()) return false
     if (mainWindow?.isFocused()) return false
     const text = (value: unknown, limit: number) => (typeof value === 'string' ? value.slice(0, limit) : '')
@@ -1726,6 +1727,12 @@ function setupIPC(): void {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.show()
       mainWindow.focus()
+      const workspaceId = text(notice.workspaceId, 200)
+      const threadId = text(notice.threadId, 200)
+      if (workspaceId && threadId) {
+        mainWindow.webContents.send('app:open-conversation', { workspaceId, threadId })
+        mainWindow.webContents.send('menu:open-recent', workspaceId)
+      }
     })
     notification.on('close', () => { if (shownNotices.get(tag) === notification) shownNotices.delete(tag) })
     shownNotices.set(tag, notification)

@@ -267,7 +267,7 @@ interface GraphState {
   deltaReviewing: boolean
   deltaCursor: number
   // "Later" set aside the delta without acknowledging it. It stays unreviewed
-  // in archd; only the invitation is hidden, and the status bar keeps a way
+  // in archd; only the invitation is hidden, and Review Changes keeps a way
   // back. Deferral is per delta window - a newer one re-invites on its own.
   deltaDeferredUntil: number
   loadDelta: () => Promise<void>

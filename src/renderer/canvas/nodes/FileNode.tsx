@@ -1,3 +1,4 @@
+import { SheetChangeBadge } from './SheetChangeBadge'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
@@ -231,7 +232,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     : deltaMark === 'updated' ? '#3c8f92'
       : deltaMark === 'deleted' ? '#b6534b'
         : null
-  const perimeter = deltaColor
+  const perimeter = (d.relationshipFocus ? '#387769' : null) ?? deltaColor
     ?? (churn > 0.82 ? '#b8563f'
       : churn > 0.62 ? '#a8803c'
         : 'var(--border)')
@@ -419,6 +420,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             : undefined,
       } as React.CSSProperties}
     >
+      <SheetChangeBadge change={d.sheetChange} width={Number(width) || 220} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.1, s))} />
       {/* Preview plane: node visuals ride the predicted post-drop offset.
           Interaction chrome (resizer, connection handles) stays outside on

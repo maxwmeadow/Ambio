@@ -152,6 +152,19 @@ export class AgentChat {
   }
   private persist() { this.writeJson(join(this.options.directory, 'conversations.json'), this.conversations) }
   list(workspaceId: string) { this.options.project(workspaceId); return this.conversations.filter(item => item.workspaceId === workspaceId).sort((a, b) => b.updatedAt - a.updatedAt).map(item => ({ ...item })) }
+  remove(id: string) {
+    const conversation = this.conversations.find(item => item.id === id)
+    if (!conversation) throw new Error('Conversation unavailable.')
+    this.options.project(conversation.workspaceId)
+    if (['working', 'waiting'].includes(conversation.state) || this.sending.has(id)) throw new Error('Stop this conversation before deleting it.')
+    this.conversations = this.conversations.filter(item => item.id !== id)
+    this.persist()
+    this.history.delete(id)
+    this.polled.delete(id)
+    const path = this.historyFile(id)
+    fs.rmSync(path, { force: true })
+    this.written.delete(path)
+  }
   hasActive() { return this.conversations.some(item => ['working', 'waiting'].includes(item.state)) }
   private get(id: string): ChatConversation {
     const conversation = this.conversations.find(item => item.id === id)

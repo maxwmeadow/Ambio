@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useReactFlow } from '@xyflow/react'
+import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
 import { searchSymbols } from '../canvas/symbolSearch'
 import { buildSearchResults, SEARCH_GROUP_LABELS, type SearchResult, type SymbolMatch } from '../canvas/searchResults'
@@ -36,14 +36,11 @@ export function SearchBar({ onClose }: SearchBarProps) {
   const [preview, setPreview] = useState<SymbolMatch | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const activeResultRef = useRef<HTMLButtonElement>(null)
-  const { fitView } = useReactFlow()
+  const showOnMap = useShowOnMap(false)
   const files = useGraphStore(s => s.files)
   const systems = useGraphStore(s => s.systems)
   const infraNodes = useGraphStore(s => s.infraNodes)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
-  const setSelectedNode = useGraphStore(s => s.setSelectedNode)
-  const toggleSystemExpanded = useGraphStore(s => s.toggleSystemExpanded)
-  const expandedSystemIds = useGraphStore(s => s.expandedSystemIds)
 
   // Symbols live in archd, not the store: ask after a short pause in typing.
   useEffect(() => {
@@ -81,19 +78,10 @@ export function SearchBar({ onClose }: SearchBarProps) {
   }, [activeIdx])
 
   const navigate = useCallback((result: SearchResult) => {
-    const file = result.kind === 'file' ? result.file
-      : result.kind === 'symbol' ? files.find(candidate => candidate.id === result.nodeId)
-      : undefined
-    if (file?.systemId && !expandedSystemIds.has(file.systemId)) {
-      toggleSystemExpanded(file.systemId)
-    }
-    setSelectedNode(result.nodeId)
-    setTimeout(() => {
-      fitView({ nodes: [{ id: result.nodeId }], duration: 850, padding: 0.5 })
-    }, 50)
+    showOnMap(result.nodeId)
     if (result.kind === 'symbol') setPreview(result.symbol)
     else onClose()
-  }, [files, setSelectedNode, toggleSystemExpanded, expandedSystemIds, fitView, onClose])
+  }, [showOnMap, onClose])
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {

@@ -15,6 +15,26 @@ export const HIDDEN_NODE_CLASS = 'ambio-node-hidden'
 // forcing the whole canvas to re-render ~60 times a second.
 export const DETAIL_REVEAL_EFFECTIVE_ZOOM = (0.95 + 1.2) / 2
 
+interface VisibilityIndex {
+  order: number[]
+  thresholds: number[]
+  appliedTier?: number
+}
+// A visibility pass changes presentation only. Carry the geometry index onto
+// its result so easing frames between thresholds do no per-node work. A new
+// scene array from editing/measurement invalidates it automatically.
+const visibilityIndices = new WeakMap<Node[], VisibilityIndex>()
+
+function visibilityTier(thresholds: number[], zoom: number): number {
+  let lo = 0, hi = thresholds.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (zoom >= thresholds[mid]) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
 function sameVisibility(node: Node, next: {
   hidden: boolean
   opacity: number
@@ -41,14 +61,30 @@ function sameVisibility(node: Node, next: {
 }
 
 export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
-  const sortedNodes = [...nodes].sort((a, b) => {
-    const aDepth = Number(a.data?.depth ?? 0)
-    const bDepth = Number(b.data?.depth ?? 0)
-    return aDepth - bDepth
-  })
+  let index = visibilityIndices.get(nodes)
+  if (!index) {
+    const thresholds = new Set<number>()
+    for (const node of nodes) {
+      const w = Number(node.style?.width ?? node.measured?.width ?? 0)
+      const h = Number(node.style?.height ?? node.measured?.height ?? 0)
+      if (w > 0 && h > 0) thresholds.add(REVEAL_CONTAINER_PX / Math.sqrt(w * h))
+      const scale = Number(node.data.worldScale ?? 1)
+      if (scale > 0) thresholds.add(DETAIL_REVEAL_EFFECTIVE_ZOOM / scale)
+    }
+    index = {
+      order: nodes.map((_, i) => i).sort((a, b) => Number(nodes[a].data.depth ?? 0) - Number(nodes[b].data.depth ?? 0)),
+      thresholds: [...thresholds].sort((a, b) => a - b),
+    }
+    visibilityIndices.set(nodes, index)
+  }
+  const tier = visibilityTier(index.thresholds, zoom)
+  if (index.appliedTier === tier) return nodes
 
   const childrenVisibleByNode = new Map<string, number>()
-  const updatedNodes = sortedNodes.map(node => {
+  let changed = false
+  const updatedNodes = [...nodes]
+  for (const position of index.order) {
+    const node = nodes[position]
     const selfVisibility = node.parentId
       ? (childrenVisibleByNode.get(node.parentId) ?? 0)
       : 1
@@ -80,9 +116,10 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
     // Referential stability is the whole point: React Flow re-renders a node
     // only when its object identity changes, so an untouched node must come
     // back as the exact same object.
-    if (sameVisibility(node, next)) return node
+    if (sameVisibility(node, next)) continue
 
-    return {
+    changed = true
+    updatedNodes[position] = {
       ...node,
       hidden: next.hidden,
       // CSS alone cannot make a hidden node untouchable: `pointer-events: none`
@@ -116,19 +153,13 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
         detailRevealed: next.detailRevealed,
       },
     }
-  })
-
-  const updatedById = new Map(updatedNodes.map(node => [node.id, node]))
-  let changed = false
-  const inOriginalOrder = nodes.map(node => {
-    const updated = updatedById.get(node.id) ?? node
-    if (updated !== node) changed = true
-    return updated
-  })
+  }
   // A smooth zoom has many animation frames but only a handful of semantic
   // thresholds. Returning the input array between thresholds lets React and
   // React Flow bail out instead of reconciling the entire scene every frame.
-  return changed ? inOriginalOrder : nodes
+  const result = changed ? updatedNodes : nodes
+  visibilityIndices.set(result, { ...index, appliedTier: tier })
+  return result
 }
 
 export function makeFullyVisible(node: Node): Node {

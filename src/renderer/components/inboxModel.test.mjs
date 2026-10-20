@@ -10,7 +10,7 @@ test('canvas references keep identity separate from mutable, Unicode display lab
 })
 test('a claim is never displayed as proof that the agent is actively working', () => {
   assert.equal(inboxStatus({ status: 'delivered', agent: 'Codex', leaseExpiresAt: 200 }, 100), 'Picked up by Codex')
-  assert.equal(inboxStatus({ status: 'delivered', agent: 'Claude Code', deliveredTo: 'a1234567-1111', leaseExpiresAt: 200 }, 100), 'Picked up by Claude Code · connector a1234567')
+  assert.equal(inboxStatus({ status: 'delivered', agent: 'Claude Code', deliveredTo: 'a1234567-1111', leaseExpiresAt: 200 }, 100), 'Picked up by Claude Code')
   assert.match(inboxStatus({ status: 'delivered', leaseExpiresAt: 200 }, 201), /expired/)
   assert.equal(inboxStatus({ status: 'answered' }), 'Ready for review')
   assert.equal(inboxStatus({ status: 'answered', review: { decision: 'accepted' } }), 'Accepted')

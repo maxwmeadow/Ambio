@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 're
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
-import { useSheetStore, refreshInbox, cancelInboxMessage } from '../store/sheetStore'
+import { useSheetStore, refreshInbox, cancelInboxMessage, deleteInboxConversation } from '../store/sheetStore'
 import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode, type WorkOrderStage, conversations, conversationStageCounts, needsReview, requestText, turnRequest } from './inboxModel'
 import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
@@ -17,11 +17,16 @@ import { AgentModelMenu, useAgentModel } from './AgentModelMenu'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
+import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
+import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
 import '../styles/inbox.css'
 
 export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
   const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', rootPath: s.currentProject?.rootPath ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
   const sheet = useSheetStore(useShallow(s => ({ sheets: s.sheets, activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
+  const requestedConversation = useConversationPreferences(s => s.requested)
+  const preferences = useConversationPreferences(s => s.items)
+  const updatePreference = useConversationPreferences(s => s.update)
   const draftKey = `ambio:inbox-draft:${graph.workspaceId}`
   const pendingKey = `${draftKey}:pending`
   const delivery = useAgentDelivery(graph.workspaceId, isOpen, graph.rootPath)
@@ -63,6 +68,9 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // The conversation on screen: undefined follows the most recent one, null is
   // a new conversation that has no turn yet.
   const [threadId, setThreadId] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (isOpen && requestedConversation?.workspaceId === graph.workspaceId) { setThreadId(requestedConversation.threadId); useConversationPreferences.setState({ requested: null }) }
+  }, [isOpen, graph.workspaceId, requestedConversation])
   const [mode, setMode] = useState<WorkOrderMode>('build')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [unseen, setUnseen] = useState(false)
@@ -145,15 +153,28 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // A built-in conversation's builds share its thread; they are shown inside it.
   const threads = allThreads.filter(thread => !thread.id.startsWith('chat:'))
   const entries: ConversationEntry[] = [
-    ...threads.map(thread => ({ id: thread.id, title: thread.title, lastAt: thread.lastAt, stage: thread.stage, detail: `${thread.turns.length === 1 ? '1 turn' : `${thread.turns.length} turns`} · ${WORK_ORDER_STAGES.find(item => item.stage === thread.stage)?.label ?? ''}` })),
+    ...threads.map(thread => ({ id: thread.id, title: thread.title, lastAt: thread.lastAt, stage: thread.stage, detail: WORK_ORDER_STAGES.find(item => item.stage === thread.stage)?.label ?? '', replyAt: Math.max(0, ...thread.turns.map(turn => turn.reply?.createdAt ?? 0)), active: thread.turns.some(turn => turn.status === 'queued' || turn.status === 'delivered') })),
     ...chat.conversations.map(conversation => {
       const builds = allThreads.find(thread => thread.id === chatThreadId(conversation.id))
       const stage: WorkOrderStage | undefined = ['working', 'waiting'].includes(conversation.state) ? 'working' : builds?.stage
-      return { id: conversation.id, title: requestText(conversation.title), lastAt: Math.max(conversation.updatedAt, builds?.lastAt ?? 0), stage, detail: `Ambio chat${stage ? ` · ${WORK_ORDER_STAGES.find(item => item.stage === stage)?.label}` : ''}`, chat: true }
+      return { id: conversation.id, title: requestText(conversation.title), lastAt: Math.max(conversation.updatedAt, builds?.lastAt ?? 0), stage, detail: ['working', 'waiting'].includes(conversation.state) ? 'Working' : stage === 'review' ? 'Needs review' : '', replyAt: conversation.state === 'idle' && conversation.title !== 'New conversation' ? conversation.updatedAt : 0, active: ['working', 'waiting'].includes(conversation.state), chat: true }
     }),
-  ].sort((a, b) => b.lastAt - a.lastAt)
+  ].map(entry => {
+    const preference = preferences[conversationKey(graph.workspaceId, entry.id)]
+    return { ...entry, title: preference?.title || entry.title, unread: entry.replyAt > (preference?.readAt ?? 0) }
+  }).sort((a, b) => b.lastAt - a.lastAt)
   // An unconfirmed send stays in the conversation it was written in.
   const currentThreadId = retry.current?.threadId ?? (threadId === undefined ? entries[0]?.id ?? null : threadId)
+  const attention = entries.filter(entry => entry.unread || entry.stage === 'review').length
+  useEffect(() => { useConversationPreferences.getState().setAttention(graph.workspaceId, attention) }, [graph.workspaceId, attention])
+  const currentEntry = entries.find(entry => entry.id === currentThreadId)
+  const readReply = () => { if (currentEntry?.replyAt) updatePreference(graph.workspaceId, currentEntry.id, { readAt: currentEntry.replyAt }) }
+  useEffect(() => {
+    const read = () => { if (isOpen && document.hasFocus() && nearBottom.current) readReply() }
+    read()
+    window.addEventListener('focus', read)
+    return () => window.removeEventListener('focus', read)
+  }, [isOpen, currentThreadId, currentEntry?.replyAt])
   const current = threads.find(thread => thread.id === currentThreadId)
   const chatCurrent = chat.conversations.find(conversation => conversation.id === currentThreadId)
   useEffect(() => { setChatActiveId(chatCurrent?.id ?? null) }, [chatCurrent?.id])
@@ -272,13 +293,35 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     <div className="ambio-inbox__resize" role="separator" aria-orientation="vertical" aria-label="Resize the agent panel" title="Drag to resize" onPointerDown={resize}
       onDoubleClick={() => { setWidth(0); try { localStorage.removeItem('ambio:inbox-width') } catch { /* nothing kept */ } }} />
     <header className="ambio-inbox__header"><span className="ambio-inbox__brand"><InboxIcon name="agent" size={18} /></span>
-      <ConversationMenu entries={entries} currentId={currentThreadId} project={graph.name ?? ''} disabled={locked} onOpen={id => { setThreadId(id); textarea.current?.focus() }} />
+      <ConversationMenu onRename={(id, title) => updatePreference(graph.workspaceId, id, { title })} onDelete={async id => {
+        const entry = entries.find(item => item.id === id)
+        if (!entry || entry.active) throw new Error('Stop this conversation before deleting it.')
+        // Pin the current selection before the deletion broadcast changes the
+        // list. Otherwise the default “latest” can briefly open the next chat
+        // and mark its reply read while this request is still finishing.
+        setThreadId(currentThreadId)
+        setSending(true)
+        try {
+          if (entry.chat) {
+            const saved = await window.ambio.cachedChat(id)
+            if (['working', 'waiting'].includes(saved.conversation.state)) throw new Error('Stop this conversation before deleting it.')
+            // A stopped or failed native Build may leave its addressed turn
+            // waiting. Withdraw it before deleting the conversation.
+            const builds = allThreads.find(thread => thread.id === chatThreadId(id))
+            for (const turn of builds?.turns ?? []) if (turn.status === 'queued' || turn.status === 'delivered') await cancelInboxMessage(graph.workspaceId, turn.id)
+          }
+          await deleteInboxConversation(graph.workspaceId, entry.chat ? chatThreadId(id) : id)
+          if (entry.chat) await chat.remove(id)
+          useConversationPreferences.getState().forget(graph.workspaceId, id)
+          if (currentThreadId === id) { setThreadId(null); setChatActiveId(null) }
+        } finally { setSending(false) }
+      }} entries={entries} currentId={currentThreadId} project={graph.name ?? ''} disabled={locked} onOpen={id => { setThreadId(id); textarea.current?.focus() }} />
       <button type="button" className="ambio-inbox__icon" disabled={locked || currentThreadId === null} onClick={() => { setThreadId(null); textarea.current?.focus() }} aria-label="New conversation" title="Start a new conversation"><InboxIcon name="plus" /></button>
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
     {(error || sheet.error || chat.error) && <div role="alert" className="ambio-inbox__error"><span>{error || sheet.error || chat.error}</span><button type="button" onClick={() => { setError(null); chat.setError(''); void refreshInbox(graph.workspaceId) }}>Refresh</button></div>}
     <div className="ambio-inbox__thread">
-      <div ref={history} className={`ambio-inbox__history${shown.length ? ' ambio-inbox__history--messages' : ''}`} aria-label="Messages" onScroll={() => { const el = history.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (nearBottom.current) setUnseen(false) }}>
+      <div ref={history} className={`ambio-inbox__history${shown.length ? ' ambio-inbox__history--messages' : ''}`} aria-label="Messages" onScroll={() => { const el = history.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; if (nearBottom.current) { setUnseen(false); if (document.hasFocus()) readReply() } }}>
         {!chatCurrent && sheet.next && <button className="ambio-inbox__earlier" type="button" disabled={loadingEarlier} onClick={() => {
           const el = history.current!; olderAnchor.current = { height: el.scrollHeight, top: el.scrollTop }; setLoadingEarlier(true)
           void refreshInbox(graph.workspaceId, sheet.next).finally(() => { olderAnchor.current = null; setLoadingEarlier(false) })
@@ -355,56 +398,6 @@ function PermissionCard({ request, hostLabel }: { request: AgentPermissionReques
       <small>It waits for your answer; no answer is a no.</small>
     </div>
   </section>
-}
-
-/** One row of the conversation menu: a work-order thread, or an Ambio chat conversation. */
-interface ConversationEntry { id: string; title: string; lastAt: number; stage?: WorkOrderStage; detail: string; chat?: boolean }
-
-/** The open conversation's name, which opens the list of the others. */
-function ConversationMenu({ entries, currentId, project, disabled, onOpen }: {
-  entries: ConversationEntry[]; currentId: string | null; project: string; disabled: boolean; onOpen: (id: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  // Which conversations the menu lists: all of them, or the ones at one stage.
-  const [stage, setStage] = useState<WorkOrderStage | null>(null)
-  const anchor = useRef<HTMLDivElement>(null)
-  const current = entries.find(entry => entry.id === currentId)
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [open])
-  const staged = entries.filter((entry): entry is ConversationEntry & { stage: WorkOrderStage } => !!entry.stage)
-  const counts = conversationStageCounts(staged)
-  // Answers waiting for a verdict in conversations that are not on screen.
-  const toReview = staged.filter(entry => entry.stage === 'review' && entry.id !== currentId).length
-  const listed = stage ? entries.filter(entry => entry.stage === stage) : entries
-  return <div ref={anchor} className="ambio-inbox__heading ambio-inbox__conversations" onKeyDown={event => {
-    if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
-  }}>
-    <button type="button" className="ambio-inbox__conversation-button" disabled={disabled || entries.length === 0} aria-haspopup="menu" aria-expanded={open}
-      aria-label={`Conversation: ${current?.title ?? 'New conversation'}`} title={entries.length > 1 ? 'Open another conversation' : undefined} onClick={() => setOpen(!open)}>
-      <h2>{current?.title ?? 'New conversation'}</h2>
-      <span title={project}>{project}{entries.length > 1 ? ` · ${entries.length} conversations` : ''}{toReview > 0 ? ` · ${toReview} to review` : ''}</span>
-      {entries.length > 0 && <InboxIcon name="chevron" size={11} />}
-    </button>
-    {open && <div className="ambio-inbox__conversation-menu" role="menu" aria-label="Conversations">
-      {entries.length > 1 && <div className="ambio-inbox__stages" role="group" aria-label="Show conversations">
-        <button type="button" aria-pressed={stage === null} onClick={() => setStage(null)}>All <span>{entries.length}</span></button>
-        {WORK_ORDER_STAGES.filter(item => counts[item.stage] > 0 || stage === item.stage).map(item =>
-          <button key={item.stage} type="button" aria-pressed={stage === item.stage} onClick={() => setStage(stage === item.stage ? null : item.stage)}>
-            {item.label} <span>{counts[item.stage]}</span>
-          </button>)}
-      </div>}
-      {listed.length === 0 && <p className="ambio-inbox__notice">No conversations are {WORK_ORDER_STAGES.find(item => item.stage === stage)?.label.toLowerCase()}.</p>}
-      {listed.map(entry => <button key={entry.id} type="button" role="menuitemradio" aria-checked={entry.id === currentId} autoFocus={entry.id === currentId}
-        onClick={() => { onOpen(entry.id); setOpen(false) }}>
-        <strong>{entry.title}</strong>
-        <small>{entry.detail} · {new Date(entry.lastAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
-      </button>)}
-    </div>}
-  </div>
 }
 
 /** What is being asked for, as one button beside Send that opens the choices. */

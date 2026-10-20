@@ -24,7 +24,7 @@ export function needsReview(message: { mode?: string; note?: string }): boolean 
 export function inboxStatus(message: { status: string; agent?: string; deliveredTo?: string | null; leaseExpiresAt?: number; review?: { decision: string }; mode?: string; note?: string }, now = Date.now()): string {
   if (message.status === 'answered') return !needsReview(message) ? 'Answered' : message.review?.decision === 'accepted' ? 'Accepted' : 'Ready for review'
   if (message.status === 'cancelled') return 'Cancelled'
-  if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return `Picked up by ${message.agent || 'agent'}${message.deliveredTo ? ` · connector ${message.deliveredTo.slice(0, 8)}` : ''}`
+  if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return `Picked up by ${message.agent || 'agent'}`
   if (message.review?.decision === 'reopened') return 'Changes requested · waiting for agent'
   return message.leaseExpiresAt ? 'Available again · previous claim expired' : 'Waiting for an agent'
 }
