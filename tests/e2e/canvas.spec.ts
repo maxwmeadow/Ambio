@@ -2756,9 +2756,11 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   const title = inbox.getByRole('button', { name: /^Conversation:/ }).locator('h2')
   expect(await title.evaluate(element => getComputedStyle(element).color)).toBe('rgb(244, 247, 242)')
   await page.screenshot({ path: 'test-results/conversation-menu.png' })
-  // With its waiting build stopped, this conversation is back to review too.
-  await stages.getByRole('button', { name: 'To review 2' }).click()
-  await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
+  // With its waiting build stopped, this conversation's latest turn is an answered
+  // question: answered, not waiting for review. Only the other conversation's build is.
+  await expect(stages.getByRole('button', { name: 'Answered 1' })).toBeVisible()
+  await stages.getByRole('button', { name: 'To review 1' }).click()
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
   await stages.getByRole('button', { name: 'All 2' }).click()
   await menu.getByRole('menuitemradio').nth(1).click()
   await expect(inbox).toContainText('Split the payments module')

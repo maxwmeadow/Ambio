@@ -467,3 +467,5 @@
 .ambio-inbox__agent-group { position: relative; }
 .ambio-inbox__agent-group > .ambio-inbox__model { position: static; }
 .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-menu { left: -1px; right: auto; width: calc(100% + 2px); min-width: 260px; max-height: min(420px, 60vh); overflow-y: auto; }
+/* Copy sits in the reply's header row, top right, rather than under the reply. */
+.ambio-inbox .ambio-inbox__reply-heading .ambio-inbox__copy-reply { margin: 0 0 0 auto; }
