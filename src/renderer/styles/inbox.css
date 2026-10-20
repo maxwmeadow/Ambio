@@ -416,3 +416,31 @@
 .ambio-inbox__agent-group > .ambio-inbox__guide { display: flex; }
 .ambio-inbox .ambio-inbox__agent-group .ambio-inbox__guide-button { width: 28px; height: 100%; border: 0; border-left: 1px solid #cdd3cd; border-radius: 0; background: transparent; color: #4f6159; }
 .ambio-inbox .ambio-inbox__agent-group .ambio-inbox__guide-button:is(:hover, [aria-expanded='true']):not(:disabled) { border-color: #cdd3cd; background: #dfeae6; color: #2f6a5d; }
+/* The agent menu, in the style of the model and request-type menus. Not scoped
+   to the panel: the first-use introduction shows it outside it. */
+.ambio-agent-menu { position: relative; display: flex; min-width: 0; }
+.ambio-agent-menu__trigger { display: inline-flex; align-items: center; gap: 6px; min-width: 0; width: 100%; padding: 0 9px; border: 0; background: transparent; color: #2b3833; font: 600 11px var(--font-ui, sans-serif); text-align: left; cursor: pointer; }
+.ambio-agent-menu__trigger > span { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ambio-agent-menu__trigger > svg { flex: none; color: #4f6159; }
+.ambio-agent-menu__trigger > svg:last-child { transform: rotate(-90deg); }
+.ambio-agent-menu__trigger:hover:not(:disabled), .ambio-agent-menu__trigger[aria-expanded='true'] { background: #dfeae6; }
+.ambio-agent-menu__trigger:focus-visible { outline: 2px solid #69a799; outline-offset: -2px; }
+.ambio-agent-menu__trigger:disabled { cursor: default; opacity: .6; }
+.ambio-agent-menu--segment .ambio-agent-menu__trigger { height: 26px; max-width: 220px; }
+.ambio-agent-menu--field { flex: 1; }
+.ambio-agent-menu--field .ambio-agent-menu__trigger { height: 30px; border: 1px solid #a9b8ab; background: #fbfaf5; font-size: 13px; }
+.ambio-agent-menu__list { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 8px); width: 290px; max-height: min(420px, 60vh); overflow-y: auto; padding: 4px; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
+.ambio-agent-menu--field .ambio-agent-menu__list { top: calc(100% + 4px); bottom: auto; width: 100%; }
+.ambio-agent-menu__heading { padding: 6px 9px 2px; color: #5c6b63; font: 700 9px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.ambio-agent-menu__list [role='group'] + [role='group'] { margin-top: 2px; padding-top: 2px; border-top: 1px solid #d3d8d0; }
+.ambio-agent-menu__list button { display: grid; grid-template-columns: minmax(0, 1fr) 16px; column-gap: 8px; align-items: center; width: 100%; padding: 6px 9px; border: 0; background: transparent; color: #27332f; text-align: left; cursor: pointer; }
+.ambio-agent-menu__list button:hover:not(:disabled), .ambio-agent-menu__list button:focus-visible { background: #d2ded2; outline: none; }
+.ambio-agent-menu__list button[aria-checked='true'] { background: #dfeae6; }
+.ambio-agent-menu__list button:disabled { cursor: default; opacity: .5; }
+.ambio-agent-menu__list strong { grid-column: 1; font: 600 12px var(--font-ui, sans-serif); }
+.ambio-agent-menu__list small { grid-column: 1; color: #5c6b63; font: 11px/1.4 var(--font-ui, sans-serif); }
+.ambio-agent-menu__list svg { grid-column: 2; grid-row: 1 / span 2; color: #2f6a5d; }
+/* In the pill, the menu is the agent segment. */
+.ambio-inbox__agent-select > .ambio-agent-menu { flex: 1 1 auto; }
+.ambio-inbox .ambio-inbox__model-loading { color: #6b7a72; font-style: italic; cursor: progress; }
+.ambio-inbox .ambio-inbox__model-loading:disabled { opacity: 1; }

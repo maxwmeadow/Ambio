@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { agentMenu } from './agentGuides'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -64,14 +65,18 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     })
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-    const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
-    await expect(destination.locator('option')).toHaveCount(12)
+    const destination = agentMenu(inbox)
     // The first time an agent is chosen, its guide stands in front of everything until confirmed.
     const intro = page.getByRole('dialog', { name: /^Before you use / })
     const confirm = () => intro.getByRole('button', { name: 'Got it' }).click()
     await expect(intro).toBeVisible()
     await confirm()
-    await destination.selectOption('codex')
+    // The agent menu lists every destination, in Ambio's own menu.
+    await destination.open()
+    await expect(destination.items()).toHaveCount(12)
+    await page.screenshot({ path: 'test-results/agent-menu.png' })
+    await destination.close()
+    await destination.choose('codex')
     await expect(intro).toHaveAccessibleName('Before you use OpenAI Codex (CLI)')
     await expect(intro).toContainText('Choose Codex and send.')
     await expect(intro).toContainText('press the info button next to the agent in the message box')
@@ -81,23 +86,23 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     // The info button shows the same guide, and its picker is the destination picker.
     await inbox.getByRole('button', { name: 'How each agent works here' }).click()
     const guide = inbox.getByRole('dialog', { name: 'How each agent works here' })
-    const guidePicker = guide.getByRole('combobox', { name: 'Agent to read about' })
-    await expect(guidePicker).toHaveValue('codex')
+    const guidePicker = agentMenu(guide, 'Agent to read about')
+    await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await expect(guide).toContainText('Choose Codex and send.')
     await page.screenshot({ path: 'test-results/agent-delivery-guide.png' })
-    await guidePicker.selectOption('claude-code')
-    await expect(destination).toHaveValue('claude-code')
+    await guidePicker.choose('claude-code')
+    await expect(destination.trigger).toHaveAttribute('data-value', 'claude-code')
     // A first choice made from the guide is introduced too.
     await expect(intro).toHaveAccessibleName('Before you use Claude Code (CLI)')
     await confirm()
-    await destination.selectOption('codex')
+    await destination.choose('codex')
     await expect(intro).toBeHidden()
     await inbox.getByRole('button', { name: 'How each agent works here' }).click()
-    await expect(guidePicker).toHaveValue('codex')
+    await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
-      await destination.selectOption(host)
+      await destination.choose(host)
       if (host === 'copilot-cli') await confirm()
       // Claude Code's models are offered beside the request type; the choice reaches its command line.
       if (host === 'claude-code') {
@@ -135,7 +140,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     expect(fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs).toBe(modifiedAt)
     expect(orders.at(-1).id).toBe(firstMessageId)
     if (process.platform !== 'win32') {
-      await destination.selectOption('zed')
+      await destination.choose('zed')
       await confirm()
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Discuss this in Zed.')
       await inbox.locator('form').getByRole('button', { name: 'Copy + open Zed Editor' }).click()

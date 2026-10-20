@@ -8,7 +8,6 @@ import { resolveNodeCommand } from './platformPaths.ts'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
-import { hiddenConsoleStdio } from './hiddenConsole.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -20,6 +19,32 @@ const NPM_PACKAGES: Record<string, { name: string; bin: string; entry: string }>
   'claude-code': { name: '@anthropic-ai/claude-code', bin: 'claude', entry: 'cli.js' },
   codex: { name: '@openai/codex', bin: 'codex', entry: 'bin/codex.js' },
   'copilot-cli': { name: '@github/copilot', bin: 'copilot', entry: 'index.js' },
+}
+
+/**
+ * The native program an npm-installed CLI's JS launcher would start, when its
+ * platform package is installed. Ambio starts it directly: the launchers
+ * (npm-loader.js, codex.js) start it with their own stdio inherited, and on
+ * Windows that gives it a console of its own, which Windows Terminal shows as
+ * an empty window.
+ */
+const NATIVE_TRIPLES: Record<string, string> = {
+  'win32-x64': 'x86_64-pc-windows-msvc', 'win32-arm64': 'aarch64-pc-windows-msvc',
+  'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
+  'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-musl',
+}
+function npmNative(hostId: string, packageDir: string, platform: NodeJS.Platform, arch = process.arch): string | undefined {
+  const exe = (name: string) => platform === 'win32' ? `${name}.exe` : name
+  const target = `${platform}-${arch}`
+  // Installed inside the package, or hoisted beside it.
+  const scopes = [join(packageDir, 'node_modules'), join(packageDir, '..', '..')]
+  const candidates = hostId === 'copilot-cli'
+    ? scopes.map(scope => join(scope, '@github', `copilot-${target}`, exe('copilot')))
+    : hostId === 'codex' && NATIVE_TRIPLES[target]
+      ? [...scopes.map(scope => join(scope, '@openai', `codex-${target}`, 'vendor', NATIVE_TRIPLES[target], 'bin', exe('codex'))),
+        join(packageDir, 'vendor', NATIVE_TRIPLES[target], 'bin', exe('codex'))]
+      : []
+  return candidates.find(candidate => { try { return fs.statSync(candidate).isFile() } catch { return false } })
 }
 
 /** The script an installed npm package runs for its command, if it is there. */
@@ -67,7 +92,10 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
   const npmDirs = [...dirs.map(dir => join(dir, 'node_modules')), join(env.APPDATA ?? join(home, 'AppData', 'Roaming'), 'npm', 'node_modules'), '/usr/local/lib/node_modules', '/opt/homebrew/lib/node_modules']
   for (const dir of npmDirs) {
     const script = npmEntry(join(dir, pkg.name), pkg)
-    if (script) return { command: node, args: [script], bundledNode: true }
+    if (!script) continue
+    const native = npmNative(hostId, join(dir, pkg.name), platform as NodeJS.Platform)
+    if (native) return { command: native, args: [] }
+    return { command: node, args: [script], bundledNode: true }
   }
   return undefined
 }
@@ -291,7 +319,7 @@ export class DeliveryRunner {
         env[pathKey] = [dirname(input.launcher.command), ...(isAbsolute(node) ? [dirname(node)] : []), ...environmentPath(env).split(delimiter)].join(delimiter)
         if (input.launcher.bundledNode) env.ELECTRON_RUN_AS_NODE = '1'
         else delete env.ELECTRON_RUN_AS_NODE
-        child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: hiddenConsoleStdio(['pipe', 'pipe', 'pipe']) })
+        child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
       } catch (error) { fail(error as Error); return }
       this.live.set(key, { child, run })
       let logged = 0

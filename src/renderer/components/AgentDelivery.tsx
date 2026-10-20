@@ -133,31 +133,34 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   const name = fixed?.label ?? (chat ? chatServices?.find(service => `${CHAT_DELIVERY}:${service.id}` === hostId)?.label ?? 'Ambio chat'
     : hostId === WATCHING_DELIVERY ? 'Session watching Ambio' : host?.label ?? 'Copy the handoff myself')
   // A host with a session watching gets the message in that session.
-  const option = (item: DeliveryHost) => <option key={item.id} value={item.id} disabled={!item.available}>{item.label}{watchingHosts.includes(item.id) ? ' · attached' : item.route !== 'run' && !installedIds.includes(item.id) ? ' · Ambio not added' : ''}</option>
+  const state = (item: DeliveryHost) => watchingHosts.includes(item.id) ? 'Attached' : item.route !== 'run' && !installedIds.includes(item.id) ? 'Ambio not added' : undefined
+  const choice = (item: DeliveryHost): AgentChoice => ({ value: item.id, label: item.label, detail: state(item), disabled: !item.available })
   const started = hosts.filter(item => item.route === 'run' && item.available)
   const inApps = hosts.filter(item => item.route !== 'run')
   const missing = hosts.filter(item => item.route === 'run' && !item.available)
   // The picker, the info button's guide and the first-use introduction are
   // one choice: changing any of them changes the destination.
+  const groups: AgentChoiceGroup[] = [
+    ...(chatServices ? [{ label: 'Built into Ambio', items: chatServices.length
+      ? chatServices.map(service => ({ value: `${CHAT_DELIVERY}:${service.id}`, label: service.label }))
+      : [{ value: CHAT_DELIVERY, label: 'Ambio chat', detail: 'Set up a model service first' }] }] : []),
+    { label: 'Ambio runs it for you', items: started.map(choice) },
+    { label: 'Opens in your app', items: inApps.map(choice) },
+    { label: 'Not found on this computer', items: missing.map(choice) },
+    // A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice.
+    { items: [
+      ...((watchers > 0 || hostId === WATCHING_DELIVERY) ? [{ value: WATCHING_DELIVERY, label: 'Session watching Ambio', detail: watchers > 1 ? `${watchers} sessions` : watchers === 1 ? undefined : 'None right now' }] : []),
+      { value: '', label: 'Copy the handoff myself' },
+    ] },
+  ]
   const picker = (label: string, id?: string, compact = false) => fixed
     ? compact
       ? <span className="ambio-inbox__delivery-fixed" id={id} title="Start a new conversation to use another agent.">{fixed.label}</span>
       : <p className="ambio-inbox__delivery-fixed" id={id}>{fixed.label}<small>Start a new conversation to use another agent.</small></p>
-    : <select id={id} aria-label={label} value={hostId} disabled={disabled} onChange={event => {
-      if (event.target.value === CHAT_DELIVERY) onSetUpChat?.()
-      else onChange(event.target.value)
-    }}>
-      {chatServices && <optgroup label="Built into Ambio">
-        {chatServices.length ? chatServices.map(service => <option key={service.id} value={`${CHAT_DELIVERY}:${service.id}`}>{service.label}</option>)
-          : <option value={CHAT_DELIVERY}>Ambio chat · set up a model service…</option>}
-      </optgroup>}
-      {started.length > 0 && <optgroup label="Ambio runs it for you">{started.map(option)}</optgroup>}
-      {inApps.length > 0 && <optgroup label="Opens in your app">{inApps.map(option)}</optgroup>}
-      {missing.length > 0 && <optgroup label="Not found on this computer">{missing.map(option)}</optgroup>}
-      {/* A session told to watch keeps its own conversation; offered while one is waiting, or when it was the choice. */}
-      {(watchers > 0 || hostId === WATCHING_DELIVERY) && <option value={WATCHING_DELIVERY}>{watchers > 0 ? `Session watching Ambio${watchers > 1 ? ` (${watchers})` : ''}` : 'Session watching Ambio · none right now'}</option>}
-      <option value="">Copy the handoff myself</option>
-    </select>
+    : <AgentMenu label={label} value={hostId} groups={groups} disabled={disabled} variant={compact ? 'segment' : 'field'} onChange={value => {
+      if (value === CHAT_DELIVERY) onSetUpChat?.()
+      else onChange(value)
+    }} />
   // Each kind of agent works differently, so the first time one is chosen its
   // guide is put in front of the user until they confirm they have read it.
   const introduce = hosts.length > 0 && !!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)
@@ -166,9 +169,8 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   return <div className="ambio-inbox__agent-picker">
     <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>
       <span className="ambio-inbox__agent-select">
-        <InboxIcon name="agent" size={13} />
+        {fixed && <InboxIcon name="agent" size={13} />}
         {picker('Work-order destination', 'ambio-delivery-select', true)}
-        {!fixed && <InboxIcon name="chevron" size={11} />}
       </span>
       {children}
       <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} />
@@ -185,6 +187,51 @@ export function DeliveryReadiness({ readiness, onFix }: { readiness: DeliveryRea
       {readiness.fix && onFix && <button type="button" onClick={onFix}>Agents</button>}
     </div>
   </section>
+}
+
+export interface AgentChoice { value: string; label: string; detail?: string; disabled?: boolean }
+export interface AgentChoiceGroup { label?: string; items: AgentChoice[] }
+
+/**
+ * Choosing an agent, in Ambio's own menu like the model and request type:
+ * agents grouped by how they run, a short state under each, and the current
+ * one checked. Used in the message box and in the agent guides.
+ */
+function AgentMenu({ label, value, groups, onChange, disabled, variant }: {
+  label: string; value: string; groups: AgentChoiceGroup[]; onChange: (value: string) => void; disabled?: boolean
+  /** segment: part of the message box's agent pill; field: a full-width control in a guide. */
+  variant: 'segment' | 'field'
+}) {
+  const [open, setOpen] = useState(false)
+  const anchor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [open])
+  const current = groups.flatMap(group => group.items).find(item => item.value === value)
+  return <div ref={anchor} className={`ambio-agent-menu ambio-agent-menu--${variant}`} onKeyDown={event => {
+    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
+  }}>
+    <button type="button" className="ambio-agent-menu__trigger" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
+      aria-label={`${label}: ${current?.label ?? 'none'}`} data-value={value} onClick={() => setOpen(!open)}>
+      {variant === 'segment' && <InboxIcon name="agent" size={13} />}
+      <span>{current?.label ?? 'Choose an agent'}</span>
+      <InboxIcon name="chevron" size={11} />
+    </button>
+    {open && <div className="ambio-agent-menu__list" role="menu" aria-label={label}>
+      {groups.filter(group => group.items.length).map((group, index) => <div key={group.label ?? index} role="group" aria-label={group.label}>
+        {group.label && <div className="ambio-agent-menu__heading">{group.label}</div>}
+        {group.items.map(item => <button key={item.value || 'manual'} type="button" role="menuitemradio" aria-checked={item.value === value} data-value={item.value}
+          disabled={item.disabled} autoFocus={item.value === value} onClick={() => { onChange(item.value); setOpen(false) }}>
+          <strong>{item.label}</strong>
+          {item.detail && <small>{item.detail}</small>}
+          {item.value === value && <InboxIcon name="check" size={13} />}
+        </button>)}
+      </div>)}
+    </div>}
+  </div>
 }
 
 /** Which agents' guides this user has confirmed, on this machine. */

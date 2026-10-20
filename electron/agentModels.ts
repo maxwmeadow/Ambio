@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
-import { hiddenConsoleStdio } from './hiddenConsole.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -65,7 +64,7 @@ export function antigravityModels(output: string): ModelOption[] {
 function run(launcher: DriverLauncher, args: string[]): Promise<string> {
   return new Promise(resolve => {
     // Nothing is written to it: some CLIs (agy) read stdin even when told what to do.
-    const child = spawn(launcher.command, [...launcher.args, ...args], { cwd: tmpdir(), windowsHide: true, stdio: hiddenConsoleStdio(['ignore', 'pipe', 'ignore']), shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) })
+    const child = spawn(launcher.command, [...launcher.args, ...args], { cwd: tmpdir(), windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) })
     let output = ''
     const timer = setTimeout(() => child.kill(), 30000)
     child.stdout?.on('data', chunk => { if (output.length < 1 << 20) output += chunk })
