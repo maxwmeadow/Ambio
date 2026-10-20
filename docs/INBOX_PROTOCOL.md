@@ -85,6 +85,10 @@ process. The panel tells the user to stop that agent separately if necessary.
 A request is a turn in a conversation. `canvas_outbox.thread_id` groups turns
 (the first turn's own ID) and `mode` records what the turn asks for: `ask`,
 `propose` or `build`. A message from before threads is a conversation of one.
+Built-in chat keeps its conversation in Electron and groups its work orders
+under `chat:<native session ID>`. Its first addressed Build can create that
+reserved thread without a prior inbox turn; later Builds continue it. Other
+unknown thread IDs, open requests and non-Build turns cannot create one this way.
 The panel shows one conversation at a time; the composer continues it, and
 **New conversation** starts another. The mode is chosen per turn, so asking,
 asking for a plan and ordering the build are three turns of one conversation.

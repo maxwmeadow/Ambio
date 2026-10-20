@@ -19,7 +19,10 @@ the user's normal Ambio data were not changed.
 | Native follow-up history | Passed; the next turn recalled the previous reply |
 | Native local tool round trip | Passed with the controlled MCP fixture; `ambio_get_architecture` completed and the next model response used its result |
 | Live Propose with the real Ambio MCP server | Passed; created `Greeting smoke plan` with a file member and a reviewable comment-only note; source remained unchanged |
-| Live Build from that plan | Failed before inference: the first native work order references a daemon thread that has never been created; source remained unchanged |
+| Live Build from that plan | Passed after the native thread fix; claimed the work order, recorded a work session, added only the approved documentation comment, compared the sheet, and submitted through `reply_to_canvas` |
+| Native action approval | Passed; the file edit waited for Allow, and declining an optional shell check stopped that earlier turn without file changes |
+| Human review | Passed; Accept result saved `review.decision: accepted` in the daemon and the UI displayed Accepted |
+| Follow-up Build | Passed; a new work order in the same native thread read back the unchanged function/comment and submitted a separate verification result without file changes |
 
 ## Failure found and fixed
 
@@ -38,7 +41,7 @@ Regression coverage checks the missing-header response, malformed content and
 explicit JSON content types; the bundled OpenCode test now receives a follow-up
 stream without a Content-Type header.
 
-## Separate Build blocker
+## Native Build failure found and fixed
 
 The UI returned HTTP 409 with “message changed, claim expired, or another agent
 owns it” when creating the first Build work order in the native conversation.
@@ -47,8 +50,18 @@ identifier), while `EnqueueCanvasMessage` in `archd-go/internal/db/sheets.go`
 requires a previously existing thread whenever `threadId != message.id`.
 Ask and Propose do not create a daemon inbox turn, so this first Build has no
 such thread. The request never reached the model and the fixture git diff
-remained empty. This path is unchanged from main `99f8068`; it is recorded as
-`native-chat-first-build-thread`, separately from the ChatGPT transport fix.
+remained empty. This path was unchanged from main `99f8068`.
+
+`EnqueueCanvasMessage` now permits the first **addressed Build** to create a
+nonempty `chat:` thread. Ordinary unknown threads, open requests and non-Build
+turns still fail their existing checks. No schema or renderer change is needed.
+A real-daemon/MCP regression test reproduces the original HTTP 409 and now
+verifies creation, idempotent retry, claims, replies, acceptance and follow-up
+conversation history. The live account then completed the edit and review loop.
+
+The approval-denial trial was cancelled before retrying with file tools only.
+The final fixture diff contains exactly one documentation comment; no commit or
+push was made in that disposable project.
 
 ## Local verification
 
@@ -57,9 +70,13 @@ remained empty. This path is unchanged from main `99f8068`; it is recorded as
 - Focused Responses and bundled native ChatGPT tests: 5 passed.
 - `npm run build` and the Windows daemon build: passed.
 - Earlier focused OAuth/Responses validation: 12 passed.
+- Follow-up daemon validation: `npm run vet:archd` and `npm run test:archd` passed.
+- Follow-up full MCP suite: `npm run test:mcp`, 36 passed, no failures.
 
-No daemon, MCP or renderer implementation changed. The previously recorded
-`proposal-placement-rejection-e2e` failure on unchanged main was not rerun.
+The only additional production change is native-thread creation in the daemon's
+existing inbox enqueue function. No schema, MCP tool or renderer change was
+needed. The previously recorded `proposal-placement-rejection-e2e` failure did
+not reproduce in the full MCP run; its broader investigation remains separate.
 
 ## Test setup and remaining release checks
 

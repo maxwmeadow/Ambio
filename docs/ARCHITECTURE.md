@@ -274,8 +274,11 @@ graph root, can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
-a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`). The claim
-response hands the agent the thread's earlier turns (`db.InboxConversation`),
+a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`).
+Built-in conversations use `chat:<native session ID>` for their Build work
+orders; `db.EnqueueCanvasMessage` allows an addressed Build to start that
+reserved thread because earlier Ask/Propose turns live in Electron.
+The claim response hands the agent the thread's earlier turns (`db.InboxConversation`),
 so context does not depend on the host. `electron/agentDrivers.ts` holds one
 driver per started host: how to start a turn, continue the host's session,
 apply the turn's mode as permissions, and read its output. The runner stores

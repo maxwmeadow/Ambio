@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- The first Build in an Ambio chat conversation now creates its work order
+  instead of failing with a claim-conflict error. Follow-up Builds keep their
+  history and review results in the same conversation.
 - ChatGPT plan conversations now accept completed responses when Electron omits
   the stream's content-type header, instead of reporting a connection failure.
 - Smoother canvas zooming on the Floor and architecture proposal review: camera
