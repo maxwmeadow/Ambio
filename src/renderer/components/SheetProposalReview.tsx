@@ -26,8 +26,8 @@ interface ReviewItem {
 export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   const sheetId = useSheetStore(s => s.activeSheetId)
   const layer = useSheetStore(s => (s.activeSheetId ? s.layersById[s.activeSheetId] : undefined))
-  const { decidePlanned, decideMove, decideRelationship } = useSheetStore(useShallow(s => ({
-    decidePlanned: s.setPlannedApproval, decideMove: s.decideSheetMove, decideRelationship: s.decideSheetRelationship,
+  const { decidePlanned, decideMove, decideRename, decideRelationship } = useSheetStore(useShallow(s => ({
+    decidePlanned: s.setPlannedApproval, decideMove: s.decideSheetMove, decideRename: s.decideSheetRename, decideRelationship: s.decideSheetRelationship,
   })))
   const { systems, files } = useGraphStore(useShallow(s => ({ systems: s.systems, files: s.files })))
   const [busy, setBusy] = useState(false)
@@ -61,6 +61,12 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
         decide: (decision: 'approved' | 'rejected') => decideMove(workspaceId, sheetId, element.id, decision),
       }
     }),
+    ...layer.elements.filter(element => element.renameStatus === 'pending' && element.proposedName && element.systemId).map(element => ({
+      key: `rename:${element.id}`, kind: 'rename', name: nameOf(element.systemId),
+      detail: `to ${element.proposedName}`,
+      focus: element.systemId!, asksWhy: false,
+      decide: (decision: 'approved' | 'rejected') => decideRename(workspaceId, sheetId, element.id, decision),
+    })),
     ...layer.plannedEdges.filter(edge => edge.approvalStatus === 'pending').map(edge => {
       const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
       const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''

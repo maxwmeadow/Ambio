@@ -677,11 +677,11 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Draw/reuse a sheet for review before structural code changes. connect draws dependencies; move puts members in target; remove proposes deleting live nodes. compare checks structure. After building: bind, apply_nesting, recompare; resolve needs a match and latest revision/token. export/import Markdown.',
+    description: 'Draw/reuse a sheet for review before structural code changes. connect draws dependencies; move puts members in target; rename gives a member system name; remove proposes deleting live nodes. compare checks structure. After building: bind, apply_nesting, recompare; resolve needs a match and latest revision/token. export/import Markdown.',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', enum: ['list','get','create','add','move','remove','restore','annotate','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
+        op: { type: 'string', enum: ['list','get','create','add','move','rename','remove','restore','annotate','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
         sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
         includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
         revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
@@ -2528,6 +2528,21 @@ Steps to execute:
         const sheet = await res.json() as { id: string }
         await postAgentActivity(project.workspaceId, `Sheet "${args.name}" created`, 'success')
         result = { created: sheet, note: `Sheet created with ${elements.length} elements. The user can open it from the sheet rail.` }
+        break
+      }
+
+      case 'rename_on_sheet': {
+        const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const ref = ((args.members as string[] | undefined) ?? [])[0] ?? (args.target as string | undefined)
+        if (!ref || typeof args.name !== 'string' || !args.name.trim()) throw new Error('rename needs members: [the system] and name: its new name')
+        const response = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/elements/rename`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: project.workspaceId, element: { ...await resolveModelRef(project.workspaceId, ref), addedBy: 'agent' }, name: args.name }),
+        })
+        if (!response.ok) throw new Error(`rename on sheet failed: ${await response.text()}`)
+        const renamed = await response.json() as { label: string; proposedName: string; renameStatus: string }
+        result = { system: renamed.label, proposedName: renamed.proposedName, status: renamed.renameStatus, note: 'Proposed on the sheet only; the map keeps the old name until the work is done.' }
         break
       }
 

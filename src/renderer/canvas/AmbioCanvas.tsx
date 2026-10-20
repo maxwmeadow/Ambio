@@ -1920,6 +1920,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     .filter(element => element.approvalStatus === 'pending')
     .map(element => element.systemId ?? element.fileId ?? ''))), [visibleLayers])
 
+  /** Systems a sheet proposes renaming (pending or confirmed): node ID -> the new name. */
+  const sheetRenames = useMemo(() => new Map(visibleLayers.flatMap(layer => layer.elements
+    .filter(element => element.systemId && element.proposedName && (element.renameStatus === 'pending' || element.renameStatus === 'approved'))
+    .map(element => [element.systemId!, { name: element.proposedName!, pending: element.renameStatus === 'pending' }] as const))), [visibleLayers])
+
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
@@ -2238,6 +2243,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
             },
           } : {}),
           ...(isStructuralFloorContext ? { nodeW: renderedW, nodeH: renderedH } : {}),
+          // A proposed rename shows the new name, with the one the map has today under it.
+          ...(sheetNode.type === 'system' && sheetRenames.has(sheetNode.id)
+            ? { name: sheetRenames.get(sheetNode.id)!.name, renamedFrom: (sheetNode.data as { name?: string }).name }
+            : {}),
         },
         style: {
           ...sheetNode.style,
@@ -2254,8 +2263,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           'data-sheet-placed': isSheetPlaced ? 'true' : undefined,
           // An agent's proposal waits for you; a rejected one stays visible but faded.
           'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus
-            : pendingMoveIds.has(sheetNode.id) ? 'pending' : undefined,
-          'data-proposal-kind': !planned && pendingMoveIds.has(sheetNode.id) ? 'move' : undefined,
+            : pendingMoveIds.has(sheetNode.id) || sheetRenames.get(sheetNode.id)?.pending ? 'pending' : undefined,
+          'data-proposal-kind': planned ? undefined
+            : [pendingMoveIds.has(sheetNode.id) ? 'move' : '', sheetRenames.get(sheetNode.id)?.pending ? 'rename' : ''].filter(Boolean).join(' ') || undefined,
         },
         draggable: activeNodeIds.has(sheetNode.id) && nodeOpacity > 0.1,
         // Context nodes are selectable so they can be inspected, connected and
@@ -2266,7 +2276,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
+  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds, sheetRenames])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])

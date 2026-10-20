@@ -84,6 +84,7 @@ const SHEET_OPS: Record<string, string> = {
   create: 'create_sheet',
   add: 'add_to_sheet',
   move: 'move_on_sheet',
+  rename: 'rename_on_sheet',
   remove: 'propose_sheet_removal',
   restore: 'restore_sheet_removal',
   annotate: 'annotate_sheet',

@@ -2371,7 +2371,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   // the file it takes over moved under the proposal (db.ProposeSheetMove).
   const unplaced = { positionX: 0, positionY: 0, width: null, height: null, scale: 1, tombstoneAck: 0, ghost: 0, addedBy: 'agent', symbolRef: null, infraId: null }
   const elements = [
-    { ...unplaced, id: 'el_system', sheetId: 'sheet_split', systemId, fileId: null, label: 'System', parentSystemId: parentId },
+    { ...unplaced, id: 'el_system', sheetId: 'sheet_split', systemId, fileId: null, label: 'System', parentSystemId: parentId, proposedName: 'Canvas Platform', renameStatus: 'pending' },
     { ...unplaced, id: 'el_file', sheetId: 'sheet_split', systemId: null, fileId: 'file_canvas', label: 'canvas', parentSystemId: 'planned:plan_split', approvalStatus: 'pending' },
   ]
   const relationship = { id: 'edge_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'DEPENDS_ON', srcPlanned: 'plan_split', srcLive: null, dstPlanned: null, dstLive: systemId, note: '', approvalStatus: 'pending', createdBy: 'agent' }
@@ -2390,13 +2390,20 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Payments Split')
   // The move and the relationship are reviewed with the new system.
-  await expect(review.locator('li')).toHaveCount(3)
+  await expect(review.locator('li')).toHaveCount(4)
+  await expect(review.locator('li[data-kind="rename"]')).toContainText('to Canvas Platform')
   await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
   await expect(review.locator('li[data-kind="depends on"]')).toContainText('Payments Split')
   // The named system has not moved or resized.
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
   for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
+  // It shows the proposed name, the one the map has today, and that it is a proposal.
+  const renamedSystem = page.locator(`.react-flow__node[data-id="${systemId}"]`)
+  await expect(renamedSystem).toHaveAttribute('data-proposal-kind', 'rename')
+  await expect(renamedSystem.locator('.ambio-renamed-from')).toContainText('was ')
+  await expect(renamedSystem).toContainText('Canvas Platform')
+  await page.screenshot({ path: 'test-results/sheet-proposed-rename.png' })
   // The file the proposal takes over is drawn inside it.
   await review.getByRole('button', { name: /Payments Split/ }).first().click()
   const plannedNode = page.locator('.react-flow__node[data-id="planned:plan_split"]')

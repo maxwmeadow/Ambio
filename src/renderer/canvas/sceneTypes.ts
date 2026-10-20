@@ -46,6 +46,8 @@ export interface AgentPresence {
 export interface SystemNodeData {
   id: string
   name: string
+  /** On a sheet that proposes a rename: the name the map has today. */
+  renamedFrom?: string
   source: DbSystem['source']
   color: string
   colorRgb: string

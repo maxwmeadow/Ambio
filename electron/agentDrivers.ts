@@ -170,6 +170,9 @@ const codex: AgentDriver = {
         '--skip-git-repo-check',
         ...(turn.model ? ['-c', `model=${JSON.stringify(turn.model)}`] : []),
         '-c', 'approval_policy="never"',
+        // Codex keeps its reasoning to itself unless asked for a summary;
+        // the summaries show in the turn's activity as it works.
+        '-c', 'model_reasoning_summary="auto"',
         '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
         '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
         '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(turn.workspaceId)}`,
@@ -190,6 +193,7 @@ const codex: AgentDriver = {
     if (!item) return NOTHING
     const finished = message.type === 'item.completed'
     if (item.type === 'agent_message' && finished && item.text?.trim()) return { events: [{ kind: 'text', text: clip(item.text, 1200) }] }
+    if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: [{ kind: 'thinking', text: clip(String(item.text).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(), 400) }] }
     if (item.type === 'command_execution' && !finished) return { events: [{ kind: 'tool', text: `Shell · ${clip(String(item.command ?? ''), 120)}` }] }
     if (item.type === 'mcp_tool_call' && !finished) return { events: [{ kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server ?? 'MCP'} · ${item.tool ?? 'tool'}` }] }
     if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 160)}` }] }

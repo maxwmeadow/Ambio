@@ -507,6 +507,52 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSheetElements(w http.ResponseWriter, r *http.Request, sheetID string, rest []string) {
 	workspaceID := r.URL.Query().Get("workspace")
 	switch {
+	case r.Method == http.MethodPost && len(rest) == 1 && rest[0] == "rename":
+		// Propose that an existing system is called something else.
+		var body struct {
+			WorkspaceID string            `json:"workspaceId"`
+			Element     sheetElementInput `json:"element"`
+			Name        string            `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "bad request", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		node, _ := resolveElement(sqlDB, sheetID, body.Element)
+		renamed, err := db.ProposeSheetRename(sqlDB, sheetID, *node, body.Name)
+		if err != nil {
+			jsonError(w, err.Error(), 400)
+			return
+		}
+		s.broadcastSheetLayoutState(sqlDB, sheetID)
+		jsonOK(w, renamed)
+
+	case r.Method == http.MethodPost && len(rest) == 2 && rest[1] == "rename-approval":
+		var body struct {
+			WorkspaceID string `json:"workspaceId"`
+			Decision    string `json:"decision"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "bad request", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		if err := db.DecideSheetRename(sqlDB, sheetID, rest[0], body.Decision); err != nil {
+			jsonError(w, err.Error(), 400)
+			return
+		}
+		elements, _, _ := s.broadcastSheetLayoutState(sqlDB, sheetID)
+		jsonOK(w, elements)
+
 	case r.Method == http.MethodPost && len(rest) == 2 && rest[1] == "approval":
 		// The human's decision on a proposed move.
 		var body struct {

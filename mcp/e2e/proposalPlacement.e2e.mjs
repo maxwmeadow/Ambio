@@ -92,10 +92,26 @@ test('a proposal is drawn inside its parent, owns the files it takes over, and r
     const index = decided.elements.find(candidate => candidate.fileId === file('storage/index.py').id)
     assert.equal(index.approvalStatus, 'rejected')
     assert.equal(index.parentSystemId, file('storage/index.py').systemId ?? null)
+    // A system can be proposed under a new name; a file cannot (its name is its path).
+    const renamed = await client.callTool('edit_sheet', { op: 'rename', sheet: sheetId, members: ['Records'], name: 'Record Store' })
+    assert.equal(renamed.isError, false, renamed.text)
+    assert.deepEqual([renamed.payload.proposedName, renamed.payload.status], ['Record Store', 'pending'])
+    const fileRename = await client.callTool('edit_sheet', { op: 'rename', sheet: sheetId, members: ['storage/record.py'], name: 'x.py' })
+    assert.equal(fileRename.isError, true)
+    const pendingRename = await client.callTool('edit_sheet', { op: 'compare', sheet: sheetId })
+    assert.ok(pendingRename.payload.differences.some(difference => difference.detail === 'Proposed rename still needs user approval'))
+    const recordsElement = (await (await fetch(`${apiBase}/api/sheets/${sheetId}?workspace=${workspaceId}`)).json()).elements.find(candidate => candidate.systemId === records)
+    const confirmRename = await post(`/api/sheets/${sheetId}/elements/${recordsElement.id}/rename-approval`, { decision: 'approved' })
+    assert.ok(confirmRename.ok, await confirmRename.text())
+    // Confirmed, it is work: compare wants the map renamed, and the builder is told.
+    const toRename = await client.callTool('edit_sheet', { op: 'compare', sheet: sheetId })
+    assert.ok(toRename.payload.differences.some(difference => difference.kind === 'rename' && difference.expected === 'Record Store'))
+
     // Only what was confirmed reaches the builder: the move, not the rejected relationship.
     const spec = await client.callTool('get_build_plan', { sheet: sheetId })
     const specText = JSON.stringify(spec.payload)
     assert.match(specText, /move storage\/task_store\.py into planned:Task Records/)
+    assert.match(specText, /rename Records to Record Store/)
     assert.doesNotMatch(specText, /move storage\/index\.py/)
     assert.doesNotMatch(specText, /planned:Task Records DEPENDS_ON/)
   } finally { harness.stop() }

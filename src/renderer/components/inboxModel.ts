@@ -75,13 +75,15 @@ const MODE_CONTRACT: Record<WorkOrderMode, string> = {
   ask: 'This is a question. Answer it in your reply; do not change code or the architecture map.',
   // An agent left to "draw your plan" redrew systems the map already had, as
   // empty top-level boxes. Start from the map, and draw only the change.
-  propose: 'Propose, do not build. Start from the current map (get_architecture overview and system_files for the systems involved): if part of what I ask for already exists, say so and reuse it rather than redrawing it. On a sheet, draw only what changes: plan_element each new system inside its parent, with the existing files or systems it takes over in owns; edit_sheet(move) existing files or systems that change boundary; edit_sheet(connect) new dependencies. Reply with what already existed and what you drew, and wait for me to confirm before changing any code.',
+  propose: 'Propose, do not build. Start from the current map (get_architecture overview and system_files for the systems involved): if part of what I ask for already exists, say so and reuse it rather than redrawing it. On a sheet, draw only what changes: plan_element each new system inside its parent, with the existing files or systems it takes over in owns; edit_sheet(move) existing files or systems that change boundary; edit_sheet(rename) a system whose role changes; edit_sheet(connect) new dependencies. Reply with what already existed and what you drew, and wait for me to confirm before changing any code.',
   build: '',
 }
 
 /** Contracts earlier versions wrote into turns, still recognised when reading them back. */
 const PAST_CONTRACTS: Partial<Record<WorkOrderMode, string[]>> = {
-  propose: ['Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.'],
+  propose: [
+    'Propose, do not build. Start from the current map (get_architecture overview and system_files for the systems involved): if part of what I ask for already exists, say so and reuse it rather than redrawing it. On a sheet, draw only what changes: plan_element each new system inside its parent, with the existing files or systems it takes over in owns; edit_sheet(move) existing files or systems that change boundary; edit_sheet(connect) new dependencies. Reply with what already existed and what you drew, and wait for me to confirm before changing any code.',
+    'Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.'],
 }
 
 export function workOrderNote(mode: WorkOrderMode, note: string): string {

@@ -254,6 +254,10 @@
 .react-flow__node[data-proposal="pending"]::after { content: 'PROPOSED'; position: absolute; top: -18px; left: 0; font: 700 9px var(--font-mono, monospace); letter-spacing: .05em; color: #8a5a12; pointer-events: none; }
 .react-flow__node[data-proposal="rejected"] { opacity: .35; }
 /* Inside the card: above it, the tag would sit on the new parent's title. */
+.react-flow__node[data-proposal="pending"][data-proposal-kind="rename"]::after { content: 'PROPOSED RENAME'; }
+.react-flow__node[data-proposal="pending"][data-proposal-kind="move rename"]::after { content: 'PROPOSED MOVE + RENAME'; }
+.react-flow__node[data-proposal="pending"]:is([data-proposal-kind="move"], [data-proposal-kind="rename"], [data-proposal-kind="move rename"])::after { top: auto; left: auto; bottom: 5px; right: 6px; padding: 1px 4px; border: 1px solid #c98a1b; background: #fbf3e2; z-index: 2; }
+.ambio-renamed-from { font-family: var(--font-mono); color: var(--text-secondary); text-decoration: line-through; text-decoration-color: #c98a1b; }
 .react-flow__node[data-proposal="pending"][data-proposal-kind="move"]::after { content: 'PROPOSED MOVE'; top: auto; left: auto; bottom: 5px; right: 6px; padding: 1px 4px; border: 1px solid #c98a1b; background: #fbf3e2; z-index: 2; }
 .ambio-sheet-rail__new { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #c98a1b; color: #fff; font: 700 8px var(--font-mono, monospace); letter-spacing: .05em; }
 /* The destination and mode sit inside the compose box, so they carry its
@@ -483,3 +487,5 @@
 /* Copy sits in the reply's header row, top right, rather than under the reply. */
 .ambio-inbox .ambio-inbox__reply-heading .ambio-inbox__copy-reply { margin: 0 0 0 auto; }
 .ambio-sheet-rail__review-label em { color: var(--rail-muted); font-size: 10.5px; font-style: normal; line-height: 1.25; overflow-wrap: anywhere; }
+/* The agent's own summary of its reasoning, quieter than what it does. */
+.ambio-inbox [data-kind='thinking'] { color: var(--inbox-muted); font-style: italic; }

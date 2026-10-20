@@ -179,6 +179,70 @@ func DecideSheetMove(sqlDB *sql.DB, sheetID, elementID, decision string) error {
 	return TouchSheet(sqlDB, sheetID)
 }
 
+// ProposeSheetRename records on a sheet that an existing system should be
+// called name. An agent's rename waits for the human; the Floor keeps the old
+// name until the work is done (edit_systems update) and compared.
+func ProposeSheetRename(sqlDB *sql.DB, sheetID string, node SheetElement, name string) (*SheetElement, error) {
+	name = strings.TrimSpace(name)
+	if node.SystemID == nil || *node.SystemID == "" {
+		return nil, fmt.Errorf("only a system can be renamed on a sheet; a file's name is its path, which changes in code")
+	}
+	if name == "" || len(name) > 120 {
+		return nil, fmt.Errorf("a rename needs a new name of 1-120 characters")
+	}
+	if name == node.Label {
+		return nil, fmt.Errorf("%s is already called that", node.Label)
+	}
+	status := "approved"
+	if node.AddedBy == "agent" {
+		status = "pending"
+	}
+	var existing string
+	err := sqlDB.QueryRow(`SELECT id FROM sheet_elements WHERE sheet_id=? AND system_id=? ORDER BY rowid LIMIT 1`, sheetID, *node.SystemID).Scan(&existing)
+	switch {
+	case err == sql.ErrNoRows:
+		e := node
+		e.SheetID = sheetID
+		e.ProposedName, e.RenameStatus = name, status
+		if err := AddSheetElement(sqlDB, &e); err != nil {
+			return nil, err
+		}
+		existing = e.ID
+	case err != nil:
+		return nil, err
+	default:
+		if _, err := sqlDB.Exec(`UPDATE sheet_elements SET proposed_name=?, rename_status=? WHERE id=?`, name, status, existing); err != nil {
+			return nil, err
+		}
+		_ = TouchSheet(sqlDB, sheetID)
+	}
+	elements, err := GetSheetElements(sqlDB, sheetID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range elements {
+		if elements[i].ID == existing {
+			return &elements[i], nil
+		}
+	}
+	return nil, fmt.Errorf("renamed element was not stored")
+}
+
+// DecideSheetRename records the human's decision on a proposed rename.
+func DecideSheetRename(sqlDB *sql.DB, sheetID, elementID, decision string) error {
+	if decision != "approved" && decision != "rejected" {
+		return fmt.Errorf("decision must be approved or rejected")
+	}
+	result, err := sqlDB.Exec(`UPDATE sheet_elements SET rename_status=? WHERE id=? AND sheet_id=? AND proposed_name<>''`, decision, elementID, sheetID)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n != 1 {
+		return fmt.Errorf("no proposed rename %s on this sheet", elementID)
+	}
+	return TouchSheet(sqlDB, sheetID)
+}
+
 func sheetParentIsInfra(tx *sql.Tx, sheetID, parentID string) (bool, error) {
 	var n int
 	if strings.HasPrefix(parentID, "planned:") {

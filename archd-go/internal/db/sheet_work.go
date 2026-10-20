@@ -210,6 +210,13 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 		if e.ApprovalStatus == "pending" {
 			add("approval", n.ID, e.Label, "approved", "pending", "Proposed move still needs user approval")
 		}
+		switch {
+		case e.ProposedName == "" || e.RenameStatus == "rejected":
+		case e.RenameStatus == "pending":
+			add("approval", n.ID, e.Label, "approved", "pending", "Proposed rename still needs user approval")
+		case live[n.ID].Name != e.ProposedName:
+			add("rename", n.ID, e.Label, e.ProposedName, live[n.ID].Name, "Rename the system on the map (edit_systems update) once the code matches")
+		}
 	}
 	rejected := map[string]bool{}
 	for _, p := range plans {
