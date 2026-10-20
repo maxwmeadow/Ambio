@@ -1,7 +1,7 @@
 # Ambio canvas scalability plan
 
 Date: 2026-10-20
-Status: proposed execution plan; this change contains documentation only.
+Status: approved for staged execution by Max on 2026-10-20; phase 1 in progress.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
