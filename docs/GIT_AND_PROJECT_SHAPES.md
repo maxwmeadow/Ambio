@@ -1,10 +1,10 @@
 # Git, branches and project shapes (design proposal)
 
-Status: **proposal, needs decisions** (WORK `git-native`, questions at the
-end). It replaces four open questions with one design: `project-shapes`,
-`branches-and-worktrees-ux`, `worktrees-one-or-two` and `multi-root-projects`.
-Two bugs found while auditing are filed separately because they are bugs
-whatever is decided (`checkout-journaled-as-code`, `subfolder-opens-whole-repo`).
+Status: **decided 2026-10-20** (DECISIONS §1; Q1-Q6 below accepted as
+recommended). Build items are in WORK.md under *Git and project shapes*,
+starting with `git-checkout-truth` (stage 0). It replaced four open questions:
+`project-shapes`, `branches-and-worktrees-ux`, `worktrees-one-or-two` and
+`multi-root-projects`.
 
 ## Why
 
@@ -252,7 +252,7 @@ Each slice ships on its own and leaves the app better.
    Add Folder to Project…, repository frames, cross-repository edges,
    submodules.
 
-## Decisions needed (Max)
+## Decisions (accepted 2026-10-20)
 
 - **Q1. Is meaning project-wide or per branch?** Recommendation:
   project-wide (rule 1 above). Per-branch systems would make every agent
