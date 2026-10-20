@@ -99,6 +99,12 @@ func (m *Manager) LaunchLangTarget(workspaceID, language, program string, args [
 	if err != nil {
 		return nil, err
 	}
+	if isLLDB(dbgPath) {
+		cfg.adapterID = "lldb-dap"
+		if macOSDebuggingBlocked() {
+			return nil, fmt.Errorf("%s", macOSDebuggingHint)
+		}
+	}
 	watches := m.WatchesForWorkspace(workspaceID)
 	funcToID := make(map[string]string)
 	for _, w := range watches {
@@ -476,6 +482,13 @@ func (s *dapLangSession) inspect(threadID int) (string, json.RawMessage) {
 	watchID := ""
 	if s.cfg.breakpointMode == "function" {
 		watchID = s.matchFunc(frame.Name)
+		// A breakpoint set by name stops in every function of that name,
+		// the system libraries' included (lldb resolves `add` to three
+		// places in a trivial program). Only the one in the watched file
+		// is the watched function.
+		if watchID != "" && !s.inWatchedFile(watchID, frame.Source.Path) {
+			watchID = ""
+		}
 	} else {
 		watchID = s.matchSource(frame.Source.Path, frame.Line)
 	}
@@ -545,6 +558,30 @@ func (s *dapLangSession) matchFunc(frameName string) string {
 		}
 	}
 	return ""
+}
+
+// inWatchedFile reports whether a stopped frame's source is the file the
+// watch names. A frame with no source (a library without debug info) is not.
+func (s *dapLangSession) inWatchedFile(watchID, framePath string) bool {
+	for _, w := range s.watches {
+		if w.ID != watchID {
+			continue
+		}
+		if w.AbsPath == "" {
+			return true
+		}
+		if framePath == "" {
+			return false
+		}
+		if normalizePath(framePath) == normalizePath(w.AbsPath) {
+			return true
+		}
+		// The compiler may have recorded the path through a symlink, or not.
+		a, errA := filepath.EvalSymlinks(framePath)
+		b, errB := filepath.EvalSymlinks(w.AbsPath)
+		return errA == nil && errB == nil && normalizePath(a) == normalizePath(b)
+	}
+	return true
 }
 
 // matchStoppedLocation parses a "file:line" out of a stopped-event description

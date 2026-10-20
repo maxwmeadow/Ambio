@@ -12,15 +12,23 @@ import (
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/bash"
 	clang "github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/csharp"
+	"github.com/smacker/go-tree-sitter/elixir"
 	"github.com/smacker/go-tree-sitter/golang"
+	"github.com/smacker/go-tree-sitter/groovy"
 	"github.com/smacker/go-tree-sitter/java"
 	"github.com/smacker/go-tree-sitter/javascript"
+	"github.com/smacker/go-tree-sitter/kotlin"
+	"github.com/smacker/go-tree-sitter/lua"
+	"github.com/smacker/go-tree-sitter/php"
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/ruby"
 	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/scala"
+	"github.com/smacker/go-tree-sitter/swift"
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 
@@ -41,8 +49,9 @@ type Result struct {
 	LineCount int
 	Symbols   []db.Symbol
 	// Imports holds resolved relative paths or module specifiers for most languages.
-	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration;
-	// other entries are internal using directives (namespace strings, not file paths).
+	// For C#, entries prefixed with "#ns:" are the file's own namespace declaration,
+	// "#global:" a global using; other entries are internal using directives
+	// (namespace strings, not file paths).
 	Imports []string
 	// Packages holds every external package the file loads, with its line:
 	// the evidence infra detection matches against the service registry.
@@ -155,16 +164,32 @@ func detectLanguage(path string) string {
 		return "rust"
 	case ".cs":
 		return "csharp"
-	case ".cpp", ".cc", ".cxx", ".hpp", ".hxx":
+	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hxx", ".hh":
 		return "cpp"
 	case ".c", ".h":
 		return "c"
+	case ".kt", ".kts":
+		return "kotlin"
+	case ".swift":
+		return "swift"
+	case ".php":
+		return "php"
 	case ".rb":
 		return "ruby"
 	case ".java":
 		return "java"
 	case ".css", ".scss", ".sass", ".less":
 		return stylesheetExts[strings.ToLower(filepath.Ext(path))]
+	case ".scala", ".sc":
+		return "scala"
+	case ".groovy":
+		return "groovy"
+	case ".lua":
+		return "lua"
+	case ".sh", ".bash":
+		return "bash"
+	case ".ex", ".exs":
+		return "elixir"
 	case ".md", ".mdx":
 		return "markdown"
 	case ".txt", ".rst", ".adoc":
@@ -198,6 +223,22 @@ func grammarFor(lang string) *sitter.Language {
 		return ruby.GetLanguage()
 	case "java":
 		return java.GetLanguage()
+	case "kotlin":
+		return kotlin.GetLanguage()
+	case "swift":
+		return swift.GetLanguage()
+	case "php":
+		return php.GetLanguage()
+	case "scala":
+		return scala.GetLanguage()
+	case "groovy":
+		return groovy.GetLanguage()
+	case "lua":
+		return lua.GetLanguage()
+	case "bash":
+		return bash.GetLanguage()
+	case "elixir":
+		return elixir.GetLanguage()
 	default:
 		return nil
 	}
@@ -249,6 +290,22 @@ var symbolNodeTypes = map[string]string{
 	"class":            "class",
 	// (Ruby "class" and Java "class_declaration"/"interface_declaration" reuse
 	// the entries above; Java method_declaration reuses Go's mapping.)
+	// Kotlin (class_declaration, function_declaration shared above)
+	"object_declaration": "class",
+	// Swift (class_declaration covers struct/enum/extension)
+	"protocol_declaration":          "interface",
+	"protocol_function_declaration": "method",
+	"init_declaration":              "function",
+	// PHP (function_definition, method_declaration, class/interface shared)
+	"trait_declaration": "class",
+	// Scala (class_definition, function_definition, function_declaration shared)
+	"trait_definition":  "interface",
+	"object_definition": "class",
+	"enum_definition":   "type",
+	// Lua (`function M.name()`, `local function name()`)
+	"function_statement": "function",
+	// Groovy, Bash: class_definition and function_definition, shared above.
+	// Elixir has no declaration nodes: see elixirSymbol.
 }
 
 // containerSymbolTypes are declaration nodes that name a scope we record as a symbol
@@ -263,6 +320,52 @@ var containerSymbolTypes = map[string]bool{
 	"struct_specifier":      true, // C++
 	"class":                 true, // Ruby
 	"module":                true, // Ruby
+	"object_declaration":    true, // Kotlin
+	"protocol_declaration":  true, // Swift
+	"trait_declaration":     true, // PHP
+	"trait_definition":      true, // Scala
+	"object_definition":     true, // Scala
+}
+
+// elixirSymbol reads a declaration out of an Elixir call: everything in
+// Elixir is a macro call, so `defmodule Shop.Cart do`, `def total(c)` and
+// `defp helper(x) when x > 0` are all `call` nodes told apart by their target.
+func elixirSymbol(node *sitter.Node, src []byte) (name, kind string, container bool) {
+	target := node.ChildByFieldName("target")
+	if target == nil {
+		return "", "", false
+	}
+	var args *sitter.Node
+	for i := 0; i < int(node.NamedChildCount()); i++ {
+		if child := node.NamedChild(i); child.Type() == "arguments" {
+			args = child
+			break
+		}
+	}
+	if args == nil || args.NamedChildCount() == 0 {
+		return "", "", false
+	}
+	first := args.NamedChild(0)
+	switch target.Content(src) {
+	case "defmodule", "defprotocol", "defimpl":
+		return first.Content(src), "class", true
+	case "def", "defp", "defmacro", "defmacrop", "defguard", "defguardp", "defdelegate":
+		// `def total(c) when c > 0`: the head is the left side of the guard.
+		if first.Type() == "binary_operator" {
+			if left := first.ChildByFieldName("left"); left != nil {
+				first = left
+			}
+		}
+		if first.Type() == "call" {
+			if t := first.ChildByFieldName("target"); t != nil {
+				return t.Content(src), "function", false
+			}
+		}
+		if first.Type() == "identifier" {
+			return first.Content(src), "function", false
+		}
+	}
+	return "", "", false
 }
 
 func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
@@ -270,8 +373,18 @@ func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
 		kind, ok := symbolNodeTypes[node.Type()]
+		name := ""
+		container := containerSymbolTypes[node.Type()]
+		if lang == "elixir" {
+			ok = false
+			if node.Type() == "call" {
+				name, kind, container = elixirSymbol(node, src)
+				ok = name != ""
+			}
+		} else if ok && kind != "" {
+			name = extractName(node, src, lang)
+		}
 		if ok && kind != "" {
-			name := extractName(node, src, lang)
 			if name != "" {
 				bodySum := sha256.Sum256(src[node.StartByte():node.EndByte()])
 				symbols = append(symbols, db.Symbol{
@@ -281,7 +394,7 @@ func extractSymbols(root *sitter.Node, src []byte, lang string) []db.Symbol {
 					LineEnd:   int(node.EndPoint().Row) + 1,
 					BodyHash:  hex.EncodeToString(bodySum[:]),
 				})
-				if !containerSymbolTypes[node.Type()] {
+				if !container {
 					return // leaf symbol - stop descending into its body
 				}
 				// container (class/interface/struct/record) - fall through to descend
@@ -300,6 +413,19 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	// Use the grammar's named "name" field first - avoids confusing return types
 	// with method names in C# (where return type appears before name in child order).
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+		// Lua: `function M.reserve()` and `function M:reserve()` are named
+		// by a path; the function is its last part.
+		if nameNode.Type() == "function_name" {
+			for i := int(nameNode.NamedChildCount()) - 1; i >= 0; i-- {
+				if part := nameNode.NamedChild(i); part.Type() == "identifier" {
+					return part.Content(src)
+				}
+			}
+		}
+		return nameNode.Content(src)
+	}
+	// Groovy names a method by its "function" field.
+	if nameNode := node.ChildByFieldName("function"); nameNode != nil && lang == "groovy" {
 		return nameNode.Content(src)
 	}
 	// C++: the function name is nested in a declarator chain
@@ -315,7 +441,7 @@ func extractName(node *sitter.Node, src []byte, lang string) string {
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(i)
 		t := child.Type()
-		if t == "identifier" || t == "name" || t == "property_identifier" || t == "type_identifier" {
+		if t == "identifier" || t == "name" || t == "property_identifier" || t == "type_identifier" || t == "simple_identifier" {
 			return child.Content(src)
 		}
 	}
@@ -353,9 +479,19 @@ func extractImports(root *sitter.Node, src []byte, lang, relPath string) []strin
 	case "go":
 		return extractGoImports(root, src)
 	case "java", "rust", "ruby", "cpp", "c":
-		return extractTextImports(src, lang, relPath)
+		specs := extractTextImports(src, lang, relPath)
+		if lang == "c" || lang == "cpp" {
+			// #include <dir/file.h> can name a project header on an include
+			// path; imports_text.go tags it and the indexer looks for it.
+			for _, spec := range extractOtherTextImports(src, lang) {
+				if strings.HasPrefix(spec, SpecIncludeSystem) {
+					specs = append(specs, spec)
+				}
+			}
+		}
+		return specs
 	default:
-		return nil
+		return extractOtherTextImports(src, lang)
 	}
 }
 
@@ -507,6 +643,15 @@ func extractCSharpImports(src []byte) []string {
 			// Skip partial or generic namespace artifacts
 			if ns != "" && !strings.ContainsAny(ns, "(<{") {
 				imports = append(imports, "#ns:"+ns)
+			}
+			continue
+		}
+
+		// Global using: in scope in every file of the project.
+		if strings.HasPrefix(line, "global using ") && strings.HasSuffix(line, ";") {
+			name := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "global using "), ";"))
+			if !strings.HasPrefix(name, "static ") && !strings.Contains(name, "=") && !isCSharpExternal(name) {
+				imports = append(imports, "#global:"+name)
 			}
 			continue
 		}

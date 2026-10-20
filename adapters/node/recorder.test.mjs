@@ -9,12 +9,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const ADAPTER = dirname(fileURLToPath(import.meta.url))
 
 /** Run `code` as a workspace file under the recorder; return the merged evidence. */
-function record(code, watches, name = 'app.js') {
+function record(code, watches, name = 'app.js', nodeArgs = []) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'ambio-rec-')))
   const evidence = join(root, '.evidence')
   const file = join(root, name)
   writeFileSync(file, code)
-  const result = spawnSync(process.execPath, [file], {
+  const result = spawnSync(process.execPath, [...nodeArgs, file], {
     cwd: root,
     encoding: 'utf8',
     env: {
@@ -131,6 +131,31 @@ console.log(double(21))
   assert.equal(w.calls, 1)
   assert.equal(w.line, 2)
   assert.equal(w.samples[0].returned, '42')
+})
+
+test('TypeScript that needs transforming (enums, parameter properties) records under its own lines', () => {
+  const r = record(`
+enum Tier { Basic, Gold }
+
+class Cart {
+  constructor(private readonly tier: Tier) {}
+  total(items: number[]): number {
+    const sum = items.reduce((a, b) => a + b, 0)
+    return this.tier === Tier.Gold ? sum * 0.9 : sum
+  }
+}
+
+export function checkout(tier: Tier, items: number[]): number {
+  return new Cart(tier).total(items)
+}
+console.log(checkout(Tier.Gold, [10, 20]))
+`, ['checkout', 'total'], 'cart.ts', ['--experimental-transform-types', '--no-warnings'])
+  assert.equal(r.stdout.trim(), '27')
+  const checkout = r.watched('checkout')
+  assert.equal(checkout.line, 12, 'the enum moves generated lines; the map moves them back')
+  assert.equal(checkout.samples[0].returned, '27')
+  assert.equal(r.watched('total').line, 6)
+  assert.equal(r.fn('constructor').line, 5)
 })
 
 test('shared state that changes between calls is caught even when no argument is mutated', () => {

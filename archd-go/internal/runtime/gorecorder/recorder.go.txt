@@ -1,0 +1,1262 @@
+// Package ambiorecgen records an Ambio investigation run of Go code. It exists
+// only for the run: archd adds it to the user's module through `go -overlay`
+// and rewrites each function of the module to call it, so nothing on disk
+// changes and the build cache stays correct (the overlay is content-hashed).
+//
+// It writes one JSON document per process in the shape the Node, Python and
+// Ruby recorders write (archd-go/internal/runtime/run.go EvidenceDoc).
+package ambiorecgen
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+const (
+	sampleHead     = 6
+	sampleTail     = 4
+	maxEdges       = 5000
+	flattenDepth   = 4
+	flattenLeaves  = 160
+	seriesKeep     = 12
+	distinctKeep   = 24
+	previewMax     = 240
+	mutationKeep   = 6
+	maxExceptions  = 20
+	callerHops     = 8
+	flushThrottle  = 200 * time.Millisecond
+)
+
+type fn struct {
+	file, name string
+	line       int
+	calls      int64
+	errors     int64
+	ns         int64
+	watch      *watchState
+}
+
+var (
+	mu       sync.Mutex
+	fns      []*fn
+	entries  = map[uintptr]int{} // function entry PC -> index in fns
+	edges    = map[[2]int]int64{}
+	dropped  int
+	active   int64
+	started  = time.Now()
+	lastSave time.Time
+	pending  bool
+	written  int64 = -1
+	dir      = os.Getenv("AMBIO_EVIDENCE_DIR")
+	runID    = os.Getenv("AMBIO_RUN_ID")
+	watches  []watchSpec
+	once     sync.Once
+)
+
+type watchSpec struct {
+	file, symbol     string
+	lineStart, lineEnd int
+}
+
+func setup() {
+	var raw []struct {
+		AbsPath   string `json:"absPath"`
+		File      string `json:"file"`
+		Symbol    string `json:"symbol"`
+		LineStart int    `json:"lineStart"`
+		LineEnd   int    `json:"lineEnd"`
+	}
+	_ = json.Unmarshal([]byte(os.Getenv("AMBIO_WATCHES")), &raw)
+	for _, w := range raw {
+		p := w.AbsPath
+		if p == "" {
+			p = w.File
+		}
+		if p == "" {
+			continue
+		}
+		watches = append(watches, watchSpec{file: canonical(p), symbol: w.Symbol, lineStart: w.LineStart, lineEnd: w.LineEnd})
+	}
+	if dir == "" {
+		return
+	}
+	// A killed process (timeout) never reaches the last flush; save often.
+	// A timer that re-arms itself, not a goroutine that loops: tests that
+	// check for leaked goroutines (goleak) would find a loop still running.
+	var tick func()
+	tick = func() {
+		save()
+		time.AfterFunc(time.Second, tick)
+	}
+	time.AfterFunc(time.Second, tick)
+}
+
+func canonical(p string) string {
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		p = real
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	return filepath.Clean(p)
+}
+
+// Register records one file's functions ("Name:line", method names bare) and
+// returns the index of the first; instrumented code adds its offset.
+func Register(file string, specs ...string) int {
+	once.Do(setup)
+	mu.Lock()
+	defer mu.Unlock()
+	base := len(fns)
+	cfile := canonical(file)
+	for _, spec := range specs {
+		i := strings.LastIndexByte(spec, ':')
+		name := spec[:i]
+		line, _ := strconv.Atoi(spec[i+1:])
+		f := &fn{file: file, name: name, line: line}
+		named := 0
+		var hit *watchSpec
+		for j := range watches {
+			w := &watches[j]
+			if w.file != cfile {
+				continue
+			}
+			if w.symbol == "*" {
+				hit = w
+				break
+			}
+			if w.symbol != name {
+				continue
+			}
+			named++
+			if w.lineStart == 0 || (line >= w.lineStart-1 && line <= maxInt(w.lineEnd, w.lineStart)) {
+				hit = w
+				break
+			}
+		}
+		if hit == nil && named == 1 {
+			for j := range watches {
+				if watches[j].file == cfile && watches[j].symbol == name {
+					hit = &watches[j]
+				}
+			}
+		}
+		if hit != nil {
+			f.watch = newWatch(f)
+		}
+		fns = append(fns, f)
+	}
+	return base
+}
+
+// Call is one invocation, kept on the instrumented function's stack.
+type Call struct {
+	id     int
+	start  int64
+	w      *watchState
+	n      int
+	names  []string
+	before   map[string]leaf
+	args     string
+	nargs    int
+	receiver map[string]bool
+}
+
+// Enter counts a call and the edge from the nearest instrumented caller.
+func Enter(id int) Call {
+	var pcs [callerHops + 2]uintptr
+	n := runtime.Callers(2, pcs[:])
+	atomic.AddInt64(&active, 1)
+	mu.Lock()
+	f := fns[id]
+	f.calls++
+	if n > 0 {
+		if self := runtime.FuncForPC(pcs[0]); self != nil {
+			entries[self.Entry()] = id
+		}
+		for i := 1; i < n; i++ {
+			caller := runtime.FuncForPC(pcs[i])
+			if caller == nil {
+				continue
+			}
+			if from, ok := entries[caller.Entry()]; ok {
+				if from != id {
+					key := [2]int{from, id}
+					if _, seen := edges[key]; seen || len(edges) < maxEdges {
+						edges[key]++
+					} else {
+						dropped++
+					}
+				}
+				break
+			}
+		}
+	}
+	c := Call{id: id, start: time.Now().UnixNano(), w: f.watch}
+	if c.w != nil {
+		c.w.calls++
+		c.n = int(c.w.calls)
+	}
+	mu.Unlock()
+	return c
+}
+
+// Watched reports whether arguments are recorded for this function.
+func (c Call) Watched() bool { return c.w != nil }
+
+// Args snapshots the arguments of a watched call.
+func (c *Call) Args(names []string, values ...interface{}) {
+	if c.w == nil {
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	receiver := map[string]bool{}
+	clean := make([]string, len(names))
+	for i, name := range names {
+		if strings.HasPrefix(name, "@") {
+			name = name[1:]
+			receiver[name] = true
+		}
+		clean[i] = name
+	}
+	names = clean
+	c.names = names
+	c.nargs = len(names)
+	c.receiver = receiver
+	c.before = map[string]leaf{}
+	parts := make([]string, 0, len(names))
+	fingerprint := make([]string, 0, len(names))
+	var nodes []node
+	for i, name := range names {
+		if !receiver[name] {
+			collectNodes(reflect.ValueOf(values[i]), name, &nodes)
+		}
+	}
+	c.w.checkDrift(nodes, c.n)
+	for i, name := range names {
+		v := reflect.ValueOf(values[i])
+		for p, l := range flatten(v, name) {
+			c.before[p] = l
+			c.w.observe("arg."+p, l)
+			fingerprint = append(fingerprint, p+"="+l.display())
+		}
+		parts = append(parts, name+": "+preview(v, 0))
+		c.w.shared(name, v, c.n)
+	}
+	sort.Strings(fingerprint)
+	c.args = truncate("{"+strings.Join(parts, ", ")+"}", previewMax)
+	c.w.repeat(c.n, strings.Join(fingerprint, "|"), c.args)
+}
+
+// After records the arguments' state at return (mutations) and the results.
+// AfterRefs is After with the values read through their addresses: the
+// deferred call takes them on entry and reads them on the way out.
+func (c *Call) AfterRefs(refs ...interface{}) {
+	if c.w == nil {
+		return
+	}
+	values := make([]interface{}, len(refs))
+	for i, ref := range refs {
+		values[i] = reflect.ValueOf(ref).Elem().Interface()
+	}
+	c.After(values...)
+}
+
+func (c *Call) After(values ...interface{}) {
+	if c.w == nil {
+		return
+	}
+	ms := float64(time.Now().UnixNano()-c.start) / 1e6
+	mu.Lock()
+	defer mu.Unlock()
+	w := c.w
+	var changed [][3]string
+	for i := 0; i < c.nargs && i < len(values); i++ {
+		v := reflect.ValueOf(values[i])
+		// Only what the caller shares can be mutated for it: pointers, maps
+		// and slices. A struct passed by value changing locally is not.
+		if !sharesState(v) {
+			continue
+		}
+		name := c.names[i]
+		after := flatten(v, name)
+		keys := map[string]bool{}
+		for k := range c.before {
+			if k == name || strings.HasPrefix(k, name+".") || strings.HasPrefix(k, name+"[") {
+				keys[k] = true
+			}
+		}
+		for k := range after {
+			keys[k] = true
+		}
+		sorted := make([]string, 0, len(keys))
+		for k := range keys {
+			sorted = append(sorted, k)
+		}
+		sort.Strings(sorted)
+		for _, k := range sorted {
+			b, a := c.before[k].display(), after[k].display()
+			if _, ok := c.before[k]; !ok {
+				b = "(absent)"
+			}
+			if _, ok := after[k]; !ok {
+				a = "(absent)"
+			}
+			if a != b {
+				changed = append(changed, [3]string{k, b, a})
+			}
+		}
+	}
+	for _, ch := range changed {
+		w.mutation(ch[0], ch[1], ch[2], c.n)
+	}
+	var nodes []node
+	for i := 0; i < c.nargs && i < len(values); i++ {
+		if !c.receiver[c.names[i]] {
+			collectNodes(reflect.ValueOf(values[i]), c.names[i], &nodes)
+		}
+	}
+	w.checkDrift(nodes, c.n)
+	results := values[minInt(c.nargs, len(values)):]
+	s := sample{Call: c.n, Args: c.args, Ms: round3(ms)}
+	var failed string
+	var shown []string
+	for i, r := range results {
+		v := reflect.ValueOf(r)
+		// Go reports failure by returning an error: the last result, non-nil.
+		if i == len(results)-1 && isError(v) {
+			failed = "error: " + errorText(v)
+			continue
+		}
+		shown = append(shown, preview(v, 0))
+		for p, l := range flatten(v, "return") {
+			w.observe(p, l)
+		}
+		// What a function hands back can be changed behind its back too: a
+		// cache returning the same object, altered since it last returned it.
+		var returned []node
+		collectNodes(v, "return", &returned)
+		w.checkDrift(returned, c.n)
+	}
+	if failed != "" {
+		w.errors++
+		fns[c.id].errors++
+		w.exception(failed)
+		s.Threw = failed
+	} else {
+		ret := "nil"
+		switch len(shown) {
+		case 0:
+		case 1:
+			ret = shown[0]
+		default:
+			ret = "(" + strings.Join(shown, ", ") + ")"
+		}
+		s.Returned = &ret
+		if len(results) == 1 {
+			w.returns.add(leafOf(reflect.ValueOf(results[0]), ret))
+		} else {
+			w.returns.add(leaf{kind: "text", text: truncate(ret, 80)})
+		}
+	}
+	for i, ch := range changed {
+		if i >= 4 {
+			break
+		}
+		s.Mutated = append(s.Mutated, ch[0]+": "+ch[1]+" → "+ch[2])
+	}
+	w.totalMs += ms
+	w.sample(s)
+}
+
+// Exit closes a call: its time, and a save when the program is likely ending.
+func (c Call) Exit() {
+	elapsed := time.Now().UnixNano() - c.start
+	left := atomic.AddInt64(&active, -1)
+	mu.Lock()
+	f := fns[c.id]
+	f.ns += elapsed
+	name := f.name
+	mu.Unlock()
+	// main and top-level tests end the process soon after returning; nothing
+	// runs at exit in Go, so save now. Otherwise save when no call is active.
+	if name == "main" || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") || strings.HasPrefix(name, "Example") {
+		save()
+		return
+	}
+	if left == 0 {
+		mu.Lock()
+		due := time.Since(lastSave) >= flushThrottle
+		mu.Unlock()
+		if due {
+			save()
+		}
+	}
+}
+
+func save() {
+	if dir == "" {
+		return
+	}
+	mu.Lock()
+	var total int64
+	for _, f := range fns {
+		total += f.calls
+	}
+	if total == written || len(fns) == 0 {
+		mu.Unlock()
+		return
+	}
+	written = total
+	lastSave = time.Now()
+	doc := document()
+	mu.Unlock()
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(dir, 0o755)
+	name := fmt.Sprintf("%d-go-%s.json", os.Getpid(), shortHash(moduleTag))
+	tmp := filepath.Join(dir, name+".tmp")
+	if os.WriteFile(tmp, data, 0o644) == nil {
+		_ = os.Rename(tmp, filepath.Join(dir, name))
+	}
+}
+
+// moduleTag tells apart two copies of this package (two modules) in one process.
+var moduleTag = func() string {
+	type marker struct{}
+	return reflect.TypeOf(marker{}).PkgPath()
+}()
+
+func shortHash(s string) string {
+	var h uint32 = 2166136261
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
+	}
+	return strconv.FormatUint(uint64(h), 16)
+}
+
+func document() map[string]interface{} {
+	functions := make([]map[string]interface{}, 0, len(fns))
+	for _, f := range fns {
+		if f.calls == 0 {
+			continue
+		}
+		functions = append(functions, map[string]interface{}{
+			"file": f.file, "name": f.name, "line": f.line,
+			"calls": f.calls, "errors": f.errors, "ms": round3(float64(f.ns) / 1e6),
+		})
+	}
+	ref := func(i int) map[string]interface{} {
+		f := fns[i]
+		return map[string]interface{}{"file": f.file, "name": f.name, "line": f.line}
+	}
+	edgeList := make([]map[string]interface{}, 0, len(edges))
+	for k, n := range edges {
+		edgeList = append(edgeList, map[string]interface{}{"from": ref(k[0]), "to": ref(k[1]), "calls": n})
+	}
+	watched := []map[string]interface{}{}
+	for _, f := range fns {
+		if f.watch != nil && f.watch.calls > 0 {
+			watched = append(watched, f.watch.json())
+		}
+	}
+	argv := []string{}
+	for _, a := range os.Args[:minInt(3, len(os.Args))] {
+		argv = append(argv, filepath.Base(a))
+	}
+	return map[string]interface{}{
+		"version": 1, "runId": runID, "pid": os.Getpid(), "argv": argv,
+		"startedAt": started.UnixMilli(), "endedAt": time.Now().UnixMilli(),
+		"functions": functions, "edges": edgeList, "edgesDropped": dropped,
+		"watched": watched, "uncaught": []interface{}{},
+	}
+}
+
+// ── values ─────────────────────────────────────────────────────────────────
+
+type leaf struct {
+	kind string
+	text string
+	num  float64
+	isNum bool
+}
+
+func (l leaf) display() string {
+	if l.kind == "" {
+		return "(absent)"
+	}
+	return l.text
+}
+
+func truncate(s string, n int) string {
+	if len([]rune(s)) <= n {
+		return s
+	}
+	r := []rune(s)
+	return string(r[:n-1]) + "…"
+}
+
+func round3(f float64) float64 { return float64(int64(f*1000+0.5)) / 1000 }
+
+var errorType = reflect.TypeOf((*error)(nil)).Elem()
+
+func isError(v reflect.Value) bool {
+	if !v.IsValid() || !v.Type().Implements(errorType) {
+		return false
+	}
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return !v.IsNil()
+	}
+	return true
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func errorText(v reflect.Value) string {
+	if v.CanInterface() {
+		if e, ok := v.Interface().(error); ok {
+			return truncate(e.Error(), 200)
+		}
+	}
+	return v.Type().String()
+}
+
+func sharesState(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice:
+		return true
+	case reflect.Interface:
+		return sharesState(v.Elem())
+	}
+	return false
+}
+
+// leafValue is a value's own display when it has no structure.
+func leafValue(v reflect.Value) (leaf, bool) {
+	if !v.IsValid() {
+		return leaf{kind: "null", text: "nil"}, true
+	}
+	switch v.Kind() {
+	case reflect.Bool:
+		return leaf{kind: "boolean", text: strconv.FormatBool(v.Bool())}, true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if v.Type().String() == "time.Duration" {
+			return leaf{kind: "duration", text: time.Duration(v.Int()).String()}, true
+		}
+		return leaf{kind: "number", text: strconv.FormatInt(v.Int(), 10), num: float64(v.Int()), isNum: true}, true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return leaf{kind: "number", text: strconv.FormatUint(v.Uint(), 10), num: float64(v.Uint()), isNum: true}, true
+	case reflect.Float32, reflect.Float64:
+		f := v.Float()
+		return leaf{kind: "number", text: strconv.FormatFloat(f, 'g', -1, 64), num: f, isNum: true}, true
+	case reflect.Complex64, reflect.Complex128:
+		return leaf{kind: "special", text: fmt.Sprint(v.Complex())}, true
+	case reflect.String:
+		return leaf{kind: "string", text: strconv.Quote(truncate(v.String(), 120))}, true
+	case reflect.Func:
+		return leaf{kind: "function", text: "<func>"}, true
+	case reflect.Chan:
+		return leaf{kind: "chan", text: "<chan>"}, true
+	case reflect.UnsafePointer:
+		return leaf{kind: "pointer", text: "<unsafe.Pointer>"}, true
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice:
+		if v.IsNil() {
+			return leaf{kind: "null", text: "nil"}, true
+		}
+		if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+			return leaf{kind: "bytes", text: fmt.Sprintf("<%d bytes>", v.Len())}, true
+		}
+	case reflect.Struct:
+		if v.Type().String() == "time.Time" && v.CanInterface() {
+			return leaf{kind: "time", text: v.Interface().(time.Time).Format(time.RFC3339Nano)}, true
+		}
+	}
+	return leaf{}, false
+}
+
+func leafOf(v reflect.Value, fallback string) leaf {
+	if l, ok := leafValue(v); ok {
+		return l
+	}
+	return leaf{kind: "text", text: truncate(fallback, 80)}
+}
+
+func flatten(root reflect.Value, prefix string) map[string]leaf {
+	out := map[string]leaf{}
+	seen := map[uintptr]bool{}
+	var walk func(v reflect.Value, path string, depth int)
+	walk = func(v reflect.Value, path string, depth int) {
+		if len(out) >= flattenLeaves {
+			return
+		}
+		if l, ok := leafValue(v); ok {
+			out[path] = l
+			return
+		}
+		switch v.Kind() {
+		case reflect.Ptr, reflect.Interface:
+			if v.Kind() == reflect.Ptr {
+				if seen[v.Pointer()] {
+					out[path] = leaf{kind: "ref", text: "<circular>"}
+					return
+				}
+				seen[v.Pointer()] = true
+				defer delete(seen, v.Pointer())
+			}
+			walk(v.Elem(), path, depth)
+			return
+		}
+		if depth >= flattenDepth {
+			out[path] = leaf{kind: "object", text: "<" + v.Type().String() + ">"}
+			return
+		}
+		join := func(k string) string {
+			if path == "" {
+				return k
+			}
+			return path + "." + k
+		}
+		switch v.Kind() {
+		case reflect.Struct:
+			if v.NumField() == 0 {
+				out[path] = leaf{kind: "object", text: v.Type().String() + "{}"}
+				return
+			}
+			for i := 0; i < v.NumField() && i < 24; i++ {
+				walk(v.Field(i), join(v.Type().Field(i).Name), depth+1)
+			}
+		case reflect.Map:
+			if v.Len() == 0 {
+				out[path] = leaf{kind: "object", text: "{}"}
+				return
+			}
+			keys := v.MapKeys()
+			sort.Slice(keys, func(i, j int) bool { return preview(keys[i], 3) < preview(keys[j], 3) })
+			for i, k := range keys {
+				if i >= 24 {
+					break
+				}
+				name := preview(k, 3)
+				if k.Kind() == reflect.String {
+					name = k.String()
+				}
+				walk(v.MapIndex(k), join(truncate(name, 40)), depth+1)
+			}
+		case reflect.Slice, reflect.Array:
+			out[path+".length"] = leaf{kind: "number", text: strconv.Itoa(v.Len()), num: float64(v.Len()), isNum: true}
+			for i := 0; i < v.Len() && i < 8; i++ {
+				walk(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
+			}
+		default:
+			out[path] = leaf{kind: "object", text: "<" + v.Type().String() + ">"}
+		}
+	}
+	func() {
+		defer func() { _ = recover() }()
+		walk(root, prefix, 0)
+	}()
+	return out
+}
+
+// preview renders a value without calling interface{} of its methods.
+func preview(v reflect.Value, depth int) (s string) {
+	defer func() {
+		if recover() != nil {
+			s = "<?>"
+		}
+		s = truncate(s, previewMax)
+	}()
+	if l, ok := leafValue(v); ok {
+		return l.text
+	}
+	if depth >= 3 {
+		return "<" + v.Type().String() + ">"
+	}
+	switch v.Kind() {
+	case reflect.Ptr:
+		return "&" + preview(v.Elem(), depth)
+	case reflect.Interface:
+		return preview(v.Elem(), depth)
+	case reflect.Struct:
+		parts := []string{}
+		for i := 0; i < v.NumField() && i < 8; i++ {
+			parts = append(parts, v.Type().Field(i).Name+": "+preview(v.Field(i), depth+1))
+		}
+		name := v.Type().Name()
+		return name + "{" + strings.Join(parts, ", ") + "}"
+	case reflect.Map:
+		keys := v.MapKeys()
+		sort.Slice(keys, func(i, j int) bool { return preview(keys[i], 3) < preview(keys[j], 3) })
+		parts := []string{}
+		for i, k := range keys {
+			if i >= 8 {
+				parts = append(parts, "…")
+				break
+			}
+			parts = append(parts, preview(k, depth+1)+": "+preview(v.MapIndex(k), depth+1))
+		}
+		return "map{" + strings.Join(parts, ", ") + "}"
+	case reflect.Slice, reflect.Array:
+		parts := []string{}
+		for i := 0; i < v.Len() && i < 8; i++ {
+			parts = append(parts, preview(v.Index(i), depth+1))
+		}
+		if v.Len() > 8 {
+			parts = append(parts, "…")
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+	return "<" + v.Type().String() + ">"
+}
+
+// ── per-function statistics (mirrors recorder.py) ───────────────────────────
+
+type pathStats struct {
+	count, changes     int
+	kind, first, last  string
+	min, max, lastNum  float64
+	hasNum, nonDec, nonInc bool
+	series, tail       []string
+	distinct           map[string]int
+	order              []string
+	overflow           bool
+}
+
+func newPathStats() *pathStats {
+	return &pathStats{nonDec: true, nonInc: true, distinct: map[string]int{}}
+}
+
+func (p *pathStats) add(l leaf) {
+	p.count++
+	d := l.display()
+	k := l.kind
+	if k == "" {
+		k = "absent"
+	}
+	if p.count == 1 {
+		p.kind = k
+		p.first = d
+	} else {
+		if p.kind != k && p.kind != "mixed" {
+			p.kind = "mixed"
+		}
+		if d != p.last {
+			p.changes++
+		}
+	}
+	if l.isNum {
+		if p.hasNum {
+			if l.num < p.lastNum {
+				p.nonDec = false
+			}
+			if l.num > p.lastNum {
+				p.nonInc = false
+			}
+			p.min = minf(p.min, l.num)
+			p.max = maxf(p.max, l.num)
+		} else {
+			p.min, p.max = l.num, l.num
+		}
+		p.hasNum = true
+		p.lastNum = l.num
+	}
+	p.last = d
+	if len(p.series) < seriesKeep {
+		p.series = append(p.series, d)
+	}
+	p.tail = append(p.tail, d)
+	if len(p.tail) > 3 {
+		p.tail = p.tail[1:]
+	}
+	if _, ok := p.distinct[d]; ok {
+		p.distinct[d]++
+	} else if len(p.distinct) < distinctKeep {
+		p.distinct[d] = 1
+		p.order = append(p.order, d)
+	} else {
+		p.overflow = true
+	}
+}
+
+func minf(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxf(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (p *pathStats) json() map[string]interface{} {
+	numeric := p.kind == "number"
+	trend := "constant"
+	if p.changes > 0 {
+		trend = "varying"
+		if numeric && p.nonDec {
+			trend = "increasing"
+		} else if numeric && p.nonInc {
+			trend = "decreasing"
+		}
+	}
+	var distinct interface{} = len(p.distinct)
+	if p.overflow {
+		distinct = fmt.Sprintf("%d+", distinctKeep)
+	}
+	doc := map[string]interface{}{
+		"kind": p.kind, "count": p.count, "changes": p.changes, "distinct": distinct,
+		"first": p.first, "last": p.last, "trend": trend, "series": p.series,
+	}
+	if numeric {
+		doc["min"] = p.min
+		doc["max"] = p.max
+	}
+	if p.count > seriesKeep {
+		doc["tail"] = p.tail
+	}
+	if len(p.distinct) <= 8 && !p.overflow {
+		top := []map[string]interface{}{}
+		order := append([]string(nil), p.order...)
+		sort.SliceStable(order, func(i, j int) bool { return p.distinct[order[i]] > p.distinct[order[j]] })
+		for _, v := range order {
+			top = append(top, map[string]interface{}{"value": v, "n": p.distinct[v]})
+		}
+		doc["top"] = top
+	}
+	return doc
+}
+
+type sample struct {
+	Call     int      `json:"call"`
+	Args     string   `json:"args"`
+	Returned *string  `json:"returned,omitempty"`
+	Threw    string   `json:"threw,omitempty"`
+	Mutated  []string `json:"mutated,omitempty"`
+	Ms       float64  `json:"ms"`
+}
+
+type watchState struct {
+	f          *fn
+	calls      int64
+	errors     int64
+	totalMs    float64
+	head, tail, novel []sample
+	shapes     map[string]bool
+	paths      map[string]*pathStats
+	pathOrder  []string
+	mutations  map[string]map[string]interface{}
+	mutOrder   []string
+	exceptions map[string]int
+	excOrder   []string
+	returns    *pathStats
+	seen       map[uintptr]int // shared-state object address -> first call
+	keep       []interface{}           // keeps those objects alive so an address means one object
+	sharedBy   map[string]map[string]interface{}
+	sharedOrd  []string
+	lastArgs   string
+	repeats    int
+	repeatEx   map[string]interface{}
+	objects    map[uintptr]objectSnapshot
+	drift      map[string]*driftRecord
+	driftOrder []string
+}
+
+// objectSnapshot is an object seen reachable from a call's arguments: its
+// leaf fields, and the object itself so its address keeps meaning it.
+type objectSnapshot struct {
+	path   string
+	call   int
+	fields map[string]string
+	keep   interface{}
+}
+
+type driftRecord struct {
+	calls    int
+	examples []map[string]interface{}
+}
+
+func newWatch(f *fn) *watchState {
+	return &watchState{f: f, shapes: map[string]bool{}, paths: map[string]*pathStats{},
+		mutations: map[string]map[string]interface{}{}, exceptions: map[string]int{}, returns: newPathStats(),
+		seen: map[uintptr]int{}, sharedBy: map[string]map[string]interface{}{},
+		objects: map[uintptr]objectSnapshot{}, drift: map[string]*driftRecord{}}
+}
+
+func (w *watchState) observe(path string, l leaf) {
+	st, ok := w.paths[path]
+	if !ok {
+		if len(w.paths) >= 400 {
+			return
+		}
+		st = newPathStats()
+		w.paths[path] = st
+		w.pathOrder = append(w.pathOrder, path)
+	}
+	st.add(l)
+}
+
+func (w *watchState) shared(name string, v reflect.Value, call int) {
+	for v.Kind() == reflect.Interface && !v.IsNil() {
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice:
+	default:
+		return
+	}
+	if v.IsNil() {
+		return
+	}
+	addr := v.Pointer()
+	first, ok := w.seen[addr]
+	if !ok {
+		w.seen[addr] = call
+		if v.CanInterface() {
+			w.keep = append(w.keep, v.Interface())
+		}
+		return
+	}
+	st, ok := w.sharedBy[name]
+	if !ok {
+		st = map[string]interface{}{"param": name, "calls": 0, "firstCall": first}
+		w.sharedBy[name] = st
+		w.sharedOrd = append(w.sharedOrd, name)
+	}
+	st["calls"] = st["calls"].(int) + 1
+}
+
+func (w *watchState) repeat(call int, fingerprint, args string) {
+	if w.lastArgs != "" && fingerprint == w.lastArgs {
+		w.repeats++
+		if w.repeatEx == nil {
+			w.repeatEx = map[string]interface{}{"call": call, "args": args}
+		}
+	}
+	w.lastArgs = fingerprint
+}
+
+func (w *watchState) mutation(path, before, after string, call int) {
+	m, ok := w.mutations[path]
+	if !ok {
+		if len(w.mutations) >= 40 {
+			return
+		}
+		m = map[string]interface{}{"calls": 0, "examples": []map[string]interface{}{}}
+		w.mutations[path] = m
+		w.mutOrder = append(w.mutOrder, path)
+	}
+	m["calls"] = m["calls"].(int) + 1
+	if ex := m["examples"].([]map[string]interface{}); len(ex) < mutationKeep {
+		m["examples"] = append(ex, map[string]interface{}{"call": call, "before": before, "after": after})
+	}
+}
+
+func (w *watchState) exception(what string) {
+	if _, ok := w.exceptions[what]; !ok {
+		if len(w.exceptions) >= maxExceptions {
+			return
+		}
+		w.excOrder = append(w.excOrder, what)
+	}
+	w.exceptions[what]++
+}
+
+func outcomeShape(s sample) string {
+	if s.Threw != "" {
+		return "threw:" + strings.SplitN(s.Threw, ":", 2)[0]
+	}
+	if s.Returned == nil {
+		return "none"
+	}
+	r := *s.Returned
+	switch {
+	case r == "nil":
+		return "none"
+	case strings.HasPrefix(r, "\""):
+		return "string"
+	case r == "true" || r == "false":
+		return "bool:" + r
+	}
+	if _, err := strconv.ParseFloat(r, 64); err == nil {
+		return "number"
+	}
+	return "object:" + truncate(strings.SplitN(r, "{", 2)[0], 40)
+}
+
+// sample keeps the first calls, the first example of each kind of outcome and
+// the last calls: rare outcomes are usually the interesting ones.
+func (w *watchState) sample(s sample) {
+	shape := outcomeShape(s)
+	known := w.shapes[shape]
+	if !known && len(w.shapes) < 8 {
+		w.shapes[shape] = true
+	}
+	switch {
+	case len(w.head) < sampleHead:
+		w.head = append(w.head, s)
+	case !known && len(w.novel) < 6:
+		w.novel = append(w.novel, s)
+	default:
+		w.tail = append(w.tail, s)
+		if len(w.tail) > sampleTail {
+			w.tail = w.tail[1:]
+		}
+	}
+}
+
+func (w *watchState) json() map[string]interface{} {
+	samples := append(append(append([]sample{}, w.head...), w.novel...), w.tail...)
+	sort.Slice(samples, func(i, j int) bool { return samples[i].Call < samples[j].Call })
+	values := map[string]interface{}{}
+	for _, p := range w.pathOrder {
+		values[p] = w.paths[p].json()
+	}
+	mutations := []map[string]interface{}{}
+	for _, p := range w.mutOrder {
+		m := w.mutations[p]
+		mutations = append(mutations, map[string]interface{}{"path": p, "calls": m["calls"], "examples": m["examples"]})
+	}
+	exceptions := []map[string]interface{}{}
+	for _, e := range w.excOrder {
+		exceptions = append(exceptions, map[string]interface{}{"what": e, "n": w.exceptions[e]})
+	}
+	shared := []map[string]interface{}{}
+	for _, name := range w.sharedOrd {
+		shared = append(shared, w.sharedBy[name])
+	}
+	avg := 0.0
+	if w.calls > 0 {
+		avg = round3(w.totalMs / float64(w.calls))
+	}
+	return map[string]interface{}{
+		"file": w.f.file, "symbol": w.f.name, "line": w.f.line,
+		"calls": w.calls, "errors": w.errors, "avgMs": avg,
+		"samples": samples, "values": values, "mutations": mutations,
+		"exceptions": exceptions, "returns": w.returns.json(),
+		"shared": shared, "repeats": w.repeats, "repeatExample": w.repeatEx, "drift": w.driftJSON(),
+	}
+}
+
+// ── drift: the same object, changed between calls ─────────────────────────────
+
+const (
+	maxNodes   = 60
+	nodeDepth  = 5
+	nodeFields = 48
+)
+
+type node struct {
+	addr   uintptr
+	path   string
+	fields map[string]string
+	keep   interface{}
+}
+
+// collectNodes lists the objects reachable from a value - pointers to
+// structs, maps, slices - each with its own leaf fields, so a later call can
+// recognise the same object by address and see what changed in it.
+func collectNodes(root reflect.Value, prefix string, out *[]node) {
+	seen := map[uintptr]bool{}
+	var walk func(v reflect.Value, path string, depth int)
+	walk = func(v reflect.Value, path string, depth int) {
+		if len(*out) >= maxNodes || depth > nodeDepth || !v.IsValid() {
+			return
+		}
+		for v.Kind() == reflect.Interface {
+			if v.IsNil() {
+				return
+			}
+			v = v.Elem()
+		}
+		var addr uintptr
+		target := v
+		switch v.Kind() {
+		case reflect.Ptr:
+			if v.IsNil() {
+				return
+			}
+			addr = v.Pointer()
+			target = v.Elem()
+		case reflect.Map, reflect.Slice:
+			if v.IsNil() {
+				return
+			}
+			addr = v.Pointer()
+		default:
+			return
+		}
+		if seen[addr] {
+			return
+		}
+		seen[addr] = true
+		fields := map[string]string{}
+		type child struct {
+			path string
+			v    reflect.Value
+		}
+		var children []child
+		sep := func(k string) string {
+			if strings.HasPrefix(k, "[") {
+				return path + k
+			}
+			return path + "." + k
+		}
+		switch target.Kind() {
+		case reflect.Struct:
+			for i := 0; i < target.NumField() && i < nodeFields; i++ {
+				name := target.Type().Field(i).Name
+				f := target.Field(i)
+				if l, ok := leafValue(f); ok {
+					fields[name] = l.text
+				} else {
+					children = append(children, child{sep(name), f})
+				}
+			}
+		case reflect.Map:
+			keys := target.MapKeys()
+			sort.Slice(keys, func(i, j int) bool { return preview(keys[i], 3) < preview(keys[j], 3) })
+			for i, k := range keys {
+				if i >= nodeFields {
+					break
+				}
+				name := preview(k, 3)
+				if k.Kind() == reflect.String {
+					name = k.String()
+				}
+				val := target.MapIndex(k)
+				if l, ok := leafValue(val); ok {
+					fields[name] = l.text
+				} else {
+					children = append(children, child{sep(name), val})
+				}
+			}
+		case reflect.Slice:
+			fields["len"] = strconv.Itoa(target.Len())
+			for i := 0; i < target.Len() && i < 8; i++ {
+				val := target.Index(i)
+				if l, ok := leafValue(val); ok {
+					fields["["+strconv.Itoa(i)+"]"] = l.text
+				} else {
+					children = append(children, child{fmt.Sprintf("%s[%d]", path, i), val})
+				}
+			}
+		default:
+			if l, ok := leafValue(target); ok {
+				fields["*"] = l.text
+			}
+		}
+		if len(fields) > 0 {
+			var keep interface{}
+			if v.CanInterface() {
+				keep = v.Interface()
+			}
+			*out = append(*out, node{addr: addr, path: path, fields: fields, keep: keep})
+		}
+		for _, c := range children {
+			walk(c.v, c.path, depth+1)
+		}
+	}
+	func() {
+		defer func() { _ = recover() }()
+		walk(root, prefix, 0)
+	}()
+}
+
+// checkDrift compares each object with how it looked on an earlier call.
+// Only objects kept alive by the recorder are compared, so an address always
+// means the same object.
+func (w *watchState) checkDrift(nodes []node, call int) {
+	for _, n := range nodes {
+		prev, ok := w.objects[n.addr]
+		if ok && prev.call != call && prev.keep != nil {
+			var changes []map[string]interface{}
+			keys := map[string]bool{}
+			for k := range prev.fields {
+				keys[k] = true
+			}
+			for k := range n.fields {
+				keys[k] = true
+			}
+			sorted := make([]string, 0, len(keys))
+			for k := range keys {
+				sorted = append(sorted, k)
+			}
+			sort.Strings(sorted)
+			for _, k := range sorted {
+				a, okA := prev.fields[k]
+				b, okB := n.fields[k]
+				if !okA {
+					a = "(absent)"
+				}
+				if !okB {
+					b = "(absent)"
+				}
+				if a != b {
+					changes = append(changes, map[string]interface{}{"key": k, "before": a, "after": b})
+				}
+			}
+			if len(changes) > 0 {
+				d, exists := w.drift[n.path]
+				if !exists && len(w.drift) < 20 {
+					d = &driftRecord{}
+					w.drift[n.path] = d
+					w.driftOrder = append(w.driftOrder, n.path)
+				}
+				if d != nil {
+					d.calls++
+					if len(d.examples) < 4 {
+						if len(changes) > 4 {
+							changes = changes[:4]
+						}
+						d.examples = append(d.examples, map[string]interface{}{"fromCall": prev.call, "toCall": call, "changes": changes})
+					}
+				}
+			}
+		}
+		keep := n.keep
+		if keep == nil && ok {
+			keep = prev.keep
+		}
+		w.objects[n.addr] = objectSnapshot{path: n.path, call: call, fields: n.fields, keep: keep}
+	}
+}
+
+func (w *watchState) driftJSON() []map[string]interface{} {
+	out := []map[string]interface{}{}
+	for _, p := range w.driftOrder {
+		d := w.drift[p]
+		out = append(out, map[string]interface{}{"path": p, "calls": d.calls, "examples": d.examples})
+	}
+	return out
+}

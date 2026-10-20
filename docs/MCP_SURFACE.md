@@ -96,12 +96,13 @@ Ask first whether it is a new *question* or a new *selector* on an existing
 one. A selector is a scope or an op on a tool that already exists. Only a
 genuinely new question earns a new name.
 
-The guard tests enforce: core surface ≤ 15, core schema under 3,800 tokens
+The guard tests enforce: core surface ≤ 15, core schema under 3,900 tokens
 (raised from 3,200 on 2026-09-28 when investigation experiments and addressed
 inbox routing landed together - each was trimmed first; later to 3,500 for
 infra contracts and structured work-order results, 3,700 for `edit_sheet`
 connect, and 3,800 on 2026-10-20 when proposals learned where they belong:
-`plan_element` parent/owns, `edit_sheet` move/rename. Raise it only for a new
+`plan_element` parent/owns, `edit_sheet` move/rename, and 3,900 when
+investigation runs could run against a server. Raise it only for a new
 capability, never for wording),
 no merged-away name re-advertised, every legacy handler still present, and no
 tool description over 460 characters.

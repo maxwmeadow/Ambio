@@ -803,6 +803,52 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.46), 0 16px 38px rgba(0, 0, 0, 0.32);
 }
 
+.ambio-investigations-menu__readiness {
+  flex: 0 0 auto;
+  padding: 8px 10px 9px;
+  border-top: 1px solid #1d2925;
+  background: #243330;
+  color: #d8e0dc;
+  font-family: var(--font-mono);
+}
+.ambio-investigations-menu__readiness h3 {
+  margin: 0 0 6px;
+  color: #bac5c0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ambio-investigations-menu__readiness ul {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ambio-investigations-menu__readiness li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+}
+.ambio-investigations-menu__readiness-level {
+  padding: 1px 6px;
+  border: 1px solid #5b7d72;
+  color: #bfe3d3;
+  font-size: 9px;
+}
+.ambio-investigations-menu__readiness-level[data-level="output"] { border-color: #6f7974; color: #c9cfcc; }
+.ambio-investigations-menu__readiness-level[data-level="missing"] { border-color: #b8893a; color: #f0c98a; }
+.ambio-investigations-menu__readiness p {
+  margin: 6px 0 0;
+  color: #aab5b0;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .ambio-investigations-menu__header {
   display: flex;
   min-height: 44px;

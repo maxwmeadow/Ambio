@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"ambio.local/archd/internal/runtime/rustrecorder"
 	"github.com/google/uuid"
 )
 
@@ -292,6 +293,204 @@ func injectAdapterEnv(env []string, adapterDir string, port int, workspaceID str
 	)
 	return out
 }
+
+// FindRubyAdapterDir locates adapters/ruby (the run recorder).
+func FindRubyAdapterDir() (string, error) {
+	return findAdapterDir("ruby", "ambio_recorder.rb")
+}
+
+// injectRubyEnv loads the Ruby recorder into every Ruby the run starts. The
+// directory goes on RUBYLIB (a path list, so spaces are fine) and RUBYOPT
+// names only the feature: a path inside RUBYOPT is split on spaces, which
+// breaks under C:\Program Files. Existing values are kept, and Bundler keeps
+// both when it re-execs, so `bundle exec` records too.
+func injectRubyEnv(env []string, adapterDir string) []string {
+	out := make([]string, 0, len(env)+2)
+	rubyLib := adapterDir
+	rubyOpt := "-rambio_recorder"
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		switch {
+		case strings.HasPrefix(upper, "RUBYLIB="):
+			if v := kv[len("RUBYLIB="):]; v != "" {
+				rubyLib += string(os.PathListSeparator) + v
+			}
+			continue
+		case strings.HasPrefix(upper, "RUBYOPT="):
+			if v := kv[len("RUBYOPT="):]; v != "" {
+				rubyOpt += " " + v
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "RUBYLIB="+rubyLib, "RUBYOPT="+rubyOpt)
+}
+
+const rustWrapperEnv = "RUSTC_WORKSPACE_WRAPPER"
+
+// injectRustEnv makes Cargo run archd itself as the compiler wrapper for the
+// workspace's own crates (dependencies are not wrapped). The wrapper compiles
+// instrumented copies of each crate's sources (rustrecorder), and Cargo
+// caches wrapped builds apart from ordinary ones. A wrapper the user already
+// set is theirs: the run then records no Rust, and the note says why.
+func injectRustEnv(env []string, archd string) ([]string, string) {
+	out := make([]string, 0, len(env)+2)
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		if strings.HasPrefix(upper, rustWrapperEnv+"=") {
+			if kv[len(rustWrapperEnv)+1:] != "" {
+				return nil, "Rust was not recorded: " + rustWrapperEnv + " is already set in the environment"
+			}
+			continue
+		}
+		if strings.HasPrefix(upper, rustrecorder.WrapperEnv+"=") || strings.HasPrefix(upper, rustrecorder.VersionEnv+"=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	// The version is in Cargo's own environment, where Cargo compares it
+	// with what each cached crate was built against.
+	return append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1", rustrecorder.VersionEnv+"="+rustrecorder.Version()), ""
+}
+
+// FindPHPAdapterDir locates the PHP run recorder (adapters/php).
+func FindPHPAdapterDir() (string, error) {
+	return findAdapterDir("php", phpRecorder)
+}
+
+const phpRecorder = "ambio_recorder.php"
+
+// injectPHPEnv makes every PHP the run starts load the recorder first. PHP
+// reads extra ini files from the folders in PHP_INI_SCAN_DIR, so the run gets
+// an ini of its own (in iniDir) whose auto_prepend_file is the recorder. A
+// leading separator keeps PHP's built-in scan folder, and so the user's own
+// configuration, in effect; a value the user set is kept in front.
+func injectPHPEnv(env []string, adapterDir, iniDir string) ([]string, error) {
+	if err := os.MkdirAll(iniDir, 0o755); err != nil {
+		return nil, err
+	}
+	// Forward slashes: a backslash before the closing quote would escape it.
+	recorder := filepath.ToSlash(filepath.Join(adapterDir, phpRecorder))
+	ini := "; Written by Ambio for one investigation run.\nauto_prepend_file=\"" + recorder + "\"\n"
+	if err := os.WriteFile(filepath.Join(iniDir, "ambio.ini"), []byte(ini), 0o644); err != nil {
+		return nil, err
+	}
+	scan := string(os.PathListSeparator) + iniDir
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(strings.ToUpper(kv), "PHP_INI_SCAN_DIR=") {
+			if v := kv[len("PHP_INI_SCAN_DIR="):]; v != "" {
+				scan = v + string(os.PathListSeparator) + iniDir
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "PHP_INI_SCAN_DIR="+scan), nil
+}
+
+// FindDotnetTargets locates the C# build hook (adapters/dotnet/Ambio.targets),
+// which sits beside the rewriter it runs.
+func FindDotnetTargets() (string, error) {
+	dir, err := findAdapterDir("dotnet", dotnetTargets)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(dir, "AmbioRewriter.dll")); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, dotnetTargets), nil
+}
+
+const (
+	dotnetTargets    = "Ambio.targets"
+	dotnetTargetsEnv = "CustomAfterMicrosoftCommonTargets"
+)
+
+// injectDotnetEnv makes every C# project the run builds import Ambio.targets.
+// MSBuild turns environment variables into properties, and this one names a
+// file the common targets import last; the targets then compile instrumented
+// copies of the project's sources (adapters/dotnet). A value the user already
+// set is theirs: the run then records no C#, and the note says why.
+//
+// The build servers are switched off for the run so that nothing it starts
+// outlives it holding the run's environment.
+func injectDotnetEnv(env []string, targets string) ([]string, string) {
+	out := make([]string, 0, len(env)+4)
+	for _, kv := range env {
+		upper := strings.ToUpper(kv)
+		switch {
+		case strings.HasPrefix(upper, strings.ToUpper(dotnetTargetsEnv)+"="):
+			if kv[len(dotnetTargetsEnv)+1:] != "" {
+				return nil, "C# was not recorded: " + dotnetTargetsEnv + " is already set in the environment"
+			}
+			continue
+		case strings.HasPrefix(upper, "MSBUILDDISABLENODEREUSE="), strings.HasPrefix(upper, "USESHAREDCOMPILATION="),
+			strings.HasPrefix(upper, "DOTNET_CLI_USE_MSBUILD_SERVER="):
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out,
+		dotnetTargetsEnv+"="+targets,
+		"MSBUILDDISABLENODEREUSE=1",
+		"UseSharedCompilation=false",
+		"DOTNET_CLI_USE_MSBUILD_SERVER=0",
+	), ""
+}
+
+// FindJavaAgentJar locates the JVM recorder (adapters/java/ambio-agent.jar).
+func FindJavaAgentJar() (string, error) {
+	dir, err := findAdapterDir("java", javaAgentJar)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, javaAgentJar), nil
+}
+
+const javaAgentJar = "ambio-agent.jar"
+
+// injectJavaEnv loads the recorder into every JVM the run starts - java
+// itself, Maven's Surefire forks, Gradle's test workers - through
+// JAVA_TOOL_OPTIONS, which all of them read. The JVM splits the variable on
+// spaces but honours quotes, so a path under C:\Program Files is quoted.
+// The user's own options are kept.
+func injectJavaEnv(env []string, agentJar string) []string {
+	option := "-javaagent:" + agentJar
+	if strings.ContainsAny(agentJar, " \t") {
+		option = `-javaagent:"` + agentJar + `"`
+	}
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(strings.ToUpper(kv), "JAVA_TOOL_OPTIONS=") {
+			if v := kv[len("JAVA_TOOL_OPTIONS="):]; v != "" {
+				option += " " + v
+			}
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "JAVA_TOOL_OPTIONS="+option)
+}
+
+// The JVM announces JAVA_TOOL_OPTIONS on stderr in every process it starts.
+// That line is Ambio's doing, not the program's output.
+func stripJavaToolOptionsNotice(output string) string {
+	if !strings.Contains(output, javaToolOptionsNotice) {
+		return output
+	}
+	lines := strings.SplitAfter(output, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if !strings.HasPrefix(line, javaToolOptionsNotice) {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "")
+}
+
+const javaToolOptionsNotice = "Picked up JAVA_TOOL_OPTIONS:"
 
 // injectNodeEnv wires the Node adapter in via NODE_OPTIONS (--require for CJS,
 // --import for ESM), preserving any existing NODE_OPTIONS. AMBIO_WORKSPACE_ROOT

@@ -164,22 +164,127 @@ and truncated. It stays on the local machine in archd's data directory.
 
 ## Limits
 
-- **Languages**: Node and Python only. Go, .NET and others run with exit code
-  and output. The DAP-based live debuggers under `debug_runtime` are separate.
-- **Long-running servers**: `run` waits for the command to exit. For a server,
-  use a repro script that exercises it, or `debug_runtime` to attach.
+- **Languages**: Node, Python, Ruby, Go, the JVM (Java, Kotlin, Scala,
+  Groovy), C#, PHP and Rust record function-level evidence, each through the user's own toolchain with
+  nothing to install. Others run with exit code and output; see `docs/INVESTIGATION_RUNTIMES.md`
+  for the plan. The DAP-based live debuggers under `debug_runtime` are
+  separate.
+- **Long-running servers**: `run` with `server` (and `port`) starts the server
+  under the same recorders, waits until the port takes connections (2 s when
+  no port is given), runs `command` against it, waits 1.2 s so every recorder
+  flushes, then stops the server's process group. Evidence from both merges;
+  the server's output is reported separately. A port already in use is
+  refused, since the command would reach the wrong process. A server that
+  dies while starting is the result, and the command does not run.
 - **Reach**: drift and mutation see objects reachable from arguments, the
   receiver and the return value (depth 5, 60 objects per call). Module-level
   state no watched function touches is invisible; watch a function that does.
 - **Sampling**: past 100 calls, value statistics and samples come from sampled
   calls. The report says how many were sampled.
-- **TypeScript** that needs real transformation (enums, namespaces, parameter
-  properties) is run uninstrumented, as Node's own stripper requires.
+- **TypeScript** is stripped with Node's own `stripTypeScriptTypes`, keeping
+  every line where it was. Files that need real transformation (enums,
+  namespaces, parameter properties) are transformed by the same API with a
+  source map, so they record under their `.ts` lines too. Running such a file
+  still needs the user's own `--experimental-transform-types` (or tsx), as
+  Node requires.
 - **Derived-class constructors** are observed from after a top-level `super()`.
   A conditional `super()` leaves the constructor unobserved.
-- **Python**: a function that catches an exception and then returns `None` is
-  indistinguishable from one that raised. Generators count each resume as a
-  call.
+- **Python**: how a call ended is read from the instruction its frame stopped
+  at, so a function that handles an exception and returns `None` is not
+  mistaken for one that raised. A generator or coroutine is one call however
+  often it resumes; its result reads "yielded 3 values: ...", and `close()` is
+  not a failure.
+- **Go**: the module's files are rewritten for the run and applied with
+  `go -overlay` (nothing on disk changes; line numbers are the user's own).
+  Functions and methods are recorded, function literals are not. A non-nil
+  error returned last counts as the call failing. Panics are read from the
+  output and pinned to the first frame in the user's code. `go test` runs
+  with `-vet=off` during a run (vet reads package folders from disk, where
+  the run's recorder package does not exist). Files with `import "C"` and
+  generated files run uninstrumented.
+- **Java, Kotlin, Scala**: an agent loaded through `JAVA_TOOL_OPTIONS` into
+  every JVM the command starts (java, Maven Surefire forks, Gradle test
+  workers) rewrites classes compiled from workspace sources as they load;
+  dependencies are untouched. Java 8 and newer. Parameter names need debug
+  info (`-g`, the Maven and Gradle default); without it they read `arg0`.
+  Lambdas and closures, getters and setters, and the methods the compiler
+  writes for records, data classes and case classes are not recorded. Scala's
+  strict collections are shown by their contents; a lazy one (`LazyList`, a
+  view, an iterator) is named and never read, since reading it would run the
+  program. A Kotlin suspend function is one
+  call across its suspensions; one that suspends and is never resumed is
+  counted without a result. Values are read field by field; the recorder
+  never calls the program's `toString`, getters or `hashCode`, and iterates
+  only the JDK's and Kotlin's own collections. Gradle passes the run's
+  environment to its daemon and the test workers it forks, so a daemon that
+  was already running records too.
+- **C#**: recorded through the build. Every project the command builds
+  (`dotnet run`, `dotnet test`, `dotnet build`) imports a targets file, which
+  compiles instrumented copies of the project's `.cs` files kept under
+  `obj/.../ambio`; the project's own files are never written. Code is added
+  only on existing lines and a `#line` directive keeps the original path, so
+  stack traces, line numbers and the debugger see the user's source. The
+  rewriter uses the SDK's own compiler (.NET SDK 6 or newer, C# 6 or newer)
+  and keeps a file only if its rewrite adds no error and no warning; anything
+  else compiles as written. It runs the project's source generators too: a
+  generator that copies a method's body into the code it writes would copy
+  the added code with it, so a file whose rewrite makes generated code worse
+  is compiled as written. Analyzer and generator projects in the workspace
+  are build tooling and are not recorded. Methods, constructors, local functions and
+  property accessors that do more than read or write a field are recorded;
+  lambdas, operators, indexers and top-level statements are not. An `async`
+  method's result is what it returned, not the `Task`. An iterator's items, a
+  `ref` return, and `Span`, pointer or `out` values are not captured. A
+  command that does not build (`dotnet test --no-build`, running a prebuilt
+  DLL) records nothing. The first ordinary build after a run recompiles, so
+  no instrumented output stays behind; until then the build output carries a
+  recorder that does nothing outside a run. Style analyzers are off for the
+  instrumented compile. F# and Visual Basic run with output only.
+- **Rust**: recorded through Cargo. archd is the compiler wrapper for the
+  workspace's own crates (`RUSTC_WORKSPACE_WRAPPER`; dependencies are not
+  wrapped) and compiles instrumented copies of each crate's sources kept under
+  `target/.../ambio-src`, with a recorder module that exists only there. The
+  project's files are never written, paths are remapped so panic locations
+  and debug info name the user's files, and Cargo caches wrapped builds apart
+  from ordinary ones. Values are shown with their `Debug` implementation (a
+  type without one is named, `<Ledger>`), so a custom `Debug` runs. A function
+  that returns `Err` counts as failing, like Go's returned errors; one that
+  leaves through `?` is recorded as "propagated with `?`" without the value.
+  A panic on the main thread is the crash; a panicking test is the harness's
+  to report. Mutation is reported for reference arguments and `self`. "The
+  same object" means the same heap or static address: a local on the stack
+  has an address the next call's local reuses, so it is not followed. A
+  function whose instrumented form does not compile is recorded less (no
+  after-values, then no return value, then not at all) until the crate
+  compiles. `const fn`, closures, code inside macros, `no_std` crates, the
+  2015 edition and proc-macro crates are not recorded; `impl Trait` and `!`
+  results are not captured. Each crate carries its own recorder, so call
+  edges stop at crate boundaries. A function nobody watches is timed and
+  placed in the call graph for its first 20,000 calls and only counted after
+  that (a tiny function in a loop runs a billion times); a watched one is
+  recorded in full for 100 calls and then sampled. Instrumented crates are
+  tied to the recorder's version, so an Ambio update rebuilds them.
+- **PHP**: an ini file of the run's own (`PHP_INI_SCAN_DIR`) prepends the
+  recorder to every PHP the command starts: `php script.php`, PHPUnit, `php
+  -S` (one evidence document per request). PHP has no tracing hook for
+  scripts, so the recorder stands in for the `file://` stream wrapper and
+  serves an instrumented copy of each workspace `.php` file as PHP includes
+  it; nothing on disk changes and lines do not move. Each rewrite is checked
+  with PHP's own parser and dropped if it does not parse. Named functions and
+  methods are recorded; closures, arrow functions and property hooks are not.
+  Arrays are values in PHP, so mutation and drift are reported for objects (an
+  array an object holds counts as that object's state). A by-reference return
+  is not captured. Code under `vendor/` is not recorded. The program can see
+  three differences: `get_included_files()` lists the recorder's files, a
+  failed file open adds PHP's "stream_open call failed" warning to the native
+  one, and `get_defined_vars()` inside a recorded function includes `__ax`. An
+  `auto_prepend_file` of the user's own is replaced for the run. Tested on
+  PHP 8.0 through 8.5; written to run on 7.4.
+- **Ruby**: methods are recorded, blocks are not. An exception counts against
+  every method it unwinds. Before Ruby 3.3 (which added the `:rescue` trace
+  event), a method that rescues and then returns `nil` without calling anything
+  looks like one that raised. `StopIteration` ending a loop is not a failure.
+  Ruby 2.6 and newer.
 - **Paths**: symlinked project paths are resolved on both sides. Windows paths
   are normalized for Node's option parser.
 

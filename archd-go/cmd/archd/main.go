@@ -29,9 +29,15 @@ import (
 	"ambio.local/archd/internal/db"
 	"ambio.local/archd/internal/hub"
 	"ambio.local/archd/internal/runtime"
+	"ambio.local/archd/internal/runtime/rustrecorder"
 )
 
 func main() {
+	// During an investigation run Cargo starts archd as the compiler wrapper
+	// for the workspace's crates: `archd <rustc> <args...>`.
+	if os.Getenv(rustrecorder.WrapperEnv) != "" && len(os.Args) > 1 {
+		os.Exit(rustrecorder.RunWrapper(os.Args[1:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == mcpRunCommand {
 		runMCP(os.Args[2:])
 		return

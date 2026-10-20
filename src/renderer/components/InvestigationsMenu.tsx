@@ -8,8 +8,25 @@ import {
   type InvestigationMeta,
 } from '../canvas/arcdApi'
 import { ChromeButton } from './ui/ChromeButton'
+import { archdApi } from '../archdEndpoint.ts'
 
 const MENU_WIDTH = 360
+
+/** What a run can see for one language here (docs/INVESTIGATION_RUNTIMES.md). */
+interface LanguageReadiness {
+  language: string
+  files: number
+  level: 'full' | 'output' | 'missing'
+  tool?: string
+  version?: string
+  note: string
+}
+
+const LEVEL_LABEL: Record<LanguageReadiness['level'], string> = {
+  full: 'Full detail',
+  output: 'Output only',
+  missing: 'Not installed',
+}
 const VIEWPORT_GUTTER = 8
 
 function captureDate(createdAt: number): string {
@@ -27,6 +44,7 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
+  const [readiness, setReadiness] = useState<LanguageReadiness[]>([])
   const anchorRef = useRef<HTMLDivElement>(null)
   const replay = useGraphStore(state => state.replay)
   const startReplay = useGraphStore(state => state.startReplay)
@@ -45,6 +63,11 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
     if (!workspaceId) return
     setLoading(true)
     setError(null)
+    // What runs can see in this project; the list works without it.
+    void fetch(`${archdApi()}/api/investigation/readiness?workspace=${encodeURIComponent(workspaceId)}`)
+      .then(response => response.ok ? response.json() : { languages: [] })
+      .then((payload: { languages?: LanguageReadiness[] }) => setReadiness(payload.languages ?? []))
+      .catch(() => setReadiness([]))
     try {
       const payload = await apiListInvestigations(workspaceId)
       setItems(payload.investigations)
@@ -159,8 +182,8 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
                 <div className="ambio-investigations-menu__empty">
                   <strong>No captures yet</strong>
                   <span>
-                    Ask your agent to <code>start_investigation</code>, debug the behavior,
-                    then <code>stop_investigation</code>.
+                    Ask your agent to find the cause of a bug. Its investigation is
+                    recorded here, ready to replay step by step.
                   </span>
                 </div>
               )}
@@ -216,6 +239,26 @@ export function InvestigationsMenu({ workspaceId }: { workspaceId: string }) {
                 </div>
               ))}
             </div>
+            {readiness.length > 0 && (
+              <footer className="ambio-investigations-menu__readiness" aria-label="What runs can see in this project">
+                <h3>What runs can see here</h3>
+                <ul>
+                  {readiness.map(row => (
+                    <li key={row.language} title={[row.version, row.note].filter(Boolean).join(' - ')}>
+                      <span className="ambio-investigations-menu__readiness-language">{row.language}</span>
+                      <span className="ambio-investigations-menu__readiness-level" data-level={row.level}>
+                        {LEVEL_LABEL[row.level]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {readiness.some(row => row.level !== 'full') && (
+                  <p>
+                    {readiness.filter(row => row.level !== 'full').map(row => `${row.language}: ${row.note}.`).join(' ')}
+                  </p>
+                )}
+              </footer>
+            )}
           </section>
         </>,
         document.body,

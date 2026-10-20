@@ -49,9 +49,11 @@ test('the schema cost stays within budget', () => {
   // restore, export and import; each fit alone. Each was already trimmed to its
   // minimum. Raised to 3,800 when proposals learned where they belong: plan_element
   // parent and owns, and edit_sheet move (an agent could only draw empty
-  // top-level boxes). Raise it again only for a new capability, never for wording.
+  // top-level boxes). Raised to 3,900 when investigation runs learned to run
+  // against a server (server, port) in eight languages. Raise it again only
+  // for a new capability, never for wording.
   const coreTokens = Math.round(coreBlock.length / 3.6)
-  assert.ok(coreTokens < 3800, `core tool schema is ~${coreTokens} tokens, budget is 3800`)
+  assert.ok(coreTokens < 3900, `core tool schema is ~${coreTokens} tokens, budget is 3900`)
 })
 
 test('debug tooling is not advertised by default', () => {

@@ -111,12 +111,27 @@ function goModules() {
   return [...found.values()]
 }
 
+// Components that ship inside a prebuilt artifact instead of through a package
+// manager: ASM, relocated into the JVM run recorder (adapters/java/build.mjs
+// pins the version and checksum).
+function bundledComponents() {
+  const build = fs.readFileSync(path.join(ROOT, 'adapters', 'java', 'build.mjs'), 'utf8')
+  const version = /ASM_VERSION = '([^']+)'/.exec(build)?.[1] ?? 'unknown'
+  return [{
+    name: 'org.ow2.asm (asm, asm-commons) in adapters/java/ambio-agent.jar',
+    version,
+    license: 'BSD-3-Clause',
+    texts: [fs.readFileSync(path.join(ROOT, 'adapters', 'java', 'ASM-LICENSE.txt'), 'utf8').split('\n').slice(3).join('\n').trim()],
+    source: 'bundled',
+  }]
+}
+
 function main() {
   const wordmark = {
     name: 'Ambio wordmark (derived from Manrope)', version: '780', source: 'font', license: 'OFL-1.1',
     texts: [fs.readFileSync(path.join(ROOT, 'src/renderer/assets/branding/Manrope-OFL.txt'), 'utf8')],
   }
-  const packages = [...npmPackages(), ...goModules(), wordmark].sort((left, right) => left.name.localeCompare(right.name))
+  const packages = [...npmPackages(), ...goModules(), ...bundledComponents(), wordmark].sort((left, right) => left.name.localeCompare(right.name))
   const blocked = packages.filter(entry => !licenseAllowed(entry.license))
   if (blocked.length > 0) {
     console.error('Third-party licenses that are not known to be AGPL-3.0 compatible:')

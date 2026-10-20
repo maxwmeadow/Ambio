@@ -1,0 +1,71 @@
+<!--
+  Ambio's hook into a C# build during an `investigation run`.
+
+  archd points MSBuild at this file through the CustomAfterMicrosoftCommonTargets
+  environment variable, so every project the run's command builds imports it.
+  Before a project compiles, AmbioRewriter writes instrumented copies of its C#
+  files under obj/.../ambio and this target compiles those instead. The
+  project's own files are never written, and the build output does nothing
+  different unless it runs under Ambio (the recorder compiled into it is
+  dormant without AMBIO_EVIDENCE_DIR).
+
+  If anything here fails, the project compiles from its own files as usual.
+-->
+<Project>
+  <!-- Before the build hashes its compile inputs (_GenerateCompileDependencyCache):
+       the hash then differs between a run and an ordinary build, so the first
+       ordinary build after a run recompiles and leaves no instrumented output. -->
+  <Target Name="AmbioInstrument" BeforeTargets="_GenerateCompileDependencyCache"
+          DependsOnTargets="ResolveAssemblyReferences;FindReferenceAssembliesForReferences"
+          Condition="'$(Language)' == 'C#' and '$(MSBuildRuntimeType)' == 'Core' and '$(AMBIO_EVIDENCE_DIR)' != '' and '@(Compile)' != ''">
+    <!-- An analyzer or a source generator is part of the build, not of the
+         program: it runs inside the compiler. Recording it would put the
+         recorder in the compiler's process and the build's own work in the
+         evidence. (Item lists can only be read inside a target.) -->
+    <PropertyGroup>
+      <_AmbioRecord>true</_AmbioRecord>
+      <_AmbioRecord Condition="'$(IsRoslynComponent)' == 'true'">false</_AmbioRecord>
+      <_AmbioRecord Condition="'$(TargetFramework)' == 'netstandard2.0' and '@(PackageReference->WithMetadataValue('Identity', 'Microsoft.CodeAnalysis.CSharp'))' != ''">false</_AmbioRecord>
+    </PropertyGroup>
+    <PropertyGroup>
+      <_AmbioDir>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ambio'))</_AmbioDir>
+      <_AmbioInputs>$([System.IO.Path]::Combine('$(_AmbioDir)', 'inputs.txt'))</_AmbioInputs>
+      <_AmbioCompileList>$([System.IO.Path]::Combine('$(_AmbioDir)', 'compile.txt'))</_AmbioCompileList>
+      <_AmbioHost>$(DOTNET_HOST_PATH)</_AmbioHost>
+      <_AmbioHost Condition="'$(_AmbioHost)' == ''">dotnet</_AmbioHost>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AmbioLine Include="roslyn=$([MSBuild]::Escape('$(RoslynTargetsPath)'))" />
+      <_AmbioLine Include="out=$([MSBuild]::Escape('$(_AmbioDir)'))" />
+      <_AmbioLine Include="assembly=$([MSBuild]::Escape('$(AssemblyName)'))" />
+      <_AmbioLine Include="langversion=$(LangVersion)" />
+      <_AmbioLine Include="nullable=$(Nullable)" />
+      <_AmbioLine Include="defines=$([MSBuild]::Escape('$(DefineConstants)'))" />
+      <_AmbioLine Include="@(Compile->'compile=%(FullPath)')" />
+      <_AmbioLine Include="@(ReferencePathWithRefAssemblies->'reference=%(FullPath)')" />
+      <!-- The project's source generators and what they read, so the rewriter
+           can check its work against the code they generate. -->
+      <_AmbioLine Include="@(Analyzer->'analyzer=%(FullPath)')" />
+      <_AmbioLine Include="@(AdditionalFiles->'additional=%(FullPath)')" />
+      <_AmbioLine Include="@(EditorConfigFiles->'editorconfig=%(FullPath)')" />
+    </ItemGroup>
+    <MakeDir Directories="$(_AmbioDir)" ContinueOnError="true" Condition="'$(_AmbioRecord)' == 'true'" />
+    <WriteLinesToFile File="$(_AmbioInputs)" Lines="@(_AmbioLine)" Overwrite="true" ContinueOnError="true" Condition="'$(_AmbioRecord)' == 'true'" />
+    <Exec Condition="'$(_AmbioRecord)' == 'true'" Command="&quot;$(_AmbioHost)&quot; exec &quot;$(MSBuildThisFileDirectory)AmbioRewriter.dll&quot; &quot;$(_AmbioInputs)&quot;"
+          ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <ReadLinesFromFile File="$(_AmbioCompileList)" Condition="'$(_AmbioRecord)' == 'true' and Exists('$(_AmbioCompileList)')">
+      <Output TaskParameter="Lines" ItemName="_AmbioCompile" />
+    </ReadLinesFromFile>
+    <ItemGroup Condition="'@(_AmbioCompile)' != ''">
+      <Compile Remove="@(Compile)" />
+      <Compile Include="@(_AmbioCompile)" />
+    </ItemGroup>
+    <!-- Style rules do not apply to the added code. Compiler warnings are left
+         exactly as the project has them, warnings-as-errors included: the
+         rewriter keeps only files whose rewrite adds no warning and no error. -->
+    <PropertyGroup Condition="'@(_AmbioCompile)' != ''">
+      <RunAnalyzers>false</RunAnalyzers>
+      <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+  </Target>
+</Project>

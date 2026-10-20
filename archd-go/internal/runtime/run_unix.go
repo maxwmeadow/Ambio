@@ -14,6 +14,9 @@ func prepareProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
+// windowsShell is Windows-only; shellCommand never calls it elsewhere.
+func windowsShell(line string) *exec.Cmd { return exec.Command("cmd", "/C", line) }
+
 func killProcessGroup(cmd *exec.Cmd, force bool) {
 	if cmd.Process == nil {
 		return

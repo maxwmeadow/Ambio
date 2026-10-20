@@ -144,17 +144,30 @@ does.
 
 ## File policy
 
-Languages Ambio reads, and how deeply:
+Every language below is read for symbols (functions, classes, methods) and
+for the links between files. What an investigation run can see depends on
+whether Ambio has a recorder for the language; runs always use your own
+installed toolchain.
 
-- **Full depth** (symbols, imports, calls, data flow, infrastructure from
-  packages): TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`,
-  `.jsx`), Python (`.py`), Go (`.go`).
-- **Nearly full**: C# (`.cs`); imports come from `using` directives.
-- **Symbols, imports and calls** (no data flow yet): Rust (`.rs`; `mod` and
-  `use`), Java (`.java`; `import`), Ruby (`.rb`; `require`), C++ (`.cpp`,
-  `.cc`, `.cxx`, `.hpp`, `.hxx`; quoted `#include`), C (`.c`, `.h`; quoted
-  `#include`).
-- **Not yet read**: Kotlin, Swift, PHP. See [WORK.md](WORK.md).
+| Language | Files | Links between files | Investigation runs |
+|---|---|---|---|
+| TypeScript / JavaScript | `.ts` `.tsx` `.js` `.mjs` `.cjs` `.jsx` | imports, `require`, dynamic `import()` | calls, arguments, returns, crashes |
+| Python | `.py` | imports (from a monorepo folder's source root too) | calls, arguments, returns, crashes |
+| Ruby | `.rb` | `require_relative`, `require` of project files | calls, arguments, returns, crashes |
+| Go | `.go` | package imports through `go.mod` | calls, arguments, returns, returned errors, panics |
+| Java / Kotlin | `.java` `.kt` `.kts` | class and wildcard imports | calls, arguments, returns, crashes |
+| Scala / Groovy | `.scala` `.sc` `.groovy` | class and wildcard imports (JVM names) | calls, arguments, returns, crashes (the same JVM recorder) |
+| C# | `.cs` | the types a file uses, from its own namespace and its `using`s | calls, arguments, returns (awaited results for `async`), crashes |
+| Rust | `.rs` | `mod`, and `use` within the crate | calls, arguments, returns, returned errors, panics |
+| C / C++ | `.c` `.h` `.cpp` `.cc` `.cxx` `.c++` `.hpp` `.hxx` `.hh` | `#include` (quoted, and `<dir/file.h>` in the project) | exit code and output |
+| PHP | `.php` | `require`/`include`, `use` (PSR-4 layout) | calls, arguments, returns, crashes |
+| Swift | `.swift` | `import` of a module folder in the project | exit code and output |
+| Lua | `.lua` | `require` of a project module | exit code and output |
+| Shell | `.sh` `.bash` | `source` / `.` of a project script | exit code and output |
+| Elixir | `.ex` `.exs` | `alias`, `import`, `use`, `require` of a project module | exit code and output |
+
+Function-level runs for more languages are planned; see
+`docs/INVESTIGATION_RUNTIMES.md`.
 
 Readable documentation is indexed separately from the architecture canvas:
 

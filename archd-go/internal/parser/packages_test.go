@@ -141,3 +141,53 @@ func TestJavaCSharpRubyRustPackagesAndEnv(t *testing.T) {
 		t.Errorf("rust packages: %v", got)
 	}
 }
+
+func TestTextImportsPerLanguage(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   []string
+	}{
+		// Java, Rust, Ruby and quoted C/C++ includes are read by imports_more.go
+		// (imports_more_test.go); C adds <dir/file.h> project headers here.
+		"src/net/conn.c":         {"#include \"util/str.h\"\n#include <stdio.h>\n", []string{"inc<stdio.h"}},
+		"src/Invoice.kt":         {"package a\nimport com.acme.core.Money\nimport com.acme.util.*\nimport com.acme.x.Y as Z\n", []string{"jvm:com.acme.core.Money", "jvm:com.acme.util.*", "jvm:com.acme.x.Y"}},
+		"src/Billing/Inv.php":    {"<?php\nuse App\\Models\\User;\nuse App\\Support\\{Money, Fmt as F};\nrequire_once __DIR__ . '/helpers.php';\n", []string{"php-file:/helpers.php", `php-ns:App\Models\User`, `php-ns:App\Support\Money`, `php-ns:App\Support\Fmt`}},
+		"Sources/App/main.swift": {"import Foundation\n@testable import BillingCore\n", []string{"swift:Foundation", "swift:BillingCore"}},
+	}
+	for name, c := range cases {
+		r := parseSource(t, name, c.source)
+		got := map[string]bool{}
+		for _, spec := range r.Imports {
+			got[spec] = true
+		}
+		for _, w := range c.want {
+			if !got[w] {
+				t.Errorf("%s: missing %q in %q", name, w, r.Imports)
+			}
+		}
+	}
+}
+
+func TestSymbolsInNewLanguages(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   []string
+	}{
+		"src/net.c":         {"struct point { int x; };\nstatic int add(int a, int b) { return a + b; }\nint main(void) { return add(1, 2); }\n", []string{"point", "add", "main"}},
+		"src/Invoice.kt":    {"class Invoice(val t: Int) { fun late(d: Int): Int { return t } }\nobject Registry { fun get() = 1 }\nfun top() {}\n", []string{"Invoice", "late", "Registry", "get", "top"}},
+		"src/Invoice.swift": {"struct Invoice { func total() -> Int { return 1 } }\nprotocol Store { func load() }\nfunc top() {}\n", []string{"Invoice", "total", "Store", "load", "top"}},
+		"src/Invoice.php":   {"<?php\nclass Invoice { public function total(): int { return 1; } }\ninterface Payer { public function pay(); }\ntrait Audits {}\nfunction top() {}\n", []string{"Invoice", "total", "Payer", "pay", "Audits", "top"}},
+	}
+	for name, c := range cases {
+		r := parseSource(t, name, c.source)
+		got := map[string]bool{}
+		for _, s := range r.Symbols {
+			got[s.Name] = true
+		}
+		for _, w := range c.want {
+			if !got[w] {
+				t.Errorf("%s: missing symbol %q in %+v", name, w, r.Symbols)
+			}
+		}
+	}
+}

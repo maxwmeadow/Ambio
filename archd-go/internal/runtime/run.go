@@ -33,10 +33,13 @@ import (
 
 const (
 	DefaultRunTimeout = 60 * time.Second
-	MaxRunTimeout     = 10 * time.Minute
-	runOutputHead     = 12 * 1024
-	runOutputTail     = 48 * 1024
-	killGrace         = 2 * time.Second
+	// A command that compiles first (cargo test, dotnet test, mvn test) spends
+	// its first run building, under the recorder, before any of it runs.
+	BuildRunTimeout = 5 * time.Minute
+	MaxRunTimeout   = 10 * time.Minute
+	runOutputHead   = 12 * 1024
+	runOutputTail   = 48 * 1024
+	killGrace       = 2 * time.Second
 )
 
 // RunWatch is one function (or, with Symbol "*", every function in a file)
@@ -58,6 +61,11 @@ type RunSpec struct {
 	Command     string
 	Watches     []RunWatch
 	Timeout     time.Duration
+	// Server, when set, is started first and stopped after Command, which
+	// then exercises it (server.go). Port, when set, is how archd knows it is
+	// ready.
+	Server string
+	Port   int
 }
 
 // EvidenceFunction is one instrumented function's aggregate for a run.
@@ -208,7 +216,9 @@ type RunOutcome struct {
 	Edges           []EvidenceEdge     `json:"edges"`
 	Watched         []WatchedEvidence  `json:"watched"`
 	Uncaught        []UncaughtError    `json:"uncaught"`
-	Instrumented    []string           `json:"instrumented"` // languages whose adapters were injected
+	Instrumented    []string           `json:"instrumented"`    // languages whose adapters were injected
+	Notes           []string           `json:"notes,omitempty"` // why a language present was not recorded
+	Server          *ServerOutcome     `json:"server,omitempty"`
 }
 
 // cappedOutput keeps the head and tail of a stream so a runaway log costs a
@@ -260,13 +270,24 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		return nil, fmt.Errorf("command is required")
 	}
 	if spec.Timeout <= 0 {
-		spec.Timeout = DefaultRunTimeout
+		spec.Timeout = defaultTimeout(spec.Command)
+		if spec.Server != "" && defaultTimeout(spec.Server) > spec.Timeout {
+			spec.Timeout = BuildRunTimeout
+		}
 	}
 	if spec.Timeout > MaxRunTimeout {
 		spec.Timeout = MaxRunTimeout
 	}
 	if spec.Cwd == "" {
 		spec.Cwd = spec.Root
+	}
+	spec.Server = strings.TrimSpace(spec.Server)
+	if spec.Server == "" {
+		spec.Port = 0
+	}
+	if spec.Port > 0 && listening(spec.Port) {
+		// The command would reach whatever is there instead of this server.
+		return nil, fmt.Errorf("port %d is already in use; stop what is listening there first", spec.Port)
 	}
 
 	runID := uuid.New().String()[:8]
@@ -292,9 +313,91 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		env = append(env, "AMBIO_WORKSPACE_ROOT="+spec.Root)
 		instrumented = append(instrumented, "python")
 	}
+	if dir, err := FindRubyAdapterDir(); err == nil {
+		env = injectRubyEnv(env, dir)
+		instrumented = append(instrumented, "ruby")
+	}
+	// Java, Kotlin and Scala: one agent, loaded by every JVM the run starts.
+	if jar, err := FindJavaAgentJar(); err == nil {
+		env = injectJavaEnv(env, jar)
+		instrumented = append(instrumented, "java")
+	}
+	// Rust: Cargo runs archd as the compiler wrapper for the workspace's crates.
+	var rustNote string
+	if exe, err := os.Executable(); err == nil {
+		if withRust, note := injectRustEnv(env, exe); withRust != nil {
+			env = withRust
+			instrumented = append(instrumented, "rust")
+		} else {
+			rustNote = note
+		}
+	}
+	// PHP: the recorder is prepended to every script and rewrites the
+	// workspace's files as they are included.
+	if dir, err := FindPHPAdapterDir(); err == nil {
+		if withPHP, err := injectPHPEnv(env, dir, filepath.Join(evidenceDir, "php")); err == nil {
+			env = withPHP
+			instrumented = append(instrumented, "php")
+		}
+	}
+	// C#: MSBuild compiles instrumented copies of each project's sources.
+	var dotnetNote string
+	if targets, err := FindDotnetTargets(); err == nil {
+		if withDotnet, note := injectDotnetEnv(env, targets); withDotnet != nil {
+			env = withDotnet
+			instrumented = append(instrumented, "csharp")
+		} else {
+			dotnetNote = note
+		}
+	}
+	// Go: the module's files are rewritten into the evidence folder and
+	// swapped in by the go command's -overlay; nothing on disk changes.
+	var goNote string
+	if withGo, note := injectGoOverlay(env, spec.Root, filepath.Join(evidenceDir, "go")); withGo != nil {
+		env = withGo
+		instrumented = append(instrumented, "go")
+	} else {
+		goNote = note
+	}
+	// Python and Ruby scope recording to the user's files by this root.
+	env = append(env, "AMBIO_WORKSPACE_ROOT="+spec.Root)
 
 	runCtx, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
+
+	var server *serverProcess
+	var serverOut *ServerOutcome
+	if spec.Server != "" {
+		if server, err = startServer(spec.Server, spec.Cwd, env); err != nil {
+			return nil, err
+		}
+		serverOut = &ServerOutcome{Command: spec.Server, Port: spec.Port}
+		serverOut.Failed = server.waitReady(runCtx, spec.Port)
+		serverOut.ReadyMs = time.Since(server.started).Milliseconds()
+		if serverOut.Failed != "" {
+			// The command never runs: what the server printed and recorded
+			// while starting is the evidence.
+			finishServer(server, serverOut)
+			if contains(instrumented, "java") {
+				serverOut.Output = stripJavaToolOptionsNotice(serverOut.Output)
+			}
+			outcome := &RunOutcome{
+				ID:           runID,
+				Command:      spec.Command,
+				Cwd:          spec.Cwd,
+				StartedAt:    server.started.UnixMilli(),
+				DurationMs:   serverOut.ReadyMs,
+				Instrumented: instrumented,
+				Notes:        nonEmpty(goNote, dotnetNote, rustNote),
+				Server:       serverOut,
+			}
+			mergeEvidence(outcome, readEvidence(evidenceDir))
+			if contains(instrumented, "go") {
+				outcome.Uncaught = append(outcome.Uncaught, goPanics(serverOut.Output, spec.Root)...)
+			}
+			return outcome, nil
+		}
+	}
 
 	cmd := shellCommand(spec.Command)
 	cmd.Dir = spec.Cwd
@@ -307,6 +410,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 
 	started := time.Now()
 	if err := cmd.Start(); err != nil {
+		if server != nil {
+			finishServer(server, serverOut)
+		}
 		return nil, fmt.Errorf("start %q: %w", spec.Command, err)
 	}
 	done := make(chan error, 1)
@@ -327,6 +433,9 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		}
 	}
 	duration := time.Since(started)
+	if server != nil {
+		finishServer(server, serverOut)
+	}
 
 	exitCode := 0
 	if waitErr != nil {
@@ -341,6 +450,12 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 	}
 
 	text, truncated := out.String()
+	if contains(instrumented, "java") {
+		text = stripJavaToolOptionsNotice(text)
+		if serverOut != nil {
+			serverOut.Output = stripJavaToolOptionsNotice(serverOut.Output)
+		}
+	}
 	outcome := &RunOutcome{
 		ID:              runID,
 		Command:         spec.Command,
@@ -353,8 +468,16 @@ func (m *Manager) RunExperiment(ctx context.Context, spec RunSpec) (*RunOutcome,
 		OutputBytes:     out.total,
 		OutputTruncated: truncated,
 		Instrumented:    instrumented,
+		Notes:           nonEmpty(goNote, dotnetNote, rustNote),
+		Server:          serverOut,
 	}
 	mergeEvidence(outcome, readEvidence(evidenceDir))
+	if contains(instrumented, "go") {
+		outcome.Uncaught = append(outcome.Uncaught, goPanics(text, spec.Root)...)
+		if serverOut != nil {
+			outcome.Uncaught = append(outcome.Uncaught, goPanics(serverOut.Output, spec.Root)...)
+		}
+	}
 	return outcome, nil
 }
 
@@ -434,7 +557,7 @@ func mergeEvidence(out *RunOutcome, docs []EvidenceDoc) {
 // `npm test -- --grep x` and pipes behave as in their terminal.
 func shellCommand(line string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
-		return exec.Command("cmd", "/C", line)
+		return windowsShell(line)
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" || strings.Contains(shell, "fish") {
@@ -449,4 +572,26 @@ func shellCommand(line string) *exec.Cmd {
 func pythonAdapterRecords(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "ambio_adapter", "recorder.py"))
 	return err == nil
+}
+
+// buildTools compile before they run; their runs get BuildRunTimeout.
+var buildTools = map[string]bool{"cargo": true, "dotnet": true, "mvn": true, "mvnw": true, "gradle": true, "gradlew": true, "sbt": true}
+
+// defaultTimeout is the deadline for a command that did not ask for one.
+func defaultTimeout(command string) time.Duration {
+	for _, word := range strings.FieldsFunc(command, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == ';' || r == '&' || r == '|' || r == '(' || r == ')'
+	}) {
+		word = strings.Trim(word, `"'`)
+		// The program's name after its folder: either slash, whatever this system uses.
+		if i := strings.LastIndexAny(word, `/\\`); i >= 0 {
+			word = word[i+1:]
+		}
+		name := strings.TrimSuffix(strings.ToLower(word), ".exe")
+		name = strings.TrimSuffix(strings.TrimSuffix(name, ".cmd"), ".bat")
+		if buildTools[name] {
+			return BuildRunTimeout
+		}
+	}
+	return DefaultRunTimeout
 }

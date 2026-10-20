@@ -10,7 +10,10 @@ adapter's sys.monitoring needs 3.12, and most projects are not there yet).
 The global tracer sees every Python call; for code outside the workspace it
 returns None, so library code gets no further callbacks. Workspace frames get
 a local tracer with line events switched off, so only return and exception
-events arrive. Overhead is a few times native speed on call-heavy code -
+events arrive. How a frame left (returned, raised, or suspended at a yield or
+await) is read from the instruction it stopped at, so a function that catches
+an exception and returns None is not mistaken for one that raised, and a
+generator or coroutine is one call however often it resumes. Overhead is a few times native speed on call-heavy code -
 fine for a repro, not for production.
 
 What it records matches recorder.cjs: call counts and caller -> callee edges
@@ -22,6 +25,7 @@ calls, repeated identical calls, returns and exceptions.
 from __future__ import annotations
 
 import atexit
+import dis
 import json
 import os
 import sys
@@ -39,6 +43,41 @@ DISTINCT_KEEP = 24
 PREVIEW_MAX = 240
 MUTATION_EXAMPLES = 6
 MAX_EXCEPTIONS = 20
+
+# How a frame left, read from the instruction it stopped at: a normal return
+# stops at RETURN_VALUE (RETURN_CONST on 3.12 and 3.13), a suspended generator
+# or coroutine at its yield, and a frame unwinding at whatever raised. Where a
+# suspended frame rests has moved between versions: on YIELD_VALUE, just before
+# YIELD_FROM (3.8-3.10), or on the RESUME that follows the yield (3.13, and
+# 3.14 when an exception is thrown in). Opcodes are the code object's own,
+# never the specialised or instrumented forms. Tested on 3.9 through 3.14.
+_RETURN_OPS = frozenset(dis.opmap[n] for n in ("RETURN_VALUE", "RETURN_CONST") if n in dis.opmap)
+_YIELD_OPS = frozenset(dis.opmap[n] for n in ("YIELD_VALUE",) if n in dis.opmap)
+_YIELD_FROM = dis.opmap.get("YIELD_FROM")
+_RESUME = dis.opmap.get("RESUME")
+_SUSPENDABLE = 0x20 | 0x80 | 0x100 | 0x200  # generator, coroutine, iterable coroutine, async generator
+
+
+def _exit_kind(frame):
+    """("return" | "yield" | "raise", where): how the frame left and, for a
+    yield, the offset of the yield itself, the same on every version. The kind
+    is None when the instruction cannot be read."""
+    try:
+        code = frame.f_code.co_code
+        i = frame.f_lasti
+    except Exception:
+        return None, -1
+    if i < 0 or i >= len(code):
+        return None, -1
+    op = code[i]
+    if op in _RETURN_OPS:
+        return "return", i
+    if op in _YIELD_OPS or (_YIELD_FROM is not None and i + 2 < len(code) and code[i + 2] == _YIELD_FROM):
+        return "yield", i
+    if op == _RESUME and i >= 2 and code[i - 2] in _YIELD_OPS:
+        return "yield", i - 2
+    return "raise", i
+
 
 _EXCLUDE_PARTS = ("site-packages", "dist-packages", ".venv", "venv", "node_modules", "__pypackages__", ".tox")
 
@@ -572,6 +611,13 @@ class Recorder:
         code = frame.f_code
         if not self._workspace(code.co_filename):
             return None
+        st = self.frames.get(id(frame))
+        if st is not None and st.get("frame") is frame:
+            # A generator or coroutine resuming: the same call continues.
+            st["t0"] = time.perf_counter()
+            st["exc"] = None
+            frame.f_trace_lines = False
+            return self.local_trace
         try:
             self._on_call(frame, code)
         except Exception:
@@ -599,7 +645,12 @@ class Recorder:
                     self.edges[key] = 1
                 else:
                     self.edges_dropped += 1
-            state = {"f": f, "t0": time.perf_counter(), "w": None, "exc": None}
+            state = {"f": f, "t0": time.perf_counter(), "w": None, "exc": None, "ms": 0.0}
+            if code.co_flags & _SUSPENDABLE:
+                # Held so the frame's id is not reused while it is suspended.
+                state["frame"] = frame
+                state["yields"] = []
+                state["yielded"] = 0
             w = self._watch_for(code)
             if w is not None:
                 w.calls += 1
@@ -638,22 +689,48 @@ class Recorder:
                 pass
         return self.local_trace
 
-    def _on_return(self, frame, value):
+    def _on_return(self, frame, value, settled=False):
+        # settled: a generator that ended without telling the tracer (see
+        # settle_open_generators) has returned, wherever it was paused.
+        kind, where = ("return", -1) if settled else _exit_kind(frame)
         with self.lock:
-            st = self.frames.pop(id(frame), None)
+            st = self.frames.get(id(frame))
             if st is None:
                 return
-            ms = (time.perf_counter() - st["t0"]) * 1000.0
+            st["ms"] += (time.perf_counter() - st["t0"]) * 1000.0
+            if "frame" in st and kind == "yield":
+                # An exception thrown into the generator at the yield it was
+                # paused on leaves from that same instruction.
+                thrown = st["exc"] is not None and value is None and where == st.get("at")
+                if not thrown:
+                    st["at"] = where
+                    st["yielded"] += 1
+                    if len(st["yields"]) < 3 and st["w"] is not None:
+                        st["yields"].append(preview(value))
+                    return
+                kind = "raise"
+            self.frames.pop(id(frame), None)
+            ms = st["ms"]
             f = st["f"]
             f[5] += ms
-            # A frame unwinding because of an exception returns None after an
-            # exception event. (A function that catches an exception and then
-            # returns None looks the same; rare enough to accept.)
+            # A frame that stopped anywhere but a return or a yield is
+            # unwinding. Where the instruction cannot be read, fall back to
+            # "an exception passed through and nothing was returned".
             threw = None
-            if st["exc"] is not None and value is None:
-                etype, evalue = st["exc"][0], st["exc"][1]
-                threw = "%s: %s" % (getattr(etype, "__name__", "Exception"), str(evalue)[:200])
-                f[4] += 1
+            exc = st["exc"]
+            if kind == "raise" or (kind is None and exc is not None and value is None):
+                etype = exc[0] if exc else None
+                if etype is GeneratorExit:
+                    pass  # close() on a generator: it finished early, not failed
+                else:
+                    evalue = exc[1] if exc else ""
+                    threw = "%s: %s" % (getattr(etype, "__name__", "Exception"), str(evalue)[:200])
+                    f[4] += 1
+            summary = None
+            if "frame" in st and not threw and st["yielded"]:
+                shown = ", ".join(st["yields"]) + (", …" if st["yielded"] > len(st["yields"]) else "")
+                if value is None:
+                    summary = "yielded %d value%s: %s" % (st["yielded"], "" if st["yielded"] == 1 else "s", shown)
             w = st["w"]
             if w is None:
                 return
@@ -663,6 +740,8 @@ class Recorder:
                 rec.errors += 1
                 if len(rec.exceptions) < MAX_EXCEPTIONS or threw in rec.exceptions:
                     rec.exceptions[threw] = rec.exceptions.get(threw, 0) + 1
+            elif summary is not None:
+                rec.returns.add(("text", summary if len(summary) <= 80 else summary[:79] + "…"))
             else:
                 whole = preview(value)
                 rec.returns.add(("number", value) if isinstance(value, (int, float)) and not isinstance(value, bool)
@@ -702,7 +781,7 @@ class Recorder:
             if threw:
                 sample["threw"] = threw
             else:
-                sample["returned"] = preview(value)
+                sample["returned"] = summary if summary is not None else preview(value)
             if real:
                 sample["mutated"] = ["%s: %s → %s" % c for c in real[:4]]
             rec.sample(sample)
@@ -722,6 +801,27 @@ class Recorder:
             "what": "%s: %s" % (getattr(etype, "__name__", "Exception"), str(value)[:300]),
             "stack": "\n".join(frames) or stack[-2000:],
         })
+
+    def settle_open_generators(self):
+        """At exit, a generator still open has stopped where it was.
+
+        Python 3.13+ closes a suspended generator that has nothing to clean up
+        without resuming it, so no trace event ever says it ended: a
+        close() looks the same as a generator abandoned mid-way. Either way it
+        finished early, not failed, and what it yielded is its result.
+        """
+        with self.lock:
+            open_frames = [(frame_id, st) for frame_id, st in self.frames.items() if "frame" in st and st["yielded"]]
+        for frame_id, st in sorted(open_frames, key=lambda item: item[1]["w"]["call"] if item[1]["w"] else 0):
+            try:
+                st["exc"] = None
+                self._on_return(st["frame"], None, settled=True)
+            except Exception:
+                pass
+
+    def write_final(self):
+        self.settle_open_generators()
+        self.write()
 
     def write(self):
         if not self.dir:
@@ -804,7 +904,7 @@ def start():
         previous_hook(etype, value, tb)
 
     sys.excepthook = hook
-    atexit.register(rec.write)
+    atexit.register(rec.write_final)
 
     # A killed process (timeout) skips atexit; flush periodically instead of
     # installing signal handlers that would override the program's own.

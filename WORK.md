@@ -151,7 +151,6 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Indexing and languages
 
-- ⬜ `lang-kotlin-swift-php` **Kotlin, Swift, PHP.** Not parsed at all.
 - ⬜ `call-resolution` **Fewer false call edges.** Calls are matched by name across the project (`buildCallGraph`), so common names (`get`, `run`) create false edges. Options: import-scoped resolution first, stack-graphs, or LSP where available.
 - ⬜ `index-benchmark` **Benchmark indexing and re-clustering on large repos** (10k, 50k files): time, memory, re-cluster cost (full `git log` read, TF-IDF pairs). Make re-clustering incremental if needed.
 - ⬜ `cluster-quality-tests` **Clustering quality tests.** Only path-invariance is tested; add fixtures with known good groupings.
@@ -174,7 +173,6 @@ Plan and phases: [docs/INFRA.md](docs/INFRA.md).
 
 Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs/history/RUNTIME_LAYER_PLAN.md](docs/history/RUNTIME_LAYER_PLAN.md).
 
-- ⬜ `runtime-java-ruby` **Verify Java tracing; add Ruby argument values.**
 - ⬜ `investigations-at-scale` **Evaluate investigations on several-hundred-file codebases** and production-like data (the investigations doc's stated next step).
 - ⬜ `runtime-toolchains` **The toolchain track:** make DAP adapters and compilers (MSYS2 etc.) installable or clearly optional, per the one-install decision.
 
@@ -292,6 +290,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-20 `lang-kotlin-swift-php` `runtime-java-ruby` `agent-claude-recorders` Merged the September run-recorder branch (origin/agent/claude): investigation runs record Ruby, Go, Java/Kotlin/Scala/Groovy (a JVM agent), C# (a build rewriter), PHP and Rust, C/C++ through gdb or lldb-dap, and can run against a server (`server`, `port`); Kotlin, Swift, PHP, Scala, Groovy, Lua, shell and Elixir are read and linked; per-language readiness in the investigations menu. Reconciled with main: Axiom names → Ambio (recorders, env vars, prebuilt jar/dll rebuilt), main's import readers kept for Java/Rust/Ruby/C/C++ with the branch's for the rest plus `<dir/file.h>` project headers, `.h` stays C. Windows fixes found on the way: run commands with quoted paths reach cmd.exe as written, a server's process tree is killed while its root is alive, Go panics are pinned on Windows paths, a Python 3.13+ generator closed early is still recorded. claude/sheet-renames-docs
 - 2026-10-20 `thinking-for-other-agents` Agents' reasoning shows as the turn's thinking: Claude Code thinking blocks, Codex summaries, Cursor's streamed thinking, ACP thought chunks (Copilot sessions, Devin); Ambio chat shows OpenCode reasoning parts collapsed above the reply. Antigravity CLI 1.4 reports only a token count. claude/sheet-renames-docs
 - 2026-10-20 `agent-proposals-where-things-belong` Agents can propose where things belong and every part waits for review: `plan_element` parent/owns, `edit_sheet` move and rename (systems only), relationships pending by author; To review lists new systems, moves, renames and relationships and takes you to each; pending moves/renames are tagged on the map and a rename shows the new name over the old; rejecting a move restores the Floor parent; compare reports pending parts and unrenamed systems; the build spec lists confirmed Moves, Renames and relationships. Schema 6 (move/relationship approval) and 7 (renames), fixtures v5 and v6. Found by reading a Codex Propose run that could only draw empty top-level boxes. main 7f68739, 99f8068, claude/sheet-renames-docs
 - 2026-10-20 `agent-map-reads` What a proposing agent reads is right: Codex runs with full access on Windows (its read-only sandbox cannot start a shell there; decision 2026-10-20); `get_symbols` takes file paths; overview `fileCount` and `system_files` include sub-systems and `neighbors` names children; the Propose contract and draw-first workflow start from the current map and draw only the change; `connect` adds a live node to the sheet; Codex reasoning summaries show as the turn's thinking. main 7f68739, claude/sheet-renames-docs

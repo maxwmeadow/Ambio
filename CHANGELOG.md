@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- On Windows, investigation runs whose command quotes a path (such as
+  `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
+  and a run against a server no longer hangs when it ends.
 - File cards show their functions once the file is indexed, instead of "No
   symbols" for the rest of the session when they were looked at too early.
 - Systems an agent names on a sheet stay where they are on the Floor, instead
@@ -56,6 +59,13 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Investigations run code in more languages: Ruby, Go, Java, Kotlin, Scala,
+  Groovy, C#, PHP and Rust record what watched functions did, and C/C++ runs
+  under gdb or lldb. A run can start your server first and send the request
+  that shows the bug. The investigations menu says what runs can see for each
+  language in your project.
+- Kotlin, Swift, PHP, Scala, Groovy, Lua, shell scripts and Elixir appear on the
+  map with the links between their files.
 - Agents can propose where things belong: a new system inside its parent,
   holding the files it takes over; an existing file or system moved to another
   boundary; a system renamed. Each waits under To review in the sheet rail with

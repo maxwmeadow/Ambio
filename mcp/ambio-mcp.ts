@@ -24,6 +24,7 @@ import fs from 'fs'
 import { daemonFetch as fetch } from '../electron/daemonAuth.ts'
 import { infraGaps, infraSummary } from './infraSummary.ts'
 import { DRAW_FIRST_WORKFLOW } from '../src/shared/agentWorkflow.ts'
+import { readinessLine, type LanguageReadiness } from './readiness.ts'
 
 // Helper: UUID generator for system nodes
 function generateUUID(): string {
@@ -377,7 +378,7 @@ ${DRAW_FIRST_WORKFLOW}
 When you are asked to find the cause of a bug, a wrong value, a crash, a flaky test or any other unexpected behaviour, debug through the \`investigation\` tool:
 1. op "start" with the symptom as the name.
 2. op "hypothesis" for each suspicion, in one sentence naming the function or file.
-3. op "run" to test it: the command that reproduces the problem (a test, a script, the CLI) plus \`watch\` on the functions you suspect, e.g. watch: ["src/pricing.ts:applyDiscount"]. It returns what those functions actually did while the code ran - arguments, return values, arguments they mutated, values that drift from call to call, exceptions - and which functions executed at all. This answers most "why is this value wrong" questions in one step, without editing the code to add logging.
+3. op "run" to test it: the command that reproduces the problem (a test, a script, the CLI) plus \`watch\` on the functions you suspect, e.g. watch: ["src/pricing.ts:applyDiscount"]. It returns what those functions actually did while the code ran - arguments, return values, arguments they mutated, values that drift from call to call, exceptions - and which functions executed at all. This answers most "why is this value wrong" questions in one step, without editing the code to add logging. When the bug is behind a server (an endpoint returns the wrong thing), pass \`server\` (e.g. "npm start") and \`port\`, and make \`command\` the request that triggers it (e.g. "curl -s localhost:3000/api/cart"): the server runs under observation too.
 4. op "verdict" on the hypothesis (confirmed, refuted or inconclusive), then op "conclude" with the root cause.
 5. Fix it, op "run" the repro again to verify, and op "stop" to save the case.
 
@@ -459,7 +460,9 @@ async function investigationPost(workspaceId: string, op: string, body: Record<s
   // daemonFetch gives up after 15s, which suits a lookup but not a run: a run
   // lasts as long as the command it executes (up to 10 minutes). Wait for
   // archd's own deadline plus room to stop the process and write the report.
-  const runSeconds = Math.min(600, Number(body.timeoutSec) > 0 ? Number(body.timeoutSec) : 60)
+  // Without a timeoutSec archd picks the deadline (longer for a command that
+  // builds first), so wait for its longest.
+  const runSeconds = Math.min(600, Number(body.timeoutSec) > 0 ? Number(body.timeoutSec) : 600)
   const signal = op === 'run' ? AbortSignal.timeout((runSeconds + 30) * 1000) : undefined
   const res = await fetch(`${API_BASE}/api/investigation/${op}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -794,7 +797,7 @@ const CORE_TOOLS = [
   },
   {
     name: 'investigation',
-    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
+    description: "Debug by running code. run executes a repro or tests, observing the functions you watch, and reports what they did: mutated arguments, state shared between calls, repeats, returns, exceptions (JS/TS, Python, Ruby, Go, JVM, C#, PHP, Rust). ops: start hypothesis run verdict note conclude stop case list get. The human watches live and can reply.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -802,6 +805,8 @@ const CORE_TOOLS = [
         name: { type: 'string', description: 'start: the symptom' },
         text: { type: 'string', description: 'hypothesis, note, verdict reason, conclude root cause' },
         command: { type: 'string', description: 'run: the repro command' },
+        server: { type: 'string', description: 'run: started first (e.g. "npm start"); command exercises it' },
+        port: { type: 'number', description: 'server port to wait for' },
         watch: { type: 'array', items: { type: 'string' }, description: '"file.ts:fn", "fn" or a file' },
         hypothesis: { type: 'string', description: 'e.g. H1' },
         result: { type: 'string', description: 'confirmed | refuted | inconclusive' },
@@ -2016,8 +2021,14 @@ Steps to execute:
             gaps = infraGaps({ nodes: data.nodes ?? [], contents: data.contents ?? [] })
           }
         } catch { /* the case opens either way */ }
+        let readiness = ''
+        try {
+          const probe = await fetch(`${API_BASE}/api/investigation/readiness?workspace=${encodeURIComponent(project.workspaceId)}`)
+          if (probe.ok) readiness = readinessLine(((await probe.json()) as { languages: LanguageReadiness[] }).languages ?? [])
+        } catch { /* the case opens either way */ }
         result = [
           `Case open: "${data.name}"${data.commit ? ` (pinned to ${String(data.commit).slice(0, 8)})` : ''}. The person watching sees it on their map.`,
+          readiness,
           gaps.length ? `\nAmbio's infra map flags these contract gaps; check whether one is the cause:\n${gaps.map(line => `  ! ${line}`).join('\n')}` : '',
           '',
           'Next: state what you suspect with op "hypothesis", then test it with op "run" - the command that reproduces the problem, plus `watch` on the functions you suspect.',
@@ -2046,6 +2057,8 @@ Steps to execute:
           cwd: args.cwd,
           timeoutSec: args.timeoutSec ?? args.timeout,
           hypothesis: args.hypothesis,
+          server: args.server,
+          port: args.port,
         })
         pendingFromResult = data.humanMessages
         result = data.report + (data.openedCase ? '\n(No case was open, so this run opened one.)' : '')
