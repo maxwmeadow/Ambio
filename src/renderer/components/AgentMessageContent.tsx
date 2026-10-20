@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
-import { fileLinkTarget, inlineFilePath, normalizeAgentText } from './agentMessageFormat'
+import { fileLinkTarget, inlineFilePath, normalizeAgentText, remarkFilePaths } from './agentMessageFormat'
 import { InboxIcon } from './InboxIcon'
 
 function CodeBlock({ text, language }: { text: string; language?: string }) {
@@ -57,6 +57,7 @@ export function AgentMessageContent({ text }: { text: string }) {
   const { root, files } = useGraphStore(useShallow(state => ({ root: state.currentProject?.rootPath, files: state.files })))
   const byPath = useMemo(() => new Map(files.map(file => [file.relPath.replace(/\\/g, '/'), file.id])), [files])
   const paths = useMemo(() => new Set(byPath.keys()), [byPath])
+  const plugins = useMemo(() => [remarkGfm, remarkFilePaths(paths)], [paths])
   const components: Components = useMemo(() => ({
     h1: ({ children }) => <h4>{children}</h4>,
     h2: ({ children }) => <h4>{children}</h4>,
@@ -83,6 +84,6 @@ export function AgentMessageContent({ text }: { text: string }) {
     table: ({ children }) => <div className="ambio-inbox__table"><table>{children}</table></div>,
   }), [root, byPath, paths])
   return <div className="ambio-inbox__prose">
-    <Markdown remarkPlugins={[remarkGfm]} components={components} urlTransform={safeUrl}>{normalizeAgentText(text, root)}</Markdown>
+    <Markdown remarkPlugins={plugins} components={components} urlTransform={safeUrl}>{normalizeAgentText(text, root)}</Markdown>
   </div>
 }

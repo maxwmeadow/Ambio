@@ -49,3 +49,23 @@ test('a bare file name or partial path is recognised when one indexed file ends 
   assert.equal(inlineFilePath('backend/src/agents/', files), null)
   assert.equal(inlineFilePath('orchestrator.process(...)', files), null)
 })
+
+test('file names written as plain prose become chips; code, links and unknown names do not', async () => {
+  const { remarkFilePaths } = await import('./agentMessageFormat.ts')
+  const files = new Set(['backend/src/database/query_builder.py', 'backend/test_skills.py'])
+  const text = (value) => ({ type: 'text', value })
+  const tree = { type: 'root', children: [
+    { type: 'paragraph', children: [text('See backend/src/database/query_builder.py, test_skills.py and notes.py.')] },
+    { type: 'paragraph', children: [{ type: 'strong', children: [text('(backend/test_skills.py)')] }] },
+    { type: 'link', children: [text('query_builder.py')] },
+    { type: 'paragraph', children: [text('https://x.io/query_builder.py')] },
+  ] }
+  remarkFilePaths(files)()(tree)
+  assert.deepEqual(tree.children[0].children, [
+    text('See '), { type: 'inlineCode', value: 'backend/src/database/query_builder.py' }, text(', '),
+    { type: 'inlineCode', value: 'test_skills.py' }, text(' and notes.py.'),
+  ])
+  assert.deepEqual(tree.children[1].children[0].children, [text('('), { type: 'inlineCode', value: 'backend/test_skills.py' }, text(')')])
+  assert.deepEqual(tree.children[2].children, [text('query_builder.py')])
+  assert.deepEqual(tree.children[3].children, [text('https://x.io/query_builder.py')])
+})

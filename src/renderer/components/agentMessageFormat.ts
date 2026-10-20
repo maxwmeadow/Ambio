@@ -85,3 +85,41 @@ export function inlineFilePath(text: string, relPaths: ReadonlySet<string>): str
   }
   return match
 }
+
+type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[] }
+/** Where a path is already code, a link or raw text, it is left as written. */
+const KEEP_AS_WRITTEN = new Set(['code', 'inlineCode', 'link', 'linkReference', 'definition', 'html'])
+const FILE_NAME = /[\w.@-][\w.@/-]*\.[A-Za-z0-9]+/g
+
+/**
+ * A remark plugin: file names written as plain prose ("see query_builder.py")
+ * become inline code when they name a file Ambio indexed, so they render as
+ * the same chips as paths the agent put in backticks.
+ */
+export function remarkFilePaths(relPaths: ReadonlySet<string>) {
+  const split = (text: string): MarkdownNode[] | null => {
+    const parts: MarkdownNode[] = []
+    let last = 0
+    for (const found of text.matchAll(FILE_NAME)) {
+      const start = found.index ?? 0
+      // Part of a longer word or URL ("example.com/x.py", "a:b.py") is not a path on its own.
+      if (start > 0 && /[\w:/]/.test(text[start - 1])) continue
+      if (!inlineFilePath(found[0], relPaths)) continue
+      if (start > last) parts.push({ type: 'text', value: text.slice(last, start) })
+      parts.push({ type: 'inlineCode', value: found[0] })
+      last = start + found[0].length
+    }
+    if (!parts.length) return null
+    if (last < text.length) parts.push({ type: 'text', value: text.slice(last) })
+    return parts
+  }
+  const walk = (node: MarkdownNode) => {
+    if (!node.children || KEEP_AS_WRITTEN.has(node.type)) return
+    node.children = node.children.flatMap(child => {
+      if (child.type === 'text' && child.value) return split(child.value) ?? [child]
+      walk(child)
+      return [child]
+    })
+  }
+  return () => (tree: MarkdownNode) => { if (relPaths.size) walk(tree) }
+}
