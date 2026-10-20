@@ -109,3 +109,21 @@ func TestLocateReportsTheOpenedSubfolder(t *testing.T) {
 		t.Fatal("a plain folder must not locate a checkout")
 	}
 }
+
+func TestFindRepositoriesListsNestedRepositoriesOnce(t *testing.T) {
+	parent := t.TempDir()
+	for _, repo := range []string{"web", "services/api", "services/api/vendor/sdk"} {
+		dir := filepath.Join(parent, filepath.FromSlash(repo))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		headGit(t, dir, "init", "-q")
+	}
+	if err := os.MkdirAll(filepath.Join(parent, "node_modules", "dep", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	found := FindRepositories(parent, 3, func(_ string, name string) bool { return name == "node_modules" })
+	if strings.Join(found, ",") != "services/api,web" {
+		t.Fatalf("found = %v", found)
+	}
+}

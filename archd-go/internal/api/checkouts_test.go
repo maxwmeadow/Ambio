@@ -224,3 +224,35 @@ func TestShowingAnotherCheckoutKeepsTheMapAndJournalsNothing(t *testing.T) {
 		}
 	}
 }
+
+func TestAFolderOfRepositoriesListsEachOne(t *testing.T) {
+	parent := t.TempDir()
+	for _, folder := range []string{"web", "services/api"} {
+		repo := filepath.Join(parent, filepath.FromSlash(folder))
+		writeRepoFile(t, repo, "main.go", "package app\n")
+		runWorktreeGit(t, repo, "init", "-b", "main")
+		runWorktreeGit(t, repo, "config", "user.email", "ambio-test@example.com")
+		runWorktreeGit(t, repo, "config", "user.name", "Ambio Test")
+		runWorktreeGit(t, repo, "add", ".")
+		runWorktreeGit(t, repo, "commit", "-m", "base")
+	}
+	runWorktreeGit(t, filepath.Join(parent, "web"), "checkout", "-b", "redesign")
+	writeRepoFile(t, filepath.Join(parent, "web"), "draft.go", "package app\n")
+
+	server := openCheckoutServer(t, t.TempDir(), parent)
+	t.Cleanup(func() { server.closeDB("ws") })
+	snapshot := getCheckouts(t, server)
+	if snapshot.VCS != "repos" || len(snapshot.Repositories) != 2 {
+		t.Fatalf("snapshot = %#v", snapshot)
+	}
+	byFolder := map[string]repositoryStatus{}
+	for _, repository := range snapshot.Repositories {
+		byFolder[repository.Folder] = repository
+	}
+	if web := byFolder["web"]; web.Branch != "redesign" || web.ChangedFiles != 1 || web.HeadState != headCommit {
+		t.Fatalf("web = %#v", web)
+	}
+	if api := byFolder["services/api"]; api.Branch != "main" || api.ChangedFiles != 0 {
+		t.Fatalf("services/api = %#v", api)
+	}
+}

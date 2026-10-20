@@ -62,6 +62,9 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- A project folder holding several repositories shows each one's branch in
+  the toolbar menu, and switching branches inside one of them no longer shows
+  up as code changes.
 - Agents Ambio starts can work in a worktree of their own (choose "Own
   worktree" when sending), so several can work at once. When one is done,
   apply its work to your branch as uncommitted changes to review and commit,

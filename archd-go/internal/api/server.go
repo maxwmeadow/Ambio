@@ -99,6 +99,7 @@ type Server struct {
 	rootQuietReconcile map[string]bool
 	collisionCache     map[string]collisionCacheEntry
 	checkoutsCache     map[string]checkoutsCacheEntry
+	nestedCache        map[string]nestedCacheEntry
 	collisionCacheTTL  time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
 	// that an agent began investigating. Timestamps of recent qualifying
@@ -145,6 +146,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		rootQuietReconcile:  make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
 		checkoutsCache:      make(map[string]checkoutsCacheEntry),
+		nestedCache:         make(map[string]nestedCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),
 		autoCaptureIdleStop: autoCaptureIdleStopDefault,

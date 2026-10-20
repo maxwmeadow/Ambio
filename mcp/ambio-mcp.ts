@@ -2439,9 +2439,21 @@ Steps to execute:
             overlay: Array<{ path: string; change: string; systemId?: string }>
           }>
           collisions: Array<{ systemName: string; branches: Array<{ rootId: string; branch: string; files: string[] }> }>
+          repositories?: Array<{ folder: string; branch: string; headState: string; changedFiles: number; ahead: number; behind: number }>
         }
         if (snapshot.vcs === 'none') {
           result = { branches: [], note: 'This project is not a Git repository.' }
+          break
+        }
+        // A folder of repositories: each one's branch and state. Branch
+        // overlays and reviews are per checkout of one repository.
+        const repositories = (snapshot.repositories ?? []).map(repository => ({
+          folder: repository.folder, branch: repository.branch || repository.headState,
+          ...(repository.changedFiles ? { uncommitted: repository.changedFiles } : {}),
+          ...(repository.ahead || repository.behind ? { ahead: repository.ahead, behind: repository.behind } : {}),
+        }))
+        if (snapshot.vcs === 'repos') {
+          result = { repositories, note: 'This project is a folder holding several Git repositories.' }
           break
         }
         const systems = await queryDb(project.workspaceId, 'SELECT id, name FROM systems WHERE workspace_id = ?', [project.workspaceId]) as Array<{ id: string; name: string }>
@@ -2488,6 +2500,7 @@ Steps to execute:
           branches,
           ...(sharedWithYou.length ? { sharedSystems: sharedWithYou } : {}),
           ...(review ? { review } : {}),
+          ...(repositories.length ? { repositoriesInside: repositories } : {}),
           note: 'Overlays are what each branch changes against its merge base with the branch on the map. Before changing a system another branch is changing, say so to the user.',
         }
         break

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { CHECKOUTS_CHANGED, REVIEW_BRANCH, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
-import { buildBranchChip, buildCheckoutRows, type OverlayLens } from './checkoutModel'
+import { buildBranchChip, buildCheckoutRows, buildRepositoryRows, type OverlayLens } from './checkoutModel'
 import { apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch } from '../canvas/arcdApi'
 import { useGraphStore } from '../store/graphStore'
 import type { BranchReview } from '../../shared/types'
@@ -56,7 +56,9 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   useCheckoutRefresh(workspaceId)
   const snapshot = useCheckoutStore(state => (state.workspaceId === workspaceId ? state.snapshot : null))
   const chip = useMemo(() => buildBranchChip(snapshot), [snapshot])
-  const rows = useMemo(() => buildCheckoutRows(snapshot), [snapshot])
+  const repositories = useMemo(() => buildRepositoryRows(snapshot), [snapshot])
+  // A folder of repositories has no checkout of its own worth a row.
+  const rows = useMemo(() => (chip.repositories ? [] : buildCheckoutRows(snapshot)), [snapshot, chip.repositories])
   const lens = useCheckoutStore(state => state.lens)
   const setLens = useCheckoutStore(state => state.setLens)
   const unplaced = useCheckoutStore(state => state.unplaced)
@@ -218,7 +220,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
         aria-controls="ambio-checkouts"
         onClick={toggle}
       >
-        <span className="ambio-branch-chip__kicker">{chip.plain ? 'Version control' : 'Branch'}</span>
+        <span className="ambio-branch-chip__kicker">{chip.plain ? 'Version control' : chip.repositories ? 'Repositories' : 'Branch'}</span>
         <span className="ambio-branch-chip__line">
           {!chip.plain && (
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
@@ -247,13 +249,13 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
           >
             <header className="ambio-checkouts__header">
               <div>
-                <h2>{chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : 'Branches and worktrees'}</h2>
-                <p>{chip.plain ? 'This folder is not a Git repository'
+                <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : 'Branches and worktrees'}</h2>
+                <p>{chip.repositories ? 'Each repository in this folder' : chip.plain ? 'This folder is not a Git repository'
                   : reviewing ? (review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…')
                   : branches ? `The Floor is on ${branches.current}`
                   : 'Every working copy of this project'}</p>
               </div>
-              {!chip.plain && !reviewing && !branches && <output>{rows.length}</output>}
+              {!chip.plain && !reviewing && !branches && <output>{chip.repositories || rows.length}</output>}
               {(reviewing || branches) && <button type="button" className="ambio-checkouts__back" onClick={() => { setReviewing(null); setBranches(null) }}>← Back</button>}
             </header>
             {branches && !reviewing ? (
@@ -380,6 +382,20 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                   </div>
                 </article>
               ))}
+              {repositories.length > 0 && (
+                <section className="ambio-checkouts__repositories" aria-label="Repositories in this folder">
+                  {!chip.repositories && <h3>Inside this repository</h3>}
+                  {repositories.map(repository => (
+                    <article className="ambio-checkout" key={repository.folder}>
+                      <div className="ambio-checkout__title">
+                        <strong title={repository.folder}>{repository.folder}</strong>
+                        <span className="ambio-checkout__tag ambio-checkout__tag--quiet">{repository.name}</span>
+                      </div>
+                      {repository.state && <p className="ambio-checkout__state">{repository.state}</p>}
+                    </article>
+                  ))}
+                </section>
+              )}
               {unplaced > 0 && (
                 <p className="ambio-checkouts__unplaced">
                   {unplaced} new file{unplaced === 1 ? '' : 's'} on other branches {unplaced === 1 ? 'is' : 'are'} in folders no system owns yet.

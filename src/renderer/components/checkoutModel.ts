@@ -1,4 +1,4 @@
-import type { BranchCollision, CheckoutStatus, CheckoutsSnapshot } from '../../shared/types'
+import type { BranchCollision, CheckoutStatus, CheckoutsSnapshot, RepositoryStatus } from '../../shared/types'
 
 /**
  * The branch chip, the Checkouts popover and the collision marks on systems
@@ -30,7 +30,7 @@ export function checkoutName(checkout: Pick<CheckoutStatus, 'branch' | 'headComm
 }
 
 /** The one-line state under a checkout's name, or '' when there is nothing to say. */
-export function checkoutState(checkout: CheckoutStatus): string {
+export function checkoutState(checkout: Pick<CheckoutStatus, 'headState' | 'headCommit' | 'error' | 'changedFiles' | 'ahead' | 'behind' | 'upstream'>): string {
   if (checkout.headState === 'none') return 'History still works from Ambio’s own record.'
   if (checkout.headState === 'unborn') return 'No commits yet: branch comparisons start after your first commit.'
   if (checkout.headState === 'detached') return `Detached at ${shortCommit(checkout.headCommit)}.`
@@ -46,6 +46,8 @@ export function checkoutState(checkout: CheckoutStatus): string {
 export interface BranchChipModel {
   visible: boolean
   plain: boolean
+  /** A folder holding several repositories. */
+  repositories: number
   label: string
   dirty: boolean
   ahead: number
@@ -58,7 +60,7 @@ export interface BranchChipModel {
 }
 
 const HIDDEN: BranchChipModel = {
-  visible: false, plain: false, label: '', dirty: false, ahead: 0, behind: 0,
+  visible: false, plain: false, repositories: 0, label: '', dirty: false, ahead: 0, behind: 0,
   others: 0, agents: 0, collisions: 0, title: '',
 }
 
@@ -73,6 +75,18 @@ export function buildBranchChip(snapshot: CheckoutsSnapshot | null): BranchChipM
   const checkouts = list(snapshot.checkouts)
   const agents = checkouts.reduce((count, checkout) => count + list(checkout.agents).length, 0)
   const collisions = list(snapshot.collisions).length
+  const repositories = list(snapshot.repositories)
+  if (snapshot.vcs === 'repos') {
+    const dirty = repositories.filter(repository => repository.changedFiles > 0)
+    return {
+      ...HIDDEN,
+      visible: true,
+      repositories: repositories.length,
+      label: `${repositories.length} repos`,
+      dirty: dirty.length > 0,
+      title: repositories.map(repository => `${repository.folder} on ${checkoutName(repository)}${repository.changedFiles ? ` (${repository.changedFiles} uncommitted)` : ''}`).join('. '),
+    }
+  }
   const plain = snapshot.vcs === 'none'
   const label = checkoutName(focused)
   const titleParts = [plain ? 'This folder is not a Git repository' : `The Floor shows ${label}`]
@@ -83,6 +97,7 @@ export function buildBranchChip(snapshot: CheckoutsSnapshot | null): BranchChipM
   return {
     visible: true,
     plain,
+    repositories: 0,
     label,
     dirty: focused.changedFiles > 0,
     ahead: focused.ahead,
@@ -244,4 +259,19 @@ export function overlaySummary(checkout: CheckoutStatus): string {
   ].filter(Boolean)
   const more = checkout.overlayTruncated ? ` (+${checkout.overlayTruncated} more)` : ''
   return parts.length ? `${parts.join(' ')} files${more}` : ''
+}
+
+export interface RepositoryRow {
+  folder: string
+  name: string
+  state: string
+}
+
+/** Repositories inside the Floor's folder, for the Checkouts popover. */
+export function buildRepositoryRows(snapshot: CheckoutsSnapshot | null): RepositoryRow[] {
+  return list<RepositoryStatus>(snapshot?.repositories).map(repository => ({
+    folder: repository.folder,
+    name: checkoutName(repository),
+    state: checkoutState(repository),
+  }))
 }

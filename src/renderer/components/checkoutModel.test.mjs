@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, checkoutName, checkoutState, collisionsBySystem, overlaySummary } from './checkoutModel.ts'
+import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, collisionsBySystem, overlaySummary } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -101,4 +101,23 @@ test('the lens decides which other checkouts the Floor draws', () => {
   assert.notEqual(everything.byFile.get('file_stripe')[0].tint, everything.byFile.get('file_stripe')[1].tint)
   assert.equal(overlaySummary(agent), '+2 ~1 −1 files')
   assert.equal(overlaySummary(checkout({ overlay: [], overlayTruncated: 0 })), '')
+})
+
+test('a folder of repositories reads as how many, and lists each', () => {
+  const repos = {
+    workspaceId: 'ws', vcs: 'repos', collisions: [],
+    checkouts: [checkout({ branch: '', headCommit: '', headState: 'none' })],
+    repositories: [
+      { folder: 'web', branch: 'redesign', headCommit: 'abc', headState: 'commit', changedFiles: 1, ahead: 0, behind: 0 },
+      { folder: 'services/api', branch: 'main', headCommit: 'def', headState: 'commit', changedFiles: 0, ahead: 2, behind: 0, upstream: 'origin/main' },
+    ],
+  }
+  const chip = buildBranchChip(repos)
+  assert.equal(chip.label, '2 repos')
+  assert.equal(chip.dirty, true)
+  assert.equal(chip.title, 'web on redesign (1 uncommitted). services/api on main')
+  assert.deepEqual(buildRepositoryRows(repos).map(row => [row.folder, row.name, row.state]), [
+    ['web', 'redesign', '1 uncommitted'],
+    ['services/api', 'main', '2 ahead · of origin/main'],
+  ])
 })

@@ -2,7 +2,11 @@
 
 Status: **decided 2026-10-20** (DECISIONS §1; Q1-Q6 below accepted as
 recommended). Build items are in WORK.md under *Git and project shapes*,
-starting with `git-checkout-truth` (stage 0). It replaced four open questions:
+starting with `git-checkout-truth` (stage 0). Built on 2026-10-20: stages 0-5
+and stage 6's first slice (repositories inside a project are listed and
+journal correctly). Stage 4 applies a finished run as uncommitted changes
+rather than merging (DECISIONS 2026-10-20). Left: `git-repo-frames`,
+`git-nested-repo-branches`, `git-add-folder`. It replaced four open questions:
 `project-shapes`, `branches-and-worktrees-ux`, `worktrees-one-or-two` and
 `multi-root-projects`.
 

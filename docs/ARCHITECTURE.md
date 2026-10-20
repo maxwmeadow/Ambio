@@ -258,6 +258,18 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   /api/checkouts/switch`) is refused with uncommitted changes, and a branch
   open in another worktree is shown on the Floor instead. Ambio never
   commits, merges or pushes.
+- **Repositories inside a project** (stage 6, first slice): a root is
+  searched (depth 4, the indexer's skip rules, cached 30 s) for repositories
+  inside it - several under a parent folder, or submodules
+  (`gitworktree.FindRepositories`). The journal's HEAD tracker is keyed per
+  repository (`rootID|folder`, `nestedRepository`), seeded on sync
+  (`indexer.SeedRepositories`), so a switch inside one is quiet and leaves a
+  `checkout.switched` row naming it on the root's branch. `GET
+  /api/checkouts` reports them as `repositories` (`vcs: "repos"` for a plain
+  folder of repositories); the chip reads "N repos". The map is still one
+  projection of the parent folder: per-repository frames, clustering inside
+  one repository, overlays and reviews per nested repository, and adding
+  unrelated folders are WORK follow-ups.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
   files, once any running Git command releases `index.lock` (a lock older

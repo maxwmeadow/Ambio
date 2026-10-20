@@ -564,3 +564,13 @@
   background: #dfeae6;
   color: #24453f;
 }
+
+.ambio-checkouts__repositories h3 {
+  margin: 6px 9px 2px;
+  color: #5d6964;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

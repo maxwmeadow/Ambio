@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -65,13 +66,17 @@ type headMove struct {
 }
 
 type checkoutState struct {
-	mu        sync.Mutex
-	checkout  gitworktree.Checkout
-	located   bool
-	lookedAt  time.Time
-	head      gitworktree.Head
-	headKnown bool
-	move      *headMove
+	mu sync.Mutex
+	// repository is a repository nested inside the root (one of several under
+	// a parent folder, or a submodule), relative to the root; "" for the
+	// root's own repository.
+	repository string
+	checkout   gitworktree.Checkout
+	located    bool
+	lookedAt   time.Time
+	head       gitworktree.Head
+	headKnown  bool
+	move       *headMove
 }
 
 var (
@@ -108,6 +113,28 @@ func SeedHead(rootID string, head gitworktree.Head) {
 	}
 }
 
+// SeedRepositories records the HEAD of each repository nested in a root, so
+// the first branch switch inside one is recognized as a switch.
+func SeedRepositories(root db.Root, repositories []string) {
+	for _, repository := range repositories {
+		checkout, err := gitworktree.Locate(filepath.Join(root.Path, filepath.FromSlash(repository)))
+		if err != nil {
+			continue
+		}
+		head, err := checkout.ReadHead()
+		if err != nil {
+			continue
+		}
+		state := checkoutFor(root.ID + "|" + repository)
+		state.mu.Lock()
+		if !state.headKnown {
+			state.repository, state.checkout, state.located = repository, checkout, true
+			state.head, state.headKnown = head, true
+		}
+		state.mu.Unlock()
+	}
+}
+
 // NoteHead records a HEAD move as soon as Git's metadata reports it, so a
 // switch between branches with identical trees, which changes no file, is
 // still journaled once.
@@ -118,11 +145,35 @@ func NoteHead(sqlDB *sql.DB, root db.Root) {
 	state.observe(sqlDB, root)
 }
 
-// ForgetCheckout drops what the journal knows about a root's Git state.
+// ForgetCheckout drops what the journal knows about a root's Git state,
+// including the repositories nested in it.
 func ForgetCheckout(rootID string) {
 	checkoutsMu.Lock()
-	delete(checkouts, rootID)
+	for key := range checkouts {
+		if key == rootID || strings.HasPrefix(key, rootID+"|") {
+			delete(checkouts, key)
+		}
+	}
 	checkoutsMu.Unlock()
+}
+
+// nestedRepository is the repository nested inside root that holds absPath,
+// relative to root, or "" when the file belongs to the root's own repository
+// (or none). One stat per folder between the file and the root.
+func nestedRepository(root db.Root, absPath string) string {
+	rootPath := filepath.Clean(root.Path)
+	for dir := filepath.Dir(absPath); len(dir) > len(rootPath); dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			if rel, relErr := filepath.Rel(rootPath, dir); relErr == nil && !strings.HasPrefix(rel, "..") {
+				return filepath.ToSlash(rel)
+			}
+			return ""
+		}
+		if parent := filepath.Dir(dir); parent == dir {
+			break
+		}
+	}
+	return ""
 }
 
 // currentHead is the HEAD the journal last read for a root, which is fresher
@@ -139,20 +190,26 @@ func currentHead(rootID string) (gitworktree.Head, bool) {
 	return state.head, state.located && state.headKnown
 }
 
-// activeMove is the kind of a HEAD move still explaining file events.
+// activeMove is the kind of a HEAD move still explaining file events, in the
+// root's own repository or one nested in it; a switch outranks the rest.
 func activeMove(rootID string) headMoveKind {
 	checkoutsMu.Lock()
-	state := checkouts[rootID]
+	var states []*checkoutState
+	for key, state := range checkouts {
+		if key == rootID || strings.HasPrefix(key, rootID+"|") {
+			states = append(states, state)
+		}
+	}
 	checkoutsMu.Unlock()
-	if state == nil {
-		return moveNone
+	kind := moveNone
+	for _, state := range states {
+		state.mu.Lock()
+		if state.move != nil && time.Since(state.move.lastHit) <= gitMoveWindow && (kind == moveNone || state.move.kind == moveSwitch) {
+			kind = state.move.kind
+		}
+		state.mu.Unlock()
 	}
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.move == nil || time.Since(state.move.lastHit) > gitMoveWindow {
-		return moveNone
-	}
-	return state.move.kind
+	return kind
 }
 
 // observe reads HEAD once a running Git command has finished, and records a
@@ -163,7 +220,11 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 			return false
 		}
 		state.lookedAt = time.Now()
-		checkout, err := gitworktree.Locate(root.Path)
+		folder := root.Path
+		if state.repository != "" {
+			folder = filepath.Join(root.Path, filepath.FromSlash(state.repository))
+		}
+		checkout, err := gitworktree.Locate(folder)
 		if err != nil {
 			return false
 		}
@@ -190,16 +251,23 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 	}
 	state.head, state.move = head, move
 	if move.kind == moveSwitch {
+		// A nested repository's switch belongs to the root's history, which
+		// is not kept per that repository's branch; it names the repository.
+		branch, label := head.Branch, head.Branch
+		if state.repository != "" {
+			branch, label = root.Branch, state.repository+": "+head.Branch
+		}
 		// recordEvent, not recordRootEvent: the latter reads currentHead, which
 		// needs the lock held here.
 		recordEvent(sqlDB, db.StructuralEvent{
 			WorkspaceID:  root.WorkspaceID,
 			RootID:       root.ID,
-			Branch:       head.Branch,
+			Branch:       branch,
 			Actor:        activity.ActorGit,
 			Kind:         db.EventCheckoutSwitched,
-			SubjectLabel: head.Branch,
+			SubjectLabel: label,
 			Detail: encodeDetail(map[string]string{
+				"repository": state.repository,
 				"fromBranch": move.from.Branch,
 				"fromCommit": move.from.Commit,
 				"toCommit":   head.Commit,
@@ -239,8 +307,16 @@ func classifyHeadMove(messages []string, from, to gitworktree.Head) headMoveKind
 // gitWrote reports whether Git, rather than a person or an agent, produced
 // this file change, and which kind of move it belonged to.
 func gitWrote(sqlDB *sql.DB, root db.Root, relPath, absPath string, deleted bool) headMoveKind {
-	state := checkoutFor(root.ID)
+	key := root.ID
+	repository := nestedRepository(root, absPath)
+	if repository != "" {
+		key = root.ID + "|" + repository
+		// Paths in a nested repository's trees are relative to it.
+		relPath = strings.TrimPrefix(relPath, repository+"/")
+	}
+	state := checkoutFor(key)
 	state.mu.Lock()
+	state.repository = repository
 	defer state.mu.Unlock()
 	if !state.observe(sqlDB, root) {
 		return moveNone

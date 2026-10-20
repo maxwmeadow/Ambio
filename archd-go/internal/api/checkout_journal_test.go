@@ -376,3 +376,54 @@ func TestGitInitInAnOpenFolderStartsBranchTracking(t *testing.T) {
 	runWorktreeGit(t, folder, "checkout", "-b", "first-feature")
 	waitForWorktreeTest(t, "a branch switch after git init", branchIs("first-feature"))
 }
+
+func TestABranchSwitchInsideOneOfSeveralRepositoriesIsNotCode(t *testing.T) {
+	parent := t.TempDir()
+	web := filepath.Join(parent, "web")
+	api := filepath.Join(parent, "api")
+	for _, repo := range []string{web, api} {
+		if err := os.MkdirAll(repo, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		runWorktreeGit(t, repo, "init", "-b", "main")
+		runWorktreeGit(t, repo, "config", "user.email", "ambio-test@example.com")
+		runWorktreeGit(t, repo, "config", "user.name", "Ambio Test")
+		writeCheckoutFile(t, repo, "main.go", "package app\n\nfunc Run() {}\n")
+		runWorktreeGit(t, repo, "add", ".")
+		runWorktreeGit(t, repo, "commit", "-m", "base")
+	}
+	runWorktreeGit(t, web, "checkout", "-b", "feature")
+	writeCheckoutFile(t, web, "cart.go", "package app\n\nfunc Cart() { Run() }\n")
+	runWorktreeGit(t, web, "add", ".")
+	runWorktreeGit(t, web, "commit", "-m", "cart")
+	runWorktreeGit(t, web, "checkout", "main")
+
+	server := openCheckoutServer(t, t.TempDir(), parent)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	since := time.Now().UnixMilli()
+	runWorktreeGit(t, web, "checkout", "feature")
+	sqlDB, _ := server.dbFor("ws")
+	waitForWorktreeTest(t, "web/cart.go on the map", func() bool {
+		snapshot, err := db.GetCanvasSnapshot(sqlDB, "ws")
+		if err != nil {
+			return false
+		}
+		for _, file := range snapshot.Files {
+			if file.RelPath == "web/cart.go" {
+				return true
+			}
+		}
+		return false
+	})
+	settleCheckout(server)
+	events := journalSince(t, server, since)
+	if code := codeEvents(events); len(code) != 0 {
+		for _, event := range code {
+			t.Errorf("journaled %s %s by %s", event.Kind, event.SubjectLabel, event.Actor)
+		}
+	}
+	if !hasEvent(events, db.EventCheckoutSwitched, "web: feature", "", "git") {
+		t.Fatalf("want one switch row naming the repository: %#v", events)
+	}
+}

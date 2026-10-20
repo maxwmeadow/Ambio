@@ -56,6 +56,15 @@ const REVIEW = {
   ],
 }
 
+const REPOS = {
+  workspaceId: 'demo', vcs: 'repos', collisions: [],
+  checkouts: [checkout({ branch: '', headCommit: '', headState: 'none' })],
+  repositories: [
+    { folder: 'web', branch: 'redesign', headCommit: 'abc1234', headState: 'commit', changedFiles: 1, ahead: 0, behind: 0 },
+    { folder: 'services/api', branch: 'main', headCommit: 'def5678', headState: 'commit', changedFiles: 0, ahead: 2, behind: 0, upstream: 'origin/main' },
+  ],
+}
+
 const PLAIN = {
   workspaceId: 'demo', vcs: 'none', collisions: [],
   checkouts: [checkout({ branch: '', headCommit: '', headState: 'none' })],
@@ -248,4 +257,24 @@ test('an Ambio run is applied or discarded, and the Floor switches branch, from 
   await popover.locator('.ambio-checkout').first().getByRole('button', { name: 'Switch branch…' }).click()
   await popover.getByRole('button', { name: /codex\/retry-checkout/ }).click()
   await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
+})
+
+test('a folder of repositories shows each repository and its branch', async () => {
+  await launch(REPOS)
+  const chip = page.locator('.ambio-branch-chip')
+  await expect(chip).toContainText('2 repos')
+  await expect(chip.locator('.ambio-branch-chip__dirty')).toBeVisible()
+  await chip.click()
+  const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
+  await expect(popover).toContainText('Repositories')
+  const rows = popover.locator('.ambio-checkouts__repositories .ambio-checkout')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('web')
+  await expect(rows.first()).toContainText('redesign')
+  await expect(rows.nth(1)).toContainText('2 ahead · of origin/main')
+  if (SHOTS) {
+    await page.mouse.move(700, 600)
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(SHOTS, 'repositories.png') })
+  }
 })

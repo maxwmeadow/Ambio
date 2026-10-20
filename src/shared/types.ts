@@ -792,10 +792,27 @@ export interface BranchReview {
   message?: string
 }
 
+/** A repository inside the project's folder: one of several under a parent
+ *  folder, or a submodule. */
+export interface RepositoryStatus {
+  /** Relative to the Floor's folder. */
+  folder: string
+  branch: string
+  headCommit: string
+  headState: CheckoutHeadState
+  changedFiles: number
+  upstream?: string
+  ahead: number
+  behind: number
+  error?: string
+}
+
 export interface CheckoutsSnapshot {
   workspaceId: string
-  vcs: 'git' | 'none'
+  /** "repos": a folder that is not a checkout but holds several repositories. */
+  vcs: 'git' | 'none' | 'repos'
   checkouts: CheckoutStatus[]
   /** Systems more than one checkout is changing. */
   collisions: BranchCollision[]
+  repositories?: RepositoryStatus[]
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -58,10 +59,52 @@ type checkoutsCacheEntry struct {
 
 type checkoutsSnapshot struct {
 	WorkspaceID string `json:"workspaceId"`
-	// VCS is "git", or "none" for a folder that is not a Git checkout.
+	// VCS is "git"; "repos" for a folder that is not a checkout but holds
+	// several repositories; "none" for a folder without Git at all.
 	VCS        string                        `json:"vcs"`
 	Checkouts  []checkoutStatus              `json:"checkouts"`
 	Collisions []collision.BoundaryCollision `json:"collisions"`
+	// Repositories nested in the Floor's folder: one of several under a
+	// parent folder, or a submodule (docs/GIT_AND_PROJECT_SHAPES.md stage 6).
+	Repositories []repositoryStatus `json:"repositories"`
+}
+
+type repositoryStatus struct {
+	// Folder is relative to the Floor's checkout.
+	Folder       string `json:"folder"`
+	Branch       string `json:"branch"`
+	HeadCommit   string `json:"headCommit"`
+	HeadState    string `json:"headState"`
+	ChangedFiles int    `json:"changedFiles"`
+	Upstream     string `json:"upstream,omitempty"`
+	Ahead        int    `json:"ahead"`
+	Behind       int    `json:"behind"`
+	Error        string `json:"error,omitempty"`
+}
+
+func repositoryState(folder string) repositoryStatus {
+	status := repositoryStatus{HeadState: headCommit}
+	checkout, err := gitworktree.Locate(folder)
+	if err != nil {
+		status.Error, status.HeadState = err.Error(), headNone
+		return status
+	}
+	head, err := checkout.ReadHead()
+	if err != nil {
+		status.Error = err.Error()
+		return status
+	}
+	status.Branch, status.HeadCommit = head.Branch, head.Commit
+	switch {
+	case head.Branch == gitworktree.DetachedBranch:
+		status.HeadState = headDetached
+	case head.Commit == "":
+		status.HeadState = headUnborn
+	}
+	if git, err := gitworktree.ReadStatus(folder); err == nil {
+		status.ChangedFiles, status.Upstream, status.Ahead, status.Behind = git.ChangedFiles, git.Upstream, git.Ahead, git.Behind
+	}
+	return status
 }
 
 func headStateOf(root db.Root) string {
@@ -141,10 +184,11 @@ func (s *Server) buildCheckouts(sqlDB *sql.DB, workspaceID string, now int64) (c
 	}
 
 	snapshot := checkoutsSnapshot{
-		WorkspaceID: workspaceID,
-		VCS:         "git",
-		Checkouts:   make([]checkoutStatus, 0, len(roots)),
-		Collisions:  collisions.Collisions,
+		WorkspaceID:  workspaceID,
+		VCS:          "git",
+		Checkouts:    make([]checkoutStatus, 0, len(roots)),
+		Collisions:   collisions.Collisions,
+		Repositories: []repositoryStatus{},
 	}
 	if snapshot.Collisions == nil {
 		snapshot.Collisions = []collision.BoundaryCollision{}
@@ -218,8 +262,18 @@ func (s *Server) buildCheckouts(sqlDB *sql.DB, workspaceID string, now int64) (c
 			}
 		}
 	}
+	if focused != nil {
+		for _, folder := range s.cachedNestedRepositories(*focused) {
+			repository := repositoryState(filepath.Join(focused.Path, filepath.FromSlash(folder)))
+			repository.Folder = folder
+			snapshot.Repositories = append(snapshot.Repositories, repository)
+		}
+	}
 	if len(snapshot.Checkouts) == 1 && snapshot.Checkouts[0].HeadState == headNone {
 		snapshot.VCS = "none"
+		if len(snapshot.Repositories) > 0 {
+			snapshot.VCS = "repos"
+		}
 	}
 
 	// The Floor's checkout first, then Git's primary, then by branch.
@@ -300,4 +354,25 @@ func (s *Server) handleCheckoutFocus(w http.ResponseWriter, r *http.Request) {
 	default: // one is already queued
 	}
 	jsonOK(w, map[string]any{"workspaceId": body.WorkspaceID, "rootId": body.RootID})
+}
+
+type nestedCacheEntry struct {
+	folders   []string
+	expiresAt time.Time
+}
+
+// cachedNestedRepositories walks a root for repositories at most every 30 s:
+// repositories inside a project appear and disappear rarely.
+func (s *Server) cachedNestedRepositories(root db.Root) []string {
+	s.mu.RLock()
+	entry, ok := s.nestedCache[root.ID]
+	s.mu.RUnlock()
+	if ok && time.Now().Before(entry.expiresAt) {
+		return entry.folders
+	}
+	folders := s.nestedRepositories(root)
+	s.mu.Lock()
+	s.nestedCache[root.ID] = nestedCacheEntry{folders: folders, expiresAt: time.Now().Add(30 * time.Second)}
+	s.mu.Unlock()
+	return folders
 }

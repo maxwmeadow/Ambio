@@ -329,6 +329,7 @@ func (s *Server) syncWorkspaceWorktrees(
 				seed = gitworktree.Head{Branch: prior.Branch, Commit: prior.HeadCommit}
 			}
 			indexer.SeedHead(root.ID, seed)
+			indexer.SeedRepositories(root, s.nestedRepositories(root))
 		}
 		rootChanged := !known || !prior.IsActive || prior.Branch != root.Branch ||
 			prior.HeadCommit != root.HeadCommit || prior.IsPrimary != root.IsPrimary ||
@@ -699,4 +700,15 @@ func (s *Server) pushCheckoutChanges(sqlDB *sql.DB, workspaceID, last string) st
 		s.hub.Broadcast("checkouts:changed", map[string]any{"workspaceId": workspaceID})
 	}
 	return fingerprint
+}
+
+// nestedRepositoryDepth bounds how deep a root is searched for repositories.
+const nestedRepositoryDepth = 4
+
+// nestedRepositories lists the Git repositories inside a root - several
+// repositories under a parent folder, or submodules - relative to it.
+func (s *Server) nestedRepositories(root db.Root) []string {
+	return gitworktree.FindRepositories(root.Path, nestedRepositoryDepth, func(relDir, name string) bool {
+		return indexer.SkipFolder(root, relDir, name)
+	})
 }
