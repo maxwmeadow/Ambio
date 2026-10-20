@@ -55,8 +55,12 @@ export class ChatProviderProxy {
         }
         const upstream = await this.request(`${profile.baseUrl}${match[2]}${url.search}`, { method: req.method, headers, body: requestBody, redirect: 'error', signal: abort.signal })
         if (subscription && !upstream.ok) failSubscription('ChatGPT could not complete this request. Check Manage usage or reconnect ChatGPT in Model services.')
-        if (subscription && match[2] === '/responses' && upstream.ok && (!upstream.body || !upstream.headers.get('content-type')?.includes('text/event-stream'))) throw new Error('ChatGPT did not return a response stream.')
-        res.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') ?? 'application/json', 'cache-control': 'no-store' })
+        const subscriptionStream = subscription && match[2] === '/responses' && upstream.ok
+        const contentType = upstream.headers.get('content-type')
+        // Electron can expose a completed OpenAI stream without its content type.
+        // Its frames still pass through chatGPTEvents, which requires completion.
+        if (subscriptionStream && (!upstream.body || contentType && !contentType.toLowerCase().includes('text/event-stream'))) throw new Error('ChatGPT did not return a response stream.')
+        res.writeHead(upstream.status, { 'content-type': contentType ?? (subscriptionStream ? 'text/event-stream' : 'application/json'), 'cache-control': 'no-store' })
         if (upstream.body) {
           const validated = profile.auth === 'chatgpt' && match[2] === '/responses' && upstream.ok
           const source = validated ? chatGPTEvents(upstream.body, failSubscription) : undefined

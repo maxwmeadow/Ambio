@@ -273,18 +273,22 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `chat-windows-stamp` **Windows process stamps block the main process.** `processStamp` in `electron/agentChat.ts` runs PowerShell synchronously (up to 3 s) after every harness launch and when checking a leftover receipt. If the stamp could not be read at launch, a recycled PID leaves the project blocked with "could not be verified" until that unrelated process exits. Make the launch stamp asynchronous and retry it, and let Stop clear a receipt whose stamp was never recorded once the PID is gone or belongs to another executable. (2026-10-09, chat review)
 - ⬜ `chat-orphan-work-order` **A Build message that fails to send leaves its work order on the canvas.** `AgentChatPanel` creates the work order before `sendChat`; a refusal (another agent busy, missing key) leaves it addressed to nobody. Retrying reuses the same ID, so it is not duplicated. Either check availability before creating it or offer to send it elsewhere. (2026-10-09, chat review)
 
-- ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. Synthetic OAuth and real bundled OpenCode tests pass; live account entitlement and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
+- ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. [Windows development results](docs/testing/CHATGPT_WINDOWS_SMOKE.md) verify real-account sign-in, models, Ask/follow-up/tools, Propose and restart persistence; Build has a separate first-thread blocker. Packaged cross-platform and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
 
 - ⬜ `proposal-placement-rejection-e2e` **MCP proposal placement test fails on main `99f8068`.** `mcp/e2e/proposalPlacement.e2e.mjs:94` expects a rejected move to restore a null parent from the initial snapshot, but gets a generated cluster ID. Reproduces on an isolated clean main and the ChatGPT branch; check the live parent versus the fixture snapshot before changing placement behavior. (2026-10-20, main integration checks)
 
----
-
-- 🚧 `chatgpt-windows-live-smoke` **Run the real-account Windows development smoke test** on `a055a86` with an isolated Ambio profile and disposable project. Record sign-in/model discovery, native inference, follow-up/history, restart and any blocking failures; packaged/other-OS checks remain in `chatgpt-native-live-validation`. (🚧 Codex, codex/chatgpt-live-smoke, 2026-10-19)
 - ⬜ `chatgpt-callback-polish` **Style the browser sign-in callback page.** The loopback page in `electron/chatgptAuth.ts` currently returns plain text. Give success/failure a branded, readable page and a clear return-to-Ambio instruction without exposing callback parameters. (2026-10-19, live sign-in feedback)
+- ⬜ `chatgpt-setup-label` **Setup calls a ChatGPT OAuth connection “Your API key”.** Use the connection's authentication kind in the Ambio chat agent row so subscription users see ChatGPT plan wording. (2026-10-20, Windows live smoke)
+- ⬜ `architecture-schema-version-doc` **The Data section in `docs/ARCHITECTURE.md` still says SchemaVersion is 2.** Reconcile it with the current daemon version and remove the hard-coded number if it keeps drifting. (2026-10-20, smoke-test documentation review)
+- ⬜ `native-chat-first-build-thread` **The first native Build fails before inference with a misleading claim conflict.** `AgentChatPanel` sends a new `chat:<session>` thread, but `EnqueueCanvasMessage` requires that thread to exist already. Ask/Propose create no inbox row. Reproduced in the real-account Windows smoke; unchanged from main `99f8068`. **Done when:** the first and subsequent native Build turns persist under the right conversation and run through the real daemon, covered with a real-daemon integration test. See [smoke results](docs/testing/CHATGPT_WINDOWS_SMOKE.md). (2026-10-20)
+
+---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `chatgpt-windows-live-smoke` Real Windows account sign-in/model discovery, native Ask/follow-up/tools, Propose and restart persistence pass. Fixed successful OAuth streams rejected when Electron omits Content-Type, with native regression coverage. Build's pre-existing first-thread conflict and UI polish remain separate Inbox work. Results: docs/testing/CHATGPT_WINDOWS_SMOKE.md. (codex/chatgpt-live-smoke)
 
 - 2026-10-20 `chatgpt-main-sync` Merged main through `99f8068`, preserving its agent/model picker and Stop controls together with native ChatGPT readiness and usage access. Plan usage gets its own composer line so the new single-row controls cannot clip it. (codex/chatgpt-plan-sign-in)
 

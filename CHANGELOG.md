@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- ChatGPT plan conversations now accept completed responses when Electron omits
+  the stream's content-type header, instead of reporting a connection failure.
 - Smoother canvas zooming on the Floor and architecture proposal review: camera
   changes no longer invalidate every node's styles or rebuild the review scene.
   Idle overlays and background agent/runtime activity do less rendering work.
@@ -28,7 +30,7 @@ in the app as "What's New" after updating, so write it for users.
 - Connect an eligible ChatGPT plan under Ambio chat in Settings → Agents.
   Your subscription powers the built-in agent through direct API requests,
   with encrypted sign-in, account/model selection and usage controls. No
-  separate CLI or API key is required. Real-account validation remains pending.
+  separate CLI or API key is required. Packaged cross-platform validation remains pending.
 - The agent panel is now a conversation. Ask a question, ask for a plan, then
   tell the agent to build it, and each turn stays in the same conversation; the
   agent picking up a turn is given what was said before it. Start a new

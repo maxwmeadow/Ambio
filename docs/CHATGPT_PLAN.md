@@ -77,10 +77,13 @@ namespaced Ambio MCP tools, follow-up history and interrupted-stream failure.
 UI tests cover consent, model selection, account switching and sign-out.
 Existing API-key/native chat and external agent routes are regression-tested.
 
-A real OpenAI account sign-in and subscription inference were not run in this
-environment. Before release, validate browser consent and one completed native
-Ask/Propose/Build loop with an eligible plan, then check attribution and limits
-in ChatGPT Settings. Also verify renewal, remote revocation, account switching,
+The [Windows development smoke run](testing/CHATGPT_WINDOWS_SMOKE.md) verified
+real-account browser consent, model discovery, native Ask/follow-up/tool calls,
+Propose and persistence across restart. It found and fixed a missing stream
+content-type issue; Build remains blocked by the existing first-work-order
+thread check before inference. Before release, complete native Build and check
+attribution and limits in ChatGPT Settings. Also verify packaged launches,
+renewal, remote revocation, account switching,
 usage-limit errors, cancellation, locked OS storage and packaged-app upgrades
 on macOS, Windows and Linux.
 

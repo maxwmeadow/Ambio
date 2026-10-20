@@ -42,6 +42,30 @@ export function subscriptionFixture() {
   return { id, state, source }
 }
 
+test('subscription streams without a content type still require valid completed events', async t => {
+  const directory = fs.mkdtempSync(join(os.tmpdir(), 'ambio-subscription-stream-'))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const { id, source } = subscriptionFixture()
+  const providers = new ChatProviders(directory, { available: () => false }, fetch, source)
+  let contentType, body = 'data: {"type":"response.completed","response":{"status":"completed"}}\n\n'
+  const proxy = new ChatProviderProxy(providers, async () => new Response(
+    new ReadableStream({ start(controller) { controller.enqueue(Buffer.from(body)); controller.close() } }),
+    { headers: contentType ? { 'content-type': contentType } : {} },
+  ))
+  const origin = await proxy.start(); t.after(() => proxy.close())
+  const request = () => fetch(`${origin}/${id}/responses`, { method: 'POST', headers: { Authorization: `Bearer ${proxy.token}` }, body: JSON.stringify({ model: 'subscription-model', input: [] }) })
+  let response = await request()
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'text/event-stream')
+  assert.match(await response.text(), /response.completed/)
+  body = '{"status":"completed"}'
+  response = await request()
+  assert.match(await response.text(), /chatgpt_stream_incomplete/)
+  contentType = 'application/json'
+  response = await request()
+  assert.equal(response.status, 502)
+})
+
 test('native subscription providers resolve the conversation account, renew only in Electron and cannot be edited as API keys', async t => {
   const directory = fs.mkdtempSync(join(os.tmpdir(), 'ambio-subscription-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))

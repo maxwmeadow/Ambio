@@ -39,6 +39,7 @@ test('real native OpenCode chat uses ChatGPT OAuth through the public Responses 
   const providers = new ChatProviders(path.join(directory, 'chat'), { available: () => false }, fetch, source)
   const requests = []
   let failStream = false
+  let omitContentType = false
   const proxy = new ChatProviderProxy(providers, async (url, init) => {
     assert.equal(url, 'https://api.openai.com/v1/responses')
     assert.equal(init.headers.Authorization, `Bearer ${token}`)
@@ -58,7 +59,8 @@ test('real native OpenCode chat uses ChatGPT OAuth through the public Responses 
       const complete = await streamResponse(body).text()
       return new Response(complete.slice(0, complete.lastIndexOf('data: {"type":"response.completed"')), { headers: { 'content-type': 'text/event-stream' } })
     }
-    return streamResponse(body, !body.input.some(item => item.type === 'function_call_output'))
+    const response = streamResponse(body, !body.input.some(item => item.type === 'function_call_output'))
+    return omitContentType ? new Response(response.body) : response
   })
   const manager = new AgentChat({ directory: path.join(directory, 'chat'), binary, providers, proxy, project: workspaceId => ({ id: workspaceId, rootPath: root }), mcp: () => ({ command: process.execPath, args: [path.join(ROOT, 'tests/agent-chat/mcp-fixture.mjs')] }), assertExternalIdle: () => {}, workOrder: async () => 'Build fixture' })
   t.after(async () => { await manager.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true }) })
@@ -78,6 +80,8 @@ test('real native OpenCode chat uses ChatGPT OAuth through the public Responses 
   assert.match(JSON.stringify(snapshot.messages), /Native ChatGPT subscription reply/)
   assert.ok(requests.length >= 2, 'the native agent executed the namespaced MCP tool and continued inference')
   assert.match(JSON.stringify(requests), /UI depends on Storage/)
+  // Electron's live OAuth response can omit Content-Type even for valid SSE.
+  omitContentType = true
   await manager.send({ conversationId: conversation.id, text: 'Remember the earlier architecture.', mode: 'ask' })
   snapshot = await until(conversation.id, value => value.conversation.state === 'idle')
   assert.match(JSON.stringify(requests.at(-1).input), /Explain my architecture/)

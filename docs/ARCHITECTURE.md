@@ -114,8 +114,12 @@ The bundled agent and its tools receive only the proxy's local capability.
 `electron/chatgptResponses.ts` applies the public Responses API restrictions:
 non-stored streaming, complete history, developer instructions, and namespaced
 local tools. It translates failed/incomplete streams and missing completion
-into errors understood by the native model adapter. Existing OpenCode tools,
-Ask/Propose/Build permissions, approvals, streaming history and cancellation
+into errors understood by the native model adapter.
+The proxy accepts a missing upstream Content-Type because Electron can omit it
+for live OAuth streams; it labels the validated downstream response as SSE.
+An explicitly different content type is rejected, and successful inference
+still requires valid events ending in `response.completed`. Existing OpenCode
+tools, Ask/Propose/Build permissions, approvals, streaming history and cancellation
 remain the execution path. Codex is not used. Plan credentials never fall back
 to API-key billing or another account. Setup and live-account validation:
 [CHATGPT_PLAN.md](CHATGPT_PLAN.md).
