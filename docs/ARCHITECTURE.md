@@ -133,6 +133,20 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   Markdown spec (`internal/api/sheet_markdown.go`, format in its header):
   `GET /api/sheets/:id/markdown`, `POST /api/sheet-import`, MCP `edit_sheet`
   export/import, Map → Copy Sheet as Markdown / New Sheet from Markdown…
+  What an agent proposes on a sheet waits for the human, each part with its
+  own decision: planned nodes (`approval_status`), moves (a sheet element's
+  `parent_system_id` with no geometry, `db.ProposeSheetMove`, element
+  `approval_status`), renames of systems (`proposed_name`, `rename_status`,
+  `db.ProposeSheetRename`) and relationships (`planned_edges.approval_status`,
+  `created_by`). Rejecting a move puts the node back under its Floor parent.
+  `CompareSheetStructure` reports pending ones as `approval` differences and a
+  confirmed rename the map does not have yet as `rename`; the build spec lists
+  only confirmed moves, renames and relationships. A member saved with no
+  geometry carries no layout opinion (`unplacedElement`/`unplacedPlanned` in
+  `db/sheet_layouts.go`, `isUnplaced` in the canvas): it is drawn where the
+  Floor has it, or inside its proposed parent, and a planned node without a
+  position is placed in free space. The sheet rail's To review section
+  (`SheetProposalReview.tsx`) lists every pending part with confirm/reject.
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or
@@ -254,6 +268,21 @@ waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in
 memory) and are answered in the panel (`store/agentPermissionStore.ts`).
+Driver events are `text`, `tool`, `error` and `thinking` (Codex's reasoning
+summaries); the turn shows the latest few while it works.
+
+**Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
+render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).
+`normalizeAgentText` repairs what agents commonly break (a `\b` decoded into a
+backspace, one-backtick fences, absolute project paths). File links, inline
+code and plain-prose file names that resolve to an indexed file become chips
+(`fileLinkTarget`, `inlineFilePath`, the `remarkFilePaths` plugin); a shortened
+name counts when exactly one indexed path ends with it. A chip, like a row
+under To review, brings the map to its node through `useShowOnMap`, which
+opens a collapsed system, selects the node and fits the view once React Flow
+has measured it. While the panel is open it publishes its width as
+`--agent-panel-inset` and the canvas area ends at the panel's edge, so every
+fit and selection centres in what is visible.
 
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
@@ -283,9 +312,17 @@ installed mapping/inbox/build skills and MCP connection/prompt instructions.
 `electron/agentRules.ts` adds host-specific project rules with hashed managed
 blocks; inspection detects missing/edited rules and uninstall keeps authored
 text and rules still shared by another configured host. `edit_sheet(connect)`
-draws typed planned edges through the existing workspace-scoped sheet API,
-validating endpoints against that sheet. Plans and approval use the existing
-sheet model; no additional tool or database migration is needed. Host coverage
+draws typed planned edges through the existing workspace-scoped sheet API; a
+live system or file not yet on the sheet is added to it, and a planned node
+must already be on that sheet. `plan_element` takes `parent` (a live or planned
+system) and `owns` (existing files/systems moved into the new one);
+`edit_sheet(move)` and `edit_sheet(rename)` propose moving and renaming existing
+nodes (schema 6-7). The Propose contract (`inboxModel.ts`) tells the agent to
+start from the current map, reuse what exists and draw only the change.
+`get_architecture` counts a system's files including its sub-systems
+(`fileCount`, with `directFileCount`), `system_files` lists sub-systems' files
+with the system holding each, and `neighbors` names a system's children.
+`get_symbols` accepts file paths as well as IDs. Host coverage
 and validation limits are in [testing/AGENTS_DRAW_FIRST.md](testing/AGENTS_DRAW_FIRST.md).
 
 ## Renderer

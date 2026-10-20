@@ -43,20 +43,32 @@ Restoration creates a new revision; historical resolution evidence remains store
 
 Before a structural code change, installed host instructions and the MCP
 connection ask the agent to draw a scoped sheet and tell the human. Reuse an
-existing approved sheet instead of duplicating it. New `plan_element` proposals
+existing approved sheet instead of duplicating it. Start from the current map:
+reuse a system that already exists instead of drawing it again. Draw a new
+system inside the one it belongs to and give it the existing files or systems
+it takes over: `plan_element({sheet, name, kind, parent, owns})`, where `parent`
+is a live or planned system (ID or name) and `owns` lists file paths or node
+IDs. Propose that an existing node changes boundary with
+`edit_sheet({op:"move",sheet,members,target})`, and that a system is renamed
+with `edit_sheet({op:"rename",sheet,members:[system],name})`; a file cannot be
+renamed on a sheet, since its name is its path. New `plan_element` proposals
 remain pending until human approval; `get_build_plan({id})` reads that status.
+A move, rename or relationship an agent draws is pending as well and is
+decided under To review in the sheet rail; only confirmed parts reach the build
+spec, which lists them under Moves, Renames and Structural intent.
 Approval plus an explicit build instruction authorizes its scope. Discussion
 requests, pending/rejected proposals, and new scope additions do not authorize
 implementation. Small edits within an existing boundary need no new sheet.
 
 Use `edit_sheet({op:"connect",sheet,from,to,kind})` to draw a typed relationship
 between exact planned/live IDs already on the sheet (`DEPENDS_ON` by default).
-Add live context with `edit_sheet(add)` first. This writes a planned edge, not
+A live system or file not yet on the sheet is added to it as context; a planned
+node must already be on that sheet. This writes a planned edge, not
 a live dependency; sequential retries return the same relationship. Comparison
 checks the requested type against live indexed dependencies, so choose a type
 the index can prove rather than an arbitrary diagram label. For responsibility
 moves/removals, `edit_sheet(annotate)` records before/after and rationale;
-annotations and relationships alone have no independent approval control.
+an annotation has no approval control of its own.
 Return them for explicit human review instead of treating their existence as
 permission. Ambio guidance does not intercept host file writes.
 

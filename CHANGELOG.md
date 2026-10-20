@@ -8,6 +8,18 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- File cards show their functions once the file is indexed, instead of "No
+  symbols" for the rest of the session when they were looked at too early.
+- Systems an agent names on a sheet stay where they are on the Floor, instead
+  of jumping to the middle of the map over their neighbours.
+- Opening a sheet clears its "an agent proposed…" notification, however you
+  open it.
+- Codex can read your code in Ask and Propose on Windows; its read-only
+  sandbox could not start a shell there.
+- Looking up Copilot's and Antigravity's models no longer opens terminal
+  windows.
+- A sheet's dependencies run between the sides of the boxes that face each
+  other, instead of through the boxes in between.
 - Smoother canvas zooming on the Floor and architecture proposal review: camera
   changes no longer invalidate every node's styles or rebuild the review scene.
   Idle overlays and background agent/runtime activity do less rendering work.
@@ -17,6 +29,20 @@ in the app as "What's New" after updating, so write it for users.
   panel, with a compact layout for smaller windows.
 
 ### Changed
+- While the agent panel is open, fitting the map, search and anything else
+  that moves the view centres on the part of the map you can see.
+- Only a Build reply waits for your review; a question or a proposal that has
+  been answered is shown as Answered.
+- Agent replies read as formatted text: headings, emphasis, lists, tables and
+  code.
+- A turn shows one status line while the agent works, and Stop takes Send's
+  place in the message box.
+- The agent and its model are one control in the message box, in the same
+  style as Ask / Propose / Build.
+- On a sheet, the stencils sit at the top, clear of the Infrastructure tab,
+  and move aside when its sidebar opens. The "Sheet layer active" badge is
+  gone; the PROPOSAL band already says it.
+- Mapping leaves out a proposed system that ends up with no indexed files.
 - Removed the redundant Architecture Workbench and view labels from title bars
   to give the app menus more space.
 - Ambio has a new Open Arch logo and wordmark across the launcher, title bars,
@@ -25,6 +51,18 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Agents can propose where things belong: a new system inside its parent,
+  holding the files it takes over; an existing file or system moved to another
+  boundary; a system renamed. Each waits under To review in the sheet rail with
+  confirm and reject, and is marked on the map until you decide: a proposed
+  move or rename is tagged, a rename shows the new name over the one it
+  replaces, and a proposed dependency is drawn in amber.
+- Click a file named in an agent's reply to go to it on the map. Paths in code,
+  shortened names like `Chat.tsx` and names written in plain text all work when
+  Ambio has indexed the file.
+- Click a proposal under To review to go to it on the sheet.
+- Drag the agent panel's left edge to make it wider or narrower.
+- Codex's reasoning shows in a turn's activity while it works.
 - The agent panel is now a conversation. Ask a question, ask for a plan, then
   tell the agent to build it, and each turn stays in the same conversation; the
   agent picking up a turn is given what was said before it. Start a new
