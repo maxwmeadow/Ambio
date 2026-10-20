@@ -101,9 +101,10 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       if (host === 'copilot-cli') await confirm()
       // Claude Code's models are offered beside the request type; the choice reaches its command line.
       if (host === 'claude-code') {
-        await inbox.getByRole('button', { name: 'Model: Default model' }).click()
-        await inbox.getByRole('menuitemradio', { name: 'Opus (latest)' }).click()
-        await expect(inbox.getByRole('button', { name: 'Model: Opus (latest)' })).toBeVisible()
+        await inbox.getByRole('button', { name: 'Model: Default' }).click()
+        await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
+        await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
+        await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
       }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       const sentBefore = orders.length

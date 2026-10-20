@@ -18,10 +18,10 @@ import { hiddenConsoleStdio } from './hiddenConsole.ts'
  */
 
 const CLAUDE_ALIASES: ModelOption[] = [
-  { id: 'fable', label: 'Fable (latest)' },
-  { id: 'opus', label: 'Opus (latest)' },
-  { id: 'sonnet', label: 'Sonnet (latest)' },
-  { id: 'haiku', label: 'Haiku (latest)' },
+  { id: 'fable', label: 'Fable' },
+  { id: 'opus', label: 'Opus' },
+  { id: 'sonnet', label: 'Sonnet' },
+  { id: 'haiku', label: 'Haiku' },
 ]
 
 /** A model name a flag can carry safely. */

@@ -162,9 +162,17 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   // guide is put in front of the user until they confirm they have read it.
   const introduce = hosts.length > 0 && !!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)
   // One control in the message box's row: the agent, its model joined to it, and the guide.
+  // One pill: the agent, its model and the guide, as segments of the same control.
   return <div className="ambio-inbox__agent-picker">
-    <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>{picker('Work-order destination', 'ambio-delivery-select', true)}{children}</div>
-    <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} />
+    <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>
+      <span className="ambio-inbox__agent-select">
+        <InboxIcon name="agent" size={13} />
+        {picker('Work-order destination', 'ambio-delivery-select', true)}
+        {!fixed && <InboxIcon name="chevron" size={11} />}
+      </span>
+      {children}
+      <DestinationGuidePopover name={name} guideId={guideId} picker={picker('Agent to read about')} />
+    </div>
     {introduce && <DestinationIntroduction name={name} guideId={guideId} picker={picker('Agent to read about')} onConfirm={() => setSeen(markGuideSeen(guideId))} />}
   </div>
 }

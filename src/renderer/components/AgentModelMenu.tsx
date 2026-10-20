@@ -75,8 +75,8 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
     return () => document.removeEventListener('pointerdown', outside)
   }, [open])
   if (!model.options.length) return null
-  const label = model.options.find(option => option.id === model.value)?.label ?? 'Default model'
-  const choices = [...(model.hasDefault ? [{ id: '', label: 'Default model' }] : []), ...model.options]
+  const label = model.options.find(option => option.id === model.value)?.label ?? 'Default'
+  const choices = [...(model.hasDefault ? [{ id: '', label: 'Default' }] : []), ...model.options]
   return <div ref={anchor} className="ambio-inbox__mode ambio-inbox__model" onKeyDown={event => {
     if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
   }}>
@@ -98,7 +98,7 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
 export function AgentModelSelect({ model, disabled }: { model: AgentModelChoice; disabled?: boolean }) {
   if (!model.options.length) return null
   return <select className="ambio-choose__model" aria-label="Model" value={model.value} disabled={disabled} onChange={event => model.set(event.target.value)}>
-    {model.hasDefault && <option value="">Default model</option>}
+    {model.hasDefault && <option value="">Default</option>}
     {model.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
   </select>
 }
