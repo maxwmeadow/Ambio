@@ -5,6 +5,8 @@ export interface ChatProvider {
   id: string
   name: string
   kind: ChatProviderKind
+  /** Managed ChatGPT OAuth connection rather than an API-key service. */
+  auth?: 'chatgpt'
   baseUrl: string
   model: string
   /** Tokens the model can hold; unset uses the provider default. */

@@ -14,7 +14,7 @@ test('settings keeps its frame across sections, loading and expanded content', a
   let app: ElectronApplication | undefined
   try {
     app = await electron.launch({
-      args: ['.'],
+      args: ['.', ...(process.env.AMBIO_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])],
       env: { ...env, HOME: home, USERPROFILE: home, APPDATA: appData, LOCALAPPDATA: localAppData,
         AMBIO_E2E: '1', AMBIO_E2E_HOME: '1' },
     })

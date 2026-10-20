@@ -286,12 +286,23 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
 
+- ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. [Windows development results](docs/testing/CHATGPT_WINDOWS_SMOKE.md) verify real-account sign-in, models, Ask/follow-up/tools, Propose, restart persistence, Build with action approvals, accepted review and a follow-up Build. Packaged cross-platform and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
+
+- ⬜ `proposal-placement-rejection-e2e` **MCP proposal placement test fails on main `99f8068`.** `mcp/e2e/proposalPlacement.e2e.mjs:94` expects a rejected move to restore a null parent from the initial snapshot, but gets a generated cluster ID. Reproduces on an isolated clean main and the ChatGPT branch; check the live parent versus the fixture snapshot before changing placement behavior. (2026-10-20, main integration checks)
+
+- ⬜ `chatgpt-callback-polish` **Style the browser sign-in callback page.** The loopback page in `electron/chatgptAuth.ts` currently returns plain text. Give success/failure a branded, readable page and a clear return-to-Ambio instruction without exposing callback parameters. (2026-10-19, live sign-in feedback)
+- ⬜ `chatgpt-setup-label` **Setup calls a ChatGPT OAuth connection “Your API key”.** Use the connection's authentication kind in the Ambio chat agent row so subscription users see ChatGPT plan wording. (2026-10-20, Windows live smoke)
+- ⬜ `architecture-schema-version-doc` **The Data section in `docs/ARCHITECTURE.md` still says SchemaVersion is 2.** Reconcile it with the current daemon version and remove the hard-coded number if it keeps drifting. (2026-10-20, smoke-test documentation review)
+
+- ⬜ `dependency-audit-triage` **Triage the locked dependency audit.** Clean `npm ci` reports 33 advisories (10 moderate, 21 high, 2 critical); verify affected production paths and compatible upgrades before changing dependencies. (2026-10-20, canvas consolidation checks)
 
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `canvas-consolidation-checkpoint` Integrated main through `7edd954` on the canvas branch, preserving proposed renames with cached sheet geometry and both work logs. Locked local dependencies remove shared-checkout version drift. Types/build, 699 unit tests, full Go vet/tests, 36 MCP E2E and eight final focused native checks pass (14 passed before the newer main merge). Scalability phases remain open; no further performance implementation started. (`codex/canvas-frame-budget`)
 
 - 2026-10-20 `canvas-scale-baselines` Added deterministic 1k/10k/100k, depth/hub/unsaved fixtures, opt-in stage/input/frame/process-memory tracing, retained native/CPU baseline artifacts and real SQLite snapshot benchmarks. Fixed initial off-screen root admission. Hidden React Flow/minimap subscriptions dominate the failed 100k tier; 10k and deep scenes miss input/frame targets and the stricter soak misses its heap budget. See `docs/testing/CANVAS_SCALE_BASELINES.md`; worker/renderer/progressive-data/acceptance items remain open. (`codex/canvas-frame-budget`)
 
@@ -307,6 +318,13 @@ Newest first. One line each: date, slug, what changed, branch/commit.
 - 2026-10-19 `sheet-agent-drawings` Sheets drawn by agents: unplaced members follow the Floor and unplaced planned nodes go to free space (and the origin pins earlier backfills wrote are removed at startup); opening a sheet clears its agent notification; stencils clear the Infrastructure tab; the sheet layer badge is gone; the review list matches the rail; relationships route between facing sides. main d6eac06, 7b67057
 - 2026-10-19 `agent-reply-files` File names in agent replies are chips that bring the map to the file (paths, shortened names, plain prose); the canvas area ends at the open agent panel so camera moves centre in what is visible; file cards refetch symbols instead of caching an empty list. main ee41d72-6f11ecf
 - 2026-10-19 `agent-panel-polish` One status line per turn with Stop in place of Send; replies as Markdown; resizable panel; the agent, its model and its guide are one control styled like the mode menu; model lookups no longer open console windows; only Build replies wait for review (others are Answered) and Copy sits in the reply header; mapping drops proposed systems with no files and keeps the whole log scrollable. main 6f163b9-3fdb32c
+- 2026-10-20 `native-chat-first-build-thread` The first addressed native Build can create its reserved `chat:` thread; ordinary unknown threads retain their checks. Real daemon/MCP regression covers retries, claims, review and follow-up history. Real-account UI smoke passes Propose → approved file edit → work-order result → accepted review, plus a follow-up Build. Go vet/tests and all 36 MCP end-to-end tests pass. (codex/chatgpt-live-smoke)
+
+- 2026-10-20 `chatgpt-windows-live-smoke` Real Windows account sign-in/model discovery, native Ask/follow-up/tools, Propose and restart persistence pass. Fixed successful OAuth streams rejected when Electron omits Content-Type, with native regression coverage. Build's pre-existing first-thread conflict and UI polish remain separate Inbox work. Results: docs/testing/CHATGPT_WINDOWS_SMOKE.md. (codex/chatgpt-live-smoke)
+
+- 2026-10-20 `chatgpt-main-sync` Merged main through `99f8068`, preserving its agent/model picker and Stop controls together with native ChatGPT readiness and usage access. Plan usage gets its own composer line so the new single-row controls cannot clip it. (codex/chatgpt-plan-sign-in)
+
+- 2026-10-19 `chatgpt-native-api` ChatGPT OAuth accounts now power the existing native OpenCode chat through its credential proxy and the public Responses API. Preserves native history/tools/modes/approvals, enforces plan request restrictions and completed streams, pins conversations to accounts and stops failed requests without replay. Removed the Codex-backed ChatGPT adapter and destination. Browser sign-in, model/usage controls and encrypted credentials are integrated under native model services. Automated native/unit/MCP/UI coverage; real-account validation remains in Inbox. (codex/chatgpt-plan-sign-in)
 
 - 2026-10-19 `setup-and-agent-polish` Setup step 1 is one list of agents with one action; mapping activity stays live and carries the draft count; mapping turns have their own contract (propose with edit_systems); the setup mascot follows the chosen agent; agent CLIs keep a hidden console on Windows so their helpers open no windows; `npm run dev` skips rebuilding archd and recopying OpenCode when current; Agent menu reads Agents… / Set Up Agent…; README and PRIVACY describe the agents Ambio runs and Ambio chat.
 

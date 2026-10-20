@@ -94,6 +94,37 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 - The **MCP server** finds the project from the agent's working directory and
   starts archd on demand. Agents never need Node installed.
 
+### Direct ChatGPT plan connection
+
+`electron/chatgptAuth.ts` owns browser OAuth, dynamic client registration,
+verified account profiles, encrypted `safeStorage` credentials, serialized
+token renewal and public model discovery. A stable installation host ID and
+issued per-registration client IDs survive reconnects. Renderer IPC exposes
+display state and named account/model operations only, with sender/frame/URL
+validation. No OAuth credential enters the renderer or daemon.
+
+ChatGPT is a managed model service for the existing integrated OpenCode chat.
+`ChatProviders` exposes one service per OAuth registration, including its saved
+model catalog, without duplicating tokens in the API-key file. Each native
+conversation retains its provider ID; selecting another account in settings
+cannot redirect an existing conversation's requests. The credential proxy
+resolves and renews that account's token in Electron for each upstream request.
+The bundled agent and its tools receive only the proxy's local capability.
+
+`electron/chatgptResponses.ts` applies the public Responses API restrictions:
+non-stored streaming, complete history, developer instructions, and namespaced
+local tools. It translates failed/incomplete streams and missing completion
+into errors understood by the native model adapter.
+The proxy accepts a missing upstream Content-Type because Electron can omit it
+for live OAuth streams; it labels the validated downstream response as SSE.
+An explicitly different content type is rejected, and successful inference
+still requires valid events ending in `response.completed`. Existing OpenCode
+tools, Ask/Propose/Build permissions, approvals, streaming history and cancellation
+remain the execution path. Codex is not used. Plan credentials never fall back
+to API-key billing or another account. Setup and live-account validation:
+[CHATGPT_PLAN.md](CHATGPT_PLAN.md).
+
+
 ## Data
 
 - One SQLite database per project: `~/.ambio/data/<project id>/ambio.db`
@@ -257,8 +288,11 @@ graph root, can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
-a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`). The claim
-response hands the agent the thread's earlier turns (`db.InboxConversation`),
+a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`).
+Built-in conversations use `chat:<native session ID>` for their Build work
+orders; `db.EnqueueCanvasMessage` allows an addressed Build to start that
+reserved thread because earlier Ask/Propose turns live in Electron.
+The claim response hands the agent the thread's earlier turns (`db.InboxConversation`),
 so context does not depend on the host. `electron/agentDrivers.ts` holds one
 driver per started host: how to start a turn, continue the host's session,
 apply the turn's mode as permissions, and read its output. The runner stores

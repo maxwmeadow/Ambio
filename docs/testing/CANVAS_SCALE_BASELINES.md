@@ -224,3 +224,25 @@ interaction assertions succeeded, not that the performance budgets passed.
   soak failed its heap-growth target; the rendered hub failed selection. These
   are product acceptance failures,
   not passing scalability claims.
+
+## Consolidation checkpoint
+
+Integrated main through `7edd954`, including proposed sheet renames and native
+ChatGPT integration. The canvas conflict retains cached geometry/presentation
+and adds rename data to the geometry memo's dependencies. Changelog and work-list
+conflicts retain both branches' entries. No further performance implementation
+was started for this checkpoint; the remaining scalability phases stay open.
+
+Integration checks: TypeScript, production build, 699 unit tests (one skipped),
+full Go vet/tests and 36 MCP end-to-end tests passed. Fourteen native canvas
+checks passed after the rename merge; eight focused native checks passed again
+after the newer main integration, including all five performance scenarios,
+the approved Floor screenshot, proposed move/rename placement and reply chips.
+These are correctness/structural checks, not renewed large-scale acceptance.
+The baseline timings above retain their original renderer build fingerprints.
+
+Use this checkout's locked dependencies for validation. A preliminary run using
+the primary checkout's shared `node_modules` could not open Electron: installed
+`jose` 6 differed from the lockfile's Electron-compatible `jose` 5.10.0. A clean
+local `npm ci` restored the locked versions and the focused native checks passed.
+The primary checkout and its uncommitted work were not modified.

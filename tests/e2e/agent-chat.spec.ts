@@ -29,7 +29,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
   // Electron's crash reporter needs a profile under the stand-in home on Windows.
   const windowsProfile = process.platform === 'win32' ? { APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local') } : {}
   for (const dir of Object.values(windowsProfile)) fs.mkdirSync(dir, { recursive: true })
-  const launch = () => electron.launch({ args: ['.'], env: { ...env, HOME: home, USERPROFILE: home, ...windowsProfile, AMBIO_E2E: '1', AMBIO_E2E_ROOT: root } })
+  const launch = () => electron.launch({ args: ['.', ...(process.env.AMBIO_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])], env: { ...env, HOME: home, USERPROFILE: home, ...windowsProfile, AMBIO_E2E: '1', AMBIO_E2E_ROOT: root } })
   let app = await launch()
   const routeArchd = async (page: Awaited<ReturnType<typeof app.firstWindow>>) => {
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
