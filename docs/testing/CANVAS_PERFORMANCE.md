@@ -84,6 +84,14 @@ above are the appropriate ones to report. Even the improved ordinary sheet had
 125–158 ms maximum intervals: this is materially better, not an always-smooth
 guarantee. The roughly 97% mount reduction is more robust than an FPS claim.
 
+A separate, dense synthetic scene used 96 systems with six files each (672
+nodes). Proposal review mounted about 26,866 document elements and measured
+83.3 ms p95 with 54 long tasks. The semantically collapsed Floor/sheet had
+16.7 / 16.6 ms p95, but their worst reveal intervals were **1,658 / 683 ms**.
+Those cold mass-mount stalls are not solved by this pass and would be hidden
+by reporting p95 alone. A duplicated-map experiment placed the camera in sparse
+space and was rejected as evidence of dense-scene scalability.
+
 ### Before exposing arbitrary depths
 
 The remaining cost is concentrated at reveal/viewport boundaries: React Flow
@@ -104,6 +112,21 @@ threshold crossings; track longest stalls as well as p95 against 16.7 ms at
 60 Hz (8.3 ms at 120 Hz). The current implementation is not ready to promise
 unlimited fully detailed exposure at any depth.
 
+### Validation
+
+- Production build and `npx tsc --noEmit` passed.
+- Full unit suite: 669 passed, one skipped.
+- 23 canvas/performance interaction checks passed, followed by a focused final
+  12-case pass including the new planned-sheet culling regression and approved
+  Floor screenshot. Coverage includes search, reply chips, selection, sheet
+  edits/layering/removals, resizing, dragging, 100× zoom, and live scene updates.
+- Six repeated real-snapshot profiles, the actual sheet profile, and all three
+  dense synthetic profiles passed their structural checks. Timing limits are
+  intentionally observational rather than machine-dependent CI assertions.
+- The production bundle used for these profiles precedes concurrent chat/inbox
+  edits in this checkout; those changes are excluded from this performance
+  commit and from its claims. No daemon/MCP implementation was changed here.
+
 ### Reproduce locally
 
 Build first. Ordinary deterministic regressions need no real project:
@@ -116,8 +139,8 @@ npx playwright test tests/e2e/canvas-performance.spec.ts
 For timings, use `AMBIO_PERF_PROFILE=1`; optionally set `AMBIO_PERF_SNAPSHOT` to
 a local CanvasSnapshot JSON, `AMBIO_PERF_SHEET` to a sheet API payload, and
 `AMBIO_PERF_SYSTEM_COUNT=96` (without a snapshot) for a 672-node synthetic scene.
-No fixture is uploaded or
-committed. `AMBIO_PERF_CPU=1` saves CDP profiles under ignored `out/`. Run without
+No fixture is uploaded or committed. `AMBIO_PERF_CPU=1` saves CDP profiles under
+ignored `out/`. Run without
 other builds/tests competing for the main thread and repeat comparisons.
 
 ## Original audit — 2026-10-13

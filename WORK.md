@@ -49,8 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `canvas-performance-kohler` **Audit and improve Floor/sheet zoom, selection and navigation performance.** Profile isolated Kohler and larger fixtures; remove avoidable camera/render work and document remaining depth limits. **Done when:** measured before/after evidence, interaction regressions and relevant checks pass. (🚧 Codex, codex/canvas-performance, 2026-10-19)
-
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
@@ -239,8 +237,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `agent-driver-live-validation` **Run the conversation drivers against the hosts not yet run for real.** `AMBIO_LIVE_CONVERSATION_HOST=<host> node --test mcp/e2e/conversation.live.mjs`. Passing: Claude Code, Codex, Copilot CLI, Antigravity CLI (questions; builds cannot run commands). Left: Cursor CLI, Devin CLI and Google's `agy_acp_server` (not installed), and confirming Cursor's chat link (VS Code's works: it fills the chat and waits for send). (2026-10-15, conversations)
 
 - ⬜ `windows-flow-animation-test-flake` **Live-flow E2E occasionally never records its CSS animation-start event on Windows; teardown can also leave LevelDB locked.** One combined final audit run stalled, while the earlier 14-check run and an isolated rerun of the same final build passed. Diagnose off-screen animation scheduling and bounded test-process shutdown before treating this as a canvas regression. `tests/e2e/canvas.spec.ts`. (2026-10-13)
-- ⬜ `large-review-canvas-mounting` **Large proposal review still hitches when viewport culling mounts/unmounts many detailed node subtrees.** A 756-node stress copy of a real 189-node proposal has p95 zoom frames around 92–108 ms after the camera/style fixes. Keeping every node mounted worsens typical frames; removing shadows does not solve it. Investigate buffered visibility/incremental mounts while preserving editing and silhouettes. See `docs/testing/CANVAS_PERFORMANCE.md`. (2026-10-13, Max's canvas performance audit)
-- ⬜ `canvas-zoom-index-and-diagnostics` **Secondary canvas costs:** semantic zoom sorts nodes and rebuilds ancestry maps per easing frame; pointer cursor diagnostics synchronously read hit stacks/styles during ordinary navigation. Profile larger live Floors before caching the ancestry/threshold index and making expensive pointer diagnostics opt-in. (2026-10-13, canvas performance audit)
+- ⬜ `large-review-canvas-mounting` **Bound rich-node mounting before arbitrary-depth exposure.** The 2026-10-20 audit fixed repeated sheet remeasurement (~97% fewer mounts), but a dense 672-node review still has 83 ms p95 / 54 long tasks / ~26,866 DOM elements; collapsed Floor/sheet reveal spikes reach 1.66 s / 0.68 s. Buffer/incrementally mount detail and virtualize symbol rows while preserving silhouettes, editing and camera behavior. See `docs/testing/CANVAS_PERFORMANCE.md`; earlier 756-node results remain there. (2026-10-20, Kohler performance audit)
 
 - ⬜ `windows-delve-live-timeout` **The live Delve Go tracing test times out at DAP launch on Windows and its fixture cleanup reports a locked directory.** Found in full daemon checks during startup-log cleanup; API/indexer/watcher tests and vet pass. Investigate debugger/toolchain compatibility and cleanup on launch failure. `archd-go/internal/runtime/delve_live_test.go:32`. (2026-10-13)
 - ⬜ `startup-reconcile-twice` **Avoid redundant startup reconciliation/detection when scope or snapshot reads lazily open a map just before POST /api/workspace.** The logged kohler startup ran infrastructure detection twice about two seconds apart. Preserve headless catch-up and newly submitted exclusions; `Server.keepWorkspaceLive`, `handleWorkspace`, `launchRootSync`. (2026-10-13, Max's startup log)
@@ -275,11 +272,16 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `chat-windows-stamp` **Windows process stamps block the main process.** `processStamp` in `electron/agentChat.ts` runs PowerShell synchronously (up to 3 s) after every harness launch and when checking a leftover receipt. If the stamp could not be read at launch, a recycled PID leaves the project blocked with "could not be verified" until that unrelated process exits. Make the launch stamp asynchronous and retry it, and let Stop clear a receipt whose stamp was never recorded once the PID is gone or belongs to another executable. (2026-10-09, chat review)
 - ⬜ `chat-orphan-work-order` **A Build message that fails to send leaves its work order on the canvas.** `AgentChatPanel` creates the work order before `sendChat`; a refusal (another agent busy, missing key) leaves it addressed to nobody. Retrying reuses the same ID, so it is not duplicated. Either check availability before creating it or offer to send it elsewhere. (2026-10-09, chat review)
 
+- ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
+
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `canvas-performance-kohler` Profiled Kohler Floor, its actual sheet, navigation and dense scenes; preserved sheet measurements, cached layout/presentation, retained untouched selection identities, and fixed planned-sheet culling/navigation races. Sheet p95 209 → 33–50 ms; cold mass-mount spikes remain tracked above. 669 unit tests and canvas interaction checks pass. (`codex/canvas-performance`, `f758542`)
+- 2026-10-20 `canvas-zoom-index-and-diagnostics` Cached semantic ancestry/order and thresholds between easing frames; cursor/bin drag diagnostics are opt-in, with identity/geometry invalidation regressions. (`codex/canvas-performance`, `f758542`)
 
 - 2026-10-19 `setup-and-agent-polish` Setup step 1 is one list of agents with one action; mapping activity stays live and carries the draft count; mapping turns have their own contract (propose with edit_systems); the setup mascot follows the chosen agent; agent CLIs keep a hidden console on Windows so their helpers open no windows; `npm run dev` skips rebuilding archd and recopying OpenCode when current; Agent menu reads Agents… / Set Up Agent…; README and PRIVACY describe the agents Ambio runs and Ambio chat.
 
