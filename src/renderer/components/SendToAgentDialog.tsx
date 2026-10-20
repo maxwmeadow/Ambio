@@ -312,7 +312,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     </div>
     <div className="ambio-inbox__bottom">
       {(readiness => readiness.tone === 'ready' || readiness.tone === 'neutral' ? null : <DeliveryReadiness onFix={onManageConnections} readiness={readiness} />)(deliveryReadiness({ hostId: retry.current?.hostId ?? delivery.hostId, hosts: delivery.hosts, installedIds: delivery.installedIds, watchers: delivery.watchers, watchingHosts: delivery.watchingHosts,
-        chat: toChat ? { service: chatProvider?.name ?? 'this service', keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}
+        chat: toChat ? { service: chatProvider?.name ?? 'this service', auth: chatProvider?.auth, keyMissing: !!chatProvider && !chatProvider.hasKey && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(chatProvider.baseUrl) } : undefined }))}
       {effectiveSheetId && attachedSheet && <SheetComparison key={effectiveSheetId} workspaceId={graph.workspaceId} sheetId={effectiveSheetId} />}
       <form className="ambio-inbox__compose" onSubmit={submit}>
         {delivery.notice && <p className="ambio-inbox__notice" role="status">{delivery.notice}</p>}
@@ -326,6 +326,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
           if (event.key === '@' && (event.currentTarget.selectionStart === 0 || /\s/.test(note[event.currentTarget.selectionStart - 1]))) { event.preventDefault(); setPickerOpen(true) }
         }} />
+        {toChat && chatProvider?.auth === 'chatgpt' && <div className="ambio-chat__plan">Using ChatGPT plan · <button type="button" onClick={() => void window.ambio.manageChatGPTUsage()}>Manage usage</button></div>}
         <div className="ambio-inbox__compose-tools"><div ref={attachmentArea} className="ambio-inbox__attach-anchor">
           <button type="button" className="ambio-inbox__icon" disabled={locked} aria-label="Attach context" aria-haspopup="dialog" aria-expanded={pickerOpen} title="Attach a sheet (@)" onClick={() => setPickerOpen(!pickerOpen)}><InboxIcon name="attach" size={19} /></button>
           {pickerOpen && <InboxSheetPicker sheets={sheet.sheets} attachedId={effectiveSheetId} onClose={dismissPicker} onSelect={id => { attachSheet(id); dismissPicker() }} />}

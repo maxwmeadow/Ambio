@@ -80,7 +80,8 @@ type CanvasMessage struct {
 	ID                 string  `json:"id"`
 	WorkspaceID        string  `json:"workspaceId"`
 	DeliveryMode       string  `json:"deliveryMode"`
-	// ThreadID groups the turns of one conversation; the first turn's own ID.
+	// ThreadID groups conversation turns: the first turn's ID, or chat:<native
+	// session> for Build work orders belonging to a built-in conversation.
 	ThreadID string `json:"threadId"`
 	// Mode is what this turn asks for: "ask", "propose" or "build". Empty on
 	// messages from before turns carried it.
@@ -696,12 +697,16 @@ func EnqueueCanvasMessage(db *sql.DB, m *CanvasMessage) error {
 		m.ThreadID = m.ID
 	}
 	if m.ThreadID != m.ID {
-		// A turn can only continue a conversation that exists in its workspace.
+		// Native conversations live in Electron, so their first Build has no
+		// inbox turn yet. Only addressed Builds can start that reserved thread.
+		nativeBuild := m.DeliveryMode == "addressed" && m.Mode == "build" &&
+			strings.HasPrefix(m.ThreadID, "chat:") && strings.TrimSpace(strings.TrimPrefix(m.ThreadID, "chat:")) != ""
+		// Other turns can only continue an existing workspace conversation.
 		var known int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM canvas_outbox WHERE workspace_id=? AND thread_id=?`, m.WorkspaceID, m.ThreadID).Scan(&known); err != nil {
 			return err
 		}
-		if known == 0 {
+		if known == 0 && !nativeBuild {
 			return ErrInboxConflict
 		}
 	}

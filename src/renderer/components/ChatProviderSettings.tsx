@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { CHAT_CONTEXT_WINDOW_MAX, CHAT_CONTEXT_WINDOW_MIN, CHAT_PROVIDER_DEFAULTS, type ChatProvider, type ChatProviderInput, type ChatProviderKind } from '../../shared/agentChat'
+import { ChatGPTConnection } from './ChatGPTConnection'
 
 export function ChatProviderSettings({ providers, onSaved, onClose }: { providers: ChatProvider[]; onSaved: (provider: ChatProvider | null) => void; onClose?: () => void }) {
   const [input, setInput] = useState<ChatProviderInput>({ kind: 'openai', name: 'OpenAI', baseUrl: CHAT_PROVIDER_DEFAULTS.openai.baseUrl, model: '', apiKey: '' })
@@ -28,9 +29,10 @@ export function ChatProviderSettings({ providers, onSaved, onClose }: { provider
     finally { setBusy(false) }
   }
   return <section className="ambio-chat__settings" aria-label="Model services">
+    <ChatGPTConnection onChanged={() => onSaved(null)} />
     {onClose && <div className="ambio-chat__section-heading"><div><h3>Your model service</h3><p>Choose where your integrated agent thinks.</p></div><button type="button" onClick={onClose} aria-label="Close model services">×</button></div>}
     <form onSubmit={save}>
-      <label>Saved services<select value={input.id ?? ''} disabled={busy} onChange={event => select(event.target.value)}><option value="">Add a service</option>{providers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Saved services<select value={input.id ?? ''} disabled={busy} onChange={event => select(event.target.value)}><option value="">Add an API-key service</option>{providers.filter(item => item.auth !== 'chatgpt').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>Provider<select aria-label="Model provider" value={input.kind} disabled={busy || !!input.id} onChange={event => { const kind = event.target.value as ChatProviderKind; setInput({ kind, ...CHAT_PROVIDER_DEFAULTS[kind], model: '', apiKey: '' }); setModels([]); setNotice('') }}>{Object.entries(CHAT_PROVIDER_DEFAULTS).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select></label>
       <label>Service name<input value={input.name} maxLength={100} required disabled={busy} onChange={event => setInput(value => ({ ...value, name: event.target.value }))} /></label>
       <label>Service URL<input aria-label="Service URL" type="url" value={input.baseUrl} required disabled={busy} placeholder="https://your-service.example/v1" onChange={event => setInput(value => ({ ...value, baseUrl: event.target.value }))} /></label>

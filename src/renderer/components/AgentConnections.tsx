@@ -245,7 +245,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     <div className="ambio-agent-connections">
       {chat && <section id="ambio-agents-chat" className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-chat-title">
         <h3 id="ambio-agents-chat-title">Ambio chat</h3>
-        <p className="ambio-settings__text">Ambio&rsquo;s own agent. Add a model service with your own API key; there is nothing else to install or open.</p>
+        <p className="ambio-settings__text">Ambio&rsquo;s own agent. Connect your ChatGPT plan or add a model service with an API key; there is nothing else to install or open.</p>
         {chat}
       </section>}
 
