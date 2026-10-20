@@ -98,6 +98,7 @@ import { planCanvasDrop } from './dropPersistence'
 import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
+import { createSheetPresentation } from './sheetPresentation'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
@@ -114,7 +115,7 @@ import { runCallouts } from './runTraceProjection'
 import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
 import { canvasZoomChrome } from './canvasZoomChrome'
-import { recordCanvasRender, recordZoomVisibilityPass } from './perfMetrics'
+import { recordCanvasRender, recordZoomVisibilityPass, recordSheetLayoutBuild } from './perfMetrics'
 import { routeWheelEvent, wheelScrollStep } from './wheelRouting'
 import { rectContainsRect } from './selectionResize'
 import { sheetEditableNodeIds } from './sheetEditability'
@@ -1420,7 +1421,7 @@ function pointerOf(event: React.MouseEvent | MouseEvent | TouchEvent): { x: numb
  * call time so no rebuild is needed.
  */
 function binDragDebug(): boolean {
-  return (window as unknown as { __ambioBinDragDebug?: boolean }).__ambioBinDragDebug !== false
+  return (window as unknown as { __ambioBinDragDebug?: boolean }).__ambioBinDragDebug === true
 }
 
 /** Stable identities, so the bin canvas does not rebuild its layout every render. */
@@ -2034,15 +2035,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     setInfraPickerNode(null)
   }, [overlaySheetId, setInspectedNode, setInfraPickerNode])
 
-  const composedNodes = useMemo(() => {
+  // Layout and authoring callbacks depend on model edits, never on camera or
+  // selection. In particular, do not inherit rfNodes here: its visibility flags
+  // change during a camera flight and used to rebuild the entire sheet.
+  const sheetBaseNodes = useMemo(() => {
     const transition = isTransitioningLayout
       ? 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out'
       : undefined
-    if (visibleLayers.length === 0) {
-      return isTransitioningLayout
-        ? rfNodes.map(n => ({ ...n, style: { ...n.style, transition } }))
-        : rfNodes
-    }
+    if (visibleLayers.length === 0) return null
+    recordSheetLayoutBuild()
 
     const visiblePlanned = overlayPlanned.filter(p => p.status !== 'flattened')
     const plannedSystems: DbSystem[] = visiblePlanned
@@ -2111,13 +2112,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         }
       })
     const virtualInfra = infraNodes.map(infra => ({ ...infra })).concat(plannedInfra)
-    const sheetLayout = applyZoomVisibility(buildFloorFrameLayout(
+    const sheetLayout = buildFloorFrameLayout(
       virtualSystems, virtualFiles, virtualInfra, dependencies, sheetEffectiveLayouts,
       currentZoomRef.current, sheetPlacementsRef.current,
-    ).rfNodes, currentZoomRef.current)
-    const floorById = new Map(rfNodes.map(n => [n.id, n]))
+    ).rfNodes
     const morphed = sheetLayout.map(sheetNode => {
-      const floorNode = floorById.get(sheetNode.id)
       const planned = visiblePlannedByNodeId.get(sheetNode.id)
       const editablePlanned = activePlannedByNodeId.get(sheetNode.id)
       const sheetElement = effectiveElements.get(sheetNode.id)
@@ -2148,7 +2147,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       const isFloorContextNode = !effectiveElements.has(sheetNode.id) && !planned
       const isSheetPlaced = sheetOpinionIds.has(sheetNode.id)
       const isStructuralFloorContext = Boolean(
-        floorNode && sheetNode.type === 'system' && !effectiveElements.has(sheetNode.id),
+        !planned && sheetNode.type === 'system' && !effectiveElements.has(sheetNode.id),
       )
       const sheetW = parseFloat(String(sheetNode.style?.width ?? 0))
       const sheetH = parseFloat(String(sheetNode.style?.height ?? 0))
@@ -2156,11 +2155,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       const renderedH = sheetH
       return {
         ...sheetNode,
-        selected: selectedIdsRef.current.has(sheetNode.id),
+        selected: false,
         data: {
-          // Runtime/focus/trace flags belong to the live entity and survive a
-          // proposal projection. Canonical sheet geometry data wins afterward.
-          ...floorNode?.data,
+          // Live runtime/focus/trace flags are merged by sheetPresentation;
+          // this projection owns geometry and authoring callbacks only.
           ...sheetNode.data,
           sheetPlaced: isSheetPlaced,
           ...(planned && planned.kind !== 'system' ? {
@@ -2266,7 +2264,28 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
+  }, [visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
+
+  const [sheetVisibility, setSheetVisibility] = useState<{ source: Node[]; nodes: Node[] } | null>(null)
+  useEffect(() => { if (!sheetBaseNodes) setSheetVisibility(null) }, [sheetBaseNodes])
+  const sheetBaseNodesRef = useRef(sheetBaseNodes)
+  sheetBaseNodesRef.current = sheetBaseNodes
+  const visibleSheetNodes = useMemo(() => sheetBaseNodes
+    ? sheetVisibility?.source === sheetBaseNodes ? sheetVisibility.nodes
+      : applyZoomVisibility(sheetBaseNodes, currentZoomRef.current)
+    : null, [sheetBaseNodes, sheetVisibility])
+  const sheetPresentation = useRef(createSheetPresentation())
+  // React Flow clears handleBounds when a controlled node drops `measured`.
+  // Its culler then force-mounts every such node, including off-screen cards.
+  // Measurements are presentation, not an interaction snapshot or saved layout.
+  const [sheetMeasurements, setSheetMeasurements] = useState(new Map<string, Node['measured']>())
+  useEffect(() => setSheetMeasurements(new Map()), [overlaySheetId, sceneProjectId])
+  const composedNodes = useMemo(() => {
+    if (visibleSheetNodes) return sheetPresentation.current(visibleSheetNodes, rfNodes, selectedIdsRef.current, activeNodeIds, sheetMeasurements)
+    return isTransitioningLayout
+      ? rfNodes.map(node => ({ ...node, style: { ...node.style, transition: 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out' } }))
+      : rfNodes
+  }, [visibleSheetNodes, rfNodes, selectionRevision, isTransitioningLayout, activeNodeIds, sheetMeasurements])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
@@ -3957,7 +3976,21 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     const element = canvasRootRef.current
     if (!element) return
     element.addEventListener('wheel', handleWheel, { passive: false })
-    return () => element.removeEventListener('wheel', handleWheel)
+    const navigate = (event: Event) => {
+      event.stopPropagation()
+      if (smoothZoomRafRef.current !== null) cancelAnimationFrame(smoothZoomRafRef.current)
+      smoothZoomRafRef.current = null
+      targetZoomRef.current = null
+      targetViewportRef.current = null
+      if (cameraFitTimerRef.current) clearTimeout(cameraFitTimerRef.current)
+      cameraFitTimerRef.current = null
+      lastUserMoveAtRef.current = Date.now()
+    }
+    element.addEventListener('ambio:camera-navigation', navigate)
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+      element.removeEventListener('ambio:camera-navigation', navigate)
+    }
   }, [handleWheel])
 
   const onMove: OnMove = useCallback((event, viewport) => {
@@ -4004,6 +4037,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       lastVisibilityZoomRef.current = visibilityZoom
       recordZoomVisibilityPass()
       sceneSourceRef.current = 'zoom-visibility'
+      const sheetBase = sheetBaseNodesRef.current
+      if (sheetBase) {
+        setSheetVisibility(current => {
+          const nodes = current?.source === sheetBase ? current.nodes : sheetBase
+          const updated = applyZoomVisibility(nodes, visibilityZoom)
+          return current?.source === sheetBase && current.nodes === updated ? current : { source: sheetBase, nodes: updated }
+        })
+      }
       setRfNodes(curr => {
         let updated = applyZoomVisibility(curr, visibilityZoom)
         if (draggingId) {
@@ -4088,6 +4129,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       // Planned overlay nodes live in the sheet store, not rfNodes - route
       // their drags there and keep the rest on the normal path.
       if (overlaySheetId) {
+        const measuredChanges = interactionChanges.filter(change => change.type === 'dimensions' && change.dimensions)
+        if (measuredChanges.length > 0) {
+          setSheetMeasurements(current => {
+            let next = current
+            for (const change of measuredChanges) {
+              if (change.type !== 'dimensions' || !change.dimensions) continue
+              const previous = current.get(change.id)
+              if (previous?.width === change.dimensions.width && previous?.height === change.dimensions.height) continue
+              if (next === current) next = new Map(current)
+              next.set(change.id, change.dimensions)
+            }
+            return next
+          })
+        }
         const geometryChanges = interactionChanges.filter(change => change.type === 'position' ||
           (change.type === 'dimensions' && resizeStartRef.current.size > 0))
         if (geometryChanges.length > 0) {
@@ -4850,6 +4905,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   ])
 
   const traceSuspiciousCursor = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!(window as unknown as { __ambioCursorDebug?: boolean }).__ambioCursorDebug) return
     const element = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
     if (!element) return
     const cursor = window.getComputedStyle(element).cursor
@@ -5145,7 +5201,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         snapToGrid={false}
         // Large graphs: skip rendering off-screen nodes. Kept off for small
         // graphs where the per-move visibility recompute isn't worth it.
-        onlyRenderVisibleElements={rfNodes.length > VIEWPORT_CULLING_NODE_COUNT}
+        onlyRenderVisibleElements={renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT}
       >
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}

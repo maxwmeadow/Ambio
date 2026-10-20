@@ -8,6 +8,10 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Sheets retain node measurements while zooming, avoiding repeated off-screen
+  card mounting. Camera and selection changes reuse layouts and unaffected
+  nodes; large sheets also cull planned nodes. Search and reply file pills wait
+  for a measured target and stop competing wheel zoom before flying to it.
 - Smoother canvas zooming on the Floor and architecture proposal review: camera
   changes no longer invalidate every node's styles or rebuild the review scene.
   Idle overlays and background agent/runtime activity do less rendering work.

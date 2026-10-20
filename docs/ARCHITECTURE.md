@@ -303,6 +303,21 @@ canvas owns its own badges and camera. Performance regressions are covered by
 `tests/e2e/canvas-performance.spec.ts`; measurements and limits are documented in
 [testing/CANVAS_PERFORMANCE.md](testing/CANVAS_PERFORMANCE.md).
 
+Sheets cache geometry and authoring callbacks independently of camera, selection,
+and runtime changes. `canvas/sheetPresentation.ts` merges live flags and selection
+while preserving unaffected node identities. React Flow dimension notifications
+are retained separately from saved layout and drag/resize snapshots: dropping
+`measured` resets handle bounds and forces off-screen cards through mounting again.
+Viewport culling uses the composed scene count, including planned sheet nodes.
+`canvas/semanticZoom.ts` caches ancestry order and reveal/detail thresholds per
+immutable scene array; between thresholds an easing frame performs a binary
+search and reuses the scene. Geometry/measurement edits invalidate the cache.
+Selection likewise preserves untouched objects. Search and agent reply pills use
+`canvas/useShowOnMap.ts`: the latest pending request waits for a visible, measured
+target and cancels wheel easing/pending growth fits on its own canvas before
+flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
+or `window.__ambioBinDragDebug = true`.
+
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is
 work item `split-ambio-canvas`). Semantic zoom reveals contents by on-screen

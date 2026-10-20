@@ -2578,6 +2578,40 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
   expect(posted!.createdBy).toBe('user')
 })
 
+test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
+  const planned = Array.from({ length: 180 }, (_, i) => ({
+    id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
+    kind: 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
+    positionX: 1500 + i * 800, positionY: 1200, width: 620, height: 420, scale: 1,
+    metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
+  }))
+  await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
+    sheet: { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: '', kind: 'structure',
+      folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 },
+    elements: [], annotations: [], planned, plannedEdges: [], layouts: [], removals: [],
+  } }))
+  await page.getByRole('button', { name: 'Runtime Draft STR', exact: true }).click()
+  const canvas = page.locator('[data-ambio-canvas]').first()
+  await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
+  await page.waitForTimeout(650)
+  await canvas.evaluate(root => {
+    ;(window as any).__sheetMountCount = 0
+    ;(window as any).__sheetMountObserver = new MutationObserver(records => {
+      for (const record of records) for (const added of record.addedNodes) if (added instanceof Element) {
+        ;(window as any).__sheetMountCount += added.querySelectorAll('.react-flow__node').length + Number(added.matches('.react-flow__node'))
+      }
+    })
+    ;(window as any).__sheetMountObserver.observe(root, { childList: true, subtree: true })
+  })
+  const box = (await canvas.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, -100)
+  await page.waitForTimeout(700)
+  expect(await page.evaluate(() => (window as any).__sheetMountCount)).toBeLessThan(80)
+  await page.evaluate(() => (window as any).__sheetMountObserver.disconnect())
+  await page.unroute(/\/api\/sheets\/sheet_runtime\?/)
+})
+
 test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Markdown', async () => {
   let imported: { markdown?: string; createdBy?: string } | null = null
   await page.route(/\/api\/sheet-import$/, async route => {

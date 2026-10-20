@@ -56,8 +56,15 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   React Flow. Selection mode reserves primary drag for partial-box selection
   and limits panning to middle/secondary drag.
 - The canvas does not snap nodes to a grid.
-- Off-screen culling activates only when the Floor contains more than 150
-  React Flow nodes.
+- Off-screen culling activates above 40 composed React Flow nodes, including
+  planned sheet nodes (the implementation threshold since the October 13 audit;
+  150 is the separate large-scene initial-materialization threshold).
+- Camera and selection updates retain measured node dimensions, so already
+  initialized off-screen nodes do not remount just to be measured again.
+- Search and agent reply file pills wait for their target to be visible and
+  measured before flying. A newer pending navigation supersedes the older one,
+  and explicit navigation cancels wheel easing and pending growth reframes on
+  that canvas. Flight duration remains 850 ms.
 
 ## Semantic zoom
 

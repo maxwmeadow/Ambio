@@ -25,6 +25,28 @@ test('contents reveal at the rendered geometric-mean threshold', () => {
   assert.equal(atThreshold.data.childrenVisible, 1)
 })
 
+test('cached visibility responds to reverse zoom, geometry edits and reparenting', () => {
+  const initial = [node('root', 480, 480), node('leaf', 20, 20, { depth: 1, parentId: 'root' })]
+  const small = applyZoomVisibility(initial, 0.5)
+  const large = applyZoomVisibility(small, 1)
+  assert.equal(large[1].hidden, false)
+  assert.equal(applyZoomVisibility(large, 0.5)[1].hidden, true)
+  const resized = large.map(n => n.id === 'root' ? { ...n, style: { width: 100, height: 100 } } : n)
+  assert.equal(applyZoomVisibility(resized, 1)[1].hidden, true)
+  const moved = small.map(n => n.id === 'leaf' ? { ...n, parentId: undefined } : n)
+  assert.equal(applyZoomVisibility(moved, 0.5)[1].hidden, false)
+})
+
+test('cached easing frames do not read node geometry between thresholds', () => {
+  const resolved = applyZoomVisibility([node('root', 480, 480)], 0.5)
+  const original = resolved[0].style
+  // Getter acts as a work counter, without a machine-dependent timing assertion.
+  let reads = 0
+  Object.defineProperty(resolved[0], 'style', { get() { reads++; return original } })
+  assert.equal(applyZoomVisibility(resolved, 0.51), resolved)
+  assert.equal(reads, 0)
+})
+
 test('a child cannot become visible before its parent reveals children', () => {
   const parent = node('parent', 100, 100, { depth: 0 })
   const child = node('child', 10_000, 10_000, { depth: 1, parentId: 'parent' })
