@@ -66,6 +66,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
     const destination = agentMenu(inbox)
+    const pillWidths: number[] = []
     // The first time an agent is chosen, its guide stands in front of everything until confirmed.
     const intro = page.getByRole('dialog', { name: /^Before you use / })
     const confirm = () => intro.getByRole('button', { name: 'Got it' }).click()
@@ -104,9 +105,18 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
       await destination.choose(host)
       if (host === 'copilot-cli') await confirm()
+      // The agent pill keeps one shape whichever agent and model are chosen.
+      pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
+      await inbox.locator('.ambio-inbox__compose-tools').screenshot({ path: `test-results/pill-${host}.png` })
       // Claude Code's models are offered beside the request type; the choice reaches its command line.
       if (host === 'claude-code') {
         await inbox.getByRole('button', { name: 'Model: Default' }).click()
+        // The model menu opens inside the panel, checkmark and scrollbar in view.
+        const menuBox = (await inbox.getByRole('menu', { name: 'Model' }).boundingBox())!
+        const panelBox = (await inbox.boundingBox())!
+        expect(menuBox.x).toBeGreaterThanOrEqual(panelBox.x)
+        expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width)
+        await page.screenshot({ path: 'test-results/model-menu.png' })
         await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
         await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
@@ -134,6 +144,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     // Earlier turns whose runs ended unanswered were withdrawn when the next message went.
     await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled'])
     await expect(inbox.getByRole('button', { name: 'Show output' })).toHaveCount(1)
+    expect(new Set(pillWidths).size).toBe(1)
     const firstMessageId = orders.at(-1).id
     const modifiedAt = fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs
     await page.evaluate(messageId => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)

@@ -83,7 +83,12 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
       <span className="ambio-inbox__model-label">Loading models…</span>
     </button>
   </div>
-  if (!model.options.length) return null
+  // An agent with no model choice here still shows the segment, so the pill keeps its shape.
+  if (!model.options.length) return <div className="ambio-inbox__mode ambio-inbox__model">
+    <button type="button" className="ambio-inbox__mode-button ambio-inbox__model-none" disabled aria-label="Model: the agent's own" title="This agent uses its own model setting">
+      <span className="ambio-inbox__model-label">Default</span>
+    </button>
+  </div>
   const label = model.options.find(option => option.id === model.value)?.label ?? 'Default'
   const choices = [...(model.hasDefault ? [{ id: '', label: 'Default' }] : []), ...model.options]
   return <div ref={anchor} className="ambio-inbox__mode ambio-inbox__model" onKeyDown={event => {
@@ -96,7 +101,7 @@ export function AgentModelMenu({ model, disabled }: { model: AgentModelChoice; d
     {open && <div className="ambio-inbox__mode-menu ambio-inbox__model-menu" role="menu" aria-label="Model">
       {choices.map(option => <button key={option.id || 'default'} type="button" role="menuitemradio" aria-checked={model.value === option.id} aria-label={option.label}
         autoFocus={model.value === option.id} onClick={() => { model.set(option.id); setOpen(false) }}>
-        <strong>{option.label}</strong>{option.id && option.id !== option.label && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
+        <strong>{option.label}</strong>{option.id && option.id.toLowerCase() !== option.label.toLowerCase() && <small>{option.id}</small>}{!option.id && <small>Whatever the agent is set to use</small>}
         {model.value === option.id && <InboxIcon name="check" size={13} />}
       </button>)}
     </div>}

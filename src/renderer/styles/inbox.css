@@ -444,3 +444,26 @@
 .ambio-inbox__agent-select > .ambio-agent-menu { flex: 1 1 auto; }
 .ambio-inbox .ambio-inbox__model-loading { color: #6b7a72; font-style: italic; cursor: progress; }
 .ambio-inbox .ambio-inbox__model-loading:disabled { opacity: 1; }
+/* The agent pill keeps one shape for every agent: fixed segment widths, one
+   type size, names truncated cleanly. Scoped to the panel so its button reset
+   (font: inherit; padding: 0) cannot win. */
+.ambio-inbox .ambio-agent-menu__trigger { gap: 6px; padding: 0 8px 0 9px; color: #2b3833; font: 600 11px/1 var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-agent-menu__trigger:hover:not(:disabled), .ambio-inbox .ambio-agent-menu__trigger[aria-expanded='true'] { color: #2b3833; background: #dfeae6; }
+.ambio-inbox .ambio-agent-menu--segment .ambio-agent-menu__trigger { width: 100%; max-width: none; height: 26px; border: 0; background: transparent; }
+.ambio-inbox .ambio-agent-menu--segment .ambio-agent-menu__trigger:is(:hover, [aria-expanded='true']):not(:disabled) { background: #dfeae6; }
+.ambio-inbox .ambio-agent-menu--field .ambio-agent-menu__trigger { height: 30px; border: 1px solid #a9b8ab; background: #fbfaf5; font-size: 13px; }
+.ambio-inbox .ambio-agent-menu__list button { padding: 6px 9px; }
+.ambio-inbox__agent-select { flex: 0 1 156px; width: 156px; min-width: 96px; }
+.ambio-inbox__agent-select > .ambio-agent-menu { width: 100%; }
+.ambio-inbox__agent-select > .ambio-inbox__delivery-fixed { width: 100%; max-width: none; padding-left: 26px; }
+.ambio-inbox__agent-select > svg:first-child { left: 9px; }
+.ambio-inbox__agent-group > .ambio-inbox__model { flex: 0 1 128px; width: 128px; min-width: 76px; }
+.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-button { width: 100%; justify-content: space-between; padding: 0 8px 0 9px; font: 600 11px/1 var(--font-ui, sans-serif); color: #2b3833; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-label { flex: 1 1 auto; min-width: 0; max-width: none; text-align: left; }
+.ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-none, .ambio-inbox .ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__model-loading { color: #7b8a82; font-weight: 500; opacity: 1; cursor: default; }
+.ambio-inbox__agent-group > .ambio-inbox__guide { flex: none; }
+/* The model menu opens from the pill's left edge, not the model segment's, so it
+   stays inside the panel with its checkmark and scrollbar in view. */
+.ambio-inbox__agent-group { position: relative; }
+.ambio-inbox__agent-group > .ambio-inbox__model { position: static; }
+.ambio-inbox__agent-group > .ambio-inbox__model .ambio-inbox__mode-menu { left: -1px; right: auto; width: calc(100% + 2px); min-width: 260px; max-height: min(420px, 60vh); overflow-y: auto; }
