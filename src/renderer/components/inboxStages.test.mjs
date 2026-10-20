@@ -15,7 +15,7 @@ test('every work order lands in one stage, matching what the inbox says about it
   ]
   assert.deepEqual(orders.map(order => workOrderStage(order, now)),
     ['waiting', 'working', 'waiting', 'waiting', 'review', 'accepted', 'cancelled'])
-  assert.deepEqual(workOrderStageCounts(orders, now), { waiting: 3, working: 1, review: 1, accepted: 1, cancelled: 1 })
+  assert.deepEqual(workOrderStageCounts(orders, now), { waiting: 3, working: 1, review: 1, accepted: 1, answered: 0, cancelled: 1 })
 })
 
 test('a question and a proposal carry their contract; a build is the order as written', async () => {
@@ -55,7 +55,7 @@ test('requests that share a thread are one conversation, newest conversation fir
 test('the conversation menu counts conversations by where each stands', async () => {
   const { conversationStageCounts } = await import('./inboxModel.ts')
   assert.deepEqual(conversationStageCounts([{ stage: 'review' }, { stage: 'review' }, { stage: 'working' }]),
-    { waiting: 0, working: 1, review: 2, accepted: 0, cancelled: 0 })
+    { waiting: 0, working: 1, review: 2, accepted: 0, answered: 0, cancelled: 0 })
 })
 
 test('a handoff for a chat Ambio cannot start asks it to stay attached; a plain one does not', async () => {
@@ -73,4 +73,17 @@ test('a mapping turn reads as its title, not its brief', async () => {
   assert.deepEqual(turnRequest({ note, mode: 'propose' }), { mode: 'propose', text: MAPPING_TITLE })
   assert.equal(requestText(note), MAPPING_TITLE)
   assert.equal(requestText('Why is checkout slow?'), 'Why is checkout slow?')
+})
+
+test('only a build waits for review; an answered question or proposal is done', async () => {
+  const { workOrderStage, inboxStatus, workOrderNote } = await import('./inboxModel.ts')
+  const answered = { status: 'answered' }
+  assert.equal(workOrderStage({ ...answered, mode: 'ask' }), 'answered')
+  assert.equal(workOrderStage({ ...answered, mode: 'propose' }), 'answered')
+  assert.equal(workOrderStage({ ...answered, mode: 'build' }), 'review')
+  // A turn from before modes is read from its contract.
+  assert.equal(workOrderStage({ ...answered, note: workOrderNote('ask', 'Why?') }), 'answered')
+  assert.equal(workOrderStage({ ...answered, note: 'Add a queue' }), 'review')
+  assert.equal(inboxStatus({ ...answered, mode: 'ask' }), 'Answered')
+  assert.equal(inboxStatus({ ...answered, mode: 'build' }), 'Ready for review')
 })

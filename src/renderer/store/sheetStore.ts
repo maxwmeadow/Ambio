@@ -6,7 +6,7 @@ import { create } from 'zustand'
 import type { SheetMember } from '../canvas/sheetFromSelection'
 import { workOrderNotice } from './workOrderNotice.ts'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
-import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
+import { raiseFailure, raiseInvitation, resolveInterruption } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
 
 let openSheetRequest = 0
@@ -64,6 +64,8 @@ export interface SheetElement {
   designMetadata?: PlannedNodeMetadata | string
   ghost: number
   addedBy: string
+  /** Set on a proposed move (the member under a new parent): pending until decided. */
+  approvalStatus?: '' | 'pending' | 'approved' | 'rejected'
 }
 
 export interface SheetAnnotation {
@@ -216,6 +218,9 @@ export interface PlannedEdge {
   dstPlanned: string | null
   dstLive: string | null
   note: string
+  /** An agent's relationship waits for the human like its planned nodes do. */
+  approvalStatus?: 'pending' | 'approved' | 'rejected'
+  createdBy?: string
 }
 
 /** Proposal-local geometry. Aside from sheetId, this is exactly FloorLayout. */
@@ -384,6 +389,10 @@ interface SheetState {
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
   setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
+  /** Confirm or reject an agent's proposed move; rejecting puts it back where the Floor has it. */
+  decideSheetMove: (workspaceId: string, sheetId: string, elementId: string, decision: 'approved' | 'rejected') => Promise<void>
+  /** Confirm or reject an agent's proposed relationship. */
+  decideSheetRelationship: (workspaceId: string, sheetId: string, edgeId: string, decision: 'approved' | 'rejected') => Promise<void>
   previewPlannedPosition: (id: string, x: number, y: number) => void
   updatePlannedLayout: (workspaceId: string, id: string, x: number, y: number, parentSystemId: string | null, width?: number, height?: number, scale?: number) => void
   previewLayoutsBatch: (workspaceId: string, sheetId: string, layouts: SheetLayoutMutation[]) => void
@@ -625,6 +634,35 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       if (!layer) return s
       const nodes = layer.planned.map(node => node.id === updated.id ? updated : node)
       return commitSheetLayer(s, updated.sheetId, { ...layer, planned: nodes })
+    })
+  },
+
+  decideSheetMove: async (workspaceId, sheetId, elementId, decision) => {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/approval`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, decision }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const elements = (await res.json() as SheetElement[]).map(withValidScale)
+    set(s => {
+      const layer = s.layersById[sheetId]
+      return layer ? commitSheetLayer(s, sheetId, { ...layer, elements }) : s
+    })
+  },
+
+  decideSheetRelationship: async (workspaceId, sheetId, edgeId, decision) => {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/planned-edges/${encodeURIComponent(edgeId)}/approval`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, decision }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const updated = await res.json() as PlannedEdge
+    set(s => {
+      const layer = s.layersById[sheetId]
+      if (!layer) return s
+      return commitSheetLayer(s, sheetId, { ...layer, plannedEdges: layer.plannedEdges.map(edge => edge.id === updated.id ? updated : edge) })
     })
   },
 
@@ -973,6 +1011,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
  * invitation per sheet, replaced rather than stacked while the agent works.
  */
 function announceAgentDrawing(sheetId: string, title: string, body: string) {
+  // The person is already looking at it; the sheet rail shows what is new.
+  if (useSheetStore.getState().visibleSheetIds.includes(sheetId)) return
   raiseInvitation(`agent-drawing-${sheetId}`, title, body, [{
     label: 'Open Sheet',
     primary: true,
@@ -1234,3 +1274,10 @@ export async function reviewInboxMessage(workspaceId: string, msgId: string, rev
   if (!response.ok) throw new Error(await response.text())
   await refreshInbox(workspaceId)
 }
+
+// However a sheet is opened - the invitation, the sheet rail, a link - its
+// "an agent drew this" invitation has done its job once the sheet is on screen.
+useSheetStore.subscribe((state, previous) => {
+  if (state.visibleSheetIds === previous.visibleSheetIds) return
+  for (const sheetId of state.visibleSheetIds) resolveInterruption(`agent-drawing-${sheetId}`)
+})

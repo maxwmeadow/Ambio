@@ -275,11 +275,15 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `chatgpt-native-live-validation` **Verify ChatGPT sign-in and native plan usage with real accounts on packaged macOS/Windows/Linux.** Check browser consent, completed native Ask/Propose/Build, account-pinned history, renewal, limits, cancellation and revocation. Synthetic OAuth and real bundled OpenCode tests pass; live account entitlement and OS keychain upgrades remain unverified. See [docs/CHATGPT_PLAN.md](docs/CHATGPT_PLAN.md). (2026-10-19, native ChatGPT integration)
 
+- ⬜ `proposal-placement-rejection-e2e` **MCP proposal placement test fails on main `99f8068`.** `mcp/e2e/proposalPlacement.e2e.mjs:94` expects a rejected move to restore a null parent from the initial snapshot, but gets a generated cluster ID. Reproduces on an isolated clean main and the ChatGPT branch; check the live parent versus the fixture snapshot before changing placement behavior. (2026-10-20, main integration checks)
+
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `chatgpt-main-sync` Merged main through `99f8068`, preserving its agent/model picker and Stop controls together with native ChatGPT readiness and usage access. Plan usage gets its own composer line so the new single-row controls cannot clip it. (codex/chatgpt-plan-sign-in)
 
 - 2026-10-19 `chatgpt-native-api` ChatGPT OAuth accounts now power the existing native OpenCode chat through its credential proxy and the public Responses API. Preserves native history/tools/modes/approvals, enforces plan request restrictions and completed streams, pins conversations to accounts and stops failed requests without replay. Removed the Codex-backed ChatGPT adapter and destination. Browser sign-in, model/usage controls and encrypted credentials are integrated under native model services. Automated native/unit/MCP/UI coverage; real-account validation remains in Inbox. (codex/chatgpt-plan-sign-in)
 

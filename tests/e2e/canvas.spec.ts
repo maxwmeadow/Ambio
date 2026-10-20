@@ -1881,14 +1881,12 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
   await expect(runtime).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
   await expect(rail.getByRole('button', { name: 'Hide Runtime Draft' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.ambio-sheet-layer-indicator')).toContainText('Sheet Layer Active')
   await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
   await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)
 
   await floor.click()
   await expect(floor).toHaveAttribute('aria-current', 'page')
   await expect(rail.getByRole('button', { name: 'Show Runtime Draft' })).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.locator('.ambio-sheet-layer-indicator')).toHaveCount(0)
   await expect(page.locator('.ambio-sheet-palette')).toHaveCount(0)
   await expect.poll(() => runtime.evaluate(element => {
     const style = getComputedStyle(element)
@@ -2339,11 +2337,82 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   await expect(review).toContainText('Job Queue')
   await expect(page.locator('.react-flow__node[data-id="planned:plan_queue"]')).toHaveAttribute('data-proposal', 'pending')
   await expect(page.locator('.ambio-sheet-rail__new')).toHaveCount(0)
+  // Opening the sheet answers the invitation; it does not linger over the sheet.
+  await expect(page.getByText('An agent drew a sheet: Agent Plan')).toHaveCount(0)
+  // The stencils sit clear of the Infrastructure tab on the left edge.
+  const palette = await page.locator('.ambio-sheet-palette').boundingBox()
+  const infraTab = await page.locator('.ambio-infra-sidebar-tab').boundingBox()
+  expect(palette && infraTab).toBeTruthy()
+  expect(palette!.x >= infraTab!.x + infraTab!.width || palette!.y + palette!.height <= infraTab!.y).toBe(true)
+  await page.screenshot({ path: 'test-results/sheet-proposal-review.png' })
+  // A proposal's name takes you to it on the sheet.
+  await review.getByRole('button', { name: /Job Queue/ }).first().click()
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('planned:plan_queue')
   await review.getByRole('button', { name: 'Reject Job Queue' }).click()
   await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
   await review.getByRole('button', { name: 'Reject', exact: true }).click()
   await expect.poll(() => decided).toEqual({ workspaceId: 'demo', decision: 'rejected', reason: 'we already queue through SQS' })
   await expect(review).toHaveCount(0)
+})
+
+test('a system an agent names stays where the Floor has it, and a proposed move draws the file inside the new system', async () => {
+  const { systemId, parentId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    const file = state.files.find((candidate: { id: string }) => candidate.id === 'file_canvas')
+    const system = state.systems.find((candidate: { id: string }) => candidate.id === file.systemId)
+    return { systemId: system.id as string, parentId: (system.parentId ?? null) as string | null }
+  })
+  const floorBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+  const agentSheet = {
+    id: 'sheet_split', workspaceId: 'demo', name: 'Split Payments', purpose: '', kind: 'structure',
+    folder: '', createdBy: 'agent', revision: 1, createdAt: 9, updatedAt: 9,
+  }
+  // What an agent's draw leaves: members and a proposal with no geometry, and
+  // the file it takes over moved under the proposal (db.ProposeSheetMove).
+  const unplaced = { positionX: 0, positionY: 0, width: null, height: null, scale: 1, tombstoneAck: 0, ghost: 0, addedBy: 'agent', symbolRef: null, infraId: null }
+  const elements = [
+    { ...unplaced, id: 'el_system', sheetId: 'sheet_split', systemId, fileId: null, label: 'System', parentSystemId: parentId },
+    { ...unplaced, id: 'el_file', sheetId: 'sheet_split', systemId: null, fileId: 'file_canvas', label: 'canvas', parentSystemId: 'planned:plan_split', approvalStatus: 'pending' },
+  ]
+  const relationship = { id: 'edge_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'DEPENDS_ON', srcPlanned: 'plan_split', srcLive: null, dstPlanned: null, dstLive: systemId, note: '', approvalStatus: 'pending', createdBy: 'agent' }
+  const proposal = {
+    id: 'plan_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'system', name: 'Payments Split',
+    declaredPath: '', members: '[]', metadata: '{}', status: 'planned', approvalStatus: 'pending',
+    realizedFileId: null, notes: '', shape: '', color: '', positionX: 0, positionY: 0,
+    width: null, height: null, scale: 1, parentSystemId: null, createdBy: 'agent',
+  }
+  await page.route(/\/api\/sheets\/sheet_split\?/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ sheet: agentSheet, elements, annotations: [], planned: [proposal], plannedEdges: [relationship], layouts: [], removals: [] }),
+  }))
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), agentSheet)
+  await page.getByRole('button', { name: 'Open Sheet' }).click()
+  const review = page.getByLabel('Agent proposals to review')
+  await expect(review).toContainText('Payments Split')
+  // The move and the relationship are reviewed with the new system.
+  await expect(review.locator('li')).toHaveCount(3)
+  await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
+  await expect(review.locator('li[data-kind="depends on"]')).toContainText('Payments Split')
+  // The named system has not moved or resized.
+  const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+  expect(floorBox && sheetBox).toBeTruthy()
+  for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
+  // The file the proposal takes over is drawn inside it.
+  await review.getByRole('button', { name: /Payments Split/ }).first().click()
+  const plannedNode = page.locator('.react-flow__node[data-id="planned:plan_split"]')
+  const fileNode = page.locator('.react-flow__node[data-id="file_canvas"]')
+  await expect(fileNode).toBeAttached()
+  await expect.poll(async () => {
+    const outer = await plannedNode.boundingBox()
+    const inner = await fileNode.boundingBox()
+    return !!outer && !!inner && inner.x >= outer.x && inner.y >= outer.y
+      && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
+  }, { timeout: 5_000 }).toBe(true)
+  // The moved file is marked as a proposed move, and the relationship is drawn.
+  await expect(fileNode).toHaveAttribute('data-proposal-kind', 'move')
+  await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
+  await page.screenshot({ path: 'test-results/sheet-proposed-move.png' })
+  await page.unroute(/\/api\/sheets\/sheet_split\?/)
 })
 
 test('Edit → Undo and Redo step through map changes made on the Floor', async () => {
@@ -2713,6 +2782,12 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
     turn('q1', 'Where is retry handled?', 'answered', { threadId: 'q1', mode: 'ask', createdAt: 10, reply: { agent: 'Codex', body: 'In the queue worker.', createdAt: 11 } }),
     turn('q2', 'Add a retry queue', 'queued', { threadId: 'q1', mode: 'build', createdAt: 12 }),
   ]
+  let cancelled = ''
+  await page.route(/\/api\/canvas\/cancel$/, async route => {
+    cancelled = route.request().postDataJSON().msgId
+    messages[2] = { ...messages[2], status: 'cancelled' }
+    await route.fulfill({ json: {} })
+  })
   let sent: { threadId?: string; mode?: string; note?: string } | undefined
   await page.route(/\/api\/canvas\/send$/, async route => {
     sent = route.request().postDataJSON()
@@ -2728,7 +2803,10 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   await expect(inbox.locator('.ambio-inbox__turn-mode')).toHaveText(['Ask', 'Build'])
   await expect(inbox).not.toContainText('Split the payments module')
 
-  // A follow-up continues that conversation.
+  // A turn still waiting holds the message box; Stop withdraws it, and a follow-up continues the conversation.
+  await expect(inbox.getByRole('textbox', { name: 'Instruction for your agent' })).toBeDisabled()
+  await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect.poll(() => cancelled).toBe('q2')
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Now add a test for it')
   await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).press('Enter')
   await expect.poll(() => sent?.threadId).toBe('q1')
@@ -2747,6 +2825,9 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
   const title = inbox.getByRole('button', { name: /^Conversation:/ }).locator('h2')
   expect(await title.evaluate(element => getComputedStyle(element).color)).toBe('rgb(244, 247, 242)')
   await page.screenshot({ path: 'test-results/conversation-menu.png' })
+  // With its waiting build stopped, this conversation's latest turn is an answered
+  // question: answered, not waiting for review. Only the other conversation's build is.
+  await expect(stages.getByRole('button', { name: 'Answered 1' })).toBeVisible()
   await stages.getByRole('button', { name: 'To review 1' }).click()
   await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
   await stages.getByRole('button', { name: 'All 2' }).click()
@@ -2908,4 +2989,55 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
   await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
+})
+
+test('an agent reply reads as formatted Markdown, with project files as chips', async () => {
+  const { root, file } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { root: state.currentProject.rootPath as string, file: state.files[0].relPath.replace(/\\/g, '/') as string }
+  })
+  const href = `file:///${root.replace(/\\/g, '/')}/${file}#L5-L9`
+  // What agents wrote: a "\b" decoded into a backspace, a one-backtick fence,
+  // file links, an inline project path, emphasis, a rule and a table.
+  const body = [
+    '## Analysis', '', `It re-exports \u0008uild_query. *Only* the **facade** changes.`, '',
+    '`python', 'from .query_builder import build_query', '`', '',
+    `- Consumer: [${file}](${href})`, `- Also see \`${file}\``, `- Written plainly: ${file}.`, '', '---', '',
+    '| Symbol | Breaks |', '| --- | --- |', '| build_query | executor |',
+  ].join('\n')
+  const reply = { id: 'md-1', workspaceId: 'demo', sheetId: null, note: 'What depends on this?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'md-1', createdAt: 50, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'antigravity', body, createdAt: 51 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose')
+  await expect(prose.locator('h4')).toHaveText('Analysis')
+  await expect(prose).toContainText('It re-exports build_query.')
+  await expect(prose).not.toContainText('\u0008')
+  await expect(prose.locator('em')).toHaveText('Only')
+  await expect(prose.locator('strong')).toHaveText('facade')
+  await expect(prose.locator('.ambio-inbox__code')).toContainText('from .query_builder import build_query')
+  await expect(prose.locator('.ambio-inbox__code')).toContainText('python')
+  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText([`${file}:5–9`, file, file])
+  await expect(prose).not.toContainText('file:///')
+  await expect(prose.locator('hr')).toHaveCount(1)
+  await expect(prose.locator('table td')).toHaveText(['build_query', 'executor'])
+  await page.screenshot({ path: 'test-results/agent-markdown.png' })
+  // A chip selects its file and brings the map to it.
+  const viewport = page.locator('.react-flow__viewport')
+  const before = await viewport.getAttribute('style')
+  await prose.locator('.ambio-inbox__file-link').first().click()
+  await expect.poll(() => page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return state.selectedNodeId === state.files[0].id
+  })).toBe(true)
+  await expect.poll(() => viewport.getAttribute('style'), { timeout: 5_000 }).not.toBe(before)
+  // It lands in the middle of the map you can see, not under the open panel.
+  await expect.poll(() => page.evaluate(() => {
+    const id = (window as any).__ambioGraphStore.getState().files[0].id
+    const card = document.querySelector(`.react-flow__node[data-id="${id}"]`)!.getBoundingClientRect()
+    const map = document.querySelector('.react-flow')!.getBoundingClientRect()
+    const panel = document.querySelector('.ambio-inbox')!.getBoundingClientRect()
+    return Math.abs(map.right - panel.left) < 2 && Math.abs((card.left + card.right) / 2 - (map.left + map.right) / 2) < 8
+  }), { timeout: 5_000 }).toBe(true)
+  await page.unroute(/\/api\/canvas\/history\?/)
 })

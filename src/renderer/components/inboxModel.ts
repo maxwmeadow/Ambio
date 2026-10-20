@@ -12,8 +12,17 @@ export function referenceTarget(reference: string): { id: string; label: string 
 export function messageReferences(selection: string): string[] {
   try { const refs = JSON.parse(selection); return Array.isArray(refs) ? refs.filter(ref => typeof ref === 'string') : [] } catch { return [] }
 }
-export function inboxStatus(message: { status: string; agent?: string; deliveredTo?: string | null; leaseExpiresAt?: number; review?: { decision: string } }, now = Date.now()): string {
-  if (message.status === 'answered') return message.review?.decision === 'accepted' ? 'Accepted' : 'Ready for review'
+/**
+ * Only a build changes anything, so only a build's answer waits for review; an
+ * answered question or proposal is done. A turn sent before turns carried a
+ * mode is read from its contract.
+ */
+export function needsReview(message: { mode?: string; note?: string }): boolean {
+  return (message.mode ?? (message.note !== undefined ? turnRequest({ note: message.note }).mode : 'build')) === 'build'
+}
+
+export function inboxStatus(message: { status: string; agent?: string; deliveredTo?: string | null; leaseExpiresAt?: number; review?: { decision: string }; mode?: string; note?: string }, now = Date.now()): string {
+  if (message.status === 'answered') return !needsReview(message) ? 'Answered' : message.review?.decision === 'accepted' ? 'Accepted' : 'Ready for review'
   if (message.status === 'cancelled') return 'Cancelled'
   if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return `Picked up by ${message.agent || 'agent'}${message.deliveredTo ? ` · connector ${message.deliveredTo.slice(0, 8)}` : ''}`
   if (message.review?.decision === 'reopened') return 'Changes requested · waiting for agent'
@@ -24,25 +33,26 @@ export function inboxStatus(message: { status: string; agent?: string; delivered
  * Where a work order stands, for the inbox's stage filter: one bucket per
  * order, matching what inboxStatus says about it.
  */
-export type WorkOrderStage = 'waiting' | 'working' | 'review' | 'accepted' | 'cancelled'
+export type WorkOrderStage = 'waiting' | 'working' | 'review' | 'accepted' | 'answered' | 'cancelled'
 
 export const WORK_ORDER_STAGES: Array<{ stage: WorkOrderStage; label: string }> = [
   { stage: 'waiting', label: 'Waiting' },
   { stage: 'working', label: 'Working' },
   { stage: 'review', label: 'To review' },
   { stage: 'accepted', label: 'Accepted' },
+  { stage: 'answered', label: 'Answered' },
   { stage: 'cancelled', label: 'Cancelled' },
 ]
 
-export function workOrderStage(message: { status: string; leaseExpiresAt?: number; review?: { decision: string } }, now = Date.now()): WorkOrderStage {
-  if (message.status === 'answered') return message.review?.decision === 'accepted' ? 'accepted' : 'review'
+export function workOrderStage(message: { status: string; leaseExpiresAt?: number; review?: { decision: string }; mode?: string; note?: string }, now = Date.now()): WorkOrderStage {
+  if (message.status === 'answered') return !needsReview(message) ? 'answered' : message.review?.decision === 'accepted' ? 'accepted' : 'review'
   if (message.status === 'cancelled') return 'cancelled'
   if (message.status === 'delivered' && (message.leaseExpiresAt ?? 0) > now) return 'working'
   return 'waiting'
 }
 
 export function workOrderStageCounts(messages: Array<Parameters<typeof workOrderStage>[0]>, now = Date.now()): Record<WorkOrderStage, number> {
-  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, cancelled: 0 }
+  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, answered: 0, cancelled: 0 }
   for (const message of messages) counts[workOrderStage(message, now)]++
   return counts
 }
@@ -63,8 +73,15 @@ export const WORK_ORDER_MODES: Array<{ mode: WorkOrderMode; label: string; hint:
 
 const MODE_CONTRACT: Record<WorkOrderMode, string> = {
   ask: 'This is a question. Answer it in your reply; do not change code or the architecture map.',
-  propose: 'Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.',
+  // An agent left to "draw your plan" redrew systems the map already had, as
+  // empty top-level boxes. Start from the map, and draw only the change.
+  propose: 'Propose, do not build. Start from the current map (get_architecture overview and system_files for the systems involved): if part of what I ask for already exists, say so and reuse it rather than redrawing it. On a sheet, draw only what changes: plan_element each new system inside its parent, with the existing files or systems it takes over in owns; edit_sheet(move) existing files or systems that change boundary; edit_sheet(connect) new dependencies. Reply with what already existed and what you drew, and wait for me to confirm before changing any code.',
   build: '',
+}
+
+/** Contracts earlier versions wrote into turns, still recognised when reading them back. */
+const PAST_CONTRACTS: Partial<Record<WorkOrderMode, string[]>> = {
+  propose: ['Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.'],
 }
 
 export function workOrderNote(mode: WorkOrderMode, note: string): string {
@@ -95,8 +112,10 @@ export function requestText(text: string): string {
 export function turnRequest(message: { note: string; mode?: string }): { mode: WorkOrderMode; text: string } {
   if (message.note.startsWith(MAPPING_CONTRACT)) return { mode: 'propose', text: MAPPING_TITLE }
   for (const mode of ['ask', 'propose'] as const) {
-    const prefix = `${MODE_CONTRACT[mode]}\n\n`
-    if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }
+    for (const contract of [MODE_CONTRACT[mode], ...(PAST_CONTRACTS[mode] ?? [])]) {
+      const prefix = `${contract}\n\n`
+      if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }
+    }
   }
   const mode = message.mode === 'ask' || message.mode === 'propose' ? message.mode : 'build'
   return { mode, text: message.note }
@@ -139,7 +158,7 @@ export function conversations<T extends ConversationTurn>(messages: T[], now = D
 
 /** How many conversations stand at each stage, for the overview in the conversation menu. */
 export function conversationStageCounts(threads: Array<{ stage: WorkOrderStage }>): Record<WorkOrderStage, number> {
-  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, cancelled: 0 }
+  const counts: Record<WorkOrderStage, number> = { waiting: 0, working: 0, review: 0, accepted: 0, answered: 0, cancelled: 0 }
   for (const thread of threads) counts[thread.stage]++
   return counts
 }

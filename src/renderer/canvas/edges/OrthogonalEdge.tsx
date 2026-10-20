@@ -46,7 +46,8 @@ export function OrthogonalEdge({
       ? '#a855f7'
       : isTraced
         ? 'var(--trace-color)'
-        : 'var(--border)'
+        // A static edge may carry its own colour (a sheet's proposed relationship).
+        : String(style?.stroke ?? 'var(--border)')
 
   return (
     <>

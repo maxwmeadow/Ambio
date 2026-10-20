@@ -267,6 +267,14 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   const [previewSymbol, setPreviewSymbol] = React.useState<any | null>(null)
   const symbolRequestRef = React.useRef(0)
   const symbolNodeIdRef = React.useRef(d.id)
+  // A re-indexed file (its line count changed) shows its symbols afresh.
+  const indexRevision = d.lineCount
+  const indexRevisionRef = React.useRef(indexRevision)
+  React.useEffect(() => {
+    if (indexRevisionRef.current === indexRevision) return
+    indexRevisionRef.current = indexRevision
+    if (!suppliedSymbols) setSymbols(getCachedSymbols(workspaceId, d.id))
+  }, [indexRevision, suppliedSymbols, workspaceId, d.id])
 
   React.useEffect(() => {
     const request = ++symbolRequestRef.current

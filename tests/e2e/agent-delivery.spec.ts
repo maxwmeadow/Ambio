@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { agentMenu } from './agentGuides'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -53,55 +54,78 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
           }
         }, body)
       }
+      if (url.pathname === '/api/canvas/cancel') {
+        const { msgId } = route.request().postDataJSON()
+        const order = orders.find(item => item.id === msgId)
+        if (order) order.status = 'cancelled'
+      }
       if (url.pathname === '/api/canvas/history') body = { messages: [...orders].reverse(), nextCursor: '', availableCount: orders.length }
       if (url.pathname === '/api/agent/presence') body = { connected: false, connections: [] }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-    const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
-    await expect(destination.locator('option')).toHaveCount(12)
+    const destination = agentMenu(inbox)
+    const pillWidths: number[] = []
     // The first time an agent is chosen, its guide stands in front of everything until confirmed.
     const intro = page.getByRole('dialog', { name: /^Before you use / })
     const confirm = () => intro.getByRole('button', { name: 'Got it' }).click()
     await expect(intro).toBeVisible()
     await confirm()
-    await destination.selectOption('codex')
+    // The agent menu lists every destination, in Ambio's own menu.
+    await destination.open()
+    await expect(destination.items()).toHaveCount(12)
+    await page.screenshot({ path: 'test-results/agent-menu.png' })
+    await destination.close()
+    await destination.choose('codex')
     await expect(intro).toHaveAccessibleName('Before you use OpenAI Codex (CLI)')
     await expect(intro).toContainText('Choose Codex and send.')
-    await expect(intro).toContainText('press the info button next to Deliver to')
+    await expect(intro).toContainText('press the info button next to the agent in the message box')
     await page.screenshot({ path: 'test-results/agent-delivery-introduction.png' })
     await confirm()
     await expect(intro).toBeHidden()
     // The info button shows the same guide, and its picker is the destination picker.
     await inbox.getByRole('button', { name: 'How each agent works here' }).click()
     const guide = inbox.getByRole('dialog', { name: 'How each agent works here' })
-    const guidePicker = guide.getByRole('combobox', { name: 'Agent to read about' })
-    await expect(guidePicker).toHaveValue('codex')
+    const guidePicker = agentMenu(guide, 'Agent to read about')
+    await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await expect(guide).toContainText('Choose Codex and send.')
     await page.screenshot({ path: 'test-results/agent-delivery-guide.png' })
-    await guidePicker.selectOption('claude-code')
-    await expect(destination).toHaveValue('claude-code')
+    await guidePicker.choose('claude-code')
+    await expect(destination.trigger).toHaveAttribute('data-value', 'claude-code')
     // A first choice made from the guide is introduced too.
     await expect(intro).toHaveAccessibleName('Before you use Claude Code (CLI)')
     await confirm()
-    await destination.selectOption('codex')
+    await destination.choose('codex')
     await expect(intro).toBeHidden()
     await inbox.getByRole('button', { name: 'How each agent works here' }).click()
-    await expect(guidePicker).toHaveValue('codex')
+    await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
     for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
-      await destination.selectOption(host)
+      await destination.choose(host)
       if (host === 'copilot-cli') await confirm()
+      // The agent pill keeps one shape whichever agent and model are chosen.
+      pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
+      await inbox.locator('.ambio-inbox__compose-tools').screenshot({ path: `test-results/pill-${host}.png` })
       // Claude Code's models are offered beside the request type; the choice reaches its command line.
       if (host === 'claude-code') {
-        await inbox.getByRole('button', { name: 'Model: Default model' }).click()
-        await inbox.getByRole('menuitemradio', { name: 'Opus (latest)' }).click()
-        await expect(inbox.getByRole('button', { name: 'Model: Opus (latest)' })).toBeVisible()
+        await inbox.getByRole('button', { name: 'Model: Default' }).click()
+        // The model menu opens inside the panel, checkmark and scrollbar in view.
+        const menuBox = (await inbox.getByRole('menu', { name: 'Model' }).boundingBox())!
+        const panelBox = (await inbox.boundingBox())!
+        expect(menuBox.x).toBeGreaterThanOrEqual(panelBox.x)
+        expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(panelBox.x + panelBox.width)
+        await page.screenshot({ path: 'test-results/model-menu.png' })
+        await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
+        await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
+        await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
       }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
+      const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
+      // The previous unanswered turn is withdrawn first, so the new order lands a moment later.
+      await expect.poll(() => orders.length).toBe(sentBefore + 1)
       const captured = path.join(root, `captured-${host}.json`)
       // Copilot is first tried as an agent session; the stand-in cannot hold one,
       // so the same turn then runs in print mode. Wait for the run that got the prompt.
@@ -111,20 +135,23 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
-      await expect(inbox.locator('.ambio-inbox__delivery-run').last()).toContainText(host === 'copilot-cli' ? 'Agent exited 7' : 'Agent process finished')
-      await expect(inbox.locator('.ambio-inbox__status').last()).toHaveText('Waiting for an agent')
+      // The stand-in exits without replying: the turn says so in one line, and the next message replaces it.
+      await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText(host === 'copilot-cli' ? `${label} stopped without an answer.` : `${label} finished without replying.`)
+      await expect(inbox.locator('.ambio-inbox__turn-status').last().getByRole('button', { name: 'Try again' })).toBeVisible()
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
     expect(orders).toHaveLength(3)
-    await expect(inbox.getByRole('button', { name: 'Show agent output' })).toHaveCount(3)
+    // Earlier turns whose runs ended unanswered were withdrawn when the next message went.
+    await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled'])
+    await expect(inbox.getByRole('button', { name: 'Show output' })).toHaveCount(1)
+    expect(new Set(pillWidths).size).toBe(1)
     const firstMessageId = orders.at(-1).id
-    await expect(inbox.locator('.ambio-inbox__message').last().getByRole('button', { name: 'Start GitHub Copilot (CLI)' })).toBeDisabled()
     const modifiedAt = fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs
     await page.evaluate(messageId => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)
     expect(fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs).toBe(modifiedAt)
     expect(orders.at(-1).id).toBe(firstMessageId)
     if (process.platform !== 'win32') {
-      await destination.selectOption('zed')
+      await destination.choose('zed')
       await confirm()
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Discuss this in Zed.')
       await inbox.locator('form').getByRole('button', { name: 'Copy + open Zed Editor' }).click()
@@ -134,5 +161,15 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect(inbox.getByRole('status').filter({ hasText: 'work has not started yet' })).toBeVisible()
     }
     await page.screenshot({ path: 'test-results/agent-delivery.png' })
+    // The panel widens from its left edge, and keeps that width.
+    const before = (await inbox.boundingBox())!
+    const handle = (await inbox.getByRole('separator', { name: 'Resize the agent panel' }).boundingBox())!
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle.x - 200, handle.y + handle.height / 2, { steps: 5 })
+    await page.mouse.up()
+    await expect.poll(async () => Math.round((await inbox.boundingBox())!.width - before.width)).toBeGreaterThan(190)
+    expect(Number(await page.evaluate(() => localStorage.getItem('ambio:inbox-width')))).toBeGreaterThan(before.width + 190)
+    await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-wide.png' })
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })

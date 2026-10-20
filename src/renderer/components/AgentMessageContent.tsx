@@ -1,26 +1,77 @@
-import { useState } from 'react'
-import { messageBlocks } from './agentMessageFormat'
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import Markdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { useShowOnMap } from '../canvas/useShowOnMap'
+import { useShallow } from 'zustand/react/shallow'
+import { useGraphStore } from '../store/graphStore'
+import { fileLinkTarget, inlineFilePath, normalizeAgentText, remarkFilePaths } from './agentMessageFormat'
 import { InboxIcon } from './InboxIcon'
-
-function inline(text: string) {
-  return text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g).map((part, index) => part.startsWith('`') && part.endsWith('`')
-    ? <code key={index}>{part.slice(1, -1)}</code>
-    : part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part)
-}
 
 function CodeBlock({ text, language }: { text: string; language?: string }) {
   const [status, setStatus] = useState('Copy code')
   return <div className="ambio-inbox__code"><div><span>{language || 'Code'}</span><button type="button" aria-label={status} onClick={() => { void navigator.clipboard.writeText(text).then(() => setStatus('Copied'), () => setStatus('Copy unavailable')) }}><InboxIcon name={status === 'Copied' ? 'check' : 'copy'} size={13} />{status}</button></div><pre><code>{text}</code></pre></div>
 }
 
+/** A file the agent named: its path in the project, opening it on the map when Ambio indexed it. */
+function FileChip({ relPath, absolute, lines, fileId, written }: { relPath?: string; absolute: string; lines?: string; fileId?: string; written?: string }) {
+  // Inline code keeps what the agent wrote, even a shortened name; a link shows its path.
+  const label = written ?? `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
+  const showOnMap = useShowOnMap()
+  const open = () => {
+    if (fileId) showOnMap(fileId)
+    else window.ambio?.showInFolder(absolute)
+  }
+  return <button type="button" className="ambio-inbox__file-link" title={fileId ? `Show ${relPath} on the map` : absolute} onClick={open}>{label}</button>
+}
+
+/**
+ * Which link targets a message may carry: the web, mail, relative links, and
+ * file links (which become file chips). Anything else, such as javascript:, is
+ * dropped, as react-markdown's own default would; that default also dropped
+ * file links, which agents use for every path they cite.
+ */
+const safeUrl = (url: string) => /^(https?:|mailto:|file:)/i.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : ''
+
+const textOf = (node: ReactNode): string => typeof node === 'string' ? node
+  : Array.isArray(node) ? node.map(textOf).join('')
+    : node && typeof node === 'object' && 'props' in node ? textOf((node as ReactElement<{ children?: ReactNode }>).props.children) : ''
+
+/**
+ * An agent's message, as Markdown: emphasis, lists, tables, code and links,
+ * with file paths turned into chips that open the file. Raw HTML is shown as
+ * text, never run.
+ */
 export function AgentMessageContent({ text }: { text: string }) {
-  return <div className="ambio-inbox__prose">{messageBlocks(text).map((block, index) => {
-    if (block.kind === 'code') return <CodeBlock key={index} text={block.text} language={block.language} />
-    if (block.kind === 'heading') return <h4 key={index}>{inline(block.text)}</h4>
-    if (block.kind === 'list') {
-      const List = block.ordered ? 'ol' : 'ul'
-      return <List key={index}>{block.text.split('\n').map((item, i) => <li key={i}>{inline(item)}</li>)}</List>
-    }
-    return <p key={index}>{inline(block.text)}</p>
-  })}</div>
+  const { root, files } = useGraphStore(useShallow(state => ({ root: state.currentProject?.rootPath, files: state.files })))
+  const byPath = useMemo(() => new Map(files.map(file => [file.relPath.replace(/\\/g, '/'), file.id])), [files])
+  const paths = useMemo(() => new Set(byPath.keys()), [byPath])
+  const plugins = useMemo(() => [remarkGfm, remarkFilePaths(paths)], [paths])
+  const components: Components = useMemo(() => ({
+    h1: ({ children }) => <h4>{children}</h4>,
+    h2: ({ children }) => <h4>{children}</h4>,
+    h3: ({ children }) => <h4>{children}</h4>,
+    h4: ({ children }) => <h4>{children}</h4>,
+    h5: ({ children }) => <h4>{children}</h4>,
+    h6: ({ children }) => <h4>{children}</h4>,
+    a: ({ href, children }) => {
+      const target = fileLinkTarget(href, root)
+      if (target) return <FileChip {...target} fileId={target.relPath ? byPath.get(target.relPath) : undefined} />
+      // Web links open in the browser (the window's open handler), never inside Ambio.
+      return <a href={href} target="_blank" rel="noreferrer">{children}</a>
+    },
+    pre: ({ children }) => {
+      const code = Array.isArray(children) ? children[0] : children
+      const className = (code as ReactElement<{ className?: string }> | undefined)?.props?.className ?? ''
+      return <CodeBlock text={textOf(children).replace(/\n$/, '')} language={/language-([\w+#.-]+)/.exec(className)?.[1]} />
+    },
+    code: ({ children, className }) => {
+      // Inline code naming a project file becomes a chip; anything else stays code.
+      const path = !className && typeof children === 'string' ? inlineFilePath(children, paths) : null
+      return path ? <FileChip relPath={path} absolute={path} fileId={byPath.get(path)} written={(children as string).trim()} /> : <code className={className}>{children}</code>
+    },
+    table: ({ children }) => <div className="ambio-inbox__table"><table>{children}</table></div>,
+  }), [root, byPath, paths])
+  return <div className="ambio-inbox__prose">
+    <Markdown remarkPlugins={plugins} components={components} urlTransform={safeUrl}>{normalizeAgentText(text, root)}</Markdown>
+  </div>
 }

@@ -30,6 +30,11 @@ export function setCachedSymbols(workspaceId: string, fileId: string, symbols: a
   symbolCache.set(key, symbols)
 }
 
+/** A file's symbols changed (it was re-indexed); the next look fetches them again. */
+export function forgetFileSymbols(workspaceId: string, fileId: string): void {
+  symbolCache.delete(cacheKey(workspaceId, fileId))
+}
+
 export function clearSymbolCache(workspaceId?: string): void {
   if (!workspaceId) {
     symbolCache.clear()
@@ -76,7 +81,9 @@ export async function fetchFileSymbols(
       if (!res.ok) throw new Error(`symbols request failed with status ${res.status}`)
       const data = await res.json()
       const symbols = Array.isArray(data) ? data : []
-      symbolCache.set(key, symbols)
+      // An empty answer can mean the file is not indexed yet; it is not kept,
+      // or a card that looked early would say "No symbols" for the session.
+      if (symbols.length) symbolCache.set(key, symbols)
       return symbols
     } finally {
       inFlightRequests.delete(key)

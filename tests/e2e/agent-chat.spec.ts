@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { agentMenu } from './agentGuides'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -42,12 +43,13 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await routeArchd(page)
     await page.getByRole('button', { name: /^Message agent/ }).click()
     const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
-    const destination = inbox.getByRole('combobox', { name: 'Work-order destination' })
+    const destination = agentMenu(inbox)
     const intro = page.getByRole('dialog', { name: /^Before you use / })
     await intro.getByRole('button', { name: 'Got it' }).click()
-    await expect(destination.locator('optgroup[label="Built into Ambio"] option')).toHaveText(['Ambio chat · set up a model service…'])
+    await destination.open()
+    await expect(destination.group('Built into Ambio')).toHaveText(['Ambio chatSet up a model service first'])
     // Ambio chat is one more agent to pick; with no service it opens setup.
-    await destination.selectOption({ label: 'Ambio chat · set up a model service…' })
+    await destination.choose('@chat')
     const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
     await settings.getByRole('combobox', { name: 'Model provider' }).selectOption('compatible')
     await settings.getByRole('textbox', { name: 'Service name' }).fill('My local test service')
@@ -62,7 +64,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await expect(settings.getByRole('heading', { name: 'Agents in other apps' })).toBeVisible()
     await page.screenshot({ path: 'test-results/settings-agents.png' })
     await settings.getByRole('button', { name: 'Close', exact: true }).click()
-    await destination.selectOption({ label: 'Ambio chat · My local test service · fixture-model' })
+    await destination.chooseLabel('Ambio chat · My local test service · fixture-model')
     // Ambio chat works differently from the others, so it is introduced too.
     await expect(intro).toContainText('A conversation keeps the model it started with')
     await intro.getByRole('button', { name: 'Got it' }).click()
@@ -75,7 +77,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await expect(messages).toContainText('Your UI depends on', { timeout: 30000 })
     await expect(messages).toContainText('Your UI depends on Storage.')
     // The conversation keeps its agent; the picker gives way to its name.
-    await expect(destination).toHaveCount(0)
+    await expect(destination.trigger).toHaveCount(0)
     await expect(inbox.locator('.ambio-inbox__delivery-fixed')).toContainText('My local test service')
     await expect(inbox.locator('.ambio-chat__status')).toHaveCount(0)
     await composer.fill('What should we change next?')
@@ -88,7 +90,9 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await page.screenshot({ path: 'test-results/integrated-agent-chat.png' })
     // A new conversation can go to any agent again.
     await inbox.getByRole('button', { name: 'New conversation' }).click()
-    await expect(destination.locator('optgroup[label="Built into Ambio"] option')).toHaveText(['Ambio chat · My local test service · fixture-model'])
+    await destination.open()
+    await expect(destination.group('Built into Ambio')).toHaveText(['Ambio chat · My local test service · fixture-model'])
+    await destination.close()
     await app.close(); app = await launch(); page = await app.firstWindow()
     await routeArchd(page)
     await page.getByRole('button', { name: /^Message agent/ }).click()

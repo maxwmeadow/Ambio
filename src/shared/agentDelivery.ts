@@ -153,7 +153,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Codex'),
     can: [
-      'Ask and Propose: runs commands in a read-only sandbox, so it can look at anything but cannot change files.',
+      'Ask and Propose: can read and run anything to answer, and is told not to change files.',
       'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',
       FULL_ACCESS,
     ],
@@ -169,7 +169,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   },
   'antigravity-cli': {
     need: ['Antigravity installed and signed in.', 'Ambio added to Antigravity once, from Settings \u2192 Agents. That is what lets its CLI use Ambio\u2019s tools.'],
-    how: STARTED('Antigravity CLI', 'Ambio passes along what was said earlier.'),
+    how: STARTED('Antigravity CLI'),
     can: [
       'Ask and Propose: answers questions and draws plans on your map. It is told not to change files, but Antigravity has no setting that stops it.',
       'Build: full access. It edits files and runs any command without asking, then hands the result back for review.',

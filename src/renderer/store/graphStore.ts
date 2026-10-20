@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { forgetFileSymbols } from '../canvas/symbolCache.ts'
 import { shouldAnimateIndividualClassification } from '../canvas/canvasPerformance.ts'
 import type {
   AgentAction,
@@ -1007,6 +1008,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           const payload = patch.payload as DbFile | FileUpdatePatch
           const wrapped = 'file' in payload
           const file = wrapped ? payload.file : payload
+          // Its symbols may have changed with it; the card fetches them again.
+          if (state.currentProject) forgetFileSymbols(state.currentProject.id, file.id)
           const exists = state.files.some(f => f.id === file.id)
           const files = exists
             ? state.files.map(f => f.id === file.id ? file : f)

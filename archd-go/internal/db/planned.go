@@ -76,6 +76,9 @@ type PlannedEdge struct {
 	DstPlanned  *string `json:"dstPlanned"`
 	DstLive     *string `json:"dstLive"`
 	Note        string  `json:"note"`
+	// An agent's relationship waits for the human: pending|approved|rejected.
+	ApprovalStatus string `json:"approvalStatus"`
+	CreatedBy      string `json:"createdBy"`
 }
 
 const plannedCols = `id, sheet_id, workspace_id, kind, name, declared_path, members, metadata,
@@ -271,17 +274,55 @@ func UpsertPlannedEdge(db *sql.DB, e *PlannedEdge) error {
 	if e.Kind == "" {
 		e.Kind = "DEPENDS_ON"
 	}
+	if e.CreatedBy == "" {
+		e.CreatedBy = "user"
+	}
+	if e.ApprovalStatus == "" {
+		e.ApprovalStatus = "approved"
+		if e.CreatedBy == "agent" {
+			e.ApprovalStatus = "pending"
+		}
+	}
+	// A retry or edit keeps the review state it already has.
 	_, err := db.Exec(`
-		INSERT INTO planned_edges (id, sheet_id, workspace_id, kind, src_planned, src_live, dst_planned, dst_live, note)
-		VALUES (?,?,?,?,?,?,?,?,?)
+		INSERT INTO planned_edges (id, sheet_id, workspace_id, kind, src_planned, src_live, dst_planned, dst_live, note, approval_status, created_by)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, note=excluded.note`,
-		e.ID, e.SheetID, e.WorkspaceID, e.Kind, e.SrcPlanned, e.SrcLive, e.DstPlanned, e.DstLive, e.Note)
-	return err
+		e.ID, e.SheetID, e.WorkspaceID, e.Kind, e.SrcPlanned, e.SrcLive, e.DstPlanned, e.DstLive, e.Note, e.ApprovalStatus, e.CreatedBy)
+	if err != nil {
+		return err
+	}
+	return db.QueryRow(`SELECT approval_status, created_by FROM planned_edges WHERE id=?`, e.ID).Scan(&e.ApprovalStatus, &e.CreatedBy)
+}
+
+// SetPlannedEdgeApproval records the human's decision on a relationship.
+func SetPlannedEdgeApproval(db *sql.DB, sheetID, id, decision string) (*PlannedEdge, error) {
+	if decision != "approved" && decision != "rejected" {
+		return nil, fmt.Errorf("decision must be approved or rejected")
+	}
+	result, err := db.Exec(`UPDATE planned_edges SET approval_status=? WHERE id=? AND sheet_id=?`, decision, id, sheetID)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := result.RowsAffected(); n != 1 {
+		return nil, fmt.Errorf("relationship not found on this sheet")
+	}
+	_ = TouchSheet(db, sheetID)
+	edges, err := GetPlannedEdges(db, sheetID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range edges {
+		if edges[i].ID == id {
+			return &edges[i], nil
+		}
+	}
+	return nil, fmt.Errorf("relationship not found on this sheet")
 }
 
 func GetPlannedEdges(db Reader, sheetID string) ([]PlannedEdge, error) {
 	rows, err := db.Query(`
-		SELECT id, sheet_id, workspace_id, kind, src_planned, src_live, dst_planned, dst_live, note
+		SELECT id, sheet_id, workspace_id, kind, src_planned, src_live, dst_planned, dst_live, note, approval_status, created_by
 		FROM planned_edges WHERE sheet_id=?`, sheetID)
 	if err != nil {
 		return nil, err
@@ -291,7 +332,7 @@ func GetPlannedEdges(db Reader, sheetID string) ([]PlannedEdge, error) {
 	for rows.Next() {
 		var e PlannedEdge
 		if err := rows.Scan(&e.ID, &e.SheetID, &e.WorkspaceID, &e.Kind,
-			&e.SrcPlanned, &e.SrcLive, &e.DstPlanned, &e.DstLive, &e.Note); err != nil {
+			&e.SrcPlanned, &e.SrcLive, &e.DstPlanned, &e.DstLive, &e.Note, &e.ApprovalStatus, &e.CreatedBy); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

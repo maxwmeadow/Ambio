@@ -178,7 +178,8 @@ test('Relay Operations: project question without files, then cancellation of a s
     await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill('Investigate the old job queue.')
     await inbox.getByRole('button', { name: 'Send to inbox' }).click()
     await expect.poll(() => orders.length).toBe(2)
-    await inbox.getByRole('button', { name: 'Cancel request' }).click()
+    // While it waits, the message box offers Stop in place of Send.
+    await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
     await expect(inbox.getByText('Cancelled', { exact: true }).first()).toBeVisible()
     await page.screenshot({ path: 'test-results/work-order-operations.png' })
   } finally { await mock.app.close() }

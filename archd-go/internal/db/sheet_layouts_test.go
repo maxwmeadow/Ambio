@@ -104,3 +104,82 @@ func TestCanonicalSheetLayoutRejectsCyclesAcrossFloorAndSheetOverrides(t *testin
 		t.Fatal("expected canonical sheet layout cycle to be rejected")
 	}
 }
+
+// An agent that names a system for a sheet, or draws a planned node, without
+// saying where, gives no layout opinion: the system stays where the Floor has
+// it and the planned node is placed by the canvas, not pinned to (0, 0).
+func TestUnplacedSheetMembersGetNoLayoutAndOldOriginPinsAreRepaired(t *testing.T) {
+	sqlDB, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := UpsertWorkspace(sqlDB, Workspace{ID: "ws", Name: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"named", "placed"} {
+		if err := UpsertSystem(sqlDB, System{ID: id, WorkspaceID: "ws", Name: id, Source: "user"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sheet := Sheet{ID: "sheet", WorkspaceID: "ws", Name: "proposal"}
+	if err := CreateSheet(sqlDB, &sheet); err != nil {
+		t.Fatal(err)
+	}
+	named, placed := "named", "placed"
+	width := 300.0
+	for _, element := range []SheetElement{
+		{SheetID: sheet.ID, SystemID: &named, Label: "named", Scale: 1},
+		{SheetID: sheet.ID, SystemID: &placed, Label: "placed", PositionX: 40, PositionY: 60, Width: &width, Height: &width, Scale: 1},
+	} {
+		element := element
+		if err := AddSheetElement(sqlDB, &element); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drawn := PlannedNode{ID: "drawn", SheetID: sheet.ID, WorkspaceID: "ws", Kind: "system", Name: "Drawn"}
+	if err := UpsertPlannedNode(sqlDB, &drawn); err != nil {
+		t.Fatal(err)
+	}
+	nodes := func() map[string]SheetLayout {
+		layouts, err := GetSheetLayouts(sqlDB, sheet.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]SheetLayout{}
+		for _, layout := range layouts {
+			byID[layout.NodeID] = layout
+		}
+		return byID
+	}
+
+	if err := BackfillSheetLayouts(sqlDB); err != nil {
+		t.Fatal(err)
+	}
+	got := nodes()
+	if _, ok := got["named"]; ok {
+		t.Fatalf("a system named without geometry got a layout: %#v", got["named"])
+	}
+	if _, ok := got["planned:drawn"]; ok {
+		t.Fatalf("a planned node drawn without a position got a layout: %#v", got["planned:drawn"])
+	}
+	if layout, ok := got["placed"]; !ok || layout.PositionX != 40 || layout.Width != 300 {
+		t.Fatalf("a placed member lost its geometry: %#v", got["placed"])
+	}
+
+	// What earlier backfills wrote: the unplaced members pinned to the origin.
+	for _, id := range []string{"named", "planned:drawn"} {
+		if _, err := sqlDB.Exec(`INSERT INTO sheet_layouts
+			(sheet_id,workspace_id,node_id,node_type,containment_kind,position_x,position_y,width,height,scale,interior_scale,updated_at)
+			VALUES(?,?,?,'system','root',0,0,620,420,1,1,1)`, sheet.ID, "ws", id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := RepairUnplacedSheetLayouts(sqlDB); err != nil {
+		t.Fatal(err)
+	}
+	got = nodes()
+	if len(got) != 1 || got["placed"].PositionX != 40 {
+		t.Fatalf("repair should keep only the placed member: %#v", got)
+	}
+}

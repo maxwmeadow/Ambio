@@ -5,7 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
 import { DeliveryRunner, chatDeepLink, deliveryPlan, deliveryTargets, findDeliveryCli } from './agentDelivery.ts'
-import { agentDriver, turnMode } from './agentDrivers.ts'
+import { agentDriver, codexSandbox, turnMode } from './agentDrivers.ts'
 
 const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
 const HOSTS = ['claude-code', 'codex', 'copilot-cli', 'cursor-cli', 'antigravity-cli']
@@ -38,8 +38,8 @@ test('agents Ambio runs get every permission they offer; a question or a proposa
         assert.match(args[args.indexOf('--disallowedTools') + 1], /Edit,Write/)
         assert.ok(!args.includes('--allowedTools'))
       }
-      // Commands run; the sandbox stops writes.
-      if (host === 'codex') assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only')
+      // Commands run; the sandbox stops writes where Codex can start one.
+      if (host === 'codex') assert.equal(args[args.indexOf('--sandbox') + 1], codexSandbox(mode))
       if (host === 'copilot-cli') {
         assert.ok(args.includes('--allow-all-tools') && !args.includes('--yolo'))
         assert.equal(args[args.indexOf('--deny-tool') + 1], 'write')
@@ -108,7 +108,7 @@ test('a later turn continues the host session where the host can, and names a ne
   assert.deepEqual(codex.slice(0, 3), ['exec', 'resume', 'thread-9'])
   // resume takes no --sandbox; the same sandbox goes in as configuration.
   assert.ok(!codex.includes('--sandbox'))
-  assert.ok(codex.includes('sandbox_mode="read-only"'))
+  assert.ok(codex.includes(`sandbox_mode="${codexSandbox('ask')}"`))
   assert.equal(codex.at(-1), '-')
   assert.ok(deliveryPlan('cursor-cli', mcp, 'ws', 'p', { resume: 'chat-3' }).args.includes('--resume=chat-3'))
 
@@ -184,7 +184,8 @@ test('Antigravity\'s own CLI runs in print mode with every permission granted, a
   const driver = agentDriver('antigravity-cli')
   const first = driver.plan({ hostId: 'antigravity-cli', mode: 'build', mcp, workspaceId: 'ws', prompt: 'Claim work order x' })
   // Its print mode cannot ask, so every permission is granted up front.
-  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--dangerously-skip-permissions'])
+  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--output-format', 'stream-json', '--dangerously-skip-permissions'])
+  assert.equal(driver.resumable, true)
   assert.equal(first.stdin, undefined)
   const next = driver.plan({ hostId: 'antigravity-cli', mode: 'ask', mcp, workspaceId: 'ws', prompt: 'p', resume: 'conv-1' })
   assert.deepEqual(next.args.slice(-2), ['--conversation', 'conv-1'])
@@ -203,6 +204,28 @@ test('Antigravity\'s own CLI runs in print mode with every permission granted, a
   const offered = deliveryTargets([{ id: 'antigravity', label: 'Antigravity' }], { PATH: bin }, process.platform, root).find(target => target.id === 'antigravity-cli')
   assert.equal(offered?.route, 'run')
   assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
+})
+
+test('Antigravity 1.4 reports each step as it happens: tools when they start, text when it is done', () => {
+  const driver = agentDriver('antigravity-cli')
+  // Lines as agy 1.4.2 printed them.
+  const conversation = '1c5cd41f-9b8f-46db-bbba-f1aa1f697898'
+  const line = (event, payload) => JSON.stringify({ event, [event]: { conversation_id: conversation, ...payload } })
+  assert.equal(driver.read(line('init', { cwd: 'C:\\proj' })).sessionId, conversation)
+  assert.deepEqual(driver.read(line('step_update', { step_index: 0, state: 'DONE', step_type: 'user_input' })).events, [])
+  assert.deepEqual(driver.read(line('step_update', { step_index: 2, state: 'ACTIVE', step_type: 'tool', tool_name: 'run_command', tool_info: { name: 'run_command', parameters: { CommandLine: 'Get-ChildItem' } } })).events,
+    [{ kind: 'tool', text: 'run_command · Get-ChildItem' }])
+  assert.deepEqual(driver.read(line('step_update', { step_index: 2, state: 'DONE', step_type: 'tool', tool_name: 'run_command' })).events, [])
+  assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'ACTIVE', step_type: 'agent_response', text_delta: 'Files in the current dir' })).events, [])
+  assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'ACTIVE', step_type: 'agent_response', text_delta: 'ectory.' })).events, [])
+  assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'DONE', step_type: 'agent_response', text_delta: '\n' })).events,
+    [{ kind: 'text', text: 'Files in the current directory.' }])
+  // A step of a kind Ambio does not know is still said, so a long wait is never silent.
+  assert.deepEqual(driver.read(line('step_update', { step_index: 4, state: 'ACTIVE', step_type: 'background_task' })).events, [{ kind: 'tool', text: 'background task' }])
+  assert.equal(driver.read(line('result', { status: 'ERROR', error: 'quota exceeded' })).events[0].text, 'quota exceeded')
+  assert.deepEqual(driver.read(line('result', { status: 'SUCCESS', response: 'done' })).events, [])
+  // An agy too old for stream-json says how to fix it.
+  assert.match(driver.read('flag provided but not defined: -output-format').events[0].text, /agy update/)
 })
 
 test('a host that exits cleanly after being stopped from using Ambio is a failed turn that says how to fix it', async t => {
@@ -225,7 +248,7 @@ test('a host that exits cleanly after being stopped from using Ambio is a failed
   // Any other refusal ends the run too, and says which permission it was.
   assert.match(driver.readError('a tool required the "command" permission that headless mode cannot prompt for').events[0].text, /"command" permission/)
   // The project folder is named as the workspace, or its MCP config is never loaded.
-  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--dangerously-skip-permissions', '--add-dir', '/proj'])
+  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--output-format', 'stream-json', '--dangerously-skip-permissions', '--add-dir', '/proj'])
 })
 
 test('an npm-installed CLI is found by the entry its package declares, or the one it used to have', t => {
@@ -332,4 +355,11 @@ test('a continued session that fails after it has spoken is a failed run, not a 
   const run = await settled(runner, 'ws', started.key)
   assert.equal(run.state, 'failed')
   assert.equal(freshStarts, 0)
+})
+
+test('Codex reads in a read-only sandbox, except on Windows where that sandbox cannot start a shell', () => {
+  assert.equal(codexSandbox('ask', 'linux'), 'read-only')
+  assert.equal(codexSandbox('propose', 'darwin'), 'read-only')
+  assert.equal(codexSandbox('ask', 'win32'), 'danger-full-access')
+  assert.equal(codexSandbox('build', 'linux'), 'danger-full-access')
 })

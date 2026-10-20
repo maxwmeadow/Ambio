@@ -41,7 +41,7 @@
 .ambio-inbox .ambio-chat__request { margin: 4px 0; color: #334e40; }
 .ambio-chat__request :is(input:not([type]), input[type=text]) { padding: 6px 8px; border: 1px solid #bbc6b8; font: inherit; }
 .ambio-chat__actions button { padding: 6px 9px; }
-.ambio-chat__plan { font-size: 11px; }
+.ambio-chat__plan { padding: 4px 12px; font-size: 11px; }
 .ambio-chat__plan button { color: inherit; padding: 0; border: 0; background: none; text-decoration: underline; cursor: pointer; }
 .ambio-chat__settings .ambio-chatgpt { border-bottom: 1px solid #cfccc0; padding-bottom: 16px; margin-bottom: 16px; }
 .ambio-chatgpt__actions { display: flex; flex-wrap: wrap; gap: 8px; }

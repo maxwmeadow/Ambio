@@ -8,7 +8,6 @@ import { CHAT_MODES, chatContextWindow, chatModels, type ChatConversation, type 
 import { DRAW_FIRST_WORKFLOW } from '../src/shared/agentWorkflow.ts'
 import type { ChatProviders } from './chatProviders.ts'
 import { ChatProviderProxy } from './chatProviderProxy.ts'
-import { hiddenConsoleStdio } from './hiddenConsole.ts'
 
 type Json = Record<string, any>
 const MONITOR_INTERVAL = 1000
@@ -221,7 +220,7 @@ export class AgentChat {
     // OpenCode treats 0 as its preferred port, rather than OS allocation.
     // Allocate explicitly so independent projects and restarts do not reuse it.
     const port = await availablePort()
-    const child = spawn(this.options.binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], { cwd: project.rootPath, env, shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: hiddenConsoleStdio(['ignore', 'pipe', 'pipe']) })
+    const child = spawn(this.options.binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], { cwd: project.rootPath, env, shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
     if (child.pid) fs.writeFileSync(join(data, 'process.json'), JSON.stringify({ pid: child.pid, stamp: processStamp(child.pid), rootPath: fs.realpathSync(project.rootPath), binary: this.options.binary }), { mode: 0o600 })
     const runtime: Runtime = { process: child, url: '', authorization: `Basic ${Buffer.from(`ambio:${env.OPENCODE_SERVER_PASSWORD}`).toString('base64')}`, workspaceId, fingerprint, events: new AbortController(), liveText: new Map() }
     this.pendingRuntimes.add(runtime)

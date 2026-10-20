@@ -991,6 +991,14 @@ function preserveActiveResizeGeometry(
   })
 }
 
+/**
+ * A sheet member or planned node saved with no geometry at all carries no
+ * layout opinion (the daemon's unplacedElement says the same).
+ */
+function isUnplaced(item: { positionX: number; positionY: number; width?: number | null; height?: number | null }): boolean {
+  return item.width == null && item.height == null && item.positionX === 0 && item.positionY === 0
+}
+
 function buildFloorFrameLayout(
   systems: DbSystem[],
   files: DbFile[],
@@ -1882,6 +1890,36 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Overlaying those full rows gives the one canonical layout input used by
   // projection, drag/drop, resize, and tidy. Legacy columns are read only as an
   // upgrade fallback for a node whose canonical row has not arrived yet.
+  /**
+   * Nodes a sheet moves to another parent without placing them (an agent's
+   * proposed move, db.ProposeSheetMove): node ID -> its new parent. The layout
+   * then places each inside that parent instead of where the Floor has it.
+   */
+  const sheetMoves = useMemo(() => {
+    const moves = new Map<string, string | null>()
+    const floorParent = new Map(floorLayouts.map(layout => [layout.nodeId, layout.parentNodeId ?? null]))
+    const semanticParent = new Map<string, string | null>([
+      ...systems.map(system => [system.id, system.parentId ?? null] as const),
+      ...files.map(file => [file.id, file.systemId ?? null] as const),
+    ])
+    for (const layer of visibleLayers) {
+      const canonicalIds = new Set(layer.layouts.map(layout => layout.nodeId))
+      for (const element of layer.elements) {
+        const nodeId = element.systemId ?? element.fileId
+        if (!nodeId || canonicalIds.has(nodeId) || !isUnplaced(element)) continue
+        const current = floorParent.has(nodeId) ? floorParent.get(nodeId)! : semanticParent.get(nodeId) ?? null
+        const wanted = element.parentSystemId ?? null
+        if (wanted !== current) moves.set(nodeId, wanted)
+      }
+    }
+    return moves
+  }, [floorLayouts, systems, files, visibleLayers])
+
+  /** Members an agent proposes moving, still waiting for the human. */
+  const pendingMoveIds = useMemo(() => new Set(visibleLayers.flatMap(layer => layer.elements
+    .filter(element => element.approvalStatus === 'pending')
+    .map(element => element.systemId ?? element.fileId ?? ''))), [visibleLayers])
+
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
@@ -1901,6 +1939,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const element of layer.elements) {
         const nodeId = element.systemId ?? element.fileId ?? element.infraId
         if (!nodeId || canonicalIds.has(nodeId)) continue
+        // Added with no geometry (an agent naming it for the sheet): it stays
+        // exactly where the Floor has it, rather than jumping to the origin -
+        // unless the sheet moves it, when the layout places it in its new parent.
+        if (isUnplaced(element)) {
+          if (sheetMoves.has(nodeId)) byId.delete(nodeId)
+          continue
+        }
         const previous = byId.get(nodeId)
         const nodeType: FloorNodeType = element.systemId ? 'system' : element.fileId ? 'file' : 'infra'
         const infra = liveInfra.get(nodeId)
@@ -1928,6 +1973,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const planned of layer.planned) {
         const nodeId = `planned:${planned.id}`
         if (canonicalIds.has(nodeId)) continue
+        // Drawn with no position: the layout places it in free space.
+        if (isUnplaced(planned)) continue
         const metadata = plannedMetadata(planned)
         const nodeType: FloorNodeType = planned.kind === 'system'
           ? 'system' : planned.kind === 'infra' ? 'infra' : 'file'
@@ -1953,7 +2000,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const layout of layer.layouts) byId.set(layout.nodeId, layout)
     }
     return [...byId.values()]
-  }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay])
+  }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
   const sheetSystemIds = useMemo(() => new Set([
     ...systems.map(system => system.id),
     ...overlayPlanned.filter(node => node.kind === 'system').map(node => `planned:${node.id}`),
@@ -2017,7 +2064,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         createdAt: 0,
         updatedAt: 0,
       }))
-    const virtualSystems: DbSystem[] = systems.map(system => ({ ...system })).concat(plannedSystems)
+    const virtualSystems: DbSystem[] = systems.map(system => ({ ...system, ...(sheetMoves.has(system.id) ? { parentId: sheetMoves.get(system.id) ?? null } : {}) })).concat(plannedSystems)
     const plannedFiles: DbFile[] = visiblePlanned
       .filter(p => p.kind !== 'system' && p.kind !== 'infra')
       .map(p => {
@@ -2043,7 +2090,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           indexedAt: 0,
         }
       })
-    const virtualFiles: DbFile[] = files.map(file => ({ ...file })).concat(plannedFiles)
+    const virtualFiles: DbFile[] = files.map(file => ({ ...file, ...(sheetMoves.has(file.id) ? { systemId: sheetMoves.get(file.id) ?? null } : {}) })).concat(plannedFiles)
     const plannedInfra: DbInfraNode[] = visiblePlanned
       .filter(p => p.kind === 'infra')
       .map(p => {
@@ -2206,7 +2253,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           ...sheetNode.domAttributes,
           'data-sheet-placed': isSheetPlaced ? 'true' : undefined,
           // An agent's proposal waits for you; a rejected one stays visible but faded.
-          'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus : undefined,
+          'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus
+            : pendingMoveIds.has(sheetNode.id) ? 'pending' : undefined,
+          'data-proposal-kind': !planned && pendingMoveIds.has(sheetNode.id) ? 'move' : undefined,
         },
         draggable: activeNodeIds.has(sheetNode.id) && nodeOpacity > 0.1,
         // Context nodes are selectable so they can be inspected, connected and
@@ -2217,7 +2266,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts])
+  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
@@ -2340,16 +2389,23 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     const surfacedRfEdges = withFacingHandles(rfEdges, displayNodes)
     if (visibleLayers.length === 0) return surfacedRfEdges
     const visibleIds = new Set(displayNodes.filter(n => n.style?.opacity !== 0).map(n => n.id))
-    const plannedRf: Edge[] = overlayPlannedEdges.map(e => ({
-      id: `pedge:${e.id}`,
-      source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
-      target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
-      label: e.kind,
-      animated: true,
-      style: { strokeDasharray: '6 4', stroke: 'var(--accent)' },
-      labelStyle: { fontSize: 8, fontFamily: 'var(--font-mono)', fill: 'var(--text-secondary)' },
-      zIndex: 10000,
-    })).filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target))
+    // A sheet's relationships route like the map's own edges (facing sides,
+    // right angles) rather than as curves through the boxes between. One an
+    // agent proposed is dashed amber until confirmed; a rejected one is gone.
+    const plannedRf: Edge[] = withFacingHandles(overlayPlannedEdges
+      .filter(e => e.approvalStatus !== 'rejected')
+      .map(e => ({
+        id: `pedge:${e.id}`,
+        type: 'orthogonal',
+        source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
+        target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
+        animated: true,
+        style: e.approvalStatus === 'pending'
+          ? { strokeDasharray: '6 4', stroke: '#c98a1b', strokeWidth: 2 }
+          : { strokeDasharray: '6 4', stroke: 'var(--accent)' },
+        zIndex: 10000,
+      }))
+      .filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target)), displayNodes)
     return [
       ...surfacedRfEdges.map(e => visibleIds.has(e.source) && visibleIds.has(e.target)
         ? e
@@ -5234,15 +5290,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         }}
       />}
 
-      {/* Sheet layer active: stencil palette + slim indicator */}
+      {/* Sheet layer active: the stencil palette. The PROPOSAL band on the
+          canvas already says which layer you are on. */}
       {overlaySheetId && (
-        <>
-          <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
-          <div className="ambio-sheet-layer-indicator">
-            <span aria-hidden="true" />
-            Sheet Layer Active
-          </div>
-        </>
+        <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
       )}
 
       {contextMenu && (

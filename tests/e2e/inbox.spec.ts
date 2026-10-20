@@ -67,10 +67,14 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await panel.getByRole('button', { name: 'Send to inbox', exact: true }).click()
     await expect(textbox).toHaveValue('')
     // Readiness is said for the chosen destination, never as MCP status.
-    await expect(panel.getByRole('region', { name: 'Agent readiness' })).toContainText('Copy its handoff into any agent chat')
-    await expect(panel.getByRole('region', { name: 'Agent readiness' })).not.toContainText('MCP')
+    // Readiness is said only when something needs the user; copying a handoff needs nothing.
+    await expect(panel.getByRole('region', { name: 'Agent readiness' })).toHaveCount(0)
+    // One line says where the turn stands; the message box waits with a Stop in place of Send.
+    await expect(panel.locator('.ambio-inbox__turn-status')).toContainText('Waiting for an agent.')
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
-    await expect(panel.locator('.ambio-inbox__work-order code')).toHaveText(sends[0].id)
+    await expect(panel.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    await expect(textbox).toBeDisabled()
+    await expect(panel.locator('.ambio-inbox__work-order')).toHaveCount(0)
     expect(sends).toHaveLength(2)
     expect(sends[0].id).toBe(sends[1].id)
     expect(sends[0].deliveryMode).toBe('addressed')
@@ -93,7 +97,7 @@ test('canvas inbox attaches selection, retries a lost response, and restores the
     await panel.getByRole('button', { name: 'Request changes' }).click()
     await panel.getByLabel('What needs to change?').fill('Include the timeout path.')
     await panel.getByRole('button', { name: 'Reopen work order' }).click()
-    await expect(panel.getByText('Changes requested · waiting for agent')).toBeVisible()
+    await expect(panel.locator('.ambio-inbox__turn-status')).toContainText('Changes requested · waiting for agent.')
     await expect(panel.getByText('Include the timeout path.')).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Copy handoff' })).toBeVisible()
     messages[0].status = 'answered'
