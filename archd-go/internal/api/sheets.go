@@ -263,6 +263,30 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		jsonOK(w, n)
 		return
 	}
+	if len(parts) == 4 && parts[1] == "planned-edges" && parts[3] == "approval" && r.Method == http.MethodPost {
+		// The human's decision on a proposed relationship.
+		var body struct {
+			WorkspaceID string `json:"workspaceId"`
+			Decision    string `json:"decision"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "bad request", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		edge, err := db.SetPlannedEdgeApproval(sqlDB, id, parts[2], body.Decision)
+		if err != nil {
+			jsonError(w, err.Error(), 400)
+			return
+		}
+		s.broadcastPatch("planned:edge", edge)
+		jsonOK(w, edge)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "planned-edges" && r.Method == http.MethodPost {
 		var e db.PlannedEdge
 		if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
@@ -483,6 +507,28 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSheetElements(w http.ResponseWriter, r *http.Request, sheetID string, rest []string) {
 	workspaceID := r.URL.Query().Get("workspace")
 	switch {
+	case r.Method == http.MethodPost && len(rest) == 2 && rest[1] == "approval":
+		// The human's decision on a proposed move.
+		var body struct {
+			WorkspaceID string `json:"workspaceId"`
+			Decision    string `json:"decision"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "bad request", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		if err := db.DecideSheetMove(sqlDB, sheetID, rest[0], body.Decision); err != nil {
+			jsonError(w, err.Error(), 400)
+			return
+		}
+		elements, _, _ := s.broadcastSheetLayoutState(sqlDB, sheetID)
+		jsonOK(w, elements)
+
 	case r.Method == http.MethodPost && len(rest) == 1 && rest[0] == "move":
 		// Propose that live nodes belong to another (live or planned) parent.
 		var body struct {

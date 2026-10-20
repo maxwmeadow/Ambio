@@ -66,5 +66,37 @@ test('a proposal is drawn inside its parent, owns the files it takes over, and r
     const compared = await client.callTool('edit_sheet', { op: 'compare', sheet: sheetId })
     const taskStore = compared.payload.nodes.find(node => node.id === file('storage/task_store.py').id)
     assert.equal(taskStore.parentId, `planned:${tasks.payload.id}`)
+
+    // An agent's moves and relationships wait for the human, like its planned nodes.
+    assert.equal(element('storage/index.py')[0].approvalStatus, 'pending')
+    const related = await client.callTool('edit_sheet', { op: 'connect', sheet: sheetId, from: tasks.payload.id, to: records, kind: 'DEPENDS_ON' })
+    assert.equal(related.isError, false, related.text)
+    assert.equal(related.payload.approvalStatus, 'pending')
+    const waiting = await client.callTool('edit_sheet', { op: 'compare', sheet: sheetId })
+    const approvals = waiting.payload.differences.filter(difference => difference.kind === 'approval').map(difference => difference.detail)
+    assert.ok(approvals.includes('Proposed move still needs user approval'))
+    assert.ok(approvals.includes('Proposed relationship still needs user approval'))
+    // The human decides through the API: confirm the task store move and the
+    // planned system, reject moving index.py, which goes back where it was.
+    const post = (path, body) => fetch(`${apiBase}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, ...body }) })
+    for (const [path, decision] of [
+      [`/api/sheets/${sheetId}/elements/${element('storage/task_store.py')[0].id}/approval`, 'approved'],
+      [`/api/sheets/${sheetId}/elements/${element('storage/index.py')[0].id}/approval`, 'rejected'],
+      [`/api/sheets/${sheetId}/planned-edges/${related.payload.id}/approval`, 'rejected'],
+      [`/api/planned/${tasks.payload.id}/approval`, 'approved'],
+    ]) {
+      const response = await post(path, { decision })
+      assert.ok(response.ok, await response.text())
+    }
+    const decided = await (await fetch(`${apiBase}/api/sheets/${sheetId}?workspace=${workspaceId}`)).json()
+    const index = decided.elements.find(candidate => candidate.fileId === file('storage/index.py').id)
+    assert.equal(index.approvalStatus, 'rejected')
+    assert.equal(index.parentSystemId, file('storage/index.py').systemId ?? null)
+    // Only what was confirmed reaches the builder: the move, not the rejected relationship.
+    const spec = await client.callTool('get_build_plan', { sheet: sheetId })
+    const specText = JSON.stringify(spec.payload)
+    assert.match(specText, /move storage\/task_store\.py into planned:Task Records/)
+    assert.doesNotMatch(specText, /move storage\/index\.py/)
+    assert.doesNotMatch(specText, /planned:Task Records DEPENDS_ON/)
   } finally { harness.stop() }
 })

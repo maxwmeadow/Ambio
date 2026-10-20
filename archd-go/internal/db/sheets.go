@@ -49,6 +49,8 @@ type SheetElement struct {
 	TombstoneAck   int             `json:"tombstoneAck"`
 	Ghost          int             `json:"ghost"`
 	AddedBy        string          `json:"addedBy"`
+	// ApprovalStatus is set on a proposed move: pending|approved|rejected.
+	ApprovalStatus string `json:"approvalStatus,omitempty"`
 }
 
 // Tombstoned reports whether the referenced element no longer exists.
@@ -250,17 +252,17 @@ func insertSheetElement(db interface {
 	_, err := db.Exec(`
 		INSERT INTO sheet_elements
 			(id, sheet_id, system_id, file_id, infra_id, symbol_ref, label,
-			 position_x, position_y, parent_system_id, width, height, scale, emphasis, design_metadata, ghost, added_by)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			 position_x, position_y, parent_system_id, width, height, scale, emphasis, design_metadata, ghost, added_by, approval_status)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.ID, e.SheetID, e.SystemID, e.FileID, e.InfraID, e.SymbolRef, e.Label,
-		e.PositionX, e.PositionY, e.ParentSystemID, e.Width, e.Height, e.Scale, nullableJSON(e.Emphasis), nullableJSON(e.DesignMetadata), e.Ghost, e.AddedBy)
+		e.PositionX, e.PositionY, e.ParentSystemID, e.Width, e.Height, e.Scale, nullableJSON(e.Emphasis), nullableJSON(e.DesignMetadata), e.Ghost, e.AddedBy, e.ApprovalStatus)
 	return err
 }
 
 func GetSheetElements(db Reader, sheetID string) ([]SheetElement, error) {
 	rows, err := db.Query(`
 		SELECT id, sheet_id, system_id, file_id, infra_id, symbol_ref, label,
-		       position_x, position_y, parent_system_id, width, height, scale, emphasis, design_metadata, tombstone_ack, ghost, added_by
+		       position_x, position_y, parent_system_id, width, height, scale, emphasis, design_metadata, tombstone_ack, ghost, added_by, approval_status
 		FROM sheet_elements WHERE sheet_id=?`, sheetID)
 	if err != nil {
 		return nil, err
@@ -272,7 +274,7 @@ func GetSheetElements(db Reader, sheetID string) ([]SheetElement, error) {
 		var emph, design sql.NullString
 		if err := rows.Scan(&e.ID, &e.SheetID, &e.SystemID, &e.FileID, &e.InfraID,
 			&e.SymbolRef, &e.Label, &e.PositionX, &e.PositionY, &e.ParentSystemID, &e.Width, &e.Height, &e.Scale,
-			&emph, &design, &e.TombstoneAck, &e.Ghost, &e.AddedBy); err != nil {
+			&emph, &design, &e.TombstoneAck, &e.Ghost, &e.AddedBy, &e.ApprovalStatus); err != nil {
 			return nil, err
 		}
 		if emph.Valid {

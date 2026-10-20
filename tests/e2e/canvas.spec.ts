@@ -2372,8 +2372,9 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   const unplaced = { positionX: 0, positionY: 0, width: null, height: null, scale: 1, tombstoneAck: 0, ghost: 0, addedBy: 'agent', symbolRef: null, infraId: null }
   const elements = [
     { ...unplaced, id: 'el_system', sheetId: 'sheet_split', systemId, fileId: null, label: 'System', parentSystemId: parentId },
-    { ...unplaced, id: 'el_file', sheetId: 'sheet_split', systemId: null, fileId: 'file_canvas', label: 'canvas', parentSystemId: 'planned:plan_split' },
+    { ...unplaced, id: 'el_file', sheetId: 'sheet_split', systemId: null, fileId: 'file_canvas', label: 'canvas', parentSystemId: 'planned:plan_split', approvalStatus: 'pending' },
   ]
+  const relationship = { id: 'edge_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'DEPENDS_ON', srcPlanned: 'plan_split', srcLive: null, dstPlanned: null, dstLive: systemId, note: '', approvalStatus: 'pending', createdBy: 'agent' }
   const proposal = {
     id: 'plan_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'system', name: 'Payments Split',
     declaredPath: '', members: '[]', metadata: '{}', status: 'planned', approvalStatus: 'pending',
@@ -2382,12 +2383,16 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   }
   await page.route(/\/api\/sheets\/sheet_split\?/, route => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ sheet: agentSheet, elements, annotations: [], planned: [proposal], plannedEdges: [], layouts: [], removals: [] }),
+    body: JSON.stringify({ sheet: agentSheet, elements, annotations: [], planned: [proposal], plannedEdges: [relationship], layouts: [], removals: [] }),
   }))
   await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), agentSheet)
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Payments Split')
+  // The move and the relationship are reviewed with the new system.
+  await expect(review.locator('li')).toHaveCount(3)
+  await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
+  await expect(review.locator('li[data-kind="depends on"]')).toContainText('Payments Split')
   // The named system has not moved or resized.
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
@@ -2403,6 +2408,9 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
     return !!outer && !!inner && inner.x >= outer.x && inner.y >= outer.y
       && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
   }, { timeout: 5_000 }).toBe(true)
+  // The moved file is marked as a proposed move, and the relationship is drawn.
+  await expect(fileNode).toHaveAttribute('data-proposal-kind', 'move')
+  await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
   await page.screenshot({ path: 'test-results/sheet-proposed-move.png' })
   await page.unroute(/\/api\/sheets\/sheet_split\?/)
 })

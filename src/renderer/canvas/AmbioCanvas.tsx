@@ -1915,6 +1915,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     return moves
   }, [floorLayouts, systems, files, visibleLayers])
 
+  /** Members an agent proposes moving, still waiting for the human. */
+  const pendingMoveIds = useMemo(() => new Set(visibleLayers.flatMap(layer => layer.elements
+    .filter(element => element.approvalStatus === 'pending')
+    .map(element => element.systemId ?? element.fileId ?? ''))), [visibleLayers])
+
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
@@ -2248,7 +2253,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           ...sheetNode.domAttributes,
           'data-sheet-placed': isSheetPlaced ? 'true' : undefined,
           // An agent's proposal waits for you; a rejected one stays visible but faded.
-          'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus : undefined,
+          'data-proposal': planned && planned.approvalStatus !== 'approved' ? planned.approvalStatus
+            : pendingMoveIds.has(sheetNode.id) ? 'pending' : undefined,
+          'data-proposal-kind': !planned && pendingMoveIds.has(sheetNode.id) ? 'move' : undefined,
         },
         draggable: activeNodeIds.has(sheetNode.id) && nodeOpacity > 0.1,
         // Context nodes are selectable so they can be inspected, connected and
@@ -2259,7 +2266,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves])
+  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
@@ -2382,16 +2389,23 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     const surfacedRfEdges = withFacingHandles(rfEdges, displayNodes)
     if (visibleLayers.length === 0) return surfacedRfEdges
     const visibleIds = new Set(displayNodes.filter(n => n.style?.opacity !== 0).map(n => n.id))
-    const plannedRf: Edge[] = overlayPlannedEdges.map(e => ({
-      id: `pedge:${e.id}`,
-      source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
-      target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
-      label: e.kind,
-      animated: true,
-      style: { strokeDasharray: '6 4', stroke: 'var(--accent)' },
-      labelStyle: { fontSize: 8, fontFamily: 'var(--font-mono)', fill: 'var(--text-secondary)' },
-      zIndex: 10000,
-    })).filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target))
+    // A sheet's relationships route like the map's own edges (facing sides,
+    // right angles) rather than as curves through the boxes between. One an
+    // agent proposed is dashed amber until confirmed; a rejected one is gone.
+    const plannedRf: Edge[] = withFacingHandles(overlayPlannedEdges
+      .filter(e => e.approvalStatus !== 'rejected')
+      .map(e => ({
+        id: `pedge:${e.id}`,
+        type: 'orthogonal',
+        source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
+        target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
+        animated: true,
+        style: e.approvalStatus === 'pending'
+          ? { strokeDasharray: '6 4', stroke: '#c98a1b', strokeWidth: 2 }
+          : { strokeDasharray: '6 4', stroke: 'var(--accent)' },
+        zIndex: 10000,
+      }))
+      .filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target)), displayNodes)
     return [
       ...surfacedRfEdges.map(e => visibleIds.has(e.source) && visibleIds.has(e.target)
         ? e

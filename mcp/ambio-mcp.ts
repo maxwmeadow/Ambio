@@ -2622,18 +2622,29 @@ Steps to execute:
         const sheet = await context.json() as { planned?: Array<{ id: string }>; elements?: Array<{ systemId?: string; fileId?: string; infraId?: string }>; plannedEdges?: Array<Record<string, any>> }
         const planned = new Set((sheet.planned ?? []).map(node => node.id))
         const live = new Set((sheet.elements ?? []).flatMap(node => [node.systemId, node.fileId, node.infraId].filter(Boolean)))
-        const endpoint = (id: string, side: 'src' | 'dst') => {
+        // A live system or file of this project joins the sheet as context when
+        // connected; a planned node must already be on this sheet.
+        const endpoint = async (id: string, side: 'src' | 'dst') => {
           if (planned.has(id)) return { [`${side}Planned`]: id }
           if (live.has(id)) return { [`${side}Live`]: id }
-          throw new Error(`Node ${id} is not on this sheet. Use edit_sheet(add) or plan_element first.`)
+          const resolved = await resolveModelRef(project.workspaceId, id).catch(() => null)
+          const liveId = resolved?.fileId ?? resolved?.systemId ?? resolved?.infraId
+          if (!resolved || !liveId) throw new Error(`Node ${id} is not on this sheet. Use edit_sheet(add) or plan_element first.`)
+          const added = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/elements`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspaceId: project.workspaceId, elements: [{ ...resolved, addedBy: 'agent' }] }),
+          })
+          if (!added.ok) throw new Error(`Add ${id} to the sheet failed: ${await added.text()}`)
+          live.add(liveId)
+          return { [`${side}Live`]: liveId }
         }
-        const endpoints = { ...endpoint(args.from, 'src'), ...endpoint(args.to, 'dst') }
+        const endpoints = { ...await endpoint(args.from, 'src'), ...await endpoint(args.to, 'dst') }
         // Retries should not draw the same relationship twice.
         const existing = (sheet.plannedEdges ?? []).find(edge => edge.kind === kind && Object.entries(endpoints).every(([key, value]) => edge[key] === value))
         if (existing) { result = existing; break }
         const response = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/planned-edges`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: project.workspaceId, kind, ...endpoints, note: args.body ?? '' }),
+          body: JSON.stringify({ workspaceId: project.workspaceId, kind, ...endpoints, note: args.body ?? '', createdBy: 'agent' }),
         })
         if (!response.ok) throw new Error(`Connect sheet failed: ${await response.text()}`)
         result = await response.json()

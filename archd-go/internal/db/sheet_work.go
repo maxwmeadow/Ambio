@@ -207,6 +207,9 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 		n.Containment = containment(n.ParentID, live[n.ParentID].Type)
 		desired[n.ID] = n
 		c.Mappings[n.ID] = n.ID
+		if e.ApprovalStatus == "pending" {
+			add("approval", n.ID, e.Label, "approved", "pending", "Proposed move still needs user approval")
+		}
 	}
 	rejected := map[string]bool{}
 	for _, p := range plans {
@@ -303,8 +306,11 @@ func CompareSheetStructure(r Reader, workspace, id string) (*SheetComparison, er
 		return nil, err
 	}
 	for _, e := range edges {
-		if rejected[refValue(e.SrcPlanned)] || rejected[refValue(e.DstPlanned)] {
+		if rejected[refValue(e.SrcPlanned)] || rejected[refValue(e.DstPlanned)] || e.ApprovalStatus == "rejected" {
 			continue
+		}
+		if e.ApprovalStatus == "pending" {
+			add("approval", e.ID, e.Kind, "approved", "pending", "Proposed relationship still needs user approval")
 		}
 		src, dst := refValue(e.SrcLive), refValue(e.DstLive)
 		if e.SrcPlanned != nil {

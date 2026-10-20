@@ -55,11 +55,16 @@ func ProposeSheetMove(sqlDB *sql.DB, sheetID, workspaceID string, nodes []SheetE
 			SELECT id FROM sheet_elements
 			WHERE sheet_id=? AND (system_id=? OR file_id=? OR infra_id=?)
 			ORDER BY rowid LIMIT 1`, sheetID, nodeID, nodeID, nodeID).Scan(&existing)
+		approval := "approved"
+		if node.AddedBy == "agent" {
+			approval = "pending"
+		}
 		switch {
 		case err == sql.ErrNoRows:
 			e := node
 			e.SheetID = sheetID
 			e.ParentSystemID = parent
+			e.ApprovalStatus = approval
 			if err := insertSheetElement(tx, &e); err != nil {
 				return nil, err
 			}
@@ -67,7 +72,7 @@ func ProposeSheetMove(sqlDB *sql.DB, sheetID, workspaceID string, nodes []SheetE
 		case err != nil:
 			return nil, err
 		default:
-			if _, err := tx.Exec(`UPDATE sheet_elements SET parent_system_id=? WHERE id=?`, parent, existing); err != nil {
+			if _, err := tx.Exec(`UPDATE sheet_elements SET parent_system_id=?, approval_status=? WHERE id=?`, parent, approval, existing); err != nil {
 				return nil, err
 			}
 			e := node
@@ -118,6 +123,60 @@ func checkSheetParent(tx *sql.Tx, sheetID, workspaceID, parent string) error {
 		return fmt.Errorf("%s is not a system or platform in this project or a planned system on this sheet", parent)
 	}
 	return nil
+}
+
+// DecideSheetMove records the human's decision on a proposed move. Rejecting
+// puts the node back under its parent on the Floor, so the sheet no longer
+// proposes moving it.
+func DecideSheetMove(sqlDB *sql.DB, sheetID, elementID, decision string) error {
+	if decision != "approved" && decision != "rejected" {
+		return fmt.Errorf("decision must be approved or rejected")
+	}
+	var systemID, fileID sql.NullString
+	var workspaceID string
+	if err := sqlDB.QueryRow(`
+		SELECT e.system_id, e.file_id, s.workspace_id FROM sheet_elements e JOIN sheets s ON s.id=e.sheet_id
+		WHERE e.id=? AND e.sheet_id=? AND e.approval_status<>''`, elementID, sheetID).Scan(&systemID, &fileID, &workspaceID); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("no proposed move %s on this sheet", elementID)
+		}
+		return err
+	}
+	if decision == "approved" {
+		_, err := sqlDB.Exec(`UPDATE sheet_elements SET approval_status='approved' WHERE id=?`, elementID)
+		if err == nil {
+			_ = TouchSheet(sqlDB, sheetID)
+		}
+		return err
+	}
+	nodeID := systemID.String
+	if nodeID == "" {
+		nodeID = fileID.String
+	}
+	// Where the Floor has it: its layout parent, else the semantic one.
+	var floorParent sql.NullString
+	err := sqlDB.QueryRow(`SELECT parent_node_id FROM floor_layouts WHERE workspace_id=? AND node_id=?`, workspaceID, nodeID).Scan(&floorParent)
+	if err == sql.ErrNoRows {
+		if systemID.Valid {
+			err = sqlDB.QueryRow(`SELECT parent_id FROM systems WHERE id=?`, nodeID).Scan(&floorParent)
+		} else {
+			err = sqlDB.QueryRow(`SELECT system_id FROM files WHERE id=?`, nodeID).Scan(&floorParent)
+		}
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	var parent *string
+	if floorParent.Valid && floorParent.String != "" {
+		parent = &floorParent.String
+	}
+	if _, err := sqlDB.Exec(`UPDATE sheet_elements SET parent_system_id=?, approval_status='rejected' WHERE id=?`, parent, elementID); err != nil {
+		return err
+	}
+	if _, err := sqlDB.Exec(`DELETE FROM sheet_layouts WHERE sheet_id=? AND node_id=?`, sheetID, nodeID); err != nil {
+		return err
+	}
+	return TouchSheet(sqlDB, sheetID)
 }
 
 func sheetParentIsInfra(tx *sql.Tx, sheetID, parentID string) (bool, error) {

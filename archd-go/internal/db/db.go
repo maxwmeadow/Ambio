@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 5 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads
+const SchemaVersion = 6 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -837,6 +837,12 @@ func migrate(db *sql.DB) error {
 		`UPDATE canvas_outbox SET thread_id=id WHERE thread_id=''`,
 		`CREATE INDEX IF NOT EXISTS canvas_outbox_thread ON canvas_outbox(workspace_id, thread_id, created_at)`,
 		`ALTER TABLE sheet_elements ADD COLUMN design_metadata TEXT NOT NULL DEFAULT '{}'`,
+		// An agent's proposed move (a member under a new parent) and relationship
+		// wait for the human like its planned nodes do. '' on an element means
+		// it is context, not a proposed move.
+		`ALTER TABLE sheet_elements ADD COLUMN approval_status TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE planned_edges ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'`,
+		`ALTER TABLE planned_edges ADD COLUMN created_by TEXT NOT NULL DEFAULT 'user'`,
 		`ALTER TABLE sheet_elements ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.
 		`UPDATE planned_nodes SET kind='data_store' WHERE kind='class' AND shape='cylinder'`,

@@ -663,9 +663,41 @@ func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {
 		b.WriteString("Remove these from the code, including what only they use; update everything that depended on them.\n")
 	}
 
+	// Approved moves: existing files and systems that change boundary.
+	elements, _ := db.GetSheetElements(sqlDB, sheet.ID)
+	moves := []string{}
+	for _, e := range elements {
+		if e.ApprovalStatus != "approved" {
+			continue
+		}
+		into := "the top level"
+		if parent := refValueString(e.ParentSystemID); strings.HasPrefix(parent, "planned:") {
+			p, ok := plannedByID[strings.TrimPrefix(parent, "planned:")]
+			if !ok {
+				continue
+			}
+			into = "planned:" + p.Name
+		} else if parent != "" {
+			into = parent
+			var name string
+			if sqlDB.QueryRow(`SELECT name FROM systems WHERE id=?`, parent).Scan(&name) == nil {
+				into = name
+			}
+		}
+		moves = append(moves, fmt.Sprintf("- move %s into %s", e.Label, into))
+	}
+	if len(moves) > 0 {
+		b.WriteString("\n## Moves\n")
+		b.WriteString(strings.Join(moves, "\n"))
+		b.WriteString("\nMove the code so these belong where the sheet puts them; update imports and callers.\n")
+	}
+
 	if len(edges) > 0 {
 		b.WriteString("\n## Structural intent\n")
 		for _, e := range edges {
+			if e.ApprovalStatus == "pending" || e.ApprovalStatus == "rejected" {
+				continue
+			}
 			if e.SrcPlanned != nil {
 				if _, approved := plannedByID[*e.SrcPlanned]; !approved {
 					continue
@@ -725,4 +757,11 @@ func systemNamePath(sysByID map[string]db.System, s db.System) string {
 		cur = p
 	}
 	return strings.Join(parts, "/")
+}
+
+func refValueString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
