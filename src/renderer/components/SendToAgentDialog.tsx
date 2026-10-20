@@ -42,6 +42,19 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     }
     handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', done)
   }
+  // The open panel covers the map's right edge; the map's area ends where the
+  // panel begins, so every fit, search and selection centres in what is visible.
+  const panelRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const panel = panelRef.current
+    const style = document.documentElement.style
+    if (!isOpen || !panel) { style.removeProperty('--agent-panel-inset'); return }
+    const publish = () => style.setProperty('--agent-panel-inset', `${panel.offsetWidth}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(panel)
+    return () => { observer.disconnect(); style.removeProperty('--agent-panel-inset') }
+  }, [isOpen, presence.mounted])
   const deliveryHost = delivery.hosts.find(host => host.id === delivery.hostId)
   const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
   const [error, setError] = useState<string | null>(null)
@@ -255,7 +268,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     if (openRun && runWorking(openRun)) await delivery.stop(openRun)
     await cancelInboxMessage(graph.workspaceId, openTurn.id).catch(err => setError(String(err)))
   }
-  return <aside className="ambio-inbox nodrag nowheel" aria-label="Agent inbox" data-closing={presence.closing || undefined} style={width ? { '--inbox-width': `${width}px` } as React.CSSProperties : undefined}>
+  return <aside ref={panelRef} className="ambio-inbox nodrag nowheel" aria-label="Agent inbox" data-closing={presence.closing || undefined} style={width ? { '--inbox-width': `${width}px` } as React.CSSProperties : undefined}>
     <div className="ambio-inbox__resize" role="separator" aria-orientation="vertical" aria-label="Resize the agent panel" title="Drag to resize" onPointerDown={resize}
       onDoubleClick={() => { setWidth(0); try { localStorage.removeItem('ambio:inbox-width') } catch { /* nothing kept */ } }} />
     <header className="ambio-inbox__header"><span className="ambio-inbox__brand"><InboxIcon name="agent" size={18} /></span>

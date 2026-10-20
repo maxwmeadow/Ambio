@@ -2962,5 +2962,13 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
     return state.selectedNodeId === state.files[0].id
   })).toBe(true)
   await expect.poll(() => viewport.getAttribute('style'), { timeout: 5_000 }).not.toBe(before)
+  // It lands in the middle of the map you can see, not under the open panel.
+  await expect.poll(() => page.evaluate(() => {
+    const id = (window as any).__ambioGraphStore.getState().files[0].id
+    const card = document.querySelector(`.react-flow__node[data-id="${id}"]`)!.getBoundingClientRect()
+    const map = document.querySelector('.react-flow')!.getBoundingClientRect()
+    const panel = document.querySelector('.ambio-inbox')!.getBoundingClientRect()
+    return Math.abs(map.right - panel.left) < 2 && Math.abs((card.left + card.right) / 2 - (map.left + map.right) / 2) < 8
+  }), { timeout: 5_000 }).toBe(true)
   await page.unroute(/\/api\/canvas\/history\?/)
 })
