@@ -268,8 +268,13 @@ waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in
 memory) and are answered in the panel (`store/agentPermissionStore.ts`).
-Driver events are `text`, `tool`, `error` and `thinking` (Codex's reasoning
-summaries); the turn shows the latest few while it works.
+Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
+latest few while it works. Thinking comes from Claude Code's `thinking` blocks
+(when the model fills them), Codex's reasoning summaries
+(`model_reasoning_summary="auto"`), Cursor's streamed `thinking` events and ACP
+`agent_thought_chunk` updates, each tidied to one line (`thought`). Antigravity
+CLI 1.4 reports only a count of thinking tokens. Ambio chat keeps OpenCode's
+`reasoning` parts as a `reasoning` chat part, shown collapsed above the reply.
 
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
 render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).

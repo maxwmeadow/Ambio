@@ -41,7 +41,8 @@ export interface ChatConversation {
 }
 export interface ChatPart {
   id: string
-  kind: 'text' | 'tool'
+  /** reasoning: the model's own reasoning, where its service returns it. */
+  kind: 'text' | 'tool' | 'reasoning'
   text: string
   tool?: string
   state?: string

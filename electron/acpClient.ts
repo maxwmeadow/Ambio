@@ -1,5 +1,5 @@
 import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
-import type { TurnMode } from './agentDrivers.ts'
+import { thought, type TurnMode } from './agentDrivers.ts'
 
 /**
  * One turn of a conversation with an agent that speaks the Agent Client
@@ -75,6 +75,7 @@ export class AcpClient {
   private toolKinds = new Map<string, string>()
   private toolTitles = new Map<string, string>()
   private text = ''
+  private thoughtText = ''
   private closed = false
 
   constructor(turn: AcpTurn) { this.turn = turn }
@@ -136,13 +137,25 @@ export class AcpClient {
   }
 
   private flushText(): void {
+    this.flushThought()
     if (this.text.trim()) this.turn.onEvent({ kind: 'text', text: clip(this.text, 1200) })
     this.text = ''
   }
 
+  private flushThought(): void {
+    if (this.thoughtText.trim()) this.turn.onEvent({ kind: 'thinking', text: thought(this.thoughtText) })
+    this.thoughtText = ''
+  }
+
   private update(update: any): void {
     if (!update || this.replaying) return
+    if (update.sessionUpdate === 'agent_thought_chunk') {
+      if (update.content?.type === 'text' && typeof update.content.text === 'string') this.thoughtText += update.content.text
+      return
+    }
     if (update.sessionUpdate === 'agent_message_chunk') {
+      // What it thought before it spoke is said first, as one line.
+      this.flushThought()
       if (update.content?.type === 'text' && typeof update.content.text === 'string') this.text += update.content.text
       return
     }

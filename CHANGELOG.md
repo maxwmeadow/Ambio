@@ -62,7 +62,11 @@ in the app as "What's New" after updating, so write it for users.
   Ambio has indexed the file.
 - Click a proposal under To review to go to it on the sheet.
 - Drag the agent panel's left edge to make it wider or narrower.
-- Codex's reasoning shows in a turn's activity while it works.
+- See what the agent is thinking: Claude Code, Codex, Cursor and the agents
+  that run as a session (Copilot, Devin) show their reasoning in a turn's
+  activity while they work, and Ambio chat shows it collapsed above the reply,
+  wherever the model shares it. Antigravity's CLI does not report its
+  reasoning yet.
 - The agent panel is now a conversation. Ask a question, ask for a plan, then
   tell the agent to build it, and each turn stays in the same conversation; the
   agent picking up a turn is given what was said before it. Start a new

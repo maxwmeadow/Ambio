@@ -59,6 +59,8 @@ lines.on('line', async line => {
   if (method === 'session/set_mode') { mode = params.modeId; return send({ id, result: {} }) }
   if (method === 'session/prompt') {
     const sessionId = params.sessionId
+    update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: '**Reading** the ' } })
+    update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'request.' } })
     update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Mode ' + mode + '. ' } })
     update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Tools from ' + servers.map(server => server.name + '@' + server.env[0].value).join(',') + '.' } })
     update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-1', title: process.env.TOOL_TITLE || 'Edit worker.ts', kind: process.env.TOOL_KIND || 'edit', status: 'pending', locations: [{ path: 'src/worker.ts' }], rawInput: { command: 'npm install' } })
@@ -122,6 +124,8 @@ test('an ACP turn hands the agent Ambio\'s tools, records what it does and remem
   assert.equal(run.sessionId, 'fresh-session')
   assert.equal(runner.session('ws', 'thread', 'devin-cli'), 'fresh-session')
   assert.deepEqual(runner.events('ws', run.key).map(event => [event.kind, event.text]), [
+    // What it thought arrives in pieces and is said once, before what it said.
+    ['thinking', 'Reading the request.'],
     ['text', 'Mode agent. Tools from ambio@ws.'],
     ['tool', 'Edit worker.ts · src/worker.ts'],
     ['text', 'Permission yes for: Claim work order x'],
@@ -134,7 +138,7 @@ test('a question in an ACP agent runs in its ask mode and is refused when it tri
   const started = await runner.start(turn(root, { mode: 'ask' }))
   const run = await settled(runner, 'ws', started.key)
   assert.equal(run.state, 'completed', run.detail)
-  const events = runner.events('ws', run.key).map(event => event.text)
+  const events = runner.events('ws', run.key).filter(event => event.kind !== 'thinking').map(event => event.text)
   assert.equal(events[0], 'Mode ask. Tools from ambio@ws.')
   assert.ok(events.some(text => /^Refused · Edit worker\.ts/.test(text)), events.join(' | '))
   assert.equal(events.at(-1), 'Permission no for: Claim work order x')

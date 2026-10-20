@@ -489,3 +489,7 @@
 .ambio-sheet-rail__review-label em { color: var(--rail-muted); font-size: 10.5px; font-style: normal; line-height: 1.25; overflow-wrap: anywhere; }
 /* The agent's own summary of its reasoning, quieter than what it does. */
 .ambio-inbox [data-kind='thinking'] { color: var(--inbox-muted); font-style: italic; }
+/* Ambio chat: the model's reasoning, collapsed above what it says. */
+.ambio-inbox .ambio-chat__thinking { margin: 4px 0; color: var(--inbox-muted); font-size: 12px; }
+.ambio-inbox .ambio-chat__thinking summary { cursor: pointer; font: 700 9px var(--font-mono, monospace); letter-spacing: .06em; text-transform: uppercase; }
+.ambio-inbox .ambio-chat__thinking p { margin: 4px 0 0; font-style: italic; white-space: pre-wrap; }

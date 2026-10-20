@@ -80,6 +80,7 @@ export function normalizeChatMessages(messages: Json[]): ChatMessage[] {
     ...(item.info.role === 'user' && CHAT_MODES.includes(String(item.info.agent).replace(/^ambio-/, '') as ChatMode) ? { mode: String(item.info.agent).replace(/^ambio-/, '') as ChatMode } : {}),
     parts: (item.parts ?? []).flatMap((part: Json) => {
       if (part.type === 'text' && !part.ignored && !part.synthetic) return [{ id: part.id, kind: 'text', text: String(part.text ?? '') }]
+      if (part.type === 'reasoning' && String(part.text ?? '').trim()) return [{ id: part.id, kind: 'reasoning', text: String(part.text) }]
       if (part.type === 'tool') return [{ id: part.id, kind: 'tool', tool: part.tool, state: part.state?.status, text: [part.state?.title, part.state?.input ? JSON.stringify(part.state.input, null, 2) : '', part.state?.output, part.state?.error].filter(Boolean).join('\n').slice(0, 60000) }]
       return []
     }),

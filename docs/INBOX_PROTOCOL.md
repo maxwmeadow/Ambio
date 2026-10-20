@@ -168,8 +168,8 @@ this. The permission desk (`POST /api/agent/permission`, `approve_action`)
 remains for the per-agent permission settings planned in WORK.md
 (`agent-permission-modes`).
 
-**Live activity.** A driver reads the host's output for what the agent says
-and does. The runner keeps up to 400 events per run beside its log
+**Live activity.** A driver reads the host's output for what the agent says,
+does and thinks (its reasoning, where the host reports it; see ARCHITECTURE). The runner keeps up to 400 events per run beside its log
 (`<key>.events.jsonl`) and the panel shows the latest under the working turn.
 The reply through `reply_to_canvas` is still what decides a turn is answered;
 a clean process exit is not.

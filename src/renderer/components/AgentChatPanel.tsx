@@ -175,6 +175,8 @@ export function ChatTranscript({ chat, workspaceId, workOrders, agentLabel }: {
           <div className="ambio-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{agentLabel}</strong></div>
           {turn.replies.map(reply => <Fragment key={reply.id}>{reply.parts.map(part => part.kind === 'text'
             ? <AgentMessageContent key={part.id} text={part.text} />
+            : part.kind === 'reasoning'
+            ? <details key={part.id} className="ambio-chat__thinking"><summary>Thinking</summary><p>{part.text}</p></details>
             : <details key={part.id} className="ambio-chat__tool"><summary><span className={`ambio-chat__tool-state ambio-chat__tool-state--${part.state}`} />{part.tool}<small>{part.state}</small></summary><pre>{part.text}</pre></details>)}</Fragment>)}
         </div>}
         {order && <>

@@ -370,3 +370,24 @@ test('Codex is asked for reasoning summaries and they reach the turn as thinking
   const line = JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '**Checking the map**\n\nSkill Execution already has both runtimes.' } })
   assert.deepEqual(codex.read(line).events, [{ kind: 'thinking', text: 'Checking the map Skill Execution already has both runtimes.' }])
 })
+
+test('each agent\'s reasoning reaches the turn as thinking, where the agent shows it', () => {
+  const claude = agentDriver('claude-code')
+  const said = claude.read(JSON.stringify({ type: 'assistant', session_id: 's', message: { content: [
+    { type: 'thinking', thinking: 'The **map** already\nhas both runtimes.' },
+    { type: 'thinking', thinking: '', signature: 'x' },
+    { type: 'text', text: 'Both exist.' },
+  ] } }))
+  // A thinking block the model left empty says nothing.
+  assert.deepEqual(said.events.map(event => [event.kind, event.text]), [['thinking', 'The map already has both runtimes.'], ['text', 'Both exist.']])
+
+  const cursor = agentDriver('cursor-cli')
+  assert.deepEqual(cursor.read(JSON.stringify({ type: 'thinking', subtype: 'delta', session_id: 'c', text: 'Looking at ' })).events, [])
+  assert.deepEqual(cursor.read(JSON.stringify({ type: 'thinking', subtype: 'delta', session_id: 'c', text: 'the sheet.' })).events, [])
+  assert.deepEqual(cursor.read(JSON.stringify({ type: 'thinking', subtype: 'completed', session_id: 'c' })).events, [{ kind: 'thinking', text: 'Looking at the sheet.' }])
+
+  const antigravity = agentDriver('antigravity-cli')
+  // agy 1.4 reports only a count of thinking tokens: nothing to show.
+  assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', state: 'DONE', usage: { thinking_tokens: 771 } } })).events, [])
+  assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', thinking: 'Planning the reply.' } })).events, [{ kind: 'thinking', text: 'Planning the reply.' }])
+})

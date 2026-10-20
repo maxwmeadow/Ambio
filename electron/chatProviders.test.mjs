@@ -99,7 +99,8 @@ test('context windows default per provider and reject values the harness cannot 
   for (const contextWindow of [0, 100, 1.5, 1e9]) assert.throws(() => store.save({ ...input, contextWindow }), /context window/)
 })
 
-test('message normalization renders text and tool activity while excluding hidden reasoning and synthetic context', () => {
-  const result = normalizeChatMessages([{ info: { id: 'm', role: 'assistant' }, parts: [{ id: 'a', type: 'text', text: 'Hello' }, { id: 'b', type: 'reasoning', text: 'private' }, { id: 'c', type: 'text', text: 'injected', synthetic: true }, { id: 'd', type: 'tool', tool: 'read', state: { status: 'completed', output: 'source' } }] }])
-  assert.equal(result[0].parts.length, 2); assert.equal(result[0].parts[1].text, 'source')
+test('message normalization renders text, the model\'s reasoning and tool activity while excluding synthetic context', () => {
+  const result = normalizeChatMessages([{ info: { id: 'm', role: 'assistant' }, parts: [{ id: 'a', type: 'text', text: 'Hello' }, { id: 'b', type: 'reasoning', text: 'Checking the map first' }, { id: 'e', type: 'reasoning', text: '  ' }, { id: 'c', type: 'text', text: 'injected', synthetic: true }, { id: 'd', type: 'tool', tool: 'read', state: { status: 'completed', output: 'source' } }] }])
+  // Reasoning is shown collapsed in the transcript; an empty one is left out.
+  assert.deepEqual(result[0].parts.map(part => [part.kind, part.text]), [['text', 'Hello'], ['reasoning', 'Checking the map first'], ['tool', 'source']])
 })
