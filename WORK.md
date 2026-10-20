@@ -279,6 +279,9 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ---
 
+- 🚧 `chatgpt-windows-live-smoke` **Run the real-account Windows development smoke test** on `a055a86` with an isolated Ambio profile and disposable project. Record sign-in/model discovery, native inference, follow-up/history, restart and any blocking failures; packaged/other-OS checks remain in `chatgpt-native-live-validation`. (🚧 Codex, codex/chatgpt-live-smoke, 2026-10-19)
+- ⬜ `chatgpt-callback-polish` **Style the browser sign-in callback page.** The loopback page in `electron/chatgptAuth.ts` currently returns plain text. Give success/failure a branded, readable page and a clear return-to-Ambio instruction without exposing callback parameters. (2026-10-19, live sign-in feedback)
+
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
