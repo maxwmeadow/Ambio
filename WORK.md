@@ -124,6 +124,14 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 ## Canvas and the Floor
 
+The next canvas performance work follows [CANVAS_SCALABILITY_PLAN.md](docs/CANVAS_SCALABILITY_PLAN.md), requested by Max on 2026-10-20. Execute in the order below; renderer adoption is gated by the prototype results. These are planned implementation items, not completed work.
+
+- ⬜ `canvas-scale-baselines` **Establish reproducible scale and responsiveness gates.** Trace cold preparation, input, frames, allocations and memory on Kohler plus controlled total-size/visible-density/depth/edge fixtures. **Done when:** repeatable baselines identify limiting stages and record reference hardware, refresh rate and budgets; blank scenes cannot pass. **Start:** `tests/e2e/canvas-performance.spec.ts`, `canvas/perfMetrics.ts`; plan phase 1.
+- ⬜ `canvas-cold-layout-worker` **Make scene preparation incremental and cancellable off the UI thread.** Extract numeric layout from `AmbioCanvas`, retain coherent frames, reject stale revisions and preserve authored geometry. **Done when:** parity and failure/cancellation tests pass and preparation meets the agreed input budget at measured scale tiers. **Start:** `runAlternateAxisLayout`, `buildFloorFrameLayout`, `renderBudget.worker.ts`; plan phase 2. Supersedes the 2026-10-20 audit Inbox entry of the same slug.
+- ⬜ `canvas-dense-overview-budget` **Benchmark a batched overview with editable overlays before adopting a renderer.** Compare the existing presentation with Canvas 2D/WebGL as justified; derive relationship anchors without mounting distant endpoint DOM. **Done when:** a measured adopt/revise decision covers frames, memory, visuals and editing parity; migration proceeds only for a candidate that passes. **Start:** scene descriptors, `BudgetedNodes`, `folderAnchors`; plan phase 3. Supersedes the audit Inbox entry of the same slug.
+- ⬜ `canvas-progressive-scene-data` **Bound project transfer and materialization with versioned summaries/detail.** Audit real daemon query/indexing costs; preserve global search, ordered updates, reconnect and canonical edit paths while loading progressively. **Done when:** fixed-density tests stay bounded as total size grows and paging/edit/resync tests pass; backend limits are measured. **Start:** `api/server.go:handleSnapshot`, `db.GetCanvasSnapshot`, shared `CanvasSnapshot`, `graphStore.applySnapshot`; plan phase 4.
+- ⬜ `canvas-scale-acceptance` **Prove the declared scale tiers and keep them from regressing.** Kohler, a larger real corpus, then a pinned kernel-scale corpus; controlled performance jobs plus deterministic CI bounds. **Done when:** frame/input/memory targets and visual/editing checks pass on named hardware, with unverified platforms and remaining limits stated. **Start:** plan phase 5 and existing canvas contract/checks. Any-depth exposure depends on these density gates.
+
 - ⬜ `large-map-readability` **Large projects stay readable.** A realistic large map stays navigable, activity stays legible, and manual layout survives indexing, resize and reopening.
 - ⬜ `split-ambio-canvas` **Split `AmbioCanvas.tsx` (~5,000 lines).** Extract gesture, projection and overlay logic into tested modules without behaviour change (the contract's refactor rule applies).
 - ⬜ `zoom-glitch` **The "zoom spaz" is masked, not fixed** (old bug hunt). Find the root cause.
@@ -274,14 +282,14 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
 
-- ⬜ `canvas-dense-overview-budget` **Reduce the remaining overview DOM before arbitrary-depth exposure.** The frame-budget pass leaves ~12k DOM / 42–50 ms p95 in the 672-node review; benchmark a batched canvas/GPU overview with DOM editing overlays, or further shell/handle reductions. See `docs/testing/CANVAS_FRAME_BUDGET.md`. (2026-10-20, five-part canvas audit)
-- ⬜ `canvas-cold-layout-worker` **Move cold scene preparation off the interaction path.** Initial snapshot/layout startup still records renderer long frames around 300–650 ms. Profile incremental/cached packing, snapshot projection/parsing and a versioned layout worker; spatial querying is already off-thread. (2026-10-20, five-part canvas audit)
 
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `canvas-scalability-plan` Recorded the next five execution phases, proposed performance budgets, architecture ownership, renderer decision gate and real-corpus validation; scheduled the implementation items above. Documentation only; no renderer migration or large-project capacity claim. (`codex/canvas-frame-budget`)
 
 - 2026-10-20 `canvas-frame-budget` / `large-review-canvas-mounting` Implemented silhouette/identity/detail tiers, bounded admission, buffered worker visibility and navigation prewarming, virtual symbol rows/shared bounded requests, ordered frame-batched socket work and local frame-tail diagnostics. Removed five-second sheet-poll and transition-driven layout invalidation. Dense review DOM ~26k → ~12k and p95 ~133 → 42–50 ms; remaining startup/overview limits tracked in the Inbox. See `docs/testing/CANVAS_FRAME_BUDGET.md`. (`codex/canvas-frame-budget`)
 

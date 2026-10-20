@@ -31,8 +31,6 @@ connector was unavailable, so the plan is recorded in
    nodes hidden only by viewport culling; semantic descendants remain excluded.
    Visible relationship endpoints retain cheap handle shells outside the buffer,
    so lines into off-screen space remain initialized.
-   Visible relationship endpoints retain cheap handle shells outside the buffer,
-   so lines into off-screen space remain initialized.
 4. **Symbol/data work had no useful upper bound.** Symbol lists now render a
    viewport window with four rows of overscan, retaining focused editors and
    keyboard navigation. HTTP work shares requests, caps concurrency at four,
@@ -107,6 +105,8 @@ that viewport-hidden nodes had been excluded from camera Fit; the shared Fit
 wrapper fixes this rather than accepting deceptively fast empty frames.
 
 ## Remaining contributors and next investigations
+
+The ordered follow-up is [the scalability plan](../CANVAS_SCALABILITY_PLAN.md).
 
 - **Dense overview DOM and browser commits.** Around 12,000 elements remain in
   the 672-node review. Its 42–50 ms p95 is improved but misses both 60 Hz and
