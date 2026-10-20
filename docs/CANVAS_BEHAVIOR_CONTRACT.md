@@ -35,6 +35,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 ## Viewport and camera
 
 - Canvas zoom range is `0.02` through `100`.
+- The canvas is only the part of the window you can see: while the agent
+  panel is open the canvas area ends at its edge (`--agent-panel-inset`), so
+  every fit, search result, selection and chip centres there, not under the
+  panel.
+- Navigation from outside the canvas (a file chip in a reply, a row under To
+  review) brings the node into view the way search does: it opens a collapsed
+  system, selects the node and fits once the node has been measured.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and
@@ -236,6 +243,21 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Pending and rejected agent proposals never enter planned reconciliation,
   build specs, or dispatched Sheet context. Rejection is final; agents poll
   the proposal status and must not implement before approval.
+- The same holds for everything else an agent proposes on a sheet: moving an
+  existing file or system, renaming a system, a new relationship. Each is
+  listed under To review in the sheet rail with Confirm/Reject, and its name
+  there takes you to it. Until decided, a moved or renamed node carries a
+  dashed amber outline and a tag inside its card (PROPOSED MOVE / RENAME), a
+  renamed system shows the new name with the current one struck through under
+  it, and a relationship is drawn dashed amber. Rejecting a move puts the node
+  back where the Floor has it; a rejected relationship is not drawn.
+- A sheet's relationships route between the facing sides of the two nodes,
+  with right angles, and carry no text label over node titles.
+- The stencil palette sits at the top left of the canvas, clear of the
+  Infrastructure tab, and moves beside the Infrastructure sidebar while it is
+  open. The PROPOSAL band is the only mode badge.
+- Opening a sheet, by any route, clears its "an agent proposed…" notification;
+  none is raised for a sheet that is already open.
 - Planned/partial outlines are dashed; realized/flattened outlines are solid.
 - Realized members display independently from pending members.
 - Status colors remain: planned/neutral, partial/warning, realized/success.
@@ -367,6 +389,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   code ("Checked by Ambio"), separate from the agent's own report.
 - A node the sheet has no opinion about is not re-created by the projection at
   all, so the Floor's own layout continues to work underneath unchanged.
+- A member saved without geometry (an agent naming a system or file for the
+  sheet) is no opinion: it stays exactly where the Floor has it, at its Floor
+  size, and its parent does not move or resize for it. Proposed into another
+  parent, it is placed in free space inside that parent. A planned node with no
+  position is placed in free space, never at the origin.
 - A node the sheet moves detaches from Floor containment, because a proposed
   arrangement is not bound by the current one.
 

@@ -32,7 +32,8 @@ export interface DeliveryRun {
 /** One thing a running agent said or did, as the host reported it. */
 export interface DeliveryEvent {
   at: number
-  kind: 'text' | 'tool' | 'error'
+  /** thinking: the agent's own summary of its reasoning, where the host reports one. */
+  kind: 'text' | 'tool' | 'error' | 'thinking'
   text: string
 }
 

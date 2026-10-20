@@ -686,6 +686,17 @@ func renderBuildSpec(sqlDB db.Reader, sheet *db.Sheet) (string, error) {
 		}
 		moves = append(moves, fmt.Sprintf("- move %s into %s", e.Label, into))
 	}
+	renames := []string{}
+	for _, e := range elements {
+		if e.RenameStatus == "approved" && e.ProposedName != "" {
+			renames = append(renames, fmt.Sprintf("- rename %s to %s", e.Label, e.ProposedName))
+		}
+	}
+	if len(renames) > 0 {
+		b.WriteString("\n## Renames\n")
+		b.WriteString(strings.Join(renames, "\n"))
+		b.WriteString("\nRename the system on the map (edit_systems update), and its code where the name appears (packages, modules, docs).\n")
+	}
 	if len(moves) > 0 {
 		b.WriteString("\n## Moves\n")
 		b.WriteString(strings.Join(moves, "\n"))

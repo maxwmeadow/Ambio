@@ -66,6 +66,9 @@ export interface SheetElement {
   addedBy: string
   /** Set on a proposed move (the member under a new parent): pending until decided. */
   approvalStatus?: '' | 'pending' | 'approved' | 'rejected'
+  /** A proposed new name for this system, with its own decision. */
+  proposedName?: string
+  renameStatus?: '' | 'pending' | 'approved' | 'rejected'
 }
 
 export interface SheetAnnotation {
@@ -391,6 +394,8 @@ interface SheetState {
   setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
   /** Confirm or reject an agent's proposed move; rejecting puts it back where the Floor has it. */
   decideSheetMove: (workspaceId: string, sheetId: string, elementId: string, decision: 'approved' | 'rejected') => Promise<void>
+  /** Confirm or reject a proposed rename; the map keeps the old name until the work is done. */
+  decideSheetRename: (workspaceId: string, sheetId: string, elementId: string, decision: 'approved' | 'rejected') => Promise<void>
   /** Confirm or reject an agent's proposed relationship. */
   decideSheetRelationship: (workspaceId: string, sheetId: string, edgeId: string, decision: 'approved' | 'rejected') => Promise<void>
   previewPlannedPosition: (id: string, x: number, y: number) => void
@@ -642,6 +647,20 @@ export const useSheetStore = create<SheetState>((set, get) => ({
 
   decideSheetMove: async (workspaceId, sheetId, elementId, decision) => {
     const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/approval`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, decision }),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const elements = (await res.json() as SheetElement[]).map(withValidScale)
+    set(s => {
+      const layer = s.layersById[sheetId]
+      return layer ? commitSheetLayer(s, sheetId, { ...layer, elements }) : s
+    })
+  },
+
+  decideSheetRename: async (workspaceId, sheetId, elementId, decision) => {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/elements/${encodeURIComponent(elementId)}/rename-approval`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, decision }),

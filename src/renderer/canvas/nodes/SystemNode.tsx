@@ -340,6 +340,9 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         textAlign: 'center',
         pointerEvents: onRename ? 'auto' : 'none',
       }} />
+      {d.renamedFrom && (
+        <span className="ambio-renamed-from" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>was {d.renamedFrom}</span>
+      )}
       {infraIdentityIcon(Math.max(16, bigTitleFont * 0.48))}
       {totalCount > 0 && (
         <span style={{

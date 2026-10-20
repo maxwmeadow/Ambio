@@ -111,11 +111,11 @@ its host (`electron/agentDrivers.ts`) and passes it on every turn.
 
 | Host | Started as | Continues a session | Ask / Propose | Build |
 | --- | --- | --- | --- | --- |
-| Claude Code | `claude -p --output-format stream-json` | `--session-id` on the first turn, `--resume` after | `--permission-mode dontAsk`, Read/Glob/Grep and Ambio only | `acceptEdits` plus the listed check commands |
-| Codex | `codex exec --json`, Ambio's MCP server set to `default_tools_approval_mode="approve"` | `codex exec resume <thread>`, sandbox given as `-c sandbox_mode=` (resume has no `--sandbox`) | read-only sandbox | workspace-write sandbox |
-| Copilot CLI | An ACP session (`copilot --acp`, a public preview); `copilot --prompt` when it cannot hold one | In the ACP session; print mode reports none | ACP: as the row below. Print mode: `--allow-tool ambio` only | Print mode adds `write` and the listed check commands |
+| Claude Code | `claude -p --output-format stream-json` | `--session-id` on the first turn, `--resume` after | `--permission-mode bypassPermissions` with `--disallowedTools Edit,Write,MultiEdit,NotebookEdit` | `bypassPermissions` |
+| Codex | `codex exec --json`, Ambio's MCP server set to `default_tools_approval_mode="approve"`, reasoning summaries on (`model_reasoning_summary="auto"`, shown as the turn's thinking) | `codex exec resume <thread>`, sandbox given as `-c sandbox_mode=` (resume has no `--sandbox`) | read-only sandbox; on Windows `danger-full-access`, because the read-only sandbox cannot start a shell there (`codexSandbox`) | `danger-full-access` |
+| Copilot CLI | An ACP session (`copilot --acp`, a public preview); `copilot --prompt` when it cannot hold one | In the ACP session; print mode reports none | `--allow-all-tools --allow-all-paths --allow-all-urls --deny-tool write` | `--yolo` |
 | Cursor CLI (experimental) | `cursor-agent -p --output-format stream-json` | `--resume=<chat>` | `--mode ask` / `--mode plan` | `--force` |
-| Antigravity CLI | `agy -p <prompt> --add-dir <project>` (1.0.x has no JSON output) | No: plain print mode reports no conversation | Its own permissions: MCP calls need `mcp(ambio/*)` in `permissions.allow`, which Ambio's Antigravity install adds; any command it would ask about ends the run | The same; Ambio never passes its skip-permissions flag |
+| Antigravity CLI | `agy -p <prompt> --output-format stream-json --add-dir <project>` | `--conversation <id>` | `--dangerously-skip-permissions`; it has nothing narrower, so the turn's contract keeps it from editing | `--dangerously-skip-permissions` |
 | Devin CLI, Antigravity agent (experimental) | An Agent Client Protocol session (`devin acp`, Google's `agy_acp_server`) | `session/resume` or `session/load` when the agent offers it | Agent's ask/plan mode; edit, delete, move and execute requests are refused | Permission requests are allowed |
 
 The experimental rows are offered only when their editor (Cursor, Windsurf,
@@ -160,15 +160,16 @@ danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
 `--dangerously-skip-permissions`, Cursor CLI `--force`, and ACP agents have every
 request approved. Ask and Propose may run commands but lose file editing where
 the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
-read-only sandbox, Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
+read-only sandbox (except on Windows, where it cannot start a shell; decision
+2026-10-20), Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
 edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
 Propose also skip permissions and rely on the turn's contract. Each guide says
 this. The permission desk (`POST /api/agent/permission`, `approve_action`)
 remains for the per-agent permission settings planned in WORK.md
 (`agent-permission-modes`).
 
-**Live activity.** A driver reads the host's output for what the agent says
-and does. The runner keeps up to 400 events per run beside its log
+**Live activity.** A driver reads the host's output for what the agent says,
+does and thinks (its reasoning, where the host reports it; see ARCHITECTURE). The runner keeps up to 400 events per run beside its log
 (`<key>.events.jsonl`) and the panel shows the latest under the working turn.
 The reply through `reply_to_canvas` is still what decides a turn is answered;
 a clean process exit is not.
@@ -267,12 +268,10 @@ runs in that project's existing root; inline MCP configuration and environment
 pin its workspace and host. It must claim before editing and renew before the
 15-minute lease expires. A race with another claimant is still fenced by MCP.
 
-Direct runs use the host's existing account. Codex keeps workspace-write
-sandboxing and refuses approval-dependent escalation. Claude uses accept-edits
-mode plus Ambio tools and named local read/check commands. Copilot allows Ambio,
-file writing, and named local check commands. No route enables a dangerous bypass,
-all-path access, all-URL access or arbitrary shell auto-approval. A task requiring
-additional permissions may need continuation in the host's interactive chat.
+Direct runs use the host's existing account, with the permissions in the table
+above: for now every agent Ambio runs gets full access (decision 2026-10-19), so a
+turn never stops on a step nobody is there to approve. User-chosen permission
+levels are planned (WORK.md `agent-permission-modes`).
 
 One managed run may edit a root at a time. A launch receipt in
 `~/.ambio/delivery/` is keyed by workspace, request and review revision, and saved

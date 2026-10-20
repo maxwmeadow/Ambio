@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 6 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships
+const SchemaVersion = 7 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -843,6 +843,10 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE sheet_elements ADD COLUMN approval_status TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE planned_edges ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'`,
 		`ALTER TABLE planned_edges ADD COLUMN created_by TEXT NOT NULL DEFAULT 'user'`,
+		// A sheet can propose renaming an existing system; the rename has its
+		// own decision, apart from any move of the same system.
+		`ALTER TABLE sheet_elements ADD COLUMN proposed_name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE sheet_elements ADD COLUMN rename_status TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE sheet_elements ADD COLUMN scale REAL NOT NULL DEFAULT 1`,
 		// Migrate the original shape-overloaded stencil kinds to explicit semantics.
 		`UPDATE planned_nodes SET kind='data_store' WHERE kind='class' AND shape='cylinder'`,
