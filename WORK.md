@@ -57,7 +57,7 @@ collide. Full context for each item is in its section below.
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
 3. ⬜ `agent-permission-modes` - user-controlled permission levels for agents Ambio runs, mapped to each agent's own modes; full access is the temporary default. [electron drivers, settings, agent panel]
-4. 🚧 `git-monorepo-subfolder` - a package of a monorepo is its own project all the way through, including moving maps indexed whole. [archd api, db]
+4. 🚧 `git-multi-repo` - several repositories in one project. [archd api, indexer, canvas, mcp]
 
 ---
 
@@ -110,8 +110,7 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 Design: [docs/GIT_AND_PROJECT_SHAPES.md](docs/GIT_AND_PROJECT_SHAPES.md) (decided 2026-10-20, DECISIONS §1). Stages in order; each ships on its own.
 
-- 🚧 `git-monorepo-subfolder` **Stage 5: subfolders all the way through.** A repository with `subpath` from setup through worktrees, collisions, co-change and overlays (stage 0 fixes only which folder is indexed, and only for new projects). Includes moving projects already indexed at the repository top level onto their folder without losing systems, layout or history: today `keepLegacyTopLevelProjection` keeps them whole, because deactivating the old root deletes its files. (🚧 Claude, claude/git-native-design, 2026-10-20)
-- ⬜ `git-multi-repo` **Stage 6: several repositories** (after launch). `repositories` table, nested-repository discovery under an opened parent, Add Folder to Project…, repository frames on the Floor, cross-repository edges, submodules pinned to their commit. Needs `mcp-multi-root`.
+- 🚧 `git-multi-repo` **Stage 6: several repositories** (after launch). `repositories` table, nested-repository discovery under an opened parent, Add Folder to Project…, repository frames on the Floor, cross-repository edges, submodules pinned to their commit. Needs `mcp-multi-root`. (🚧 Claude, claude/git-native-design, 2026-10-20)
 
 ## Sheets and work orders
 
@@ -291,6 +290,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-20 `git-monorepo-subfolder` A package of a monorepo is its own project through overlays, collisions, co-change, branch review, the HEAD tracker and run worktrees (each uses the folder's prefix or `--relative`); a project indexed whole before moves onto its folder once, its files keeping their IDs (`db.NarrowRootProjection`), nothing journaled. claude/git-native-design
 - 2026-10-20 `git-parallel-runs` Send → Own worktree runs an agent in `~/.ambio/worktrees/<workspace>/<slug>` on `ambio/<slug>` (several at once; a conversation keeps its worktree); Apply (as uncommitted changes, DECISIONS 2026-10-20) or Discard from the branch menu, and Review this branch from Work Order Review; Switch branch… refused with uncommitted changes. Also closes Inbox `work-order-isolated-roots`. claude/git-native-design
 - 2026-10-20 `git-review-branch` Review a branch: its architecture against its base (the Floor's branch, or the default branch for the Floor's own), computed from Git by resolving each changed file's imports on both sides and wording the difference with the Review Changes claim builder; "Review this branch" in the Checkouts popover; MCP `get_architecture` scope `branches` (every checkout, what each changes per system, shared systems; `id` reviews one). claude/git-native-design
 - 2026-10-20 `git-live-worktrees` Other checkouts are drawn on the Floor: what each changes against its merge base with the Floor's checkout (marks on changed/deleted files, a caption of new files under their system), polled by the worktree monitor and pushed as `checkouts:changed`; an Off/Agents only/All lens per project; Show on the Floor moves the projection with file identities kept (schema 9 `roots.is_focused`, `MoveRootProjection`, quiet reconcile). claude/git-native-design

@@ -323,6 +323,54 @@ func MoveRootProjection(db *sql.DB, from, to Root) (int64, error) {
 	return moved, tx.Commit()
 }
 
+// NarrowRootProjection moves a projection indexed at a repository's top
+// level onto a folder inside it: files in the folder keep their IDs - their
+// systems, layout and history - with paths relative to the folder; files
+// outside it leave the map. prefix is the folder relative to from, with a
+// trailing slash ("packages/web/"). Nothing is journaled; this corrects what
+// the map covers, it is not a change to the code.
+func NarrowRootProjection(db *sql.DB, from, to Root, prefix string) (kept, dropped int64, err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	result, err := tx.Exec(`
+		UPDATE files SET root_id = ?, rel_path = substr(rel_path, ?)
+		WHERE root_id = ? AND substr(rel_path, 1, ?) = ?`,
+		to.ID, len(prefix)+1, from.ID, len(prefix), prefix)
+	if err != nil {
+		return 0, 0, err
+	}
+	if kept, err = result.RowsAffected(); err != nil {
+		return 0, 0, err
+	}
+	// Dependencies use polymorphic IDs, so the files leaving take theirs.
+	if _, err := tx.Exec(`
+		DELETE FROM dependencies
+		WHERE src IN (SELECT id FROM files WHERE root_id = ?)
+		   OR dst IN (SELECT id FROM files WHERE root_id = ?)`, from.ID, from.ID); err != nil {
+		return 0, 0, err
+	}
+	result, err = tx.Exec(`DELETE FROM files WHERE root_id = ?`, from.ID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if dropped, err = result.RowsAffected(); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`
+		UPDATE roots SET indexed_at = (SELECT indexed_at FROM roots WHERE id = ?),
+		                 classifier_version = (SELECT classifier_version FROM roots WHERE id = ?)
+		WHERE id = ?`, from.ID, from.ID, to.ID); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`UPDATE roots SET indexed_at = NULL, classifier_version = 0 WHERE id = ?`, from.ID); err != nil {
+		return 0, 0, err
+	}
+	return kept, dropped, tx.Commit()
+}
+
 // DeactivateRoot removes its current graph projection while preserving the
 // root row and denormalized history for a later re-add or historical review.
 func DeactivateRoot(db *sql.DB, rootID string) error {

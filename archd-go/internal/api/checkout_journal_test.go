@@ -256,17 +256,30 @@ func newMonorepo(t *testing.T) string {
 	return repo
 }
 
-// A package opened before subfolders were honoured was indexed whole. Moving
-// it to the folder would drop every file's system and history, so it stays
-// whole until that move is built (WORK git-monorepo-subfolder).
-func TestAPackageAlreadyIndexedWholeKeepsItsMap(t *testing.T) {
+// A package opened before subfolders were honoured was indexed whole. On the
+// next open its map moves onto the package: the package's files keep their
+// identity, systems and history; the rest of the repository leaves quietly.
+func TestAPackageIndexedWholeMovesOntoItsFolder(t *testing.T) {
 	repo := newMonorepo(t)
 	dataDir := t.TempDir()
 	whole := openCheckoutServer(t, dataDir, repo)
+	settleCheckout(whole)
+	wholeDB, _ := whole.dbFor("ws")
+	var webID string
+	if err := wholeDB.QueryRow(`SELECT id FROM files WHERE rel_path = 'packages/web/web.go'`).Scan(&webID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSystem(wholeDB, db.System{ID: "sys_storefront", WorkspaceID: "ws", Name: "Storefront", Source: "user"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wholeDB.Exec(`UPDATE files SET system_id = 'sys_storefront' WHERE id = ?`, webID); err != nil {
+		t.Fatal(err)
+	}
 	whole.closeDB("ws")
+	since := time.Now().UnixMilli()
 
 	web := filepath.Join(repo, "packages", "web")
-	server := openCheckoutServerIndexing(t, dataDir, web, repo)
+	server := openCheckoutServerIndexing(t, dataDir, web, web)
 	t.Cleanup(func() { server.closeDB("ws") })
 	settleCheckout(server)
 	sqlDB, _ := server.dbFor("ws")
@@ -274,8 +287,17 @@ func TestAPackageAlreadyIndexedWholeKeepsItsMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Files) != 2 {
-		t.Fatalf("the existing whole-repository map lost files: %d left", len(snapshot.Files))
+	if len(snapshot.Files) != 1 {
+		t.Fatalf("the package's map holds %d files, want only web.go", len(snapshot.Files))
+	}
+	file := snapshot.Files[0]
+	if file.ID != webID || file.RelPath != "web.go" || file.SystemID == nil || *file.SystemID != "sys_storefront" {
+		t.Fatalf("web.go lost its identity or system moving onto the package: %#v", file)
+	}
+	if code := codeEvents(journalSince(t, server, since)); len(code) != 0 {
+		for _, event := range code {
+			t.Errorf("moving the map journaled %s %s", event.Kind, event.SubjectLabel)
+		}
 	}
 }
 

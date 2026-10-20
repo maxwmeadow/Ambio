@@ -12,8 +12,8 @@ in the app as "What's New" after updating, so write it for users.
   The map follows the branch you check out; a pull, merge or reset shows as
   Git's doing, and each branch remembers what you have already reviewed on it.
 - Opening a folder inside a repository (a package in a monorepo) maps that
-  folder, not the whole repository. Projects already mapped whole keep their
-  map for now.
+  folder, not the whole repository. A project already mapped whole moves
+  onto its folder, keeping that folder's systems, layout and history.
 - Running `git init` in a project that is already open is noticed straight
   away, without restarting Ambio.
 - File cards show their functions once the file is indexed, instead of "No

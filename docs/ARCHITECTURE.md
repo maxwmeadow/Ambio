@@ -200,8 +200,10 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   Only the opened folder's checkout is indexed; when that folder is inside a
   repository, each worktree's root is the same folder in that checkout
   (`gitworktree.Discover`), and git diffs and co-change use `--relative`.
-  Projects already indexed at the repository top level stay there
-  (`keepLegacyTopLevelProjection`) until `git-monorepo-subfolder` moves them.
+  A project indexed at the repository top level before this is moved onto
+  its folder once (`narrowLegacyProjection`, `db.NarrowRootProjection`): the
+  folder's files keep their IDs with re-rooted paths, the rest leave the map,
+  and nothing is journaled.
   The Review Changes watermark is per root and branch (`delta_watermarks`);
   a branch never reviewed falls back to the root's older watermark. The
   worktree monitor also runs for a plain folder and starts watching Git

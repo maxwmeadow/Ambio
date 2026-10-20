@@ -142,36 +142,62 @@ func canonicalGraphRoot(requestedPath, focusedPath string, worktrees []gitworktr
 	return gitworktree.Worktree{}, false
 }
 
-// keepLegacyTopLevelProjection keeps a project opened at a folder inside a
-// repository on the repository's top level when that is where it is already
-// indexed. Until October 2026 every such project was indexed whole; moving it
-// to the folder would deactivate the root and drop its files, with their
-// systems and history. Moving it carefully is WORK git-monorepo-subfolder.
-func keepLegacyTopLevelProjection(
+// narrowLegacyProjection moves a project opened at a folder inside a
+// repository onto that folder when its map is still indexed at the
+// repository's top level, as every such project was until October 2026. The
+// folder's files keep their identity - systems, layout, history - and the
+// rest of the repository leaves the map quietly (db.NarrowRootProjection).
+// It returns the root the projection moved to, if it moved.
+func (s *Server) narrowLegacyProjection(
+	sqlDB *sql.DB,
+	workspaceID string,
 	existingByPath map[string]db.Root,
-	worktrees []gitworktree.Worktree,
-) []gitworktree.Worktree {
-	legacy := false
-	for _, worktree := range worktrees {
-		if worktree.TopLevel == "" || sameRootPath(worktree.TopLevel, worktree.Path) {
-			return worktrees
-		}
-		if _, opened := existingByPath[normalizedRootPath(worktree.Path)]; opened {
-			return worktrees
-		}
-		root, known := existingByPath[normalizedRootPath(worktree.TopLevel)]
-		if known && root.IsActive && root.IndexedAt != nil && *root.IndexedAt > 0 {
-			legacy = true
-		}
+	canonical gitworktree.Worktree,
+	options rootOpenOptions,
+) (string, error) {
+	if canonical.TopLevel == "" || sameRootPath(canonical.TopLevel, canonical.Path) {
+		return "", nil
 	}
-	if !legacy {
-		return worktrees
+	if _, opened := existingByPath[normalizedRootPath(canonical.Path)]; opened {
+		return "", nil
 	}
-	kept := slices.Clone(worktrees)
-	for index := range kept {
-		kept[index].Path = kept[index].TopLevel
+	whole, known := existingByPath[normalizedRootPath(canonical.TopLevel)]
+	if !known || !whole.IsActive || whole.IndexedAt == nil || *whole.IndexedAt == 0 {
+		return "", nil
 	}
-	return kept
+	prefix, err := filepath.Rel(canonical.TopLevel, canonical.Path)
+	if err != nil {
+		return "", err
+	}
+	prefix = filepath.ToSlash(prefix) + "/"
+	folder := db.Root{
+		ID:                         stableRootID(workspaceID, canonical.Path),
+		WorkspaceID:                workspaceID,
+		Path:                       filepath.Clean(canonical.Path),
+		Branch:                     canonical.Branch,
+		HeadCommit:                 canonical.HeadCommit,
+		IsPrimary:                  canonical.Primary,
+		IsActive:                   true,
+		IgnoredPaths:               options.IgnoredPaths,
+		SourceBoundariesReviewedAt: options.SourceBoundariesReviewedAt,
+	}
+	if folder.IgnoredPaths == nil {
+		folder.IgnoredPaths, folder.SourceBoundariesReviewedAt = whole.IgnoredPaths, whole.SourceBoundariesReviewedAt
+	}
+	if err := db.UpsertRoot(sqlDB, folder); err != nil {
+		return "", err
+	}
+	s.stopWatcher(whole.ID)
+	kept, dropped, err := db.NarrowRootProjection(sqlDB, whole, folder, prefix)
+	if err != nil {
+		return "", fmt.Errorf("move the map onto %s: %w", canonical.Path, err)
+	}
+	log.Printf("api: the map moved onto %s (%d files kept, %d outside it left the map)", canonical.Path, kept, dropped)
+	folder.IndexedAt, folder.ClassifierVersion = whole.IndexedAt, whole.ClassifierVersion
+	existingByPath[normalizedRootPath(canonical.Path)] = folder
+	whole.IndexedAt, whole.ClassifierVersion = nil, 0
+	existingByPath[normalizedRootPath(whole.Path)] = whole
+	return folder.ID, nil
 }
 
 // followCanonicalProjection keeps the one projection on the canonical
@@ -241,7 +267,6 @@ func (s *Server) syncWorkspaceWorktrees(
 	for _, root := range existing {
 		existingByPath[normalizedRootPath(root.Path)] = root
 	}
-	worktrees = keepLegacyTopLevelProjection(existingByPath, worktrees)
 	focusedPath := ""
 	for _, root := range existing {
 		if root.IsFocused && root.IsActive {
@@ -252,9 +277,15 @@ func (s *Server) syncWorkspaceWorktrees(
 	if !ok {
 		return "", fmt.Errorf("no filesystem root discovered for %s", requestedPath)
 	}
-	moved, err := s.followCanonicalProjection(sqlDB, existing, existingByPath, canonical.Path)
+	moved, err := s.narrowLegacyProjection(sqlDB, workspaceID, existingByPath, canonical, options)
 	if err != nil {
 		return "", err
+	}
+	if moved == "" {
+		moved, err = s.followCanonicalProjection(sqlDB, existing, existingByPath, canonical.Path)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	activeIDs := make(map[string]struct{}, len(worktrees))
