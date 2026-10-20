@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `canvas-frame-budget` **Implement smooth canvas rendering under load.** Three rendering levels, budgeted detail admission, buffered visibility and navigation prewarming, bounded symbol/data work with a worker scene index, and continuous cold/dense/navigation performance coverage. **Done when:** all five paths are implemented and measured against the previous audit, interaction checks pass and remaining limits are documented. (Codex, codex/canvas-frame-budget, 2026-10-20)
+
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
 sessions run at once, pick items in **different areas** so branches don't
