@@ -1163,6 +1163,35 @@ function setupIPC(): void {
   const failure = (what: string, body: any) =>
     new Error(`${what}${typeof body?.error === 'string' && body.error ? `: ${body.error}` : '.'}`)
 
+  // A checkout can live outside the project folder (an agent's worktree under
+  // ~/.codex/worktrees), so the renderer names it by root and archd says
+  // where it is: no path from the renderer is ever opened.
+  ipcMain.handle('checkout:open', async (_event, projectId: string, rootId: string, how: 'reveal' | 'editor'): Promise<{ ok: boolean; detail: string }> => {
+    if (typeof projectId !== 'string' || typeof rootId !== 'string' || !loadRecentProjects().some(project => project.id === projectId)) {
+      return { ok: false, detail: 'That checkout is not part of an open project.' }
+    }
+    const { status, body } = await archdJson(`/api/roots?workspace=${encodeURIComponent(projectId)}`)
+    const root = status === 200 && Array.isArray(body) ? body.find((candidate: any) => candidate?.id === rootId) : undefined
+    const folder = typeof root?.path === 'string' ? root.path : ''
+    if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
+      return { ok: false, detail: 'Ambio could not find that checkout\'s folder.' }
+    }
+    if (how === 'editor') {
+      const editor = chooseEditor(readAppSettings().editor, detectEditors())
+      if (editor) {
+        try {
+          spawn(editor.command, [folder], { detached: true, stdio: 'ignore', shell: false, windowsHide: false }).unref()
+          return { ok: true, detail: `Opened in ${editor.label}.` }
+        } catch (error) {
+          console.warn('[main] could not start editor', editor.command, error)
+        }
+      }
+    }
+    // A folder opens in Finder/Explorer, never runs.
+    const opened = await shell.openPath(folder)
+    return opened ? { ok: false, detail: opened } : { ok: true, detail: how === 'editor' ? 'No code editor found, so Ambio opened the folder instead.' : 'Opened.' }
+  })
+
   ipcMain.handle('project:list-backups', async (_event, projectId: string) => {
     const { status, body } = await archdJson(`/api/workspace-backups?workspace=${encodeURIComponent(projectId)}`)
     if (status !== 200) throw failure('Ambio could not list the backups', body)

@@ -1,324 +1,345 @@
-/* ─── Parallel agents (Track A) ─────────────────────────────────────────────
-   Styles for worktree/branch surfaces: the agent lane, branch badges, and
-   cross-branch collision marks.
+/* ─── Branches and worktrees ────────────────────────────────────────────────
+   The branch chip in the toolbar, its Checkouts popover, the collision badge
+   on systems and the "Changing on other branches" section in Properties
+   (docs/GIT_AND_PROJECT_SHAPES.md "The experience").
 
-   This file exists so Track A never edits global.css. That file is 6,000+
-   lines and shared by every surface, which makes it the one guaranteed merge
-   conflict between two long-running worktrees. Add rules here instead.
+   This file exists so worktree surfaces never edit global.css. That file is
+   6,000+ lines and shared by every surface, which makes it the one guaranteed
+   merge conflict between two long-running worktrees. Add rules here instead.
 
    Loaded from src/renderer/main.tsx after global.css, so these rules win ties
    against it without needing !important. */
 
-.ambio-agent-lane {
-  --agent-lane-paper: color-mix(in srgb, var(--bg-surface) 94%, transparent);
-  --agent-lane-rule: color-mix(in srgb, var(--text-dim) 52%, transparent);
-  position: absolute;
-  bottom: 14px;
-  left: 14px;
-  z-index: 700;
-  width: min(430px, calc(100% - 28px));
-  overflow: hidden;
-  border: 1px solid var(--agent-lane-rule);
-  border-radius: 3px;
-  background: var(--agent-lane-paper);
-  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.3), 0 12px 34px rgba(0, 0, 0, 0.2);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  backdrop-filter: blur(12px);
-}
-
-.ambio-agent-lane[data-colliding] {
-  border-color: #a56c4a;
-  box-shadow: 3px 3px 0 rgba(67, 31, 15, 0.35), 0 12px 34px rgba(0, 0, 0, 0.22);
-}
-
-.ambio-agent-lane__toggle {
-  display: grid;
-  width: 100%;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 10px;
+/* The chip reads like the surface readout beside it: a kicker over a value. */
+.ambio-branch-chip {
+  display: flex;
+  min-width: 96px;
+  max-width: 260px;
+  height: 32px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 10px;
   border: 0;
-  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
-  color: inherit;
-  font: inherit;
+  border-left: 1px solid #a3aaa6;
+  background: transparent;
+  color: #6b7671;
   text-align: left;
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
-.ambio-agent-lane__toggle:hover { background: var(--bg-overlay); }
+.ambio-branch-chip:hover,
+.ambio-branch-chip[aria-expanded='true'] {
+  background: rgba(60, 125, 118, 0.1);
+}
 
-.ambio-agent-lane__toggle:focus-visible,
-.ambio-agent-collision:focus-visible {
-  outline: 2px solid var(--accent);
+.ambio-branch-chip:focus-visible {
+  outline: 1px solid #3c7d76;
   outline-offset: -2px;
 }
 
-.ambio-agent-lane__signal {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #60a38e;
-  box-shadow: 0 0 0 3px rgba(96, 163, 142, 0.15);
-  animation: ambio-agent-lane-pulse 2.4s ease-out infinite;
-}
-
-.ambio-agent-lane[data-colliding] .ambio-agent-lane__signal {
-  background: #d18452;
-  box-shadow: 0 0 0 3px rgba(209, 132, 82, 0.18);
-}
-
-.ambio-agent-lane__heading {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ambio-agent-lane__heading strong {
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.ambio-agent-lane__heading span {
-  color: var(--text-secondary);
-  font-size: 9px;
-}
-
-.ambio-agent-lane__collision-count {
-  padding: 3px 6px;
-  border: 1px solid rgba(209, 132, 82, 0.58);
-  border-radius: 2px;
-  background: rgba(209, 132, 82, 0.14);
-  color: #d99467;
-  font-size: 8px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.ambio-agent-lane__chevron {
-  color: var(--text-secondary);
-  font-size: 15px;
-  line-height: 1;
-}
-
-.ambio-agent-lane__body {
-  max-height: min(520px, 58vh);
-  overflow: auto;
-  border-top: 1px solid var(--agent-lane-rule);
-}
-
-.ambio-agent-lane__section { padding: 10px; }
-.ambio-agent-lane__section + .ambio-agent-lane__section { border-top: 1px solid var(--agent-lane-rule); }
-
-.ambio-agent-lane__section h2 {
-  margin: 0 0 7px;
-  color: var(--text-dim);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.ambio-agent-lane__branches {
-  display: grid;
-  gap: 6px;
-}
-
-.ambio-agent-branch {
-  padding: 7px 8px;
-  border: 1px solid var(--agent-lane-rule);
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--bg-deep) 45%, transparent);
-}
-
-.ambio-agent-branch header {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-}
-
-.ambio-agent-branch__name {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 10px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ambio-agent-branch__primary {
-  padding: 2px 4px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: 2px;
-  color: var(--accent);
+.ambio-branch-chip__kicker {
+  font-family: var(--font-mono);
   font-size: 7px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
-.ambio-agent-branch code {
-  margin-left: auto;
-  color: var(--text-dim);
-  font: 8px/1 var(--font-mono);
-}
-
-.ambio-agent-branch__work {
-  display: grid;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.ambio-agent-branch__agent {
-  display: grid;
-  grid-template-columns: 6px auto minmax(0, 1fr);
+.ambio-branch-chip__line {
+  display: flex;
+  min-width: 0;
   align-items: center;
   gap: 5px;
-  min-width: 0;
+  color: var(--workbench-ink);
 }
 
-.ambio-agent-branch__agent > span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #60a38e;
-}
-
-.ambio-agent-branch__agent strong {
-  color: var(--text-primary);
-  font-size: 8px;
-}
-
-.ambio-agent-branch__agent p {
-  min-width: 0;
-  margin: 0;
+.ambio-branch-chip__line strong {
   overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 8px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ambio-agent-branch__idle {
-  color: var(--text-dim);
+.ambio-branch-chip[data-plain] .ambio-branch-chip__line strong {
+  color: #6b7671;
+  font-weight: 500;
+}
+
+.ambio-branch-chip__dirty {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #b9822e;
+}
+
+.ambio-branch-chip__count {
+  flex: 0 0 auto;
+  color: #5d6964;
+  font-family: var(--font-mono);
   font-size: 8px;
-  font-style: italic;
 }
 
-.ambio-agent-branch footer {
+.ambio-branch-chip__collisions {
+  display: grid;
+  min-width: 14px;
+  height: 12px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0 3px;
+  border: 1px solid #a56c4a;
+  background: #f1dccd;
+  color: #6f3618;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 700;
+}
+
+.ambio-checkouts-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: transparent;
+}
+
+.ambio-checkouts {
+  position: fixed;
+  top: var(--ambio-checkouts-top);
+  left: var(--ambio-checkouts-left);
+  z-index: 10001;
   display: flex;
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - var(--ambio-checkouts-top) - 8px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #4f5d58;
+  border-radius: 2px;
+  background: #d9d7d0;
+  box-shadow: 3px 3px 0 rgba(7, 12, 11, 0.46), 0 16px 38px rgba(0, 0, 0, 0.32);
+}
+
+.ambio-checkouts__header {
+  display: flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  margin-top: 6px;
-  color: var(--text-dim);
+  padding: 7px 10px 8px;
+  border-bottom: 1px solid #1d2925;
+  background: linear-gradient(180deg, #4a5a56 0%, #2c3935 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
+}
+
+.ambio-checkouts__header h2 {
+  margin: 0;
+  color: #fffdf5;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 1px 0 #14201c;
+}
+
+.ambio-checkouts__header p {
+  margin: 2px 0 0;
+  color: #bac5c0;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.ambio-checkouts__header output {
+  display: grid;
+  min-width: 24px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #17211e;
+  background: #24312d;
+  color: #b8d9d1;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.ambio-checkouts__body {
+  overflow-y: auto;
+  padding: 4px;
+  background: #f0eee6;
+  box-shadow: inset 0 1px 2px rgba(39, 50, 46, 0.18);
+}
+
+.ambio-checkouts__notice {
+  margin: 6px 4px 2px;
+  padding: 6px 8px;
+  border: 1px solid #9b554c;
+  border-left-width: 3px;
+  background: #f3dfd8;
+  color: #6e2723;
+  font-size: 10px;
+}
+
+.ambio-checkout {
+  padding: 8px 9px;
+  border-bottom: 1px solid #c3c6c2;
+  color: #26342f;
+}
+
+.ambio-checkout:last-of-type { border-bottom-color: transparent; }
+
+.ambio-checkout[data-focused] {
+  background: #e4ece9;
+  box-shadow: inset 3px 0 0 #3c7d76;
+}
+
+.ambio-checkout__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ambio-checkout__title strong {
+  overflow: hidden;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-checkout__tag {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border: 1px solid #3c7d76;
+  color: #2e675f;
+  font-family: var(--font-mono);
   font-size: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.ambio-agent-branch__warning {
-  margin-left: auto;
-  color: #d18452;
+.ambio-checkout__tag--quiet {
+  border-color: #b3b8b4;
+  color: #737d78;
 }
 
-.ambio-agent-branch__brief {
+.ambio-checkout__state,
+.ambio-checkout__systems {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
+  margin: 4px 0 0;
+  color: #5d6964;
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.ambio-checkout__systems span[data-colliding] { color: #8a4320; font-weight: 600; }
+
+.ambio-checkout__path {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #737d78;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.ambio-checkout__agents {
+  margin: 5px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ambio-checkout__agents li {
+  overflow: hidden;
+  color: #3d4b46;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-checkout__agents li span {
+  color: var(--agent-color, #2e675f);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ambio-checkout__actions {
+  display: flex;
+  gap: 6px;
   margin-top: 6px;
 }
 
-.ambio-agent-branch__brief span {
-  padding: 2px 4px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--accent);
-  font-size: 7px;
-}
-
-.ambio-agent-branch__brief span[data-warning] {
-  background: rgba(209, 132, 82, 0.12);
-  color: #d18452;
-}
-
-.ambio-agent-branch__brief span[data-danger] {
-  background: rgba(185, 78, 68, 0.13);
-  color: #c96a60;
-}
-
-.ambio-agent-lane__clear {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 8px;
-}
-
-.ambio-agent-collision {
-  display: grid;
-  width: 100%;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  gap: 3px 8px;
-  padding: 7px 8px;
-  border: 1px solid rgba(209, 132, 82, 0.5);
-  border-left: 3px solid #d18452;
-  border-radius: 2px;
-  background: rgba(209, 132, 82, 0.08);
-  color: inherit;
-  font: inherit;
-  text-align: left;
+.ambio-checkout__actions button {
+  padding: 2px 7px;
+  border: 1px solid #a3aaa6;
+  border-radius: 1px;
+  background: #f7f6f0;
+  color: #26342f;
+  font-size: 9px;
   cursor: pointer;
 }
 
-.ambio-agent-collision + .ambio-agent-collision { margin-top: 6px; }
-.ambio-agent-collision:hover { background: rgba(209, 132, 82, 0.15); }
-
-.ambio-agent-collision__system {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ambio-checkout__actions button:hover,
+.ambio-checkout__actions button:focus-visible {
+  border-color: #3c7d76;
+  outline: none;
+  background: #dfeae6;
 }
 
-.ambio-agent-collision__route {
-  overflow: hidden;
+/* On a system's title: other checkouts are changing it too. */
+.ambio-system-collision {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3em;
+  border: 1px solid #a56c4a;
+  background: var(--bg-raised);
   color: #d18452;
-  font-size: 8px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-family: var(--font-mono);
+  pointer-events: auto;
+  cursor: help;
 }
 
-.ambio-agent-collision__details {
+.ambio-inspector-branches {
   display: grid;
-  grid-column: 1 / -1;
-  gap: 2px;
-  color: var(--text-secondary);
-  font-size: 7px;
-  line-height: 1.35;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.ambio-agent-collision__details > span {
+.ambio-inspector-branches li {
+  display: grid;
+  gap: 2px;
+  padding-left: 7px;
+  border-left: 2px solid #a56c4a;
+}
+
+.ambio-inspector-branches strong {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.ambio-inspector-branches span { font-size: 11px; }
+
+.ambio-inspector-branches code {
   overflow: hidden;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ambio-agent-collision__details strong {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-@keyframes ambio-agent-lane-pulse {
-  0%, 45% { transform: scale(1); opacity: 1; }
-  70% { transform: scale(1.35); opacity: 0.72; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambio-agent-lane__signal { animation: none; }
-}
-
-@media (max-width: 680px) {
-  .ambio-agent-lane { bottom: 8px; left: 8px; width: calc(100% - 16px); }
-  .ambio-agent-lane__body { max-height: 46vh; }
 }

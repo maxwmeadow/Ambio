@@ -71,6 +71,7 @@ func (s *Server) cachedCrossBranchCollisions(
 func (s *Server) invalidateCollisionCache(workspaceID string) {
 	s.mu.Lock()
 	delete(s.collisionCache, workspaceID)
+	delete(s.checkoutsCache, workspaceID)
 	s.mu.Unlock()
 }
 
@@ -167,6 +168,8 @@ func (s *Server) crossBranchCollisions(
 			left, right := roots[leftIndex], roots[rightIndex]
 			pair := collision.PairInput{LeftRootID: left.ID, RightRootID: right.ID}
 			switch {
+			case headStateOf(left) == headUnborn || headStateOf(right) == headUnborn:
+				pair.Error = "no commits yet: branches are compared after the first commit"
 			case workingErrors[left.ID] != nil:
 				pair.Error = workingErrors[left.ID].Error()
 			case workingErrors[right.ID] != nil:

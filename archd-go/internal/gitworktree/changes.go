@@ -90,3 +90,19 @@ func mergePaths(groups ...[]string) []string {
 	sort.Strings(paths)
 	return paths
 }
+
+// ChangedSince lists every path in the worktree folder that differs from
+// base: committed and uncommitted changes, deletions and untracked files,
+// relative to (and limited to) the folder. Renames appear as a deletion and an
+// addition, which is how a map of files sees them.
+func ChangedSince(worktreePath, base string) ([]string, error) {
+	tracked, err := gitOutput(worktreePath, "diff", "--relative", "--name-only", "-z", "--no-renames", base)
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := gitOutput(worktreePath, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil, err
+	}
+	return mergePaths(normalizedPaths(tracked), normalizedPaths(untracked)), nil
+}

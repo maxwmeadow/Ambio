@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -470,6 +471,11 @@ func (s *Server) startWorktreeMonitor(
 		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		// Other checkouts are not watched file by file; their changes reach the
+		// Floor's overlays by polling Git here and pushing only differences.
+		checkoutPoll := time.NewTicker(s.checkoutPoll)
+		defer checkoutPoll.Stop()
+		lastCheckouts := ""
 		var debounce *time.Timer
 		var debounceC <-chan time.Time
 		defer func() {
@@ -523,6 +529,8 @@ func (s *Server) startWorktreeMonitor(
 				if notGit == nil {
 					reconcile()
 				}
+			case <-checkoutPoll.C:
+				lastCheckouts = s.pushCheckoutChanges(sqlDB, workspaceID, lastCheckouts)
 			case <-notGit:
 				if _, err := os.Stat(filepath.Join(anchorPath, ".git")); err != nil || !watch() {
 					continue
@@ -552,4 +560,35 @@ func (s *Server) handleRoots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOK(w, roots)
+}
+
+// pushCheckoutChanges rebuilds the checkouts snapshot when the project has
+// more than one checkout and announces it if anything changed since last.
+func (s *Server) pushCheckoutChanges(sqlDB *sql.DB, workspaceID, last string) string {
+	roots, err := db.GetActiveRoots(sqlDB, workspaceID)
+	if err != nil || len(roots) < 2 {
+		return last
+	}
+	now := time.Now().UnixMilli()
+	snapshot, err := s.buildCheckouts(sqlDB, workspaceID, now)
+	if err != nil {
+		return last
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return last
+	}
+	fingerprint := string(encoded)
+	if fingerprint == last {
+		return last
+	}
+	s.mu.Lock()
+	s.checkoutsCache[workspaceID] = checkoutsCacheEntry{
+		snapshot: snapshot, expiresAt: now + s.collisionCacheTTL.Milliseconds(),
+	}
+	s.mu.Unlock()
+	if last != "" {
+		s.hub.Broadcast("checkouts:changed", map[string]any{"workspaceId": workspaceID})
+	}
+	return fingerprint
 }

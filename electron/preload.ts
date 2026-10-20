@@ -85,6 +85,8 @@ contextBridge.exposeInMainWorld('ambio', {
 
   openFile: (filePath: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('shell:open-file', filePath),
+  openCheckout: (projectId: string, rootId: string, how: 'reveal' | 'editor'): Promise<{ ok: boolean; detail: string }> =>
+    ipcRenderer.invoke('checkout:open', projectId, rootId, how),
 
   // App info
   getAppInfo: (): Promise<{ version: string; dataDir: string; platform: string; mcpPath: string; archdApiUrl: string; archdWsUrl: string; isPackaged: boolean }> =>
@@ -343,6 +345,7 @@ declare global {
       listDir: (dirPath: string) => Promise<Array<{ name: string; isDirectory: boolean; path: string }>>
       showInFolder: (filePath: string) => void
       openFile: (filePath: string) => Promise<{ ok: boolean; detail: string }>
+      openCheckout: (projectId: string, rootId: string, how: 'reveal' | 'editor') => Promise<{ ok: boolean; detail: string }>
       listEditors: () => Promise<Array<{ id: string; label: string }>>
       estimateScope: (rootPath: string, ignored: string[]) => Promise<ScopeEstimate | null>
       getAppInfo: () => Promise<{ version: string; dataDir: string; platform: string; mcpPath: string; archdApiUrl: string; archdWsUrl: string; isPackaged: boolean }>

@@ -82,7 +82,10 @@ type Server struct {
 	discoverWorktrees func(string) ([]gitworktree.Worktree, error)
 	worktreeRefresh   time.Duration
 	worktreeMonitors  map[string]worktreeMonitor
-	rootSyncing       map[string]bool
+	// checkoutPoll is how often other checkouts' changes are read from Git
+	// for the Floor's overlays (worktrees.go pushCheckoutChanges).
+	checkoutPoll time.Duration
+	rootSyncing  map[string]bool
 	// background counts work started for an open workspace (watching a
 	// project opened by a request, root syncs); closeDB waits for it, so a
 	// closed or deleted project's folder is not still being written.
@@ -93,6 +96,7 @@ type Server struct {
 	rootScopeFrom     map[string][]string
 	rootForceReindex  map[string]bool
 	collisionCache    map[string]collisionCacheEntry
+	checkoutsCache    map[string]checkoutsCacheEntry
 	collisionCacheTTL time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
 	// that an agent began investigating. Timestamps of recent qualifying
@@ -130,12 +134,14 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		discoverWorktrees:   gitworktree.Discover,
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
+		checkoutPoll:        2 * time.Second,
 		rootSyncing:         make(map[string]bool),
 		background:          make(map[string]*sync.WaitGroup),
 		rootSyncPending:     make(map[string]pendingRootSync),
 		rootScopeFrom:       make(map[string][]string),
 		rootForceReindex:    make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
+		checkoutsCache:      make(map[string]checkoutsCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),
 		autoCaptureIdleStop: autoCaptureIdleStopDefault,
@@ -376,6 +382,7 @@ func (s *Server) closeDB(workspaceID string) {
 	d := s.dbs[workspaceID]
 	delete(s.dbs, workspaceID)
 	delete(s.collisionCache, workspaceID)
+	delete(s.checkoutsCache, workspaceID)
 	background := s.background[workspaceID]
 	delete(s.background, workspaceID)
 	s.mu.Unlock()
@@ -488,6 +495,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/delta", s.handleDelta)
 	mux.HandleFunc("/api/delta/ack", s.handleDeltaAck)
 	mux.HandleFunc("/api/collisions", s.handleCollisions)
+	mux.HandleFunc("/api/checkouts", s.handleCheckouts)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)
 	mux.HandleFunc("/api/query", s.handleQuery)

@@ -159,6 +159,12 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Activity labels and badges are counter-scaled against the zoom so they are
   never smaller on screen than their natural size.
 - Dimmed systems render at opacity `0.3`.
+- A system another checkout of the project is also changing (a branch
+  collision, `GET /api/checkouts`) carries a branch mark with the number of
+  other branches: beside the file count in the centered identity, and beside
+  the agent mark in the tab band once open. Its tooltip names the branches;
+  Properties lists them under "Changing on other branches". Nothing on the
+  canvas opens or moves because a worktree appeared.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
 

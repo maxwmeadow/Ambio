@@ -37,6 +37,9 @@ in the app as "What's New" after updating, so write it for users.
   panel, with a compact layout for smaller windows.
 
 ### Changed
+- The "parallel branches" panel no longer pops up over the map when a
+  worktree appears; that information lives in the branch chip and on the
+  systems themselves.
 - While the agent panel is open, fitting the map, search and anything else
   that moves the view centres on the part of the map you can see.
 - Only a Build reply waits for your review; a question or a proposal that has
@@ -59,6 +62,12 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- The toolbar shows the branch the map is on, with uncommitted changes and
+  how far it is ahead or behind. Click it (or press ⇧⌘B) to see every
+  worktree of the project, which agent is working in each, and open its
+  folder or editor.
+- A system that another branch is also changing is marked on the map, and
+  its Properties say which branch and what it changes there.
 - Agents can propose where things belong: a new system inside its parent,
   holding the files it takes over; an existing file or system moved to another
   boundary; a system renamed. Each waits under To review in the sheet rail with

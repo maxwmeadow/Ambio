@@ -207,6 +207,17 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   worktree monitor also runs for a plain folder and starts watching Git
   metadata when `.git` appears. Model and plan:
   [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
+- **Checkouts** (`api/checkouts.go`, `GET /api/checkouts`): every active root
+  as a checkout - branch, head state (`commit`, `detached`, `unborn`, `none`
+  for a plain folder), whether the Floor shows it, `git status` (uncommitted
+  count, upstream, ahead/behind), active agents and systems touched or shared,
+  from the cached collision snapshot. The renderer keeps one snapshot
+  (`store/checkoutStore.ts`, refreshed on `roots:changed`, focus, and every
+  5 s while visible) and projects it into the toolbar branch chip and its
+  Checkouts popover (`BranchChip.tsx`, `⇧⌘B`), the branch mark on systems and
+  the Properties section (`checkoutModel.ts`). Revealing or opening a
+  checkout goes through main by root ID (`checkout:open`), since a linked
+  worktree may live outside the project folder.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
   files, once any running Git command releases `index.lock` (a lock older

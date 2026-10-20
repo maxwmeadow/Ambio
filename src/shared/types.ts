@@ -724,29 +724,6 @@ export interface AgentAction {
   branch?: string
 }
 
-export interface BranchSystemTouch {
-  systemId: string
-  systemName: string
-  files: string[]
-  claims: DeltaClaim[]
-}
-
-export interface ActiveBranch {
-  rootId: string
-  branch: string
-  headCommit: string
-  isPrimary: boolean
-  touchedSystems: BranchSystemTouch[]
-  unclassifiedFiles: string[]
-  errors?: string[]
-  activeWork: Array<{
-    sessionId: string
-    agent?: string
-    goal: string
-    startedAt: number
-  }>
-}
-
 export interface CollisionBranch {
   rootId: string
   branch: string
@@ -760,28 +737,47 @@ export interface BranchCollision {
   branches: CollisionBranch[]
 }
 
-export interface ParallelAgentSnapshot {
-  workspaceId: string
-  generatedAt: number
-  branches: ActiveBranch[]
-  collisions: BranchCollision[]
-}
+/** Where a checkout's HEAD is: on a commit, detached, a new repository with no
+ *  commits yet, or no Git at all (a plain folder). */
+export type CheckoutHeadState = 'commit' | 'detached' | 'unborn' | 'none'
 
-export interface CommandDeckBranchStatus {
+/** One working copy of the project (GET /api/checkouts). */
+export interface CheckoutStatus {
   rootId: string
+  path: string
   branch: string
   headCommit: string
+  headState: CheckoutHeadState
   isPrimary: boolean
-  files: number
-  systems: number
-  unreviewedClaims: number
-  unexplained: number
-  unexpected: number
-  activeWork: DeltaWorkSession[]
-  lastActivityAt: number
+  /** The checkout the Floor shows. */
+  isFocused: boolean
+  changedFiles: number
+  upstream?: string
+  ahead: number
+  behind: number
+  agents: Array<{ sessionId: string; agent?: string; goal: string; startedAt: number }>
+  touchedSystems: number
+  collidingSystems: number
+  error?: string
+  /** What this checkout changes against its merge base with the Floor's
+   *  checkout; empty for the Floor's own. */
+  overlay: CheckoutOverlayFile[]
+  overlayTruncated?: number
 }
 
-export interface ParallelCommandDeckStatus {
+export interface CheckoutOverlayFile {
+  path: string
+  change: 'added' | 'modified' | 'deleted'
+  /** The Floor file this changes or deletes. */
+  fileId?: string
+  /** Where it lives on the Floor; for a new file, the system owning its folder. */
+  systemId?: string
+}
+
+export interface CheckoutsSnapshot {
   workspaceId: string
-  branches: CommandDeckBranchStatus[]
+  vcs: 'git' | 'none'
+  checkouts: CheckoutStatus[]
+  /** Systems more than one checkout is changing. */
+  collisions: BranchCollision[]
 }

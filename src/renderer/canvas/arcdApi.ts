@@ -3,8 +3,7 @@ import type {
   DbSystem,
   DeltaSummary,
   FloorLayout,
-  ParallelAgentSnapshot,
-  ParallelCommandDeckStatus,
+  CheckoutsSnapshot,
 } from '../../shared/types'
 import { archdWsHttp } from '../archdEndpoint.ts'
 import type { CodeFitFinding } from './codeFit.ts'
@@ -55,24 +54,14 @@ export async function apiAckDeltaForRoot(
   if (!res.ok) throw new Error(await res.text() || `Unable to acknowledge delta (${res.status})`)
 }
 
-export async function apiGetBranchCollisions(
+export async function apiGetCheckouts(
   workspaceId: string,
   signal?: AbortSignal,
-): Promise<ParallelAgentSnapshot> {
+): Promise<CheckoutsSnapshot> {
   const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${archdWsHttp()}/api/collisions?${params}`, { signal })
-  if (!res.ok) throw new Error(await res.text() || `Unable to load branch collisions (${res.status})`)
-  return res.json() as Promise<ParallelAgentSnapshot>
-}
-
-export async function apiGetParallelCommandDeck(
-  workspaceId: string,
-  signal?: AbortSignal,
-): Promise<ParallelCommandDeckStatus> {
-  const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${archdWsHttp()}/api/command-deck?${params}`, { signal })
-  if (!res.ok) throw new Error(await res.text() || `Unable to load branch briefing (${res.status})`)
-  return res.json() as Promise<ParallelCommandDeckStatus>
+  const res = await fetch(`${archdWsHttp()}/api/checkouts?${params}`, { signal })
+  if (!res.ok) throw new Error(await res.text() || `Unable to load checkouts (${res.status})`)
+  return res.json() as Promise<CheckoutsSnapshot>
 }
 
 export interface FileSource {

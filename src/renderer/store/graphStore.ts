@@ -1726,6 +1726,12 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
       store.setIndexingComplete()
       if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ambio:indexing-cancelled', { detail: msg.payload }))
       break
+    // A worktree came or went, a checkout's branch or HEAD moved, or another
+    // checkout's changes moved (archd polls Git for those).
+    case 'roots:changed':
+    case 'checkouts:changed':
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ambio:checkouts-changed'))
+      break
     case 'watcher:limited':
       if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ambio:watcher-limited', { detail: msg.payload }))
       break

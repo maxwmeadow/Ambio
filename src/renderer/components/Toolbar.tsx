@@ -10,6 +10,8 @@ import { WindowControls } from './ui/WindowControls'
 import { AppMenuBar } from '../app/AppMenuBar'
 import { AmbioWordmark } from './ui/AmbioBrand'
 import { useCommandHandlers } from '../app/commands'
+import { BranchChip } from './BranchChip'
+import { ErrorBoundary } from './ErrorBoundary'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -118,6 +120,11 @@ export function Toolbar({
           <span>{surfaceName}</span>
           <strong>{surfaceKind}</strong>
         </div>
+        {/* Boundaried: a malformed checkouts response once blanked the whole
+            workbench through the panel this replaced. */}
+        <ErrorBoundary fallback={null}>
+          <BranchChip workspaceId={workspaceId} />
+        </ErrorBoundary>
 
         <div className="ambio-command-spacer" />
 
