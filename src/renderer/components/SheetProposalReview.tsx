@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSheetStore } from '../store/sheetStore'
 import { useGraphStore } from '../store/graphStore'
 import { raiseFailure } from '../store/interruptionStore'
+import { relationshipVerb, useSheetView } from '../canvas/sheetView'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 
 /** One thing an agent proposed on the sheet, waiting for the human. */
@@ -10,8 +11,10 @@ interface ReviewItem {
   key: string
   kind: string
   name: string
+  label?: string
   /** What the change is, beside its name: where a move goes, what a relationship reaches. */
   detail?: string
+  relationship?: string
   focus: string
   /** Only a planned node takes a reason: it reaches the next agent session. */
   asksWhy: boolean
@@ -31,7 +34,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   })))
   const { systems, files } = useGraphStore(useShallow(s => ({ systems: s.systems, files: s.files })))
   const [busy, setBusy] = useState(false)
-  const showOnMap = useShowOnMap()
+  const showOnMap = useShowOnMap(false)
   // Rejecting a planned node asks why, in a line; the next agent session is told.
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -43,11 +46,11 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
     return plannedName.get(id)
       ?? systems.find(system => system.id === id)?.name
       ?? files.find(file => file.id === id)?.relPath.split(/[\\/]/).pop()
-      ?? id
+      ?? 'Unavailable item'
   }
   const items: ReviewItem[] = [
     ...layer.planned.filter(node => node.approvalStatus === 'pending').map(node => ({
-      key: `planned:${node.id}`, kind: node.kind, name: node.name,
+      key: `planned:${node.id}`, kind: 'addition', name: `Add ${node.name}`, label: node.name,
       detail: node.parentSystemId ? `in ${nameOf(node.parentSystemId)}` : undefined,
       focus: `planned:${node.id}`, asksWhy: true,
       decide: (decision: 'approved' | 'rejected', why?: string) => decidePlanned(workspaceId, node.id, decision, why),
@@ -55,8 +58,8 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
     ...layer.elements.filter(element => element.approvalStatus === 'pending').map(element => {
       const nodeId = element.systemId ?? element.fileId ?? ''
       return {
-        key: `move:${element.id}`, kind: 'move', name: nameOf(nodeId),
-        detail: `into ${nameOf(element.parentSystemId)}`,
+        key: `move:${element.id}`, kind: 'move', name: `Move ${nameOf(nodeId)} into ${nameOf(element.parentSystemId)}`,
+        detail: `From ${nameOf(systems.find(system => system.id === nodeId)?.parentId ?? files.find(file => file.id === nodeId)?.systemId)}`,
         focus: nodeId, asksWhy: false,
         decide: (decision: 'approved' | 'rejected') => decideMove(workspaceId, sheetId, element.id, decision),
       }
@@ -65,8 +68,8 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
       const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''
       return {
-        key: `edge:${edge.id}`, kind: edge.kind.toLowerCase().replace(/_/g, ' '), name: nameOf(source),
-        detail: `→ ${nameOf(target)}`,
+        key: `edge:${edge.id}`, kind: 'relationship', name: `${nameOf(source)} ${relationshipVerb(edge.kind)} ${nameOf(target)}`,
+        detail: edge.note || 'Proposed relationship', relationship: edge.id,
         focus: source, asksWhy: false,
         decide: (decision: 'approved' | 'rejected') => decideRelationship(workspaceId, sheetId, edge.id, decision),
       }
@@ -99,13 +102,12 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       <ul>
         {items.map(item => (
           <li key={item.key} data-kind={item.kind}>
-            <button type="button" className="ambio-sheet-rail__review-label" title={`Show ${item.name} on the sheet`} onClick={() => showOnMap(item.focus)}>
-              <small>{item.kind}</small>
+            <button type="button" className="ambio-sheet-rail__review-label" title={`Show ${item.label ?? item.name} on the sheet`} onClick={() => { if (item.relationship) { useGraphStore.getState().setSelectedNode(item.focus); useGraphStore.getState().setInspectedNode(null) } else showOnMap(item.focus); useSheetView.getState().focusRelationship(item.relationship ?? null) }}>
               <span>{item.name}</span>
               {item.detail && <em>{item.detail}</em>}
             </button>
-            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="confirm" disabled={busy} aria-label={`Confirm ${item.name}`} title="Confirm: part of the plan" onClick={() => void run([item], 'approved')}>✓</button>
-            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="reject" disabled={busy} aria-label={`Reject ${item.name}`} title="Reject: not part of the plan"
+            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="confirm" disabled={busy} aria-label={`Confirm ${item.label ?? item.name}`} title="Confirm: part of the plan" onClick={() => void run([item], 'approved')}>✓</button>
+            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="reject" disabled={busy} aria-label={`Reject ${item.label ?? item.name}`} title="Reject: not part of the plan"
               onClick={() => { if (item.asksWhy) { setRejecting(item.key); setReason('') } else void run([item], 'rejected') }}>✕</button>
             {rejecting === item.key && (
               <form
@@ -114,7 +116,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
               >
                 <input
                   autoFocus
-                  aria-label={`Why reject ${item.name}? (optional)`}
+                  aria-label={`Why reject ${item.label ?? item.name}? (optional)`}
                   placeholder="Why? (optional, the agent is told)"
                   value={reason}
                   maxLength={300}

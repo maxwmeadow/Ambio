@@ -280,6 +280,20 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 ### What a sheet is (revised 2026-07-30)
 
+- A sheet's overview is a clean proposed arrangement. Relationships are hidden
+  by default; selecting a node shows its connections. Selecting a relationship
+  review row frames and accents both endpoints and explains the interaction.
+  Show All Sheet Relationships exposes the broader view and resets when the
+  active sheet changes. Hidden lines never remove items from proposal review.
+  Visible proposed relationships retain a readable screen-space line weight
+  when zoomed out, with an arrow showing which system uses the other.
+- Moves and additions have small screen-size markers, without a second dashed
+  perimeter. Selecting a move explains its original and proposed parent.
+- Unplaced new systems and automatically moved systems fit their contents using
+  the shared packer. Explicit sheet positions/sizes stay authoritative; neither
+  compacting nor reviewing a proposal rewrites Floor geometry.
+
+
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
   opinion: MOVES (where a live node should sit instead), ADDITIONS (things that
   should exist and do not yet), and REMOVALS (things that should go away). It
@@ -501,6 +515,24 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Burst collapse never merges saves carrying different work-session IDs, and a
   net change spanning multiple sessions never quotes either as its sole cause.
 
+### Project chrome (approved October 20, 2026)
+
+- Routine index activity, daemon health and passive graph counts take no
+  permanent screen space. The canvas and chat extend to the bottom edge.
+- Selection, Review Changes, the active sheet name, Search, Fit and Message
+  Agent remain in the toolbar. Recording and saved investigations live in
+  Tools; an active recording retains a visible Stop control.
+- The Floor name appears in the left rail only; its toolbar label and reserved
+  space are omitted. Open sheets keep their name in the toolbar.
+- Reads lasting over 1.5 seconds show progress and Stop in the interruption
+  lane; quick reads stay quiet. Interrupted live updates show a useful recovery
+  notice after 3 seconds. Completion and reconnection clear their notices.
+- Workbench architecture drafts use that same lane, become unfinished after
+  five minutes without an update, and remain recoverable from Agent →
+  Architecture Draft after dismissal. Progress yields to decisions and failures.
+- Review Changes remains reachable from the toolbar, View and command palette
+  after a review invitation is dismissed. No permanent footer is required.
+
 ### First-run payoff
 
 - The initial review shows the real repository materializing as the baseline;
@@ -508,7 +540,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - The guide advances from Sheet creation to drawing to dispatch only when each
   persisted state exists, and completes only when that exact planned node is
   realized or flattened.
-- Hiding the guide does not mark onboarding complete.
+- The legacy guide opens only from Help → Setup Guide. Project entry and
+  relaunch leave it hidden while preserving its saved progress. Hiding the
+  guide does not mark onboarding complete.
 - The launcher Command Deck derives recent-project signals from each durable
   project database: unreviewed claims, unexplained work, drift, active agents,
   open plans, and pending proposals.

@@ -16,7 +16,6 @@ export function AppMenuBar() {
   const panelsShown = {
     sheetRail: usePanelStore(state => state.sheetRail),
     detailPanel: usePanelStore(state => state.detailPanel),
-    statusBar: usePanelStore(state => state.statusBar),
   }
   const [developer, setDeveloper] = useState(false)
   const [open, setOpen] = useState<MenuSection['id'] | null>(null)

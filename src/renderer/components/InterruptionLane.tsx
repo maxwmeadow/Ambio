@@ -25,6 +25,7 @@ const KIND_LABEL: Record<Interruption['kind'], string> = {
   failure: 'FAILED',
   invitation: 'WAITING',
   notice: 'DONE',
+  progress: 'WORKING',
 }
 
 export function InterruptionLane() {
@@ -77,6 +78,7 @@ export function InterruptionLane() {
       <div className="ambio-lane__copy">
         <strong className="ambio-lane__title">{current.title}</strong>
         {current.body && <span className="ambio-lane__body">{current.body}</span>}
+        {current.progress && <progress aria-label="Reading project progress" value={current.progress.value} max={current.progress.max} />}
       </div>
 
       <div className="ambio-lane__actions">

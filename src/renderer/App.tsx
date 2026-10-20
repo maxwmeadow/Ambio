@@ -4,7 +4,6 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { AmbioCanvas } from './canvas/AmbioCanvas'
 import { subscribeToDeltaRefresh } from './canvas/deltaRefresh'
 import { Toolbar } from './components/Toolbar'
-import { StatusBar } from './components/StatusBar'
 import { DetailPanel } from './components/DetailPanel'
 import { DocumentsPanel } from './components/DocumentsPanel'
 import { BinDragGhostLayer } from './components/BinDragGhostLayer'
@@ -36,6 +35,7 @@ import { useOnboardingStore } from './store/onboardingStore'
 import { raiseDecision, raiseFailure, raiseInvitation, raiseNotice, resolveInterruption, useInterruptionStore } from './store/interruptionStore.ts'
 import { useUpdateStatus } from './useUpdateStatus'
 import { emitCommand, useCommandHandlers, useOpenRecent } from './app/commands'
+import { useConversationPreferences } from './store/conversationPreferences'
 import { useSheetStore } from './store/sheetStore'
 import { resumeDecision } from '../shared/sessionResume.ts'
 import { useRegistryStore } from './store/registryStore'
@@ -171,7 +171,6 @@ export default function App() {
   const panels = {
     sheetRail: usePanelStore(s => s.sheetRail),
     detailPanel: usePanelStore(s => s.detailPanel),
-    statusBar: usePanelStore(s => s.statusBar),
   }
   const [explorerOpen, setExplorerOpen] = useState(false)
   const [agentLogOpen, setAgentLogOpen] = useState(false)
@@ -256,14 +255,14 @@ export default function App() {
     if (E2E_MODE || !window.ambio?.onArchdStatus) return
     return window.ambio.onArchdStatus(status => {
       if (status.state === 'restarting') {
-        raiseNotice('archd-status', 'Reconnecting to Ambio\'s background service…',
-          'It stopped unexpectedly and is restarting. The map resumes updating on its own.')
+        useInterruptionStore.getState().raise({ id: 'archd-status', kind: 'progress', title: 'Restoring map updates…',
+          body: 'Your last map is still visible. Ambio is reconnecting automatically.', createdAt: Date.now() })
       } else if (status.state === 'running') {
         resolveInterruption('archd-status')
         resolveInterruption('archd-failed')
       } else {
         resolveInterruption('archd-status')
-        raiseFailure('archd-failed', 'Ambio\'s background service is not running', status.detail, [{
+        raiseFailure('archd-failed', 'Your map isn’t updating', 'Ambio could not reconnect. Try again, or copy diagnostics from Help if the problem continues.', [{
           label: 'Try again',
           primary: true,
           run: () => {
@@ -364,7 +363,7 @@ export default function App() {
   }, [currentProject?.id])
 
   // Load this project's onboarding progress before anything renders against it,
-  // so the guide and the status bar agree about where the user left off.
+  // so opening the guide resumes where the user left off.
   useEffect(() => {
     if (currentProject) enterOnboardingProject(currentProject.id)
   }, [currentProject, enterOnboardingProject])
@@ -724,7 +723,6 @@ export default function App() {
   useCommandHandlers({
     'view.panelSheetRail': () => usePanelStore.getState().toggle('sheetRail'),
     'view.panelDetail': () => usePanelStore.getState().toggle('detailPanel'),
-    'view.panelStatusBar': () => usePanelStore.getState().toggle('statusBar'),
     'project.new': () => {
       void (async () => {
         if (currentProject) await closeProject()
@@ -816,6 +814,7 @@ export default function App() {
     setProjectSettingsFor(null)
     await routeProjectBySourceBoundaryState(config)
   }
+  useEffect(() => window.ambio?.onOpenConversation?.(requested => useConversationPreferences.setState({ requested })), [])
   useEffect(() => window.ambio?.onOpenRequest?.(() => {
     void window.ambio.takeOpenRequest().then(config => { if (config) void openRequested.current(config) })
   }), [])
@@ -993,8 +992,6 @@ export default function App() {
         <Toolbar
           onSearch={() => setSearchOpen(true)}
           onManageAgentConnections={() => emitCommand('agent.connect')}
-          agentLogOpen={agentLogOpen}
-          onToggleAgentLog={() => setAgentLogOpen(open => !open)}
         />
 
         {/* Sheet rail + canvas area */}
@@ -1075,8 +1072,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Status bar */}
-        {panels.statusBar && <StatusBar workspaceId={currentProject.id} />}
       </div>
     </ReactFlowProvider>
   )

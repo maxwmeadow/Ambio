@@ -86,7 +86,14 @@ export function inlineFilePath(text: string, relPaths: ReadonlySet<string>): str
   return match
 }
 
-type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[] }
+type MarkdownNode = { type: string; value?: string; url?: string; children?: MarkdownNode[] }
+/** Parse only Ambio's artifact links; custom schemes need no browser URL handling. */
+export function architectureLinkTarget(href: string): { type: 'sheet' | 'system'; id: string } | null {
+  const target = /^ambio:\/\/(sheet|system)\/([^?#]+)$/i.exec(href)
+  if (!target) return null
+  try { return { type: target[1].toLowerCase() as 'sheet' | 'system', id: decodeURIComponent(target[2]) } } catch { return null }
+}
+
 /** Where a path is already code, a link or raw text, it is left as written. */
 const KEEP_AS_WRITTEN = new Set(['code', 'inlineCode', 'link', 'linkReference', 'definition', 'html'])
 const FILE_NAME = /[\w.@-][\w.@/-]*\.[A-Za-z0-9]+/g
@@ -122,4 +129,43 @@ export function remarkFilePaths(relPaths: ReadonlySet<string>) {
     })
   }
   return () => (tree: MarkdownNode) => { if (relPaths.size) walk(tree) }
+}
+
+/** Make map references readable even in replies written before the response
+ * guidance was installed. Code blocks and link destinations stay verbatim. */
+export function remarkArchitectureNames(references: Array<{ id: string; name: string; type: 'sheet' | 'system' }>) {
+  const names = new Map<string, typeof references[number]>()
+  const ambiguous = new Set<string>()
+  for (const reference of references) {
+    if (names.has(reference.name)) ambiguous.add(reference.name)
+    names.set(reference.name, reference)
+  }
+  const candidates = references.flatMap(reference => [{ text: reference.id, reference }, ...(!ambiguous.has(reference.name) && reference.name.length > 3 ? [{ text: reference.name, reference }] : [])]).sort((a, b) => b.text.length - a.text.length)
+  const walk = (node: MarkdownNode) => {
+    if (!node.children || KEEP_AS_WRITTEN.has(node.type)) return
+    node.children = node.children.flatMap(child => {
+      if (child.type === 'inlineCode') {
+        if (child.value === 'DEPENDS_ON') return [{ type: 'text', value: 'uses' }]
+        const ref = references.find(reference => reference.id === child.value)
+        if (ref) return [{ type: 'link', url: `ambio://${ref.type}/${encodeURIComponent(ref.id)}`, children: [{ type: 'text', value: ref.name }] }]
+      }
+      if (child.type !== 'text' || !child.value) { walk(child); return [child] }
+      const value = child.value.replace(/\s*\(ID\s+[a-f0-9]{8}-[a-f0-9-]{27,}\)/gi, '').replace(/\bDEPENDS_ON\b/g, 'uses')
+      const parts: MarkdownNode[] = []
+      let offset = 0
+      while (offset < value.length) {
+        let best: { index: number; text: string; reference: typeof references[number] } | undefined
+        for (const candidate of candidates) {
+          const index = value.indexOf(candidate.text, offset)
+          if (index >= 0 && (!best || index < best.index)) best = { index, ...candidate }
+        }
+        if (!best) { parts.push({ type: 'text', value: value.slice(offset) }); break }
+        if (best.index > offset) parts.push({ type: 'text', value: value.slice(offset, best.index) })
+        parts.push({ type: 'link', url: `ambio://${best.reference.type}/${encodeURIComponent(best.reference.id)}`, children: [{ type: 'text', value: best.reference.name }] })
+        offset = best.index + best.text.length
+      }
+      return parts
+    })
+  }
+  return () => (tree: MarkdownNode) => walk(tree)
 }

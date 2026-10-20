@@ -1,3 +1,4 @@
+import { SheetChangeBadge } from './SheetChangeBadge'
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { InfraNodeData } from '../sceneTypes'
@@ -67,6 +68,7 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
   if (!svc) return <div style={{
     width: '100%', height: '100%', position: 'relative', userSelect: 'none', cursor: 'grab',
   }}>
+    <SheetChangeBadge change={d.sheetChange} width={Number(width) || 260} />
     {selected && (
       <AmbioNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
         isResizable={typeof d.onResizeStart === 'function' && typeof d.onResizeEnd === 'function'}
@@ -116,6 +118,7 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
       cursor: 'grab',
       userSelect: 'none',
     }}>
+      <SheetChangeBadge change={d.sheetChange} width={Number(width) || 260} />
       {selected && (
         <AmbioNodeResizer nodeId={d.id} presentationScale={presentationScale} nodeWidth={width} nodeHeight={height} isVisible={selected}
           isResizable={typeof d.onResizeStart === 'function' && typeof d.onResizeEnd === 'function'}

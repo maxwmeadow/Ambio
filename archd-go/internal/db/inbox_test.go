@@ -255,3 +255,53 @@ func TestInboxReopenPreservesRepliesAndRecoversLegacyDelivery(t *testing.T) {
 		t.Fatalf("reply lost %v", err)
 	}
 }
+
+func TestDeleteInboxConversationKeepsOtherThreadsAndArchitecture(t *testing.T) {
+	d, first := inboxFixture(t)
+	if _, err := d.Exec(`UPDATE canvas_outbox SET status='answered',thread_id='thread' WHERE id=?`, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	second := CanvasMessage{WorkspaceID: "ws", ThreadID: "thread", Note: "Follow-up", Selection: "[]"}
+	if err := EnqueueCanvasMessage(d, &second); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteInboxConversation(d, "ws", "thread"); !errors.Is(err, ErrInboxConflict) {
+		t.Fatalf("active thread: %v", err)
+	}
+	var count int
+	d.QueryRow(`SELECT count(*) FROM canvas_outbox WHERE thread_id='thread'`).Scan(&count)
+	if count != 2 {
+		t.Fatalf("partial deletion: %d", count)
+	}
+	if _, err := d.Exec(`UPDATE canvas_outbox SET status='cancelled' WHERE id=?`, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := CanvasMessage{WorkspaceID: "ws", Note: "Other chat", Selection: "[]"}
+	if err := EnqueueCanvasMessage(d, &unrelated); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateSheet(d, &Sheet{ID: "keep", WorkspaceID: "ws", Name: "Keep this plan"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Exec(`INSERT INTO canvas_replies(message_id,body,agent,token,created_at) VALUES(?, 'Done', 'test', 'token', 1)`, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteInboxConversation(d, "other-workspace", "thread"); err != nil {
+		t.Fatal(err)
+	}
+	d.QueryRow(`SELECT count(*) FROM canvas_outbox WHERE thread_id='thread'`).Scan(&count)
+	if count != 2 {
+		t.Fatal("cross-workspace deletion")
+	}
+	if err := DeleteInboxConversation(d, "ws", "thread"); err != nil {
+		t.Fatal(err)
+	}
+	for query, want := range map[string]int{`SELECT count(*) FROM canvas_outbox`: 1, `SELECT count(*) FROM canvas_replies`: 0, `SELECT count(*) FROM sheets WHERE id='keep'`: 1} {
+		if err := d.QueryRow(query).Scan(&count); err != nil || count != want {
+			t.Fatalf("%s: got %d want %d, %v", query, count, want, err)
+		}
+	}
+	if err := DeleteInboxConversation(d, "ws", "thread"); err != nil {
+		t.Fatal(err)
+	}
+}

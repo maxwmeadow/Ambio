@@ -363,3 +363,32 @@ func (s *Server) handleInboxReview(w http.ResponseWriter, r *http.Request) {
 func validInboxText(text string, max int) bool {
 	return strings.TrimSpace(text) != "" && len(text) <= max
 }
+
+func (s *Server) handleDeleteConversation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.NotFound(w, r)
+		return
+	}
+	var request struct {
+		WorkspaceID string `json:"workspaceId"`
+		ThreadID    string `json:"threadId"`
+	}
+	if !decodeInbox(w, r, &request) {
+		return
+	}
+	if strings.TrimSpace(request.ThreadID) == "" {
+		jsonError(w, "conversation is required", 400)
+		return
+	}
+	d, err := s.dbFor(request.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	if err := db.DeleteInboxConversation(d, request.WorkspaceID, request.ThreadID); err != nil {
+		inboxError(w, err)
+		return
+	}
+	s.broadcastPatch("canvas:conversation-deleted", map[string]string{"workspaceId": request.WorkspaceID, "threadId": request.ThreadID})
+	jsonOK(w, map[string]bool{"deleted": true})
+}

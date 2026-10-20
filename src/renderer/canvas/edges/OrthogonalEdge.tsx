@@ -14,6 +14,7 @@ export function OrthogonalEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  markerEnd,
   style,
   data,
   label,
@@ -57,6 +58,7 @@ export function OrthogonalEdge({
         pathLength={isLiving ? 1 : undefined}
         className="react-flow__edge-path"
         fill="none"
+        markerEnd={markerEnd}
         strokeWidth={isLiving ? 2.5 : isTraced || isSliced ? 2 : 1}
         strokeDasharray={isLiving ? '0.13 0.87' : isTraced ? '8 4' : undefined}
         style={{

@@ -33,3 +33,9 @@ test('an order without a sheet is named by its note', () => {
   const claimed = order({ sentSheetName: undefined, note: 'Make the code match the map\n- move x', status: 'delivered' })
   assert.equal(workOrderNotice(undefined, claimed).title, 'An agent picked up “Make the code match the map”')
 })
+
+test('notifications identify the question rather than its injected mode instructions', async () => {
+  const { workOrderNote } = await import('../components/inboxModel.ts')
+  const message = order({ sentSheetName: undefined, note: workOrderNote('propose', 'Split Skill Execution'), status: 'delivered' })
+  assert.equal(workOrderNotice(undefined, message).title, 'An agent picked up “Split Skill Execution”')
+})

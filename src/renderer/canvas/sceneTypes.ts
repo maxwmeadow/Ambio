@@ -44,6 +44,8 @@ export interface AgentPresence {
 }
 
 export interface SystemNodeData {
+  sheetChange?: 'move' | 'addition'
+  relationshipFocus?: boolean
   id: string
   name: string
   source: DbSystem['source']
@@ -106,6 +108,8 @@ export interface SystemNodeData {
 }
 
 export interface FileNodeData {
+  sheetChange?: 'move' | 'addition'
+  relationshipFocus?: boolean
   id: string
   label: string
   relPath: string
@@ -145,6 +149,7 @@ export interface FileNodeData {
 }
 
 export interface InfraNodeData {
+  sheetChange?: 'move' | 'addition'
   id: string
   label: string
   name: string

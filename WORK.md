@@ -253,6 +253,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `sheet-authoring-timing` **"sheet authoring" fails intermittently** at the last mouse drag (a new root file dragged by its header into the system; the sheet layout never gets the system as parent). It fails at many commits since before today's work, about 1 in 4 runs, so it is not a regression. Waiting for the dragged node to stop animating before grabbing it (now in the test) brought it to about 1 in 10; the remaining cause is not found. Next: open a failing trace (`test-results/…/trace.zip`) and see where the pointer lands at mouse-up (another planned node inside the frame?). (2026-10-01)
 - ⬜ `commit-linux-baseline` After the first CI run of the `e2e` job, download `playwright-results` and commit `tests/e2e/__screenshots__/canvas.spec.ts/linux/` so the Floor baseline is compared on Linux too. (2026-10-01, ci-e2e)
 
+- ⬜ `windows-concurrent-check-flakes` **Worktree metadata and MCP proposal-placement fixtures can race under concurrent test load.** Full checks on 2026-10-20 missed worktree metadata and saw a rejected move return to a newly inferred cluster instead of the fixture’s original null parent; both pass in isolation. Related to `unassigned-regrouped`. (2026-10-20, chat/sheet validation)
+
 New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `map-with-agent-live` **Map a real project with each agent Ambio runs, from setup.** Claude Code was run once before the mapping contract and live-activity fixes; Codex, Copilot CLI, Antigravity CLI and Ambio chat have not mapped for real, nor with a non-default model. (2026-10-19, session)
@@ -274,11 +276,23 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
 
+- ⬜ `file-symbol-detail-empty-live` **Zoomed file cards can say “No symbols” for files with known functions.** In the real Kohler app, Formula Skill Runtime’s `formula_executor.py` and several TypeScript cards stayed empty after camera focus settled; the earlier supplied screenshot showed the Python functions. Recheck lazy symbol loading, cancellation/retry, and API failures separately from sheet sizing. (2026-10-20, computer-use chat/sheet QA)
+
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `floor-toolbar-label` Removed the redundant Floor label and its reserved toolbar space; open sheets retain their names. The left rail identifies the Floor. (Max requested; local working tree)
+
+- 2026-10-20 `project-chrome-cleanup` Removed the idle index label, technical footer and passive counts; kept core controls, moved recording/investigations/logs to menus, preserved contextual progress/Stop, map recovery, draft recovery and Review Changes, and made the legacy guide opt-in from Help. Fixed a stale startup warning and improved saved-view guidance readability. Type check, 678 unit tests, build and 11 focused UI checks pass; real Kohler computer-use walkthrough recorded in `docs/testing/PROJECT_CHROME_UX_QA.md`. (`codex/canvas-performance`, local working tree)
+
+- 2026-10-20 `project-chrome-audit` Traced all top/bottom project-page controls, current visibility settings, deferred review/draft recovery, indexing cancellation and tutorial behavior; proposed a quiet default with contextual progress/problems and optional technical details. No UI behavior changed; follow-up `project-chrome-cleanup` and existing `tutorial-overhaul`. (local working tree)
+
+- 2026-10-20 `chat-sheet-live-qa` Computer-use walkthrough on actual Kohler data and the built app; real Codex Ask/follow-up, unread arrival/read, rename/cancel/delete and restart persistence, artifact navigation, compact moved systems, relationship focus/toggle and narrow/wide layouts. Fixed contrast, menu layering, title space, custom-scheme links, zoomed line weight and deletion consuming the next unread reply. Type check, build, 13 focused unit tests and isolated deletion regression pass; separate empty-symbol issue logged. See `docs/testing/CHAT_SHEET_UX_QA.md`. (local working tree on `codex/canvas-performance`)
+
+- 2026-10-20 `chat-sheet-clarity` Rename/delete conversations, persistent unread attention and exact notification navigation; names and artifact links in agent replies; focused sheet relationships with optional overview, readable review statements and small change markers; compact automatic systems preserving authored layouts. Unit, MCP, daemon, build and 17 UI checks pass, with an additional approved-relationship camera/click regression. (local working tree on `codex/canvas-performance`)
 
 - 2026-10-20 `canvas-performance-kohler` Profiled Kohler Floor, its actual sheet, navigation and dense scenes; preserved sheet measurements, cached layout/presentation, retained untouched selection identities, and fixed planned-sheet culling/navigation races. Sheet p95 209 → 33–50 ms; cold mass-mount spikes remain tracked above. 669 unit tests and canvas interaction checks pass. (`codex/canvas-performance`, `f758542`)
 - 2026-10-20 `canvas-zoom-index-and-diagnostics` Cached semantic ancestry/order and thresholds between easing frames; cursor/bin drag diagnostics are opt-in, with identity/geometry invalidation regressions. (`codex/canvas-performance`, `f758542`)

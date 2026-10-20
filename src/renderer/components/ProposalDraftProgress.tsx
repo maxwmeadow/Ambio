@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { archdApi } from '../archdEndpoint.ts'
+import { emitCommand, useCommandHandlers } from '../app/commands'
+import { raiseFailure, raiseNotice, resolveInterruption, useInterruptionStore } from '../store/interruptionStore'
 
 interface DraftSummary {
   sessionId: string
@@ -48,7 +50,7 @@ export function useProposalDrafts(workspaceId: string, pollMs?: number) {
 
   const newest = drafts[0] as DraftSummary | undefined
   const discard = async () => {
-    if (!newest || !window.confirm('Discard this unfinished architecture draft and its saved chunks?')) return
+    if (!newest || !window.confirm('Discard this unfinished architecture draft? Your code and current map will be kept.')) return
     setDiscarding(true)
     setError('')
     try {
@@ -70,21 +72,49 @@ export function useProposalDrafts(workspaceId: string, pollMs?: number) {
 
 /** The draft is visible as progress, never as an approved map. */
 export function ProposalDraftProgress({ workspaceId, inline = false }: { workspaceId: string; inline?: boolean }) {
-  const { drafts, newest, discard, discarding, error } = useProposalDrafts(workspaceId)
-  if (!newest) return null
-  const recentlyUpdated = Date.now() - newest.updatedAt < 5 * 60_000
-  return (
-    <aside className={`ambio-draft-progress${inline ? ' ambio-draft-progress--inline' : ''}`} role="status" aria-live="polite" aria-label="Architecture mapping progress">
-      <span className="ambio-draft-progress__pulse" aria-hidden="true" />
-      <div className="ambio-draft-progress__content">
-        <strong>{recentlyUpdated ? 'Agent mapping architecture' : 'Architecture draft paused'}</strong>
-        <p>{newest.systemCount} systems in {newest.chunkCount} {newest.chunkCount === 1 ? 'chunk' : 'chunks'}
-          {drafts.length > 1 ? ` · ${drafts.length} open sessions` : ''}</p>
-      </div>
-      <button type="button" onClick={() => { void discard() }} disabled={discarding} title="Discard this unfinished draft and its saved chunks">
-        {discarding ? 'Discarding…' : 'Discard'}
-      </button>
-      {error && <span className="ambio-draft-progress__error" role="alert">{error}</span>}
-    </aside>
-  )
+  const { newest, discard, discarding, error } = useProposalDrafts(workspaceId)
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    const remaining = (newest?.updatedAt ?? 0) + 5 * 60_000 - Date.now()
+    setPaused(remaining <= 0)
+    if (remaining <= 0) return
+    const timer = setTimeout(() => setPaused(true), remaining)
+    return () => clearTimeout(timer)
+  }, [newest?.updatedAt])
+  const show = () => {
+    if (!newest) { raiseNotice('no-map-draft', 'No unfinished architecture draft'); return }
+    useInterruptionStore.getState().raise({
+      id: 'map-draft', kind: paused ? 'invitation' : 'progress',
+      title: paused ? 'An architecture draft is unfinished' : 'Your agent is mapping the project…',
+      body: paused ? 'Ask your agent to continue, or discard this draft.' : 'The proposed map will be ready to review when the agent finishes.',
+      createdAt: newest.updatedAt,
+      actions: [
+        { label: 'Open chat', run: () => emitCommand('agent.message') },
+        { label: discarding ? 'Discarding…' : 'Discard draft', run: async () => { if (!discarding) await discard() } },
+      ],
+      onDismiss: () => setDismissed(newest.sessionId),
+      dismissHint: 'Hide — reopen from Agent → Architecture Draft',
+    })
+  }
+  useCommandHandlers(inline ? {} : { 'agent.architectureDraft': () => { setDismissed(null); show() } })
+  useEffect(() => {
+    if (inline) return
+    if (!newest || dismissed === newest.sessionId) { resolveInterruption('map-draft'); return }
+    show()
+  }, [newest, dismissed, paused, discarding, inline])
+  useEffect(() => {
+    if (inline) return
+    if (error) raiseFailure('map-draft-error', 'Could not discard the architecture draft', error)
+    else resolveInterruption('map-draft-error')
+  }, [error, inline])
+  useEffect(() => () => {
+    if (!inline) { resolveInterruption('map-draft'); resolveInterruption('map-draft-error') }
+  }, [inline])
+  if (inline && newest) return <aside className="ambio-draft-progress ambio-draft-progress--inline" role="status" aria-label="Architecture mapping progress">
+    <div className="ambio-draft-progress__content"><strong>{paused ? 'An architecture draft is unfinished' : 'Your agent is mapping the project…'}</strong><p>{newest.systemCount} systems drafted</p></div>
+    <button type="button" disabled={discarding} onClick={() => void discard()}>{discarding ? 'Discarding…' : 'Discard draft'}</button>
+    {error && <span role="alert">{error}</span>}
+  </aside>
+  return null
 }

@@ -3,7 +3,7 @@
 //
 // This used to live as loose localStorage reads inside OnboardingGuide, which
 // made it unreadable to anything else. It needs a store because dismissal has
-// to be recoverable: the status bar offers the guide back, and it can only do
+// to be recoverable: Help offers the guide back, and it can only do
 // that if "I hid it" is reactive state rather than a string in web storage.
 import { create } from 'zustand'
 
@@ -13,7 +13,7 @@ export interface GuideProgress {
   sheetId?: string
   plannedId?: string
   dispatched?: boolean
-  /** Hidden by the user. Recoverable from the status bar. */
+  /** Hidden by the user. Recoverable from Help → Setup Guide. */
   dismissed?: boolean
   /** The loop was closed. The guide does not come back on its own. */
   completed?: boolean
@@ -47,6 +47,7 @@ function write(projectId: string, progress: GuideProgress) {
 }
 
 interface OnboardingState {
+  visible: boolean
   projectId: string | null
   progress: GuideProgress
   /** Point the store at a project, loading its stored progress. */
@@ -58,12 +59,13 @@ interface OnboardingState {
 }
 
 export const useOnboardingStore = create<OnboardingState>((set, get) => ({
+  visible: false,
   projectId: null,
   progress: { startedAt: Date.now() },
 
   enterProject: (projectId) => {
     if (get().projectId === projectId) return
-    set({ projectId, progress: read(projectId) })
+    set({ projectId, progress: read(projectId), visible: false })
   },
 
   patch: (patch) => set(state => {
@@ -73,7 +75,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     return { progress }
   }),
 
-  dismiss: () => get().patch({ dismissed: true }),
-  reveal: () => get().patch({ dismissed: false }),
-  complete: () => get().patch({ completed: true, dismissed: true }),
+  dismiss: () => { set({ visible: false }); get().patch({ dismissed: true }) },
+  reveal: () => { set({ visible: true }); get().patch({ dismissed: false }) },
+  complete: () => { set({ visible: false }); get().patch({ completed: true, dismissed: true }) },
 }))

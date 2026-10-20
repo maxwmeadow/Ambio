@@ -123,3 +123,26 @@ test('real OpenCode: configured service, MCP, multi-turn history, approvals, rea
   await manager.snapshot(conversation.id)
   assert.equal(requests.length, count, 'A recycled PID is discarded without terminating an unrelated process')
 })
+
+test('deleting a saved native chat removes its transcript across restart without starting a harness', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-chat-delete-'))
+  try {
+    const record = { id: 'saved', workspaceId: 'fixture', rootPath: fs.realpathSync(directory), title: 'Finished question', providerId: 'fixture', model: 'fixture', state: 'idle', createdAt: 1, updatedAt: 2 }
+    fs.writeFileSync(path.join(directory,'conversations.json'),JSON.stringify([record]))
+    fs.writeFileSync(path.join(directory,'saved.json'),JSON.stringify([{id:'reply',role:'assistant',parts:[]}]))
+    const options = { directory, binary: 'must-not-launch', providers: {}, project: id => ({id,rootPath:directory}) }
+    const manager = new AgentChat(options)
+    assert.equal(manager.list('fixture').length,1)
+    manager.remove('saved')
+    assert.equal(fs.existsSync(path.join(directory,'saved.json')),false)
+    assert.throws(() => manager.cached('saved'),/unavailable/)
+    assert.equal(new AgentChat(options).list('fixture').length,0)
+    fs.writeFileSync(path.join(directory,'conversations.json'),JSON.stringify([{...record,state:'working'}]))
+    const restored = new AgentChat(options)
+    // Restart safely marks working records interrupted; a genuinely active
+    // in-process turn is tested by setting its persisted object back to working.
+    restored.conversations[0].state='working'
+    assert.throws(() => restored.remove('saved'),/Stop/)
+    assert.equal(restored.list('fixture').length,1)
+  } finally { fs.rmSync(directory,{recursive:true,force:true}) }
+})

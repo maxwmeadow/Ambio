@@ -1,3 +1,4 @@
+import { useConversationPreferences } from '../store/conversationPreferences'
 import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
@@ -9,34 +10,34 @@ import { RecordingControl } from './RecordingControl'
 import { WindowControls } from './ui/WindowControls'
 import { AppMenuBar } from '../app/AppMenuBar'
 import { AmbioWordmark } from './ui/AmbioBrand'
-import { useCommandHandlers } from '../app/commands'
+import { emitCommand, useCommandHandlers } from '../app/commands'
+import { ProposalDraftProgress } from './ProposalDraftProgress'
+import { ProjectActivity } from './ProjectActivity'
 
 interface ToolbarProps {
   onSearch: () => void
   onManageAgentConnections: () => void
-  agentLogOpen: boolean
-  onToggleAgentLog: () => void
 }
 
 export function Toolbar({
-  onSearch, onManageAgentConnections, agentLogOpen, onToggleAgentLog,
+  onSearch, onManageAgentConnections,
 }: ToolbarProps) {
   const { fitView, getNodes } = useReactFlow()
-  const isIndexing = useGraphStore(s => s.isIndexing)
+  const hasChanges = useGraphStore(s => !!s.delta && !s.deltaReviewing)
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
-  const queuedMsgs = useSheetStore(s => s.inboxAvailableCount)
+  const requestedConversation = useConversationPreferences(s => s.requested)
+  useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) setAgentMsgOpen(true) }, [requestedConversation, workspaceId])
+  const queuedMsgs = useConversationPreferences(s => s.attention[workspaceId] ?? 0)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
   const activeSheetName = useSheetStore(s =>
     s.activeSheetId ? s.sheets.find(sheet => sheet.id === s.activeSheetId)?.name : undefined
   )
-  const surfaceName = activeSheetId ? (activeSheetName ?? 'Overlay Sheet') : 'The Floor'
-  const surfaceKind = activeSheetId ? 'Overlay Sheet' : 'Live Code Graph'
 
   useEffect(() => {
-    setAgentMsgOpen(false)
+    setAgentMsgOpen(useConversationPreferences.getState().requested?.workspaceId === workspaceId)
     if (!workspaceId) return
     void refreshInbox(workspaceId)
     const timer = setInterval(() => { void useSheetStore.getState().fetchSheets(workspaceId) }, 5000)
@@ -70,9 +71,6 @@ export function Toolbar({
           <AmbioWordmark reversed />
           <AppMenuBar />
         </div>
-        <div className={isIndexing ? 'ambio-title-strip__status ambio-title-strip__status--busy' : 'ambio-title-strip__status'}>
-          {isIndexing ? 'INDEXING SOURCE…' : 'INDEX CLEAN'}
-        </div>
         <WindowControls />
       </div>
 
@@ -100,29 +98,25 @@ export function Toolbar({
 
         <div className="ambio-command-group">
           <RecordingControl workspaceId={workspaceId} />
-          <InvestigationsMenu workspaceId={workspaceId} />
           <ChromeButton
-            onClick={onToggleAgentLog}
-            label="Agent log"
-            active={agentLogOpen}
-            ariaExpanded={agentLogOpen}
+            onClick={() => emitCommand('view.reviewChanges')}
+            label="Review Changes"
+            active={hasChanges}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/>
+              <path d="M9 5H5v16h14V5h-4M9 3h6v4H9zM8 14l3 3 5-6"/>
             </svg>
           </ChromeButton>
         </div>
 
-        <div className="ambio-surface-readout">
-          <span>{surfaceName}</span>
-          <strong>{surfaceKind}</strong>
-        </div>
+        {activeSheetId && <div className="ambio-surface-readout">
+          <strong>{activeSheetName ?? 'Overlay Sheet'}</strong>
+        </div>}
 
         <div className="ambio-command-spacer" />
 
         <div className="ambio-command-group ambio-command-group--navigation">
-          <ChromeButton onClick={onSearch} label="Search" visualLabel="Search indexed files…" shortcut="Ctrl+K">
+          <ChromeButton onClick={onSearch} label="Search" visualLabel="Search files…" shortcut="Ctrl+K">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
             </svg>
@@ -140,7 +134,7 @@ export function Toolbar({
         <div className="ambio-command-group">
           <ChromeButton
             onClick={() => setAgentMsgOpen(open => !open)}
-            label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} queued)` : 'Message agent'}
+            label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} need attention)` : 'Message agent'}
             visualLabel="Message agent"
             active={agentMsgOpen || queuedMsgs > 0}
             ariaExpanded={agentMsgOpen}
@@ -154,6 +148,9 @@ export function Toolbar({
       </div>
 
       </header>
+      <InvestigationsMenu workspaceId={workspaceId} />
+      <ProjectActivity key={workspaceId} workspaceId={workspaceId} />
+      <ProposalDraftProgress key={`draft:${workspaceId}`} workspaceId={workspaceId} />
       <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
     </>
   )

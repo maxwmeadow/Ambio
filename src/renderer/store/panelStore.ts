@@ -2,17 +2,16 @@ import { create } from 'zustand'
 
 /**
  * Which panels are shown (View → Panels ▸). Remembered per machine, so a
- * person who hides the status bar does not get it back on every launch.
+ * person who hides a panel does not get it back on every launch.
  * Storage can be missing or refuse writes; panels then simply start shown.
  */
 export interface PanelVisibility {
   sheetRail: boolean
   detailPanel: boolean
-  statusBar: boolean
 }
 
 const KEY = 'ambio.panels'
-const ALL_SHOWN: PanelVisibility = { sheetRail: true, detailPanel: true, statusBar: true }
+const ALL_SHOWN: PanelVisibility = { sheetRail: true, detailPanel: true }
 
 function load(): PanelVisibility {
   try {
@@ -20,7 +19,6 @@ function load(): PanelVisibility {
     return {
       sheetRail: stored.sheetRail !== false,
       detailPanel: stored.detailPanel !== false,
-      statusBar: stored.statusBar !== false,
     }
   } catch {
     return ALL_SHOWN
@@ -35,8 +33,8 @@ export const usePanelStore = create<PanelStore>((set, get) => ({
   ...(typeof localStorage === 'undefined' ? ALL_SHOWN : load()),
   toggle: panel => {
     set({ [panel]: !get()[panel] } as Partial<PanelVisibility>)
-    const { sheetRail, detailPanel, statusBar } = get()
-    try { localStorage.setItem(KEY, JSON.stringify({ sheetRail, detailPanel, statusBar })) } catch { /* not remembered */ }
+    const { sheetRail, detailPanel } = get()
+    try { localStorage.setItem(KEY, JSON.stringify({ sheetRail, detailPanel })) } catch { /* not remembered */ }
   },
 }))
 
@@ -44,5 +42,4 @@ export const usePanelStore = create<PanelStore>((set, get) => ({
 export const PANEL_COMMANDS = {
   'view.panelSheetRail': 'sheetRail',
   'view.panelDetail': 'detailPanel',
-  'view.panelStatusBar': 'statusBar',
 } as const

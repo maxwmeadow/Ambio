@@ -7,7 +7,7 @@ import {
   apiStopInvestigation,
 } from '../canvas/arcdApi'
 import type { InvestigationDoc } from '../store/graphStore'
-import { ChromeButton } from './ui/ChromeButton'
+import { useCommandHandlers } from '../app/commands'
 
 /**
  * Start and stop an investigation, and show one while it is running.
@@ -112,6 +112,8 @@ export function RecordingControl({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId, endInvestigation])
 
+  useCommandHandlers({ 'investigation.record': () => { if (!busy) void (active ? stop() : start()) } })
+
   if (active) {
     return (
       <div className="ambio-recording" role="status" aria-live="polite">
@@ -141,15 +143,7 @@ export function RecordingControl({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="ambio-recording">
-      <ChromeButton
-        onClick={() => void start()}
-        label={busy ? 'Starting recording' : 'Record investigation'}
-        visualLabel="Record"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="7" fill="currentColor" stroke="none" />
-        </svg>
-      </ChromeButton>
+      {busy && <span role="status">Starting recording…</span>}
       {saved && (
         <button
           type="button"

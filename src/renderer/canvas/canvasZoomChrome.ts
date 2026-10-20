@@ -1,4 +1,5 @@
 const ZOOM_CHROME_SELECTOR = [
+  '.ambio-sheet-change-badge',
   '.ambio-surface-activity-pill',
   '.ambio-living-file-telemetry__badge',
   '.ambio-living-window-rail',

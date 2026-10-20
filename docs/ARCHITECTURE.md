@@ -7,7 +7,46 @@ data flow or a limit named here, update it in the same change.
 
 ---
 
+## Project workbench chrome
+
+`Toolbar` keeps selection, Review Changes, the active sheet name, Search,
+Fit and Message Agent visible. There is no permanent status footer or idle
+indexing label. On the Floor, its name appears only in the left rail, with no
+duplicate toolbar label or reserved space. `shared/appMenu.ts` supplies Tools
+commands for recording and saved investigations, Agent → Architecture Draft for
+draft recovery, and Help → Setup Guide for the opt-in legacy tutorial.
+`panelStore` remembers only
+the Sheet Rail and Detail Panel; older saved footer preferences are ignored.
+
+`ProjectActivity` routes reads lasting over 1.5 seconds to the existing
+interruption lane with progress and Stop. Lost live connections get a recovery
+notice after 3 seconds, suppressed while Electron reports a daemon restart or
+failure. Successful reconnection/read completion clears these notices.
+`ProposalDraftProgress` uses the same lane on the workbench, while preserving
+inline progress on initial project review. Dismissed drafts can be recovered
+from Agent. The queue ranks progress below decisions, failures and invitations;
+only one notice occupies the canvas at a time. Recording controls appear while
+recording, starting, saving or offering the saved capture for replay.
+
 ## Integrated coding conversations
+
+Conversation presentation (`store/conversationPreferences.ts`) stores custom
+names and read watermarks per workspace/thread in renderer local storage.
+Unread replies and build decisions drive the toolbar's attention count;
+queued work alone is not an unread notification. Notification clicks carry the
+workspace and thread through preload, opening the project and exact conversation.
+Native chat lists refresh from saved metadata while the panel is closed, without
+starting the harness. Rename is presentation only; deletion removes the native
+saved transcript/index and/or an idle work-order thread through
+`DELETE /api/canvas/conversation`. Active/queued threads refuse deletion until
+stopped. Replies, claims and review events cascade with the thread; sheets,
+code, work-session attribution and the structural journal remain.
+
+The shared agent workflow and work-order handoff carry one response guideline:
+use names and artifact links, ordinary architectural language, and concise
+results. `AgentMessageContent` turns known system/sheet references into map links
+and keeps internal identifiers out of prose while preserving code blocks.
+
 
 Ambio chat is one destination in the agent panel's picker (`@chat:<service>`),
 beside CLI/editor delivery. Its conversations are listed with the work-order
@@ -374,3 +413,20 @@ shows it, gated by the `workOrderNotifications` setting).
 - Full re-cluster reads the whole git history and rebuilds the root graph;
   not benchmarked on very large repos.
 - macOS auto-update needs code signing.
+
+### Sheet presentation defaults
+
+A sheet starts with relationships hidden. Selecting a system reveals its
+connections; selecting a relationship review row reveals and frames both
+endpoints, accents their existing outlines and explains the relationship in
+the rail. Show All Sheet Relationships is a presentation toggle shared with
+the View menu; it resets on sheet navigation. Proposed relationships remain
+reviewable even when their lines are hidden. Moves state their original and
+proposed parent in ordinary language. Added/moved markers use `canvasZoomChrome`
+to retain a small screen size without invalidating the whole scene during zoom.
+
+`compactSheetSystems` reuses `packFrame` and frame insets to size unplaced new
+systems and automatic system moves from their contents, recursively. It modifies
+only the sheet projection: authored sheet layouts and surrounding Floor frames
+are retained. Resizing/placing a proposal explicitly makes its saved geometry
+authoritative, rather than compacting it again on refresh.

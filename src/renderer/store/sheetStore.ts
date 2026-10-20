@@ -4,6 +4,7 @@
 import { handlePermissionPatch } from './agentPermissionStore.ts'
 import { create } from 'zustand'
 import type { SheetMember } from '../canvas/sheetFromSelection'
+import { conversationKey, useConversationPreferences } from './conversationPreferences.ts'
 import { workOrderNotice } from './workOrderNotice.ts'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
 import { raiseFailure, raiseInvitation, resolveInterruption } from './interruptionStore.ts'
@@ -1202,12 +1203,20 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
       })
       break
     }
+    case 'canvas:conversation-deleted': {
+      inboxRequest++
+      const { workspaceId, threadId } = patch.payload as { workspaceId: string; threadId: string }
+      useSheetStore.setState(state => ({ messages: state.messages.filter(message => message.workspaceId !== workspaceId || (message.threadId || message.id) !== threadId) }))
+      break
+    }
     case 'canvas:message': {
       const m = patch.payload as CanvasMessage
       if (m.workspaceId === s.workspaceId) {
         // Told outside the window only while you are elsewhere (workOrderNotice.ts).
-        const notice = workOrderNotice(s.messages.find(message => message.id === m.id), m)
-        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.ambio?.notify?.(notice)
+        const threadId = m.threadId?.startsWith('chat:') ? m.threadId.slice(5) : (m.threadId || m.id)
+        const title = useConversationPreferences.getState().items[conversationKey(m.workspaceId, threadId)]?.title
+        const notice = workOrderNotice(s.messages.find(message => message.id === m.id), m, title)
+        if (notice && typeof document !== 'undefined' && !document.hasFocus()) void window.ambio?.notify?.({ ...notice, workspaceId: m.workspaceId, threadId })
         void refreshInbox(m.workspaceId)
       }
       break
@@ -1281,3 +1290,11 @@ useSheetStore.subscribe((state, previous) => {
   if (state.visibleSheetIds === previous.visibleSheetIds) return
   for (const sheetId of state.visibleSheetIds) resolveInterruption(`agent-drawing-${sheetId}`)
 })
+
+export async function deleteInboxConversation(workspaceId: string, threadId: string): Promise<void> {
+  inboxRequest++
+  const response = await fetch(`${archdApi()}/api/canvas/conversation`, { method: 'DELETE', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, threadId }) })
+  if (!response.ok) throw new Error(await refusalReason(response, "Couldn't delete conversation"))
+  useSheetStore.setState(state => ({ messages: state.messages.filter(message => message.workspaceId !== workspaceId || (message.threadId || message.id) !== threadId) }))
+  await refreshInbox(workspaceId)
+}

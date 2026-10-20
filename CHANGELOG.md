@@ -8,6 +8,18 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- A quieter project page: removed the idle indexing label and technical footer,
+  reclaimed canvas and chat space, and moved recording tools into Tools.
+  The Floor is labeled only in the left rail, freeing more toolbar space.
+  Progress and connection problems appear when useful; unfinished drafts and
+  Review Changes remain accessible. The legacy Setup Guide opens from Help.
+- Cleaner agent conversations: rename and delete chats, distinguish new replies
+  from running work and review decisions, and open the right chat from a notification.
+  Conversation cleanup preserves other unread replies; menus and confirmation
+  text stay readable in narrow panels.
+- Sheets show relationships on selection, with an optional full view, readable
+  change descriptions, small change markers and compact automatic system sizing.
+  Agent replies use names and artifact links instead of internal identifiers.
 - Sheets retain node measurements while zooming, avoiding repeated off-screen
   card mounting. Camera and selection changes reuse layouts and unaffected
   nodes; large sheets also cull planned nodes. Search and reply file pills wait

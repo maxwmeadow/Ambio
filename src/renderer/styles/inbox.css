@@ -9,7 +9,7 @@
   --inbox-muted: #5e6b64;
   --inbox-line: #aeb8ae;
   --inbox-accent: #2d625c;
-  top: var(--chrome-toolbar-height, 82px); right: 0; bottom: var(--chrome-status-height, 28px);
+  top: var(--chrome-toolbar-height, 82px); right: 0; bottom: 0;
   width: min(var(--inbox-width, 456px), 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
   background: var(--inbox-paper); color: var(--inbox-ink); box-shadow: -5px 0 0 #1f2b2524;
   font: 13px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
@@ -204,7 +204,7 @@
 .ambio-inbox__error { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 9px 18px; color: #8d4235; background: #f8eae3; overflow-wrap: anywhere; }
 .ambio-inbox__error button { text-decoration: underline; }
 .ambio-inbox__limit { display: block; padding: 5px; color: #a5563b; }
-@media (max-width: 700px) { .ambio-inbox { top: var(--chrome-toolbar-height, 82px); bottom: var(--chrome-status-height, 28px); width: 100vw; } }
+@media (max-width: 700px) { .ambio-inbox { top: var(--chrome-toolbar-height, 82px); bottom: 0; width: 100vw; } }
 @media (max-height: 620px) { .ambio-inbox__header { height: 40px; } .ambio-inbox__history { padding-top: 12px; gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { .ambio-inbox__comparison-summary > svg:last-child { transition: none; } }
 .ambio-sheet-rail__attach { position: absolute; right: 27px; top: 50%; transform: translateY(-50%); z-index: 3; width: 18px; height: 20px; border: 0; background: transparent; color: #d9ece7; cursor: pointer; padding: 0; }
@@ -250,11 +250,8 @@
 .ambio-sheet-rail__review-reason input { flex: 1; min-width: 0; font: inherit; font-size: 11px; padding: 3px 5px; border: 1px solid #77827e; background: #fbfaf5; }
 .ambio-sheet-rail__review-reason button { flex: none; padding: 0 7px; border: 1px solid #8a3b30; background: #8a3b30; color: #fff; font: 700 8px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .ambio-sheet-rail__review button:disabled { opacity: .5; cursor: default; }
-.react-flow__node[data-proposal="pending"] { outline: 2px dashed #c98a1b; outline-offset: 3px; }
-.react-flow__node[data-proposal="pending"]::after { content: 'PROPOSED'; position: absolute; top: -18px; left: 0; font: 700 9px var(--font-mono, monospace); letter-spacing: .05em; color: #8a5a12; pointer-events: none; }
+.react-flow__node[data-proposal="pending"] { outline: none; }
 .react-flow__node[data-proposal="rejected"] { opacity: .35; }
-/* Inside the card: above it, the tag would sit on the new parent's title. */
-.react-flow__node[data-proposal="pending"][data-proposal-kind="move"]::after { content: 'PROPOSED MOVE'; top: auto; left: auto; bottom: 5px; right: 6px; padding: 1px 4px; border: 1px solid #c98a1b; background: #fbf3e2; z-index: 2; }
 .ambio-sheet-rail__new { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #c98a1b; color: #fff; font: 700 8px var(--font-mono, monospace); letter-spacing: .05em; }
 /* The destination and mode sit inside the compose box, so they carry its
    gutter; the textarea below is ruled off as the place to type. */
@@ -279,7 +276,7 @@
 .ambio-inbox__conversation-button h2 { grid-column: 1; overflow: hidden; margin: 0; font: 600 12px/1.25 var(--font-ui, sans-serif); letter-spacing: 0; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .ambio-inbox__conversation-button > span { grid-column: 1; overflow: hidden; color: #b1c0b9; font: 8px/1.35 var(--font-mono, monospace); letter-spacing: .025em; text-overflow: ellipsis; white-space: nowrap; }
 .ambio-inbox__conversation-button svg { grid-column: 2; grid-row: 1 / span 2; color: #b1c0b9; }
-.ambio-inbox__conversation-menu { position: absolute; z-index: 9; top: calc(100% + 6px); left: 0; right: 0; max-height: min(420px, 60vh); padding: 4px; overflow-y: auto; background: #e9e8e0; border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
+.ambio-inbox__conversation-menu { position: absolute; z-index: 9; top: calc(100% + 6px); left: 0; right: 0; max-height: min(420px, 60vh); padding: 4px; overflow-y: auto; background: #e9e8e0; color: var(--inbox-ink); border: 1px solid #596b60; box-shadow: 4px 4px 0 #182b1e59; }
 .ambio-inbox .ambio-inbox__conversation-menu button { display: grid; width: 100%; gap: 2px; padding: 7px 9px; border: 0; background: transparent; color: var(--inbox-ink); text-align: left; cursor: pointer; }
 .ambio-inbox .ambio-inbox__conversation-menu button:hover, .ambio-inbox .ambio-inbox__conversation-menu button:focus-visible { background: #d2ded2; outline: none; }
 .ambio-inbox .ambio-inbox__conversation-menu button[aria-checked='true'] { background: #dfeae6; box-shadow: inset 3px 0 #2f6a5d; }
@@ -483,3 +480,32 @@
 /* Copy sits in the reply's header row, top right, rather than under the reply. */
 .ambio-inbox .ambio-inbox__reply-heading .ambio-inbox__copy-reply { margin: 0 0 0 auto; }
 .ambio-sheet-rail__review-label em { color: var(--rail-muted); font-size: 10.5px; font-style: normal; line-height: 1.25; overflow-wrap: anywhere; }
+
+/* Readable conversation rows: attention, activity and time have separate places. */
+.ambio-inbox__conversation-row { position: relative; border-top: 1px solid #d2d6ce; padding-right: 29px; }
+.ambio-inbox .ambio-inbox__conversation-entry { grid-template-columns: minmax(0, 1fr) auto; min-height: 49px; align-items: center; gap: 5px 10px; }
+.ambio-inbox__conversation-entry strong { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ambio-inbox__conversation-entry time { grid-column: 1; grid-row: 2; color: #68766e; font: 10px var(--font-ui); white-space: nowrap; }
+.ambio-inbox__conversation-entry small { display: flex; flex-wrap: wrap; gap: 3px 10px; grid-column: 2; grid-row: 2; font: 600 10px var(--font-ui); }
+.ambio-inbox__conversation-entry small[data-attention='true'] { color: #236456; }
+.ambio-inbox__conversation-actions { position: absolute; top: 8px; right: 3px; z-index: 1; background: #e9e8e0; }
+.ambio-inbox__conversation-actions summary { list-style: none; padding: 3px 6px; cursor: pointer; font-size: 16px; color: var(--inbox-ink); }
+.ambio-inbox__conversation-actions[open] { z-index: 2; border: 1px solid #8b9b90; box-shadow: 2px 2px 5px #182b1e33; }
+.ambio-inbox .ambio-inbox__conversation-actions button { width: auto; white-space: nowrap; }
+.ambio-inbox__conversation-row form { display: flex; gap: 5px; padding: 8px; }
+.ambio-inbox__conversation-row input { min-width: 0; flex: 1; padding: 5px; font: inherit; color: var(--inbox-ink); background: #fbfaf5; border: 1px solid #77827e; }
+.ambio-inbox .ambio-inbox__conversation-row form button { width: auto; padding: 5px; }
+.ambio-inbox__conversation-delete { padding: 8px; font-size: 12px; }
+.ambio-inbox .ambio-inbox__conversation-delete button { display: inline-block; width: auto; border: 1px solid #8b9b90; margin-right: 6px; }
+.ambio-inbox__conversation-filters summary { padding: 6px 9px; color: #65746a; font-size: 11px; cursor: pointer; }
+
+.ambio-sheet-rail__relationships { display: flex; align-items: center; gap: 6px; padding: 8px 10px; color: #596b60; font: 11px var(--font-ui); border-top: 1px solid #b9bdb8; }
+.ambio-sheet-rail__relationships input { accent-color: #3b7466; }
+.ambio-sheet-change { padding: 9px 10px; border-top: 1px solid #b9bdb8; background: #edf0e9; color: #374b40; font: 11px/1.5 var(--font-ui); }
+.ambio-sheet-change strong { display: block; font-weight: 600; }
+.ambio-sheet-change p { margin: 3px 0; }
+.ambio-sheet-change small { display: block; margin-top: 3px; color: #6e7566; }
+
+/* Change markers remain small on screen even during a deep camera flight. */
+.react-flow__node[data-proposal]::after, .react-flow__node[data-sheet-change]::after { content: none; }
+.ambio-sheet-change-badge { position: absolute; right: 6px; bottom: 5px; z-index: 5; pointer-events: none; padding: 2px 5px; border-left: 2px solid #a27a37; background: #f4f0e7; color: #6c5938; font: 500 10px/1.3 var(--font-ui, sans-serif); transform: scale(calc(1 / var(--ambio-zoom, 1))); transform-origin: bottom right; opacity: clamp(0, calc((var(--sheet-frame-width, 220) * var(--ambio-zoom, 1) - 75) / 45), 1); }

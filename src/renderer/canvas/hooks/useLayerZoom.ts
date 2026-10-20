@@ -84,7 +84,7 @@ export function getZoomTier(zoom: number): number {
   return 5
 }
 
-/** Current semantic zoom level (for status bar label) */
+/** Current semantic zoom level. */
 export function useCurrentDepth(): number {
   const { zoom } = useViewport()
   if (zoom >= 1.35) return 3
@@ -93,7 +93,7 @@ export function useCurrentDepth(): number {
   return 0
 }
 
-/** Current layer name (for backwards compatibility with StatusBar) */
+/** Current layer name. */
 export function useCurrentLayer(): Layer {
   const { zoom } = useViewport()
   for (const layer of LAYER_ORDER) {

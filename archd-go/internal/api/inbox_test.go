@@ -304,6 +304,7 @@ func TestInboxHTTPLifecycle(t *testing.T) {
 		t.Fatal(r.Code, r.Body.String())
 	}
 }
+
 // A conversation is several requests in one thread. The agent claiming a
 // later turn is handed what was asked and answered before it, so it has the
 // context in any host, with or without that host's own session memory.
@@ -542,5 +543,27 @@ func TestLocalTokenProtectsHTTPAndWebsocket(t *testing.T) {
 	second, err := LocalAPIToken(dir)
 	if err != nil || first != second {
 		t.Fatal("token changed across restart", err)
+	}
+}
+
+func TestConversationDeleteRefusesActiveAndKeepsOtherMessages(t *testing.T) {
+	_, mux, _ := inboxServer(t)
+	send := inboxHTTP(t, mux, "POST", "/api/canvas/send", map[string]any{"id": "delete-me", "workspaceId": "ws", "note": "Hello", "selection": "[]", "threadId": "delete-me"})
+	if send.Code != 200 {
+		t.Fatalf("send: %s", send.Body.String())
+	}
+	request := map[string]string{"workspaceId": "ws", "threadId": "delete-me"}
+	if response := inboxHTTP(t, mux, "DELETE", "/api/canvas/conversation", request); response.Code != 409 {
+		t.Fatalf("active: %d %s", response.Code, response.Body.String())
+	}
+	if response := inboxHTTP(t, mux, "POST", "/api/canvas/cancel", map[string]string{"workspaceId": "ws", "msgId": "delete-me"}); response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	if response := inboxHTTP(t, mux, "DELETE", "/api/canvas/conversation", request); response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	history := inboxHTTP(t, mux, "GET", "/api/canvas/history?workspace=ws", nil)
+	if strings.Contains(history.Body.String(), "delete-me") {
+		t.Fatal(history.Body.String())
 	}
 }

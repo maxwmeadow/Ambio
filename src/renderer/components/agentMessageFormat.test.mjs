@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { fileLinkTarget, inlineFilePath, normalizeAgentText } from './agentMessageFormat.ts'
+import { architectureLinkTarget, fileLinkTarget, inlineFilePath, normalizeAgentText } from './agentMessageFormat.ts'
+
+test('artifact links resolve encoded identifiers without browser-specific custom scheme handling', () => {
+  assert.deepEqual(architectureLinkTarget('ambio://sheet/394dba97-cb06-46b3-9e53-c4c8d231bad5'), { type: 'sheet', id: '394dba97-cb06-46b3-9e53-c4c8d231bad5' })
+  assert.deepEqual(architectureLinkTarget('AMBIO://SYSTEM/arch%3Aruntime%2Fformula'), { type: 'system', id: 'arch:runtime/formula' })
+  for (const href of ['https://system/example', 'ambio://file/foo', 'ambio://system/%invalid', 'ambio://sheet/', 'ambio://sheet/id?other=1']) assert.equal(architectureLinkTarget(href), null)
+})
 
 test('a "\\b" or "\\f" the agent meant as a letter is put back', () => {
   assert.equal(normalizeAgentText('see \u0008ackend/src and \u0008uild_query, \u000corm'), 'see backend/src and build_query, form')
@@ -68,4 +74,21 @@ test('file names written as plain prose become chips; code, links and unknown na
   assert.deepEqual(tree.children[1].children[0].children, [text('('), { type: 'inlineCode', value: 'backend/test_skills.py' }, text(')')])
   assert.deepEqual(tree.children[2].children, [text('query_builder.py')])
   assert.deepEqual(tree.children[3].children, [text('https://x.io/query_builder.py')])
+})
+
+test('architecture references read as names, open the artifact, and preserve code examples', async () => {
+  const { remarkArchitectureNames } = await import('./agentMessageFormat.ts')
+  const tree = { type: 'root', children: [
+    { type: 'paragraph', children: [{ type: 'text', value: 'Review Skill Split (ID 394dba97-cb06-46b3-9e53-c4c8d231bad5). Formula Runtime DEPENDS_ON Dispatch.' }] },
+    { type: 'paragraph', children: [{ type: 'inlineCode', value: 'system-secret-hash' }] },
+    { type: 'code', value: 'system-secret-hash DEPENDS_ON Dispatch' },
+    { type: 'link', url: 'https://example.com/system-secret-hash', children: [{ type: 'text', value: 'Original link' }] },
+  ] }
+  remarkArchitectureNames([{ id: '394dba97-cb06-46b3-9e53-c4c8d231bad5', name: 'Skill Split', type: 'sheet' }, { id: 'system-secret-hash', name: 'Formula Runtime', type: 'system' }])()(tree)
+  assert.equal(tree.children[0].children[1].url, 'ambio://sheet/394dba97-cb06-46b3-9e53-c4c8d231bad5')
+  assert.ok(JSON.stringify(tree.children[0]).includes('uses Dispatch'))
+  assert.ok(!JSON.stringify(tree.children[0]).includes('(ID'))
+  assert.equal(tree.children[1].children[0].children[0].value, 'Formula Runtime')
+  assert.equal(tree.children[2].value, 'system-secret-hash DEPENDS_ON Dispatch')
+  assert.equal(tree.children[3].url, 'https://example.com/system-secret-hash')
 })

@@ -1753,13 +1753,15 @@ test('⌘K finds systems, infrastructure and symbols, and a symbol opens its sou
 })
 
 test('opens saved investigations and controls replay through the workbench transport', async () => {
-  const trigger = page.getByRole('button', { name: 'Investigations' })
-  await trigger.click()
+  const openInvestigations = async () => {
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Tools', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Saved Investigations…', exact: true }).click()
+  }
+  await openInvestigations()
 
   const menu = page.getByRole('menu', { name: 'Investigation captures' })
   const capture = menu.getByRole('menuitem', { name: /Checkout timeout/ })
   await expect(menu).toBeVisible()
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   await expect(capture).toBeVisible()
   await expect(capture).toContainText('2 events')
   await expect(capture).toContainText('fix/checkout@9fc31ab')
@@ -1783,7 +1785,6 @@ test('opens saved investigations and controls replay through the workbench trans
 
   await capture.click()
   await expect(menu).toHaveCount(0)
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
 
   const replay = page.getByRole('region', { name: 'Investigation replay: Checkout timeout' })
   const timeline = replay.getByRole('slider', { name: 'Investigation timeline' })
@@ -1823,7 +1824,7 @@ test('opens saved investigations and controls replay through the workbench trans
   await replay.getByRole('button', { name: 'Exit replay' }).click()
   await expect(replay).toHaveCount(0)
 
-  await trigger.click()
+  await openInvestigations()
   await expect(page.getByRole('menu', { name: 'Investigation captures' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu', { name: 'Investigation captures' })).toHaveCount(0)
@@ -2392,7 +2393,13 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   // The move and the relationship are reviewed with the new system.
   await expect(review.locator('li')).toHaveCount(3)
   await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
-  await expect(review.locator('li[data-kind="depends on"]')).toContainText('Payments Split')
+  await expect(review.locator('li[data-kind="relationship"]')).toContainText('Payments Split')
+  await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
+  const relationships = page.getByLabel('Show All Sheet Relationships', { exact: true })
+  await relationships.check()
+  await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
+  await relationships.uncheck()
+  await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
@@ -2410,7 +2417,34 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   }, { timeout: 5_000 }).toBe(true)
   // The moved file is marked as a proposed move, and the relationship is drawn.
   await expect(fileNode).toHaveAttribute('data-proposal-kind', 'move')
+  await expect(fileNode).not.toHaveCSS('outline-style', 'dashed')
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
+  await review.locator('li[data-kind="relationship"]').getByRole('button').first().click()
+  await expect(page.getByLabel('Selected relationship')).toContainText('Payments Split uses')
+  await expect.poll(async () => {
+    const canvas = await page.locator('.react-flow').first().boundingBox()
+    const source = await plannedNode.boundingBox()
+    const target = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+    return !!canvas && [source, target].every(box => box && box.x >= canvas.x && box.y >= canvas.y && box.x + box.width <= canvas.x + canvas.width && box.y + box.height <= canvas.y + canvas.height)
+  }).toBe(true)
+  await expect(plannedNode.locator('.ambio-sheet-change-badge')).toHaveText('Added')
+  await expect.poll(async () => {
+    const size = await plannedNode.locator('.ambio-sheet-change-badge').boundingBox()
+    return size?.height ?? 0
+  }).toBeLessThan(22)
+  await page.evaluate(edge => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'planned:edge', payload: { ...edge, approvalStatus: 'approved' } }), relationship)
+  await expect(review.locator('li[data-kind="relationship"]')).toHaveCount(0)
+  await page.locator('.react-flow__pane').click({ position: { x: 350, y: 100 } })
+  await relationships.check()
+  const connection = page.locator('.react-flow__edge[data-id="pedge:edge_split"] .react-flow__edge-interaction')
+  const midpoint = await connection.evaluate(element => {
+    const path = element as SVGPathElement
+    const point = path.getPointAtLength(path.getTotalLength() / 2)
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!)
+    return { x: screen.x, y: screen.y }
+  })
+  await page.mouse.click(midpoint.x, midpoint.y)
+  await expect(page.getByLabel('Selected relationship')).toContainText('Part of this plan')
   await page.screenshot({ path: 'test-results/sheet-proposed-move.png' })
   await page.unroute(/\/api\/sheets\/sheet_split\?/)
 })
@@ -2488,8 +2522,9 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
   await page.evaluate(summary => {
     const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
     store.setState({ delta: summary })
-    store.getState().startDeltaReview()
   }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
+  await page.getByRole('button', { name: 'Set aside — stays unreviewed, reopen with Review Changes' }).click()
+  await page.getByRole('button', { name: 'Review Changes', exact: true }).click()
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
   await expect(panel).toContainText('AmbioCanvas.tsx moved from Canvas Renderer to Shared Types')
@@ -2658,21 +2693,140 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
   expect(diagram).toContain('["MCP Server"]')
 })
 
-test('View → Panels hides the status bar and remembers it', async () => {
-  const status = page.getByRole('contentinfo', { name: 'Application status' })
-  await expect(status).toBeVisible()
-  await page.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: 'View', exact: true }).click()
-  const toggle = page.getByRole('menuitemcheckbox', { name: /Status Bar/ })
-  await expect(toggle).toHaveAttribute('aria-checked', 'true')
-  await toggle.click()
-  await expect(status).toHaveCount(0)
-  await page.reload()
-  await expect(page.locator('.react-flow__node').first()).toBeVisible()
-  await expect(status).toHaveCount(0)
-  await page.keyboard.press('ControlOrMeta+Shift+P')
-  await page.getByRole('textbox', { name: 'Command' }).fill('Status Bar')
-  await page.keyboard.press('Enter')
-  await expect(status).toBeVisible()
+test('project chrome stays quiet and chat uses the reclaimed footer space', async () => {
+  await expect(page.getByRole('contentinfo', { name: 'Application status' })).toHaveCount(0)
+  await expect(page.getByText('INDEX CLEAN', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Record investigation', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Agent log', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Review Changes', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Message agent/ }).click()
+  const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
+  await expect.poll(async () => {
+    const box = await inbox.boundingBox()
+    return Math.abs(page.viewportSize()!.height - box!.y - box!.height)
+  }).toBeLessThan(2)
+  await page.setViewportSize({ width: 900, height: 600 })
+  for (const name of ['Review Changes', 'Search', 'Fit view']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(900)
+  }
+  await expect.poll(async () => {
+    const box = await inbox.boundingBox()
+    return Math.abs(600 - box!.y - box!.height)
+  }).toBeLessThan(2)
+})
+
+test('long project reads expose progress and Stop, then disappear on completion', async () => {
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().connectionStatus)).toBe('connected')
+  let stopped: unknown
+  await page.route(/\/api\/workspace-index-cancel$/, async route => {
+    stopped = route.request().postDataJSON()
+    await route.fulfill({ json: { stopped: true } })
+  })
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: true, indexingProgress: { indexed: 3, total: 10 } }))
+  const progress = page.getByRole('progressbar', { name: 'Reading project progress' })
+  await expect(progress).toHaveCount(0)
+  await expect(progress).toBeVisible()
+  await expect(progress).toHaveAttribute('value', '3')
+  await page.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect.poll(() => stopped).toEqual({ workspaceId: 'demo' })
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: false, indexingProgress: null }))
+  await expect(progress).toHaveCount(0)
+})
+
+test('short project reads stay quiet', async () => {
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: true }))
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: false }))
+  await page.waitForTimeout(1700)
+  await expect(page.getByText('Updating your map…', { exact: true })).toHaveCount(0)
+})
+
+test('recording starts from Tools and keeps its Stop control visible', async () => {
+  let started: any
+  let stopped: any
+  await page.route(/\/api\/investigation\/start$/, async route => {
+    started = route.request().postDataJSON()
+    await route.fulfill({ json: { id: 'recording-fixture', name: 'Test capture', commit: '' } })
+  })
+  await page.route(/\/api\/investigation\/stop$/, async route => {
+    stopped = route.request().postDataJSON()
+    await route.fulfill({ json: { id: 'recording-fixture', eventCount: 2 } })
+  })
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'Tools', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Start / Stop Recording', exact: true }).click()
+  await expect.poll(() => started?.workspaceId).toBe('demo')
+  const stop = page.getByRole('button', { name: /^Recording \d/ })
+  await expect(stop).toBeVisible()
+  await stop.click()
+  await expect.poll(() => stopped).toEqual({ workspaceId: 'demo' })
+  await expect(stop).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Saved 2 events - watch it' })).toBeVisible()
+})
+
+test('lost live updates warn clearly and clear after reconnecting', async () => {
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ connectionStatus: 'disconnected' }))
+  await expect(page.getByText('Your map isn’t updating', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ connectionStatus: 'connected' }))
+  await expect(page.getByText('Your map isn’t updating', { exact: true })).toHaveCount(0)
+})
+
+test('brief connection gaps do not leave a warning after recovery', async () => {
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ connectionStatus: 'disconnected' }))
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ connectionStatus: 'connected' }))
+  await page.waitForTimeout(3300)
+  await expect(page.getByText('Your map isn’t updating', { exact: true })).toHaveCount(0)
+})
+
+test('a failed Stop stays actionable and clears when the read finishes', async () => {
+  await page.route(/\/api\/workspace-index-cancel$/, route => route.fulfill({ status: 500, json: { error: 'Could not stop' } }))
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: true }))
+  await page.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(page.getByText('Could not stop reading the project', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Project Settings', exact: true })).toBeVisible()
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState({ isIndexing: false }))
+  await expect(page.getByText('Could not stop reading the project', { exact: true })).toHaveCount(0)
+})
+
+test('unfinished drafts can be dismissed and recovered from the Agent menu', async () => {
+  let drafts: unknown[] = [{ sessionId: 'draft-fixture', rationale: 'Map the project', systemCount: 4, chunkCount: 2, updatedAt: Date.now() }]
+  await page.route(/\/api\/architecture-proposal-drafts\?/, route => route.fulfill({ json: drafts }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:proposal-draft')))
+  const title = page.getByText('Your agent is mapping the project…', { exact: true })
+  await expect(title).toBeVisible()
+  await expect(page.locator('.ambio-lane')).not.toContainText('chunk')
+  await page.getByRole('button', { name: 'Hide — reopen from Agent → Architecture Draft' }).click()
+  await expect(title).toHaveCount(0)
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'Agent', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Architecture Draft…', exact: true }).click()
+  await expect(title).toBeVisible()
+  drafts = []
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:proposal-draft')))
+  await expect(title).toHaveCount(0)
+})
+
+test('an old architecture draft explains recovery and can be discarded', async () => {
+  let drafts: unknown[] = [{ sessionId: 'old-draft', rationale: 'Map the project', systemCount: 4, chunkCount: 2, updatedAt: Date.now() - 6 * 60_000 }]
+  let discarded: unknown
+  await page.route(/\/api\/architecture-proposal-drafts\?/, route => route.fulfill({ json: drafts }))
+  await page.route(/\/api\/architecture-proposal-drafts\/old-draft\/abort$/, async route => {
+    discarded = route.request().postDataJSON()
+    drafts = []
+    await route.fulfill({ json: { aborted: true } })
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:proposal-draft')))
+  const title = page.getByText('An architecture draft is unfinished', { exact: true })
+  await expect(title).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open chat', exact: true })).toBeVisible()
+  page.once('dialog', async dialog => {
+    expect(dialog.message()).toContain('Your code and current map will be kept.')
+    await dialog.accept()
+  })
+  await page.getByRole('button', { name: 'Discard draft', exact: true }).click()
+  await expect.poll(() => discarded).toEqual({ workspaceId: 'demo' })
+  await expect(title).toHaveCount(0)
 })
 
 test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
@@ -2847,11 +3001,12 @@ test('the inbox is a conversation: follow-ups stay together and other conversati
 
   // The other conversation is in the menu, with where it stands; the title
   // says an answer is waiting elsewhere, and the menu can show only those.
-  await expect(inbox.getByRole('button', { name: /^Conversation:/ })).toContainText('1 to review')
+  await expect(inbox.getByRole('button', { name: /^Conversation:/ })).toContainText('1 new reply')
   await inbox.getByRole('button', { name: /^Conversation:/ }).click()
   const menu = inbox.getByRole('menu', { name: 'Conversations' })
   await expect(menu.getByRole('menuitemradio')).toHaveCount(2)
-  await expect(menu.getByRole('menuitemradio').nth(1)).toContainText('To review')
+  await expect(menu.getByRole('menuitemradio').nth(1)).toContainText('Needs review')
+  await menu.getByText('Filter conversations', { exact: true }).click()
   const stages = menu.getByRole('group', { name: 'Show conversations' })
   // The stage filters sit in one row of chips, and the open title stays readable.
   const chips = await stages.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().top))
