@@ -889,6 +889,9 @@ func migrate(db *sql.DB) error {
 	if err := migrateProposalMembershipDeletes(db); err != nil {
 		return fmt.Errorf("migrate proposal memberships: %w", err)
 	}
+	if err := RepairUnplacedSheetLayouts(db); err != nil {
+		return err
+	}
 	if err := BackfillSheetLayouts(db); err != nil {
 		return err
 	}

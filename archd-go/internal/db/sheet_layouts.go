@@ -126,9 +126,18 @@ func sheetLayoutParentExists(
 	return category == "platform", nil
 }
 
+// unplacedElement and unplacedPlanned match a member added with no geometry
+// at all - an agent naming a system or file for a sheet, or drawing a planned
+// node without saying where. That is no layout opinion: an existing node
+// stays where the Floor has it and a planned one is placed in free space by
+// the canvas, instead of every one of them being pinned to (0, 0).
+const unplacedElement = `e.width IS NULL AND e.height IS NULL AND e.position_x=0 AND e.position_y=0`
+const unplacedPlanned = `p.width IS NULL AND p.height IS NULL AND p.position_x=0 AND p.position_y=0`
+
 // BackfillSheetLayouts migrates legacy sheet-local geometry into the canonical
 // layout table. It is deliberately INSERT OR IGNORE: once a sheet has a layout
 // opinion, future starts must never overwrite it from the deprecated columns.
+// A member with no geometry gets no opinion (see unplacedElement).
 func BackfillSheetLayouts(db *sql.DB) error {
 	now := time.Now().UnixMilli()
 	if _, err := db.Exec(`
@@ -171,7 +180,8 @@ func BackfillSheetLayouts(db *sql.DB) error {
 		  ON fl.workspace_id=s.workspace_id
 		 AND fl.node_id=COALESCE(e.system_id,e.file_id,e.infra_id)
 		WHERE e.symbol_ref IS NULL
-		  AND COALESCE(e.system_id,e.file_id,e.infra_id) IS NOT NULL`, now); err != nil {
+		  AND COALESCE(e.system_id,e.file_id,e.infra_id) IS NOT NULL
+		  AND NOT (`+unplacedElement+`)`, now); err != nil {
 		return fmt.Errorf("backfill sheet element layouts: %w", err)
 	}
 	if _, err := db.Exec(`
@@ -207,8 +217,29 @@ func BackfillSheetLayouts(db *sql.DB) error {
 		                     WHEN p.kind='infra' THEN 160 ELSE 110 END),
 		       CASE WHEN p.scale > 0 THEN p.scale ELSE 1 END,
 		       1, ?
-		FROM planned_nodes p`, now); err != nil {
+		FROM planned_nodes p
+		WHERE NOT (`+unplacedPlanned+`)`, now); err != nil {
 		return fmt.Errorf("backfill planned sheet layouts: %w", err)
+	}
+	return nil
+}
+
+// RepairUnplacedSheetLayouts drops the (0, 0) layouts earlier backfills wrote
+// for members that never had geometry, which pinned every agent-added system
+// to the origin. Run once at startup, before the backfill.
+func RepairUnplacedSheetLayouts(db *sql.DB) error {
+	if _, err := db.Exec(`
+		DELETE FROM sheet_layouts
+		WHERE position_x=0 AND position_y=0
+		  AND (EXISTS(SELECT 1 FROM sheet_elements e
+		              WHERE e.sheet_id=sheet_layouts.sheet_id
+		                AND COALESCE(e.system_id,e.file_id,e.infra_id)=sheet_layouts.node_id
+		                AND `+unplacedElement+`)
+		    OR EXISTS(SELECT 1 FROM planned_nodes p
+		              WHERE p.sheet_id=sheet_layouts.sheet_id
+		                AND 'planned:' || p.id=sheet_layouts.node_id
+		                AND `+unplacedPlanned+`))`); err != nil {
+		return fmt.Errorf("repair unplaced sheet layouts: %w", err)
 	}
 	return nil
 }

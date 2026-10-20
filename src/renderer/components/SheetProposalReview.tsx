@@ -30,20 +30,23 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   }
   return (
     <section className="ambio-sheet-rail__review" aria-label="Agent proposals to review">
-      <div className="ambio-sheet-rail__review-heading">
-        <span>To review · {pending.length}</span>
+      <div className="ambio-sheet-rail__section-label ambio-sheet-rail__review-heading">
+        <span>To review</span>
+        <span className="ambio-sheet-rail__review-count">{pending.length}</span>
+        <span className="ambio-sheet-rail__section-rule" />
         {pending.length > 1 && (
-          <button type="button" disabled={busy} onClick={() => void run(pending.map(node => node.id), 'approved')}>Confirm All</button>
+          <button type="button" className="ambio-sheet-rail__review-all" disabled={busy} onClick={() => void run(pending.map(node => node.id), 'approved')}>Confirm all</button>
         )}
       </div>
       <ul>
         {pending.map(node => (
           <li key={node.id}>
             <span className="ambio-sheet-rail__review-label" title={node.declaredPath || node.name}>
-              <small>{node.kind}</small> {node.name}
+              <small>{node.kind}</small>
+              <span>{node.name}</span>
             </span>
-            <button type="button" disabled={busy} aria-label={`Confirm ${node.name}`} title="Confirm: part of the plan" onClick={() => void run([node.id], 'approved')}>✓</button>
-            <button type="button" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => { setRejecting(node.id); setReason('') }}>✕</button>
+            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="confirm" disabled={busy} aria-label={`Confirm ${node.name}`} title="Confirm: part of the plan" onClick={() => void run([node.id], 'approved')}>✓</button>
+            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="reject" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => { setRejecting(node.id); setReason('') }}>✕</button>
             {rejecting === node.id && (
               <form
                 className="ambio-sheet-rail__review-reason"

@@ -991,6 +991,14 @@ function preserveActiveResizeGeometry(
   })
 }
 
+/**
+ * A sheet member or planned node saved with no geometry at all carries no
+ * layout opinion (the daemon's unplacedElement says the same).
+ */
+function isUnplaced(item: { positionX: number; positionY: number; width?: number | null; height?: number | null }): boolean {
+  return item.width == null && item.height == null && item.positionX === 0 && item.positionY === 0
+}
+
 function buildFloorFrameLayout(
   systems: DbSystem[],
   files: DbFile[],
@@ -1901,6 +1909,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const element of layer.elements) {
         const nodeId = element.systemId ?? element.fileId ?? element.infraId
         if (!nodeId || canonicalIds.has(nodeId)) continue
+        // Added with no geometry (an agent naming it for the sheet): it stays
+        // exactly where the Floor has it, rather than jumping to the origin.
+        if (isUnplaced(element)) continue
         const previous = byId.get(nodeId)
         const nodeType: FloorNodeType = element.systemId ? 'system' : element.fileId ? 'file' : 'infra'
         const infra = liveInfra.get(nodeId)
@@ -1928,6 +1939,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const planned of layer.planned) {
         const nodeId = `planned:${planned.id}`
         if (canonicalIds.has(nodeId)) continue
+        // Drawn with no position: the layout places it in free space.
+        if (isUnplaced(planned)) continue
         const metadata = plannedMetadata(planned)
         const nodeType: FloorNodeType = planned.kind === 'system'
           ? 'system' : planned.kind === 'infra' ? 'infra' : 'file'

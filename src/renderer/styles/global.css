@@ -3236,11 +3236,14 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #fff;
 }
 
+/* Top-left, clear of the Infrastructure tab on the left edge (18px), and
+   beside the Infrastructure sidebar while it is open rather than over it. */
 .ambio-sheet-palette {
   position: absolute;
-  top: 60px;
-  left: 12px;
+  top: 12px;
+  left: 30px;
   z-index: 1000;
+  transition: left 0.18s ease;
   width: 92px;
   overflow: hidden;
   padding: 0;
@@ -3250,6 +3253,8 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.4);
   color: #34413d;
 }
+
+.ambio-infra-sidebar:not([data-closing]) ~ .ambio-sheet-palette { left: calc(min(300px, 80%) + 12px); }
 
 .ambio-sheet-palette__title {
   height: 25px;

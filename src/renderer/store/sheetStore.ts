@@ -6,7 +6,7 @@ import { create } from 'zustand'
 import type { SheetMember } from '../canvas/sheetFromSelection'
 import { workOrderNotice } from './workOrderNotice.ts'
 import type { CodeCheckResult, DeltaWorkSession, FloorLayout } from '../../shared/types'
-import { raiseFailure, raiseInvitation } from './interruptionStore.ts'
+import { raiseFailure, raiseInvitation, resolveInterruption } from './interruptionStore.ts'
 import { archdApi } from '../archdEndpoint.ts'
 
 let openSheetRequest = 0
@@ -973,6 +973,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
  * invitation per sheet, replaced rather than stacked while the agent works.
  */
 function announceAgentDrawing(sheetId: string, title: string, body: string) {
+  // The person is already looking at it; the sheet rail shows what is new.
+  if (useSheetStore.getState().visibleSheetIds.includes(sheetId)) return
   raiseInvitation(`agent-drawing-${sheetId}`, title, body, [{
     label: 'Open Sheet',
     primary: true,
@@ -1234,3 +1236,10 @@ export async function reviewInboxMessage(workspaceId: string, msgId: string, rev
   if (!response.ok) throw new Error(await response.text())
   await refreshInbox(workspaceId)
 }
+
+// However a sheet is opened - the invitation, the sheet rail, a link - its
+// "an agent drew this" invitation has done its job once the sheet is on screen.
+useSheetStore.subscribe((state, previous) => {
+  if (state.visibleSheetIds === previous.visibleSheetIds) return
+  for (const sheetId of state.visibleSheetIds) resolveInterruption(`agent-drawing-${sheetId}`)
+})

@@ -2339,6 +2339,14 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   await expect(review).toContainText('Job Queue')
   await expect(page.locator('.react-flow__node[data-id="planned:plan_queue"]')).toHaveAttribute('data-proposal', 'pending')
   await expect(page.locator('.ambio-sheet-rail__new')).toHaveCount(0)
+  // Opening the sheet answers the invitation; it does not linger over the sheet.
+  await expect(page.getByText('An agent drew a sheet: Agent Plan')).toHaveCount(0)
+  // The stencils sit clear of the Infrastructure tab on the left edge.
+  const palette = await page.locator('.ambio-sheet-palette').boundingBox()
+  const infraTab = await page.locator('.ambio-infra-sidebar-tab').boundingBox()
+  expect(palette && infraTab).toBeTruthy()
+  expect(palette!.x >= infraTab!.x + infraTab!.width || palette!.y + palette!.height <= infraTab!.y).toBe(true)
+  await page.screenshot({ path: 'test-results/sheet-proposal-review.png' })
   await review.getByRole('button', { name: 'Reject Job Queue' }).click()
   await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
   await review.getByRole('button', { name: 'Reject', exact: true }).click()
