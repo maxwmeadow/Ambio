@@ -39,6 +39,7 @@ import (
 	"ambio.local/archd/internal/db"
 	"ambio.local/archd/internal/gitworktree"
 	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
 	"ambio.local/archd/internal/infradetect"
 	"ambio.local/archd/internal/registry"
 	"ambio.local/archd/internal/runtime"
@@ -81,7 +82,10 @@ type Server struct {
 	discoverWorktrees func(string) ([]gitworktree.Worktree, error)
 	worktreeRefresh   time.Duration
 	worktreeMonitors  map[string]worktreeMonitor
-	rootSyncing       map[string]bool
+	// checkoutPoll is how often other checkouts' changes are read from Git
+	// for the Floor's overlays (worktrees.go pushCheckoutChanges).
+	checkoutPoll time.Duration
+	rootSyncing  map[string]bool
 	// background counts work started for an open workspace (watching a
 	// project opened by a request, root syncs); closeDB waits for it, so a
 	// closed or deleted project's folder is not still being written.
@@ -89,10 +93,14 @@ type Server struct {
 	rootSyncPending map[string]pendingRootSync
 	// Exclusions a root had before the user changed them; the next reconcile
 	// of that root runs as a quiet re-scope. See indexer.ReconcileScope.
-	rootScopeFrom     map[string][]string
-	rootForceReindex  map[string]bool
-	collisionCache    map[string]collisionCacheEntry
-	collisionCacheTTL time.Duration
+	rootScopeFrom    map[string][]string
+	rootForceReindex map[string]bool
+	// Roots the Floor just moved to: their next sync reconciles quietly.
+	rootQuietReconcile map[string]bool
+	collisionCache     map[string]collisionCacheEntry
+	checkoutsCache     map[string]checkoutsCacheEntry
+	nestedCache        map[string]nestedCacheEntry
+	collisionCacheTTL  time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
 	// that an agent began investigating. Timestamps of recent qualifying
 	// actions per workspace, so one incidental trace during feature work does
@@ -129,12 +137,16 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		discoverWorktrees:   gitworktree.Discover,
 		worktreeRefresh:     5 * time.Minute,
 		worktreeMonitors:    make(map[string]worktreeMonitor),
+		checkoutPoll:        2 * time.Second,
 		rootSyncing:         make(map[string]bool),
 		background:          make(map[string]*sync.WaitGroup),
 		rootSyncPending:     make(map[string]pendingRootSync),
 		rootScopeFrom:       make(map[string][]string),
 		rootForceReindex:    make(map[string]bool),
+		rootQuietReconcile:  make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
+		checkoutsCache:      make(map[string]checkoutsCacheEntry),
+		nestedCache:         make(map[string]nestedCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),
 		autoCaptureIdleStop: autoCaptureIdleStopDefault,
@@ -369,11 +381,13 @@ func (s *Server) closeDB(workspaceID string) {
 			}
 			delete(s.roots, rootID)
 			delete(s.rootSyncPending, rootID)
+			indexer.ForgetCheckout(rootID)
 		}
 	}
 	d := s.dbs[workspaceID]
 	delete(s.dbs, workspaceID)
 	delete(s.collisionCache, workspaceID)
+	delete(s.checkoutsCache, workspaceID)
 	background := s.background[workspaceID]
 	delete(s.background, workspaceID)
 	s.mu.Unlock()
@@ -486,6 +500,13 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/delta", s.handleDelta)
 	mux.HandleFunc("/api/delta/ack", s.handleDeltaAck)
 	mux.HandleFunc("/api/collisions", s.handleCollisions)
+	mux.HandleFunc("/api/checkouts", s.handleCheckouts)
+	mux.HandleFunc("/api/checkouts/focus", s.handleCheckoutFocus)
+	mux.HandleFunc("/api/checkouts/review", s.handleBranchReview)
+	mux.HandleFunc("/api/checkouts/worktree", s.handleCreateRunWorktree)
+	mux.HandleFunc("/api/checkouts/finish", s.handleFinishRunWorktree)
+	mux.HandleFunc("/api/checkouts/switch", s.handleSwitchBranch)
+	mux.HandleFunc("/api/checkouts/branches", s.handleBranches)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)
 	mux.HandleFunc("/api/query", s.handleQuery)
@@ -636,7 +657,7 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 500)
 		return
 	}
-	worktrees, isGitWorkspace := s.discoverInitialWorktrees(req.RootPath)
+	worktrees, _ := s.discoverInitialWorktrees(req.RootPath)
 	options := rootOpenOptions{
 		IgnoredPaths:               req.IgnoredPaths,
 		SourceBoundariesReviewedAt: req.SourceBoundariesReviewedAt,
@@ -648,15 +669,15 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if isGitWorkspace {
-		monitorOptions := options
-		monitorOptions.IgnoredPaths = ignoredPathsForWorktree(
-			options.IgnoredPaths,
-			req.RootPath,
-			worktrees[0].Path,
-		)
-		s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
-	}
+	// Started for a plain folder too: it notices the folder becoming a Git
+	// checkout.
+	monitorOptions := options
+	monitorOptions.IgnoredPaths = ignoredPathsForWorktree(
+		options.IgnoredPaths,
+		req.RootPath,
+		worktrees[0].Path,
+	)
+	s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
 
 	jsonOK(w, map[string]any{"workspaceId": wsID, "rootId": rootID})
 }

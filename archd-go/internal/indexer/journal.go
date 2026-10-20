@@ -115,6 +115,9 @@ func recordRootEvent(sqlDB *sql.DB, root db.Root, ev db.StructuralEvent) {
 	ev.WorkspaceID = root.WorkspaceID
 	ev.RootID = root.ID
 	ev.Branch = root.Branch
+	if head, ok := currentHead(root.ID); ok {
+		ev.Branch = head.Branch
+	}
 	recordEvent(sqlDB, ev)
 }
 
@@ -196,7 +199,10 @@ func journalSystemPlan(
 	sqlDB *sql.DB, root db.Root,
 	before []db.System, after []db.System, removedIDs []string,
 ) {
-	if isQuietRoot(root.ID) {
+	// Systems appearing because a branch was checked out are that branch's,
+	// not new; after a pull they arrived with Git.
+	move := activeMove(root.ID)
+	if isQuietRoot(root.ID) || move == moveSwitch {
 		return
 	}
 	existing := make(map[string]db.System, len(before))
@@ -204,6 +210,9 @@ func journalSystemPlan(
 		existing[system.ID] = system
 	}
 	actor := activity.ActorFor(root.WorkspaceID)
+	if move == moveGit {
+		actor = activity.ActorGit
+	}
 
 	for _, system := range after {
 		if _, known := existing[system.ID]; known {

@@ -236,11 +236,18 @@ func TestOpenWorkspaceIndexesOnlyCanonicalRootAndStillTracksGitMetadata(t *testi
 
 	secondAgentPath := filepath.Join(projectParent, "agent-two")
 	runWorktreeGit(t, primaryPath, "worktree", "add", "-b", "agent-two", secondAgentPath)
-	// Metadata refresh must not turn the new linked worktree into another code root.
-	time.Sleep(350 * time.Millisecond)
-	roots, err := db.GetActiveRoots(sqlDB, "ws")
-	if err != nil {
-		t.Fatal(err)
+	// Metadata refresh must not turn the new linked worktree into another code
+	// root. Wait for the refresh rather than a fixed time: under a full test
+	// run it can take longer than a moment.
+	var roots []db.Root
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		roots, err = db.GetActiveRoots(sqlDB, "ws")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(roots) == 3 || time.Now().After(deadline) {
+			break
+		}
 	}
 	if len(roots) != 3 {
 		t.Fatalf("worktree metadata was not retained: %#v", roots)

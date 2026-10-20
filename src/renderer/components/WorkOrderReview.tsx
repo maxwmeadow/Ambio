@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { useCheckoutStore, REVIEW_BRANCH } from '../store/checkoutStore'
+import { checkoutName } from './checkoutModel'
 import { reviewInboxMessage, type CanvasMessage, type Sheet, type WorkOrderReply } from '../store/sheetStore'
 import { SheetComparison } from './SheetComparison'
 import { AgentMessageContent } from './AgentMessageContent'
@@ -63,6 +65,7 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
         <button type="button" disabled={busy} onClick={() => setReopening(!reopening)}>Request changes</button>
         {reopening && <div className="ambio-inbox__review-reopen"><label htmlFor={`review-feedback-${message.id}`}>What needs to change?</label><textarea id={`review-feedback-${message.id}`} value={feedback} onChange={event => setFeedback(event.target.value)} maxLength={4000} rows={3} /><button type="button" disabled={busy || !feedback.trim()} onClick={() => { void decide('reopened') }}>Reopen work order</button></div>}
       </div>}
+      <RunBranchReview sessions={message.sessions} />
       {!!message.sessions?.length && <div className="ambio-inbox__review-sessions"><strong>Work sessions</strong><ul>{message.sessions.map(session => <li key={session.id}><span>{session.agent || 'Agent'} · {session.goal}{session.branch ? ` · ${session.branch}` : ''}{session.endedAt ? ' · ended' : ' · open'}</span>{session.notes.length > 0 && <ol>{session.notes.map((entry, index) => <li key={`${entry.ts}:${index}`}>{entry.text}</li>)}</ol>}{session.summary && <p>{session.summary}</p>}</li>)}</ul></div>}
       {!!message.changes?.length && <div className="ambio-inbox__review-changes"><div className="ambio-inbox__evidence-label">Indexed changes <span>· linked to this order</span></div><ul>{message.changes.map((change, index) => <li key={`${change.at}:${index}`}>{change.kind} · {change.subjectLabel || 'unnamed item'}{change.objectLabel ? ` → ${change.objectLabel}` : ''}{change.count > 1 ? ` (${change.count} updates)` : ''}</li>)}</ul></div>}
       {message.reply && <ReportedResult reply={message.reply} />}
@@ -74,4 +77,22 @@ export function WorkOrderReview({ message, workspaceId, currentSheet }: { messag
       {error && <p role="alert" className="ambio-inbox__review-error">{error}</p>}
     </div>}
   </section>
+}
+
+/**
+ * A work order an agent ran on another branch - its own worktree - is
+ * reviewed as that branch's architecture, and applied or discarded from the
+ * branch menu (docs/GIT_AND_PROJECT_SHAPES.md stage 4).
+ */
+function RunBranchReview({ sessions }: { sessions?: Array<{ rootId?: string }> }) {
+  const elsewhere = useCheckoutStore(state => {
+    const checkouts = state.snapshot?.checkouts ?? []
+    return checkouts.find(checkout => !checkout.isFocused && sessions?.some(session => session.rootId === checkout.rootId))
+  })
+  if (!elsewhere) return null
+  const name = checkoutName(elsewhere)
+  return <div className="ambio-inbox__review-branch">
+    <span>Worked on <code>{name}</code>{elsewhere.isAmbioRun ? ' in its own worktree' : ''}.</span>
+    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent(REVIEW_BRANCH, { detail: { rootId: elsewhere.rootId, name } }))}>Review this branch</button>
+  </div>
 }

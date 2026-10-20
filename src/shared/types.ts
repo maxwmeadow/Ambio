@@ -724,29 +724,6 @@ export interface AgentAction {
   branch?: string
 }
 
-export interface BranchSystemTouch {
-  systemId: string
-  systemName: string
-  files: string[]
-  claims: DeltaClaim[]
-}
-
-export interface ActiveBranch {
-  rootId: string
-  branch: string
-  headCommit: string
-  isPrimary: boolean
-  touchedSystems: BranchSystemTouch[]
-  unclassifiedFiles: string[]
-  errors?: string[]
-  activeWork: Array<{
-    sessionId: string
-    agent?: string
-    goal: string
-    startedAt: number
-  }>
-}
-
 export interface CollisionBranch {
   rootId: string
   branch: string
@@ -760,28 +737,82 @@ export interface BranchCollision {
   branches: CollisionBranch[]
 }
 
-export interface ParallelAgentSnapshot {
-  workspaceId: string
-  generatedAt: number
-  branches: ActiveBranch[]
-  collisions: BranchCollision[]
+/** Where a checkout's HEAD is: on a commit, detached, a new repository with no
+ *  commits yet, or no Git at all (a plain folder). */
+export type CheckoutHeadState = 'commit' | 'detached' | 'unborn' | 'none'
+
+/** One working copy of the project (GET /api/checkouts). */
+export interface CheckoutStatus {
+  rootId: string
+  path: string
+  branch: string
+  headCommit: string
+  headState: CheckoutHeadState
+  isPrimary: boolean
+  /** The checkout the Floor shows. */
+  isFocused: boolean
+  /** A worktree Ambio made for an agent run: it can be applied or discarded. */
+  isAmbioRun?: boolean
+  changedFiles: number
+  upstream?: string
+  ahead: number
+  behind: number
+  agents: Array<{ sessionId: string; agent?: string; goal: string; startedAt: number }>
+  touchedSystems: number
+  collidingSystems: number
+  error?: string
+  /** What this checkout changes against its merge base with the Floor's
+   *  checkout; empty for the Floor's own. */
+  overlay: CheckoutOverlayFile[]
+  overlayTruncated?: number
 }
 
-export interface CommandDeckBranchStatus {
+export interface CheckoutOverlayFile {
+  path: string
+  change: 'added' | 'modified' | 'deleted'
+  /** The Floor file this changes or deletes. */
+  fileId?: string
+  /** Where it lives on the Floor; for a new file, the system owning its folder. */
+  systemId?: string
+}
+
+/** A branch's architecture against its base (GET /api/checkouts/review). */
+export interface BranchReview {
+  workspaceId: string
   rootId: string
   branch: string
   headCommit: string
-  isPrimary: boolean
+  /** What it is compared with, and where the two diverged. */
+  base: string
+  baseCommit: string
   files: number
-  systems: number
-  unreviewedClaims: number
-  unexplained: number
-  unexpected: number
-  activeWork: DeltaWorkSession[]
-  lastActivityAt: number
+  truncated?: number
+  claims: DeltaClaim[]
+  /** Why the review is empty, when it is. */
+  message?: string
 }
 
-export interface ParallelCommandDeckStatus {
+/** A repository inside the project's folder: one of several under a parent
+ *  folder, or a submodule. */
+export interface RepositoryStatus {
+  /** Relative to the Floor's folder. */
+  folder: string
+  branch: string
+  headCommit: string
+  headState: CheckoutHeadState
+  changedFiles: number
+  upstream?: string
+  ahead: number
+  behind: number
+  error?: string
+}
+
+export interface CheckoutsSnapshot {
   workspaceId: string
-  branches: CommandDeckBranchStatus[]
+  /** "repos": a folder that is not a checkout but holds several repositories. */
+  vcs: 'git' | 'none' | 'repos'
+  checkouts: CheckoutStatus[]
+  /** Systems more than one checkout is changing. */
+  collisions: BranchCollision[]
+  repositories?: RepositoryStatus[]
 }

@@ -17,7 +17,6 @@ import { ArchitectureProposalPanel } from './components/ArchitectureProposalPane
 import { ReplayBar } from './components/ReplayBar'
 import { CasePanel } from './components/CasePanel'
 import { OnboardingGuide } from './components/OnboardingGuide'
-import { AgentLane } from './components/AgentLane'
 import { InterruptionLane } from './components/InterruptionLane'
 import { EmptyIndexNotice } from './components/EmptyIndexNotice'
 import { HomeScreen } from './screens/HomeScreen'
@@ -1061,14 +1060,6 @@ export default function App() {
               the first one sat on top of the replay transport. */}
           {!E2E_MODE && !caseOpen && <OnboardingGuide projectId={currentProject.id} />}
 
-          {/* Which worktree each agent is in, and how the branches relate.
-              Boundaried because a panel throwing during render takes the whole
-              workbench with it - a malformed collisions response did exactly
-              that, blanking the app behind a "Render Error" screen. Losing one
-              panel is acceptable; losing the canvas is not. */}
-          <ErrorBoundary>
-            <AgentLane />
-          </ErrorBoundary>
           </div>
         </div>
 

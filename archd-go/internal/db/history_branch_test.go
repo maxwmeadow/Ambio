@@ -145,6 +145,44 @@ func TestNewUnscopedHistoryStampsPrimaryRoot(t *testing.T) {
 	}
 }
 
+func TestDeltaWatermarksAreIndependentByBranchWithinARoot(t *testing.T) {
+	sqlDB := branchHistoryTestDB(t)
+	checkout := func(branch string) {
+		t.Helper()
+		if _, err := sqlDB.Exec(`UPDATE roots SET branch=? WHERE id='primary'`, branch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := sqlDB.Exec(`UPDATE roots SET delta_reviewed_at=20 WHERE id='primary'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetDeltaReviewedAtForRoot(sqlDB, "ws", "primary", 100); err != nil {
+		t.Fatal(err)
+	}
+	checkout("feature")
+	feature, err := GetDeltaReviewedAtForRoot(sqlDB, "ws", "primary")
+	if err != nil || feature != 20 {
+		t.Fatalf("reviewing main acknowledged feature: watermark = %d, err = %v (want the root's earlier 20)", feature, err)
+	}
+	if err := SetDeltaReviewedAtForRoot(sqlDB, "ws", "primary", 10); err != nil {
+		t.Fatal(err)
+	}
+	if feature, _ = GetDeltaReviewedAtForRoot(sqlDB, "ws", "primary"); feature != 20 {
+		t.Fatalf("a late acknowledgement moved feature's watermark backwards to %d", feature)
+	}
+	if err := SetDeltaReviewedAtForRoot(sqlDB, "ws", "primary", 60); err != nil {
+		t.Fatal(err)
+	}
+	checkout("main")
+	if main, _ := GetDeltaReviewedAtForRoot(sqlDB, "ws", "primary"); main != 100 {
+		t.Fatalf("main's watermark after reviewing feature = %d, want 100", main)
+	}
+	checkout("feature")
+	if feature, _ = GetDeltaReviewedAtForRoot(sqlDB, "ws", "primary"); feature != 60 {
+		t.Fatalf("feature's watermark = %d, want 60", feature)
+	}
+}
+
 func TestDeltaWatermarksAreIndependentByRoot(t *testing.T) {
 	sqlDB := branchHistoryTestDB(t)
 	if _, err := sqlDB.Exec(`UPDATE workspaces SET delta_reviewed_at=50 WHERE id='ws'`); err != nil {

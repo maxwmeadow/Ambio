@@ -15,6 +15,8 @@ import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { useFloorEdits } from '../floorEditContext'
+import { useCheckoutStore } from '../../store/checkoutStore'
+import { BranchArrivalsRail } from './BranchOverlayMark'
 
 // Drop-target feedback: renders the cell grid only while a node is being
 // dragged over this container (green = free, amber = displaced, red = occupied).
@@ -119,6 +121,11 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   const onRename = d.onRename ?? (floorEdits && id && floorEdits.canRename(id)
     ? (next: string) => floorEdits.renameSystem(id, next)
     : undefined)
+  // Other checkouts changing this system too (GIT_AND_PROJECT_SHAPES): a stable
+  // array per snapshot, so a poll that finds nothing new does not re-render.
+  const collision = useCheckoutStore(state => (id ? state.bySystem.get(id) : undefined))
+  const arrivals = useCheckoutStore(state => (id ? state.arrivals.get(id) : undefined))
+  const otherBranches = collision?.filter(branch => !branch.focused) ?? []
   const infraCategory = d.umlMetadata?.category ?? 'platform'
   const isDeploymentBoundary = d.umlKind === 'infra'
   const infraService = useInfraService(d.umlKind === 'infra' ? (d.umlMetadata?.service ?? '') : '')
@@ -305,6 +312,22 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
     </svg>
   }
 
+  // Other checkouts changing this system: beside the count while collapsed,
+  // beside the AI mark in the tab band once open.
+  const collisionBadge = (fontSize: number) => otherBranches.length > 0 && (
+    <span
+      className="ambio-system-collision"
+      title={`Also changing on ${otherBranches.map(branch => branch.name).join(', ')}. Open Properties for details.`}
+      style={{ fontSize, padding: `${fontSize * 0.14}px ${fontSize * 0.55}px` }}
+    >
+      <svg width={fontSize} height={fontSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true">
+        <circle cx="6" cy="5" r="2.2" /><circle cx="6" cy="19" r="2.2" /><circle cx="18" cy="8" r="2.2" />
+        <path d="M6 7.2v9.6M18 10.2c0 4-6 3.4-11 7" />
+      </svg>
+      {otherBranches.length}
+    </span>
+  )
+
   // Big centered title - the collapsed identity. Fades out as contents reveal.
   const bigTitleCeiling = Math.max(0.5, Math.min(
     shellSize.w * 0.11,
@@ -345,16 +368,21 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         <span className="ambio-renamed-from" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>was {d.renamedFrom}</span>
       )}
       {infraIdentityIcon(Math.max(16, bigTitleFont * 0.48))}
-      {totalCount > 0 && (
-        <span style={{
-          fontSize: Math.max(9, bigTitleFont * 0.3),
-          fontFamily: 'var(--font-mono)',
-          fontWeight: 700,
-          color,
-          border: '1px solid var(--border-dim)',
-          background: 'var(--bg-raised)',
-          padding: `${bigTitleFont * 0.08}px ${bigTitleFont * 0.25}px`,
-        }}>{totalCount}</span>
+      {(totalCount > 0 || otherBranches.length > 0) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: bigTitleFont * 0.2 }}>
+          {totalCount > 0 && (
+            <span style={{
+              fontSize: Math.max(9, bigTitleFont * 0.3),
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              color,
+              border: '1px solid var(--border-dim)',
+              background: 'var(--bg-raised)',
+              padding: `${bigTitleFont * 0.08}px ${bigTitleFont * 0.25}px`,
+            }}>{totalCount}</span>
+          )}
+          {collisionBadge(Math.max(9, bigTitleFont * 0.3))}
+        </div>
       )}
       {isDeploymentBoundary && totalCount === 0 && (
         <span className="ambio-platform-hint" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>
@@ -418,6 +446,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           AI
         </span>
       )}
+      {collisionBadge(badgeFont * 0.85)}
     </div>
   )
 
@@ -465,6 +494,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
     <div style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none', cursor: 'grab' }}>
       <SheetChangeBadge change={d.sheetChange} width={shellSize.w} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.2, presentationScale))} />
+      <BranchArrivalsRail arrivals={arrivals} />
       {/* Shell plane: the silhouette and contents ride preview translate,
           reveal scale, and blur. Interaction chrome (resizer, connection
           handles) lives outside on the raw node frame so selection outlines

@@ -3,8 +3,8 @@ import type {
   DbSystem,
   DeltaSummary,
   FloorLayout,
-  ParallelAgentSnapshot,
-  ParallelCommandDeckStatus,
+  BranchReview,
+  CheckoutsSnapshot,
 } from '../../shared/types'
 import { archdWsHttp } from '../archdEndpoint.ts'
 import type { CodeFitFinding } from './codeFit.ts'
@@ -55,24 +55,65 @@ export async function apiAckDeltaForRoot(
   if (!res.ok) throw new Error(await res.text() || `Unable to acknowledge delta (${res.status})`)
 }
 
-export async function apiGetBranchCollisions(
+export async function apiGetCheckouts(
   workspaceId: string,
   signal?: AbortSignal,
-): Promise<ParallelAgentSnapshot> {
+): Promise<CheckoutsSnapshot> {
   const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${archdWsHttp()}/api/collisions?${params}`, { signal })
-  if (!res.ok) throw new Error(await res.text() || `Unable to load branch collisions (${res.status})`)
-  return res.json() as Promise<ParallelAgentSnapshot>
+  const res = await fetch(`${archdWsHttp()}/api/checkouts?${params}`, { signal })
+  if (!res.ok) throw new Error(await res.text() || `Unable to load checkouts (${res.status})`)
+  return res.json() as Promise<CheckoutsSnapshot>
 }
 
-export async function apiGetParallelCommandDeck(
-  workspaceId: string,
-  signal?: AbortSignal,
-): Promise<ParallelCommandDeckStatus> {
+/** A branch's architecture against its base; the Floor's checkout by default. */
+export async function apiGetBranchReview(workspaceId: string, rootId?: string, base?: string, signal?: AbortSignal): Promise<BranchReview> {
   const params = new URLSearchParams({ workspace: workspaceId })
-  const res = await fetch(`${archdWsHttp()}/api/command-deck?${params}`, { signal })
-  if (!res.ok) throw new Error(await res.text() || `Unable to load branch briefing (${res.status})`)
-  return res.json() as Promise<ParallelCommandDeckStatus>
+  if (rootId) params.set('root', rootId)
+  if (base) params.set('base', base)
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/review?${params}`, { signal })
+  if (!res.ok) throw new Error(await res.text() || `Unable to review that branch (${res.status})`)
+  return res.json() as Promise<BranchReview>
+}
+
+async function postCheckout<T>(path: string, body: Record<string, string>, failure: string): Promise<T> {
+  const res = await fetch(`${archdWsHttp()}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  let parsed: any = null
+  try { parsed = text ? JSON.parse(text) : null } catch { /* plain text */ }
+  if (!res.ok) throw new Error(typeof parsed?.error === 'string' ? parsed.error : text || `${failure} (${res.status})`)
+  return parsed as T
+}
+
+/** Finish an Ambio run's worktree: apply its work to the Floor's branch as
+ *  uncommitted changes, or discard it. */
+export function apiFinishRunWorktree(workspaceId: string, rootId: string, action: 'apply' | 'discard') {
+  return postCheckout<{ action: string; into: string; files?: number; conflicted?: boolean }>(
+    '/api/checkouts/finish', { workspaceId, rootId, action }, 'Unable to finish that run')
+}
+
+/** Switch the Floor's checkout to another branch; refused with uncommitted changes. */
+export function apiSwitchBranch(workspaceId: string, branch: string) {
+  return postCheckout<{ branch: string }>('/api/checkouts/switch', { workspaceId, branch }, 'Unable to switch branch')
+}
+
+export async function apiListBranches(workspaceId: string): Promise<{ current: string; branches: Array<{ name: string; rootId?: string }> }> {
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/branches?workspace=${encodeURIComponent(workspaceId)}`)
+  if (!res.ok) throw new Error(await res.text() || `Unable to list branches (${res.status})`)
+  return res.json()
+}
+
+/** Show another checkout on the Floor ("Show on the Floor"). */
+export async function apiFocusCheckout(workspaceId: string, rootId: string): Promise<void> {
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/focus`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, rootId }),
+  })
+  if (!res.ok) throw new Error(await res.text() || `Unable to show that checkout (${res.status})`)
 }
 
 export interface FileSource {

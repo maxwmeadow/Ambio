@@ -2,6 +2,7 @@ package gitworktree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -24,10 +25,12 @@ func MergeBase(worktreePath, leftCommit, rightCommit string) (string, error) {
 	return base, nil
 }
 
-// CommittedChangedPaths lists files changed on head since base.
+// CommittedChangedPaths lists files changed on head since base, relative to
+// (and limited to) the worktree folder, which may be a subfolder of the
+// repository. WorkingChangedPaths does the same.
 func CommittedChangedPaths(worktreePath, base, head string) ([]string, error) {
 	output, err := gitOutput(
-		worktreePath, "diff", "--name-only", "-z", "--find-renames", base+".."+head,
+		worktreePath, "diff", "--relative", "--name-only", "-z", "--find-renames", base+".."+head,
 	)
 	if err != nil {
 		return nil, err
@@ -39,7 +42,7 @@ func CommittedChangedPaths(worktreePath, base, head string) ([]string, error) {
 // files. Agents often create a file before their first commit, and that must
 // still participate in a pre-merge semantic collision.
 func WorkingChangedPaths(worktreePath string) ([]string, error) {
-	tracked, err := gitOutput(worktreePath, "diff", "--name-only", "-z", "HEAD")
+	tracked, err := gitOutput(worktreePath, "diff", "--relative", "--name-only", "-z", "HEAD")
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +59,14 @@ func gitOutput(worktreePath string, args ...string) ([]byte, error) {
 	command := exec.Command("git", append([]string{"-C", worktreePath}, args...)...)
 	output, err := command.Output()
 	if err != nil {
+		// Git's own first line ("fatal: 'main' is already checked out at …")
+		// is what a person can act on.
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			if line, _, _ := strings.Cut(strings.TrimSpace(string(exit.Stderr)), "\n"); line != "" {
+				return nil, fmt.Errorf("git %s in %s: %w: %s", strings.Join(args, " "), worktreePath, err, line)
+			}
+		}
 		return nil, fmt.Errorf("git %s in %s: %w", strings.Join(args, " "), worktreePath, err)
 	}
 	return output, nil
@@ -87,4 +98,20 @@ func mergePaths(groups ...[]string) []string {
 	}
 	sort.Strings(paths)
 	return paths
+}
+
+// ChangedSince lists every path in the worktree folder that differs from
+// base: committed and uncommitted changes, deletions and untracked files,
+// relative to (and limited to) the folder. Renames appear as a deletion and an
+// addition, which is how a map of files sees them.
+func ChangedSince(worktreePath, base string) ([]string, error) {
+	tracked, err := gitOutput(worktreePath, "diff", "--relative", "--name-only", "-z", "--no-renames", base)
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := gitOutput(worktreePath, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil, err
+	}
+	return mergePaths(normalizedPaths(tracked), normalizedPaths(untracked)), nil
 }

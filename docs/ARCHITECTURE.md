@@ -267,6 +267,92 @@ to API-key billing or another account. Setup and live-account validation:
   (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history
   is branch-stamped and collisions between branches are projected onto systems.
+  Only the opened folder's checkout is indexed; when that folder is inside a
+  repository, each worktree's root is the same folder in that checkout
+  (`gitworktree.Discover`), and git diffs and co-change use `--relative`.
+  A project indexed at the repository top level before this is moved onto
+  its folder once (`narrowLegacyProjection`, `db.NarrowRootProjection`): the
+  folder's files keep their IDs with re-rooted paths, the rest leave the map,
+  and nothing is journaled.
+  The Review Changes watermark is per root and branch (`delta_watermarks`);
+  a branch never reviewed falls back to the root's older watermark. The
+  worktree monitor also runs for a plain folder and starts watching Git
+  metadata when `.git` appears. Model and plan:
+  [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
+- **Checkouts** (`api/checkouts.go`, `GET /api/checkouts`): every active root
+  as a checkout - branch, head state (`commit`, `detached`, `unborn`, `none`
+  for a plain folder), whether the Floor shows it, `git status` (uncommitted
+  count, upstream, ahead/behind), active agents and systems touched or shared,
+  from the cached collision snapshot. The renderer keeps one snapshot
+  (`store/checkoutStore.ts`, refreshed on `roots:changed`, focus, and every
+  5 s while visible) and projects it into the toolbar branch chip and its
+  Checkouts popover (`BranchChip.tsx`, `⇧⌘B`), the branch mark on systems and
+  the Properties section (`checkoutModel.ts`). Revealing or opening a
+  checkout goes through main by root ID (`checkout:open`), since a linked
+  worktree may live outside the project folder.
+- **Overlays and focus** (`api/overlays.go`): for each checkout the Floor does
+  not show, `GET /api/checkouts` lists what it changes against its merge base
+  with the Floor's checkout (`git diff base` plus untracked files, limited to
+  what the indexer would read, `indexer.InScope`), each file tied to its Floor
+  file or, if new, to the system owning most of its folder. The worktree
+  monitor rebuilds this every 2 s when there are several checkouts and
+  broadcasts `checkouts:changed` only when it differs. `roots.is_focused`
+  (schema 9) records "Show on the Floor" (`POST /api/checkouts/focus`); the
+  canonical root then prefers it, and `followCanonicalProjection` moves the
+  file rows to it (`db.MoveRootProjection`, same IDs) and reconciles quietly
+  (`indexer.ReconcileRootQuietly`). Removing the focused worktree moves the
+  Floor back the same way.
+- **Review a branch** (`api/branch_review.go`, `GET /api/checkouts/review`):
+  a branch's architecture against its base, from Git rather than the
+  journal, so it covers work done anywhere. Another checkout is compared
+  with the Floor's branch, the Floor's own with the default branch
+  (`origin/HEAD`, else `main`/`master`), or any `base`. Each changed file's
+  imports are resolved at the base (its blob, parsed from a scratch copy) and
+  at the branch (`indexer.ResolveImports`, the indexer's path rules), and the
+  differences become journal-shaped events that `delta.Aggregate` and
+  `delta.BuildClaims` word like any Review Changes ("Gateway now depends on
+  Mailer"). Shown in the Checkouts popover ("Review this branch"); agents
+  read it through `get_architecture` scope `branches` with `id`.
+- **A worktree per run** (`api/worktree_runs.go`, `electron/main.ts`
+  `agent:deliver`): Send's *Own worktree* asks archd for a worktree
+  (`POST /api/checkouts/worktree`) under `~/.ambio/worktrees/<workspace>/<slug>`
+  on `ambio/<slug>`, started at the Floor's commit, and returns once the root
+  is registered; the run's cwd and handoff are that folder, so its MCP
+  connection resolves there and the one-run-per-root limit no longer blocks a
+  second run. A conversation's later turns reuse its worktree. Finishing
+  (`POST /api/checkouts/finish`, Ambio's own worktrees only) applies the run's
+  commits and uncommitted work to the Floor's checkout as uncommitted changes
+  (`gitworktree.ChangesAsPatch`/`ApplyPatch`, refused over uncommitted edits
+  to the same files, conflicts kept with the worktree) or discards it; either
+  removes the worktree and its branch. *Switch branch…* (`POST
+  /api/checkouts/switch`) is refused with uncommitted changes, and a branch
+  open in another worktree is shown on the Floor instead. Ambio never
+  commits, merges or pushes.
+- **Repositories inside a project** (stage 6, first slice): a root is
+  searched (depth 4, the indexer's skip rules, cached 30 s) for repositories
+  inside it - several under a parent folder, or submodules
+  (`gitworktree.FindRepositories`). The journal's HEAD tracker is keyed per
+  repository (`rootID|folder`, `nestedRepository`), seeded on sync
+  (`indexer.SeedRepositories`), so a switch inside one is quiet and leaves a
+  `checkout.switched` row naming it on the root's branch. `GET
+  /api/checkouts` reports them as `repositories` (`vcs: "repos"` for a plain
+  folder of repositories); the chip reads "N repos". The map is still one
+  projection of the parent folder: per-repository frames, clustering inside
+  one repository, overlays and reviews per nested repository, and adding
+  unrelated folders are WORK follow-ups.
+- **Git moves files too** (`internal/indexer/checkout.go`): before a file
+  change is journaled, its checkout's HEAD is read from the administration
+  files, once any running Git command releases `index.lock` (a lock older
+  than 10 s is taken as left over from a crash).
+  A HEAD move since the journal last looked is classified from the reflog: a
+  commit changes nothing; a branch switch makes the files Git wrote quiet and
+  leaves one `checkout.switched` row; a pull, merge, reset or rebase is
+  journaled with actor `git`. A file counts as written by Git only when its
+  content is the new commit's blob and that blob differs from the old one, so
+  carried and concurrent edits are still journaled. Rows are stamped with the
+  HEAD just read, not the watcher's copy of the root. The worktree sync seeds
+  the HEAD last indexed, so a switch made while Ambio was closed is caught up
+  quietly.
 
 ## Pipelines
 

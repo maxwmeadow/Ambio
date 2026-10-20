@@ -12,6 +12,8 @@ import {
 import { ShapeBackdrop } from './NodeShell'
 import { EditableNodeTitle } from './EditableNodeTitle'
 import { AgentPresenceBadge } from './AgentPresenceBadge'
+import { BranchOverlayMark } from './BranchOverlayMark'
+import { useCheckoutStore } from '../../store/checkoutStore'
 import { LanguageIcon, LanguagePicker } from '../languages'
 import { SourcePreviewDialog } from '../../components/SourcePreviewDialog'
 import { fitPresentationScale } from '../resizeGeometry'
@@ -169,8 +171,10 @@ function RuntimeTooltip({ runtime, color }: { runtime: RuntimeNodeState; color: 
   )
 }
 
-export const FileNode = React.memo(function FileNode({ data, selected, width, height, isConnectable }: NodeProps) {
+export const FileNode = React.memo(function FileNode({ id, data, selected, width, height, isConnectable }: NodeProps) {
   const d = data as unknown as FileNodeData
+  // Other checkouts changing or deleting this file (GIT_AND_PROJECT_SHAPES).
+  const overlayMarks = useCheckoutStore(state => (id ? state.overlayByFile.get(id) : undefined))
   const livingSignal = useRetainedLivingFileSignal(d.fx)
   const { onResizeStart, onResizeEnd } = d as any
   const [hovered, setHovered] = React.useState(false)
@@ -437,6 +441,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     >
       <SheetChangeBadge change={d.sheetChange} width={Number(width) || 220} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.1, s))} />
+      <BranchOverlayMark marks={overlayMarks} />
       {/* Preview plane: node visuals ride the predicted post-drop offset.
           Interaction chrome (resizer, connection handles) stays outside on
           the raw node frame so selection outlines never shift or teleport. */}

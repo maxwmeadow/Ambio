@@ -92,6 +92,10 @@ func MarkAgent(workspaceID string) {
 	agentMu.Unlock()
 }
 
+// ActorGit attributes a change Git made to the working tree: a pull, merge,
+// reset or rebase (indexer/checkout.go).
+const ActorGit = "git"
+
 // ActorFor attributes an edit happening now: 'agent' if agent MCP activity
 // was seen recently in the workspace, else 'human'.
 func ActorFor(workspaceID string) string {

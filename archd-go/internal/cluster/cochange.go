@@ -28,7 +28,9 @@ func BuildCochange(rootPath string, files []db.File) map[CochangePair]float64 {
 		relToID[f.RelPath] = f.ID
 	}
 
-	cmd := exec.Command("git", "-C", rootPath, "log",
+	// --relative: paths relative to (and limited to) rootPath, which may be a
+	// subfolder of the repository, so they match the files' RelPath.
+	cmd := exec.Command("git", "-C", rootPath, "log", "--relative",
 		"--name-only", "--pretty=format:---COMMIT---", "--diff-filter=AM")
 	out, err := cmd.Output()
 	if err != nil {

@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 7 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames
+const SchemaVersion = 9 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames, 8: delta_watermarks per branch, 9: roots.is_focused
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -124,7 +124,8 @@ func migrate(db *sql.DB) error {
 		classifier_version INTEGER NOT NULL DEFAULT 0,
 		ignored_paths_json TEXT NOT NULL DEFAULT '[]',
 		source_boundaries_reviewed_at INTEGER,
-		delta_reviewed_at INTEGER
+		delta_reviewed_at INTEGER,
+		is_focused   INTEGER NOT NULL DEFAULT 0
 	);
 
 	-- ─── Systems ──────────────────────────────────────────────────────────────
@@ -595,6 +596,14 @@ func migrate(db *sql.DB) error {
 		PRIMARY KEY(workspace_id, at)
 	);
 	CREATE INDEX IF NOT EXISTS delta_snapshots_ws ON delta_snapshots(workspace_id, at);
+	-- Review Changes watermark per checkout and branch: switching branches in
+	-- one folder keeps each branch's "unreviewed since" (GIT_AND_PROJECT_SHAPES).
+	CREATE TABLE IF NOT EXISTS delta_watermarks (
+		root_id     TEXT NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+		branch      TEXT NOT NULL,
+		reviewed_at INTEGER NOT NULL,
+		PRIMARY KEY(root_id, branch)
+	);
 	-- Branch-local snapshots are additive. Legacy workspace snapshots remain
 	-- readable as the primary root's fallback at pre-migration watermarks.
 	CREATE TABLE IF NOT EXISTS root_delta_snapshots (
@@ -804,6 +813,8 @@ func migrate(db *sql.DB) error {
 		// The primary root falls back to the legacy workspace watermark while
 		// this remains NULL; no existing acknowledgement is rewritten.
 		`ALTER TABLE roots ADD COLUMN delta_reviewed_at INTEGER`,
+		// The checkout someone chose to show on the Floor (GIT_AND_PROJECT_SHAPES).
+		`ALTER TABLE roots ADD COLUMN is_focused INTEGER NOT NULL DEFAULT 0`,
 		// Parallel-agent history is stamped at write time. NULL deliberately
 		// remains the legacy representation and resolves to the primary root.
 		`ALTER TABLE structural_events ADD COLUMN root_id TEXT`,

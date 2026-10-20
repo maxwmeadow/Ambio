@@ -14,6 +14,8 @@ import { AmbioWordmark } from './ui/AmbioBrand'
 import { emitCommand, useCommandHandlers } from '../app/commands'
 import { ProposalDraftProgress } from './ProposalDraftProgress'
 import { ProjectActivity } from './ProjectActivity'
+import { BranchChip } from './BranchChip'
+import { ErrorBoundary } from './ErrorBoundary'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -114,6 +116,11 @@ export function Toolbar({
         {activeSheetId && <div className="ambio-surface-readout">
           <strong>{activeSheetName ?? 'Overlay Sheet'}</strong>
         </div>}
+        {/* Boundaried: a malformed checkouts response once blanked the whole
+            workbench through the panel this replaced. */}
+        <ErrorBoundary fallback={null}>
+          <BranchChip workspaceId={workspaceId} />
+        </ErrorBoundary>
 
         <div className="ambio-command-spacer" />
 

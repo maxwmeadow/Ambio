@@ -15,6 +15,7 @@ import {
   type PlannedNodeMetadata,
 } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
+import { useCheckoutStore } from '../store/checkoutStore'
 
 const CONTENT_TITLE: Record<string, string> = {
   hosts: 'Folders it runs',
@@ -553,7 +554,32 @@ function SystemDetail({
           <div className="ambio-inspector-note">{system.agentNotes}</div>
         </Section>
       )}
+
+      <OtherBranchesSection systemId={system.id} />
     </>
+  )
+}
+
+/** Other checkouts changing this system before anything merges. */
+function OtherBranchesSection({ systemId }: { systemId: string }) {
+  const branches = useCheckoutStore(state => state.bySystem.get(systemId))
+  const others = branches?.filter(branch => !branch.focused) ?? []
+  if (others.length === 0) return null
+  return (
+    <Section title="Changing on other branches">
+      <ul className="ambio-inspector-branches">
+        {others.map(branch => (
+          <li key={branch.rootId}>
+            <strong>{branch.name}</strong>
+            <span>{branch.claim}</span>
+            <code title={branch.files.join('\n')}>{branch.files.slice(0, 3).join(', ')}{branch.files.length > 3 ? ` +${branch.files.length - 3}` : ''}</code>
+          </li>
+        ))}
+      </ul>
+      {branches!.some(branch => branch.focused) && (
+        <div className="ambio-inspector-note">The Floor’s branch changes it too, so these may conflict when they merge.</div>
+      )}
+    </Section>
   )
 }
 

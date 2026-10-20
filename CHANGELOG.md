@@ -20,6 +20,14 @@ in the app as "What's New" after updating, so write it for users.
   card mounting. Camera and selection changes reuse layouts and unaffected
   nodes; large sheets also cull planned nodes. Search and reply file pills wait
   for a measured target and stop competing wheel zoom before flying to it.
+- Switching branches no longer shows up in Review Changes as code you wrote.
+  The map follows the branch you check out; a pull, merge or reset shows as
+  Git's doing, and each branch remembers what you have already reviewed on it.
+- Opening a folder inside a repository (a package in a monorepo) maps that
+  folder, not the whole repository. A project already mapped whole moves
+  onto its folder, keeping that folder's systems, layout and history.
+- Running `git init` in a project that is already open is noticed straight
+  away, without restarting Ambio.
 - File cards show their functions once the file is indexed, instead of "No
   symbols" for the rest of the session when they were looked at too early.
 - Systems an agent names on a sheet stay where they are on the Floor, instead
@@ -58,6 +66,9 @@ in the app as "What's New" after updating, so write it for users.
   panel, with a compact layout for smaller windows.
 
 ### Changed
+- The "parallel branches" panel no longer pops up over the map when a
+  worktree appears; that information lives in the branch chip and on the
+  systems themselves.
 - While the agent panel is open, fitting the map, search and anything else
   that moves the view centres on the part of the map you can see.
 - Only a Build reply waits for your review; a question or a proposal that has
@@ -87,6 +98,31 @@ in the app as "What's New" after updating, so write it for users.
   language in your project.
 - Kotlin, Swift, PHP, Scala, Groovy, Lua, shell scripts and Elixir appear on the
   map with the links between their files.
+- A project folder holding several repositories shows each one's branch in
+  the toolbar menu, and switching branches inside one of them no longer shows
+  up as code changes.
+- Agents Ambio starts can work in a worktree of their own (choose "Own
+  worktree" when sending), so several can work at once. When one is done,
+  apply its work to your branch as uncommitted changes to review and commit,
+  or discard it, from the branch menu or its work order.
+- Switch the map's branch from the branch menu. Ambio refuses while you have
+  uncommitted changes, and never commits or pushes for you.
+- Review a branch: see what a branch changes in your architecture before it
+  merges ("Payments now depends on Email", "Orders gained retry.ts"), from
+  the branch menu. Agents can read the same review, and see what every other
+  branch is changing, through Ambio's MCP tools.
+- Agents working in other worktrees show up on the map as they work: files
+  they change or delete are marked, and new files appear under the system
+  they belong to. Choose which branches to draw (off, agents only, all) in
+  the branch menu.
+- "Show on the Floor" puts another worktree's branch on the map without
+  losing your layout, systems or history.
+- The toolbar shows the branch the map is on, with uncommitted changes and
+  how far it is ahead or behind. Click it (or press ⇧⌘B) to see every
+  worktree of the project, which agent is working in each, and open its
+  folder or editor.
+- A system that another branch is also changing is marked on the map, and
+  its Properties say which branch and what it changes there.
 - Agents can propose where things belong: a new system inside its parent,
   holding the files it takes over; an existing file or system moved to another
   boundary; a system renamed. Each waits under To review in the sheet rail with

@@ -3,6 +3,9 @@ const ZOOM_CHROME_SELECTOR = [
   '.ambio-surface-activity-pill',
   '.ambio-living-file-telemetry__badge',
   '.ambio-living-window-rail',
+  // Other checkouts' work (GIT_AND_PROJECT_SHAPES stage 2).
+  '.ambio-branch-overlay-mark',
+  '.ambio-branch-arrivals',
 ].join(',')
 
 /**

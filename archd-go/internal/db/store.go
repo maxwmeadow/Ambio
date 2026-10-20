@@ -34,6 +34,9 @@ type Root struct {
 	ClassifierVersion          int      `json:"classifierVersion"`
 	IgnoredPaths               []string `json:"ignoredPaths"`
 	SourceBoundariesReviewedAt *int64   `json:"sourceBoundariesReviewedAt"`
+	// IsFocused marks the checkout someone chose to show on the Floor. It is
+	// set only by SetFocusedRoot; UpsertRoot leaves it alone.
+	IsFocused bool `json:"isFocused"`
 }
 
 type System struct {
@@ -207,7 +210,7 @@ func GetRoots(db *sql.DB, workspaceID string) ([]Root, error) {
 	rows, err := db.Query(`
 		SELECT id, workspace_id, path, branch, head_commit, is_primary, is_active,
 		       indexed_at, classifier_version,
-		       ignored_paths_json, source_boundaries_reviewed_at
+		       ignored_paths_json, source_boundaries_reviewed_at, is_focused
 		FROM roots WHERE workspace_id = ?
 		ORDER BY is_primary DESC, is_active DESC, path`, workspaceID)
 	if err != nil {
@@ -221,7 +224,7 @@ func GetRoots(db *sql.DB, workspaceID string) ([]Root, error) {
 		if err := rows.Scan(
 			&r.ID, &r.WorkspaceID, &r.Path, &r.Branch, &r.HeadCommit,
 			&r.IsPrimary, &r.IsActive, &r.IndexedAt, &r.ClassifierVersion,
-			&ignoredJSON, &r.SourceBoundariesReviewedAt,
+			&ignoredJSON, &r.SourceBoundariesReviewedAt, &r.IsFocused,
 		); err != nil {
 			return nil, err
 		}
@@ -270,6 +273,104 @@ func ClearRootGraphProjection(db *sql.DB, rootID string) (int64, error) {
 	return count, tx.Commit()
 }
 
+// SetFocusedRoot chooses the checkout the Floor shows; an empty rootID goes
+// back to the folder the project was opened at.
+func SetFocusedRoot(db *sql.DB, workspaceID, rootID string) error {
+	_, err := db.Exec(`UPDATE roots SET is_focused = (id = ?) WHERE workspace_id = ?`, rootID, workspaceID)
+	return err
+}
+
+// CountFilesByRoot is how many file rows a root's projection holds.
+func CountFilesByRoot(db *sql.DB, rootID string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM files WHERE root_id = ?`, rootID).Scan(&count)
+	return count, err
+}
+
+// MoveRootProjection hands one checkout's file rows to another checkout of
+// the same repository, keeping every file's ID - and so its system, layout
+// and history - as the Floor moves to that checkout. Paths are re-rooted;
+// contents are brought up to date afterwards by a quiet reconcile.
+func MoveRootProjection(db *sql.DB, from, to Root) (int64, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	result, err := tx.Exec(`
+		UPDATE files SET root_id = ?, path = ? || substr(path, ?)
+		WHERE root_id = ? AND substr(path, 1, ?) = ?`,
+		to.ID, to.Path, len(from.Path)+1, from.ID, len(from.Path), from.Path)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(`DELETE FROM files WHERE root_id = ?`, from.ID); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(`
+		UPDATE roots SET indexed_at = (SELECT indexed_at FROM roots WHERE id = ?),
+		                 classifier_version = (SELECT classifier_version FROM roots WHERE id = ?)
+		WHERE id = ?`, from.ID, from.ID, to.ID); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(`UPDATE roots SET indexed_at = NULL, classifier_version = 0 WHERE id = ?`, from.ID); err != nil {
+		return 0, err
+	}
+	moved, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return moved, tx.Commit()
+}
+
+// NarrowRootProjection moves a projection indexed at a repository's top
+// level onto a folder inside it: files in the folder keep their IDs - their
+// systems, layout and history - with paths relative to the folder; files
+// outside it leave the map. prefix is the folder relative to from, with a
+// trailing slash ("packages/web/"). Nothing is journaled; this corrects what
+// the map covers, it is not a change to the code.
+func NarrowRootProjection(db *sql.DB, from, to Root, prefix string) (kept, dropped int64, err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	result, err := tx.Exec(`
+		UPDATE files SET root_id = ?, rel_path = substr(rel_path, ?)
+		WHERE root_id = ? AND substr(rel_path, 1, ?) = ?`,
+		to.ID, len(prefix)+1, from.ID, len(prefix), prefix)
+	if err != nil {
+		return 0, 0, err
+	}
+	if kept, err = result.RowsAffected(); err != nil {
+		return 0, 0, err
+	}
+	// Dependencies use polymorphic IDs, so the files leaving take theirs.
+	if _, err := tx.Exec(`
+		DELETE FROM dependencies
+		WHERE src IN (SELECT id FROM files WHERE root_id = ?)
+		   OR dst IN (SELECT id FROM files WHERE root_id = ?)`, from.ID, from.ID); err != nil {
+		return 0, 0, err
+	}
+	result, err = tx.Exec(`DELETE FROM files WHERE root_id = ?`, from.ID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if dropped, err = result.RowsAffected(); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`
+		UPDATE roots SET indexed_at = (SELECT indexed_at FROM roots WHERE id = ?),
+		                 classifier_version = (SELECT classifier_version FROM roots WHERE id = ?)
+		WHERE id = ?`, from.ID, from.ID, to.ID); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`UPDATE roots SET indexed_at = NULL, classifier_version = 0 WHERE id = ?`, from.ID); err != nil {
+		return 0, 0, err
+	}
+	return kept, dropped, tx.Commit()
+}
+
 // DeactivateRoot removes its current graph projection while preserving the
 // root row and denormalized history for a later re-add or historical review.
 func DeactivateRoot(db *sql.DB, rootID string) error {
@@ -281,7 +382,7 @@ func DeactivateRoot(db *sql.DB, rootID string) error {
 	if _, err := tx.Exec(`DELETE FROM files WHERE root_id=?`, rootID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE roots SET is_active=0, indexed_at=NULL WHERE id=?`, rootID); err != nil {
+	if _, err := tx.Exec(`UPDATE roots SET is_active=0, indexed_at=NULL, is_focused=0 WHERE id=?`, rootID); err != nil {
 		return err
 	}
 	return tx.Commit()

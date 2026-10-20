@@ -5,7 +5,14 @@ interface State {
   componentStack: string | null
 }
 
-export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
+interface Props {
+  children: React.ReactNode
+  /** Rendered in place of a failed child instead of the full-screen error: for
+   *  small surfaces (a toolbar chip) whose loss should not cover the app. */
+  fallback?: React.ReactNode
+}
+
+export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { error: null, componentStack: null }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -21,6 +28,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   render() {
     const { error, componentStack } = this.state
     if (!error) return this.props.children
+    if (this.props.fallback !== undefined) return this.props.fallback
 
     const button: React.CSSProperties = {
       background: 'transparent', border: '1px solid #52615c', borderRadius: 0,

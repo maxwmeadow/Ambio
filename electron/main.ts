@@ -1224,6 +1224,35 @@ function setupIPC(): void {
   const failure = (what: string, body: any) =>
     new Error(`${what}${typeof body?.error === 'string' && body.error ? `: ${body.error}` : '.'}`)
 
+  // A checkout can live outside the project folder (an agent's worktree under
+  // ~/.codex/worktrees), so the renderer names it by root and archd says
+  // where it is: no path from the renderer is ever opened.
+  ipcMain.handle('checkout:open', async (_event, projectId: string, rootId: string, how: 'reveal' | 'editor'): Promise<{ ok: boolean; detail: string }> => {
+    if (typeof projectId !== 'string' || typeof rootId !== 'string' || !loadRecentProjects().some(project => project.id === projectId)) {
+      return { ok: false, detail: 'That checkout is not part of an open project.' }
+    }
+    const { status, body } = await archdJson(`/api/roots?workspace=${encodeURIComponent(projectId)}`)
+    const root = status === 200 && Array.isArray(body) ? body.find((candidate: any) => candidate?.id === rootId) : undefined
+    const folder = typeof root?.path === 'string' ? root.path : ''
+    if (!folder || !fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
+      return { ok: false, detail: 'Ambio could not find that checkout\'s folder.' }
+    }
+    if (how === 'editor') {
+      const editor = chooseEditor(readAppSettings().editor, detectEditors())
+      if (editor) {
+        try {
+          spawn(editor.command, [folder], { detached: true, stdio: 'ignore', shell: false, windowsHide: false }).unref()
+          return { ok: true, detail: `Opened in ${editor.label}.` }
+        } catch (error) {
+          console.warn('[main] could not start editor', editor.command, error)
+        }
+      }
+    }
+    // A folder opens in Finder/Explorer, never runs.
+    const opened = await shell.openPath(folder)
+    return opened ? { ok: false, detail: opened } : { ok: true, detail: how === 'editor' ? 'No code editor found, so Ambio opened the folder instead.' : 'Opened.' }
+  })
+
   ipcMain.handle('project:list-backups', async (_event, projectId: string) => {
     const { status, body } = await archdJson(`/api/workspace-backups?workspace=${encodeURIComponent(projectId)}`)
     if (status !== 200) throw failure('Ambio could not list the backups', body)
@@ -1491,7 +1520,7 @@ function setupIPC(): void {
     checkDeliveryMessage(body, project.id, request.messageId)
     const target = availableTargets().find(host => host.id === request.hostId)
     if (!target || !target.available) throw new Error(target?.detail ?? 'Unknown agent host.')
-    const prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
+    let prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
     if (target.route !== 'run') {
       // A chat Ambio cannot start is pasted into once and asked to stay
       // attached, so the conversation's next turns reach it without a paste.
@@ -1524,14 +1553,28 @@ function setupIPC(): void {
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+    // Where the run works: a conversation keeps the worktree it started in;
+    // a new one asked for its own worktree gets one from archd.
+    const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+    const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
+    let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
+    if (!earlier.length && request.where === 'worktree') {
+      const made = await archdJson('/api/checkouts/worktree', {
+        method: 'POST', body: JSON.stringify({ workspaceId: project.id, name: typeof body.note === 'string' ? body.note.slice(0, 60) : 'run' }),
+        signal: AbortSignal.timeout(20000),
+      })
+      if (made.status !== 200 || typeof made.body?.path !== 'string') throw failure('Ambio could not make a worktree for this agent', made.body)
+      workPath = made.body.path
+    }
     agentChat?.assertRootAvailable(project.rootPath)
     // A turn continues the host session its conversation already has, when
     // the host can; the conversation itself reaches the agent through Ambio.
     const driver = agentDriver(request.hostId)
     const mode = turnMode(body.mode)
-    const threadId = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+    const threadId = conversation
+    if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
     const resume = driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
-    const turn = { mode, messageId: request.messageId, cwd: project.rootPath, ...(validModel(request.model) ? { model: request.model } : {}) }
+    const turn = { mode, messageId: request.messageId, cwd: workPath, ...(validModel(request.model) ? { model: request.model } : {}) }
     const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
     // An ACP agent is given Ambio's tools for the session and continues or
     // restarts the session itself.
@@ -1544,7 +1587,7 @@ function setupIPC(): void {
     // same turn started the way it always was.
     const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
     const run = await deliveryRunner.start({
-      ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
+      ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
       args: plan.args, stdin: plan.stdin, threadId, mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
       ...(acp ? { acp } : {}),
       ...(driver?.acp ? {} : { fresh: printPlan }),

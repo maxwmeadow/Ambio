@@ -561,7 +561,7 @@ function humanMessagesText(messages: HumanMessage[]): string {
 const CORE_TOOLS = [
   {
     name: 'get_architecture',
-    description: "Read any part of the architecture map. Use `scope` to say what you want: overview | systems | system_files | files | unclassified | node | neighbors | family | cross_dependencies | dependency_graph | infra | infra_for_files | infra_catalog | hotspots | changes (what people and agents changed on the map recently: moves, renames, regroupings; read before reorganizing). Start here before editing anything.",
+    description: "Read any part of the architecture map. Use `scope` to say what you want: overview | systems | system_files | files | unclassified | node | neighbors | family | cross_dependencies | dependency_graph | infra | infra_for_files | infra_catalog | hotspots | changes (recent moves, renames, regroupings) | branches (every checkout, what each changes; id = a branch to review). Start here before editing anything.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -2433,6 +2433,88 @@ Steps to execute:
             (body.codeDisagrees?.length
               ? ' codeDisagrees lists where the code does not yet match those decisions; fix them only when asked.'
               : ''),
+        }
+        break
+      }
+
+      case 'get_branches': {
+        // Every checkout of the project and what each is changing, so an agent
+        // in one worktree knows another branch is already in Payments before it
+        // starts (docs/GIT_AND_PROJECT_SHAPES.md). id names a branch to review.
+        const workspace = encodeURIComponent(project.workspaceId)
+        const res = await fetch(`${API_BASE}/api/checkouts?workspace=${workspace}`)
+        if (!res.ok) throw new Error(`branches failed: ${await res.text()}`)
+        const snapshot = await res.json() as {
+          vcs: string
+          checkouts: Array<{
+            rootId: string; branch: string; headState: string; isFocused: boolean; changedFiles: number
+            ahead: number; behind: number; agents: Array<{ agent?: string; goal: string }>
+            overlay: Array<{ path: string; change: string; systemId?: string }>
+          }>
+          collisions: Array<{ systemName: string; branches: Array<{ rootId: string; branch: string; files: string[] }> }>
+          repositories?: Array<{ folder: string; branch: string; headState: string; changedFiles: number; ahead: number; behind: number }>
+        }
+        if (snapshot.vcs === 'none') {
+          result = { branches: [], note: 'This project is not a Git repository.' }
+          break
+        }
+        // A folder of repositories: each one's branch and state. Branch
+        // overlays and reviews are per checkout of one repository.
+        const repositories = (snapshot.repositories ?? []).map(repository => ({
+          folder: repository.folder, branch: repository.branch || repository.headState,
+          ...(repository.changedFiles ? { uncommitted: repository.changedFiles } : {}),
+          ...(repository.ahead || repository.behind ? { ahead: repository.ahead, behind: repository.behind } : {}),
+        }))
+        if (snapshot.vcs === 'repos') {
+          result = { repositories, note: 'This project is a folder holding several Git repositories.' }
+          break
+        }
+        const systems = await queryDb(project.workspaceId, 'SELECT id, name FROM systems WHERE workspace_id = ?', [project.workspaceId]) as Array<{ id: string; name: string }>
+        const systemName = new Map(systems.map(system => [system.id, system.name]))
+        const mine = await currentWorktreeContext(project.workspaceId, process.cwd())
+        const branches = snapshot.checkouts.map(checkout => {
+          const bySystem = new Map<string, { added: number; changed: number; deleted: number }>()
+          for (const file of checkout.overlay) {
+            const name = (file.systemId && systemName.get(file.systemId)) || '(no system)'
+            const counts = bySystem.get(name) ?? { added: 0, changed: 0, deleted: 0 }
+            if (file.change === 'added') counts.added++
+            else if (file.change === 'deleted') counts.deleted++
+            else counts.changed++
+            bySystem.set(name, counts)
+          }
+          return {
+            branch: checkout.branch || checkout.headState,
+            ...(checkout.isFocused ? { onTheMap: true } : {}),
+            ...(mine?.rootId === checkout.rootId ? { you: true } : {}),
+            ...(checkout.agents.length ? { agents: checkout.agents.map(agent => `${agent.agent || 'agent'}: ${agent.goal}`) } : {}),
+            ...(checkout.changedFiles ? { uncommitted: checkout.changedFiles } : {}),
+            ...(checkout.ahead || checkout.behind ? { ahead: checkout.ahead, behind: checkout.behind } : {}),
+            ...(bySystem.size ? { changing: Object.fromEntries(bySystem) } : {}),
+          }
+        })
+        const sharedWithYou = snapshot.collisions
+          .filter(collision => !mine || collision.branches.some(branch => branch.rootId === mine.rootId))
+          .map(collision => ({ system: collision.systemName, branches: collision.branches.map(branch => branch.branch) }))
+        let review: unknown
+        const wanted = typeof args.id === 'string' ? args.id : ''
+        if (wanted) {
+          const target = snapshot.checkouts.find(checkout => checkout.branch === wanted || checkout.rootId === wanted)
+          if (!target) throw new Error(`No checkout is on "${wanted}". Branches: ${snapshot.checkouts.map(checkout => checkout.branch).join(', ')}`)
+          const reviewRes = await fetch(`${API_BASE}/api/checkouts/review?workspace=${workspace}&root=${encodeURIComponent(target.rootId)}`)
+          if (!reviewRes.ok) throw new Error(`review failed: ${await reviewRes.text()}`)
+          const body = await reviewRes.json() as { branch: string; base: string; files: number; claims: Array<{ title: string; subtitle: string; internal?: boolean }>; message?: string }
+          review = {
+            branch: body.branch, against: body.base, files: body.files,
+            claims: body.claims.filter(claim => !claim.internal).map(claim => claim.title),
+            ...(body.message ? { note: body.message } : {}),
+          }
+        }
+        result = {
+          branches,
+          ...(sharedWithYou.length ? { sharedSystems: sharedWithYou } : {}),
+          ...(review ? { review } : {}),
+          ...(repositories.length ? { repositoriesInside: repositories } : {}),
+          note: 'Overlays are what each branch changes against its merge base with the branch on the map. Before changing a system another branch is changing, say so to the user.',
         }
         break
       }

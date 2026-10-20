@@ -35,6 +35,7 @@ const (
 	ActorHuman = "human"
 	ActorAgent = "agent"
 	ActorBoth  = "both"
+	ActorGit   = "git"
 )
 
 // FileChange is one file's net change across the delta window.

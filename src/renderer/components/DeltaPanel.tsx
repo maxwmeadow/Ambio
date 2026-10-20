@@ -59,6 +59,7 @@ const KIND_TONE: Record<string, string> = {
 function actorBadge(actor: string): string {
   if (actor === 'agent') return 'AGENT'
   if (actor === 'both') return 'BOTH'
+  if (actor === 'git') return 'GIT'
   return 'YOU'
 }
 

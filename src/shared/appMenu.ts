@@ -48,6 +48,7 @@ export type CommandId =
   | 'investigation.browse'
   | 'agent.architectureDraft'
   | 'view.reviewChanges'
+  | 'view.checkouts'
   | 'view.zoomIn'
   | 'view.zoomOut'
   | 'view.resetZoom'
@@ -131,6 +132,8 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
   'view.explorer': { id: 'view.explorer', label: 'Model Explorer', accelerator: 'CmdOrCtrl+Shift+O', needsProject: true },
   'view.reviewChanges': { id: 'view.reviewChanges', label: 'Review Changes', needsProject: true },
+  // The branch chip's popover: every checkout of the project (GIT_AND_PROJECT_SHAPES).
+  'view.checkouts': { id: 'view.checkouts', label: 'Branches and Worktrees…', accelerator: 'CmdOrCtrl+Shift+B', needsProject: true },
   'view.zoomIn': { id: 'view.zoomIn', label: 'Zoom In Interface', accelerator: 'CmdOrCtrl+Alt+=' },
   'view.zoomOut': { id: 'view.zoomOut', label: 'Zoom Out Interface', accelerator: 'CmdOrCtrl+Alt+-' },
   'view.resetZoom': { id: 'view.resetZoom', label: 'Actual Size Interface', accelerator: 'CmdOrCtrl+Alt+0' },
@@ -239,7 +242,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'go', label: 'Go', entries: [
       command('go.floor'), command('go.nextSheet'), command('go.previousSheet'), separator,
-      command('view.search'),
+      command('view.checkouts'), command('view.search'),
     ],
   })
 
