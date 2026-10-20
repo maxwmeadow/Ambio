@@ -8,6 +8,14 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Switching branches no longer shows up in Review Changes as code you wrote.
+  The map follows the branch you check out; a pull, merge or reset shows as
+  Git's doing, and each branch remembers what you have already reviewed on it.
+- Opening a folder inside a repository (a package in a monorepo) maps that
+  folder, not the whole repository. Projects already mapped whole keep their
+  map for now.
+- Running `git init` in a project that is already open is noticed straight
+  away, without restarting Ambio.
 - File cards show their functions once the file is indexed, instead of "No
   symbols" for the rest of the session when they were looked at too early.
 - Systems an agent names on a sheet stay where they are on the Floor, instead

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -23,6 +24,10 @@ type rootOpenOptions struct {
 	IgnoredPaths               []string
 	SourceBoundariesReviewedAt *int64
 }
+
+// gitAppearsPoll is how often a project that is not a Git checkout checks
+// whether it has become one.
+const gitAppearsPoll = 2 * time.Second
 
 type worktreeMonitor struct {
 	cancel context.CancelFunc
@@ -128,6 +133,38 @@ func canonicalGraphRoot(requestedPath string, worktrees []gitworktree.Worktree) 
 	return gitworktree.Worktree{}, false
 }
 
+// keepLegacyTopLevelProjection keeps a project opened at a folder inside a
+// repository on the repository's top level when that is where it is already
+// indexed. Until October 2026 every such project was indexed whole; moving it
+// to the folder would deactivate the root and drop its files, with their
+// systems and history. Moving it carefully is WORK git-monorepo-subfolder.
+func keepLegacyTopLevelProjection(
+	existingByPath map[string]db.Root,
+	worktrees []gitworktree.Worktree,
+) []gitworktree.Worktree {
+	legacy := false
+	for _, worktree := range worktrees {
+		if worktree.TopLevel == "" || sameRootPath(worktree.TopLevel, worktree.Path) {
+			return worktrees
+		}
+		if _, opened := existingByPath[normalizedRootPath(worktree.Path)]; opened {
+			return worktrees
+		}
+		root, known := existingByPath[normalizedRootPath(worktree.TopLevel)]
+		if known && root.IsActive && root.IndexedAt != nil && *root.IndexedAt > 0 {
+			legacy = true
+		}
+	}
+	if !legacy {
+		return worktrees
+	}
+	kept := slices.Clone(worktrees)
+	for index := range kept {
+		kept[index].Path = kept[index].TopLevel
+	}
+	return kept
+}
+
 // syncWorkspaceWorktrees keeps exactly one filesystem projection in the graph.
 // Linked Git worktrees describe parallel branches; indexing each as another root
 // duplicates every source file and corrupts system counts and classification.
@@ -150,6 +187,7 @@ func (s *Server) syncWorkspaceWorktrees(
 	for _, root := range existing {
 		existingByPath[normalizedRootPath(root.Path)] = root
 	}
+	worktrees = keepLegacyTopLevelProjection(existingByPath, worktrees)
 	canonical, ok := canonicalGraphRoot(requestedPath, worktrees)
 	if !ok {
 		return "", fmt.Errorf("no filesystem root discovered for %s", requestedPath)
@@ -188,6 +226,15 @@ func (s *Server) syncWorkspaceWorktrees(
 			}
 		}
 		isCanonical := sameRootPath(path, canonicalPath)
+		if isCanonical {
+			// The journal compares HEAD with the commit last indexed, so a branch
+			// switched while Ambio was closed is not caught up as edits.
+			seed := gitworktree.Head{Branch: root.Branch, Commit: root.HeadCommit}
+			if known {
+				seed = gitworktree.Head{Branch: prior.Branch, Commit: prior.HeadCommit}
+			}
+			indexer.SeedHead(root.ID, seed)
+		}
 		rootChanged := !known || !prior.IsActive || prior.Branch != root.Branch ||
 			prior.HeadCommit != root.HeadCommit || prior.IsPrimary != root.IsPrimary ||
 			!slices.Equal(prior.IgnoredPaths, root.IgnoredPaths) ||
@@ -206,6 +253,9 @@ func (s *Server) syncWorkspaceWorktrees(
 			requestedRootID = root.ID
 		}
 		if isCanonical {
+			if known && (prior.HeadCommit != root.HeadCommit || prior.Branch != root.Branch) {
+				indexer.NoteHead(sqlDB, root)
+			}
 			s.startWatcher(sqlDB, root)
 		} else {
 			s.stopWatcher(root.ID)
@@ -392,15 +442,31 @@ func (s *Server) startWorktreeMonitor(
 
 	go func() {
 		defer close(done)
-		metadata, err := gitworktree.WatchMetadata(anchorPath)
+		var metadata *gitworktree.MetadataWatcher
 		var changes <-chan struct{}
 		var watchErrors <-chan error
-		if err != nil {
-			log.Printf("api: watch Git metadata for %s: %v; using safety refresh", workspaceID, err)
-		} else {
-			defer metadata.Close()
-			changes = metadata.Changes()
-			watchErrors = metadata.Errors()
+		watch := func() bool {
+			watcher, err := gitworktree.WatchMetadata(anchorPath)
+			if err != nil {
+				return false
+			}
+			metadata, changes, watchErrors = watcher, watcher.Changes(), watcher.Errors()
+			return true
+		}
+		defer func() {
+			if metadata != nil {
+				metadata.Close()
+			}
+		}()
+		// A folder that is not a Git checkout yet may become one (`git init`).
+		// Checking for .git is a stat; branch tracking starts the moment it
+		// appears instead of at the next safety refresh or restart.
+		var notGit <-chan time.Time
+		if !watch() {
+			log.Printf("api: %s is not a Git checkout; watching for one", anchorPath)
+			poll := time.NewTicker(gitAppearsPoll)
+			defer poll.Stop()
+			notGit = poll.C
 		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -454,6 +520,15 @@ func (s *Server) startWorktreeMonitor(
 				}
 				log.Printf("api: Git metadata watcher for %s: %v", workspaceID, err)
 			case <-ticker.C:
+				if notGit == nil {
+					reconcile()
+				}
+			case <-notGit:
+				if _, err := os.Stat(filepath.Join(anchorPath, ".git")); err != nil || !watch() {
+					continue
+				}
+				notGit = nil
+				log.Printf("api: %s became a Git checkout", anchorPath)
 				reconcile()
 			}
 		}

@@ -24,10 +24,12 @@ func MergeBase(worktreePath, leftCommit, rightCommit string) (string, error) {
 	return base, nil
 }
 
-// CommittedChangedPaths lists files changed on head since base.
+// CommittedChangedPaths lists files changed on head since base, relative to
+// (and limited to) the worktree folder, which may be a subfolder of the
+// repository. WorkingChangedPaths does the same.
 func CommittedChangedPaths(worktreePath, base, head string) ([]string, error) {
 	output, err := gitOutput(
-		worktreePath, "diff", "--name-only", "-z", "--find-renames", base+".."+head,
+		worktreePath, "diff", "--relative", "--name-only", "-z", "--find-renames", base+".."+head,
 	)
 	if err != nil {
 		return nil, err
@@ -39,7 +41,7 @@ func CommittedChangedPaths(worktreePath, base, head string) ([]string, error) {
 // files. Agents often create a file before their first commit, and that must
 // still participate in a pre-merge semantic collision.
 func WorkingChangedPaths(worktreePath string) ([]string, error) {
-	tracked, err := gitOutput(worktreePath, "diff", "--name-only", "-z", "HEAD")
+	tracked, err := gitOutput(worktreePath, "diff", "--relative", "--name-only", "-z", "HEAD")
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,10 @@ import (
 const DetachedBranch = "(detached)"
 
 type Worktree struct {
-	Path       string
+	Path string
+	// TopLevel is the checkout's root. It differs from Path when a folder
+	// inside the repository was opened.
+	TopLevel   string
 	Branch     string
 	HeadCommit string
 	Primary    bool
@@ -21,6 +24,10 @@ type Worktree struct {
 
 // Discover returns Git's stable porcelain view of every worktree belonging to
 // the repository containing path. The first record is Git's primary checkout.
+//
+// When path is a folder inside the repository (a package in a monorepo), each
+// worktree's Path is that same folder in that checkout: Ambio indexes the
+// folder that was opened, never the whole repository around it.
 func Discover(path string) ([]Worktree, error) {
 	command := exec.Command("git", "-C", path, "worktree", "list", "--porcelain", "-z")
 	output, err := command.Output()
@@ -30,6 +37,16 @@ func Discover(path string) ([]Worktree, error) {
 	worktrees, err := parsePorcelain(output)
 	if err != nil {
 		return nil, fmt.Errorf("parse git worktrees for %s: %w", path, err)
+	}
+	prefix := ""
+	if checkout, err := Locate(path); err == nil {
+		prefix = checkout.Prefix
+	}
+	for index := range worktrees {
+		worktrees[index].TopLevel = worktrees[index].Path
+		if prefix != "" {
+			worktrees[index].Path = filepath.Join(worktrees[index].Path, filepath.FromSlash(prefix))
+		}
 	}
 	return worktrees, nil
 }

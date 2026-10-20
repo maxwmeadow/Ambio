@@ -24,6 +24,9 @@ const (
 	EventSystemCreated = "system.created"
 	EventSystemDeleted = "system.deleted"
 	EventFileAssigned  = "file.assigned"
+	// A checkout moved to another branch. Not a code change: the files Git
+	// wrote are not journaled, so this row is what history keeps of it.
+	EventCheckoutSwitched = "checkout.switched"
 
 	// Meaning edits (meaning.go): what the architecture says changed, with no
 	// code touched. Each carries enough before/after detail to be undone.
@@ -249,14 +252,34 @@ func GetDeltaReviewedAt(db *sql.DB, workspaceID string) (int64, error) {
 	return GetDeltaReviewedAtForRoot(db, workspaceID, "")
 }
 
-// GetDeltaReviewedAtForRoot reads a worktree's independent watermark. A NULL
-// primary-root value falls back to the pre-migration workspace watermark;
-// secondary roots correctly begin unreviewed.
+// GetDeltaReviewedAtForRoot reads the watermark of the branch a checkout is on
+// now. Each branch keeps its own: reviewing main must not acknowledge what was
+// done on feature in the same folder. A branch never reviewed falls back to
+// the root's watermark from before branches had their own (a NULL
+// primary-root value falls back further, to the pre-migration workspace
+// watermark; secondary roots correctly begin unreviewed).
 func GetDeltaReviewedAtForRoot(db *sql.DB, workspaceID, rootID string) (int64, error) {
 	rootID = effectiveRootID(db, workspaceID, rootID)
 	if rootID == "" {
 		return getLegacyDeltaReviewedAt(db, workspaceID)
 	}
+	var at int64
+	err := db.QueryRow(`
+		SELECT w.reviewed_at FROM delta_watermarks w
+		JOIN roots r ON r.id = w.root_id AND r.branch = w.branch
+		WHERE r.workspace_id = ? AND r.id = ?`, workspaceID, rootID).Scan(&at)
+	if err == nil {
+		return at, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, err
+	}
+	return getRootDeltaReviewedAt(db, workspaceID, rootID)
+}
+
+// getRootDeltaReviewedAt reads roots.delta_reviewed_at, the per-root
+// watermark kept before branches had their own. It is no longer written.
+func getRootDeltaReviewedAt(db *sql.DB, workspaceID, rootID string) (int64, error) {
 	var at sql.NullInt64
 	err := db.QueryRow(`
 		SELECT CASE
@@ -302,6 +325,9 @@ func SetDeltaReviewedAt(db *sql.DB, workspaceID string, at int64) error {
 	return SetDeltaReviewedAtForRoot(db, workspaceID, "", at)
 }
 
+// SetDeltaReviewedAtForRoot advances the watermark of the branch the
+// checkout is on now. Like SetDeltaReviewedAt it never moves backwards,
+// including behind the root-level watermark a branch falls back to.
 func SetDeltaReviewedAtForRoot(db *sql.DB, workspaceID, rootID string, at int64) error {
 	rootID = effectiveRootID(db, workspaceID, rootID)
 	if rootID == "" {
@@ -310,24 +336,15 @@ func SetDeltaReviewedAtForRoot(db *sql.DB, workspaceID, rootID string, at int64)
 			WHERE id = ? AND delta_reviewed_at < ?`, at, workspaceID, at)
 		return err
 	}
-	_, err := db.Exec(`
-		UPDATE roots SET delta_reviewed_at = ?
-		WHERE workspace_id = ? AND id = ?
-		  AND COALESCE(
-			delta_reviewed_at,
-			CASE WHEN id = (
-				SELECT primary_root.id FROM roots primary_root
-				WHERE primary_root.workspace_id=roots.workspace_id
-				ORDER BY primary_root.is_primary DESC,
-				         primary_root.is_active DESC,
-				         primary_root.path
-				LIMIT 1
-			) THEN (
-				SELECT delta_reviewed_at FROM workspaces
-				WHERE workspaces.id=roots.workspace_id
-			) ELSE 0 END,
-			0
-		  ) < ?`, at, workspaceID, rootID, at)
+	current, err := GetDeltaReviewedAtForRoot(db, workspaceID, rootID)
+	if err != nil || at <= current {
+		return err
+	}
+	_, err = db.Exec(`
+		INSERT INTO delta_watermarks(root_id, branch, reviewed_at)
+		SELECT id, branch, ? FROM roots WHERE workspace_id = ? AND id = ?
+		ON CONFLICT(root_id, branch) DO UPDATE
+		SET reviewed_at = MAX(reviewed_at, excluded.reviewed_at)`, at, workspaceID, rootID)
 	return err
 }
 

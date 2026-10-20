@@ -38,7 +38,7 @@ What is broken or missing, verified with throwaway tests against real git repos
 |---|---|---|
 | `git checkout feature` then back to `main` in the open folder | Journaled as code changes by `human`. The branch stamps are **inverted**: the watcher's file batch lands before the HEAD monitor updates the root, so feature's code is recorded "on main" and its removal "on feature". `main`'s Review Changes then reports edits after a round trip that left it byte-identical. | `indexer/journal.go` stamps `root.Branch` at write time; `api/worktrees.go` updates the branch 200 ms+ later |
 | Open `monorepo/packages/web` | The root silently becomes the repository top level and the whole monorepo is indexed. | `canonicalGraphRoot` falls back to the primary worktree when the opened path is not a worktree path |
-| `git init` in a folder Ambio already has open | Not noticed until the 5-minute safety poll. Live branch tracking never starts until restart: the metadata watcher is attempted once. | `startWorktreeMonitor` |
+| `git init` in a folder Ambio already has open | Not noticed until restart: a folder that was not a Git checkout when opened gets no worktree monitor at all. | `handleWorkspace`, `startWorktreeMonitor` |
 | An agent works in a linked worktree | Its files are never indexed, so its work never appears live on the map (the "alive" law). Only the collision panel, polling git every 4 s, notices it. | `syncWorkspaceWorktrees` clears linked projections by design |
 | A second worktree appears | A floating "Parallel branches" panel opens, expanded, over the bottom-left of the canvas. This is the popup. | `AgentLane.tsx`, shown whenever `branches.length > 1` |
 | Which branch am I on? | Shown nowhere unless there are two or more worktrees. | - |

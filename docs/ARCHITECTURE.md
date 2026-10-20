@@ -197,6 +197,29 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   (`GET /api/architecture/changes`).
 - **Roots**: a project can hold several roots (worktrees of one repo); history
   is branch-stamped and collisions between branches are projected onto systems.
+  Only the opened folder's checkout is indexed; when that folder is inside a
+  repository, each worktree's root is the same folder in that checkout
+  (`gitworktree.Discover`), and git diffs and co-change use `--relative`.
+  Projects already indexed at the repository top level stay there
+  (`keepLegacyTopLevelProjection`) until `git-monorepo-subfolder` moves them.
+  The Review Changes watermark is per root and branch (`delta_watermarks`);
+  a branch never reviewed falls back to the root's older watermark. The
+  worktree monitor also runs for a plain folder and starts watching Git
+  metadata when `.git` appears. Model and plan:
+  [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
+- **Git moves files too** (`internal/indexer/checkout.go`): before a file
+  change is journaled, its checkout's HEAD is read from the administration
+  files, once any running Git command releases `index.lock` (a lock older
+  than 10 s is taken as left over from a crash).
+  A HEAD move since the journal last looked is classified from the reflog: a
+  commit changes nothing; a branch switch makes the files Git wrote quiet and
+  leaves one `checkout.switched` row; a pull, merge, reset or rebase is
+  journaled with actor `git`. A file counts as written by Git only when its
+  content is the new commit's blob and that blob differs from the old one, so
+  carried and concurrent edits are still journaled. Rows are stamped with the
+  HEAD just read, not the watcher's copy of the root. The worktree sync seeds
+  the HEAD last indexed, so a switch made while Ambio was closed is caught up
+  quietly.
 
 ## Pipelines
 

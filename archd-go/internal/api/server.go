@@ -39,6 +39,7 @@ import (
 	"ambio.local/archd/internal/db"
 	"ambio.local/archd/internal/gitworktree"
 	"ambio.local/archd/internal/hub"
+	"ambio.local/archd/internal/indexer"
 	"ambio.local/archd/internal/infradetect"
 	"ambio.local/archd/internal/registry"
 	"ambio.local/archd/internal/runtime"
@@ -369,6 +370,7 @@ func (s *Server) closeDB(workspaceID string) {
 			}
 			delete(s.roots, rootID)
 			delete(s.rootSyncPending, rootID)
+			indexer.ForgetCheckout(rootID)
 		}
 	}
 	d := s.dbs[workspaceID]
@@ -636,7 +638,7 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 500)
 		return
 	}
-	worktrees, isGitWorkspace := s.discoverInitialWorktrees(req.RootPath)
+	worktrees, _ := s.discoverInitialWorktrees(req.RootPath)
 	options := rootOpenOptions{
 		IgnoredPaths:               req.IgnoredPaths,
 		SourceBoundariesReviewedAt: req.SourceBoundariesReviewedAt,
@@ -648,15 +650,15 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if isGitWorkspace {
-		monitorOptions := options
-		monitorOptions.IgnoredPaths = ignoredPathsForWorktree(
-			options.IgnoredPaths,
-			req.RootPath,
-			worktrees[0].Path,
-		)
-		s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
-	}
+	// Started for a plain folder too: it notices the folder becoming a Git
+	// checkout.
+	monitorOptions := options
+	monitorOptions.IgnoredPaths = ignoredPathsForWorktree(
+		options.IgnoredPaths,
+		req.RootPath,
+		worktrees[0].Path,
+	)
+	s.startWorktreeMonitor(sqlDB, wsID, worktrees[0].Path, monitorOptions)
 
 	jsonOK(w, map[string]any{"workspaceId": wsID, "rootId": rootID})
 }

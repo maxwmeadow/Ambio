@@ -427,6 +427,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 		actor = activity.ActorFor(root.WorkspaceID)
 	}
 	if contentChanged || prev == nil || movedFrom != "" {
+		done := journalAsGit(sqlDB, root, relPath, absPath, false, &actor)
 		labeler := newSystemLabeler(sqlDB, root)
 		kind := db.EventFileUpdated
 		if prev == nil {
@@ -438,6 +439,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 			journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
 		}
 		journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
+		done()
 	}
 
 	h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID,
@@ -535,8 +537,10 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 	}
 
 	actor := activity.ActorFor(root.WorkspaceID)
+	done := journalAsGit(sqlDB, root, relPath, absPath, true, &actor)
 	journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
 	journalFileDeleted(sqlDB, root, lostSystemID, lostSystemName, file, actor, traceID)
+	done()
 
 	for _, relationship := range relationships {
 		log.Printf(
