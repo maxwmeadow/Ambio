@@ -47,6 +47,15 @@ const PARALLEL = {
   }],
 }
 
+const REVIEW = {
+  workspaceId: 'demo', rootId: 'root_agent', branch: 'codex/retry-checkout', headCommit: 'b81e2f0c991a',
+  base: 'main', baseCommit: '9fc31ab4470e', files: 3,
+  claims: [
+    { id: 'c1', kind: 'new_coupling', title: 'Canvas Renderer now depends on Job Queue', subtitle: 'AmbioCanvas.tsx imports retry.ts', severity: 3, score: 1, actor: 'agent', ts: 1, createsCycle: false, internal: false, focusSystemIds: ['sys_canvas'], evidence: [] },
+    { id: 'c2', kind: 'files_added', title: 'Canvas Renderer gained RetryBanner.tsx', subtitle: '1 new file', severity: 1, score: 0.5, actor: 'agent', ts: 2, createsCycle: false, internal: false, focusSystemIds: ['sys_canvas'], evidence: [] },
+  ],
+}
+
 const PLAIN = {
   workspaceId: 'demo', vcs: 'none', collisions: [],
   checkouts: [checkout({ branch: '', headCommit: '', headState: 'none' })],
@@ -79,6 +88,7 @@ async function launch(checkouts: unknown) {
     const url = route.request().url()
     if (url.includes('/api/checkouts/focus')) focusRequests.push(route.request().postDataJSON())
     const body = url.includes('/api/checkouts/focus') ? { ok: true }
+      : url.includes('/api/checkouts/review?') ? REVIEW
       : url.includes('/api/checkouts?') ? checkouts
       : url.includes('/api/canvas/history') ? { messages: [], nextCursor: '', availableCount: 0 }
       : []
@@ -181,4 +191,26 @@ test('another branch’s work is drawn on the Floor until the lens turns it off'
 
   await popover.getByRole('button', { name: 'Show on the Floor' }).click()
   await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
+})
+
+test('a branch is reviewed as architecture, from the branch menu', async () => {
+  await launch(PARALLEL)
+  await page.keyboard.press('ControlOrMeta+Shift+B')
+  const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
+  await popover.locator('.ambio-checkout').nth(1).getByRole('button', { name: 'Review this branch' }).click()
+  await expect(popover).toContainText('Review codex/retry-checkout')
+  await expect(popover).toContainText('Against main · 3 files')
+  const claims = popover.locator('.ambio-delta__claim')
+  await expect(claims).toHaveCount(2)
+  await expect(claims.first()).toContainText('Canvas Renderer now depends on Job Queue')
+  if (SHOTS) {
+    // Headless Electron can hand back a stale frame; a pointer move repaints.
+    await page.mouse.move(700, 600)
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(SHOTS, 'branch-review.png') })
+  }
+  await claims.first().getByRole('button').click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ambioGraphStore: { getState: () => { selectedNodeId: string | null } } }).__ambioGraphStore.getState().selectedNodeId)).toBe('sys_canvas')
+  await popover.getByRole('button', { name: '← Back' }).click()
+  await expect(popover.locator('.ambio-checkout')).toHaveCount(2)
 })

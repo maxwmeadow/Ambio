@@ -62,6 +62,10 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Review a branch: see what a branch changes in your architecture before it
+  merges ("Payments now depends on Email", "Orders gained retry.ts"), from
+  the branch menu. Agents can read the same review, and see what every other
+  branch is changing, through Ambio's MCP tools.
 - Agents working in other worktrees show up on the map as they work: files
   they change or delete are marked, and new files appear under the system
   they belong to. Choose which branches to draw (off, agents only, all) in

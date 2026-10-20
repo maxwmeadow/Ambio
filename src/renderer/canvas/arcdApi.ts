@@ -3,6 +3,7 @@ import type {
   DbSystem,
   DeltaSummary,
   FloorLayout,
+  BranchReview,
   CheckoutsSnapshot,
 } from '../../shared/types'
 import { archdWsHttp } from '../archdEndpoint.ts'
@@ -62,6 +63,16 @@ export async function apiGetCheckouts(
   const res = await fetch(`${archdWsHttp()}/api/checkouts?${params}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load checkouts (${res.status})`)
   return res.json() as Promise<CheckoutsSnapshot>
+}
+
+/** A branch's architecture against its base; the Floor's checkout by default. */
+export async function apiGetBranchReview(workspaceId: string, rootId?: string, base?: string, signal?: AbortSignal): Promise<BranchReview> {
+  const params = new URLSearchParams({ workspace: workspaceId })
+  if (rootId) params.set('root', rootId)
+  if (base) params.set('base', base)
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/review?${params}`, { signal })
+  if (!res.ok) throw new Error(await res.text() || `Unable to review that branch (${res.status})`)
+  return res.json() as Promise<BranchReview>
 }
 
 /** Show another checkout on the Floor ("Show on the Floor"). */

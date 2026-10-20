@@ -215,3 +215,34 @@ func BlobID(content []byte, like string) string {
 	hash.Write(content)
 	return hex.EncodeToString(hash.Sum(nil))
 }
+
+// Blob reads one object's content.
+func (c Checkout) Blob(id string) ([]byte, error) {
+	return gitOutput(c.TopLevel, "cat-file", "blob", id)
+}
+
+// DefaultBranch names the branch a review compares with when nothing else is
+// asked for: the remote's default (origin/HEAD), else a local main or master.
+// It returns "" when none exists.
+func DefaultBranch(path string) string {
+	if output, err := gitOutput(path, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		if ref := strings.TrimSpace(string(output)); ref != "" {
+			return ref
+		}
+	}
+	for _, candidate := range []string{"main", "master"} {
+		if _, err := gitOutput(path, "rev-parse", "--verify", "--quiet", "refs/heads/"+candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// ResolveCommit turns a branch, tag or commit name into a commit.
+func ResolveCommit(path, ref string) (string, error) {
+	output, err := gitOutput(path, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}

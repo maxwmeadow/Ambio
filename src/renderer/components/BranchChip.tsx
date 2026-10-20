@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import { CHECKOUTS_CHANGED, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
 import { buildBranchChip, buildCheckoutRows, type OverlayLens } from './checkoutModel'
-import { apiFocusCheckout } from '../canvas/arcdApi'
+import { apiFocusCheckout, apiGetBranchReview } from '../canvas/arcdApi'
+import { useGraphStore } from '../store/graphStore'
+import type { BranchReview } from '../../shared/types'
 
 const LENSES: Array<{ value: OverlayLens; label: string; title: string }> = [
   { value: 'off', label: 'Off', title: 'Draw no other branch on the Floor' },
@@ -59,6 +61,27 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const setLens = useCheckoutStore(state => state.setLens)
   const unplaced = useCheckoutStore(state => state.unplaced)
   const [showing, setShowing] = useState<string | null>(null)
+  // "Review this branch" swaps the popover's list for that branch's claims.
+  const [reviewing, setReviewing] = useState<{ rootId: string; name: string } | null>(null)
+  const [review, setReview] = useState<BranchReview | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const setSelectedNode = useGraphStore(state => state.setSelectedNode)
+  const setInspectedNode = useGraphStore(state => state.setInspectedNode)
+
+  useEffect(() => {
+    setReview(null)
+    setReviewError(null)
+    if (!reviewing) return
+    const request = new AbortController()
+    apiGetBranchReview(workspaceId, reviewing.rootId, undefined, request.signal)
+      .then(setReview)
+      .catch((error: unknown) => {
+        if (!(error instanceof Error && error.name === 'AbortError')) {
+          setReviewError(error instanceof Error ? error.message : 'Ambio could not review that branch.')
+        }
+      })
+    return () => request.abort()
+  }, [reviewing, workspaceId])
   const [open, setOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
@@ -99,6 +122,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   }, [open])
 
   useEffect(() => { setOpen(false) }, [workspaceId])
+  useEffect(() => { if (!open) setReviewing(null) }, [open])
 
   const showOnFloor = async (rootId: string) => {
     setShowing(rootId)
@@ -163,11 +187,45 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
           >
             <header className="ambio-checkouts__header">
               <div>
-                <h2>{chip.plain ? 'No Git' : 'Branches and worktrees'}</h2>
-                <p>{chip.plain ? 'This folder is not a Git repository' : 'Every working copy of this project'}</p>
+                <h2>{chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
+                <p>{chip.plain ? 'This folder is not a Git repository'
+                  : reviewing ? (review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…')
+                  : 'Every working copy of this project'}</p>
               </div>
-              {!chip.plain && <output>{rows.length}</output>}
+              {!chip.plain && !reviewing && <output>{rows.length}</output>}
+              {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}
             </header>
+            {reviewing ? (
+              <div className="ambio-checkouts__body ambio-checkouts__review">
+                {reviewError && <p className="ambio-checkouts__notice" role="alert">{reviewError}</p>}
+                {review?.message && <p className="ambio-checkouts__unplaced">{review.message}</p>}
+                {review && review.claims.length > 0 && (
+                  <ul className="ambio-delta__claims">
+                    {review.claims.filter(claim => !claim.internal).map(claim => (
+                      <li key={claim.id} className="ambio-delta__claim" data-cycle={claim.createsCycle || undefined}>
+                        <button
+                          type="button"
+                          className="ambio-delta__claim-head"
+                          onClick={() => {
+                            const systemId = claim.focusSystemIds?.[0]
+                            if (systemId) { setSelectedNode(systemId); setInspectedNode(systemId) }
+                          }}
+                        >
+                          <span className="ambio-delta__claim-title">
+                            {claim.createsCycle && <span className="ambio-delta__cycle">CYCLE</span>}
+                            {claim.title}
+                          </span>
+                          <span className="ambio-delta__claim-meta">
+                            <span className="ambio-delta__claim-sub">{claim.subtitle}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {review?.truncated ? <p className="ambio-checkouts__unplaced">{review.truncated} more changed files were not read.</p> : null}
+              </div>
+            ) : (<>
             {rows.length > 1 && (
               <div className="ambio-checkouts__lens">
                 <span>Other branches on the Floor</span>
@@ -222,6 +280,9 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                         {showing === row.rootId ? 'Showing…' : 'Show on the Floor'}
                       </button>
                     )}
+                    {row.canReview && (
+                      <button type="button" onClick={() => setReviewing({ rootId: row.rootId, name: row.name })}>Review this branch</button>
+                    )}
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'reveal')}>Reveal folder</button>
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'editor')}>Open in editor</button>
                   </div>
@@ -234,6 +295,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
               )}
               {notice && <p className="ambio-checkouts__notice" role="status">{notice}</p>}
             </div>
+            </>)}
           </section>
         </>,
         document.body,

@@ -230,6 +230,17 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   file rows to it (`db.MoveRootProjection`, same IDs) and reconciles quietly
   (`indexer.ReconcileRootQuietly`). Removing the focused worktree moves the
   Floor back the same way.
+- **Review a branch** (`api/branch_review.go`, `GET /api/checkouts/review`):
+  a branch's architecture against its base, from Git rather than the
+  journal, so it covers work done anywhere. Another checkout is compared
+  with the Floor's branch, the Floor's own with the default branch
+  (`origin/HEAD`, else `main`/`master`), or any `base`. Each changed file's
+  imports are resolved at the base (its blob, parsed from a scratch copy) and
+  at the branch (`indexer.ResolveImports`, the indexer's path rules), and the
+  differences become journal-shaped events that `delta.Aggregate` and
+  `delta.BuildClaims` word like any Review Changes ("Gateway now depends on
+  Mailer"). Shown in the Checkouts popover ("Review this branch"); agents
+  read it through `get_architecture` scope `branches` with `id`.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
   files, once any running Git command releases `index.lock` (a lock older

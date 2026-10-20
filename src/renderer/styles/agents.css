@@ -478,3 +478,18 @@
   cursor: wait;
   opacity: 0.6;
 }
+
+.ambio-checkouts__back {
+  padding: 3px 8px;
+  border: 1px solid #17211e;
+  background: #24312d;
+  color: #e4efe9;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ambio-checkouts__review .ambio-delta__claims {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -109,6 +109,8 @@ export interface CheckoutRow {
   tint: string
   /** Whether "Show on the Floor" applies. */
   canShow: boolean
+  /** Whether "Review this branch" applies: a branch with commits. */
+  canReview: boolean
 }
 
 export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutRow[] {
@@ -125,6 +127,7 @@ export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutR
     overlay: checkout.isFocused ? '' : overlaySummary(checkout),
     tint: overlayTint(snapshot, checkout.rootId),
     canShow: !checkout.isFocused && checkout.headState !== 'none',
+    canReview: checkout.headState === 'commit' || checkout.headState === 'detached',
   }))
 }
 

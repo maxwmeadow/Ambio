@@ -500,6 +500,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/collisions", s.handleCollisions)
 	mux.HandleFunc("/api/checkouts", s.handleCheckouts)
 	mux.HandleFunc("/api/checkouts/focus", s.handleCheckoutFocus)
+	mux.HandleFunc("/api/checkouts/review", s.handleBranchReview)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)
 	mux.HandleFunc("/api/query", s.handleQuery)

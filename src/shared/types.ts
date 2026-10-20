@@ -774,6 +774,22 @@ export interface CheckoutOverlayFile {
   systemId?: string
 }
 
+/** A branch's architecture against its base (GET /api/checkouts/review). */
+export interface BranchReview {
+  workspaceId: string
+  rootId: string
+  branch: string
+  headCommit: string
+  /** What it is compared with, and where the two diverged. */
+  base: string
+  baseCommit: string
+  files: number
+  truncated?: number
+  claims: DeltaClaim[]
+  /** Why the review is empty, when it is. */
+  message?: string
+}
+
 export interface CheckoutsSnapshot {
   workspaceId: string
   vcs: 'git' | 'none'
