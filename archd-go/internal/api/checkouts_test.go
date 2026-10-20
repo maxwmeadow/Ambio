@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"ambio.local/archd/internal/db"
 )
@@ -146,4 +148,79 @@ func (s *Server) focusedRootID(t *testing.T) string {
 	}
 	t.Fatal("no checkout is on the Floor")
 	return ""
+}
+
+func focusCheckout(t *testing.T, server *Server, rootID string) {
+	t.Helper()
+	payload, _ := json.Marshal(map[string]string{"workspaceId": "ws", "rootId": rootID})
+	response := httptest.NewRecorder()
+	server.handleCheckoutFocus(response, httptest.NewRequest(http.MethodPost, "/api/checkouts/focus", bytes.NewReader(payload)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("focus status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestShowingAnotherCheckoutKeepsTheMapAndJournalsNothing(t *testing.T) {
+	repo := newCheckoutRepo(t)
+	agent := filepath.Join(t.TempDir(), "agent")
+	runWorktreeGit(t, repo, "worktree", "add", "-b", "agent", agent, "feature")
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	sqlDB, _ := server.dbFor("ws")
+	mainRoot := server.focusedRootID(t)
+	before, _ := db.GetFilesByRoot(sqlDB, mainRoot)
+	if len(before) != 1 {
+		t.Fatalf("main's Floor = %d files", len(before))
+	}
+	apiID := before[0].ID
+	since := time.Now().UnixMilli()
+
+	agentRoot := ""
+	for _, checkout := range getCheckouts(t, server).Checkouts {
+		if checkout.Branch == "agent" {
+			agentRoot = checkout.RootID
+		}
+	}
+	focusCheckout(t, server, agentRoot)
+	waitForWorktreeTest(t, "the Floor on the agent's checkout", func() bool {
+		files, err := db.GetFilesByRoot(sqlDB, agentRoot)
+		return err == nil && len(files) == 2
+	})
+	settleCheckout(server)
+	files, _ := db.GetFilesByRoot(sqlDB, agentRoot)
+	kept := false
+	for _, file := range files {
+		if file.RelPath == "api.go" && file.ID == apiID {
+			kept = true
+		}
+	}
+	if !kept {
+		t.Fatalf("api.go lost its identity moving to the agent's checkout: %#v", files)
+	}
+	if left, _ := db.GetFilesByRoot(sqlDB, mainRoot); len(left) != 0 {
+		t.Fatalf("main still holds %d file rows", len(left))
+	}
+	server.invalidateCollisionCache("ws")
+	snapshot := getCheckouts(t, server)
+	if snapshot.Checkouts[0].RootID != agentRoot || !snapshot.Checkouts[0].IsFocused {
+		t.Fatalf("the chip must follow the Floor: %#v", snapshot.Checkouts[0])
+	}
+	// main is an ancestor of the agent's branch: against their merge base it
+	// changes nothing, so it draws nothing. Overlays show what a branch did.
+	if main := snapshot.Checkouts[1]; len(main.Overlay) != 0 {
+		t.Fatalf("main's own changes since the merge base = %#v", main.Overlay)
+	}
+
+	focusCheckout(t, server, mainRoot)
+	waitForWorktreeTest(t, "the Floor back on main", func() bool {
+		files, err := db.GetFilesByRoot(sqlDB, mainRoot)
+		return err == nil && len(files) == 1 && files[0].ID == apiID
+	})
+	settleCheckout(server)
+	if code := codeEvents(journalSince(t, server, since)); len(code) != 0 {
+		for _, event := range code {
+			t.Errorf("showing a checkout journaled %s %s on %s", event.Kind, event.SubjectLabel, event.Branch)
+		}
+	}
 }

@@ -15,6 +15,7 @@ import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { useFloorEdits } from '../floorEditContext'
 import { useCheckoutStore } from '../../store/checkoutStore'
+import { BranchArrivalsRail } from './BranchOverlayMark'
 
 // Drop-target feedback: renders the cell grid only while a node is being
 // dragged over this container (green = free, amber = displaced, red = occupied).
@@ -122,6 +123,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   // Other checkouts changing this system too (GIT_AND_PROJECT_SHAPES): a stable
   // array per snapshot, so a poll that finds nothing new does not re-render.
   const collision = useCheckoutStore(state => (id ? state.bySystem.get(id) : undefined))
+  const arrivals = useCheckoutStore(state => (id ? state.arrivals.get(id) : undefined))
   const otherBranches = collision?.filter(branch => !branch.focused) ?? []
   const infraCategory = d.umlMetadata?.category ?? 'platform'
   const isDeploymentBoundary = d.umlKind === 'infra'
@@ -490,6 +492,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', userSelect: 'none', cursor: 'grab' }}>
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.2, presentationScale))} />
+      <BranchArrivalsRail arrivals={arrivals} />
       {/* Shell plane: the silhouette and contents ride preview translate,
           reveal scale, and blur. Interaction chrome (resizer, connection
           handles) lives outside on the raw node frame so selection outlines

@@ -93,11 +93,13 @@ type Server struct {
 	rootSyncPending map[string]pendingRootSync
 	// Exclusions a root had before the user changed them; the next reconcile
 	// of that root runs as a quiet re-scope. See indexer.ReconcileScope.
-	rootScopeFrom     map[string][]string
-	rootForceReindex  map[string]bool
-	collisionCache    map[string]collisionCacheEntry
-	checkoutsCache    map[string]checkoutsCacheEntry
-	collisionCacheTTL time.Duration
+	rootScopeFrom    map[string][]string
+	rootForceReindex map[string]bool
+	// Roots the Floor just moved to: their next sync reconciles quietly.
+	rootQuietReconcile map[string]bool
+	collisionCache     map[string]collisionCacheEntry
+	checkoutsCache     map[string]checkoutsCacheEntry
+	collisionCacheTTL  time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
 	// that an agent began investigating. Timestamps of recent qualifying
 	// actions per workspace, so one incidental trace during feature work does
@@ -140,6 +142,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		rootSyncPending:     make(map[string]pendingRootSync),
 		rootScopeFrom:       make(map[string][]string),
 		rootForceReindex:    make(map[string]bool),
+		rootQuietReconcile:  make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
 		checkoutsCache:      make(map[string]checkoutsCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
@@ -496,6 +499,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/delta/ack", s.handleDeltaAck)
 	mux.HandleFunc("/api/collisions", s.handleCollisions)
 	mux.HandleFunc("/api/checkouts", s.handleCheckouts)
+	mux.HandleFunc("/api/checkouts/focus", s.handleCheckoutFocus)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)
 	mux.HandleFunc("/api/query", s.handleQuery)

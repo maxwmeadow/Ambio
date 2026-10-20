@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strings"
@@ -238,4 +239,61 @@ func (snapshot checkoutsSnapshot) checkoutFocused(rootID string) bool {
 		}
 	}
 	return false
+}
+
+// POST /api/checkouts/focus {workspaceId, rootId}
+//
+// Shows another checkout on the Floor ("Show on the Floor"). The projection
+// moves to it with every file's identity (followCanonicalProjection), so the
+// map is the same map at another branch, and nothing is journaled.
+func (s *Server) handleCheckoutFocus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		RootID      string `json:"rootId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.WorkspaceID == "" || body.RootID == "" {
+		jsonError(w, "workspaceId and rootId are required", http.StatusBadRequest)
+		return
+	}
+	sqlDB, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	roots, err := db.GetActiveRoots(sqlDB, body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	found := false
+	for _, root := range roots {
+		if root.ID == body.RootID {
+			found = true
+		}
+	}
+	if !found {
+		jsonError(w, "that checkout is not part of this project", http.StatusNotFound)
+		return
+	}
+	s.mu.RLock()
+	monitor, monitored := s.worktreeMonitors[body.WorkspaceID]
+	s.mu.RUnlock()
+	if !monitored {
+		jsonError(w, "this project is not open", http.StatusConflict)
+		return
+	}
+	if err := db.SetFocusedRoot(sqlDB, body.WorkspaceID, body.RootID); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.invalidateCollisionCache(body.WorkspaceID)
+	select {
+	case monitor.resync <- struct{}{}:
+	default: // one is already queued
+	}
+	jsonOK(w, map[string]any{"workspaceId": body.WorkspaceID, "rootId": body.RootID})
 }

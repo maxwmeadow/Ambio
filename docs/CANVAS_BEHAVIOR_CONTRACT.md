@@ -165,6 +165,17 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   the agent mark in the tab band once open. Its tooltip names the branches;
   Properties lists them under "Changing on other branches". Nothing on the
   canvas opens or moves because a worktree appeared.
+- Other checkouts' work is drawn on the Floor without moving, resizing or
+  adding nodes. A file another branch changes or deletes carries a dashed,
+  branch-tinted mark on its lower-left corner (`~ branch`, or struck through
+  for a deletion). New files a branch adds to a system are a dashed caption
+  just below the system's frame (`+ RetryBanner.tsx branch`). Both are
+  counter-scaled like activity chrome. Which branches draw is the lens in the
+  Checkouts popover: Off, Agents only (default: checkouts with an active work
+  session) or All, remembered per project.
+- Show on the Floor moves the Floor to another checkout of the repository.
+  Files keep their identity, so systems, layout and history stay; the change
+  in contents is reconciled quietly, and nothing is journaled.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
 

@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { CHECKOUTS_CHANGED, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
-import { buildBranchChip, buildCheckoutRows } from './checkoutModel'
+import { buildBranchChip, buildCheckoutRows, type OverlayLens } from './checkoutModel'
+import { apiFocusCheckout } from '../canvas/arcdApi'
+
+const LENSES: Array<{ value: OverlayLens; label: string; title: string }> = [
+  { value: 'off', label: 'Off', title: 'Draw no other branch on the Floor' },
+  { value: 'agents', label: 'Agents only', title: 'Draw branches an agent is working in' },
+  { value: 'all', label: 'All', title: 'Draw every other branch' },
+]
 
 const REFRESH_MS = 5000
 const MENU_WIDTH = 380
@@ -48,6 +55,10 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const snapshot = useCheckoutStore(state => (state.workspaceId === workspaceId ? state.snapshot : null))
   const chip = useMemo(() => buildBranchChip(snapshot), [snapshot])
   const rows = useMemo(() => buildCheckoutRows(snapshot), [snapshot])
+  const lens = useCheckoutStore(state => state.lens)
+  const setLens = useCheckoutStore(state => state.setLens)
+  const unplaced = useCheckoutStore(state => state.unplaced)
+  const [showing, setShowing] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
@@ -88,6 +99,19 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   }, [open])
 
   useEffect(() => { setOpen(false) }, [workspaceId])
+
+  const showOnFloor = async (rootId: string) => {
+    setShowing(rootId)
+    setNotice(null)
+    try {
+      await apiFocusCheckout(workspaceId, rootId)
+      await useCheckoutStore.getState().refresh(workspaceId)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Ambio could not show that checkout.')
+    } finally {
+      setShowing(null)
+    }
+  }
 
   const openCheckout = async (rootId: string, how: 'reveal' | 'editor') => {
     const result = await window.ambio?.openCheckout?.(workspaceId, rootId, how)
@@ -144,6 +168,23 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
               </div>
               {!chip.plain && <output>{rows.length}</output>}
             </header>
+            {rows.length > 1 && (
+              <div className="ambio-checkouts__lens">
+                <span>Other branches on the Floor</span>
+                <div role="radiogroup" aria-label="Other branches on the Floor">
+                  {LENSES.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={lens === option.value}
+                      title={option.title}
+                      onClick={() => setLens(option.value)}
+                    >{option.label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="ambio-checkouts__body">
               {rows.map(row => (
                 <article className="ambio-checkout" key={row.rootId} data-focused={row.focused || undefined}>
@@ -163,6 +204,12 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                       ))}
                     </ul>
                   )}
+                  {row.overlay && (
+                    <p className="ambio-checkout__overlay" style={{ color: row.tint }}>
+                      <span className="ambio-checkout__swatch" aria-hidden="true" />
+                      {row.overlay} on its branch
+                    </p>
+                  )}
                   {(row.touchedSystems > 0 || row.collidingSystems > 0) && (
                     <p className="ambio-checkout__systems">
                       {row.touchedSystems > 0 && <span>{row.touchedSystems} system{row.touchedSystems === 1 ? '' : 's'} changing</span>}
@@ -170,11 +217,21 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                     </p>
                   )}
                   <div className="ambio-checkout__actions">
+                    {row.canShow && (
+                      <button type="button" disabled={showing !== null} onClick={() => void showOnFloor(row.rootId)}>
+                        {showing === row.rootId ? 'Showing…' : 'Show on the Floor'}
+                      </button>
+                    )}
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'reveal')}>Reveal folder</button>
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'editor')}>Open in editor</button>
                   </div>
                 </article>
               ))}
+              {unplaced > 0 && (
+                <p className="ambio-checkouts__unplaced">
+                  {unplaced} new file{unplaced === 1 ? '' : 's'} on other branches {unplaced === 1 ? 'is' : 'are'} in folders no system owns yet.
+                </p>
+              )}
               {notice && <p className="ambio-checkouts__notice" role="status">{notice}</p>}
             </div>
           </section>

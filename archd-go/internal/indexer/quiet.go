@@ -22,6 +22,8 @@ import (
 
 type quietScope struct {
 	paths map[string]struct{}
+	// all quiets every path: the Floor moving to another checkout.
+	all   int
 	depth int
 }
 
@@ -60,13 +62,37 @@ func isQuietPath(rootID, relPath string) bool {
 		return false
 	}
 	_, quiet := scope.paths[relPath]
-	return quiet
+	return quiet || scope.all > 0
 }
 
 func isQuietRoot(rootID string) bool {
 	quietMu.Lock()
 	defer quietMu.Unlock()
 	return quietRoots[rootID] != nil
+}
+
+func beginQuietAll(rootID string) func() {
+	done := beginQuiet(rootID, nil)
+	quietMu.Lock()
+	quietRoots[rootID].all++
+	scope := quietRoots[rootID]
+	quietMu.Unlock()
+	return func() {
+		quietMu.Lock()
+		scope.all--
+		quietMu.Unlock()
+		done()
+	}
+}
+
+// ReconcileRootQuietly brings a root's projection in line with its folder
+// without journaling any of it. It is how the Floor follows a move to another
+// checkout of the repository (db.MoveRootProjection): the files are the same
+// map, shown at another branch, which is not anybody changing code.
+func ReconcileRootQuietly(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignored []string) (int, error) {
+	done := beginQuietAll(root.ID)
+	defer done()
+	return ReconcileRoot(sqlDB, h, root, ignored)
 }
 
 // ReconcileScope brings a root in line with new exclusions without recording

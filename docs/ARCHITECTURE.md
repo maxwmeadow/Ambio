@@ -218,6 +218,18 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   the Properties section (`checkoutModel.ts`). Revealing or opening a
   checkout goes through main by root ID (`checkout:open`), since a linked
   worktree may live outside the project folder.
+- **Overlays and focus** (`api/overlays.go`): for each checkout the Floor does
+  not show, `GET /api/checkouts` lists what it changes against its merge base
+  with the Floor's checkout (`git diff base` plus untracked files, limited to
+  what the indexer would read, `indexer.InScope`), each file tied to its Floor
+  file or, if new, to the system owning most of its folder. The worktree
+  monitor rebuilds this every 2 s when there are several checkouts and
+  broadcasts `checkouts:changed` only when it differs. `roots.is_focused`
+  (schema 9) records "Show on the Floor" (`POST /api/checkouts/focus`); the
+  canonical root then prefers it, and `followCanonicalProjection` moves the
+  file rows to it (`db.MoveRootProjection`, same IDs) and reconciles quietly
+  (`indexer.ReconcileRootQuietly`). Removing the focused worktree moves the
+  Floor back the same way.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
   files, once any running Git command releases `index.lock` (a lock older

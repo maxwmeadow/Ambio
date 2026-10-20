@@ -33,6 +33,8 @@ const gitAppearsPoll = 2 * time.Second
 type worktreeMonitor struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+	// resync asks the monitor to reconcile worktrees now (a focus change).
+	resync chan struct{}
 }
 
 type pendingRootSync struct {
@@ -117,7 +119,13 @@ func (s *Server) discoverInitialWorktrees(rootPath string) ([]gitworktree.Worktr
 	return []gitworktree.Worktree{{Path: filepath.Clean(rootPath), Primary: true}}, false
 }
 
-func canonicalGraphRoot(requestedPath string, worktrees []gitworktree.Worktree) (gitworktree.Worktree, bool) {
+func canonicalGraphRoot(requestedPath, focusedPath string, worktrees []gitworktree.Worktree) (gitworktree.Worktree, bool) {
+	// A checkout someone chose to show on the Floor wins while it exists.
+	for _, worktree := range worktrees {
+		if focusedPath != "" && sameRootPath(worktree.Path, focusedPath) {
+			return worktree, true
+		}
+	}
 	for _, worktree := range worktrees {
 		if sameRootPath(worktree.Path, requestedPath) {
 			return worktree, true
@@ -166,6 +174,51 @@ func keepLegacyTopLevelProjection(
 	return kept
 }
 
+// followCanonicalProjection keeps the one projection on the canonical
+// checkout. When the Floor moves to another checkout (a focus change, or the
+// focused worktree being removed), the file rows move with it rather than
+// being dropped and re-indexed, so systems, layout and history keep their
+// files. It returns the ID of the root the projection moved to, if it moved.
+func (s *Server) followCanonicalProjection(
+	sqlDB *sql.DB,
+	existing []db.Root,
+	existingByPath map[string]db.Root,
+	canonicalPath string,
+) (string, error) {
+	target, known := existingByPath[normalizedRootPath(canonicalPath)]
+	if !known {
+		return "", nil
+	}
+	if count, err := db.CountFilesByRoot(sqlDB, target.ID); err != nil || count > 0 {
+		return "", err
+	}
+	for _, source := range existing {
+		if source.ID == target.ID {
+			continue
+		}
+		count, err := db.CountFilesByRoot(sqlDB, source.ID)
+		if err != nil {
+			return "", err
+		}
+		if count == 0 {
+			continue
+		}
+		s.stopWatcher(source.ID)
+		target.Path = filepath.Clean(canonicalPath)
+		movedFiles, err := db.MoveRootProjection(sqlDB, source, target)
+		if err != nil {
+			return "", fmt.Errorf("move the Floor from %s to %s: %w", source.Path, target.Path, err)
+		}
+		log.Printf("api: the Floor moved from %s to %s (%d files)", source.Path, target.Path, movedFiles)
+		target.IndexedAt, target.ClassifierVersion = source.IndexedAt, source.ClassifierVersion
+		existingByPath[normalizedRootPath(canonicalPath)] = target
+		source.IndexedAt, source.ClassifierVersion = nil, 0
+		existingByPath[normalizedRootPath(source.Path)] = source
+		return target.ID, nil
+	}
+	return "", nil
+}
+
 // syncWorkspaceWorktrees keeps exactly one filesystem projection in the graph.
 // Linked Git worktrees describe parallel branches; indexing each as another root
 // duplicates every source file and corrupts system counts and classification.
@@ -189,15 +242,25 @@ func (s *Server) syncWorkspaceWorktrees(
 		existingByPath[normalizedRootPath(root.Path)] = root
 	}
 	worktrees = keepLegacyTopLevelProjection(existingByPath, worktrees)
-	canonical, ok := canonicalGraphRoot(requestedPath, worktrees)
+	focusedPath := ""
+	for _, root := range existing {
+		if root.IsFocused && root.IsActive {
+			focusedPath = root.Path
+		}
+	}
+	canonical, ok := canonicalGraphRoot(requestedPath, focusedPath, worktrees)
 	if !ok {
 		return "", fmt.Errorf("no filesystem root discovered for %s", requestedPath)
+	}
+	moved, err := s.followCanonicalProjection(sqlDB, existing, existingByPath, canonical.Path)
+	if err != nil {
+		return "", err
 	}
 
 	activeIDs := make(map[string]struct{}, len(worktrees))
 	requestedRootID := ""
-	rootsChanged := reconcileExisting
-	topologyChanged := reconcileExisting
+	rootsChanged := reconcileExisting || moved != ""
+	topologyChanged := reconcileExisting || moved != ""
 	canonicalPath := filepath.Clean(canonical.Path)
 	for _, discovered := range worktrees {
 		path := filepath.Clean(discovered.Path)
@@ -276,6 +339,13 @@ func (s *Server) syncWorkspaceWorktrees(
 		indexed := root.IndexedAt != nil && *root.IndexedAt > 0
 		headChanged := known && prior.HeadCommit != root.HeadCommit
 		switch {
+		case moved == root.ID:
+			// The Floor moved here from another checkout: same files, another
+			// branch. Catch the projection up without journaling it.
+			s.mu.Lock()
+			s.rootQuietReconcile[root.ID] = true
+			s.mu.Unlock()
+			s.launchRootSync(sqlDB, root, false)
 		case !indexed:
 			if err := db.DeleteFilesByRoot(sqlDB, root.ID); err != nil {
 				return "", fmt.Errorf("clear root %s: %w", path, err)
@@ -381,9 +451,13 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			delete(s.rootScopeFrom, root.ID)
 			force := s.rootForceReindex[root.ID]
 			delete(s.rootForceReindex, root.ID)
+			quiet := s.rootQuietReconcile[root.ID]
+			delete(s.rootQuietReconcile, root.ID)
 			s.mu.Unlock()
 			var err error
-			if force {
+			if quiet {
+				_, err = indexer.ReconcileRootQuietly(sqlDB, s.hub, root, root.IgnoredPaths)
+			} else if force {
 				_, err = indexer.ReindexRootInPlace(sqlDB, s.hub, root, root.IgnoredPaths)
 			} else if rescope {
 				_, err = indexer.ReconcileScope(sqlDB, s.hub, root, scopeFrom, root.IgnoredPaths)
@@ -437,7 +511,8 @@ func (s *Server) startWorktreeMonitor(
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	s.worktreeMonitors[workspaceID] = worktreeMonitor{cancel: cancel, done: done}
+	resync := make(chan struct{}, 1)
+	s.worktreeMonitors[workspaceID] = worktreeMonitor{cancel: cancel, done: done, resync: resync}
 	interval := s.worktreeRefresh
 	s.mu.Unlock()
 
@@ -529,6 +604,8 @@ func (s *Server) startWorktreeMonitor(
 				if notGit == nil {
 					reconcile()
 				}
+			case <-resync:
+				reconcile()
 			case <-checkoutPoll.C:
 				lastCheckouts = s.pushCheckoutChanges(sqlDB, workspaceID, lastCheckouts)
 			case <-notGit:

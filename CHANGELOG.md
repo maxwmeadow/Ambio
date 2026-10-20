@@ -62,6 +62,12 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Agents working in other worktrees show up on the map as they work: files
+  they change or delete are marked, and new files appear under the system
+  they belong to. Choose which branches to draw (off, agents only, all) in
+  the branch menu.
+- "Show on the Floor" puts another worktree's branch on the map without
+  losing your layout, systems or history.
 - The toolbar shows the branch the map is on, with uncommitted changes and
   how far it is ahead or behind. Click it (or press ⇧⌘B) to see every
   worktree of the project, which agent is working in each, and open its

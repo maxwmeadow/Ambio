@@ -104,6 +104,11 @@ export interface CheckoutRow {
   agents: Array<{ id: string; name: string; goal: string }>
   touchedSystems: number
   collidingSystems: number
+  /** "+2 ~1 files": what it changes on its branch, drawn on the Floor. */
+  overlay: string
+  tint: string
+  /** Whether "Show on the Floor" applies. */
+  canShow: boolean
 }
 
 export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutRow[] {
@@ -117,6 +122,9 @@ export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutR
     agents: list(checkout.agents).map(agent => ({ id: agent.sessionId, name: agent.agent || 'Agent', goal: agent.goal })),
     touchedSystems: checkout.touchedSystems,
     collidingSystems: checkout.collidingSystems,
+    overlay: checkout.isFocused ? '' : overlaySummary(checkout),
+    tint: overlayTint(snapshot, checkout.rootId),
+    canShow: !checkout.isFocused && checkout.headState !== 'none',
   }))
 }
 
@@ -150,4 +158,81 @@ export function collisionsBySystem(snapshot: CheckoutsSnapshot | null): Map<stri
     }))
   }
   return result
+}
+
+/** Which other checkouts the Floor draws (docs/GIT_AND_PROJECT_SHAPES.md Q5). */
+export type OverlayLens = 'off' | 'agents' | 'all'
+export const DEFAULT_OVERLAY_LENS: OverlayLens = 'agents'
+
+/** One tint per other checkout, in a stable order, none of them the agent teal
+ *  or the collision rust. */
+const OVERLAY_TINTS = ['#7b5ea7', '#2f7d9a', '#9a3b5c', '#5b7f2a', '#a0632a']
+
+export interface OverlayMark {
+  rootId: string
+  name: string
+  tint: string
+  change: 'modified' | 'deleted'
+}
+
+export interface OverlayArrival {
+  rootId: string
+  name: string
+  tint: string
+  paths: string[]
+}
+
+export interface CanvasOverlay {
+  /** Floor files another checkout changes or deletes. */
+  byFile: Map<string, OverlayMark[]>
+  /** New files another checkout adds, by the system that owns their folder. */
+  arrivals: Map<string, OverlayArrival[]>
+  /** New files no Floor system owns a folder of. */
+  unplaced: number
+  /** Checkouts drawn, after the lens. */
+  shown: CheckoutStatus[]
+}
+
+export function overlayTint(snapshot: CheckoutsSnapshot | null, rootId: string): string {
+  const others = list(snapshot?.checkouts).filter(checkout => !checkout.isFocused).map(checkout => checkout.rootId).sort()
+  const index = others.indexOf(rootId)
+  return index < 0 ? OVERLAY_TINTS[0] : OVERLAY_TINTS[index % OVERLAY_TINTS.length]
+}
+
+export function buildCanvasOverlay(snapshot: CheckoutsSnapshot | null, lens: OverlayLens): CanvasOverlay {
+  const overlay: CanvasOverlay = { byFile: new Map(), arrivals: new Map(), unplaced: 0, shown: [] }
+  if (lens === 'off') return overlay
+  for (const checkout of list(snapshot?.checkouts)) {
+    if (checkout.isFocused) continue
+    if (lens === 'agents' && list(checkout.agents).length === 0) continue
+    overlay.shown.push(checkout)
+    const name = checkoutName(checkout)
+    const tint = overlayTint(snapshot, checkout.rootId)
+    const arrivals = new Map<string, string[]>()
+    for (const file of list(checkout.overlay)) {
+      if (file.change === 'added') {
+        if (!file.systemId) { overlay.unplaced += 1; continue }
+        arrivals.set(file.systemId, [...(arrivals.get(file.systemId) ?? []), file.path])
+      } else if (file.fileId) {
+        overlay.byFile.set(file.fileId, [...(overlay.byFile.get(file.fileId) ?? []), { rootId: checkout.rootId, name, tint, change: file.change }])
+      }
+    }
+    for (const [systemId, paths] of arrivals) {
+      overlay.arrivals.set(systemId, [...(overlay.arrivals.get(systemId) ?? []), { rootId: checkout.rootId, name, tint, paths }])
+    }
+  }
+  return overlay
+}
+
+/** "+2 ~1 −1": what a checkout's overlay holds, or '' when it is empty. */
+export function overlaySummary(checkout: CheckoutStatus): string {
+  const counts = { added: 0, modified: 0, deleted: 0 }
+  for (const file of list(checkout.overlay)) counts[file.change] += 1
+  const parts = [
+    counts.added ? `+${counts.added}` : '',
+    counts.modified ? `~${counts.modified}` : '',
+    counts.deleted ? `−${counts.deleted}` : '',
+  ].filter(Boolean)
+  const more = checkout.overlayTruncated ? ` (+${checkout.overlayTruncated} more)` : ''
+  return parts.length ? `${parts.join(' ')} files${more}` : ''
 }

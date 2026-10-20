@@ -18,7 +18,7 @@ function checkout(overrides: Record<string, unknown> = {}) {
   return {
     rootId: 'root_demo', path: '/code/ambio', branch: 'main', headCommit: '9fc31ab4470e', headState: 'commit',
     isPrimary: true, isFocused: true, changedFiles: 0, ahead: 0, behind: 0, agents: [],
-    touchedSystems: 0, collidingSystems: 0, ...overrides,
+    touchedSystems: 0, collidingSystems: 0, overlay: [], ...overrides,
   }
 }
 
@@ -32,6 +32,11 @@ const PARALLEL = {
       headCommit: 'b81e2f0c991a', isPrimary: false, isFocused: false, changedFiles: 4,
       agents: [{ sessionId: 's1', agent: 'codex', goal: 'Retry failed checkout payments', startedAt: 1 }],
       touchedSystems: 2, collidingSystems: 1,
+      overlay: [
+        { path: 'src/renderer/canvas/AmbioCanvas.tsx', change: 'modified', fileId: 'file_canvas', systemId: 'sys_canvas' },
+        { path: 'src/renderer/store/graphStore.ts', change: 'deleted', fileId: 'file_store', systemId: 'sys_canvas' },
+        { path: 'src/renderer/canvas/RetryBanner.tsx', change: 'added', systemId: 'sys_canvas' },
+      ],
     }),
   ],
   collisions: [{
@@ -47,7 +52,10 @@ const PLAIN = {
   checkouts: [checkout({ branch: '', headCommit: '', headState: 'none' })],
 }
 
+let focusRequests: unknown[] = []
+
 async function launch(checkouts: unknown) {
+  focusRequests = []
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env
   e2eHome = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
   mkdirSync(join(e2eHome, 'AppData', 'Roaming'), { recursive: true })
@@ -69,7 +77,9 @@ async function launch(checkouts: unknown) {
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
     const url = route.request().url()
-    const body = url.includes('/api/checkouts?') ? checkouts
+    if (url.includes('/api/checkouts/focus')) focusRequests.push(route.request().postDataJSON())
+    const body = url.includes('/api/checkouts/focus') ? { ok: true }
+      : url.includes('/api/checkouts?') ? checkouts
       : url.includes('/api/canvas/history') ? { messages: [], nextCursor: '', availableCount: 0 }
       : []
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
@@ -139,4 +149,36 @@ test('a folder without Git reads as a state, not an error', async () => {
   await expect(chip).toHaveAttribute('title', 'This folder is not a Git repository')
   await chip.click()
   await expect(page.getByRole('dialog', { name: 'Branches and worktrees' })).toContainText('Ambio’s own record')
+})
+
+test('another branch’s work is drawn on the Floor until the lens turns it off', async () => {
+  await launch(PARALLEL)
+  const rail = page.locator('.react-flow__node[data-id="sys_canvas"] .ambio-branch-arrivals')
+  await expect(rail).toBeVisible()
+  await expect(rail).toContainText('RetryBanner.tsx')
+  await expect(rail).toContainText('codex/retry-checkout')
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overlay-rail.png') })
+
+  // File cards mount once their system opens; search flies to one.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/canvas/AmbioCanvas.tsx')
+  await page.getByRole('option').first().click()
+  const modified = page.locator('.react-flow__node[data-id="file_canvas"] .ambio-branch-overlay-mark[data-change="modified"]')
+  await expect(modified).toBeVisible()
+  await expect(modified).toHaveAttribute('title', 'Changed on codex/retry-checkout')
+  await expect(page.locator('.react-flow__node[data-id="file_store"] .ambio-branch-overlay-mark[data-change="deleted"]')).toBeAttached()
+  await page.waitForTimeout(900)
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overlay-files.png') })
+  await page.keyboard.press('Escape')
+
+  await page.keyboard.press('ControlOrMeta+Shift+B')
+  const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
+  await expect(popover.locator('.ambio-checkout').nth(1)).toContainText('+1 ~1 \u22121 files on its branch')
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'checkouts-lens.png') })
+  await popover.getByRole('radio', { name: 'Off' }).click()
+  await expect(rail).toHaveCount(0)
+  await expect(page.locator('.ambio-branch-overlay-mark')).toHaveCount(0)
+
+  await popover.getByRole('button', { name: 'Show on the Floor' }).click()
+  await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
 })

@@ -64,6 +64,16 @@ export async function apiGetCheckouts(
   return res.json() as Promise<CheckoutsSnapshot>
 }
 
+/** Show another checkout on the Floor ("Show on the Floor"). */
+export async function apiFocusCheckout(workspaceId: string, rootId: string): Promise<void> {
+  const res = await fetch(`${archdWsHttp()}/api/checkouts/focus`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, rootId }),
+  })
+  if (!res.ok) throw new Error(await res.text() || `Unable to show that checkout (${res.status})`)
+}
+
 export interface FileSource {
   fileId: string
   relPath: string

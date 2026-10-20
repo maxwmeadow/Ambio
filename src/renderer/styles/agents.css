@@ -343,3 +343,138 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Other checkouts' work on the Floor (stage 2 overlays): dashed, tinted per
+   branch, never moving or resizing a node. */
+.ambio-branch-overlay-mark {
+  position: absolute;
+  z-index: 40;
+  bottom: -9px;
+  left: 8px;
+  display: flex;
+  height: 17px;
+  max-width: 180px;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  padding: 0 5px;
+  border: 1px dashed;
+  background: var(--bg-raised);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: help;
+  /* Never smaller on screen than this; grows with the canvas when zoomed in. */
+  scale: max(1, calc(1 / var(--ambio-zoom, 1)));
+  transform-origin: 0 100%;
+}
+
+.ambio-branch-overlay-mark[data-change='deleted'] .ambio-branch-overlay-mark__name {
+  text-decoration: line-through;
+}
+
+.ambio-branch-overlay-mark__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Below the system's frame, clear of the cards inside it. */
+.ambio-branch-arrivals {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: auto;
+  scale: max(1, calc(1 / var(--ambio-zoom, 1)));
+  transform-origin: 0 0;
+}
+
+.ambio-branch-arrivals__entry {
+  overflow: hidden;
+  max-width: 260px;
+  padding: 2px 6px;
+  border: 1px dashed;
+  background: var(--bg-raised);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.ambio-branch-arrivals__entry em {
+  font-style: normal;
+  opacity: 0.75;
+}
+
+.ambio-checkouts__lens {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #c3c6c2;
+  background: #e7e5dd;
+  color: #5d6964;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ambio-checkouts__lens [role='radiogroup'] {
+  display: flex;
+  margin-left: auto;
+  border: 1px solid #a3aaa6;
+}
+
+.ambio-checkouts__lens button {
+  padding: 2px 7px;
+  border: 0;
+  background: #f7f6f0;
+  color: #26342f;
+  font-family: var(--font-sans, inherit);
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.ambio-checkouts__lens button + button { border-left: 1px solid #a3aaa6; }
+
+.ambio-checkouts__lens button[aria-checked='true'] {
+  background: #2c3935;
+  color: #fffdf5;
+}
+
+.ambio-checkout__overlay {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.ambio-checkout__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border: 1px dashed currentColor;
+  vertical-align: -1px;
+}
+
+.ambio-checkouts__unplaced {
+  margin: 6px 6px 2px;
+  color: #5d6964;
+  font-size: 9.5px;
+}
+
+.ambio-checkout__actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

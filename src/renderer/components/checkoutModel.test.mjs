@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCheckoutRows, checkoutName, checkoutState, collisionsBySystem } from './checkoutModel.ts'
+import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, checkoutName, checkoutState, collisionsBySystem, overlaySummary } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -69,4 +69,36 @@ test('collisions are keyed by system and name each branch the way the chip does'
     ['main', true, 'Storage now calls Cache'],
     ['abcdef1 (detached)', false, '2 changed files'],
   ])
+})
+
+test('the lens decides which other checkouts the Floor draws', () => {
+  const agent = checkout({
+    rootId: 'agent', branch: 'codex/retry', isFocused: false, isPrimary: false,
+    agents: [{ sessionId: 's', agent: 'codex', goal: 'Retry', startedAt: 1 }],
+    overlay: [
+      { path: 'pay/retry.go', change: 'added', systemId: 'sys_pay' },
+      { path: 'pay/stripe.go', change: 'modified', fileId: 'file_stripe', systemId: 'sys_pay' },
+      { path: 'old.go', change: 'deleted', fileId: 'file_old' },
+      { path: 'tools/new.go', change: 'added' },
+    ],
+  })
+  const idle = checkout({
+    rootId: 'idle', branch: 'old-experiment', isFocused: false, isPrimary: false,
+    overlay: [{ path: 'pay/stripe.go', change: 'deleted', fileId: 'file_stripe' }],
+  })
+  const all = snapshot([checkout({ overlay: [] }), agent, idle])
+
+  assert.equal(buildCanvasOverlay(all, 'off').shown.length, 0)
+  const agents = buildCanvasOverlay(all, 'agents')
+  assert.deepEqual(agents.shown.map(item => item.rootId), ['agent'])
+  assert.deepEqual(agents.arrivals.get('sys_pay').map(arrival => arrival.paths), [['pay/retry.go']])
+  assert.deepEqual(agents.byFile.get('file_stripe').map(mark => [mark.name, mark.change]), [['codex/retry', 'modified']])
+  assert.equal(agents.byFile.get('file_old')[0].change, 'deleted')
+  assert.equal(agents.unplaced, 1)
+
+  const everything = buildCanvasOverlay(all, 'all')
+  assert.deepEqual(everything.byFile.get('file_stripe').map(mark => mark.change), ['modified', 'deleted'])
+  assert.notEqual(everything.byFile.get('file_stripe')[0].tint, everything.byFile.get('file_stripe')[1].tint)
+  assert.equal(overlaySummary(agent), '+2 ~1 −1 files')
+  assert.equal(overlaySummary(checkout({ overlay: [], overlayTruncated: 0 })), '')
 })
