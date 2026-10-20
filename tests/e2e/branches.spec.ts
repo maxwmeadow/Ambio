@@ -29,7 +29,7 @@ const PARALLEL = {
     checkout({ changedFiles: 2, ahead: 1, upstream: 'origin/main', touchedSystems: 1, collidingSystems: 1 }),
     checkout({
       rootId: 'root_agent', path: '/home/dev/.codex/worktrees/a1b2/ambio', branch: 'codex/retry-checkout',
-      headCommit: 'b81e2f0c991a', isPrimary: false, isFocused: false, changedFiles: 4,
+      headCommit: 'b81e2f0c991a', isPrimary: false, isFocused: false, isAmbioRun: true, changedFiles: 4,
       agents: [{ sessionId: 's1', agent: 'codex', goal: 'Retry failed checkout payments', startedAt: 1 }],
       touchedSystems: 2, collidingSystems: 1,
       overlay: [
@@ -62,9 +62,11 @@ const PLAIN = {
 }
 
 let focusRequests: unknown[] = []
+let runRequests: Array<{ path: string; body: unknown }> = []
 
 async function launch(checkouts: unknown) {
   focusRequests = []
+  runRequests = []
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env
   e2eHome = mkdtempSync(join(tmpdir(), 'ambio-e2e-home-'))
   mkdirSync(join(e2eHome, 'AppData', 'Roaming'), { recursive: true })
@@ -87,7 +89,13 @@ async function launch(checkouts: unknown) {
   await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
     const url = route.request().url()
     if (url.includes('/api/checkouts/focus')) focusRequests.push(route.request().postDataJSON())
+    for (const path of ['/api/checkouts/finish', '/api/checkouts/switch']) {
+      if (url.includes(path)) runRequests.push({ path, body: route.request().postDataJSON() })
+    }
     const body = url.includes('/api/checkouts/focus') ? { ok: true }
+      : url.includes('/api/checkouts/finish') ? { action: route.request().postDataJSON().action, into: 'main', files: 3 }
+      : url.includes('/api/checkouts/switch') ? { branch: route.request().postDataJSON().branch }
+      : url.includes('/api/checkouts/branches?') ? { current: 'main', branches: [{ name: 'main', rootId: 'root_demo' }, { name: 'release/1.2' }, { name: 'codex/retry-checkout', rootId: 'root_agent' }] }
       : url.includes('/api/checkouts/review?') ? REVIEW
       : url.includes('/api/checkouts?') ? checkouts
       : url.includes('/api/canvas/history') ? { messages: [], nextCursor: '', availableCount: 0 }
@@ -213,4 +221,31 @@ test('a branch is reviewed as architecture, from the branch menu', async () => {
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ambioGraphStore: { getState: () => { selectedNodeId: string | null } } }).__ambioGraphStore.getState().selectedNodeId)).toBe('sys_canvas')
   await popover.getByRole('button', { name: '← Back' }).click()
   await expect(popover.locator('.ambio-checkout')).toHaveCount(2)
+})
+
+test('an Ambio run is applied or discarded, and the Floor switches branch, from the branch menu', async () => {
+  await launch(PARALLEL)
+  await page.keyboard.press('ControlOrMeta+Shift+B')
+  const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
+  const run = popover.locator('.ambio-checkout').nth(1)
+  await expect(run).toContainText('Ambio run')
+  await run.getByRole('button', { name: 'Apply to main' }).click()
+  await expect(popover).toContainText('as uncommitted changes. Review and commit it there.')
+  await expect.poll(() => runRequests).toEqual([{ path: '/api/checkouts/finish', body: { workspaceId: 'demo', rootId: 'root_agent', action: 'apply' } }])
+
+  // Discarding asks once more; nothing is sent until it is confirmed.
+  await run.getByRole('button', { name: 'Discard…' }).click()
+  expect(runRequests).toHaveLength(1)
+  await run.getByRole('button', { name: 'Discard its work' }).click()
+  await expect.poll(() => runRequests.length).toBe(2)
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'run-actions.png') })
+
+  await popover.locator('.ambio-checkout').first().getByRole('button', { name: 'Switch branch…' }).click()
+  await expect(popover).toContainText('The Floor is on main')
+  await popover.getByRole('button', { name: /release\/1\.2/ }).click()
+  await expect.poll(() => runRequests.at(-1)).toEqual({ path: '/api/checkouts/switch', body: { workspaceId: 'demo', branch: 'release/1.2' } })
+  // A branch open in another worktree is shown, not switched to.
+  await popover.locator('.ambio-checkout').first().getByRole('button', { name: 'Switch branch…' }).click()
+  await popover.getByRole('button', { name: /codex\/retry-checkout/ }).click()
+  await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
 })

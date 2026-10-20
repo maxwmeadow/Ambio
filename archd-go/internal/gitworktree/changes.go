@@ -2,6 +2,7 @@ package gitworktree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +59,14 @@ func gitOutput(worktreePath string, args ...string) ([]byte, error) {
 	command := exec.Command("git", append([]string{"-C", worktreePath}, args...)...)
 	output, err := command.Output()
 	if err != nil {
+		// Git's own first line ("fatal: 'main' is already checked out at …")
+		// is what a person can act on.
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			if line, _, _ := strings.Cut(strings.TrimSpace(string(exit.Stderr)), "\n"); line != "" {
+				return nil, fmt.Errorf("git %s in %s: %w: %s", strings.Join(args, " "), worktreePath, err, line)
+			}
+		}
 		return nil, fmt.Errorf("git %s in %s: %w", strings.Join(args, " "), worktreePath, err)
 	}
 	return output, nil

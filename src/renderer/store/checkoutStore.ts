@@ -103,5 +103,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 }))
 
+/** Asks the branch chip to open a branch's review: detail {rootId, name}. */
+export const REVIEW_BRANCH = 'ambio:review-branch'
+
 /** Dispatched when archd reports that checkouts, branches or heads changed. */
 export const CHECKOUTS_CHANGED = 'ambio:checkouts-changed'

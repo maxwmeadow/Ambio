@@ -57,7 +57,7 @@ collide. Full context for each item is in its section below.
 1. 🚧 `agents-draw-first` - agents draw on a sheet before structural changes. [installers, mcp descriptions]
 2. ❓ `rules-and-drift` - standing architecture rules and drift checks. Design written: [docs/RULES_AND_DRIFT.md](docs/RULES_AND_DRIFT.md); needs Max's answers to Q1-Q4 before slice 1. [archd, mcp, canvas]
 3. ⬜ `agent-permission-modes` - user-controlled permission levels for agents Ambio runs, mapped to each agent's own modes; full access is the temporary default. [electron drivers, settings, agent panel]
-4. 🚧 `git-parallel-runs` - Ambio-launched agents each get their own worktree; merge, keep or discard; switch branch. [electron delivery, archd api, inbox UI]
+4. 🚧 `git-monorepo-subfolder` - a package of a monorepo is its own project all the way through, including moving maps indexed whole. [archd api, db]
 
 ---
 
@@ -110,8 +110,7 @@ agent, and each sees the other's changes ([docs/PRODUCT.md §1](docs/PRODUCT.md)
 
 Design: [docs/GIT_AND_PROJECT_SHAPES.md](docs/GIT_AND_PROJECT_SHAPES.md) (decided 2026-10-20, DECISIONS §1). Stages in order; each ships on its own.
 
-- 🚧 `git-parallel-runs` **Stage 4: a worktree per run.** Send → *New worktree* (`~/.ambio/worktrees/<project>/<slug>`, branch `ambio/<slug>`); Merge / Keep branch / Discard on finish; lift the one-run-per-project limit (`electron/agentDelivery.ts`). Also *Switch branch…* for the focused checkout, refused with uncommitted changes. Closes Inbox `work-order-isolated-roots`. Includes the branch review in Work Order Review. (🚧 Claude, claude/git-native-design, 2026-10-20)
-- ⬜ `git-monorepo-subfolder` **Stage 5: subfolders all the way through.** A repository with `subpath` from setup through worktrees, collisions, co-change and overlays (stage 0 fixes only which folder is indexed, and only for new projects). Includes moving projects already indexed at the repository top level onto their folder without losing systems, layout or history: today `keepLegacyTopLevelProjection` keeps them whole, because deactivating the old root deletes its files.
+- 🚧 `git-monorepo-subfolder` **Stage 5: subfolders all the way through.** A repository with `subpath` from setup through worktrees, collisions, co-change and overlays (stage 0 fixes only which folder is indexed, and only for new projects). Includes moving projects already indexed at the repository top level onto their folder without losing systems, layout or history: today `keepLegacyTopLevelProjection` keeps them whole, because deactivating the old root deletes its files. (🚧 Claude, claude/git-native-design, 2026-10-20)
 - ⬜ `git-multi-repo` **Stage 6: several repositories** (after launch). `repositories` table, nested-repository discovery under an opened parent, Add Folder to Project…, repository frames on the Floor, cross-repository edges, submodules pinned to their commit. Needs `mcp-multi-root`.
 
 ## Sheets and work orders
@@ -277,7 +276,6 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `draw-first-editor-smoke` **Live draw-first trials on the other supported hosts** - use the host matrix in `docs/testing/AGENTS_DRAW_FIRST.md`; record plan-before-code, human approval, existing-plan reuse, and a small fix without a new sheet. Copilot CLI has an opt-in trial; editor/Desktop runs still need a real host. (2026-09-30, agents-draw-first implementation)
 
 - ⬜ `work-order-delivery-live` **Record authenticated provider delivery smoke runs** for Claude Code, Codex and Copilot CLI, and verify launcher behavior on macOS/Windows. Automated delivery tests use simulated agents; test auth, MCP startup, host permissions and the actual claim/build/reply loop. (2026-09-30, work-order-delivery)
-- ⬜ `work-order-isolated-roots` **Isolated agent runs with truthful review.** Before creating a worktree on Send, bind indexing/comparison to the run’s root so review checks the branch the agent edited. Current direct runs use the existing live root and prevent overlapping managed runs. (2026-09-30, work-order-delivery)
 - ⬜ `more-direct-delivery` **Extend host-specific delivery adapters.** Validate Cursor Agent CLI and project-bound VS Code chat delivery; add direct routes where the destination and permissions can be verified. Keep editor/desktop copy/open fallbacks and the host capability table current. (2026-09-30, work-order-delivery)
 - ⬜ `integrated-chat-provider-live` **Authenticated native-chat smoke runs.** The bundled OpenCode harness and Electron conversation are covered with a controlled model service and real processes. Record a small Ask/Build trial using real OpenAI, Anthropic and Google keys, and check secure key persistence and packaged launch on macOS/Windows; no paid-provider credentials were available in the cloud implementation session. (2026-10-06, integrated-agent-chat)
 
@@ -293,6 +291,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 Newest first. One line each: date, slug, what changed, branch/commit.
 
+- 2026-10-20 `git-parallel-runs` Send → Own worktree runs an agent in `~/.ambio/worktrees/<workspace>/<slug>` on `ambio/<slug>` (several at once; a conversation keeps its worktree); Apply (as uncommitted changes, DECISIONS 2026-10-20) or Discard from the branch menu, and Review this branch from Work Order Review; Switch branch… refused with uncommitted changes. Also closes Inbox `work-order-isolated-roots`. claude/git-native-design
 - 2026-10-20 `git-review-branch` Review a branch: its architecture against its base (the Floor's branch, or the default branch for the Floor's own), computed from Git by resolving each changed file's imports on both sides and wording the difference with the Review Changes claim builder; "Review this branch" in the Checkouts popover; MCP `get_architecture` scope `branches` (every checkout, what each changes per system, shared systems; `id` reviews one). claude/git-native-design
 - 2026-10-20 `git-live-worktrees` Other checkouts are drawn on the Floor: what each changes against its merge base with the Floor's checkout (marks on changed/deleted files, a caption of new files under their system), polled by the worktree monitor and pushed as `checkouts:changed`; an Off/Agents only/All lens per project; Show on the Floor moves the projection with file identities kept (schema 9 `roots.is_focused`, `MoveRootProjection`, quiet reconcile). claude/git-native-design
 - 2026-10-20 `git-branch-chip` The toolbar branch chip (branch, uncommitted dot, ahead/behind, other worktrees, shared systems) and its Checkouts popover (`⇧⌘B`, reveal or open each checkout by root ID) replace the floating Agent Lane; systems other checkouts are changing carry a branch mark and a Properties section. `GET /api/checkouts`; "No Git", "no commits yet" and detached are written as states. claude/git-native-design

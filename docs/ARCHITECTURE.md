@@ -241,6 +241,21 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
   `delta.BuildClaims` word like any Review Changes ("Gateway now depends on
   Mailer"). Shown in the Checkouts popover ("Review this branch"); agents
   read it through `get_architecture` scope `branches` with `id`.
+- **A worktree per run** (`api/worktree_runs.go`, `electron/main.ts`
+  `agent:deliver`): Send's *Own worktree* asks archd for a worktree
+  (`POST /api/checkouts/worktree`) under `~/.ambio/worktrees/<workspace>/<slug>`
+  on `ambio/<slug>`, started at the Floor's commit, and returns once the root
+  is registered; the run's cwd and handoff are that folder, so its MCP
+  connection resolves there and the one-run-per-root limit no longer blocks a
+  second run. A conversation's later turns reuse its worktree. Finishing
+  (`POST /api/checkouts/finish`, Ambio's own worktrees only) applies the run's
+  commits and uncommitted work to the Floor's checkout as uncommitted changes
+  (`gitworktree.ChangesAsPatch`/`ApplyPatch`, refused over uncommitted edits
+  to the same files, conflicts kept with the worktree) or discards it; either
+  removes the worktree and its branch. *Switch branch…* (`POST
+  /api/checkouts/switch`) is refused with uncommitted changes, and a branch
+  open in another worktree is shown on the Floor instead. Ambio never
+  commits, merges or pushes.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
   files, once any running Git command releases `index.lock` (a lock older

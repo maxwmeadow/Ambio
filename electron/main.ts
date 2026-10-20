@@ -1459,7 +1459,7 @@ function setupIPC(): void {
     checkDeliveryMessage(body, project.id, request.messageId)
     const target = availableTargets().find(host => host.id === request.hostId)
     if (!target || !target.available) throw new Error(target?.detail ?? 'Unknown agent host.')
-    const prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
+    let prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
     if (target.route !== 'run') {
       // A chat Ambio cannot start is pasted into once and asked to stay
       // attached, so the conversation's next turns reach it without a paste.
@@ -1492,14 +1492,28 @@ function setupIPC(): void {
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+    // Where the run works: a conversation keeps the worktree it started in;
+    // a new one asked for its own worktree gets one from archd.
+    const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+    const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
+    let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
+    if (!earlier.length && request.where === 'worktree') {
+      const made = await archdJson('/api/checkouts/worktree', {
+        method: 'POST', body: JSON.stringify({ workspaceId: project.id, name: typeof body.note === 'string' ? body.note.slice(0, 60) : 'run' }),
+        signal: AbortSignal.timeout(20000),
+      })
+      if (made.status !== 200 || typeof made.body?.path !== 'string') throw failure('Ambio could not make a worktree for this agent', made.body)
+      workPath = made.body.path
+    }
     agentChat?.assertRootAvailable(project.rootPath)
     // A turn continues the host session its conversation already has, when
     // the host can; the conversation itself reaches the agent through Ambio.
     const driver = agentDriver(request.hostId)
     const mode = turnMode(body.mode)
-    const threadId = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+    const threadId = conversation
+    if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
     const resume = driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
-    const turn = { mode, messageId: request.messageId, cwd: project.rootPath, ...(validModel(request.model) ? { model: request.model } : {}) }
+    const turn = { mode, messageId: request.messageId, cwd: workPath, ...(validModel(request.model) ? { model: request.model } : {}) }
     const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
     // An ACP agent is given Ambio's tools for the session and continues or
     // restarts the session itself.
@@ -1512,7 +1526,7 @@ function setupIPC(): void {
     // same turn started the way it always was.
     const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
     const run = await deliveryRunner.start({
-      ...request, rootPath: project.rootPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
+      ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
       args: plan.args, stdin: plan.stdin, threadId, mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
       ...(acp ? { acp } : {}),
       ...(driver?.acp ? {} : { fresh: printPlan }),

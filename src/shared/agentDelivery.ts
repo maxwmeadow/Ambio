@@ -43,6 +43,11 @@ export interface DeliveryRequest {
   hostId: string
   /** The model to run the agent with; unset uses the agent's own default. */
   model?: string
+  /** Where an agent Ambio starts works: the project's own checkout (the
+   *  default), or a new worktree of its own on an ambio/ branch, so several
+   *  can work at once (docs/GIT_AND_PROJECT_SHAPES.md stage 4). A follow-up
+   *  turn keeps the worktree its conversation started in. */
+  where?: 'here' | 'worktree'
 }
 
 /** A model an agent can be asked to use. */

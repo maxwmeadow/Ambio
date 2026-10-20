@@ -25,6 +25,8 @@ const KEYS = [
   LEGACY_REVIEW_KEY,
   DELIVERY_HOST_KEY,
   SETUP_STEP_KEY,
+  // Where agents Ambio starts work: here or their own worktree.
+  (id: string) => `delivery_where_${id}`,
   // Which other checkouts the Floor draws (store/checkoutStore.ts).
   (id: string) => `checkout_lens_${id}`,
   // Removed in favor of ProjectConfig.creationSource. Keep deleting the old

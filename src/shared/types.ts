@@ -751,6 +751,8 @@ export interface CheckoutStatus {
   isPrimary: boolean
   /** The checkout the Floor shows. */
   isFocused: boolean
+  /** A worktree Ambio made for an agent run: it can be applied or discarded. */
+  isAmbioRun?: boolean
   changedFiles: number
   upstream?: string
   ahead: number

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CHECKOUTS_CHANGED, useCheckoutStore } from '../store/checkoutStore'
+import { CHECKOUTS_CHANGED, REVIEW_BRANCH, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
 import { buildBranchChip, buildCheckoutRows, type OverlayLens } from './checkoutModel'
-import { apiFocusCheckout, apiGetBranchReview } from '../canvas/arcdApi'
+import { apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch } from '../canvas/arcdApi'
 import { useGraphStore } from '../store/graphStore'
 import type { BranchReview } from '../../shared/types'
 
@@ -61,6 +61,10 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const setLens = useCheckoutStore(state => state.setLens)
   const unplaced = useCheckoutStore(state => state.unplaced)
   const [showing, setShowing] = useState<string | null>(null)
+  // "Switch branch…" swaps the list for the repository's local branches.
+  const [branches, setBranches] = useState<{ current: string; branches: Array<{ name: string; rootId?: string }> } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null)
   // "Review this branch" swaps the popover's list for that branch's claims.
   const [reviewing, setReviewing] = useState<{ rootId: string; name: string } | null>(null)
   const [review, setReview] = useState<BranchReview | null>(null)
@@ -84,6 +88,8 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   }, [reviewing, workspaceId])
   const [open, setOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  // A notice is an error unless an action reports what it did.
+  const [noticeDone, setNoticeDone] = useState(false)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const anchorRef = useRef<HTMLButtonElement>(null)
 
@@ -122,11 +128,23 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   }, [open])
 
   useEffect(() => { setOpen(false) }, [workspaceId])
-  useEffect(() => { if (!open) setReviewing(null) }, [open])
+  useEffect(() => {
+    const reviewBranch = (event: Event) => {
+      const detail = (event as CustomEvent<{ rootId: string; name: string }>).detail
+      if (!detail?.rootId) return
+      updatePosition()
+      setOpen(true)
+      setReviewing(detail)
+    }
+    window.addEventListener(REVIEW_BRANCH, reviewBranch)
+    return () => window.removeEventListener(REVIEW_BRANCH, reviewBranch)
+  }, [updatePosition])
+  useEffect(() => { if (!open) { setReviewing(null); setBranches(null); setConfirmDiscard(null) } }, [open])
 
   const showOnFloor = async (rootId: string) => {
     setShowing(rootId)
     setNotice(null)
+    setNoticeDone(false)
     try {
       await apiFocusCheckout(workspaceId, rootId)
       await useCheckoutStore.getState().refresh(workspaceId)
@@ -137,8 +155,50 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  const act = async (key: string, work: () => Promise<string | null>) => {
+    setBusy(key)
+    setNotice(null)
+    try {
+      const done = await work()
+      setNotice(done)
+      setNoticeDone(true)
+      await useCheckoutStore.getState().refresh(workspaceId)
+    } catch (error) {
+      setNoticeDone(false)
+      setNotice(error instanceof Error ? error.message : 'Ambio could not do that.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const finishRun = (rootId: string, action: 'apply' | 'discard') => act(`${action}:${rootId}`, async () => {
+    setConfirmDiscard(null)
+    const result = await apiFinishRunWorktree(workspaceId, rootId, action)
+    if (action === 'discard') return 'The run and its worktree are gone.'
+    return result.conflicted
+      ? `The run's work is in ${result.into} with conflicts to resolve; its worktree stays until you do.`
+      : `The run's work is in ${result.into} as uncommitted changes. Review and commit it there.`
+  })
+
+  const openBranches = () => act('branches', async () => {
+    setBranches(await apiListBranches(workspaceId))
+    return null
+  })
+
+  const switchTo = (branch: { name: string; rootId?: string }) => act(`switch:${branch.name}`, async () => {
+    if (branch.rootId) {
+      // Git keeps a branch in one worktree at a time: show that one instead.
+      await apiFocusCheckout(workspaceId, branch.rootId)
+    } else {
+      await apiSwitchBranch(workspaceId, branch.name)
+    }
+    setBranches(null)
+    return null
+  })
+
   const openCheckout = async (rootId: string, how: 'reveal' | 'editor') => {
     const result = await window.ambio?.openCheckout?.(workspaceId, rootId, how)
+    setNoticeDone(false)
     setNotice(result && !result.ok ? result.detail : null)
   }
 
@@ -187,15 +247,35 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
           >
             <header className="ambio-checkouts__header">
               <div>
-                <h2>{chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
+                <h2>{chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : 'Branches and worktrees'}</h2>
                 <p>{chip.plain ? 'This folder is not a Git repository'
                   : reviewing ? (review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…')
+                  : branches ? `The Floor is on ${branches.current}`
                   : 'Every working copy of this project'}</p>
               </div>
-              {!chip.plain && !reviewing && <output>{rows.length}</output>}
-              {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}
+              {!chip.plain && !reviewing && !branches && <output>{rows.length}</output>}
+              {(reviewing || branches) && <button type="button" className="ambio-checkouts__back" onClick={() => { setReviewing(null); setBranches(null) }}>← Back</button>}
             </header>
-            {reviewing ? (
+            {branches && !reviewing ? (
+              <div className="ambio-checkouts__body">
+                <ul className="ambio-checkouts__branches">
+                  {branches.branches.map(branch => (
+                    <li key={branch.name}>
+                      <button
+                        type="button"
+                        disabled={busy !== null || branch.name === branches.current}
+                        aria-current={branch.name === branches.current || undefined}
+                        onClick={() => void switchTo(branch)}
+                      >
+                        <strong>{branch.name}</strong>
+                        {branch.name === branches.current ? <span>on the Floor</span> : branch.rootId ? <span>open in a worktree · show it</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {notice && <p className="ambio-checkouts__notice" data-done={noticeDone || undefined} role="status">{notice}</p>}
+              </div>
+            ) : reviewing ? (
               <div className="ambio-checkouts__body ambio-checkouts__review">
                 {reviewError && <p className="ambio-checkouts__notice" role="alert">{reviewError}</p>}
                 {review?.message && <p className="ambio-checkouts__unplaced">{review.message}</p>}
@@ -250,6 +330,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                     <strong title={row.name}>{row.name}</strong>
                     {row.focused && <span className="ambio-checkout__tag">on the Floor</span>}
                     {row.primary && !chip.plain && <span className="ambio-checkout__tag ambio-checkout__tag--quiet">primary</span>}
+                    {row.ambioRun && <span className="ambio-checkout__tag ambio-checkout__tag--quiet">Ambio run</span>}
                   </div>
                   {row.state && <p className="ambio-checkout__state">{row.state}</p>}
                   {/* Left-to-right marks keep the path's own order while the
@@ -283,6 +364,17 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                     {row.canReview && (
                       <button type="button" onClick={() => setReviewing({ rootId: row.rootId, name: row.name })}>Review this branch</button>
                     )}
+                    {row.canSwitch && (
+                      <button type="button" disabled={busy !== null} onClick={() => void openBranches()}>Switch branch…</button>
+                    )}
+                    {row.ambioRun && (
+                      <button type="button" disabled={busy !== null} title={`Bring this run's work into ${chip.label} as uncommitted changes`} onClick={() => void finishRun(row.rootId, 'apply')}>
+                        {busy === `apply:${row.rootId}` ? 'Applying…' : `Apply to ${chip.label}`}
+                      </button>
+                    )}
+                    {row.ambioRun && (confirmDiscard === row.rootId
+                      ? <button type="button" data-danger disabled={busy !== null} onClick={() => void finishRun(row.rootId, 'discard')}>Discard its work</button>
+                      : <button type="button" disabled={busy !== null} onClick={() => setConfirmDiscard(row.rootId)}>Discard…</button>)}
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'reveal')}>Reveal folder</button>
                     <button type="button" onClick={() => void openCheckout(row.rootId, 'editor')}>Open in editor</button>
                   </div>
@@ -293,7 +385,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                   {unplaced} new file{unplaced === 1 ? '' : 's'} on other branches {unplaced === 1 ? 'is' : 'are'} in folders no system owns yet.
                 </p>
               )}
-              {notice && <p className="ambio-checkouts__notice" role="status">{notice}</p>}
+              {notice && <p className="ambio-checkouts__notice" data-done={noticeDone || undefined} role="status">{notice}</p>}
             </div>
             </>)}
           </section>

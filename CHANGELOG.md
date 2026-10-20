@@ -62,6 +62,12 @@ in the app as "What's New" after updating, so write it for users.
   automatically the first time you open it.
 
 ### Added
+- Agents Ambio starts can work in a worktree of their own (choose "Own
+  worktree" when sending), so several can work at once. When one is done,
+  apply its work to your branch as uncommitted changes to review and commit,
+  or discard it, from the branch menu or its work order.
+- Switch the map's branch from the branch menu. Ambio refuses while you have
+  uncommitted changes, and never commits or pushes for you.
 - Review a branch: see what a branch changes in your architecture before it
   merges ("Payments now depends on Email", "Orders gained retry.ts"), from
   the branch menu. Agents can read the same review, and see what every other

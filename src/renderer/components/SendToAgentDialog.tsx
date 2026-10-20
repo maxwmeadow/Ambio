@@ -10,7 +10,9 @@ import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { usePresence } from './ui/usePresence'
 import { WorkOrderReview } from './WorkOrderReview'
-import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
+import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery, WorkPlaceToggle } from './AgentDelivery'
+import { useCheckoutStore } from '../store/checkoutStore'
+import { focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type ModelOption } from '../../shared/agentDelivery'
 import { chatModels } from '../../shared/agentChat'
 import { AgentModelMenu, useAgentModel } from './AgentModelMenu'
@@ -56,6 +58,11 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     return () => { observer.disconnect(); style.removeProperty('--agent-panel-inset') }
   }, [isOpen, presence.mounted])
   const deliveryHost = delivery.hosts.find(host => host.id === delivery.hostId)
+  // A worktree of its own needs a repository with a commit to start from.
+  const canWorktree = useCheckoutStore(state => {
+    const head = focusedCheckout(state.snapshot)?.headState
+    return head === 'commit' || head === 'detached'
+  })
   const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -334,6 +341,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
           fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined}>
           <AgentModelMenu model={agentModel} disabled={locked || inProgress} />
+          {deliveryHost?.route === 'run' && canWorktree && !chatCurrent && <WorkPlaceToggle where={delivery.where} onChange={delivery.setWhere} disabled={locked || inProgress} />}
         </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }} />{inProgress
           ? <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>
           : <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>

@@ -493,3 +493,74 @@
   padding: 0;
   list-style: none;
 }
+
+.ambio-checkout__actions { flex-wrap: wrap; }
+
+.ambio-checkout__actions button[data-danger] {
+  border-color: #9b554c;
+  background: #f3dfd8;
+  color: #6e2723;
+}
+
+.ambio-checkouts__branches {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ambio-checkouts__branches button {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  border-bottom: 1px solid #c3c6c2;
+  background: transparent;
+  color: #26342f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ambio-checkouts__branches button:hover:not(:disabled) { background: #dfeae6; }
+.ambio-checkouts__branches button:disabled { cursor: default; }
+
+.ambio-checkouts__branches strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-checkouts__branches span {
+  flex: 0 0 auto;
+  color: #737d78;
+  font-size: 9px;
+}
+
+.ambio-inbox__review-branch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 7px 9px;
+  border: 1px dashed #7b5ea7;
+  font-size: 11px;
+}
+
+.ambio-inbox__review-branch button {
+  padding: 2px 8px;
+  border: 1px solid #a3aaa6;
+  background: #f7f6f0;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ambio-checkouts__notice[data-done] {
+  border-color: #3c7d76;
+  background: #dfeae6;
+  color: #24453f;
+}

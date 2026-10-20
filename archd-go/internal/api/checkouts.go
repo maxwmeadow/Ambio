@@ -30,6 +30,9 @@ type checkoutStatus struct {
 	HeadCommit string `json:"headCommit"`
 	HeadState  string `json:"headState"`
 	IsPrimary  bool   `json:"isPrimary"`
+	// IsAmbioRun marks a worktree Ambio made for an agent run, which it can
+	// apply or discard (worktree_runs.go).
+	IsAmbioRun bool `json:"isAmbioRun"`
 	// IsFocused marks the checkout the Floor shows.
 	IsFocused    bool              `json:"isFocused"`
 	ChangedFiles int               `json:"changedFiles"`
@@ -158,6 +161,7 @@ func (s *Server) buildCheckouts(sqlDB *sql.DB, workspaceID string, now int64) (c
 			HeadState:        headStateOf(root),
 			IsPrimary:        root.IsPrimary,
 			IsFocused:        watched,
+			IsAmbioRun:       s.isAmbioWorktree(root),
 			Agents:           branch.ActiveWork,
 			TouchedSystems:   len(branch.TouchedSystems),
 			CollidingSystems: colliding[root.ID],

@@ -111,6 +111,10 @@ export interface CheckoutRow {
   canShow: boolean
   /** Whether "Review this branch" applies: a branch with commits. */
   canReview: boolean
+  /** A worktree Ambio made for an agent run: Apply or Discard. */
+  ambioRun: boolean
+  /** Whether "Switch branch…" applies: the Floor's own checkout, in Git. */
+  canSwitch: boolean
 }
 
 export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutRow[] {
@@ -128,6 +132,8 @@ export function buildCheckoutRows(snapshot: CheckoutsSnapshot | null): CheckoutR
     tint: overlayTint(snapshot, checkout.rootId),
     canShow: !checkout.isFocused && checkout.headState !== 'none',
     canReview: checkout.headState === 'commit' || checkout.headState === 'detached',
+    ambioRun: !!checkout.isAmbioRun && !checkout.isFocused,
+    canSwitch: checkout.isFocused && checkout.headState !== 'none',
   }))
 }
 
