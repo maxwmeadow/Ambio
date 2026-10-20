@@ -1,7 +1,8 @@
 # Ambio canvas scalability plan
 
 Date: 2026-10-20
-Status: approved for staged execution by Max on 2026-10-20; phase 1 in progress.
+Status: approved for staged execution by Max on 2026-10-20; first phase-1 baseline
+complete. Scene/worker/renderer implementation and wider acceptance remain open.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
@@ -60,6 +61,13 @@ Evidence: [frame-budget audit](testing/CANVAS_FRAME_BUDGET.md) and
 
 WORK item: `canvas-scale-baselines`. This is the first implementation slice.
 
+Initial results and retained baseline data:
+[CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md). The 100k tier
+fails before useful interaction; hidden React Flow and minimap wrappers create
+per-entity components/subscriptions despite tiny DOM counts. This is the first
+scene/materialization bottleneck to address, alongside synchronous geometry.
+The stricter 50-cycle memory gate also failed; memory plateau is not established.
+
 Extend `tests/e2e/canvas-performance.spec.ts` and the existing local metrics;
 keep the existing interaction/visual suite. Add a shared deterministic fixture
 builder rather than multiplying independent ad hoc performance scripts.
@@ -105,6 +113,13 @@ Output is numeric geometry/visible descriptors; the UI attaches interactions
 only to the materialized scene. Remove repeated parent scans where measured;
 cache subtrees and invalidate the changed boundary and affected ancestors.
 Selection, camera motion and transition flags must not repack the project.
+
+Phase-1 evidence sharpens the order: bound React Flow **and minimap** components
+and subscriptions before claiming worker packing solves cold adoption. The 100k
+CPU profile spends approximately 27.5 seconds in React placement's host-sibling
+lookup, versus approximately 300 ms in numeric geometry. Preserve canonical
+Fit/search/edge geometry outside the materialized interaction tree. Merely
+setting `hidden` on the full React node collection does not achieve this bound.
 
 Version results by workspace/root, model revision, sheet revision and request.
 Use latest-request wins and cancellation/coalescing; long computations yield

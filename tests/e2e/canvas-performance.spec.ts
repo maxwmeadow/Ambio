@@ -1,3 +1,4 @@
+import { canvasDenseFixture } from '../fixtures/canvasScale'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -31,21 +32,12 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
       const floorUrl = new URL(page.url()); floorUrl.searchParams.delete('home')
       await page.goto(floorUrl.toString())
       await page.waitForFunction(() => Boolean((window as any).__ambioGraphStore))
-      const generatedSnapshot = await page.evaluate(count => {
+      const templates = await page.evaluate(() => {
         const state = (window as any).__ambioGraphStore.getState()
-        const system = state.systems[0], file = state.files[0]
-        const columns = Math.ceil(Math.sqrt(count * 1.4))
-        const systems = Array.from({ length: count }, (_, i) => ({
-          ...system, id: `perf-system-${i}`, parentId: null, depth: 0,
-          name: `Subsystem ${i}`, source: 'user', positionX: (i % columns) * 660,
-          positionY: Math.floor(i / columns) * 460, width: 620, height: 420,
-        }))
-        const files = systems.flatMap((s: any, i: number) => Array.from({ length: 6 }, (_, j) => ({
-          ...file, id: `perf-file-${i}-${j}`, systemId: s.id,
-          relPath: `subsystem-${i}/module-${j}.ts`, path: `/fixture/subsystem-${i}/module-${j}.ts`,
-        })))
-        return { workspaceId: 'demo', systems, files, infraNodes: [], dependencies: [], floorLayouts: [] }
-      }, Number(process.env.AMBIO_PERF_SYSTEM_COUNT ?? (scenario === 'navigation' || scenario === 'fallback' ? 64 : 24)))
+        return { system: state.systems[0], file: state.files[0] }
+      })
+      const generatedSnapshot = canvasDenseFixture(templates,
+        Number(process.env.AMBIO_PERF_SYSTEM_COUNT ?? (scenario === 'navigation' || scenario === 'fallback' ? 64 : 24)))
       const snapshot = process.env.AMBIO_PERF_SNAPSHOT
         ? JSON.parse(readFileSync(process.env.AMBIO_PERF_SNAPSHOT, 'utf8')) : generatedSnapshot
       const sheet = { id: 'perf-sheet', workspaceId: 'demo', name: 'Performance Draft', purpose: '',

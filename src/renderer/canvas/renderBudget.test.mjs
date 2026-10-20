@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildSceneIndex, queryScene, cameraRect, contains } from './renderBudgetGeometry.ts'
+import { buildSceneIndex, queryScene, cameraRect, contains, initialRootVisible } from './renderBudgetGeometry.ts'
 import { createRenderBudgetStore } from './renderBudgetStore.ts'
 import { virtualRowRange } from './virtualRows.ts'
 import { createFrameWorkQueue } from './frameWorkQueue.ts'
 
 const camera = { x: 0, y: 0, zoom: 1, width: 800, height: 600, moving: false }
 const record = (id, x, y, extra = {}) => ({ id, x, y, width: 220, height: 110, hidden: false, detail: true, kind: 'file', ...extra })
+
+test('initial worker latency cannot admit distant roots or semantic descendants', () => {
+  assert.equal(initialRootVisible(record('near', 0, 0), camera), true)
+  assert.equal(initialRootVisible(record('buffer', 900, 0), camera), true)
+  assert.equal(initialRootVisible(record('far', 1e6, 0), camera), false)
+  assert.equal(initialRootVisible(record('child', 0, 0, {parentId:'parent'}), camera), false)
+  assert.equal(initialRootVisible(record('hidden', 0, 0, {hidden:true}), camera), false)
+})
 test('spatial query resolves nested geometry, buffers viewport edges and excludes semantic hiding', () => {
   const index = buildSceneIndex([record('child', 25, 30, { parentId: 'root' }), record('root', 100, 200),
     record('buffered', 900, 0), record('outside', 2000, 0), record('hidden', 0, 0, { hidden: true })])

@@ -9,6 +9,10 @@ export interface IndexedRecord extends SceneRecord { rect: ViewRect }
 export interface SceneIndex { byId: Map<string, IndexedRecord>; cells: Map<string, string[]>; large: string[] }
 const CELL = 512
 export const VIEW_BUFFER_PX = 240
+/** Avoid mounting every root while the first worker answer is in flight. */
+export function initialRootVisible(record: SceneRecord, q: CameraQuery): boolean {
+  return !record.hidden && !record.parentId && intersects({ x: record.x, y: record.y, width: record.width, height: record.height }, cameraRect(q, VIEW_BUFFER_PX))
+}
 export function intersects(a: ViewRect, b: ViewRect): boolean {
   return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y
 }

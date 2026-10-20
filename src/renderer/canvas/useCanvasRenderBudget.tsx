@@ -1,8 +1,9 @@
+import { perfTrace, traceSync } from './perfTrace'
 import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useStoreApi, type Edge, type Node } from '@xyflow/react'
 import { unstable_batchedUpdates } from 'react-dom'
 import { createRenderBudgetStore } from './renderBudgetStore'
-import { buildSceneIndex, cameraRect, contains, queryScene, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
+import { buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
 import { getPerfMetrics } from './perfMetrics'
 
 type BudgetStore = ReturnType<typeof createRenderBudgetStore>
@@ -36,9 +37,9 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
   budget.configure(enabled)
   const [visible, setVisible] = useState<Set<string> | null>(null)
   const controller = useRef<{ update: (records: SceneRecord[]) => void } | null>(null)
-  const records = useMemo(() => nodes.map(recordFor), [nodes])
+  const records = useMemo(() => traceSync('scene.records', () => nodes.map(recordFor), nodes.length), [nodes])
   // Runtime/selection updates should not rebuild a spatial index.
-  const signature = useMemo(() => JSON.stringify(records), [records])
+  const signature = useMemo(() => traceSync('scene.signature', () => JSON.stringify(records), records.length), [records])
   const latestRecords = useRef(records); latestRecords.current = records
   const metrics = getPerfMetrics()
   const projectionCache = useRef(new Map<string, { source: Node; hidden: boolean; node: Node }>())
@@ -50,6 +51,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
     let bounds: ViewRect | null = null, indexedZoom = 0, lastMove = 0, flightUntil = 0
     let source: SceneRecord[] = [], local: ReturnType<typeof buildSceneIndex> | undefined
     let worker: Worker | undefined
+    const sentQueries = new Map<number, number>()
     let recent = new Map<string, number>()
     let mountLimit = 4, lastAdmissionAt = 0
     const camera = (): CameraQuery => {
@@ -96,7 +98,13 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       if (disposed) return
       const q = camera(), currentRequest = ++request
       budget.motion(q.moving)
-      if (worker) worker.postMessage({ op: 'query', scene, request: currentRequest, camera: q })
+      if (worker) {
+        if (perfTrace.enabled()) {
+          sentQueries.set(currentRequest, performance.now())
+          if (sentQueries.size > 256) sentQueries.delete(sentQueries.keys().next().value!)
+        }
+        worker.postMessage({ op: 'query', scene, request: currentRequest, camera: q, trace: perfTrace.enabled() })
+      }
       else {
         local ??= buildSceneIndex(source)
         receive({ scene, request: currentRequest, ...queryScene(local, q) })
@@ -109,13 +117,20 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
     }
     const update = (next: SceneRecord[]) => {
       source = next; scene++; bounds = null; local = undefined
-      if (worker) worker.postMessage({ op: 'scene', scene, records: source })
+      if (worker) traceSync('worker.scene-post', () => worker!.postMessage({ op: 'scene', scene, records: source, trace: perfTrace.enabled() }), source.length)
       schedule(true)
     }
     try {
       if (!(globalThis as { __ambioDisableRenderWorker?: boolean }).__ambioDisableRenderWorker) {
         worker = new Worker(new URL('./renderBudget.worker.ts', import.meta.url), { type: 'module' })
-        worker.onmessage = event => { metrics.workerQueries++; receive(event.data) }
+        worker.onmessage = event => {
+          metrics.workerQueries++
+          const sent = sentQueries.get(event.data.request)
+          if (sent !== undefined) { perfTrace.record('worker.round-trip', performance.now() - sent); sentQueries.delete(event.data.request) }
+          if (event.data.timing?.indexMs !== undefined) perfTrace.record('worker.index', event.data.timing.indexMs, source.length)
+          if (event.data.timing?.queryMs !== undefined) perfTrace.record('worker.query', event.data.timing.queryMs)
+          receive(event.data)
+        }
         worker.onerror = () => { worker?.terminate(); worker = undefined; metrics.workerFallbacks++; schedule(true) }
       }
     } catch { metrics.workerFallbacks++ }
@@ -156,16 +171,18 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
   }, [enabled, flow, budget, metrics])
   useLayoutEffect(() => { controller.current?.update(latestRecords.current) }, [signature])
 
-  const projected = useMemo(() => {
+  const projected = useMemo(() => traceSync('scene.visibility-project', () => {
     if (!enabled) return nodes
     const previous = projectionCache.current
+    const state = flow.getState()
+    const initialCamera: CameraQuery = { x: state.transform[0], y: state.transform[1], zoom: state.transform[2], width: state.width, height: state.height, moving: true }
     const next = new Map<string, { source: Node; hidden: boolean; node: Node }>()
     const result = nodes.map(node => {
       // Selection, gestures and live signals have priority over the background
       // budget. A hidden semantic descendant stays hidden unless explicitly
       // revealed by the existing navigation/activity projection.
       const important = edgeEndpoints.has(node.id) || node.selected || node.dragging || node.data.fx || (node.data.agentPresence as unknown[] | undefined)?.length || node.data.isDropTarget
-      const hidden = Boolean(node.hidden) || !(important || (visible ? visible.has(node.id) : !node.parentId))
+      const hidden = Boolean(node.hidden) || !(important || (visible ? visible.has(node.id) : initialRootVisible(recordFor(node), initialCamera)))
       const old = previous.get(node.id)
       if (old?.source === node && old.hidden === hidden) { next.set(node.id, old); return old.node }
       const width = Number(node.style?.width ?? node.initialWidth), height = Number(node.style?.height ?? node.initialHeight)
@@ -179,6 +196,6 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
     })
     projectionCache.current = next
     return result
-  }, [nodes, enabled, visible, edgeEndpoints])
+  }, nodes.length), [nodes, enabled, visible, edgeEndpoints, flow])
   return { nodes: projected, budget }
 }

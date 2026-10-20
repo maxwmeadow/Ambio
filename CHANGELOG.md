@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Large canvases respect the viewport buffer while the first visibility query
+  loads, avoiding a burst of off-screen root cards at startup.
 - Dense canvases use buffered visibility and compact cards while moving, then
   progressively reveal detail. Search and reply navigation prewarm the target;
   large symbol lists and concurrent symbol requests now have bounded work.

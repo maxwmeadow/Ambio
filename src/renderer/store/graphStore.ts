@@ -1,3 +1,4 @@
+import { traceSync, beginPerfStage } from '../canvas/perfTrace.ts'
 import { create } from 'zustand'
 import { forgetFileSymbols } from '../canvas/symbolCache.ts'
 import { createFrameWorkQueue } from '../canvas/frameWorkQueue.ts'
@@ -846,7 +847,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   }),
   setRecentProjects: (ps) => set({ recentProjects: ps }),
 
-  applySnapshot: (snap) => set({
+  applySnapshot: (snap) => traceSync('snapshot.store', () => set({
     // Inferred groupings never reach the canvas. The indexer clusters files by
     // import topology and names each pile after its most frequent symbol, which
     // produces boxes called Bar, Lane, Phase and Cochange - words that are real
@@ -869,7 +870,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     nodeFx: {},
     relationshipFx: [],
     pendingFileDeletions: {},
-  }),
+  }), snap.systems.length + snap.files.length),
 
   applyClassification: (snap) => set((state) => {
     const previousSystems = new Map(state.systems.map(system => [system.id, system]))
@@ -1561,9 +1562,13 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
       resyncing = true
       background.clear()
       try {
-        const response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)
+        const finishFetch = beginPerfStage('snapshot.fetch')
+        let response: Response
+        try { response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`) } finally { finishFetch() }
         if (!response.ok) throw new Error(`snapshot ${response.status}`)
-        const snapshot = await response.json() as CanvasSnapshot
+        const finishDecode = beginPerfStage('snapshot.decode')
+        let snapshot: CanvasSnapshot
+        try { snapshot = await response.json() as CanvasSnapshot } finally { finishDecode() }
         if (generation !== wsGeneration || useGraphStore.getState().currentProject?.id !== workspaceId) return
         useGraphStore.getState().applySnapshot(snapshot)
         scheduleInfraDetails()

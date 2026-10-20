@@ -1,3 +1,4 @@
+import { traceSync } from './perfTrace.ts'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles.ts'
 import type { Node } from '@xyflow/react'
 import type { DbFile, DbInfraNode, DbSystem, FloorNodeType } from '../../shared/types'
@@ -50,7 +51,9 @@ function hexToRgb(hex: string): string {
 }
 
 /** Convert canonical Floor descriptors into the React Flow scene model. */
-export function projectFloorNodes({
+export const projectFloorNodes: typeof projectFloorNodesImpl = input => traceSync('scene.floor-projection', () => projectFloorNodesImpl(input), input.descriptors.length)
+
+function projectFloorNodesImpl({
   systems,
   files,
   infraNodes,

@@ -76,6 +76,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   reversals. Fit includes viewport-culled nodes and excludes semantically hidden
   descendants, so virtualization cannot change the camera's scene bounds. Active
   relationship endpoints retain mounted shells/handles even outside the buffer.
+  While the first spatial answer is pending, root shells already respect this
+  buffer; startup must not admit every off-screen root at once. The same active
+  node and relationship endpoint exceptions apply.
 - A node smaller than 14 pixels on its shortest side may use its silhouette.
   Other background file cards use compact identity while detail waits. Systems
   and infrastructure retain their normal identity at readable sizes. Selection,

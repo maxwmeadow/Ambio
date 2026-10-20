@@ -17,6 +17,7 @@
  *   ~400px of viewport - a "late reveal" Google Maps feel.
  *   Transitions use continuous fade (opacity + scale + blur) over a 30% range.
  */
+import { traceSync } from './perfTrace'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -320,7 +321,9 @@ interface LayoutNodeResult {
   h: number
 }
 
-function runAlternateAxisLayout(
+const runAlternateAxisLayout: typeof runAlternateAxisLayoutImpl = (...args) => traceSync('scene.initial-packing', () => runAlternateAxisLayoutImpl(...args), args[0].length + args[1].length + args[2].length)
+
+function runAlternateAxisLayoutImpl(
   systems: DbSystem[],
   files: DbFile[],
   infraNodes: DbInfraNode[],
@@ -1001,7 +1004,9 @@ function isUnplaced(item: { positionX: number; positionY: number; width?: number
   return item.width == null && item.height == null && item.positionX === 0 && item.positionY === 0
 }
 
-function buildFloorFrameLayout(
+const buildFloorFrameLayout: typeof buildFloorFrameLayoutImpl = (...args) => traceSync('scene.geometry', () => buildFloorFrameLayoutImpl(...args), args[0].length + args[1].length + args[2].length)
+
+function buildFloorFrameLayoutImpl(
   systems: DbSystem[],
   files: DbFile[],
   infraNodes: DbInfraNode[],
