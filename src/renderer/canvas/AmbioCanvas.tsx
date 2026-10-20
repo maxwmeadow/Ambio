@@ -5247,15 +5247,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         }}
       />}
 
-      {/* Sheet layer active: stencil palette + slim indicator */}
+      {/* Sheet layer active: the stencil palette. The PROPOSAL band on the
+          canvas already says which layer you are on. */}
       {overlaySheetId && (
-        <>
-          <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
-          <div className="ambio-sheet-layer-indicator">
-            <span aria-hidden="true" />
-            Sheet Layer Active
-          </div>
-        </>
+        <SheetPalette onCreate={onPaletteCreate} disabled={readOnly || reviewMode || creatingStencil} />
       )}
 
       {contextMenu && (

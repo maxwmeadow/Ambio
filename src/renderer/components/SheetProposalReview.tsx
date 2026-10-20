@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSheetStore } from '../store/sheetStore'
 import { raiseFailure } from '../store/interruptionStore'
+import { useShowOnMap } from '../canvas/useShowOnMap'
 
 /**
  * An agent's planned elements arrive pending: they are drawn, but not part of
@@ -12,6 +13,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   const pending = (planned ?? []).filter(node => node.approvalStatus === 'pending')
   const decide = useSheetStore(s => s.setPlannedApproval)
   const [busy, setBusy] = useState(false)
+  const showOnMap = useShowOnMap()
   // Rejecting asks why, in a line; the next agent session is told.
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -41,10 +43,10 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       <ul>
         {pending.map(node => (
           <li key={node.id}>
-            <span className="ambio-sheet-rail__review-label" title={node.declaredPath || node.name}>
+            <button type="button" className="ambio-sheet-rail__review-label" title={`Show ${node.name} on the sheet`} onClick={() => showOnMap(`planned:${node.id}`)}>
               <small>{node.kind}</small>
               <span>{node.name}</span>
-            </span>
+            </button>
             <button type="button" className="ambio-sheet-rail__review-decide" data-decision="confirm" disabled={busy} aria-label={`Confirm ${node.name}`} title="Confirm: part of the plan" onClick={() => void run([node.id], 'approved')}>✓</button>
             <button type="button" className="ambio-sheet-rail__review-decide" data-decision="reject" disabled={busy} aria-label={`Reject ${node.name}`} title="Reject: not part of the plan" onClick={() => { setRejecting(node.id); setReason('') }}>✕</button>
             {rejecting === node.id && (

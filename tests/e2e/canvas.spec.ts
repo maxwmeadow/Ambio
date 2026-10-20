@@ -1881,14 +1881,12 @@ test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', a
   await expect(runtime).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
   await expect(rail.getByRole('button', { name: 'Hide Runtime Draft' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.ambio-sheet-layer-indicator')).toContainText('Sheet Layer Active')
   await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
   await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)
 
   await floor.click()
   await expect(floor).toHaveAttribute('aria-current', 'page')
   await expect(rail.getByRole('button', { name: 'Show Runtime Draft' })).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.locator('.ambio-sheet-layer-indicator')).toHaveCount(0)
   await expect(page.locator('.ambio-sheet-palette')).toHaveCount(0)
   await expect.poll(() => runtime.evaluate(element => {
     const style = getComputedStyle(element)
@@ -2347,6 +2345,9 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   expect(palette && infraTab).toBeTruthy()
   expect(palette!.x >= infraTab!.x + infraTab!.width || palette!.y + palette!.height <= infraTab!.y).toBe(true)
   await page.screenshot({ path: 'test-results/sheet-proposal-review.png' })
+  // A proposal's name takes you to it on the sheet.
+  await review.getByRole('button', { name: /Job Queue/ }).first().click()
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('planned:plan_queue')
   await review.getByRole('button', { name: 'Reject Job Queue' }).click()
   await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
   await review.getByRole('button', { name: 'Reject', exact: true }).click()

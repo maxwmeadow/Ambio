@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useReactFlow } from '@xyflow/react'
+import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { fileLinkTarget, inlineFilePath, normalizeAgentText, remarkFilePaths } from './agentMessageFormat'
@@ -16,22 +16,10 @@ function CodeBlock({ text, language }: { text: string; language?: string }) {
 function FileChip({ relPath, absolute, lines, fileId, written }: { relPath?: string; absolute: string; lines?: string; fileId?: string; written?: string }) {
   // Inline code keeps what the agent wrote, even a shortened name; a link shows its path.
   const label = written ?? `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
-  const { fitView, getInternalNode } = useReactFlow()
+  const showOnMap = useShowOnMap()
   const open = () => {
-    if (!fileId) { window.ambio?.showInFolder(absolute); return }
-    // As search does: open its system if it is closed, select it, and fly to it.
-    const graph = useGraphStore.getState()
-    const systemId = graph.files.find(file => file.id === fileId)?.systemId
-    if (systemId && !graph.expandedSystemIds.has(systemId)) graph.toggleSystemExpanded(systemId)
-    graph.setSelectedNode(fileId)
-    graph.setInspectedNode(fileId)
-    // Selecting reveals a card hidden at this zoom; fly once it has a size.
-    let tries = 0
-    const fly = () => {
-      if (getInternalNode(fileId)?.measured.width || ++tries > 20) void fitView({ nodes: [{ id: fileId }], duration: 850, padding: 0.5 })
-      else setTimeout(fly, 50)
-    }
-    setTimeout(fly, 50)
+    if (fileId) showOnMap(fileId)
+    else window.ambio?.showInFolder(absolute)
   }
   return <button type="button" className="ambio-inbox__file-link" title={fileId ? `Show ${relPath} on the map` : absolute} onClick={open}>{label}</button>
 }

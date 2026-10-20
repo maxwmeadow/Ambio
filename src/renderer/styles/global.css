@@ -3321,34 +3321,7 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   line-height: 1.45;
 }
 
-.ambio-sheet-layer-indicator {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 10px;
-  transform: translateX(-50%);
-  border: 1px solid #526c65;
-  border-radius: 2px;
-  background: linear-gradient(#eef1ea, #d0d8d2);
-  box-shadow: 3px 3px 0 rgba(29, 35, 32, 0.38), inset 0 1px #fff;
-  color: #285f57;
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.075em;
-  text-transform: uppercase;
-}
 
-.ambio-sheet-layer-indicator > span {
-  width: 7px;
-  height: 7px;
-  border: 1px solid #24574f;
-  background: #3c7d76;
-}
 
 .glass-input {
   background: var(--bg-deep) !important;
