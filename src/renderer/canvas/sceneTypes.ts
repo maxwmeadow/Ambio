@@ -120,6 +120,7 @@ export interface FileNodeData {
   relPath: string
   language: string
   lineCount: number
+  indexedAt?: number
   churnScore: number
   shape: '' | 'class' | 'cylinder' | 'hexagon'
   displayName: string

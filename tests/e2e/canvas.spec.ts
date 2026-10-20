@@ -2600,18 +2600,28 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
 test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
-    kind: 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
+    kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
     positionX: 1500 + i * 800, positionY: 1200, width: 620, height: 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
     sheet: { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: '', kind: 'structure',
       folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 },
-    elements: [], annotations: [], planned, plannedEdges: [], layouts: [], removals: [],
+    elements: [], annotations: [], planned, plannedEdges: [{
+      id: 'offscreen-link', sheetId: 'sheet_runtime', srcPlanned: 'large-planned-0', dstPlanned: 'large-planned-179', approvalStatus: 'approved',
+    }], layouts: [], removals: [],
   } }))
   await page.getByRole('button', { name: 'Runtime Draft STR', exact: true }).click()
   const canvas = page.locator('[data-ambio-canvas]').first()
   await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
+  // A line into off-screen space must retain its endpoint handle geometry.
+  await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
+  const relationship = canvas.locator('.react-flow__edge[data-id="pedge:offscreen-link"] .react-flow__edge-path')
+  await expect(relationship).toBeAttached()
+  expect(await relationship.getAttribute('d')).not.toContain('NaN')
+  const compactFile = canvas.locator('.react-flow__node[data-id="planned:large-planned-0"]')
+  await expect(compactFile.locator('[data-render-tier]')).toBeAttached()
+  await expect(compactFile.locator('.ambio-sheet-change-badge')).toHaveText('Added')
   await page.waitForTimeout(650)
   await canvas.evaluate(root => {
     ;(window as any).__sheetMountCount = 0

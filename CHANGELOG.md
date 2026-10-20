@@ -11,6 +11,15 @@ in the app as "What's New" after updating, so write it for users.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.
+- Large canvases respect the viewport buffer while the first visibility query
+  loads, avoiding a burst of off-screen root cards at startup.
+- Dense canvases use buffered visibility and compact cards while moving, then
+  progressively reveal detail. Search and reply navigation prewarm the target;
+  large symbol lists and concurrent symbol requests now have bounded work.
+- Sheets retain node measurements while zooming, avoiding repeated off-screen
+  card mounting. Camera and selection changes reuse layouts and unaffected
+  nodes; large sheets also cull planned nodes. Search and reply file pills wait
+  for a measured target and stop competing wheel zoom before flying to it.
 - File cards show their functions once the file is indexed, instead of "No
   symbols" for the rest of the session when they were looked at too early.
 - Systems an agent names on a sheet stay where they are on the Floor, instead
@@ -40,10 +49,6 @@ in the app as "What's New" after updating, so write it for users.
 - Sheets show relationships on selection, with an optional full view, readable
   change descriptions, small change markers and compact automatic system sizing.
   Agent replies use names and artifact links instead of internal identifiers.
-- Sheets retain node measurements while zooming, avoiding repeated off-screen
-  card mounting. Camera and selection changes reuse layouts and unaffected
-  nodes; large sheets also cull planned nodes. Search and reply file pills wait
-  for a measured target and stop competing wheel zoom before flying to it.
 - Smoother canvas zooming on the Floor and architecture proposal review: camera
   changes no longer invalidate every node's styles or rebuild the review scene.
   Idle overlays and background agent/runtime activity do less rendering work.

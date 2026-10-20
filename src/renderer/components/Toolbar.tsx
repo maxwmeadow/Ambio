@@ -1,4 +1,5 @@
 import { useConversationPreferences } from '../store/conversationPreferences'
+import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
@@ -22,7 +23,8 @@ interface ToolbarProps {
 export function Toolbar({
   onSearch, onManageAgentConnections,
 }: ToolbarProps) {
-  const { fitView, getNodes } = useReactFlow()
+  const { getNodes } = useReactFlow()
+  const fitView = useCanvasFitView()
   const hasChanges = useGraphStore(s => !!s.delta && !s.deltaReviewing)
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)

@@ -1,3 +1,4 @@
+import { canvasDenseFixture } from '../fixtures/canvasScale'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -5,8 +6,9 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 // Structural performance regressions are deterministic across machines. Frame
 // timings belong in profiling runs, rather than machine-dependent CI limits.
-for (const mode of ['floor', 'sheet', 'proposal'] as const) {
-  test(`${mode} zoom avoids canvas-wide style invalidation and idle scene work`, async () => {
+for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] as const) {
+  const mode = scenario === 'navigation' || scenario === 'fallback' ? 'floor' : scenario
+  test(`${scenario} zoom avoids canvas-wide style invalidation and idle scene work`, async () => {
     test.setTimeout(90_000)
     const home = mkdtempSync(join(tmpdir(), 'ambio-canvas-perf-'))
     const appData = join(home, 'AppData', 'Roaming')
@@ -20,27 +22,22 @@ for (const mode of ['floor', 'sheet', 'proposal'] as const) {
         env: { ...env, HOME: home, USERPROFILE: home, APPDATA: appData, LOCALAPPDATA: localAppData, AMBIO_E2E: '1', AMBIO_E2E_HOME: '1' },
       })
       const page = await app.firstWindow()
+      page.on('pageerror', error => console.log('CANVAS_PAGE_ERROR', error.message))
       await page.waitForURL(/e2e=1/)
+      if (scenario === 'fallback') await page.addInitScript(() => {
+        Object.defineProperty(window, 'Worker', { value: class { constructor() { throw new Error('fixture: worker unavailable') } } })
+      })
       await page.setViewportSize({ width: 1400, height: 900 })
       await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, route => route.fulfill({ json: [] }))
       const floorUrl = new URL(page.url()); floorUrl.searchParams.delete('home')
       await page.goto(floorUrl.toString())
       await page.waitForFunction(() => Boolean((window as any).__ambioGraphStore))
-      const generatedSnapshot = await page.evaluate(count => {
+      const templates = await page.evaluate(() => {
         const state = (window as any).__ambioGraphStore.getState()
-        const system = state.systems[0], file = state.files[0]
-        const columns = Math.ceil(Math.sqrt(count * 1.4))
-        const systems = Array.from({ length: count }, (_, i) => ({
-          ...system, id: `perf-system-${i}`, parentId: null, depth: 0,
-          name: `Subsystem ${i}`, source: 'user', positionX: (i % columns) * 660,
-          positionY: Math.floor(i / columns) * 460, width: 620, height: 420,
-        }))
-        const files = systems.flatMap((s: any, i: number) => Array.from({ length: 6 }, (_, j) => ({
-          ...file, id: `perf-file-${i}-${j}`, systemId: s.id,
-          relPath: `subsystem-${i}/module-${j}.ts`, path: `/fixture/subsystem-${i}/module-${j}.ts`,
-        })))
-        return { workspaceId: 'demo', systems, files, infraNodes: [], dependencies: [], floorLayouts: [] }
-      }, Number(process.env.AMBIO_PERF_SYSTEM_COUNT ?? 24))
+        return { system: state.systems[0], file: state.files[0] }
+      })
+      const generatedSnapshot = canvasDenseFixture(templates,
+        Number(process.env.AMBIO_PERF_SYSTEM_COUNT ?? (scenario === 'navigation' || scenario === 'fallback' ? 64 : 24)))
       const snapshot = process.env.AMBIO_PERF_SNAPSHOT
         ? JSON.parse(readFileSync(process.env.AMBIO_PERF_SNAPSHOT, 'utf8')) : generatedSnapshot
       const sheet = { id: 'perf-sheet', workspaceId: 'demo', name: 'Performance Draft', purpose: '',
@@ -65,7 +62,10 @@ for (const mode of ['floor', 'sheet', 'proposal'] as const) {
       await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, async route => {
         const url = new URL(route.request().url())
         let json: any = []
-        if (url.pathname === '/api/sheets') json = [sheet]
+        if (/\/api\/files\/[^/]+\/symbols$/.test(url.pathname) && (scenario === 'navigation' || scenario === 'fallback')) {
+          json = Array.from({ length: 5000 }, (_, i) => ({ id: `symbol-${i}`, name: `function${i}`, kind: 'function', lineStart: i + 1, lineEnd: i + 1, exported: true }))
+        }
+        else if (url.pathname === '/api/sheets') json = [sheet]
         else if (url.pathname === '/api/sheets/perf-sheet') json = sheetPayload
         else if (url.pathname === '/api/architecture-proposals') json = [{ id: proposal.id }]
         else if (url.pathname === `/api/architecture-proposals/${proposal.id}`) json = proposal
@@ -89,6 +89,12 @@ for (const mode of ['floor', 'sheet', 'proposal'] as const) {
       if (mode === 'proposal') await expect(canvas).toHaveClass(/ambio-canvas-review-ready/)
       if (mode === 'sheet') await page.getByRole('button', { name: 'Performance Draft STR', exact: true }).click()
       await page.waitForTimeout(1600)
+      if (process.env.AMBIO_PERF_PROFILE) console.log('CANVAS_INITIAL', mode, JSON.stringify(await canvas.evaluate(root => ({
+        nodes: root.querySelectorAll('.react-flow__node').length,
+        viewport: root.querySelector<HTMLElement>('.react-flow__viewport')?.style.transform,
+        metrics: (window as any).__ambioPerfMetrics,
+      }))))
+      await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeGreaterThan(0)
       if (process.env.AMBIO_PERF_PROFILE) {
         const cdp = await page.context().newCDPSession(page)
         await cdp.send('Performance.enable')
@@ -134,6 +140,9 @@ for (const mode of ['floor', 'sheet', 'proposal'] as const) {
             renders: w.__ambioPerfMetrics.canvasRenderCount - start.canvasRenderCount,
             visibilityPasses: w.__ambioPerfMetrics.zoomVisibilityPasses - start.zoomVisibilityPasses,
             sheetLayouts: w.__ambioPerfMetrics.sheetLayoutBuilds - (start.sheetLayoutBuilds ?? 0),
+            workerQueries: w.__ambioPerfMetrics.workerQueries, workerFallbacks: w.__ambioPerfMetrics.workerFallbacks,
+            budgetAdmissions: w.__ambioPerfMetrics.budgetAdmissions, maxBudgetBatch: w.__ambioPerfMetrics.maxBudgetBatch,
+            richNodes: w.__ambioPerfMetrics.mountedRichNodes, maxSymbolRequests: w.__ambioPerfMetrics.maxSymbolRequests,
             mounts: Object.values(w.__nodeMounts).reduce((a: any, b: any) => a + b, 0),
             mostMounted: Object.values(w.__nodeMounts).sort((a: any, b: any) => b - a).slice(0, 5) }
         }, start)
@@ -180,6 +189,71 @@ for (const mode of ['floor', 'sheet', 'proposal'] as const) {
         })
         await page.waitForTimeout(100)
         expect(await page.evaluate(() => (window as any).__ambioPerfMetrics.canvasRenderCount)).toBe(renders)
+      }
+      if ((scenario === 'navigation' || scenario === 'fallback') && !process.env.AMBIO_PERF_SNAPSHOT) {
+        const target = snapshot.files.at(-1)!
+        const navigate = async (relPath: string) => {
+          await page.keyboard.press('ControlOrMeta+K')
+          const search = page.getByRole('textbox', { name: 'Search the map' })
+          await search.fill(relPath)
+          await page.getByRole('option').first().click()
+        }
+        const assertCentered = async (id: string) => {
+          await expect.poll(() => canvas.evaluate((root, id) => {
+            const node = root.querySelector(`[data-id="${id}"]`)
+            if (!node) return false
+            const rect = node.getBoundingClientRect(), map = root.querySelector('.react-flow')!.getBoundingClientRect()
+            return rect.width > 20 && Math.abs((rect.left + rect.right - map.left - map.right) / 2) < 10 &&
+              Math.abs((rect.top + rect.bottom - map.top - map.bottom) / 2) < 10
+          }, id), { timeout: 8000 }).toBe(true)
+        }
+        // Cold flight, then supersede it with a distant destination. The newest
+        // search owns the camera even when the older target was initially culled.
+        const before = await page.evaluate(() => {
+          const w = window as any
+          w.__navigationFrames = []; w.__navigationSampling = true
+          let previous = performance.now()
+          const frame = (now: number) => { w.__navigationFrames.push(now - previous); previous = now; if (w.__navigationSampling) requestAnimationFrame(frame) }
+          requestAnimationFrame(frame)
+          return { ...w.__ambioPerfMetrics }
+        })
+        await navigate(snapshot.files[0].relPath)
+        const mapBox = (await canvas.boundingBox())!
+        await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
+        await page.mouse.wheel(0, 80)
+        await page.mouse.wheel(0, -80)
+        await navigate(target.relPath)
+        await assertCentered(target.id)
+        await page.waitForTimeout(1100)
+        const targetNode = canvas.locator(`.react-flow__node[data-id="${target.id}"]`)
+        await expect(targetNode).toHaveClass(/selected/)
+        const symbolList = targetNode.locator('.symbol-scroll')
+        await expect.poll(() => symbolList.locator('[data-symbol-row]').count()).toBeGreaterThan(0)
+        expect(await symbolList.locator('[data-symbol-row]').count()).toBeLessThan(32)
+        await symbolList.evaluate(element => { element.scrollTop = element.scrollHeight })
+        await expect(targetNode.getByText('function4999', { exact: true })).toBeAttached()
+        expect(await symbolList.locator('[data-symbol-row]').count()).toBeLessThan(32)
+        const lastSymbol = targetNode.locator('[data-symbol-row="4999"] [tabindex]')
+        await lastSymbol.focus()
+        await lastSymbol.press('Home')
+        await expect(targetNode.locator('[data-symbol-row="0"] [tabindex]')).toBeFocused()
+        const metrics = await page.evaluate(() => ({ ...(window as any).__ambioPerfMetrics, frames: (window as any).__ambioCameraFrameSummary() }))
+        expect(metrics.navigationFlights).toBeGreaterThan(before.navigationFlights)
+        expect(metrics.prefetchedTargets).toBeGreaterThan(before.prefetchedTargets)
+        expect(metrics.maxBudgetBatch).toBeLessThanOrEqual(6)
+        expect(metrics.maxSymbolRequests).toBeLessThanOrEqual(4)
+        if (scenario === 'navigation') expect(metrics.workerQueries).toBeGreaterThan(0)
+        else { expect(metrics.workerQueries).toBe(0); expect(metrics.workerFallbacks).toBeGreaterThan(0) }
+        const navigationFrames = await page.evaluate(() => {
+          const w = window as any
+          w.__navigationSampling = false
+          const frames = w.__navigationFrames.sort((a: number, b: number) => a - b)
+          return { p95: frames[Math.floor(frames.length * .95)], max: frames.at(-1) }
+        })
+        console.log('CANVAS_NAVIGATION', scenario, JSON.stringify({ ...metrics, navigationFrames }))
+        // Fit must use the canonical scene, including off-screen culled nodes.
+        await page.keyboard.press('ControlOrMeta+0')
+        await expect.poll(() => canvas.locator('.react-flow__node-system').count(), { timeout: 8000 }).toBe(snapshot.systems.length)
       }
       // Badges arriving after the camera settled still get the right zoom,
       // and a nested bin owns its camera independently of the Floor.

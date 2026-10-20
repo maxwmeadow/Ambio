@@ -1,0 +1,2128 @@
+{
+  "schemaVersion": 1,
+  "recorded": "2026-10-20",
+  "reference": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+    "logicalCpus": 20,
+    "hostRamBytes": 16858472448,
+    "viewport": {
+      "width": 1400,
+      "height": 900
+    },
+    "browser": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+      "pixelRatio": 1.0000000298023224,
+      "hardwareConcurrency": 20,
+      "visibility": "visible",
+      "focused": true
+    },
+    "refreshIntervalMs": 8.300000000000068
+  },
+  "note": "Curated local baseline. Raw captures in ignored out/canvas-scale. Renderer endpoints mocked. CPU profiles separate from native timings. Failed targets retained; null means unverified. Stage timings inclusive.",
+  "cases": [
+    {
+      "run": "validated-saved",
+      "artifact": "saved-1000-0.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "d2758f87ffcbd54a4c42994f936608064cdf7c2feab8e1119fc944253dc71c30",
+      "fixture": {
+        "systems": 143,
+        "files": 857,
+        "edges": 0,
+        "layouts": 1000,
+        "roots": 4,
+        "bytes": 553550
+      },
+      "cold": {
+        "applyReturnedMs": 14.5,
+        "wallMs": 125,
+        "usableMs": 1470
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 13,
+          "p50": 8.300000000000068,
+          "p95": 16.899999999999977,
+          "p99": 16.899999999999977,
+          "max": 16.899999999999977
+        },
+        "navigation": {
+          "count": 149,
+          "p50": 8.299999999999955,
+          "p95": 8.5,
+          "p99": 58.299999999999955,
+          "max": 66.59999999999991
+        },
+        "warm": {
+          "count": 1338,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 8.600000000000364,
+          "max": 25
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 14.399999998509884,
+        "p95": 25.400000002235174,
+        "p99": 25.400000002235174,
+        "max": 25.400000002235174
+      },
+      "inputQueue": {
+        "count": 42,
+        "p50": 0.6999999992549419,
+        "p95": 1.1000000014901161,
+        "p99": 1.7999999970197678,
+        "max": 1.7999999970197678
+      },
+      "inputToPaintOpportunity": {
+        "count": 42,
+        "p50": 15.300000000745058,
+        "p95": 24.799999997019768,
+        "p99": 25.400000002235174,
+        "max": 25.400000002235174
+      },
+      "sampledPeakPrivateKiB": 759072,
+      "memoryGrowthRatio": 1.0502005807095007,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 450,
+        "peakNodes": 7,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 12.100000001490116,
+          "maxMs": 12.100000001490116,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 12.100000001490116
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 1.800000000745058,
+          "maxMs": 1.800000000745058,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.800000000745058
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.30000000074505806,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.records": {
+          "count": 67,
+          "totalMs": 5.799999985843897,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.signature": {
+          "count": 67,
+          "totalMs": 23.19999998807907,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 0.5
+        },
+        "scene.visibility-project": {
+          "count": 71,
+          "totalMs": 15.900000002235174,
+          "maxMs": 0.5999999977648258,
+          "maxItems": 1000,
+          "retainedSamples": 71,
+          "retainedP95Ms": 0.4000000022351742
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 1,
+          "maxMs": 1,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 4,
+          "maxMs": 4,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 4
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 1.8999999947845936,
+          "maxMs": 0.5,
+          "maxItems": 1000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 0.5
+        },
+        "worker.round-trip": {
+          "count": 38,
+          "totalMs": 80.50000001117587,
+          "maxMs": 19.200000002980232,
+          "maxItems": 0,
+          "retainedSamples": 38,
+          "retainedP95Ms": 9.899999998509884
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 4.800000000745058,
+          "maxMs": 1.6000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 1.6000000014901161
+        },
+        "worker.query": {
+          "count": 38,
+          "totalMs": 2.3000000081956387,
+          "maxMs": 1.1000000014901161,
+          "maxItems": 0,
+          "retainedSamples": 38,
+          "retainedP95Ms": 0.10000000149011612
+        }
+      }
+    },
+    {
+      "run": "validated-saved",
+      "artifact": "saved-1000-1.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "d2758f87ffcbd54a4c42994f936608064cdf7c2feab8e1119fc944253dc71c30",
+      "fixture": {
+        "systems": 143,
+        "files": 857,
+        "edges": 0,
+        "layouts": 1000,
+        "roots": 4,
+        "bytes": 553550
+      },
+      "cold": {
+        "applyReturnedMs": 12.799999997019768,
+        "wallMs": 124,
+        "usableMs": 1477
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 13,
+          "p50": 8.300000000000068,
+          "p95": 25,
+          "p99": 25,
+          "max": 25
+        },
+        "navigation": {
+          "count": 149,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 58.200000000000045,
+          "max": 66.69999999999993
+        },
+        "warm": {
+          "count": 1335,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 8.599999999999909,
+          "max": 16.699999999999818
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 14.199999999254942,
+        "p95": 19.5,
+        "p99": 19.5,
+        "max": 19.5
+      },
+      "inputQueue": {
+        "count": 42,
+        "p50": 0.6000000014901161,
+        "p95": 1.0999999977648258,
+        "p99": 1.8999999985098839,
+        "max": 1.8999999985098839
+      },
+      "inputToPaintOpportunity": {
+        "count": 42,
+        "p50": 14.299999997019768,
+        "p95": 22,
+        "p99": 23.5,
+        "max": 23.5
+      },
+      "sampledPeakPrivateKiB": 755516,
+      "memoryGrowthRatio": 1.019803959841078,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 450,
+        "peakNodes": 7,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 10.5,
+          "maxMs": 10.5,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 10.5
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 1.8999999985098839,
+          "maxMs": 1.8999999985098839,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.8999999985098839
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.09999999776482582,
+          "maxMs": 0.09999999776482582,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.09999999776482582
+        },
+        "scene.records": {
+          "count": 67,
+          "totalMs": 6.100000008940697,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.signature": {
+          "count": 67,
+          "totalMs": 21.900000005960464,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 0.5
+        },
+        "scene.visibility-project": {
+          "count": 71,
+          "totalMs": 16.300000000745058,
+          "maxMs": 0.6999999992549419,
+          "maxItems": 1000,
+          "retainedSamples": 71,
+          "retainedP95Ms": 0.4000000022351742
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 1.1000000014901161,
+          "maxMs": 1.1000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.1000000014901161
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 4.099999997764826,
+          "maxMs": 4.099999997764826,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 4.099999997764826
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 1.9000000022351742,
+          "maxMs": 0.4000000022351742,
+          "maxItems": 1000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 0.4000000022351742
+        },
+        "worker.round-trip": {
+          "count": 38,
+          "totalMs": 82.79999999701977,
+          "maxMs": 20.199999999254942,
+          "maxItems": 0,
+          "retainedSamples": 38,
+          "retainedP95Ms": 10.5
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 4.199999999254942,
+          "maxMs": 1.699999999254942,
+          "maxItems": 1000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 1.699999999254942
+        },
+        "worker.query": {
+          "count": 38,
+          "totalMs": 1.8999999985098839,
+          "maxMs": 0.8000000007450581,
+          "maxItems": 0,
+          "retainedSamples": 38,
+          "retainedP95Ms": 0.10000000149011612
+        }
+      }
+    },
+    {
+      "run": "validated-saved",
+      "artifact": "saved-10000-0.json",
+      "dataset": "synthetic",
+      "entities": 10000,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "204597afd56944c30703d657526e14da86a920c231bcf05078557023dfef4467",
+      "fixture": {
+        "systems": 1429,
+        "files": 8571,
+        "edges": 0,
+        "layouts": 10000,
+        "roots": 4,
+        "bytes": 5597158
+      },
+      "cold": {
+        "applyReturnedMs": 77.19999999925494,
+        "wallMs": 1112,
+        "usableMs": 2722
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 32,
+          "p50": 8.300000000000182,
+          "p95": 133.39999999999986,
+          "p99": 633.4,
+          "max": 633.4
+        },
+        "navigation": {
+          "count": 95,
+          "p50": 8.400000000000091,
+          "p95": 75.10000000000014,
+          "p99": 125,
+          "max": 125
+        },
+        "warm": {
+          "count": 1324,
+          "p50": 8.30000000000291,
+          "p95": 16.899999999999636,
+          "p99": 91.59999999999854,
+          "max": 149.9000000000001
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 86.59999999776483,
+        "p95": 111.30000000074506,
+        "p99": 111.30000000074506,
+        "max": 111.30000000074506
+      },
+      "inputQueue": {
+        "count": 45,
+        "p50": 0.6000000014901161,
+        "p95": 23.300000000745058,
+        "p99": 513.1000000014901,
+        "max": 513.1000000014901
+      },
+      "inputToPaintOpportunity": {
+        "count": 45,
+        "p50": 90.69999999925494,
+        "p95": 105.79999999701977,
+        "p99": 554,
+        "max": 554
+      },
+      "sampledPeakPrivateKiB": 934200,
+      "memoryGrowthRatio": 1.0000282300420003,
+      "targets": {
+        "frameP95": true,
+        "frameP99": false,
+        "selection": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 450,
+        "peakNodes": 7,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 58.599999997764826,
+          "maxMs": 58.599999997764826,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 58.599999997764826
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 17.699999999254942,
+          "maxMs": 17.699999999254942,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 17.699999999254942
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.19999999925494194,
+          "maxMs": 0.19999999925494194,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.records": {
+          "count": 67,
+          "totalMs": 20.700000010430813,
+          "maxMs": 1.699999999254942,
+          "maxItems": 10000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 1
+        },
+        "scene.signature": {
+          "count": 67,
+          "totalMs": 197.5000000037253,
+          "maxMs": 4.199999999254942,
+          "maxItems": 10000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 3.5
+        },
+        "scene.visibility-project": {
+          "count": 69,
+          "totalMs": 106.60000001639128,
+          "maxMs": 7.199999999254942,
+          "maxItems": 10000,
+          "retainedSamples": 69,
+          "retainedP95Ms": 3.600000001490116
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 7.600000001490116,
+          "maxMs": 7.600000001490116,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 7.600000001490116
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 29.100000001490116,
+          "maxMs": 29.100000001490116,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 29.100000001490116
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 18.5,
+          "maxMs": 5.5,
+          "maxItems": 10000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 5.5
+        },
+        "worker.round-trip": {
+          "count": 36,
+          "totalMs": 2062.7999999970198,
+          "maxMs": 643.9000000022352,
+          "maxItems": 0,
+          "retainedSamples": 36,
+          "retainedP95Ms": 136.89999999850988
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 29.600000001490116,
+          "maxMs": 11.699999999254942,
+          "maxItems": 10000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 11.699999999254942
+        },
+        "worker.query": {
+          "count": 36,
+          "totalMs": 1.1000000014901161,
+          "maxMs": 0.29999999701976776,
+          "maxItems": 0,
+          "retainedSamples": 36,
+          "retainedP95Ms": 0.10000000149011612
+        }
+      }
+    },
+    {
+      "run": "validated-saved",
+      "artifact": "saved-10000-1.json",
+      "dataset": "synthetic",
+      "entities": 10000,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "204597afd56944c30703d657526e14da86a920c231bcf05078557023dfef4467",
+      "fixture": {
+        "systems": 1429,
+        "files": 8571,
+        "edges": 0,
+        "layouts": 10000,
+        "roots": 4,
+        "bytes": 5597158
+      },
+      "cold": {
+        "applyReturnedMs": 111.5,
+        "wallMs": 1222,
+        "usableMs": 2900
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 36,
+          "p50": 8.300000000000068,
+          "p95": 150.10000000000014,
+          "p99": 666.6999999999998,
+          "max": 666.6999999999998
+        },
+        "navigation": {
+          "count": 75,
+          "p50": 8.400000000000091,
+          "p95": 100,
+          "p99": 141.79999999999973,
+          "max": 141.79999999999973
+        },
+        "warm": {
+          "count": 1237,
+          "p50": 8.399999999999636,
+          "p95": 49.900000000000546,
+          "p99": 116.59999999999854,
+          "max": 216.59999999999854
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 105.5,
+        "p95": 206.69999999925494,
+        "p99": 206.69999999925494,
+        "max": 206.69999999925494
+      },
+      "inputQueue": {
+        "count": 45,
+        "p50": 0.6999999992549419,
+        "p95": 72.19999999925494,
+        "p99": 545.6999999992549,
+        "max": 545.6999999992549
+      },
+      "inputToPaintOpportunity": {
+        "count": 45,
+        "p50": 107.69999999925494,
+        "p95": 206.69999999925494,
+        "p99": 586.1999999992549,
+        "max": 586.1999999992549
+      },
+      "sampledPeakPrivateKiB": 922024,
+      "memoryGrowthRatio": 0.7774069390539775,
+      "targets": {
+        "frameP95": false,
+        "frameP99": false,
+        "selection": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 450,
+        "peakNodes": 7,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 87.29999999701977,
+          "maxMs": 87.29999999701977,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 87.29999999701977
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 23.5,
+          "maxMs": 23.5,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 23.5
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.20000000298023224,
+          "maxMs": 0.20000000298023224,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.20000000298023224
+        },
+        "scene.records": {
+          "count": 67,
+          "totalMs": 26.099999994039536,
+          "maxMs": 5.200000002980232,
+          "maxItems": 10000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 0.6000000014901161
+        },
+        "scene.signature": {
+          "count": 67,
+          "totalMs": 257.0999999716878,
+          "maxMs": 10.300000000745058,
+          "maxItems": 10000,
+          "retainedSamples": 67,
+          "retainedP95Ms": 6.899999998509884
+        },
+        "scene.visibility-project": {
+          "count": 70,
+          "totalMs": 136.39999999850988,
+          "maxMs": 6.5,
+          "maxItems": 10000,
+          "retainedSamples": 70,
+          "retainedP95Ms": 4.199999999254942
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 8.799999997019768,
+          "maxMs": 8.799999997019768,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 8.799999997019768
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 32.5,
+          "maxMs": 32.5,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 32.5
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 18.399999994784594,
+          "maxMs": 4.899999998509884,
+          "maxItems": 10000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 4.899999998509884
+        },
+        "worker.round-trip": {
+          "count": 34,
+          "totalMs": 2370.800000000745,
+          "maxMs": 676.5,
+          "maxItems": 0,
+          "retainedSamples": 34,
+          "retainedP95Ms": 158
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 35.400000002235174,
+          "maxMs": 13.200000002980232,
+          "maxItems": 10000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 13.200000002980232
+        },
+        "worker.query": {
+          "count": 34,
+          "totalMs": 1.4000000059604645,
+          "maxMs": 0.20000000298023224,
+          "maxItems": 0,
+          "retainedSamples": 34,
+          "retainedP95Ms": 0.20000000298023224
+        }
+      }
+    },
+    {
+      "run": "validated-large",
+      "artifact": "saved-100000-0.json",
+      "dataset": "synthetic",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "status": "failed",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "0df6d734dcf6775b22804197d22cbc6f3280039b2446e1dd5727ff9f4f1dcaff",
+      "fixture": {
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56563339
+      },
+      "cold": {
+        "applyReturnedMs": 803.3000000007451
+      },
+      "sampledPeakPrivateKiB": 1258480,
+      "scene": {},
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 595.0999999977648,
+          "maxMs": 595.0999999977648,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 595.0999999977648
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 207.40000000223517,
+          "maxMs": 207.40000000223517,
+          "maxItems": 100000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 207.40000000223517
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.30000000074505806,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 100000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.records": {
+          "count": 3,
+          "totalMs": 11.099999997764826,
+          "maxMs": 6,
+          "maxItems": 100000,
+          "retainedSamples": 3,
+          "retainedP95Ms": 6
+        },
+        "scene.signature": {
+          "count": 3,
+          "totalMs": 78.60000000149012,
+          "maxMs": 43.900000002235174,
+          "maxItems": 100000,
+          "retainedSamples": 3,
+          "retainedP95Ms": 43.900000002235174
+        },
+        "scene.visibility-project": {
+          "count": 3,
+          "totalMs": 83.70000000298023,
+          "maxMs": 55.600000001490116,
+          "maxItems": 100000,
+          "retainedSamples": 3,
+          "retainedP95Ms": 55.600000001490116
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 77.59999999776483,
+          "maxMs": 77.59999999776483,
+          "maxItems": 100000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 77.59999999776483
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 322,
+          "maxMs": 322,
+          "maxItems": 100000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 322
+        },
+        "worker.scene-post": {
+          "count": 2,
+          "totalMs": 69.6000000052154,
+          "maxMs": 34.900000002235174,
+          "maxItems": 100000,
+          "retainedSamples": 2,
+          "retainedP95Ms": 34.900000002235174
+        }
+      },
+      "failure": "Error: scene materialization exceeded deadline"
+    },
+    {
+      "run": "reference-shapes",
+      "artifact": "unsaved-1000-0.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "unsaved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "84a1745feb05689f24c52fc6c53348c7334d86571b2c960d46e59dcd5a0ec22c",
+      "fixture": {
+        "systems": 143,
+        "files": 857,
+        "edges": 0,
+        "layouts": 0,
+        "roots": 4,
+        "bytes": 303227
+      },
+      "cold": {
+        "applyReturnedMs": 35.100000001490116,
+        "wallMs": 528,
+        "usableMs": 1944
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 19,
+          "p50": 8.300000000000068,
+          "p95": 358.29999999999995,
+          "p99": 358.29999999999995,
+          "max": 358.29999999999995
+        },
+        "navigation": {
+          "count": 139,
+          "p50": 8.300000000000182,
+          "p95": 16.800000000000182,
+          "p99": 83.19999999999982,
+          "max": 83.29999999999995
+        },
+        "warm": {
+          "count": 1432,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 16.59999999999991,
+          "max": 50
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 17,
+        "p95": 35.399999998509884,
+        "p99": 35.399999998509884,
+        "max": 35.399999998509884
+      },
+      "inputQueue": {
+        "count": 43,
+        "p50": 1,
+        "p95": 4.800000000745058,
+        "p99": 254.30000000074506,
+        "max": 254.30000000074506
+      },
+      "inputToPaintOpportunity": {
+        "count": 43,
+        "p50": 17.899999998509884,
+        "p95": 35.30000000074506,
+        "p99": 256.9000000022352,
+        "max": 256.9000000022352
+      },
+      "sampledPeakPrivateKiB": 929880,
+      "memoryGrowthRatio": 1.0660343358445399,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 692,
+        "peakNodes": 22,
+        "finalNodes": 17
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 32.600000001490116,
+          "maxMs": 32.600000001490116,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 32.600000001490116
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 1.7000000029802322,
+          "maxMs": 1.7000000029802322,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.7000000029802322
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.19999999925494194,
+          "maxMs": 0.19999999925494194,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.records": {
+          "count": 72,
+          "totalMs": 5.200000021606684,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 72,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.signature": {
+          "count": 72,
+          "totalMs": 32.99999999254942,
+          "maxMs": 0.8999999985098839,
+          "maxItems": 1000,
+          "retainedSamples": 72,
+          "retainedP95Ms": 0.8000000007450581
+        },
+        "scene.visibility-project": {
+          "count": 79,
+          "totalMs": 20.099999986588955,
+          "maxMs": 0.8999999985098839,
+          "maxItems": 1000,
+          "retainedSamples": 79,
+          "retainedP95Ms": 0.5
+        },
+        "scene.initial-packing": {
+          "count": 1,
+          "totalMs": 319.30000000074506,
+          "maxMs": 319.30000000074506,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 319.30000000074506
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 1.2000000029802322,
+          "maxMs": 1.2000000029802322,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.2000000029802322
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 351.5,
+          "maxMs": 351.5,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 351.5
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 2.6999999955296516,
+          "maxMs": 0.6999999992549419,
+          "maxItems": 1000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 0.6999999992549419
+        },
+        "worker.round-trip": {
+          "count": 65,
+          "totalMs": 337.69999999925494,
+          "maxMs": 32.400000002235174,
+          "maxItems": 0,
+          "retainedSamples": 65,
+          "retainedP95Ms": 24.900000002235174
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 5.50000000372529,
+          "maxMs": 2.400000002235174,
+          "maxItems": 1000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 2.400000002235174
+        },
+        "worker.query": {
+          "count": 65,
+          "totalMs": 4.99999999627471,
+          "maxMs": 0.20000000298023224,
+          "maxItems": 0,
+          "retainedSamples": 65,
+          "retainedP95Ms": 0.19999999925494194
+        }
+      }
+    },
+    {
+      "run": "validated-deep",
+      "artifact": "deep-1000-0.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "deep",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "07ce6d8ffe9fcacb5f94f2df26ffbff488f688f6d8fb6b8f9997d8484b8afe72",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 143,
+        "files": 857,
+        "edges": 0,
+        "layouts": 1000,
+        "roots": 4,
+        "bytes": 556927
+      },
+      "cold": {
+        "applyReturnedMs": 25.800000000745058,
+        "wallMs": 276,
+        "usableMs": 1703
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 28,
+          "p50": 8.299999999999955,
+          "p95": 24.90000000000009,
+          "p99": 33.40000000000009,
+          "max": 33.40000000000009
+        },
+        "navigation": {
+          "count": 155,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.799999999999955,
+          "max": 100.09999999999991
+        },
+        "warm": {
+          "count": 1150,
+          "p50": 16.600000000000364,
+          "p95": 33.400000000001455,
+          "p99": 75.10000000000036,
+          "max": 191.5999999999999
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 65,
+        "p95": 99.39999999850988,
+        "p99": 99.39999999850988,
+        "max": 99.39999999850988
+      },
+      "inputQueue": {
+        "count": 43,
+        "p50": 5.399999998509884,
+        "p95": 25.600000001490116,
+        "p99": 44.900000002235174,
+        "max": 44.900000002235174
+      },
+      "inputToPaintOpportunity": {
+        "count": 43,
+        "p50": 69.69999999925494,
+        "p95": 162.5,
+        "p99": 203.39999999850988,
+        "max": 203.39999999850988
+      },
+      "sampledPeakPrivateKiB": 797716,
+      "memoryGrowthRatio": 1.1436175902733674,
+      "targets": {
+        "frameP95": false,
+        "frameP99": false,
+        "selection": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 2496,
+        "peakNodes": 72,
+        "finalNodes": 72
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 21.300000000745058,
+          "maxMs": 21.300000000745058,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 21.300000000745058
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 3.399999998509884,
+          "maxMs": 3.399999998509884,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 3.399999998509884
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.20000000298023224,
+          "maxMs": 0.20000000298023224,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.20000000298023224
+        },
+        "scene.records": {
+          "count": 69,
+          "totalMs": 10.799999993294477,
+          "maxMs": 0.5,
+          "maxItems": 1000,
+          "retainedSamples": 69,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.signature": {
+          "count": 69,
+          "totalMs": 45.099999997764826,
+          "maxMs": 1.4000000022351742,
+          "maxItems": 1000,
+          "retainedSamples": 69,
+          "retainedP95Ms": 1.1000000014901161
+        },
+        "scene.visibility-project": {
+          "count": 72,
+          "totalMs": 30.600000001490116,
+          "maxMs": 1.2999999970197678,
+          "maxItems": 1000,
+          "retainedSamples": 72,
+          "retainedP95Ms": 0.8999999985098839
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 2,
+          "maxMs": 2,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 2
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 9,
+          "maxMs": 9,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 9
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 2.5,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 0.6000000014901161
+        },
+        "worker.round-trip": {
+          "count": 40,
+          "totalMs": 330.09999999031425,
+          "maxMs": 91.59999999776483,
+          "maxItems": 0,
+          "retainedSamples": 40,
+          "retainedP95Ms": 53.30000000074506
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 4.699999999254942,
+          "maxMs": 2.199999999254942,
+          "maxItems": 1000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 2.199999999254942
+        },
+        "worker.query": {
+          "count": 40,
+          "totalMs": 4.499999988824129,
+          "maxMs": 0.3999999985098839,
+          "maxItems": 0,
+          "retainedSamples": 40,
+          "retainedP95Ms": 0.30000000074505806
+        }
+      }
+    },
+    {
+      "run": "validated-kohler",
+      "artifact": "saved-1000-0.json",
+      "dataset": "kohler-capture",
+      "entities": 224,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "b5c2c2d5238992d98d5442b4fe1a1cd63ef67960a2f85be2e0ba5773c6cffd79",
+      "fixture": {
+        "source": "snapshot-replay",
+        "systems": 81,
+        "files": 143,
+        "edges": 0,
+        "layouts": 218,
+        "roots": 1,
+        "bytes": 191940
+      },
+      "cold": {
+        "applyReturnedMs": 22.199999999254942,
+        "wallMs": 283,
+        "usableMs": 1790
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 25,
+          "p50": 8.399999999999864,
+          "p95": 25.09999999999991,
+          "p99": 33.40000000000009,
+          "max": 33.40000000000009
+        },
+        "navigation": {
+          "count": 113,
+          "p50": 8.300000000000182,
+          "p95": 16.800000000000182,
+          "p99": 150.10000000000014,
+          "max": 199.9000000000001
+        },
+        "warm": {
+          "count": 1438,
+          "p50": 8.300000000001091,
+          "p95": 16.40000000000009,
+          "p99": 16.899999999999636,
+          "max": 33.5
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 14.400000002235174,
+        "p95": 26.899999998509884,
+        "p99": 26.899999998509884,
+        "max": 26.899999998509884
+      },
+      "inputQueue": {
+        "count": 43,
+        "p50": 1.699999999254942,
+        "p95": 2.900000002235174,
+        "p99": 7.5,
+        "max": 7.5
+      },
+      "inputToPaintOpportunity": {
+        "count": 43,
+        "p50": 15.600000001490116,
+        "p95": 26.899999998509884,
+        "p99": 36.899999998509884,
+        "max": 36.899999998509884
+      },
+      "sampledPeakPrivateKiB": 1162372,
+      "memoryGrowthRatio": 1.0011814466426028,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 1132,
+        "peakNodes": 43,
+        "finalNodes": 43
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 19.800000000745058,
+          "maxMs": 19.800000000745058,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 19.800000000745058
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 1.5,
+          "maxMs": 1.5,
+          "maxItems": 224,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.5
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.09999999776482582,
+          "maxMs": 0.09999999776482582,
+          "maxItems": 224,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.09999999776482582
+        },
+        "scene.records": {
+          "count": 166,
+          "totalMs": 4.699999988079071,
+          "maxMs": 0.19999999925494194,
+          "maxItems": 218,
+          "retainedSamples": 166,
+          "retainedP95Ms": 0.10000000149011612
+        },
+        "scene.signature": {
+          "count": 166,
+          "totalMs": 24.19999998807907,
+          "maxMs": 0.5,
+          "maxItems": 218,
+          "retainedSamples": 166,
+          "retainedP95Ms": 0.29999999701976776
+        },
+        "scene.visibility-project": {
+          "count": 176,
+          "totalMs": 15.599999990314245,
+          "maxMs": 0.3999999985098839,
+          "maxItems": 218,
+          "retainedSamples": 176,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 0.8999999985098839,
+          "maxMs": 0.8999999985098839,
+          "maxItems": 218,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.8999999985098839
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 3.399999998509884,
+          "maxMs": 3.399999998509884,
+          "maxItems": 218,
+          "retainedSamples": 1,
+          "retainedP95Ms": 3.399999998509884
+        },
+        "worker.scene-post": {
+          "count": 101,
+          "totalMs": 17.49999999254942,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 218,
+          "retainedSamples": 101,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "worker.round-trip": {
+          "count": 183,
+          "totalMs": 1669.1999999694526,
+          "maxMs": 53.5,
+          "maxItems": 0,
+          "retainedSamples": 183,
+          "retainedP95Ms": 30.800000000745058
+        },
+        "worker.index": {
+          "count": 100,
+          "totalMs": 17.299999989569187,
+          "maxMs": 1,
+          "maxItems": 218,
+          "retainedSamples": 100,
+          "retainedP95Ms": 0.3999999985098839
+        },
+        "worker.query": {
+          "count": 183,
+          "totalMs": 12.00000000745058,
+          "maxMs": 0.5,
+          "maxItems": 0,
+          "retainedSamples": 183,
+          "retainedP95Ms": 0.19999999925494194
+        }
+      }
+    },
+    {
+      "run": "validated-kohler",
+      "artifact": "saved-1000-1.json",
+      "dataset": "kohler-capture",
+      "entities": 224,
+      "shape": "saved",
+      "cycles": 20,
+      "status": "measured",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "b5c2c2d5238992d98d5442b4fe1a1cd63ef67960a2f85be2e0ba5773c6cffd79",
+      "fixture": {
+        "source": "snapshot-replay",
+        "systems": 81,
+        "files": 143,
+        "edges": 0,
+        "layouts": 218,
+        "roots": 1,
+        "bytes": 191940
+      },
+      "cold": {
+        "applyReturnedMs": 20.5,
+        "wallMs": 254,
+        "usableMs": 1660
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 25,
+          "p50": 8.300000000000182,
+          "p95": 16.700000000000045,
+          "p99": 33.5,
+          "max": 33.5
+        },
+        "navigation": {
+          "count": 124,
+          "p50": 8.300000000000182,
+          "p95": 16.699999999999818,
+          "p99": 100,
+          "max": 166.69999999999982
+        },
+        "warm": {
+          "count": 1454,
+          "p50": 8.300000000001091,
+          "p95": 16.699999999999818,
+          "p99": 25,
+          "max": 50
+        }
+      },
+      "selectionFeedback": {
+        "count": 20,
+        "p50": 14,
+        "p95": 36.70000000298023,
+        "p99": 36.70000000298023,
+        "max": 36.70000000298023
+      },
+      "inputQueue": {
+        "count": 43,
+        "p50": 1.5,
+        "p95": 3.900000002235174,
+        "p99": 5.100000001490116,
+        "max": 5.100000001490116
+      },
+      "inputToPaintOpportunity": {
+        "count": 43,
+        "p50": 15,
+        "p95": 34.19999999925494,
+        "p99": 46.900000002235174,
+        "max": 46.900000002235174
+      },
+      "sampledPeakPrivateKiB": 1139936,
+      "memoryGrowthRatio": 0.954465991445225,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 1132,
+        "peakNodes": 43,
+        "finalNodes": 43
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 18.199999999254942,
+          "maxMs": 18.199999999254942,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 18.199999999254942
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 1.5,
+          "maxMs": 1.5,
+          "maxItems": 224,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.5
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.09999999776482582,
+          "maxMs": 0.09999999776482582,
+          "maxItems": 224,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.09999999776482582
+        },
+        "scene.records": {
+          "count": 155,
+          "totalMs": 5.300000008195639,
+          "maxMs": 0.19999999925494194,
+          "maxItems": 218,
+          "retainedSamples": 155,
+          "retainedP95Ms": 0.10000000149011612
+        },
+        "scene.signature": {
+          "count": 155,
+          "totalMs": 23.39999996870756,
+          "maxMs": 0.5999999977648258,
+          "maxItems": 218,
+          "retainedSamples": 155,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.visibility-project": {
+          "count": 169,
+          "totalMs": 17.200000021606684,
+          "maxMs": 0.3999999985098839,
+          "maxItems": 218,
+          "retainedSamples": 169,
+          "retainedP95Ms": 0.20000000298023224
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 0.6000000014901161,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 218,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.6000000014901161
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 2.600000001490116,
+          "maxMs": 2.600000001490116,
+          "maxItems": 218,
+          "retainedSamples": 1,
+          "retainedP95Ms": 2.600000001490116
+        },
+        "worker.scene-post": {
+          "count": 91,
+          "totalMs": 16.00000000372529,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 218,
+          "retainedSamples": 91,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "worker.round-trip": {
+          "count": 142,
+          "totalMs": 1029.9000000022352,
+          "maxMs": 39.29999999701977,
+          "maxItems": 0,
+          "retainedSamples": 142,
+          "retainedP95Ms": 20.600000001490116
+        },
+        "worker.index": {
+          "count": 90,
+          "totalMs": 17.3000000230968,
+          "maxMs": 0.5,
+          "maxItems": 218,
+          "retainedSamples": 90,
+          "retainedP95Ms": 0.5
+        },
+        "worker.query": {
+          "count": 142,
+          "totalMs": 9.500000011175871,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 0,
+          "retainedSamples": 142,
+          "retainedP95Ms": 0.19999999925494194
+        }
+      }
+    },
+    {
+      "run": "validated-soak",
+      "artifact": "saved-1000-0.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "saved",
+      "cycles": 50,
+      "status": "failed",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "d2758f87ffcbd54a4c42994f936608064cdf7c2feab8e1119fc944253dc71c30",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 143,
+        "files": 857,
+        "edges": 0,
+        "layouts": 1000,
+        "roots": 4,
+        "bytes": 553550
+      },
+      "cold": {
+        "applyReturnedMs": 14.800000000745058,
+        "wallMs": 131,
+        "usableMs": 1515
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 14,
+          "p50": 8.399999999999977,
+          "p95": 16.700000000000045,
+          "p99": 16.700000000000045,
+          "max": 16.700000000000045
+        },
+        "navigation": {
+          "count": 151,
+          "p50": 8.300000000000182,
+          "p95": 8.599999999999909,
+          "p99": 66.60000000000014,
+          "max": 74.90000000000009
+        },
+        "warm": {
+          "count": 3309,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 8.600000000000364,
+          "max": 16.600000000000364
+        }
+      },
+      "selectionFeedback": {
+        "count": 50,
+        "p50": 13.899999998509884,
+        "p95": 15.300000000745058,
+        "p99": 15.699999999254942,
+        "max": 15.699999999254942
+      },
+      "inputQueue": {
+        "count": 102,
+        "p50": 0.6000000014901161,
+        "p95": 0.9000000022351742,
+        "p99": 1.800000000745058,
+        "max": 2
+      },
+      "inputToPaintOpportunity": {
+        "count": 102,
+        "p50": 14.100000001490116,
+        "p95": 22.699999999254942,
+        "p99": 24.300000000745058,
+        "max": 26.899999998509884
+      },
+      "sampledPeakPrivateKiB": 750432,
+      "memoryGrowthRatio": 1.1635730562015902,
+      "processMemoryGrowthRatio": 0.8078653848467712,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "inputPaint": true,
+        "memory": false
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 450,
+        "peakNodes": 7,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 11.800000000745058,
+          "maxMs": 11.800000000745058,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 11.800000000745058
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 2.399999998509884,
+          "maxMs": 2.399999998509884,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 2.399999998509884
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.10000000149011612,
+          "maxMs": 0.10000000149011612,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.10000000149011612
+        },
+        "scene.records": {
+          "count": 157,
+          "totalMs": 11.899999998509884,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 157,
+          "retainedP95Ms": 0.19999999925494194
+        },
+        "scene.signature": {
+          "count": 157,
+          "totalMs": 47.49999998882413,
+          "maxMs": 0.5999999977648258,
+          "maxItems": 1000,
+          "retainedSamples": 157,
+          "retainedP95Ms": 0.4000000022351742
+        },
+        "scene.visibility-project": {
+          "count": 161,
+          "totalMs": 36.50000002235174,
+          "maxMs": 2.800000000745058,
+          "maxItems": 1000,
+          "retainedSamples": 161,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 1.300000000745058,
+          "maxMs": 1.300000000745058,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 1.300000000745058
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 4.5,
+          "maxMs": 4.5,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 4.5
+        },
+        "worker.scene-post": {
+          "count": 5,
+          "totalMs": 2.0999999940395355,
+          "maxMs": 0.6999999992549419,
+          "maxItems": 1000,
+          "retainedSamples": 5,
+          "retainedP95Ms": 0.6999999992549419
+        },
+        "worker.round-trip": {
+          "count": 68,
+          "totalMs": 113.89999999850988,
+          "maxMs": 35.30000000074506,
+          "maxItems": 0,
+          "retainedSamples": 68,
+          "retainedP95Ms": 5
+        },
+        "worker.index": {
+          "count": 4,
+          "totalMs": 3.5999999940395355,
+          "maxMs": 1.5,
+          "maxItems": 1000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 1.5
+        },
+        "worker.query": {
+          "count": 68,
+          "totalMs": 3.8999999910593033,
+          "maxMs": 1.1000000014901161,
+          "maxItems": 0,
+          "retainedSamples": 68,
+          "retainedP95Ms": 0.10000000149011612
+        }
+      },
+      "failure": "performance budget: memory"
+    },
+    {
+      "run": "investigation-100k",
+      "artifact": "saved-100000-0.json",
+      "dataset": "synthetic",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "status": "failed",
+      "instrumented": true,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "0df6d734dcf6775b22804197d22cbc6f3280039b2446e1dd5727ff9f4f1dcaff",
+      "fixture": {
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56563339
+      },
+      "cold": {
+        "applyReturnedMs": 815.1000000014901
+      },
+      "sampledPeakPrivateKiB": 1791564,
+      "scene": {},
+      "stages": {},
+      "failure": "Error: scene materialization exceeded deadline",
+      "cpuProfile": {
+        "totalSampledMs": 36139.415,
+        "reactHostSiblingSampledMs": 27477.368,
+        "bundledFunction": "Uj"
+      }
+    },
+    {
+      "run": "investigation-10k",
+      "artifact": "saved-10000-0.json",
+      "dataset": "synthetic",
+      "entities": 10000,
+      "shape": "saved",
+      "cycles": 5,
+      "status": "measured",
+      "instrumented": true,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "204597afd56944c30703d657526e14da86a920c231bcf05078557023dfef4467",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 1429,
+        "files": 8571,
+        "edges": 0,
+        "layouts": 10000,
+        "roots": 4,
+        "bytes": 5597158
+      },
+      "cold": {
+        "applyReturnedMs": 108.40000000223517,
+        "wallMs": 1209,
+        "usableMs": 2867
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 35,
+          "p50": 8.300000000000182,
+          "p95": 166.5999999999999,
+          "p99": 616.8,
+          "max": 616.8
+        },
+        "navigation": {
+          "count": 51,
+          "p50": 16.59999999999991,
+          "p95": 133.30000000000018,
+          "p99": 233.4000000000001,
+          "max": 233.4000000000001
+        },
+        "warm": {
+          "count": 294,
+          "p50": 8.399999999999636,
+          "p95": 58.30000000000018,
+          "p99": 108.30000000000018,
+          "max": 174.90000000000055
+        }
+      },
+      "selectionFeedback": {
+        "count": 5,
+        "p50": 109.80000000074506,
+        "p95": 181.89999999850988,
+        "p99": 181.89999999850988,
+        "max": 181.89999999850988
+      },
+      "inputQueue": {
+        "count": 15,
+        "p50": 0.8000000007450581,
+        "p95": 508.3999999985099,
+        "p99": 508.3999999985099,
+        "max": 508.3999999985099
+      },
+      "inputToPaintOpportunity": {
+        "count": 15,
+        "p50": 109.80000000074506,
+        "p95": 550.8999999985099,
+        "p99": 550.8999999985099,
+        "max": 550.8999999985099
+      },
+      "sampledPeakPrivateKiB": 918524,
+      "memoryGrowthRatio": null,
+      "targets": {
+        "frameP95": false,
+        "frameP99": false,
+        "selection": null,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "scene": {
+        "peakDom": 504,
+        "peakNodes": 12,
+        "finalNodes": 7
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 79,
+          "maxMs": 79,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 79
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 28.100000001490116,
+          "maxMs": 28.100000001490116,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 28.100000001490116
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.4000000022351742,
+          "maxMs": 0.4000000022351742,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.4000000022351742
+        },
+        "scene.records": {
+          "count": 21,
+          "totalMs": 10,
+          "maxMs": 1.5,
+          "maxItems": 10000,
+          "retainedSamples": 21,
+          "retainedP95Ms": 1.5
+        },
+        "scene.signature": {
+          "count": 21,
+          "totalMs": 72.30000000447035,
+          "maxMs": 6.900000002235174,
+          "maxItems": 10000,
+          "retainedSamples": 21,
+          "retainedP95Ms": 6.5
+        },
+        "scene.visibility-project": {
+          "count": 24,
+          "totalMs": 48.20000001043081,
+          "maxMs": 5.900000002235174,
+          "maxItems": 10000,
+          "retainedSamples": 24,
+          "retainedP95Ms": 5.100000001490116
+        },
+        "scene.floor-projection": {
+          "count": 1,
+          "totalMs": 10.299999997019768,
+          "maxMs": 10.299999997019768,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 10.299999997019768
+        },
+        "scene.geometry": {
+          "count": 1,
+          "totalMs": 38.600000001490116,
+          "maxMs": 38.600000001490116,
+          "maxItems": 10000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 38.600000001490116
+        },
+        "worker.scene-post": {
+          "count": 4,
+          "totalMs": 17.600000001490116,
+          "maxMs": 5,
+          "maxItems": 10000,
+          "retainedSamples": 4,
+          "retainedP95Ms": 5
+        },
+        "worker.round-trip": {
+          "count": 16,
+          "totalMs": 1663.0999999977648,
+          "maxMs": 626.5999999977648,
+          "maxItems": 0,
+          "retainedSamples": 16,
+          "retainedP95Ms": 626.5999999977648
+        },
+        "worker.index": {
+          "count": 3,
+          "totalMs": 33.900000002235174,
+          "maxMs": 13.900000002235174,
+          "maxItems": 10000,
+          "retainedSamples": 3,
+          "retainedP95Ms": 13.900000002235174
+        },
+        "worker.query": {
+          "count": 16,
+          "totalMs": 0.8999999985098839,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 0,
+          "retainedSamples": 16,
+          "retainedP95Ms": 0.30000000074505806
+        }
+      }
+    },
+    {
+      "run": "validated-hub",
+      "artifact": "hub-1000-0.json",
+      "dataset": "synthetic",
+      "entities": 1000,
+      "shape": "hub",
+      "cycles": 20,
+      "completedCycles": 0,
+      "status": "failed",
+      "instrumented": false,
+      "buildFingerprint": "80807faefc8070a196a41db9b53917637b7bfb768d3fe7dee077ea5788886fc7",
+      "fixtureFingerprint": "6f9629f970d66d6d745c9b8341ada56a317363c0defb85553b4d13baa87ed486",
+      "sheetFingerprint": "b2dec99cf149416f7e301b1a315fb3c7e900ff12015e45500ea7960b60f07a5f",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 143,
+        "files": 857,
+        "edges": 142,
+        "layouts": 1000,
+        "roots": 4,
+        "bytes": 580453,
+        "renderedRelationships": 142
+      },
+      "cold": {
+        "applyReturnedMs": 16.300000000745058,
+        "wallMs": 238,
+        "usableMs": 8816
+      },
+      "sampledPeakPrivateKiB": 1086732,
+      "failure": "selection action timed out after 142 relationship paths were verified",
+      "scene": {
+        "finalNodes": 149,
+        "verifiedRelationships": 142
+      },
+      "stages": {
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 13.100000001490116,
+          "maxMs": 13.100000001490116,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 13.100000001490116
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 2.400000002235174,
+          "maxMs": 2.400000002235174,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 2.400000002235174
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.10000000149011612,
+          "maxMs": 0.10000000149011612,
+          "maxItems": 1000,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.10000000149011612
+        },
+        "scene.records": {
+          "count": 11,
+          "totalMs": 1.4000000059604645,
+          "maxMs": 0.30000000074505806,
+          "maxItems": 1000,
+          "retainedSamples": 11,
+          "retainedP95Ms": 0.30000000074505806
+        },
+        "scene.signature": {
+          "count": 11,
+          "totalMs": 4.00000000372529,
+          "maxMs": 0.6000000014901161,
+          "maxItems": 1000,
+          "retainedSamples": 11,
+          "retainedP95Ms": 0.6000000014901161
+        },
+        "scene.visibility-project": {
+          "count": 16,
+          "totalMs": 5,
+          "maxMs": 0.5999999977648258,
+          "maxItems": 1000,
+          "retainedSamples": 16,
+          "retainedP95Ms": 0.5999999977648258
+        },
+        "scene.floor-projection": {
+          "count": 2,
+          "totalMs": 2.400000002235174,
+          "maxMs": 1.4000000022351742,
+          "maxItems": 1000,
+          "retainedSamples": 2,
+          "retainedP95Ms": 1.4000000022351742
+        },
+        "scene.geometry": {
+          "count": 2,
+          "totalMs": 8.899999994784594,
+          "maxMs": 4.799999997019768,
+          "maxItems": 1000,
+          "retainedSamples": 2,
+          "retainedP95Ms": 4.799999997019768
+        },
+        "worker.scene-post": {
+          "count": 3,
+          "totalMs": 1.2000000029802322,
+          "maxMs": 0.5,
+          "maxItems": 1000,
+          "retainedSamples": 3,
+          "retainedP95Ms": 0.5
+        },
+        "worker.round-trip": {
+          "count": 14,
+          "totalMs": 159.69999999925494,
+          "maxMs": 26.899999998509884,
+          "maxItems": 0,
+          "retainedSamples": 14,
+          "retainedP95Ms": 26.899999998509884
+        },
+        "worker.index": {
+          "count": 2,
+          "totalMs": 3.600000001490116,
+          "maxMs": 2.5,
+          "maxItems": 1000,
+          "retainedSamples": 2,
+          "retainedP95Ms": 2.5
+        },
+        "worker.query": {
+          "count": 14,
+          "totalMs": 1.300000000745058,
+          "maxMs": 0.8000000007450581,
+          "maxItems": 0,
+          "retainedSamples": 14,
+          "retainedP95Ms": 0.8000000007450581
+        }
+      },
+      "longestCameraFrameMs": 7226.299999997762
+    }
+  ]
+}

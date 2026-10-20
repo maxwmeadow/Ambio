@@ -419,7 +419,8 @@ canvas owns its own badges and camera. Performance regressions are covered by
 [testing/CANVAS_PERFORMANCE.md](testing/CANVAS_PERFORMANCE.md).
 
 Sheets cache geometry and authoring callbacks independently of camera, selection,
-and runtime changes. `canvas/sheetPresentation.ts` merges live flags and selection
+layout-transition flags and runtime changes. Unchanged sheet-list polls preserve
+layer identities and do not repack the canvas. `canvas/sheetPresentation.ts` merges live flags and selection
 while preserving unaffected node identities. React Flow dimension notifications
 are retained separately from saved layout and drag/resize snapshots: dropping
 `measured` resets handle bounds and forces off-screen cards through mounting again.
@@ -432,6 +433,45 @@ Selection likewise preserves untouched objects. Search and agent reply pills use
 target and cancels wheel easing/pending growth fits on its own canvas before
 flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
 or `window.__ambioBinDragDebug = true`.
+
+`canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
+canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
+camera queries; scene/request versions reject stale replies. Buffered culling and
+short retention replace React Flow's exact-edge culler above 40 composed nodes.
+Before the first worker reply, root shells already intersect that same viewport
+buffer instead of all mounting at once; active/selected/relationship priorities
+remain in force.
+Visible relationship endpoints retain their handle shells outside the viewport.
+`useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
+consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
+has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
+chooses silhouette, compact identity or the original editable node. Selected and
+active nodes bypass background admission. Navigation prewarms one destination
+and shared symbol data while intermediate cards stay compact during motion.
+Compact cards retain sheet change badges; focused relationship endpoints retain
+their full presentation along with the existing selection/activity exceptions.
+
+`nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
+cancellable requests (four concurrent), revision invalidation and bounded LRU
+storage; compact nodes do not fetch just because they are authorable. Ordered
+WebSocket dispatch yields between messages through `canvas/frameWorkQueue.ts`
+(3 ms / 24 messages per batch); queue overflow uses snapshot resync. Individual
+messages remain atomic. `useCanvasFrameTiming.ts` samples active camera windows
+and shares one renderer long-frame observer; all diagnostics are local and
+bounded. See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
+five-part implementation, measured results and remaining scaling limits.
+
+`canvas/perfTrace.ts` adds opt-in stage timings for snapshot resync fetch/decode/application,
+geometry/projection and worker transfer/index/query/round trip. The local
+`__ambioPerfTrace.start()` switch retains 2,048 samples plus full-session aggregate
+counts/maxima; no project identifiers are logged. Scale fixtures and isolated
+Electron input/frame/process-memory measurements live in
+`tests/fixtures/canvasScale.ts` and `tests/e2e/canvas-scale.spec.ts`; the real
+SQLite query/JSON benchmark is `internal/db/canvas_scale_bench_test.go`.
+See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
+DOM culling does not yet bound React components: React Flow and its minimap
+still create per-ID wrappers/subscriptions for hidden nodes. This is a measured
+scaling limit, not a completed progressive scene boundary.
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is

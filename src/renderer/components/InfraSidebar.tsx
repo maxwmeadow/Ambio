@@ -1,6 +1,6 @@
+import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePresence } from './ui/usePresence'
-import { useReactFlow } from '@xyflow/react'
 import type { DbInfraNode } from '../../shared/types'
 import { ServiceIcon } from './InfraPickerDialog'
 import { useGraphStore } from '../store/graphStore'
@@ -50,7 +50,7 @@ export function InfraSidebar() {
   const unresolved = useGraphStore(s => s.infraUnresolved)
   const proposalKey = useGraphStore(s => s.infraProposalKey)
   const services = useRegistryStore(s => s.byId)
-  const { fitView } = useReactFlow()
+  const fitView = useCanvasFitView()
   const [busy, setBusy] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   // Map → Add Infrastructure and the canvas right-click menu.

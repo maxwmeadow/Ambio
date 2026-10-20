@@ -1,3 +1,4 @@
+import { traceSync } from './perfTrace.ts'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles.ts'
 import type { Node } from '@xyflow/react'
 import type { DbFile, DbInfraNode, DbSystem, FloorNodeType } from '../../shared/types'
@@ -50,7 +51,9 @@ function hexToRgb(hex: string): string {
 }
 
 /** Convert canonical Floor descriptors into the React Flow scene model. */
-export function projectFloorNodes({
+export const projectFloorNodes: typeof projectFloorNodesImpl = input => traceSync('scene.floor-projection', () => projectFloorNodesImpl(input), input.descriptors.length)
+
+function projectFloorNodesImpl({
   systems,
   files,
   infraNodes,
@@ -163,7 +166,7 @@ export function projectFloorNodes({
         initialWidth: style.width, initialHeight: style.height,
         data: {
           id, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
-          language: file.language, lineCount: file.lineCount, churnScore: file.churnScore,
+          language: file.language, lineCount: file.lineCount, indexedAt: file.indexedAt, churnScore: file.churnScore,
           shape: (file.shapeOverride || file.shape || '') as FileNodeData['shape'],
           displayName: file.displayName ?? '', depth,
           currentZoom, childrenVisible: 0, frameScale: geometry.scale, worldScale,
