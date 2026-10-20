@@ -36,3 +36,16 @@ test('inline code naming an indexed file is recognised, in either slash style', 
   assert.equal(inlineFilePath('backend/src/database/common_queries.py:12', files), 'backend/src/database/common_queries.py')
   assert.equal(inlineFilePath('build_query', files), null)
 })
+
+test('a bare file name or partial path is recognised when one indexed file ends with it', () => {
+  const files = new Set(['web/src/components/Chat.tsx', 'backend/src/agents/judge.py', 'backend/a/utils.py', 'backend/b/utils.py'])
+  assert.equal(inlineFilePath('Chat.tsx', files), 'web/src/components/Chat.tsx')
+  assert.equal(inlineFilePath('agents/judge.py:4', files), 'backend/src/agents/judge.py')
+  // Two files share the name: which one is meant is unknown, so it stays code.
+  assert.equal(inlineFilePath('utils.py', files), null)
+  // Part of a name, a wildcard or a folder is not a file.
+  assert.equal(inlineFilePath('hat.tsx', files), null)
+  assert.equal(inlineFilePath('backend/src/agents/*', files), null)
+  assert.equal(inlineFilePath('backend/src/agents/', files), null)
+  assert.equal(inlineFilePath('orchestrator.process(...)', files), null)
+})

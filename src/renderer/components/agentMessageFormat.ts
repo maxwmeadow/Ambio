@@ -66,8 +66,22 @@ export function fileLinkTarget(href: string | undefined, projectRoot?: string): 
   return target
 }
 
-/** A project-relative path written in inline code, when it names a file Ambio indexed. */
+/**
+ * A file named in inline code, when it is one Ambio indexed: its full project
+ * path, or - as agents often shorten them - a bare name or partial path that
+ * ends exactly one indexed path. An ambiguous name stays plain code.
+ */
 export function inlineFilePath(text: string, relPaths: ReadonlySet<string>): string | null {
   const candidate = text.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/:(\d+)(-\d+)?$/, '')
-  return relPaths.has(candidate) ? candidate : null
+  if (relPaths.has(candidate)) return candidate
+  // Only something shaped like a file name: no spaces or wildcards, with an extension.
+  if (!/^[\w.@-][\w.@/-]*\.[A-Za-z0-9]+$/.test(candidate)) return null
+  const suffix = `/${candidate}`
+  let match: string | null = null
+  for (const path of relPaths) {
+    if (!path.endsWith(suffix)) continue
+    if (match) return null
+    match = path
+  }
+  return match
 }

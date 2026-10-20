@@ -13,8 +13,9 @@ function CodeBlock({ text, language }: { text: string; language?: string }) {
 }
 
 /** A file the agent named: its path in the project, opening it on the map when Ambio indexed it. */
-function FileChip({ relPath, absolute, lines, fileId }: { relPath?: string; absolute: string; lines?: string; fileId?: string }) {
-  const label = `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
+function FileChip({ relPath, absolute, lines, fileId, written }: { relPath?: string; absolute: string; lines?: string; fileId?: string; written?: string }) {
+  // Inline code keeps what the agent wrote, even a shortened name; a link shows its path.
+  const label = written ?? `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
   const { fitView, getInternalNode } = useReactFlow()
   const open = () => {
     if (!fileId) { window.ambio?.showInFolder(absolute); return }
@@ -77,7 +78,7 @@ export function AgentMessageContent({ text }: { text: string }) {
     code: ({ children, className }) => {
       // Inline code naming a project file becomes a chip; anything else stays code.
       const path = !className && typeof children === 'string' ? inlineFilePath(children, paths) : null
-      return path ? <FileChip relPath={path} absolute={path} fileId={byPath.get(path)} /> : <code className={className}>{children}</code>
+      return path ? <FileChip relPath={path} absolute={path} fileId={byPath.get(path)} written={(children as string).trim()} /> : <code className={className}>{children}</code>
     },
     table: ({ children }) => <div className="ambio-inbox__table"><table>{children}</table></div>,
   }), [root, byPath, paths])
