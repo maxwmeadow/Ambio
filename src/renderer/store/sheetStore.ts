@@ -430,7 +430,10 @@ function pruneResolvedLayers(state: SheetState, sheets: Sheet[]): Partial<SheetS
   const resolved = new Set(sheets.filter(sheet => sheet.resolvedAt).map(sheet => sheet.id))
   const visibleSheetIds = state.visibleSheetIds.filter(id => !resolved.has(id))
   const activeSheetId = state.activeSheetId && resolved.has(state.activeSheetId) ? null : state.activeSheetId
-  const layersById = Object.fromEntries(Object.entries(state.layersById).filter(([id]) => !resolved.has(id)))
+  const entries = Object.entries(state.layersById).filter(([id]) => !resolved.has(id))
+  // Polls must not invalidate the canvas's geometry when no layer was pruned.
+  if (visibleSheetIds.length === state.visibleSheetIds.length && activeSheetId === state.activeSheetId && entries.length === Object.keys(state.layersById).length) return {}
+  const layersById = Object.fromEntries(entries)
   return { visibleSheetIds, activeSheetId, layersById, ...activeLayerProjection(activeSheetId, layersById) }
 }
 

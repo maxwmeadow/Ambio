@@ -2588,11 +2588,17 @@ test('culls a large planned sheet over a small Floor and retains measurements du
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
     sheet: { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: '', kind: 'structure',
       folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 },
-    elements: [], annotations: [], planned, plannedEdges: [], layouts: [], removals: [],
+    elements: [], annotations: [], planned, plannedEdges: [{
+      id: 'offscreen-link', sheetId: 'sheet_runtime', srcPlanned: 'large-planned-0', dstPlanned: 'large-planned-179', approvalStatus: 'approved',
+    }], layouts: [], removals: [],
   } }))
   await page.getByRole('button', { name: 'Runtime Draft STR', exact: true }).click()
   const canvas = page.locator('[data-ambio-canvas]').first()
   await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
+  // A line into off-screen space must retain its endpoint handle geometry.
+  const relationship = canvas.locator('.react-flow__edge[data-id="pedge:offscreen-link"] .react-flow__edge-path')
+  await expect(relationship).toBeAttached()
+  expect(await relationship.getAttribute('d')).not.toContain('NaN')
   await page.waitForTimeout(650)
   await canvas.evaluate(root => {
     ;(window as any).__sheetMountCount = 0

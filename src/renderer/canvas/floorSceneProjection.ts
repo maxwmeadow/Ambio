@@ -163,7 +163,7 @@ export function projectFloorNodes({
         initialWidth: style.width, initialHeight: style.height,
         data: {
           id, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
-          language: file.language, lineCount: file.lineCount, churnScore: file.churnScore,
+          language: file.language, lineCount: file.lineCount, indexedAt: file.indexedAt, churnScore: file.churnScore,
           shape: (file.shapeOverride || file.shape || '') as FileNodeData['shape'],
           displayName: file.displayName ?? '', depth,
           currentZoom, childrenVisible: 0, frameScale: geometry.scale, worldScale,

@@ -16,6 +16,7 @@ import { SourcePreviewDialog } from '../../components/SourcePreviewDialog'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
+import { VirtualSymbolRows } from './VirtualSymbolRows'
 import {
   fetchFileSymbols,
   getCachedSymbols,
@@ -198,6 +199,20 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   // Resolved by the semantic-zoom pass. Reading the raw zoom here would make
   // this node re-render on every frame of a zoom animation.
   const detailRevealed = d.detailRevealed ?? false
+  const [detailEntered, setDetailEntered] = React.useState(false)
+  const [retainDetail, setRetainDetail] = React.useState(detailRevealed)
+  React.useEffect(() => {
+    if (detailRevealed) {
+      setRetainDetail(true)
+      // Paint the newly admitted detail at opacity zero before its crossfade.
+      let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => setDetailEntered(true)) })
+      return () => cancelAnimationFrame(frame)
+    }
+    setDetailEntered(false)
+    const timer = window.setTimeout(() => setRetainDetail(false), 250)
+    return () => window.clearTimeout(timer)
+  }, [detailRevealed])
+  const detailMounted = detailRevealed || retainDetail
   // Heat is a percentile rank within the workspace, so a small/fresh project
   // spreads scores across the whole range and everything reads "hot". Keep the
   // bar high and muted - a just-written file is NEW (green pulse), not hot.
@@ -267,8 +282,8 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   const [previewSymbol, setPreviewSymbol] = React.useState<any | null>(null)
   const symbolRequestRef = React.useRef(0)
   const symbolNodeIdRef = React.useRef(d.id)
-  // A re-indexed file (its line count changed) shows its symbols afresh.
-  const indexRevision = d.lineCount
+  // A re-indexed file (including unchanged line counts) shows its symbols afresh.
+  const indexRevision = String(d.indexedAt ?? 0) + ':' + d.lineCount
   const indexRevisionRef = React.useRef(indexRevision)
   React.useEffect(() => {
     if (indexRevisionRef.current === indexRevision) return
@@ -297,7 +312,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
       )
       return
     }
-    if ((detailRevealed || d.onSymbolsChange) && !symbols) {
+    if (detailRevealed && !symbols) {
       const cached = getCachedSymbols(workspaceId, d.id)
       if (cached) {
         setSymbols(cached)
@@ -313,7 +328,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
 
       const controller = new AbortController()
       setSymbolsLoading(true)
-      fetchFileSymbols(workspaceId, d.id, controller.signal)
+      fetchFileSymbols(workspaceId, d.id, controller.signal, undefined, Boolean(selected))
         .then(syms => {
           if (symbolRequestRef.current !== request) return
           setSymbols(syms)
@@ -339,7 +354,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
       return () => controller.abort()
     }
     setSymbolsLoading(false)
-  }, [detailRevealed, d.id, workspaceId, suppliedSymbols, symbols])
+  }, [detailRevealed, d.id, workspaceId, suppliedSymbols, symbols, selected])
 
   const handleSymbolClick = (sym: any) => {
     if (!editableSymbols && sym.lineStart > 0) setPreviewSymbol(sym)
@@ -366,7 +381,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   // Authoring capability must not bypass semantic zoom. Sheet leaves use the
   // same identity/detail threshold as live Floor leaves; their controls become
   // available once the detailed state has faded in.
-  const detailAlpha = detailRevealed ? 1 : 0
+  const detailAlpha = detailRevealed && detailEntered ? 1 : 0
 
   // Muted workbench ink for symbol kinds - reads as engraved type on parchment,
   // not neon. (Runtime state, not symbol kind, is what glows on this canvas.)
@@ -460,7 +475,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         headBandOpacity={detailAlpha}
         width={(typeof width === 'number' && width > 0 ? width : 220) / s}
         height={(typeof height === 'number' && height > 0 ? height : 110) / s} />
-      <>
+      {detailMounted && <>
       {/* Name compartment: icon + filename left, line count right. Rule is
           INSET (not full-bleed) so it never collides with shaped silhouettes. */}
       <div style={{
@@ -523,7 +538,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         }}>{d.lineCount}</span>
       )}
 
-      </>
+      </>}
 
       {(
         /* State 1: Compact - line count lives in the header, only churn here */
@@ -566,7 +581,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           }}>{churn > 0.82 ? 'hot' : 'active'}</span>}
         </div>
       )}
-      {(
+      {detailMounted && (
         /* State 2 & 3: Scrollable Viewports */
         <div style={{
           display: 'flex',
@@ -580,82 +595,42 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           pointerEvents: detailAlpha > 0.8 ? 'auto' : 'none',
         }} className="nodrag nopan">
           {/* Scrollable symbols list viewport */}
-          <div
-            className="symbol-scroll nodrag"
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 3,
-              paddingRight: 2,
-            }}
-          >
-            {symbolsLoading ? (
-              <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>Loading...</span>
-            ) : !symbols || symbols.length === 0 ? (
-              <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>No symbols</span>
-            ) : filteredSymbols.length === 0 ? (
-              <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>Empty</span>
-            ) : (
-              filteredSymbols.map((sym, idx) => {
-                const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
-                const isSymPerturbed = perturbedSymbols.has(sym.name)
-                const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? 'var(--run-ink-focus)' : 'var(--text-primary)'
-
-                return (
-                  <div
-                    key={`${sym.name}-${idx}`}
-                    onClick={() => handleSymbolClick(sym)}
-                    onKeyDown={event => {
-                      if (!editableSymbols && (event.key === 'Enter' || event.key === ' ')) {
-                        event.preventDefault()
-                        handleSymbolClick(sym)
-                      }
-                    }}
-                    className="symbol-row nodrag"
-                    role={!editableSymbols && sym.lineStart > 0 ? 'button' : undefined}
-                    tabIndex={!editableSymbols && sym.lineStart > 0 ? 0 : undefined}
-                    title={!editableSymbols && sym.lineStart > 0 ? `Open ${sym.name} in source` : undefined}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: 8,
-                      fontFamily: 'var(--font-mono)',
-                      color: symColor,
-                      padding: '1px 2px',
-                      borderRadius: 0,
-                      transition: 'background 0.1s ease',
-                      cursor: !editableSymbols && sym.lineStart > 0 ? 'pointer' : undefined,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--bg-raised)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {renderSymbolIcon(sym.kind)}
-                      <EditableSymbolName value={sym.name} editable={editableSymbols} onCommit={name =>
-                        updateSymbols(symbols!.map(item => item === sym ? { ...item, name } : item))} />
-                    </div>
-                    {editableSymbols ? <button className="nodrag nopan" title="Remove symbol" onPointerDown={event => event.stopPropagation()}
-                      onClick={event => { event.stopPropagation(); updateSymbols(symbols!.filter(item => item !== sym)) }}
-                      style={{ border: 0, background: 'transparent', color: 'var(--text-dim)', padding: 0, cursor: 'pointer' }}>×</button>
-                      : <span style={{ color: 'var(--text-dim)', fontSize: 7, flexShrink: 0, marginLeft: 4 }}>: {sym.lineStart}</span>}
-                  </div>
-                )
-              })
-            )}
+          {symbols && filteredSymbols.length > 0 ? <VirtualSymbolRows rows={filteredSymbols} render={(sym, idx) => {
+            const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
+            const isSymPerturbed = perturbedSymbols.has(sym.name)
+            const symColor = isSymPerturbed ? '#f97316' : isSymWatched ? 'var(--run-ink-focus)' : 'var(--text-primary)'
+            return (
+              <div key={idx} className="symbol-row nodrag" role={!editableSymbols && sym.lineStart > 0 ? 'button' : undefined}
+                tabIndex={!editableSymbols && sym.lineStart > 0 ? 0 : undefined}
+                title={!editableSymbols && sym.lineStart > 0 ? `Open ${sym.name} in source` : undefined}
+                onClick={() => handleSymbolClick(sym)}
+                onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-raised)' }}
+                onMouseLeave={event => { event.currentTarget.style.background = 'transparent' }}
+                onKeyDown={event => { if (!editableSymbols && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); handleSymbolClick(sym) } }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%',
+                  fontSize: 8, fontFamily: 'var(--font-mono)', color: symColor, padding: '1px 2px',
+                  cursor: !editableSymbols && sym.lineStart > 0 ? 'pointer' : undefined }}>
+                <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  {renderSymbolIcon(sym.kind)}
+                  <EditableSymbolName value={sym.name} editable={editableSymbols}
+                    onCommit={name => updateSymbols(symbols.map(item => item === sym ? { ...item, name } : item))} />
+                </div>
+                {editableSymbols ? <button className="nodrag nopan" title="Remove symbol" onPointerDown={event => event.stopPropagation()}
+                  onClick={event => { event.stopPropagation(); updateSymbols(symbols.filter(item => item !== sym)) }}
+                  style={{ border: 0, background: 'transparent', color: 'var(--text-dim)', padding: 0, cursor: 'pointer' }}>×</button>
+                  : <span style={{ color: 'var(--text-dim)', fontSize: 7, flexShrink: 0, marginLeft: 4 }}>: {sym.lineStart}</span>}
+              </div>)
+          }} footer={editableSymbols ? <button className="nodrag nopan" title={`Add ${activeTab.slice(0, -1)}`}
+            onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
+            style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button> : undefined} />
+          : <div className="symbol-scroll nodrag" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+              {symbolsLoading ? 'Loading...' : !symbols?.length ? 'No symbols' : 'Empty'}
+            </span>
             {editableSymbols && <button className="nodrag nopan" title={`Add ${activeTab.slice(0, -1)}`}
               onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
-              style={{
-                width: '100%', minHeight: 14, marginTop: 2, border: '1px solid var(--border)', background: 'transparent',
-                color: 'var(--accent)', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: '1px 4px', flexShrink: 0,
-              }}>+</button>}
-          </div>
+              style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button>}
+          </div>}
 
           {/* Vertical tab rail, flush right */}
           <div style={{

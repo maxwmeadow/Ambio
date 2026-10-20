@@ -1,7 +1,7 @@
 /**
  * AmbioCanvas - Infinity-zoom codebase graph.
  *
- * Everything is a node. Zoom controls opacity only - layout never rebuilds on zoom.
+ * Camera movement changes visibility and render tiers; canonical layout stays fixed.
  *
  * Sizing philosophy:
  *   - Leaf systems: fixed size by depth (LEAF_W/H)
@@ -44,9 +44,10 @@ import {
 import '@xyflow/react/dist/style.css'
 // ELK removed
 
-import { SystemNode } from './nodes/SystemNode'
-import { FileNode } from './nodes/FileNode'
-import { InfraNode } from './nodes/InfraNode'
+import { BudgetedSystemNode as SystemNode, BudgetedFileNode as FileNode, BudgetedInfraNode as InfraNode } from './nodes/BudgetedNodes'
+import { RenderBudgetContext, useCanvasRenderBudget } from './useCanvasRenderBudget'
+import { useCanvasFrameTiming } from './useCanvasFrameTiming'
+import { useCanvasFitView } from './useCanvasFitView'
 import { OrthogonalEdge } from './edges/OrthogonalEdge'
 import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -1594,7 +1595,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   )
   const setSelectedNode = reviewScene?.onSelectNode ?? setLiveSelectedNode
   const currentProject = useGraphStore(s => s.currentProject)
-  const { fitView, getViewport, setViewport, getInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const { getViewport, setViewport, getInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const fitView = useCanvasFitView()
   const reactFlowStore = useStoreApi()
   // Subscribed rather than read once: the bin button shows whether the reader
   // is open, and a stale read would leave it stuck looking closed.
@@ -2039,9 +2041,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // selection. In particular, do not inherit rfNodes here: its visibility flags
   // change during a camera flight and used to rebuild the entire sheet.
   const sheetBaseNodes = useMemo(() => {
-    const transition = isTransitioningLayout
-      ? 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out'
-      : undefined
     if (visibleLayers.length === 0) return null
     recordSheetLayoutBuild()
 
@@ -2245,7 +2244,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           // architecture - dimming the thing you are reasoning about is what
           // made a sheet feel like drawing on glass over the map.
           ...(isFloorContextNode ? { pointerEvents: 'auto' as const } : {}),
-          transition,
         },
         domAttributes: {
           ...sheetNode.domAttributes,
@@ -2264,7 +2262,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
+  }, [visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds])
 
   const [sheetVisibility, setSheetVisibility] = useState<{ source: Node[]; nodes: Node[] } | null>(null)
   useEffect(() => { if (!sheetBaseNodes) setSheetVisibility(null) }, [sheetBaseNodes])
@@ -2281,10 +2279,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [sheetMeasurements, setSheetMeasurements] = useState(new Map<string, Node['measured']>())
   useEffect(() => setSheetMeasurements(new Map()), [overlaySheetId, sceneProjectId])
   const composedNodes = useMemo(() => {
-    if (visibleSheetNodes) return sheetPresentation.current(visibleSheetNodes, rfNodes, selectedIdsRef.current, activeNodeIds, sheetMeasurements)
+    const presented = visibleSheetNodes ? sheetPresentation.current(visibleSheetNodes, rfNodes, selectedIdsRef.current, activeNodeIds, sheetMeasurements) : rfNodes
     return isTransitioningLayout
-      ? rfNodes.map(node => ({ ...node, style: { ...node.style, transition: 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out' } }))
-      : rfNodes
+      ? presented.map(node => ({ ...node, style: { ...node.style, transition: 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease-in-out' } }))
+      : presented
   }, [visibleSheetNodes, rfNodes, selectionRevision, isTransitioningLayout, activeNodeIds, sheetMeasurements])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
@@ -4843,6 +4841,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     () => `${sceneProjectId}:${renderedNodes.map(node => node.id).sort().join('|')}`,
     [renderedNodes, sceneProjectId],
   )
+  const renderBudget = useCanvasRenderBudget(renderedNodes, renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT, displayEdges)
+  useCanvasFrameTiming()
   const renderedNodesRef = useRef(renderedNodes)
   renderedNodesRef.current = renderedNodes
 
@@ -5156,9 +5156,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
       <FloorEditContext.Provider value={floorEdits}>
+      <RenderBudgetContext.Provider value={renderBudget.budget}>
       <ReactFlow
         zoomOnScroll={false}
-        nodes={renderedNodes}
+        nodes={renderBudget.nodes}
         edges={displayEdges}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
@@ -5199,9 +5200,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         deleteKeyCode={null}
         elementsSelectable={!readOnly}
         snapToGrid={false}
-        // Large graphs: skip rendering off-screen nodes. Kept off for small
-        // graphs where the per-move visibility recompute isn't worth it.
-        onlyRenderVisibleElements={renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT}
+        // The budget projection owns buffered culling above 40 nodes. Avoid
+        // a second exact-edge culler that would defeat its retention window.
+        onlyRenderVisibleElements={false}
       >
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}
@@ -5282,6 +5283,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           </Panel>
         )}
       </ReactFlow>
+      </RenderBudgetContext.Provider>
       </FloorEditContext.Provider>
       {!isolatedScene && (
         <>

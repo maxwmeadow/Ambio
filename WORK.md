@@ -49,7 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `canvas-frame-budget` **Implement smooth canvas rendering under load.** Three rendering levels, budgeted detail admission, buffered visibility and navigation prewarming, bounded symbol/data work with a worker scene index, and continuous cold/dense/navigation performance coverage. **Done when:** all five paths are implemented and measured against the previous audit, interaction checks pass and remaining limits are documented. (Codex, codex/canvas-frame-budget, 2026-10-20)
 
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
@@ -239,7 +238,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 - ⬜ `agent-driver-live-validation` **Run the conversation drivers against the hosts not yet run for real.** `AMBIO_LIVE_CONVERSATION_HOST=<host> node --test mcp/e2e/conversation.live.mjs`. Passing: Claude Code, Codex, Copilot CLI, Antigravity CLI (questions; builds cannot run commands). Left: Cursor CLI, Devin CLI and Google's `agy_acp_server` (not installed), and confirming Cursor's chat link (VS Code's works: it fills the chat and waits for send). (2026-10-15, conversations)
 
 - ⬜ `windows-flow-animation-test-flake` **Live-flow E2E occasionally never records its CSS animation-start event on Windows; teardown can also leave LevelDB locked.** One combined final audit run stalled, while the earlier 14-check run and an isolated rerun of the same final build passed. Diagnose off-screen animation scheduling and bounded test-process shutdown before treating this as a canvas regression. `tests/e2e/canvas.spec.ts`. (2026-10-13)
-- ⬜ `large-review-canvas-mounting` **Bound rich-node mounting before arbitrary-depth exposure.** The 2026-10-20 audit fixed repeated sheet remeasurement (~97% fewer mounts), but a dense 672-node review still has 83 ms p95 / 54 long tasks / ~26,866 DOM elements; collapsed Floor/sheet reveal spikes reach 1.66 s / 0.68 s. Buffer/incrementally mount detail and virtualize symbol rows while preserving silhouettes, editing and camera behavior. See `docs/testing/CANVAS_PERFORMANCE.md`; earlier 756-node results remain there. (2026-10-20, Kohler performance audit)
 
 - ⬜ `windows-delve-live-timeout` **The live Delve Go tracing test times out at DAP launch on Windows and its fixture cleanup reports a locked directory.** Found in full daemon checks during startup-log cleanup; API/indexer/watcher tests and vet pass. Investigate debugger/toolchain compatibility and cleanup on launch failure. `archd-go/internal/runtime/delve_live_test.go:32`. (2026-10-13)
 - ⬜ `startup-reconcile-twice` **Avoid redundant startup reconciliation/detection when scope or snapshot reads lazily open a map just before POST /api/workspace.** The logged kohler startup ran infrastructure detection twice about two seconds apart. Preserve headless catch-up and newly submitted exclusions; `Server.keepWorkspaceLive`, `handleWorkspace`, `launchRootSync`. (2026-10-13, Max's startup log)
@@ -276,11 +274,16 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `bin-sheet-layer-isolation` **Check sheet layers leaking into the isolated bin canvas.** `AmbioCanvas` clears `overlaySheetId` for isolated scenes but excludes visible layers only for review mode, so an open bin may consume live sheet layers. (2026-10-20, performance audit)
 
+- ⬜ `canvas-dense-overview-budget` **Reduce the remaining overview DOM before arbitrary-depth exposure.** The frame-budget pass leaves ~12k DOM / 42–50 ms p95 in the 672-node review; benchmark a batched canvas/GPU overview with DOM editing overlays, or further shell/handle reductions. See `docs/testing/CANVAS_FRAME_BUDGET.md`. (2026-10-20, five-part canvas audit)
+- ⬜ `canvas-cold-layout-worker` **Move cold scene preparation off the interaction path.** Initial snapshot/layout startup still records renderer long frames around 300–650 ms. Profile incremental/cached packing, snapshot projection/parsing and a versioned layout worker; spatial querying is already off-thread. (2026-10-20, five-part canvas audit)
+
 ---
 
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-20 `canvas-frame-budget` / `large-review-canvas-mounting` Implemented silhouette/identity/detail tiers, bounded admission, buffered worker visibility and navigation prewarming, virtual symbol rows/shared bounded requests, ordered frame-batched socket work and local frame-tail diagnostics. Removed five-second sheet-poll and transition-driven layout invalidation. Dense review DOM ~26k → ~12k and p95 ~133 → 42–50 ms; remaining startup/overview limits tracked in the Inbox. See `docs/testing/CANVAS_FRAME_BUDGET.md`. (`codex/canvas-frame-budget`)
 
 - 2026-10-20 `canvas-performance-kohler` Profiled Kohler Floor, its actual sheet, navigation and dense scenes; preserved sheet measurements, cached layout/presentation, retained untouched selection identities, and fixed planned-sheet culling/navigation races. Sheet p95 209 → 33–50 ms; cold mass-mount spikes remain tracked above. 669 unit tests and canvas interaction checks pass. (`codex/canvas-performance`, `f758542`)
 - 2026-10-20 `canvas-zoom-index-and-diagnostics` Cached semantic ancestry/order and thresholds between easing frames; cursor/bin drag diagnostics are opt-in, with identity/geometry invalidation regressions. (`codex/canvas-performance`, `f758542`)

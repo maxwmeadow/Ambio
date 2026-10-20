@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Dense canvases use buffered visibility and compact cards while moving, then
+  progressively reveal detail. Search and reply navigation prewarm the target;
+  large symbol lists and concurrent symbol requests now have bounded work.
 - Sheets retain node measurements while zooming, avoiding repeated off-screen
   card mounting. Camera and selection changes reuse layouts and unaffected
   nodes; large sheets also cull planned nodes. Search and reply file pills wait

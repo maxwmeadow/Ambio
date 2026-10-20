@@ -1,5 +1,9 @@
 # Canvas performance audits
 
+The subsequent five-part implementation and current limits are documented in
+[CANVAS_FRAME_BUDGET.md](CANVAS_FRAME_BUDGET.md). Historical measurements below
+remain unchanged.
+
 ## Kohler follow-up — 2026-10-20
 
 Branch: `codex/canvas-performance`. Production Electron 31 renderer, native

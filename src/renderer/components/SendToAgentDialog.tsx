@@ -1,3 +1,4 @@
+import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -87,7 +88,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       if (saved && typeof saved.id === 'string' && typeof saved.note === 'string' && Array.isArray(saved.selection)) retry.current = saved
     } catch { /* no pending send */ }
   }
-  const { fitView, getNode } = useReactFlow()
+  const { getNode } = useReactFlow()
+  const fitView = useCanvasFitView()
   // Ambio's own agent is one kind of conversation here; the open one is
   // passed in once the list says which conversations are its.
   const [chatActiveId, setChatActiveId] = useState<string | null>(null)

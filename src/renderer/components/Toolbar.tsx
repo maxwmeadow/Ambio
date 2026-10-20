@@ -1,3 +1,4 @@
+import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
@@ -21,7 +22,8 @@ interface ToolbarProps {
 export function Toolbar({
   onSearch, onManageAgentConnections, agentLogOpen, onToggleAgentLog,
 }: ToolbarProps) {
-  const { fitView, getNodes } = useReactFlow()
+  const { getNodes } = useReactFlow()
+  const fitView = useCanvasFitView()
   const isIndexing = useGraphStore(s => s.isIndexing)
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)

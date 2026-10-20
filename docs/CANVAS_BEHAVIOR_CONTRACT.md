@@ -66,6 +66,37 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   and explicit navigation cancels wheel easing and pending growth reframes on
   that canvas. Flight duration remains 850 ms.
 
+## Rendering budget (approved 2026-10-20)
+
+- Above 40 composed nodes, spatial visibility runs in a worker, with a local
+  fallback if the worker cannot run. Canonical layout, semantic membership and
+  authored dimensions remain independent from viewport culling.
+- The viewport has a 240-screen-pixel buffer. Recently visible nodes may stay
+  mounted for 450 ms, capped at about two buffered screenfuls, to absorb quick
+  reversals. Fit includes viewport-culled nodes and excludes semantically hidden
+  descendants, so virtualization cannot change the camera's scene bounds. Active
+  relationship endpoints retain mounted shells/handles even outside the buffer.
+- A node smaller than 14 pixels on its shortest side may use its silhouette.
+  Other background file cards use compact identity while detail waits. Systems
+  and infrastructure retain their normal identity at readable sizes. Selection,
+  dragging, hover at rest and live visual signals admit the editable component.
+- Detail admission prioritizes the viewport center and grants at most six
+  promotions per frame, adaptively reducing that count after a slow frame, with
+  a 3 ms scheduler deadline. React/browser commit work is not preemptible; this
+  is an admission limit, not a guaranteed 3 ms total frame.
+- A navigation flight prewarms its destination and symbols. Intermediate new
+  file cards remain compact while the camera moves; previously admitted detail
+  may be retained. A superseding search cancels its old symbol-prefetch consumer.
+- Rich file detail unmounts after its 250 ms exit crossfade. Symbol lists render
+  a visible window plus four rows of overscan, retaining a focused editor. Source
+  actions, authoring, list scrolling and keyboard navigation remain available.
+- Shared symbol requests have independent consumer cancellation, a four-request
+  concurrency limit, revision invalidation, short-lived empty replies and a
+  bounded LRU. Large lists do not create one DOM row per indexed symbol.
+- Local diagnostics record camera frame tails, renderer long frames, detail
+  admissions, requests and background batches. There is no uploaded telemetry
+  or idle animation-frame sampling loop.
+
 ## Semantic zoom
 
 - Container reveal is based on rendered size, not hierarchy depth.

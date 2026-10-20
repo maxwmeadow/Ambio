@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { forgetFileSymbols } from '../canvas/symbolCache.ts'
+import { createFrameWorkQueue } from '../canvas/frameWorkQueue.ts'
+import { getPerfMetrics } from '../canvas/perfMetrics.ts'
 import { shouldAnimateIndividualClassification } from '../canvas/canvasPerformance.ts'
 import type {
   AgentAction,
@@ -1536,6 +1538,20 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
     let resyncing = false
     let resyncAgain = false
     let buffered: Array<{ type: string; payload: unknown; seq?: number }> = []
+    const background = createFrameWorkQueue({
+      schedule: run => requestAnimationFrame(run), cancel: id => cancelAnimationFrame(id), now: () => performance.now(),
+      onBatch: (count, pending) => {
+        const metrics = getPerfMetrics()
+        if (count) metrics.backgroundBatches++
+        metrics.maxBackgroundBatch = Math.max(metrics.maxBackgroundBatch, count)
+        metrics.pendingBackgroundMessages = pending
+      },
+      onError: error => console.error('[ws] background update failed', error),
+    })
+    const dispatch = (message: { type: string; payload: unknown; seq?: number }) => {
+      if (typeof requestAnimationFrame !== 'function') { handleWsMessage(message); return true }
+      return background.push(() => { if (generation === wsGeneration) handleWsMessage(message) })
+    }
 
     const resyncSnapshot = async (reason: string) => {
       if (generation !== wsGeneration) return
@@ -1543,6 +1559,7 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
       const workspaceId = useGraphStore.getState().currentProject?.id
       if (!workspaceId) return
       resyncing = true
+      background.clear()
       try {
         const response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`)
         if (!response.ok) throw new Error(`snapshot ${response.status}`)
@@ -1554,7 +1571,9 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
         const pending = buffered
         buffered = []
         resyncing = false
-        for (const message of pending) handleWsMessage(message)
+        for (const message of pending) {
+          if (!dispatch(message)) { resyncAgain = true; break }
+        }
         if (resyncAgain) { resyncAgain = false; void resyncSnapshot('changes-during-resync') }
       } catch (error) {
         console.error(`[ws] ${reason} resync failed:`, error)
@@ -1596,13 +1615,14 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
           buffered.push(msg)
           return
         }
-        handleWsMessage(msg)
+        if (!dispatch(msg)) void resyncSnapshot('background-overload')
       } catch {
         console.error('ws: failed to parse message', event.data)
       }
     }
 
     socket.onclose = () => {
+      background.clear()
       if (generation !== wsGeneration) return
       useGraphStore.getState().setConnectionStatus('disconnected')
       setTimeout(tryConnect, 2000)

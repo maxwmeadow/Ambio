@@ -1,5 +1,5 @@
+import { useCanvasFitView } from '../canvas/useCanvasFitView'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { fetchFileSymbols } from '../canvas/symbolCache'
 import { searchSymbols } from '../canvas/symbolSearch'
@@ -19,7 +19,7 @@ export function ModelExplorer({ onClose }: { onClose: () => void }) {
   const setSelectedNode = useGraphStore(s => s.setSelectedNode)
   const toggleSystemExpanded = useGraphStore(s => s.toggleSystemExpanded)
   const expandedSystemIds = useGraphStore(s => s.expandedSystemIds)
-  const { fitView } = useReactFlow()
+  const fitView = useCanvasFitView()
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [symbols, setSymbols] = useState<Map<string, DbSymbol[]>>(() => new Map())
