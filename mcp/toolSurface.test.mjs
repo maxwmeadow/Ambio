@@ -47,9 +47,11 @@ test('the schema cost stays within budget', () => {
   // structured work-order results; each fit alone, and 3,650 held both. Raised
   // to 3,700 when edit_sheet gained connect (draw-first) beside remove,
   // restore, export and import; each fit alone. Each was already trimmed to its
-  // minimum. Raise it again only for a new capability, never for wording.
+  // minimum. Raised to 3,800 when proposals learned where they belong: plan_element
+  // parent and owns, and edit_sheet move (an agent could only draw empty
+  // top-level boxes). Raise it again only for a new capability, never for wording.
   const coreTokens = Math.round(coreBlock.length / 3.6)
-  assert.ok(coreTokens < 3700, `core tool schema is ~${coreTokens} tokens, budget is 3700`)
+  assert.ok(coreTokens < 3800, `core tool schema is ~${coreTokens} tokens, budget is 3800`)
 })
 
 test('debug tooling is not advertised by default', () => {

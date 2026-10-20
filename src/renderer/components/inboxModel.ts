@@ -73,8 +73,15 @@ export const WORK_ORDER_MODES: Array<{ mode: WorkOrderMode; label: string; hint:
 
 const MODE_CONTRACT: Record<WorkOrderMode, string> = {
   ask: 'This is a question. Answer it in your reply; do not change code or the architecture map.',
-  propose: 'Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.',
+  // An agent left to "draw your plan" redrew systems the map already had, as
+  // empty top-level boxes. Start from the map, and draw only the change.
+  propose: 'Propose, do not build. Start from the current map (get_architecture overview and system_files for the systems involved): if part of what I ask for already exists, say so and reuse it rather than redrawing it. On a sheet, draw only what changes: plan_element each new system inside its parent, with the existing files or systems it takes over in owns; edit_sheet(move) existing files or systems that change boundary; edit_sheet(connect) new dependencies. Reply with what already existed and what you drew, and wait for me to confirm before changing any code.',
   build: '',
+}
+
+/** Contracts earlier versions wrote into turns, still recognised when reading them back. */
+const PAST_CONTRACTS: Partial<Record<WorkOrderMode, string[]>> = {
+  propose: ['Propose, do not build: draw your plan on a sheet (edit_sheet create, plan_element), reply with what you drew, and wait for me to confirm before changing any code.'],
 }
 
 export function workOrderNote(mode: WorkOrderMode, note: string): string {
@@ -105,8 +112,10 @@ export function requestText(text: string): string {
 export function turnRequest(message: { note: string; mode?: string }): { mode: WorkOrderMode; text: string } {
   if (message.note.startsWith(MAPPING_CONTRACT)) return { mode: 'propose', text: MAPPING_TITLE }
   for (const mode of ['ask', 'propose'] as const) {
-    const prefix = `${MODE_CONTRACT[mode]}\n\n`
-    if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }
+    for (const contract of [MODE_CONTRACT[mode], ...(PAST_CONTRACTS[mode] ?? [])]) {
+      const prefix = `${contract}\n\n`
+      if (message.note.startsWith(prefix)) return { mode, text: message.note.slice(prefix.length) }
+    }
   }
   const mode = message.mode === 'ask' || message.mode === 'propose' ? message.mode : 'build'
   return { mode, text: message.note }

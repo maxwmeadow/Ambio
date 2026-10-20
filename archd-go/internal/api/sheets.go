@@ -245,6 +245,12 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), 404)
 			return
 		}
+		if n.ParentSystemID != nil && *n.ParentSystemID != "" {
+			if err := db.ValidateSheetParent(sqlDB, id, n.ParentSystemID); err != nil {
+				jsonError(w, err.Error(), 400)
+				return
+			}
+		}
 		if err := db.UpsertPlannedNode(sqlDB, &n); err != nil {
 			jsonError(w, err.Error(), 500)
 			return
@@ -477,6 +483,36 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSheetElements(w http.ResponseWriter, r *http.Request, sheetID string, rest []string) {
 	workspaceID := r.URL.Query().Get("workspace")
 	switch {
+	case r.Method == http.MethodPost && len(rest) == 1 && rest[0] == "move":
+		// Propose that live nodes belong to another (live or planned) parent.
+		var body struct {
+			WorkspaceID string              `json:"workspaceId"`
+			Elements    []sheetElementInput `json:"elements"`
+			Parent      *string             `json:"parent"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Elements) == 0 {
+			jsonError(w, "bad request: elements required", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		nodes := make([]db.SheetElement, 0, len(body.Elements))
+		for _, in := range body.Elements {
+			in.ParentSystemID = nil
+			e, _ := resolveElement(sqlDB, sheetID, in)
+			nodes = append(nodes, *e)
+		}
+		moved, err := db.ProposeSheetMove(sqlDB, sheetID, body.WorkspaceID, nodes, body.Parent)
+		if err != nil {
+			jsonError(w, err.Error(), 400)
+			return
+		}
+		s.broadcastSheetLayoutState(sqlDB, sheetID)
+		jsonOK(w, moved)
+
 	case r.Method == http.MethodPost && len(rest) == 0:
 		var body struct {
 			WorkspaceID string              `json:"workspaceId"`

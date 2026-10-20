@@ -153,7 +153,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
     how: STARTED('Codex'),
     can: [
-      'Ask and Propose: runs commands in a read-only sandbox, so it can look at anything but cannot change files.',
+      'Ask and Propose: can read and run anything to answer, and is told not to change files.',
       'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',
       FULL_ACCESS,
     ],

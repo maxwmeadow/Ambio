@@ -213,6 +213,18 @@ func TouchSheet(db *sql.DB, id string) error {
 // ─── Sheet elements ───────────────────────────────────────────────────────────
 
 func AddSheetElement(db *sql.DB, e *SheetElement) error {
+	err := insertSheetElement(db, e)
+	if err == nil {
+		_ = TouchSheet(db, e.SheetID)
+	}
+	return err
+}
+
+// insertSheetElement validates and stores one element; it runs on a database
+// or inside a transaction.
+func insertSheetElement(db interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}, e *SheetElement) error {
 	refs := 0
 	for _, p := range []*string{e.SystemID, e.FileID, e.InfraID, e.SymbolRef} {
 		if p != nil {
@@ -242,9 +254,6 @@ func AddSheetElement(db *sql.DB, e *SheetElement) error {
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.ID, e.SheetID, e.SystemID, e.FileID, e.InfraID, e.SymbolRef, e.Label,
 		e.PositionX, e.PositionY, e.ParentSystemID, e.Width, e.Height, e.Scale, nullableJSON(e.Emphasis), nullableJSON(e.DesignMetadata), e.Ghost, e.AddedBy)
-	if err == nil {
-		_ = TouchSheet(db, e.SheetID)
-	}
 	return err
 }
 

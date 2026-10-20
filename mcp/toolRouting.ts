@@ -83,6 +83,7 @@ const SHEET_OPS: Record<string, string> = {
   get: 'get_sheet',
   create: 'create_sheet',
   add: 'add_to_sheet',
+  move: 'move_on_sheet',
   remove: 'propose_sheet_removal',
   restore: 'restore_sheet_removal',
   annotate: 'annotate_sheet',
@@ -170,7 +171,10 @@ export function routeTool(name: string, args: Record<string, any>): RoutedCall |
       if (args.file && args.symbol) {
         return { tool: 'get_function_body', args: compact({ file: args.file, symbol: args.symbol }) }
       }
-      return { tool: 'get_symbols_for_files', args: compact({ fileIds: args.fileIds }) }
+      // A lone `file` lists that file's symbols; it was dropped, and an agent
+      // that named a file by path was told it had none.
+      const fileIds = [...((args.fileIds as string[] | undefined) ?? []), ...(args.file ? [args.file as string] : [])]
+      return { tool: 'get_symbols_for_files', args: compact({ fileIds: fileIds.length ? fileIds : undefined }) }
     }
 
     case 'trace_calls': {

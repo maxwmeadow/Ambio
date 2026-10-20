@@ -5,7 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
 import { DeliveryRunner, chatDeepLink, deliveryPlan, deliveryTargets, findDeliveryCli } from './agentDelivery.ts'
-import { agentDriver, turnMode } from './agentDrivers.ts'
+import { agentDriver, codexSandbox, turnMode } from './agentDrivers.ts'
 
 const mcp = { command: 'C:\\Ambio Install\\archd.exe', args: ['mcp-run', 'runtime', 'entry'] }
 const HOSTS = ['claude-code', 'codex', 'copilot-cli', 'cursor-cli', 'antigravity-cli']
@@ -38,8 +38,8 @@ test('agents Ambio runs get every permission they offer; a question or a proposa
         assert.match(args[args.indexOf('--disallowedTools') + 1], /Edit,Write/)
         assert.ok(!args.includes('--allowedTools'))
       }
-      // Commands run; the sandbox stops writes.
-      if (host === 'codex') assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only')
+      // Commands run; the sandbox stops writes where Codex can start one.
+      if (host === 'codex') assert.equal(args[args.indexOf('--sandbox') + 1], codexSandbox(mode))
       if (host === 'copilot-cli') {
         assert.ok(args.includes('--allow-all-tools') && !args.includes('--yolo'))
         assert.equal(args[args.indexOf('--deny-tool') + 1], 'write')
@@ -108,7 +108,7 @@ test('a later turn continues the host session where the host can, and names a ne
   assert.deepEqual(codex.slice(0, 3), ['exec', 'resume', 'thread-9'])
   // resume takes no --sandbox; the same sandbox goes in as configuration.
   assert.ok(!codex.includes('--sandbox'))
-  assert.ok(codex.includes('sandbox_mode="read-only"'))
+  assert.ok(codex.includes(`sandbox_mode="${codexSandbox('ask')}"`))
   assert.equal(codex.at(-1), '-')
   assert.ok(deliveryPlan('cursor-cli', mcp, 'ws', 'p', { resume: 'chat-3' }).args.includes('--resume=chat-3'))
 
@@ -355,4 +355,11 @@ test('a continued session that fails after it has spoken is a failed run, not a 
   const run = await settled(runner, 'ws', started.key)
   assert.equal(run.state, 'failed')
   assert.equal(freshStarts, 0)
+})
+
+test('Codex reads in a read-only sandbox, except on Windows where that sandbox cannot start a shell', () => {
+  assert.equal(codexSandbox('ask', 'linux'), 'read-only')
+  assert.equal(codexSandbox('propose', 'darwin'), 'read-only')
+  assert.equal(codexSandbox('ask', 'win32'), 'danger-full-access')
+  assert.equal(codexSandbox('build', 'linux'), 'danger-full-access')
 })

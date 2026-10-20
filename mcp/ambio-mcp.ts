@@ -317,6 +317,33 @@ async function resolveModelRef(
   throw new Error(`No file, system, or infra node matches "${ref}"`)
 }
 
+// The parent something drawn on a sheet sits inside: a planned system on this
+// sheet (its ID, "planned:<id>" or name) or a live system/platform.
+async function resolveSheetParent(workspaceId: string, sheetId: string, ref: string): Promise<string> {
+  const bare = ref.trim().replace(/^planned:/, '')
+  const planned = await queryDb(workspaceId,
+    `SELECT id FROM planned_nodes WHERE sheet_id = ? AND (id = ? OR lower(name) = lower(?)) LIMIT 2`,
+    [sheetId, bare, bare])
+  if (planned.length === 1) return `planned:${planned[0].id}`
+  if (planned.length > 1) throw new Error(`Ambiguous planned parent "${ref}" - pass its ID`)
+  const resolved = await resolveModelRef(workspaceId, ref)
+  if (resolved.fileId) throw new Error(`"${ref}" is a file; a parent must be a system or platform`)
+  return resolved.systemId ?? resolved.infraId!
+}
+
+// Propose on a sheet that existing nodes belong inside parent (db.ProposeSheetMove).
+async function moveOnSheet(workspaceId: string, sheetId: string, refs: string[], parent: string | null) {
+  const elements = []
+  for (const ref of refs) elements.push({ ...await resolveModelRef(workspaceId, ref), addedBy: 'agent' })
+  const res = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/elements/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, elements, parent }),
+  })
+  if (!res.ok) throw new Error(`move on sheet failed: ${await res.text()}`)
+  return await res.json() as Array<{ label: string; parentSystemId: string | null }>
+}
+
 // Piggyback trailer: Ambio owns one channel into every agent's context on
 // every MCP host - its own tool results. When canvas messages are queued,
 // every response carries a one-line hint (except on the canvas tools
@@ -650,11 +677,11 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Draw/reuse a sheet for review before structural code changes. connect draws dependencies; remove proposes deleting live nodes. compare checks structure. After building: bind, apply_nesting, recompare; resolve needs a match and latest revision/token. export/import Markdown.',
+    description: 'Draw/reuse a sheet for review before structural code changes. connect draws dependencies; move puts members in target; remove proposes deleting live nodes. compare checks structure. After building: bind, apply_nesting, recompare; resolve needs a match and latest revision/token. export/import Markdown.',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', enum: ['list','get','create','add','remove','restore','annotate','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
+        op: { type: 'string', enum: ['list','get','create','add','move','remove','restore','annotate','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
         sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
         includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
         revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
@@ -664,7 +691,7 @@ const CORE_TOOLS = [
         nodeId: { type: 'string', description: 'apply_nesting: requirement node ID returned by compare' },
         name: { type: 'string' },
         purpose: { type: 'string' },
-        members: { type: 'array', items: { type: 'string' }, description: 'File paths or live node IDs (add, remove, restore)' },
+        members: { type: 'array', items: { type: 'string' }, description: 'File paths or live node IDs (add, move, remove, restore)' },
         target: { type: 'string' },
         body: { type: 'string' },
         from: { type: 'string', description: 'connect: planned/live node ID on this sheet' },
@@ -702,7 +729,7 @@ const CORE_TOOLS = [
   },
   {
     name: 'plan_element',
-    description: 'Before writing structural code, draw a system/file/infra or class onto a sheet. Agent proposals await human approval; read get_build_plan(id) before implementing.',
+    description: 'Before writing structural code, draw a system/file/infra or class onto a sheet, in its parent; owns moves existing files/systems into it. Agent proposals await human approval; read get_build_plan(id) before implementing.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -710,6 +737,8 @@ const CORE_TOOLS = [
         name: { type: 'string' },
         kind: { type: 'string' },
         declaredPath: { type: 'string', description: 'Where it will live' },
+        parent: { type: 'string', description: 'Live or planned system it sits in' },
+        owns: { type: 'array', items: { type: 'string' }, description: 'Existing files/systems that move into it' },
         members: { type: 'array', items: { type: 'object' } },
         notes: { type: 'string' },
         shape: { type: 'string' },
@@ -905,12 +934,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         await postAgentActivity(project.workspaceId, 'Agent queried systems overview', 'info')
         const sql = `
           SELECT id, name, parent_id as parentId, source, description, depth,
-                 (SELECT COUNT(*) FROM files WHERE system_id = systems.id) as fileCount
+                 (SELECT COUNT(*) FROM files WHERE system_id = systems.id) as directFileCount
           FROM systems
           WHERE workspace_id = ?
           ORDER BY depth ASC, name ASC
         `
-        result = await queryDb(project.workspaceId, sql, [project.workspaceId])
+        const systems = await queryDb(project.workspaceId, sql, [project.workspaceId]) as Array<{ id: string; parentId: string | null; directFileCount: number }>
+        // fileCount is every file inside the system, sub-systems included: a
+        // parent whose files all sit in its sub-systems is not empty.
+        const children = new Map<string, string[]>()
+        for (const system of systems) if (system.parentId) children.set(system.parentId, [...(children.get(system.parentId) ?? []), system.id])
+        const direct = new Map(systems.map(system => [system.id, system.directFileCount]))
+        const total = (id: string, seen = new Set<string>()): number => {
+          if (seen.has(id)) return 0
+          seen.add(id)
+          return (direct.get(id) ?? 0) + (children.get(id) ?? []).reduce((sum, child) => sum + total(child, seen), 0)
+        }
+        result = systems.map(system => ({ ...system, fileCount: total(system.id) }))
         break
       }
 
@@ -932,13 +972,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const sysRows = await queryDb(project.workspaceId, 'SELECT name FROM systems WHERE id = ?', [sysId])
         const sysLabel = sysRows.length > 0 ? sysRows[0].name : sysId
         await postAgentActivity(project.workspaceId, `Agent queried files for system "${sysLabel}"`, 'info')
-        const sql = `
-          SELECT id, rel_path as relPath, language, line_count as lineCount
-          FROM files
-          WHERE system_id = ?
-          ORDER BY rel_path ASC
-        `
-        result = await queryDb(project.workspaceId, sql, [sysId])
+        // Every file inside the system, sub-systems included, each with the
+        // system that directly holds it: a parent whose files all live in its
+        // sub-systems used to read as having none.
+        // (/api/query takes only SELECT, so the sub-system tree is walked here.)
+        const all = await queryDb(project.workspaceId, 'SELECT id, parent_id as parentId FROM systems WHERE workspace_id = ?', [project.workspaceId]) as Array<{ id: string; parentId: string | null }>
+        const tree = new Set([sysId])
+        for (let grew = true; grew;) {
+          grew = false
+          for (const system of all) if (system.parentId && tree.has(system.parentId) && !tree.has(system.id)) { tree.add(system.id); grew = true }
+        }
+        const ids = [...tree]
+        result = await queryDb(project.workspaceId, `
+          SELECT f.id, f.rel_path as relPath, f.language, f.line_count as lineCount,
+                 s.id as systemId, s.name as system
+          FROM files f JOIN systems s ON s.id = f.system_id
+          WHERE f.system_id IN (${ids.map(() => '?').join(',')})
+          ORDER BY s.name ASC, f.rel_path ASC
+        `, ids)
         break
       }
 
@@ -1050,7 +1101,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             if (rows.length > 0) { nodes.push({ type: 'infra', ...rows[0] }); continue }
           } catch { /* ignore */ }
         }
-        result = { nodes, dependencies: resultDependencies }
+        // Dependency edges miss containment: name a system's sub-systems too.
+        const children = await queryDb(project.workspaceId,
+          'SELECT id, name, (SELECT COUNT(*) FROM files WHERE system_id = systems.id) as directFileCount FROM systems WHERE parent_id = ? ORDER BY name ASC', [id])
+        result = { nodes, dependencies: resultDependencies, ...(children.length ? { children } : {}) }
         break
       }
 
@@ -1691,10 +1745,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_symbols_for_files': {
-        const fileIds = args.fileIds as string[]
-        if (!fileIds || fileIds.length === 0) {
+        const refs = (args.fileIds as string[] | undefined) ?? []
+        if (refs.length === 0) {
           result = []
           break
+        }
+        // The schema promises IDs or relative paths: resolve paths to IDs.
+        const fileIds: string[] = []
+        for (const ref of refs) {
+          const resolved = await resolveModelRef(project.workspaceId, ref).catch(() => null)
+          if (!resolved?.fileId) throw new Error(`No indexed file matches "${ref}"`)
+          fileIds.push(resolved.fileId)
         }
         
         await postAgentActivity(project.workspaceId, `Agent queried symbols for ${fileIds.length} files`, 'info')
@@ -2470,6 +2531,15 @@ Steps to execute:
         break
       }
 
+      case 'move_on_sheet': {
+        const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const target = typeof args.target === 'string' && args.target.trim() ? args.target : null
+        const parent = target ? await resolveSheetParent(project.workspaceId, sheetId, target) : null
+        const moved = await moveOnSheet(project.workspaceId, sheetId, (args.members as string[]) ?? [], parent)
+        result = { moved: moved.map(element => ({ node: element.label, parent: element.parentSystemId })), note: 'Proposed on the sheet only; the Floor is unchanged until the work is built and compared.' }
+        break
+      }
+
       case 'add_to_sheet': {
         const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
         const elements = []
@@ -2572,6 +2642,7 @@ Steps to execute:
 
       case 'plan_element': {
         const sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        const parentSystemId = args.parent ? await resolveSheetParent(project.workspaceId, sheetId, args.parent as string) : null
         const res = await fetch(`${API_BASE}/api/sheets/${encodeURIComponent(sheetId)}/planned`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2584,13 +2655,19 @@ Steps to execute:
             notes: args.notes ?? '',
             shape: args.shape ?? '',
             color: args.color ?? '',
+            parentSystemId,
             createdBy: 'agent',
           }),
         })
         if (!res.ok) throw new Error(`plan element failed: ${await res.text()}`)
         const planned = await res.json() as any
+        // What it takes over moves inside it on the sheet, so the proposal
+        // shows the new boundary with its files, not an empty box.
+        const owns = (args.owns as string[] | undefined) ?? []
+        const moved = owns.length ? await moveOnSheet(project.workspaceId, sheetId, owns, `planned:${planned.id}`) : []
         result = {
           ...planned,
+          ...(moved.length ? { owns: moved.map(element => element.label) } : {}),
           instruction: planned.approvalStatus === 'pending'
             ? 'Tell the human this sheet name/ID and return the proposal for review. Read get_build_plan(id) on resume; do not implement pending elements or poll continuously.'
             : 'This element is approved.',

@@ -1890,6 +1890,31 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Overlaying those full rows gives the one canonical layout input used by
   // projection, drag/drop, resize, and tidy. Legacy columns are read only as an
   // upgrade fallback for a node whose canonical row has not arrived yet.
+  /**
+   * Nodes a sheet moves to another parent without placing them (an agent's
+   * proposed move, db.ProposeSheetMove): node ID -> its new parent. The layout
+   * then places each inside that parent instead of where the Floor has it.
+   */
+  const sheetMoves = useMemo(() => {
+    const moves = new Map<string, string | null>()
+    const floorParent = new Map(floorLayouts.map(layout => [layout.nodeId, layout.parentNodeId ?? null]))
+    const semanticParent = new Map<string, string | null>([
+      ...systems.map(system => [system.id, system.parentId ?? null] as const),
+      ...files.map(file => [file.id, file.systemId ?? null] as const),
+    ])
+    for (const layer of visibleLayers) {
+      const canonicalIds = new Set(layer.layouts.map(layout => layout.nodeId))
+      for (const element of layer.elements) {
+        const nodeId = element.systemId ?? element.fileId
+        if (!nodeId || canonicalIds.has(nodeId) || !isUnplaced(element)) continue
+        const current = floorParent.has(nodeId) ? floorParent.get(nodeId)! : semanticParent.get(nodeId) ?? null
+        const wanted = element.parentSystemId ?? null
+        if (wanted !== current) moves.set(nodeId, wanted)
+      }
+    }
+    return moves
+  }, [floorLayouts, systems, files, visibleLayers])
+
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
@@ -1910,8 +1935,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         const nodeId = element.systemId ?? element.fileId ?? element.infraId
         if (!nodeId || canonicalIds.has(nodeId)) continue
         // Added with no geometry (an agent naming it for the sheet): it stays
-        // exactly where the Floor has it, rather than jumping to the origin.
-        if (isUnplaced(element)) continue
+        // exactly where the Floor has it, rather than jumping to the origin -
+        // unless the sheet moves it, when the layout places it in its new parent.
+        if (isUnplaced(element)) {
+          if (sheetMoves.has(nodeId)) byId.delete(nodeId)
+          continue
+        }
         const previous = byId.get(nodeId)
         const nodeType: FloorNodeType = element.systemId ? 'system' : element.fileId ? 'file' : 'infra'
         const infra = liveInfra.get(nodeId)
@@ -1966,7 +1995,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       for (const layout of layer.layouts) byId.set(layout.nodeId, layout)
     }
     return [...byId.values()]
-  }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay])
+  }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
   const sheetSystemIds = useMemo(() => new Set([
     ...systems.map(system => system.id),
     ...overlayPlanned.filter(node => node.kind === 'system').map(node => `planned:${node.id}`),
@@ -2030,7 +2059,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         createdAt: 0,
         updatedAt: 0,
       }))
-    const virtualSystems: DbSystem[] = systems.map(system => ({ ...system })).concat(plannedSystems)
+    const virtualSystems: DbSystem[] = systems.map(system => ({ ...system, ...(sheetMoves.has(system.id) ? { parentId: sheetMoves.get(system.id) ?? null } : {}) })).concat(plannedSystems)
     const plannedFiles: DbFile[] = visiblePlanned
       .filter(p => p.kind !== 'system' && p.kind !== 'infra')
       .map(p => {
@@ -2056,7 +2085,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           indexedAt: 0,
         }
       })
-    const virtualFiles: DbFile[] = files.map(file => ({ ...file })).concat(plannedFiles)
+    const virtualFiles: DbFile[] = files.map(file => ({ ...file, ...(sheetMoves.has(file.id) ? { systemId: sheetMoves.get(file.id) ?? null } : {}) })).concat(plannedFiles)
     const plannedInfra: DbInfraNode[] = visiblePlanned
       .filter(p => p.kind === 'infra')
       .map(p => {
@@ -2230,7 +2259,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts])
+  }, [rfNodes, visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, isTransitioningLayout, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, selectedNodeId, selectionRevision, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves])
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])

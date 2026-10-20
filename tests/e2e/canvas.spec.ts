@@ -2355,6 +2355,58 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   await expect(review).toHaveCount(0)
 })
 
+test('a system an agent names stays where the Floor has it, and a proposed move draws the file inside the new system', async () => {
+  const { systemId, parentId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    const file = state.files.find((candidate: { id: string }) => candidate.id === 'file_canvas')
+    const system = state.systems.find((candidate: { id: string }) => candidate.id === file.systemId)
+    return { systemId: system.id as string, parentId: (system.parentId ?? null) as string | null }
+  })
+  const floorBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+  const agentSheet = {
+    id: 'sheet_split', workspaceId: 'demo', name: 'Split Payments', purpose: '', kind: 'structure',
+    folder: '', createdBy: 'agent', revision: 1, createdAt: 9, updatedAt: 9,
+  }
+  // What an agent's draw leaves: members and a proposal with no geometry, and
+  // the file it takes over moved under the proposal (db.ProposeSheetMove).
+  const unplaced = { positionX: 0, positionY: 0, width: null, height: null, scale: 1, tombstoneAck: 0, ghost: 0, addedBy: 'agent', symbolRef: null, infraId: null }
+  const elements = [
+    { ...unplaced, id: 'el_system', sheetId: 'sheet_split', systemId, fileId: null, label: 'System', parentSystemId: parentId },
+    { ...unplaced, id: 'el_file', sheetId: 'sheet_split', systemId: null, fileId: 'file_canvas', label: 'canvas', parentSystemId: 'planned:plan_split' },
+  ]
+  const proposal = {
+    id: 'plan_split', sheetId: 'sheet_split', workspaceId: 'demo', kind: 'system', name: 'Payments Split',
+    declaredPath: '', members: '[]', metadata: '{}', status: 'planned', approvalStatus: 'pending',
+    realizedFileId: null, notes: '', shape: '', color: '', positionX: 0, positionY: 0,
+    width: null, height: null, scale: 1, parentSystemId: null, createdBy: 'agent',
+  }
+  await page.route(/\/api\/sheets\/sheet_split\?/, route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ sheet: agentSheet, elements, annotations: [], planned: [proposal], plannedEdges: [], layouts: [], removals: [] }),
+  }))
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), agentSheet)
+  await page.getByRole('button', { name: 'Open Sheet' }).click()
+  const review = page.getByLabel('Agent proposals to review')
+  await expect(review).toContainText('Payments Split')
+  // The named system has not moved or resized.
+  const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
+  expect(floorBox && sheetBox).toBeTruthy()
+  for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
+  // The file the proposal takes over is drawn inside it.
+  await review.getByRole('button', { name: /Payments Split/ }).first().click()
+  const plannedNode = page.locator('.react-flow__node[data-id="planned:plan_split"]')
+  const fileNode = page.locator('.react-flow__node[data-id="file_canvas"]')
+  await expect(fileNode).toBeAttached()
+  await expect.poll(async () => {
+    const outer = await plannedNode.boundingBox()
+    const inner = await fileNode.boundingBox()
+    return !!outer && !!inner && inner.x >= outer.x && inner.y >= outer.y
+      && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
+  }, { timeout: 5_000 }).toBe(true)
+  await page.screenshot({ path: 'test-results/sheet-proposed-move.png' })
+  await page.unroute(/\/api\/sheets\/sheet_split\?/)
+})
+
 test('Edit → Undo and Redo step through map changes made on the Floor', async () => {
   const calls: string[] = []
   page.on('request', request => {

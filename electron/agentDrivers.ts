@@ -161,13 +161,12 @@ const codex: AgentDriver = {
       stdin: turn.prompt,
       args: [
         'exec', ...(turn.resume ? ['resume', turn.resume] : []), '--json',
-        // Codex's sandbox is the permission: a question or a proposal runs any
-        // command but cannot write (read-only); a build has full access.
-        // `codex exec resume` has no --sandbox (codex-cli 0.162), so a continued
-        // session is given the same sandbox as a config override.
+        // Codex's sandbox is the permission (see codexSandbox). `codex exec
+        // resume` has no --sandbox (codex-cli 0.162), so a continued session is
+        // given the same sandbox as a config override.
         ...(turn.resume
-          ? ['-c', `sandbox_mode=${JSON.stringify(turn.mode === 'build' ? 'danger-full-access' : 'read-only')}`]
-          : ['--sandbox', turn.mode === 'build' ? 'danger-full-access' : 'read-only']),
+          ? ['-c', `sandbox_mode=${JSON.stringify(codexSandbox(turn.mode))}`]
+          : ['--sandbox', codexSandbox(turn.mode)]),
         '--skip-git-repo-check',
         ...(turn.model ? ['-c', `model=${JSON.stringify(turn.model)}`] : []),
         '-c', 'approval_policy="never"',
@@ -389,6 +388,18 @@ export const DRIVER_CLI_NAMES: Record<string, string[]> = {
   'devin-cli': ['devin'],
   'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
   'antigravity-cli': ['agy'],
+}
+
+/**
+ * Codex's sandbox for a turn. A question or a proposal runs any command but
+ * cannot write (read-only); a build has full access. On Windows Codex's
+ * read-only sandbox cannot start a shell at all ("helper_unknown_error: setup
+ * refresh had errors"), which left a question or a proposal unable to read a
+ * single source file, so there every mode runs with full access and the turn's
+ * instructions - not the sandbox - keep a question or proposal from editing.
+ */
+export function codexSandbox(mode: string | undefined, platform: NodeJS.Platform = process.platform): 'read-only' | 'danger-full-access' {
+  return mode === 'build' || platform === 'win32' ? 'danger-full-access' : 'read-only'
 }
 
 export function turnMode(value: unknown): TurnMode {
