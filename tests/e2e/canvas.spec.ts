@@ -2953,5 +2953,14 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
   await expect(prose.locator('hr')).toHaveCount(1)
   await expect(prose.locator('table td')).toHaveText(['build_query', 'executor'])
   await page.screenshot({ path: 'test-results/agent-markdown.png' })
+  // A chip selects its file and brings the map to it.
+  const viewport = page.locator('.react-flow__viewport')
+  const before = await viewport.getAttribute('style')
+  await prose.locator('.ambio-inbox__file-link').first().click()
+  await expect.poll(() => page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return state.selectedNodeId === state.files[0].id
+  })).toBe(true)
+  await expect.poll(() => viewport.getAttribute('style'), { timeout: 5_000 }).not.toBe(before)
   await page.unroute(/\/api\/canvas\/history\?/)
 })

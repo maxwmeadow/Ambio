@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { fileLinkTarget, inlineFilePath, normalizeAgentText } from './agentMessageFormat'
@@ -14,11 +15,22 @@ function CodeBlock({ text, language }: { text: string; language?: string }) {
 /** A file the agent named: its path in the project, opening it on the map when Ambio indexed it. */
 function FileChip({ relPath, absolute, lines, fileId }: { relPath?: string; absolute: string; lines?: string; fileId?: string }) {
   const label = `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
+  const { fitView, getInternalNode } = useReactFlow()
   const open = () => {
-    if (fileId) {
-      useGraphStore.getState().setSelectedNode(fileId)
-      useGraphStore.getState().setInspectedNode(fileId)
-    } else window.ambio?.showInFolder(absolute)
+    if (!fileId) { window.ambio?.showInFolder(absolute); return }
+    // As search does: open its system if it is closed, select it, and fly to it.
+    const graph = useGraphStore.getState()
+    const systemId = graph.files.find(file => file.id === fileId)?.systemId
+    if (systemId && !graph.expandedSystemIds.has(systemId)) graph.toggleSystemExpanded(systemId)
+    graph.setSelectedNode(fileId)
+    graph.setInspectedNode(fileId)
+    // Selecting reveals a card hidden at this zoom; fly once it has a size.
+    let tries = 0
+    const fly = () => {
+      if (getInternalNode(fileId)?.measured.width || ++tries > 20) void fitView({ nodes: [{ id: fileId }], duration: 850, padding: 0.5 })
+      else setTimeout(fly, 50)
+    }
+    setTimeout(fly, 50)
   }
   return <button type="button" className="ambio-inbox__file-link" title={fileId ? `Show ${relPath} on the map` : absolute} onClick={open}>{label}</button>
 }
