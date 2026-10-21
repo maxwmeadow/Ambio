@@ -54,6 +54,8 @@ export interface SystemNodeData {
   /** On a sheet that proposes a rename: the name the map has today. */
   renamedFrom?: string
   source: DbSystem['source']
+  /** "repository" for the frame holding one repository in a project. */
+  kind?: string
   color: string
   colorRgb: string
   description: string | null

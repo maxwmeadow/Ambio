@@ -278,3 +278,25 @@ test('a folder of repositories shows each repository and its branch', async () =
     await page.screenshot({ path: join(SHOTS, 'repositories.png') })
   }
 })
+
+test('each repository in a folder of repositories is a frame on the Floor with its branch', async () => {
+  await launch(REPOS)
+  await page.evaluate(() => {
+    const store = (window as unknown as { __ambioGraphStore: { getState: () => { systems: Array<Record<string, unknown>> }; setState: (patch: Record<string, unknown>) => void } }).__ambioGraphStore
+    const frames: Record<string, string> = { sys_canvas: 'web', sys_daemon: 'services/api' }
+    store.setState({
+      systems: store.getState().systems.map(system => frames[system.id as string]
+        ? { ...system, name: frames[system.id as string], kind: 'repository' }
+        : system),
+    })
+  })
+  const web = page.locator('.react-flow__node[data-id="sys_canvas"]')
+  await expect(web.locator('.ambio-repository-kicker')).toHaveText('Repository · redesign')
+  await expect(page.locator('.react-flow__node[data-id="sys_daemon"] .ambio-repository-kicker')).toHaveText('Repository · main')
+  await expect(page.locator('.react-flow__node[data-id="sys_mcp"] .ambio-repository-kicker')).toHaveCount(0)
+  if (SHOTS) {
+    await page.mouse.move(700, 600)
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(SHOTS, 'repository-frames.png') })
+  }
+})

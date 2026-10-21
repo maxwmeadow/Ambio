@@ -501,7 +501,8 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			}
 			snapshot, _ := db.GetCanvasSnapshot(sqlDB, root.WorkspaceID)
 			needsCluster := snapshot != nil && len(snapshot.Files) > 0 &&
-				(len(snapshot.Systems) == 0 || root.ClassifierVersion < indexer.ClassifierVersion)
+				(len(snapshot.Systems) == 0 || root.ClassifierVersion < indexer.ClassifierVersion ||
+					indexer.NeedsRepositoryFrames(sqlDB, root))
 			if needsCluster {
 				if err := indexer.ClusterOnly(sqlDB, root); err != nil {
 					log.Printf("api: cluster-only %s: %v", root.Path, err)
@@ -702,13 +703,7 @@ func (s *Server) pushCheckoutChanges(sqlDB *sql.DB, workspaceID, last string) st
 	return fingerprint
 }
 
-// nestedRepositoryDepth bounds how deep a root is searched for repositories.
-const nestedRepositoryDepth = 4
-
-// nestedRepositories lists the Git repositories inside a root - several
-// repositories under a parent folder, or submodules - relative to it.
+// nestedRepositories lists the Git repositories inside a root.
 func (s *Server) nestedRepositories(root db.Root) []string {
-	return gitworktree.FindRepositories(root.Path, nestedRepositoryDepth, func(relDir, name string) bool {
-		return indexer.SkipFolder(root, relDir, name)
-	})
+	return indexer.Repositories(root)
 }
