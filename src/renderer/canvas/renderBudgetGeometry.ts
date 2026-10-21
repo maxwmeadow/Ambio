@@ -3,6 +3,29 @@ export interface SceneRecord {
   id: string; parentId?: string; x: number; y: number; width: number; height: number
   hidden: boolean; detail: boolean; kind: string
 }
+interface SceneNode {
+  id: string; parentId?: string; position: { x: number; y: number }; type?: string; hidden?: boolean
+  style?: { width?: unknown; height?: unknown }; measured?: { width?: number; height?: number }
+  initialWidth?: number; initialHeight?: number; data: Record<string, unknown>
+}
+/** Preserve the spatial revision across presentation/selection changes. Compare
+ * numbers directly instead of allocating every record and serializing the full
+ * scene on each click. Order is significant for deterministic query tie breaks. */
+export function sceneRecords(nodes: readonly SceneNode[], previous: SceneRecord[] = []): SceneRecord[] {
+  let changed = nodes.length !== previous.length
+  const next = nodes.map((node, i) => {
+    const old = previous[i]
+    const width = Number(node.style?.width ?? node.measured?.width ?? node.initialWidth ?? 1)
+    const height = Number(node.style?.height ?? node.measured?.height ?? node.initialHeight ?? 1)
+    const hidden = Boolean(node.hidden), kind = node.type ?? 'file'
+    const detail = node.type === 'system' ? Boolean(node.data.childrenVisible) : Boolean(node.data.detailRevealed)
+    if (old && old.id === node.id && old.parentId === node.parentId && old.x === node.position.x && old.y === node.position.y &&
+      Object.is(old.width, width) && Object.is(old.height, height) && old.hidden === hidden && old.kind === kind && old.detail === detail) return old
+    changed = true
+    return { id: node.id, parentId: node.parentId, x: node.position.x, y: node.position.y, width, height, hidden, kind, detail }
+  })
+  return changed ? next : previous
+}
 export interface ViewRect { x: number; y: number; width: number; height: number }
 export interface CameraQuery { x: number; y: number; zoom: number; width: number; height: number; moving: boolean }
 export interface IndexedRecord extends SceneRecord { rect: ViewRect }

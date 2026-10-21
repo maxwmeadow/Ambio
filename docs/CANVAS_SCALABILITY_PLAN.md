@@ -2,7 +2,8 @@
 
 Date: 2026-10-20
 Status: approved for staged execution by Max on 2026-10-20; first phase-1 baseline
-complete. Scene/worker/renderer implementation and wider acceptance remain open.
+complete, first phase-2 component-budget slice implemented after consolidation.
+Worker geometry, progressive scene/data adoption and wider acceptance remain open.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
@@ -67,6 +68,12 @@ fails before useful interaction; hidden React Flow and minimap wrappers create
 per-entity components/subscriptions despite tiny DOM counts. This is the first
 scene/materialization bottleneck to address, alongside synchronous geometry.
 The stricter 50-cycle memory gate also failed; memory plateau is not established.
+
+Post-consolidation implementation and evidence:
+[CANVAS_COMPONENT_BUDGET.md](testing/CANVAS_COMPONENT_BUDGET.md). Native component
+culling and a single-subscriber minimap address the hidden wrapper tree while
+retaining canonical geometry in React Flow. The remaining full-scene lookup and
+projection costs require the scene-controller boundary below.
 
 Extend `tests/e2e/canvas-performance.spec.ts` and the existing local metrics;
 keep the existing interaction/visual suite. Add a shared deterministic fixture

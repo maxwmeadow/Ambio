@@ -3,6 +3,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
+import { canvasComponentCounts, installCanvasCameraTrace } from './canvasComponentCounts'
 
 // Structural performance regressions are deterministic across machines. Frame
 // timings belong in profiling runs, rather than machine-dependent CI limits.
@@ -217,7 +218,13 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
           requestAnimationFrame(frame)
           return { ...w.__ambioPerfMetrics }
         })
+        // A live update while Flow queues a fit must preserve its destination
+        // and duration. Inline default options used to overwrite that request.
+        await page.evaluate(installCanvasCameraTrace, true)
         await navigate(snapshot.files[0].relPath)
+        await expect.poll(() => page.evaluate(id => (window as any).__canvasCameraTrace.some((event: any) =>
+          event.selected === id && event.options?.duration === 850), snapshot.files[0].id)).toBe(true)
+        expect(await page.evaluate(() => (window as any).__canvasFitInterrupted)).toBe(true)
         const mapBox = (await canvas.boundingBox())!
         await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
         await page.mouse.wheel(0, 80)
@@ -282,6 +289,11 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
         root.querySelector('[data-perf-badge="outer"]')?.remove()
         root.querySelector('[data-perf-badge="inner"]')?.parentElement?.remove()
       })
+      const components = await page.evaluate(canvasComponentCounts)
+      expect(components.canonicalNodes).toBeGreaterThan(40)
+      expect(components.wrappers).toBeGreaterThan(0)
+      expect(components.wrappers).toBeLessThanOrEqual(Math.max(64, components.domNodes * 2))
+      expect(components.minimapWrappers).toBe(0)
     } finally {
       await app?.close()
       if (dirname(resolve(home)) === resolve(tmpdir()) && basename(home).startsWith('ambio-canvas-perf-')) rmSync(home, { recursive: true, force: true })

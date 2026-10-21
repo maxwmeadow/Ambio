@@ -3,7 +3,7 @@ import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, use
 import { useStoreApi, type Edge, type Node } from '@xyflow/react'
 import { unstable_batchedUpdates } from 'react-dom'
 import { createRenderBudgetStore } from './renderBudgetStore'
-import { buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
+import { buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, sceneRecords, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
 import { getPerfMetrics } from './perfMetrics'
 
 type BudgetStore = ReturnType<typeof createRenderBudgetStore>
@@ -17,19 +17,9 @@ export function useNodeRenderTier(id: string) {
   return { tier, promote: () => budget?.promote(id, false) }
 }
 
-function recordFor(node: Node): SceneRecord {
-  return {
-    id: node.id, parentId: node.parentId, x: node.position.x, y: node.position.y,
-    width: Number(node.style?.width ?? node.measured?.width ?? node.initialWidth ?? 1),
-    height: Number(node.style?.height ?? node.measured?.height ?? node.initialHeight ?? 1),
-    hidden: Boolean(node.hidden), kind: node.type ?? 'file',
-    detail: node.type === 'system' ? Boolean(node.data.childrenVisible) : Boolean(node.data.detailRevealed),
-  }
-}
-
 export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: readonly Edge[]) {
-  // React Flow needs mounted handle geometry for a relationship even when an
-  // endpoint is outside the viewport. Keep those cheap endpoint shells alive.
+  // Initialize relationship handles even outside the viewport. Flow retains
+  // their measured geometry when its component culler releases those shells.
   const edgeEndpoints = useMemo(() => new Set(edges.filter(edge => !edge.hidden && edge.style?.opacity !== 0)
     .flatMap(edge => [edge.source, edge.target])), [edges])
   const flow = useStoreApi()
@@ -37,12 +27,16 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
   budget.configure(enabled)
   const [visible, setVisible] = useState<Set<string> | null>(null)
   const controller = useRef<{ update: (records: SceneRecord[]) => void } | null>(null)
-  const records = useMemo(() => traceSync('scene.records', () => nodes.map(recordFor), nodes.length), [nodes])
-  // Runtime/selection updates should not rebuild a spatial index.
-  const signature = useMemo(() => traceSync('scene.signature', () => JSON.stringify(records), records.length), [records])
+  const previousRecords = useRef<SceneRecord[]>([])
+  const records = useMemo(() => traceSync('scene.records', () => {
+    const next = sceneRecords(nodes, previousRecords.current)
+    previousRecords.current = next
+    return next
+  }, nodes.length), [nodes])
   const latestRecords = useRef(records); latestRecords.current = records
   const metrics = getPerfMetrics()
   const projectionCache = useRef(new Map<string, { source: Node; hidden: boolean; node: Node }>())
+  const previousProjection = useRef<Node[]>([])
 
   useLayoutEffect(() => {
     if (!enabled) { setVisible(null); return }
@@ -50,6 +44,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
     let queryFrame = 0, mountFrame = 0, settleTimer = 0, retainTimer = 0
     let bounds: ViewRect | null = null, indexedZoom = 0, lastMove = 0, flightUntil = 0
     let source: SceneRecord[] = [], local: ReturnType<typeof buildSceneIndex> | undefined
+    let currentIds = new Set<string>()
     let worker: Worker | undefined
     const sentQueries = new Map<number, number>()
     let recent = new Map<string, number>()
@@ -77,7 +72,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       // During a fast flight, an older buffer may no longer cover the camera.
       if (!contains(message.bounds, cameraRect(camera()))) { schedule(true); return }
       accepted = message.request; bounds = message.bounds; indexedZoom = message.zoom
-      const now = performance.now(), currentIds = new Set(source.filter(r => !r.hidden).map(r => r.id))
+      const now = performance.now()
       const next = new Set(message.visible.map(r => r.id))
       for (const id of next) recent.set(id, now)
       // Keep at most one recent screenful, for a short grace period.
@@ -116,7 +111,9 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       if (!queryFrame) queryFrame = requestAnimationFrame(query)
     }
     const update = (next: SceneRecord[]) => {
+      if (source === next) return
       source = next; scene++; bounds = null; local = undefined
+      currentIds = new Set(next.filter(record => !record.hidden).map(record => record.id))
       if (worker) traceSync('worker.scene-post', () => worker!.postMessage({ op: 'scene', scene, records: source, trace: perfTrace.enabled() }), source.length)
       schedule(true)
     }
@@ -169,33 +166,44 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       budget.clear()
     }
   }, [enabled, flow, budget, metrics])
-  useLayoutEffect(() => { controller.current?.update(latestRecords.current) }, [signature])
+  useLayoutEffect(() => { controller.current?.update(latestRecords.current) }, [records])
 
   const projected = useMemo(() => traceSync('scene.visibility-project', () => {
-    if (!enabled) return nodes
+    if (!enabled) {
+      projectionCache.current.clear()
+      previousProjection.current = nodes
+      return nodes
+    }
     const previous = projectionCache.current
     const state = flow.getState()
     const initialCamera: CameraQuery = { x: state.transform[0], y: state.transform[1], zoom: state.transform[2], width: state.width, height: state.height, moving: true }
-    const next = new Map<string, { source: Node; hidden: boolean; node: Node }>()
-    const result = nodes.map(node => {
+    const result = nodes.map((node, index) => {
       // Selection, gestures and live signals have priority over the background
       // budget. A hidden semantic descendant stays hidden unless explicitly
       // revealed by the existing navigation/activity projection.
       const important = edgeEndpoints.has(node.id) || node.selected || node.dragging || node.data.fx || (node.data.agentPresence as unknown[] | undefined)?.length || node.data.isDropTarget
-      const hidden = Boolean(node.hidden) || !(important || (visible ? visible.has(node.id) : initialRootVisible(recordFor(node), initialCamera)))
+      const hidden = Boolean(node.hidden) || !(important || (visible ? visible.has(node.id) : initialRootVisible(records[index], initialCamera)))
       const old = previous.get(node.id)
-      if (old?.source === node && old.hidden === hidden) { next.set(node.id, old); return old.node }
+      if (old?.source === node && old.hidden === hidden) return old.node
       const width = Number(node.style?.width ?? node.initialWidth), height = Number(node.style?.height ?? node.initialHeight)
       const projectedNode = { ...node, hidden,
         data: hidden && !node.hidden ? { ...node.data, renderBudgetHidden: true } : node.data,
         // Authored dimensions are already canonical. Avoid force-mounting
         // off-screen wrappers simply to discover their initial size.
         measured: width > 0 && height > 0 ? { width, height, ...node.measured } : node.measured }
-      next.set(node.id, { source: node, hidden, node: projectedNode })
+      previous.set(node.id, { source: node, hidden, node: projectedNode })
       return projectedNode
     })
-    projectionCache.current = next
+    // Camera replies do not need a fresh full-scene Map. Prune only when IDs
+    // actually disappear, and avoid another Flow adoption if nothing changed.
+    if (previous.size > nodes.length) {
+      const ids = new Set(nodes.map(node => node.id))
+      for (const id of previous.keys()) if (!ids.has(id)) previous.delete(id)
+    }
+    const prior = previousProjection.current
+    if (prior.length === result.length && result.every((node, index) => node === prior[index])) return prior
+    previousProjection.current = result
     return result
-  }, nodes.length), [nodes, enabled, visible, edgeEndpoints, flow])
+  }, nodes.length), [nodes, records, enabled, visible, edgeEndpoints, flow])
   return { nodes: projected, budget }
 }

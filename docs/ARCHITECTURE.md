@@ -541,19 +541,25 @@ or `window.__ambioBinDragDebug = true`.
 
 `canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
 canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
-camera queries; scene/request versions reject stale replies. Buffered culling and
-short retention replace React Flow's exact-edge culler above 40 composed nodes.
+camera queries; scene/request versions reject stale replies. Buffered detail
+admission and short retention work alongside React Flow's component culler above
+40 composed nodes. `sceneRecords` preserves the spatial revision across selection
+and live chrome changes without serializing the complete scene; retention
+membership is prepared once per spatial revision, not on each camera answer.
+The exact component culler yields during layout glides to preserve moving cards;
+large transition trees remain part of the scene-controller scalability work.
 Before the first worker reply, root shells already intersect that same viewport
 buffer instead of all mounting at once; active/selected/relationship priorities
 remain in force.
-Visible relationship endpoints retain their handle shells outside the viewport.
+Relationship endpoints initialize handles even outside the viewport, then retain
+their measured handle geometry when React Flow unmounts their shells.
 `useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
 consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
 has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
 chooses silhouette, compact identity or the original editable node. Selected and
 active nodes bypass background admission. Navigation prewarms one destination
 and shared symbol data while intermediate cards stay compact during motion.
-Compact cards retain sheet change badges; focused relationship endpoints retain
+Compact cards retain sheet change badges and checkout marks; focused relationship endpoints retain
 their full presentation along with the existing selection/activity exceptions.
 
 `nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
@@ -574,9 +580,23 @@ Electron input/frame/process-memory measurements live in
 `tests/fixtures/canvasScale.ts` and `tests/e2e/canvas-scale.spec.ts`; the real
 SQLite query/JSON benchmark is `internal/db/canvas_scale_bench_test.go`.
 See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
-DOM culling does not yet bound React components: React Flow and its minimap
-still create per-ID wrappers/subscriptions for hidden nodes. This is a measured
-scaling limit, not a completed progressive scene boundary.
+`CanvasMiniMap.tsx` has one React Flow store subscription and renders only admitted
+marks from `minimapGeometry.ts`; camera updates reuse their geometry. It preserves
+the existing passive minimap presentation without per-hidden-ID wrappers. Native
+E2E checks count actual React wrapper components as well as DOM nodes so hidden
+subscriptions cannot regress unnoticed. React Flow still owns all canonical nodes
+and scans them for visibility; full-scene projection, loading and geometry remain
+scale limits. This is not a completed progressive scene boundary.
+Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
+normal commit if a focused field is culled. React suppresses synthetic blur during
+deletion; relying on browser focus loss would discard an unfinished edit.
+`edges/ClippedDashedEdge.tsx` clips very long static dashed paths to the buffered
+camera before SVG stroking; `clippedEdgeGeometry.ts` preserves their canonical
+arc distance and real target markers. This avoids millions of offscreen dashes
+without changing relationship geometry or editing. Raster parity includes the
+HTML camera at ordinary/extreme zoom. React Flow defaults and connection/selection
+callbacks retain stable identities: changing the default fit options during a
+queued manual fit can otherwise replace its destination and duration.
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is

@@ -1,6 +1,7 @@
 import { SheetChangeBadge } from './SheetChangeBadge'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import React from 'react'
+import { useCommitOnUnmount } from './useCommitOnUnmount'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FileNodeData, NodeFx } from '../sceneTypes'
 import type { RuntimeNodeState } from '../../store/graphStore'
@@ -87,18 +88,19 @@ function useRetainedLivingFileSignal(fx: NodeFx | null | undefined): {
 }
 
 function EditableSymbolName({ value, editable, onCommit }: { value: string; editable: boolean; onCommit: (value: string) => void }) {
+  const inputRef = useCommitOnUnmount(commit)
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(value)
   React.useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
   if (!editable || !editing) return <span data-node-editable={editable ? 'true' : undefined} title={editable ? 'Double-click to edit' : value} onDoubleClick={editable ? event => {
     event.stopPropagation(); setEditing(true)
   } : undefined} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: editable ? 'text' : undefined, userSelect: 'none' }}>{value}</span>
-  const commit = () => {
+  function commit() {
     const next = draft.trim()
     setEditing(false)
     if (next && next !== value) onCommit(next)
   }
-  return <input autoFocus className="nodrag nopan" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit}
+  return <input ref={inputRef} autoFocus className="nodrag nopan" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit}
     onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
     onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') commit(); if (event.key === 'Escape') setEditing(false) }}
     style={{ width: '100%', minWidth: 0, border: 0, borderBottom: '1px solid var(--accent)', outline: 0, background: 'transparent', color: 'var(--text-primary)', font: 'inherit', padding: 0, userSelect: 'text' }} />

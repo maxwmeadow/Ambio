@@ -226,23 +226,33 @@ export function overlayTint(snapshot: CheckoutsSnapshot | null, rootId: string):
 export function buildCanvasOverlay(snapshot: CheckoutsSnapshot | null, lens: OverlayLens): CanvasOverlay {
   const overlay: CanvasOverlay = { byFile: new Map(), arrivals: new Map(), unplaced: 0, shown: [] }
   if (lens === 'off') return overlay
+  const others = list(snapshot?.checkouts).filter(checkout => !checkout.isFocused).map(checkout => checkout.rootId).sort()
+  const tints = new Map(others.map((id, index) => [id, OVERLAY_TINTS[index % OVERLAY_TINTS.length]]))
   for (const checkout of list(snapshot?.checkouts)) {
     if (checkout.isFocused) continue
     if (lens === 'agents' && list(checkout.agents).length === 0) continue
     overlay.shown.push(checkout)
     const name = checkoutName(checkout)
-    const tint = overlayTint(snapshot, checkout.rootId)
+    const tint = tints.get(checkout.rootId) ?? OVERLAY_TINTS[0]
     const arrivals = new Map<string, string[]>()
     for (const file of list(checkout.overlay)) {
       if (file.change === 'added') {
         if (!file.systemId) { overlay.unplaced += 1; continue }
-        arrivals.set(file.systemId, [...(arrivals.get(file.systemId) ?? []), file.path])
+        const paths = arrivals.get(file.systemId)
+        if (paths) paths.push(file.path)
+        else arrivals.set(file.systemId, [file.path])
       } else if (file.fileId) {
-        overlay.byFile.set(file.fileId, [...(overlay.byFile.get(file.fileId) ?? []), { rootId: checkout.rootId, name, tint, change: file.change }])
+        const mark: OverlayMark = { rootId: checkout.rootId, name, tint, change: file.change }
+        const marks = overlay.byFile.get(file.fileId)
+        if (marks) marks.push(mark)
+        else overlay.byFile.set(file.fileId, [mark])
       }
     }
     for (const [systemId, paths] of arrivals) {
-      overlay.arrivals.set(systemId, [...(overlay.arrivals.get(systemId) ?? []), { rootId: checkout.rootId, name, tint, paths }])
+      const arrival = { rootId: checkout.rootId, name, tint, paths }
+      const rails = overlay.arrivals.get(systemId)
+      if (rails) rails.push(arrival)
+      else overlay.arrivals.set(systemId, [arrival])
     }
   }
   return overlay

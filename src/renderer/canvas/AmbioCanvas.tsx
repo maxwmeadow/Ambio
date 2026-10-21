@@ -27,7 +27,6 @@ import {
   getViewportForBounds,
   Background,
   BackgroundVariant,
-  MiniMap,
   useReactFlow,
   useStoreApi,
   useNodesInitialized,
@@ -39,6 +38,7 @@ import {
   type OnNodeDrag,
   type OnMove,
   type Connection,
+  type OnConnectStart,
   applyNodeChanges,
   applyEdgeChanges,
   SelectionMode,
@@ -52,6 +52,7 @@ import { BudgetedSystemNode as SystemNode, BudgetedFileNode as FileNode, Budgete
 import { RenderBudgetContext, useCanvasRenderBudget } from './useCanvasRenderBudget'
 import { useCanvasFrameTiming } from './useCanvasFrameTiming'
 import { useCanvasFitView } from './useCanvasFitView'
+import { CanvasMiniMap } from './CanvasMiniMap'
 import { OrthogonalEdge } from './edges/OrthogonalEdge'
 import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -171,6 +172,15 @@ export const NODE_TYPES: NodeTypes = {
 const EDGE_TYPES = {
   orthogonal: OrthogonalEdge as any,
 }
+// StoreUpdater writes changed prop identities into Flow one at a time. In
+// particular, an inline fitViewOptions object can overwrite a queued explicit
+// navigation before its node batch resolves. Keep default inputs stable.
+const INITIAL_FIT_OPTIONS = { padding: 0.14, maxZoom: 1.0 }
+const INITIAL_VIEWPORT = { x: 0, y: 0, zoom: 0.5 }
+const DEFAULT_EDGE_OPTIONS = { type: 'orthogonal' }
+const FLOW_PRO_OPTIONS = { hideAttribution: true }
+const MULTI_SELECTION_KEYS = ['Meta', 'Control', 'Shift']
+const SELECTION_PAN_BUTTONS = [1, 2]
 
 type MoveTraceRow = Record<string, string | number | boolean | null>
 
@@ -2048,12 +2058,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Reconciliation easing must be off for the entire scene while dragging or
   // node bodies glide behind the cursor while their chrome tracks it exactly.
   const [isDraggingScene, setIsDraggingScene] = useState(false)
+  const onSelectionDragStart = useCallback(() => setIsDraggingScene(true), [])
+  const onSelectionDragStop = useCallback(() => setIsDraggingScene(false), [])
 
+  const sheetComposition = `${overlaySheetId ?? ''}|${visibleSheetIds.join('|')}`
+  const previousSheetComposition = useRef(sheetComposition)
   useLayoutEffect(() => {
+    // There is no previous layout to glide from on first mount (including a
+    // Strict Mode effect replay). Only actual sheet changes need this phase.
+    if (previousSheetComposition.current === sheetComposition) return
+    previousSheetComposition.current = sheetComposition
     setIsTransitioningLayout(true)
     const timer = window.setTimeout(() => setIsTransitioningLayout(false), 500)
     return () => window.clearTimeout(timer)
-  }, [overlaySheetId, visibleSheetIds.join('|')])
+  }, [sheetComposition])
 
   useEffect(() => {
     setInspectedNode(null)
@@ -3001,6 +3019,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // The node a connection was drawn FROM is its source, whichever of the
   // overlapping handles the pointer happened to grab.
   const connectionOrigin = useRef<string | null>(null)
+  const onConnectStart = useCallback<OnConnectStart>((_event, params) => {
+    connectionOrigin.current = params.nodeId
+  }, [])
   const drawnDirection = (conn: Connection): Connection => {
     const origin = connectionOrigin.current
     connectionOrigin.current = null
@@ -5247,7 +5268,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         edges={displayEdges}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        defaultEdgeOptions={{ type: 'orthogonal' }}
+        defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         onNodesChange={readOnly ? undefined : onNodesChange}
         onEdgesChange={readOnly ? undefined : onEdgesChange}
         onConnect={readOnly ? undefined : overlaySheetId ? onConnectPlanned : floorEditable ? onConnectFloor : undefined}
@@ -5263,57 +5284,47 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         onPaneClick={onPaneClick}
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
-        onSelectionDragStart={readOnly ? undefined : () => setIsDraggingScene(true)}
-        onSelectionDragStop={readOnly ? undefined : () => setIsDraggingScene(false)}
+        onSelectionDragStart={readOnly ? undefined : onSelectionDragStart}
+        onSelectionDragStop={readOnly ? undefined : onSelectionDragStop}
         onNodeDragStart={readOnly ? undefined : onNodeDragStart}
         onNodeDrag={readOnly ? undefined : onNodeDrag}
         onNodeDragStop={readOnly ? undefined : onNodeDragStop}
         onMove={onMove}
         minZoom={MIN_CANVAS_ZOOM}
         maxZoom={MAX_CANVAS_ZOOM}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
-        fitViewOptions={{ padding: 0.14, maxZoom: 1.0 }}
-        proOptions={{ hideAttribution: true }}
-        panOnDrag={selectionMode ? [1, 2] : true}
+        defaultViewport={INITIAL_VIEWPORT}
+        fitViewOptions={INITIAL_FIT_OPTIONS}
+        proOptions={FLOW_PRO_OPTIONS}
+        panOnDrag={selectionMode ? SELECTION_PAN_BUTTONS : true}
         selectionOnDrag={readOnly ? false : selectionMode}
         selectionMode={selectionMode ? SelectionMode.Partial : SelectionMode.Full}
         // Must match what the click handler treats as "add to my selection", or
         // React Flow collapses the selection on the same click Ambio extends it
         // on, and the highlight disagrees with what the next drag picks up.
-        multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+        multiSelectionKeyCode={MULTI_SELECTION_KEYS}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly && (!!overlaySheetId || floorEditable)}
         // Source and target handles share each side, and the target is drawn
         // on top; loose mode lets a drag from any handle reach any other, with
         // the node it started from as the source.
         connectionMode={ConnectionMode.Loose}
-        onConnectStart={(_, params) => { connectionOrigin.current = params.nodeId }}
+        onConnectStart={onConnectStart}
         deleteKeyCode={null}
         elementsSelectable={!readOnly}
         snapToGrid={false}
-        // The budget projection owns buffered culling above 40 nodes. Avoid
-        // a second exact-edge culler that would defeat its retention window.
-        onlyRenderVisibleElements={false}
+        // Hidden nodes otherwise still get a NodeWrapper and store subscription.
+        // Keep the full geometry in Flow for Fit, navigation and picking, but
+        // bound its component tree too. The budget still owns buffered detail
+        // admission; Flow retains measured handles after an endpoint unmounts.
+        // A CSS glide still paints between its old and new canonical positions.
+        // Retain the existing transition path until it finishes, so exact
+        // culling cannot cut off a card that is still moving through the view.
+        onlyRenderVisibleElements={renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT && !isTransitioningLayout}
       >
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
-        <MiniMap
-          className="ambio-canvas-minimap"
-          position="top-right"
-          // Top-right, leaving the bottom-right corner to the bins. They are
-          // drop targets and the minimap is not, so the corner belongs to the
-          // thing you have to be able to throw something at.
-          style={{ width: 160, height: 100 }}
-          nodeColor={(n) => {
-            const d = n.data as unknown as SystemNodeData | FileNodeData | InfraNodeData
-            if ('color' in d && d.color) return d.color
-            if (n.type === 'file') return '#6C757D'
-            if (n.type === 'infra') return '#D4A843'
-            return '#2a2e33'
-          }}
-          maskColor="rgba(49,62,58,0.38)"
-        />
+        <CanvasMiniMap />
         <LivingFlowOverlay
           events={relationshipFx}
           nodes={livingDisplayNodes}

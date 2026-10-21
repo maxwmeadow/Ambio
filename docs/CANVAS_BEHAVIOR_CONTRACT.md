@@ -78,14 +78,32 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Above 40 composed nodes, spatial visibility runs in a worker, with a local
   fallback if the worker cannot run. Canonical layout, semantic membership and
   authored dimensions remain independent from viewport culling.
-- The viewport has a 240-screen-pixel buffer. Recently visible nodes may stay
-  mounted for 450 ms, capped at about two buffered screenfuls, to absorb quick
-  reversals. Fit includes viewport-culled nodes and excludes semantically hidden
-  descendants, so virtualization cannot change the camera's scene bounds. Active
-  relationship endpoints retain mounted shells/handles even outside the buffer.
+- The detail budget has a 240-screen-pixel buffer and retains recent admissions
+  for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
+  React Flow additionally culls offscreen components; retention no longer requires
+  their DOM or subscribers to stay mounted. Fit includes viewport-culled nodes
+  and excludes semantically hidden descendants. The complete geometry stays in
+  React Flow, so virtualization cannot change camera bounds or picking. Active
+  relationship endpoints initialize their handles once and keep measured handle
+  geometry after their shells unmount; offscreen lines must remain valid.
+  Layout glides retain their existing rendering path until the transition phase
+  ends, so culling by the final position does not cut off a moving card. This
+  remains a scale limitation for very large layout transitions.
   While the first spatial answer is pending, root shells already respect this
   buffer; startup must not admit every off-screen root at once. The same active
   node and relationship endpoint exceptions apply.
+- The passive minimap retains its size, colors, rounded marks, viewport mask
+  and admitted-node bounds. It has one surface subscription and creates marks
+  only for admitted nodes, rather than a subscribed component per project entity.
+- Focused inline titles, symbol names and metadata finish their normal save
+  before culling removes the input. Escape still cancels the draft. Removing a
+  browser input does not itself dispatch React's blur event; drafts must not be
+  silently discarded during camera or semantic visibility changes.
+- Very long static dashed relationships draw only their buffered viewport
+  segments. Their canonical route, dash phase, real endpoint arrows and click
+  target remain equivalent to the full route. No arrow is added at a clip cut.
+  Explicit search/reply fits retain their target and 850 ms duration through
+  concurrent canvas updates; default Fit options cannot replace a queued request.
 - A node smaller than 14 pixels on its shortest side may use its silhouette.
   Other background file cards use compact identity while detail waits. Systems
   and infrastructure retain their normal identity at readable sizes. Selection,
