@@ -294,6 +294,18 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
       expect(components.wrappers).toBeGreaterThan(0)
       expect(components.wrappers).toBeLessThanOrEqual(Math.max(64, components.domNodes * 2))
       expect(components.minimapWrappers).toBe(0)
+      expect(await page.evaluate(() => (window as any).__ambioSceneLog)).toBeUndefined()
+      if (scenario === 'floor' && !process.env.AMBIO_PERF_SNAPSHOT) {
+        await page.evaluate(() => {
+          const w = window as any, graph = w.__ambioGraphStore, state = graph.getState()
+          w.__ambioSceneDebug = true
+          graph.setState({ floorLayouts: [{ workspaceId: 'demo', nodeId: state.systems[0].id,
+            nodeType: 'system', parentNodeId: null, parentNodeType: null, containmentKind: 'root',
+            positionX: 50000, positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }] })
+        })
+        await expect.poll(() => page.evaluate(() => (window as any).__ambioSceneLog?.length ?? 0)).toBeGreaterThan(0)
+        await page.evaluate(() => { (window as any).__ambioSceneDebug = false })
+      }
     } finally {
       await app?.close()
       if (dirname(resolve(home)) === resolve(tmpdir()) && basename(home).startsWith('ambio-canvas-perf-')) rmSync(home, { recursive: true, force: true })

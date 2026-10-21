@@ -43,7 +43,9 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 > the selected node's chrome stays correct and its body renders blank. Caught on
 > camera at zoom ~7.98x. Stopped reproducing immediately after `sceneDiagnostics`
 > was added, but that tracer is read-only and cannot fix rendering - treat it as
-> **masked, not fixed**. If it returns, `[scene-move]` warns with the source
+> **masked, not fixed**. The full geometry tracer is now opt-in because profiling
+> found substantial full-scene diff work. Enable `window.__ambioSceneDebug = true`
+> before reproducing; `[scene-move]` then warns with the source
 > label; leading suspects are `integrity-restore:no-visible-root` and
 > `layout-rebuild`.
 

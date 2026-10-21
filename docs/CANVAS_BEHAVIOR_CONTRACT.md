@@ -123,7 +123,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   bounded LRU. Large lists do not create one DOM row per indexed symbol.
 - Local diagnostics record camera frame tails, renderer long frames, detail
   admissions, requests and background batches. There is no uploaded telemetry
-  or idle animation-frame sampling loop.
+  or idle animation-frame sampling loop. Full geometry mutation tracing requires
+  `window.__ambioSceneDebug = true`; scene-integrity protection remains active.
 
 ## Semantic zoom
 

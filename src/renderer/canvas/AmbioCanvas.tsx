@@ -138,6 +138,7 @@ import {
   recordSceneMutation,
   sceneDeltaIsQuiet,
   sceneGeometry,
+  sceneTracingEnabled,
   type SceneNodeGeometry,
 } from './sceneDiagnostics'
 
@@ -4953,6 +4954,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Scene-mutation tracer. Diffs what is actually about to be painted, so a
   // frame where geometry jumps is attributed to the path that caused it.
   useEffect(() => {
+    if (!sceneTracingEnabled()) {
+      if (sceneSnapshotRef.current.length) sceneSnapshotRef.current = []
+      return
+    }
     const next = sceneGeometry(renderedNodes)
     const delta = diffScene(sceneSnapshotRef.current, next)
     sceneSnapshotRef.current = next

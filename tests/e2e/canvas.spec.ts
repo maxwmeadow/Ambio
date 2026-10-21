@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { skipAgentGuides } from './agentGuides'
 import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeGeometry'
+import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -264,7 +265,7 @@ test.beforeEach(async () => {
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
   // Measure interactions only after both have reached their authored frame.
   await expect(page.locator('.layout-transition')).toHaveCount(0)
-  await page.waitForTimeout(600)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
 })
 
 test.afterEach(async () => {
@@ -1939,22 +1940,20 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   // shared system through the product search path, then create a deliberate
   // multi-file selection without depending on overview DOM materialization.
   const canvasFile = await revealFileNode('file_canvas')
-  const storeFile = await revealFileNode('file_store')
-  await canvasFile.click()
-  const storeBox = await storeFile.boundingBox()
-  expect(storeBox).not.toBeNull()
-  if (!storeBox) return
-  const viewport = page.viewportSize()!
-  const storePoint = {
-    x: Math.max(1, Math.min(viewport.width - 1, storeBox.x + Math.min(20, storeBox.width / 2))),
-    y: Math.max(1, Math.min(viewport.height - 1, storeBox.y + Math.min(20, storeBox.height / 2))),
-  }
+  // Fit their common system so both files are actually in the camera. Fitting
+  // each file in turn leaves the first one offscreen once navigation is correct.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Canvas Renderer')
+  await page.getByRole('option').first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const storeFile = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(storeFile).toBeVisible()
+  await canvasFile.click({ position: { x: 10, y: 10 } })
   // macOS routes Ctrl+click to the context menu, so the additive modifier has
   // to follow the host. The canvas accepts Meta, Control and Shift alike.
   const additiveModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-  await page.keyboard.down(additiveModifier)
-  await page.mouse.click(storePoint.x, storePoint.y)
-  await page.keyboard.up(additiveModifier)
+  // Stay on the card background: its disabled language badge consumes clicks.
+  await storeFile.click({ position: { x: 10, y: 10 }, modifiers: [additiveModifier] })
 
   const selectionActions = page.locator('.ambio-selection-actions')
   await expect(selectionActions).toBeVisible()
@@ -2421,6 +2420,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await relationships.uncheck()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
   for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
@@ -2952,8 +2952,9 @@ test('Delete on a sheet proposes removing live code, listed and restorable', asy
   await page.keyboard.press('ControlOrMeta+K')
   await page.getByRole('textbox', { name: 'Search the map' }).fill('Shared Types')
   await page.getByRole('option').filter({ hasText: 'Shared Types' }).first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const system = page.locator('.react-flow__node[data-id="sys_shared"]')
-  await system.click()
+  await system.click({ position: { x: 10, y: 10 } })
   await page.keyboard.press('Delete')
   await expect(page.getByText(/proposed for removal/).first()).toBeVisible()
   await expect(system).toBeHidden()

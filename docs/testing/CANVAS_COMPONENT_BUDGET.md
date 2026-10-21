@@ -1,6 +1,7 @@
 # Canvas component budget after consolidation — 2026-10-20
 
-Base: remote main `1f59e44`, including the Git branch/worktree feature merge.
+Started from remote main `1f59e44`, including the Git branch/worktree feature
+merge; rebased onto remote main `995f20c` before final integration checks.
 Branch: `codex/canvas-scene-scale`. First phase-2 slice of the approved
 [scalability plan](../CANVAS_SCALABILITY_PLAN.md); worker layout, progressive
 data and the batched overview decision remain open.
@@ -33,6 +34,11 @@ that work was bounded.
 - Reuse the visibility projection cache and unchanged node arrays. Release its
   contents when switching to a scene below the culling threshold. Full-array
   scans still remain; this is not bounded canonical scene materialization.
+- Make the investigative full-geometry mutation tracer opt-in through
+  `window.__ambioSceneDebug = true`. A 100k CPU profile attributed 616 ms of
+  self time to `diffScene`; the follow-up profile records no `diffScene` samples.
+  Scene-integrity checks and recovery remain active. The ordinary E2E suite
+  verifies tracing is absent by default and still records when explicitly enabled.
 - Keep checkout marks on compact file cards. The new checkout model already
   preserves unchanged per-node derived values; it does not repack the Floor on
   every unchanged poll. Remove repeated array copying while building arrivals
@@ -109,6 +115,11 @@ many endpoint shells together before culling releases them.
    full arrays. Move canonical geometry behind the planned scene controller,
    then materialize the viewport, required ancestors and active interaction
    overlays while migrating every Fit/navigation/drop consumer together.
+   The post-consolidation 100k CPU profile records about 1.4 seconds in
+   `adoptUserNodes` and 1.2 seconds in garbage collection across its short run.
+   With the diagnostic gate, these still lead the active named costs (about
+   598 ms and 505 ms in the follow-up). Different profile durations and shared
+   machine load prevent interpreting their ratio as a measured speedup.
 2. Numeric packing and full snapshot decoding remain synchronous. Continue the
    pure geometry extraction, cancellable worker ownership and versioned results;
    moving packing alone does not solve full-model adoption or JSON parsing.
@@ -133,20 +144,54 @@ Zero upstream minimap wrappers were measured in every completed component check.
 | Scene | Canonical nodes / node wrappers | Warm frame p95 / p99 ms | Selection p95 ms |
 | --- | ---: | ---: | ---: |
 | Kohler focused Floor replay | 218 / 23 | 16.7 / 25.1 | 34.3 |
-| Saved 1k | 1,000 / 7 | 16.6 / 24.9 | 47.1 |
-| Saved 10k | 10,000 / 7 | 8.6 / 33.3 | 55.2 |
-| Saved 100k | 100,000 / 7 | 158.3 / 508.2 | 904.0 |
+| Saved 1k, final diagnostic gate | 1,000 / 7 | 8.5 / 8.6 | 15.1 |
+| Saved 10k, final diagnostic gate | 10,000 / 7 | 8.5 / 8.6 | 22.7 |
+| Saved 100k, final diagnostic gate | 100,000 / 7 | 58.4 / 166.6 | 262.0 |
 | 1k hub, 142 actual dashed relationships | 1,000 / 7 | 25.0 / 41.4 | 51.1 |
 
 The 100k case now completes interaction instead of failing adoption, but remains
 far outside the target. The hub previously timed out before its first selection;
 with clipped dashes it completes 20 cycles and verifies all 142 paths, while
 still missing the frame/input budgets. Neither improvement establishes capacity.
-Intermediate 10k repetitions range from 8.5–33.4 ms warm p95 and 33.7–143.3 ms
-selection p95. Retain that variability; a fast individual run is not acceptance.
+These final saved-scene runs use 20 cycles each, without CPU instrumentation.
+Before the diagnostic gate, the latest 100k repetition recorded 158.3 ms warm
+p95 and 904 ms selection p95. Intermediate 10k repetitions range from 8.5–33.4 ms
+warm p95 and 33.7–143.3 ms selection p95. Retain that variability; a fast
+individual run is not acceptance or a universal speedup claim. The final 1k/10k
+cases meet frame/input gates only for this focused fixed-density workload;
+memory and arbitrary overview density are not accepted by those runs.
 
 The 50-cycle 10k soak records 15.0% unforced-GC heap growth, while sampled process
 private memory decreases about 19.9%. It fails the provisional 10% heap gate;
 this does not establish a leak or a retained-memory plateau. Whole-process and
 worker memory remain part of the later acceptance work. The focused Kohler case
 does not replace measurement of actual sheets, review, flights or real startup.
+
+The broader retained Kohler wheel sweep on integrated main measures Floor p95
+25.1 ms (maximum 224.9 ms), and its actual sheet p95 33.3 ms (maximum 66.7 ms).
+Neither repacks layout during the wheel sequence. These wider interactions are
+still outside the 16.7 ms frame target; the focused Floor row is not an overall
+Kohler acceptance result. Both use mocked endpoint replay, not live daemon loading.
+After the diagnostic gate, the repetition measures Floor p95 16.7 ms (maximum 141.7 ms) and sheet
+p95 25.0 ms (maximum 41.7 ms). The initial Floor camera differs between runs,
+so these are observations rather than a controlled paired speedup. The sheet
+starts at the same camera; it still misses the frame target. Retained JSON
+includes both wheel sweeps and fixture hashes.
+
+## Integration validation
+
+On `995f20c`: TypeScript, production build and all 728 renderer/shared/Electron/MCP
+unit tests pass (seven skips). The full UI run records 81 passing, five failing
+and five skipped cases. Every failure passes after targeted reruns and fixture
+repairs: two tests assumed a fitted-away node remained clickable, geometry/Undo
+checks now wait for the real camera queue to settle, and the existing Windows
+settings startup flake passes alone. The dialog selection test also avoids a
+disabled language badge that consumes clicks. Assertions were retained rather
+than relaxing geometry tolerances. The complete suite has not been rerun after
+these fixture repairs; do not report the full run as green.
+
+Native focused checks cover navigation supersession and worker fallback, queued
+850 ms fit options under a live update, compact checkout badges, Escape/save on
+focused editor culling, offscreen endpoint path retention, existing Floor pixels,
+and clipped/original dashed pixel parity across five zoom levels. Real-daemon
+authoring reruns pass using this worktree's built daemon. No Go source changed.

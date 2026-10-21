@@ -14,7 +14,8 @@ in the app as "What's New" after updating, so write it for users.
   save normally when their node leaves the viewport.
 - Search keeps its intended destination and smooth camera flight through live
   updates. Long dashed relationships no longer draw millions of invisible dash
-  segments outside the viewport.
+  segments outside the viewport. Full geometry debugging no longer runs during
+  ordinary canvas interaction.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.

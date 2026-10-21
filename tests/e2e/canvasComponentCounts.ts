@@ -23,6 +23,35 @@ export function canvasComponentCounts() {
   return { wrappers, minimapWrappers, canonicalNodes, domNodes: document.querySelectorAll('.react-flow__node').length }
 }
 
+/** Wait for the real camera queue and animation to settle, rather than assuming
+ * a fixed startup delay is enough on a busy Windows runner. */
+export function canvasViewportSettled() {
+  const element = document.querySelector('.react-flow') as any
+  if (!element || element.closest('[data-ambio-canvas]')?.classList.contains('layout-transition')) return false
+  const key = Object.keys(element).find(key => key.startsWith('__reactFiber$'))
+  let root = key ? element[key] : null
+  if (!root) return false
+  while (root.return) root = root.return
+  const pending = [root.stateNode?.current ?? root]
+  while (pending.length) {
+    const fiber = pending.pop()!
+    const store = fiber.memoizedProps?.value
+    if (typeof store?.getState === 'function' && store.getState().domNode === element) {
+      const state = store.getState()
+      if (!state.nodesInitialized || state.fitViewQueued || state.fitViewResolver) return false
+      const w = window as any, signature = state.transform.join(',')
+      if (w.__canvasSettledSample?.element !== element || w.__canvasSettledSample.signature !== signature) {
+        w.__canvasSettledSample = { element, signature, at: performance.now() }
+        return false
+      }
+      return performance.now() - w.__canvasSettledSample.at >= 100
+    }
+    if (fiber.child) pending.push(fiber.child)
+    if (fiber.sibling) pending.push(fiber.sibling)
+  }
+  return false
+}
+
 /** Optional bounded camera-intent trace for diagnosing competing fits. */
 export function installCanvasCameraTrace(interruptQueuedFit = false) {
   const element = document.querySelector('.react-flow') as any

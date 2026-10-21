@@ -569,7 +569,10 @@ WebSocket dispatch yields between messages through `canvas/frameWorkQueue.ts`
 (3 ms / 24 messages per batch); queue overflow uses snapshot resync. Individual
 messages remain atomic. `useCanvasFrameTiming.ts` samples active camera windows
 and shares one renderer long-frame observer; all diagnostics are local and
-bounded. See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
+bounded. Full geometry snapshots/diffs in `sceneDiagnostics.ts` require
+`window.__ambioSceneDebug = true`; this investigative tracer does not run in
+ordinary frames. Scene-integrity checks and recovery remain active independently.
+See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
 five-part implementation, measured results and remaining scaling limits.
 
 `canvas/perfTrace.ts` adds opt-in stage timings for snapshot resync fetch/decode/application,
