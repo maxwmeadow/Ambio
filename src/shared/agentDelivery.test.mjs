@@ -25,3 +25,18 @@ test('with nothing set up, the handoff is copied by hand', () => {
   assert.equal(chooseDeliveryHost({ hosts, remembered: null, liveIds: [], installedIds: [] }), MANUAL_DELIVERY)
   assert.equal(chooseDeliveryHost({ hosts: [], remembered: 'cursor', liveIds: ['cursor'], installedIds: ['cursor'] }), MANUAL_DELIVERY)
 })
+
+test('an agent that only reaches Ambio through its app is blocked until Ambio is added there', async () => {
+  const { deliveryReadiness, RUN_NEEDS_INSTALL } = await import('./agentDelivery.ts')
+  const hosts = [
+    { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true },
+    { id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true },
+  ]
+  const readiness = installedIds => deliveryReadiness({ hostId: 'antigravity-cli', hosts, installedIds, watchers: 0, watchingHosts: [] })
+  assert.equal(RUN_NEEDS_INSTALL['antigravity-cli'].installer, 'antigravity')
+  assert.equal(readiness([]).tone, 'blocked')
+  assert.match(readiness([]).text, /once Ambio is added to Antigravity/)
+  assert.equal(readiness(['antigravity']).tone, 'ready')
+  // Claude Code is handed Ambio's server on its command line: nothing to install.
+  assert.equal(deliveryReadiness({ hostId: 'claude-code', hosts, installedIds: [], watchers: 0, watchingHosts: [] }).tone, 'ready')
+})

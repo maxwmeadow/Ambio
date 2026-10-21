@@ -28,6 +28,7 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
+import { RUN_NEEDS_INSTALL } from '../src/shared/agentDelivery'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
@@ -1553,6 +1554,13 @@ function setupIPC(): void {
       } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
     }
     if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+    // An agent that only reads Ambio's server from its app's settings must not
+    // start without it: it would work blind and go around Ambio.
+    const needs = RUN_NEEDS_INSTALL[target.id]
+    const installHost = needs ? buildHosts().find(host => host.id === needs.installer) : undefined
+    if (needs && installHost && !inspectHostConfiguration(installHost, project.rootPath).configured) {
+      throw new Error(`Ambio has not been added to ${needs.app} yet, and ${target.label} can only use Ambio\u2019s tools through ${needs.app}\u2019s settings. Add Ambio in Settings \u2192 Agents, then send again.`)
+    }
     // Where the run works: a conversation keeps the worktree it started in;
     // a new one asked for its own worktree gets one from archd.
     const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId

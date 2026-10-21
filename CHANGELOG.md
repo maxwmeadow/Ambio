@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
+  exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
+  without Ambio's tools, where the agent could only work around them.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.

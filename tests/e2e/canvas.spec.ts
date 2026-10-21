@@ -3123,7 +3123,10 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     const state = globalThis as unknown as { delivered: Array<{ workspaceId: string; messageId: string; hostId: string }> }
     state.delivered = []
     ipcMain.removeHandler('agent:delivery-hosts')
-    ipcMain.handle('agent:delivery-hosts', () => [{ id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' }])
+    ipcMain.handle('agent:delivery-hosts', () => [
+      { id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' },
+      { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, detail: '' },
+    ])
     ipcMain.removeHandler('agent:models')
     ipcMain.handle('agent:models', () => [{ id: 'fable', label: 'Fable (latest)' }, { id: 'opus', label: 'Opus (latest)' }])
     ipcMain.removeHandler('agent:deliver')
@@ -3145,6 +3148,15 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   const footer = page.locator('.ambio-choose__footer')
   const claude = agents.getByRole('radio', { name: /Claude Code \(CLI\)/ })
   await expect(claude).toHaveAttribute('aria-checked', 'true')
+  // Antigravity's CLI only reaches Ambio through Antigravity's own settings:
+  // adding Ambio there is part of mapping, said plainly, not an option.
+  await agents.getByRole('radio', { name: /Antigravity CLI/ }).click()
+  await expect(footer.locator('.ambio-choose__required')).toContainText('Ambio adds itself to Antigravity first')
+  await expect(footer.locator('.ambio-choose__required')).toContainText('mcp_config.json')
+  await expect(footer.getByRole('checkbox')).toHaveCount(0)
+  await expect(footer.getByRole('button', { name: 'Add Ambio and map with Antigravity CLI →' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/setup-antigravity-required.png' })
+  await claude.click()
   // Ambio chat is offered even before a model service exists, and leads to setting one up.
   await agents.getByRole('radio', { name: /Ambio chat/ }).click()
   await expect(footer.getByRole('button', { name: 'Set up a model service' })).toBeVisible()

@@ -266,7 +266,9 @@ agent Ambio shows that explanation until you confirm it.
   to approve; **Build** changes code and hands the result back for review.
 - Pick the model beside the request type. Agents Ambio runs offer the models
   they publish; Ambio chat offers its service's models.
-- Agents Ambio runs need only their CLI, signed in. Agents in other apps need
+- Agents Ambio runs need only their CLI, signed in. Antigravity's and Cursor's
+  CLIs also need Ambio added to their app, which setup does when you press Map
+  (it says exactly what it changes). Agents in other apps need
   Ambio added once (Settings → Agents) and stay attached to the conversation
   after the first message.
 - While an agent works, its turn shows what it is doing and, where the agent
