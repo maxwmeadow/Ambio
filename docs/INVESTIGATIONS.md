@@ -5,8 +5,11 @@ the code that reproduces the problem with the suspect functions under
 observation, and gets back what they actually did. Every step appears in a
 case panel beside the architecture map, and the person watching can talk back.
 
-Status: 2026-09-28. Node (JavaScript and TypeScript) and Python record runs;
-other languages run with exit code and output only.
+Status: 2026-10-20. Runs record watched functions in JavaScript/TypeScript,
+Python, Ruby, Go, Java, Kotlin, Scala, Groovy, C#, PHP and Rust; C/C++ runs
+under gdb or lldb-dap; other languages run with exit code and output only. Each
+uses the project's own toolchain ([INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md)),
+and the investigations menu says what runs can see per language.
 
 ## The loop
 
@@ -16,7 +19,7 @@ One MCP tool, `investigation`, with these ops:
 |---|---|---|
 | `start` | `name` - the symptom | Case opened; the project's own repro commands (`npm test`, `pytest`, ...) |
 | `hypothesis` | `text` - one sentence | `H1`, anchored to the files and functions the sentence names |
-| `run` | `command`, `watch`, optional `hypothesis` | The evidence report (below) |
+| `run` | `command`, `watch`, optional `hypothesis`; for a bug behind a server, `server` (started first) and `port` (waited for), with `command` the request that triggers it | The evidence report (below), with what the server printed |
 | `verdict` | `hypothesis`, `result` (confirmed, refuted, inconclusive), `text` | Recorded; next step |
 | `note` | `text` | Anchored note |
 | `conclude` | `text` - the root cause, optional `fix`, optional `run` that proved the fix | Recorded |

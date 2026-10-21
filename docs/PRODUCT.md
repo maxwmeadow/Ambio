@@ -160,20 +160,20 @@ codebase, and live. It is not the centre of the product. Work items:
 
 ---
 
-## 6. Where things stand (2026-09-30)
+## 6. Where things stand (2026-10-20)
 
-Verified by a code audit of `main` on 2026-09-30.
+Updated against `main` on 2026-10-20 (first audited 2026-09-30).
 
 | Capability | State |
 |---|---|
-| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP not parsed |
+| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP, Scala, Groovy, Lua, shell and Elixir get symbols and file links |
 | Agents propose the architecture; you review and approve | ✅ Chunked proposal sessions that survive restarts |
-| Sheets → addressed work orders → structural comparison | ✅ Real Codex runs pass end to end; Send can launch Claude Code, Codex or Copilot CLI, with copy/open routes for other hosts (provider delivery smoke tests pending) |
-| Agent-drawn sheets and planned elements | ✅ Draw-first skills, project reminders and MCP guidance across supported hosts; live model behavior still needs authenticated trials |
+| Sheets → addressed work orders → structural comparison | ✅ Real Codex runs pass end to end; one conversation panel (Ask / Propose / Build) launches Claude Code, Codex, Copilot CLI and Antigravity CLI (Cursor, Devin experimental), optionally in their own worktree, or Ambio chat (API key or ChatGPT plan); copy/open routes for other hosts |
+| Agent-drawn sheets and planned elements | ✅ Draw-first skills, project reminders and MCP guidance across supported hosts; agents nest new systems, move, rename and connect, and every part waits under To review; live Codex Propose runs on a real project |
 | Review Changes (claims, attribution, realisation against plans) | ✅ Meaning edits (file reassignment) are not journaled yet |
 | Infrastructure detection, contracts, hosting frames, sidebar | ✅ 87-service registry; no Kubernetes/Terraform |
-| Worktrees and cross-branch collisions on systems | ✅ |
-| Investigations (hypothesis-driven debugging) | ✅ Node and Python; other languages are debug-profile only and barely tested |
+| Branches, worktrees and cross-branch collisions on systems | ✅ Branch chip and checkouts, other checkouts drawn on the Floor, branch review against its base; nested repositories tracked |
+| Investigations (hypothesis-driven debugging) | ✅ Recorded runs in JS/TS, Python, Ruby, Go, JVM languages, C#, PHP and Rust; C/C++ under gdb or lldb-dap; runs against a server |
 | Rules and drift checks, class/sequence sheets, export | ⬜ Designed, not built |
-| Undo | ⬜ |
+| Undo | ✅ Map moves and resizes (⌘Z / ⌘⇧Z) and meaning edits from Review Changes |
 | Launch plumbing (install, updates, security, backups, OS integration) | ✅ See DECISIONS §6 |

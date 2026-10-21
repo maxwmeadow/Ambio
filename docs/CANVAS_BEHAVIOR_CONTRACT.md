@@ -264,9 +264,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   existing file or system, renaming a system, a new relationship. Each is
   listed under To review in the sheet rail with Confirm/Reject, and its name
   there takes you to it. Until decided, a moved or renamed node carries a
-  dashed amber outline and a tag inside its card (PROPOSED MOVE / RENAME), a
-  renamed system shows the new name with the current one struck through under
-  it, and a relationship is drawn dashed amber. Rejecting a move puts the node
+  dashed amber outline. What a sheet changes about a node is a small badge in
+  its card (`SheetChangeBadge`: Added, Moved, Renamed, Moved + renamed) that
+  keeps its screen size at any zoom; a renamed system shows the new name with
+  the current one struck through under it, and a relationship is drawn dashed
+  amber. Rejecting a move puts the node
   back where the Floor has it; a rejected relationship is not drawn.
 - A sheet's relationships route between the facing sides of the two nodes,
   with right angles, and carry no text label over node titles.

@@ -268,7 +268,8 @@ the request-ID routing. They remain complementary options, not queue drainers.
 The privileged Electron handler reloads the registered project and reads exactly
 the requested message from archd before starting anything. Closed work, legacy
 open-queue work, wrong-workspace requests and live claims are refused. The process
-runs in that project's existing root; inline MCP configuration and environment
+runs in that project's existing root, or in a worktree of its own when Send's
+*Own worktree* is chosen; inline MCP configuration and environment
 pin its workspace and host. It must claim before editing and renew before the
 15-minute lease expires. A race with another claimant is still fenced by MCP.
 
