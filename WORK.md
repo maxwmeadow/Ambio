@@ -242,6 +242,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `grok-muse-launch-parity` **Implement the pivotal Ambio-started routes and repair review regressions.** Add CLI discovery, per-turn MCP binding, mode/model/event handling, setup/guide and live-test integration for both; keep other clients' instructions and setup defaults unchanged. Validate real CLI contracts and record any model-auth blocker rather than treating protocol fixtures as live proof. (Codex, codex/grok-muse-mcp-clients, 2026-10-22, Max's explicit launch requirement)
+
 - ⬜ `grok-muse-compatibility` **Validate inherited MCP identity and skill deduplication in the real CLIs.** Shared config can retain another client's `--ambio-host` attribution, and shared skills can survive removal of dedicated setup; Settings now reports the shared files but does not override other clients' configuration or claim runtime deduplication. (2026-10-22, PR #10 review)
 - ⬜ `ci-main-gofmt` **Fix the Go formatting failures already present on main.** Review reports all OS jobs fail gofmt in `internal/db/sheet_layouts.go`, `internal/db/sheets.go`, and `internal/indexer/imports_more_test.go`; unrelated to PR #10. (2026-10-22, Claude review supplied by Max)
 
