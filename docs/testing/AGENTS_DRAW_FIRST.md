@@ -17,7 +17,7 @@ or reload the host according to its setup instructions; use a fresh session.
 | Claude Desktop | No project-rule installer | MCP connection instructions, tool descriptions/results, and copied chat prompt |
 | Codex CLI, IDE extension and desktop app | Managed block in `AGENTS.md` | `~/.agents/skills/ambio-build/SKILL.md` |
 | Grok Build CLI | Managed block in `AGENTS.md` | `~/.grok/skills/ambio-build/SKILL.md` |
-| Muse Code CLI | Managed block in first existing project instruction file; cleanup checks every candidate | `$XDG_CONFIG_HOME/muse/skills/ambio-build/SKILL.md` (default `~/.config/muse/skills/…`) |
+| Muse Code CLI | Stable managed block in `AGENTS.md`; a separate Muse-only pointer preserves lower-priority authored instructions, chosen once at setup; cleanup checks every candidate | `$XDG_CONFIG_HOME/muse/skills/ambio-build/SKILL.md` (default `~/.config/muse/skills/…`) |
 | Copilot in VS Code | Managed block in `.github/copilot-instructions.md` | `~/.copilot/skills/ambio-build/SKILL.md` |
 | Copilot CLI | Managed block in `AGENTS.md` | Same Copilot skill |
 | Cursor IDE / CLI | `.cursor/rules/ambio-draw-first.mdc`, `alwaysApply: true` | Cursor `ambio-build` skill |
@@ -76,7 +76,12 @@ with the chosen CLI installed and authenticated:
 AMBIO_LIVE_DRAW_FIRST_HOST=codex node --test mcp/e2e/drawFirst.live.mjs
 AMBIO_LIVE_DRAW_FIRST_HOST=claude-code node --test mcp/e2e/drawFirst.live.mjs
 AMBIO_LIVE_DRAW_FIRST_HOST=copilot-cli node --test mcp/e2e/drawFirst.live.mjs
+AMBIO_LIVE_DRAW_FIRST_HOST=grok node --test mcp/e2e/drawFirst.live.mjs
+AMBIO_LIVE_DRAW_FIRST_HOST=muse node --test mcp/e2e/drawFirst.live.mjs
 ```
+
+For Grok and Muse, see [the client test guide](GROK_MUSE_CLIENTS.md) for
+conversation, continuation and signed-in validation too.
 
 Build archd first (`npm run build:archd`). The trial creates a throwaway Python
 project and isolated daemon/MCP, installs only its project rules, and starts

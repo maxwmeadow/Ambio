@@ -1,61 +1,95 @@
-# Grok Build and Muse Code MCP client checks
+# Grok Build and Muse Code client checks
 
-2026-10-22. Installer support is implemented; authenticated vendor CLI trials
-remain to be recorded. These clients use their own accounts and coding
-harnesses. This does not enable their subscriptions in native Ambio chat.
+2026-10-22. Both clients have MCP setup and Ambio-started conversation routes.
+Account sign-in stays in each vendor's CLI; this does not enable subscription
+usage in native Ambio chat. Max will run the signed-in trials locally before
+merge. Neither vendor's model-driven compatibility is claimed as verified yet.
 
 ## Automated coverage
 
-- `electron/grokMuseClients.test.mjs`: Windows/macOS/Linux path layouts,
-  preservation of unrelated settings, repeat install, workflow repair,
-  removal, custom config paths, malformed Muse server maps and shared rules.
-  Muse preserves whichever existing project instruction file it reads.
-- `mcp/e2e/grokMuseClients.e2e.mjs`: reads each installer's saved command and
-  arguments, starts the actual stdio MCP server against archd, reads the map,
-  creates a sheet and pending proposal, claims an exact addressed request,
-  replies to it and checks host-attributed live presence. This uses a protocol
-  client rather than the vendors' CLIs and requires no model credentials.
-- Existing all-host installer, draw-first, uninstall and delivery tests
-  include both clients. Delivery stays on the copy-handoff/watch route.
-- Review regressions cover Muse → Codex/Grok/Copilot setup followed by both
-  removal orders, stale managed blocks in lower-precedence files, explicit
-  optional Muse mode, invalid JSON shapes, ancestor Grok configurations, and
-  preservation/reporting of shared compatibility files.
-- `ChooseAgent.test.mjs` renders the real setup view with deterministic
-  discovery: both MCP-only CLIs remain visible and preselected even while
-  launch discovery is unavailable. Shared launch capability also keeps
-  Settings grouping stable when its discovery call fails.
+- `electron/grokMuseClients.test.mjs`: install/repair/removal across OS layouts,
+  unrelated settings and authored instructions, optional Muse server mode,
+  malformed maps, ancestor Grok config and shared compatibility files.
+- `electron/grokMuseDrivers.test.mjs`: CLI discovery, advertised Grok auth,
+  per-session MCP binding, request identity, Muse MSP v1 start/resume/fresh
+  fallback, model selection/discovery, events, Stop, unexpected exit,
+  interactive blocking and workspace mismatch. These use strict protocol peers.
+- `ChooseAgent.test.mjs`: runnable-first defaults, explicit Grok/Muse mapping
+  selections and discovery-independent app grouping. Instruction regressions
+  cover both removal orders, lower-precedence cleanup, frozen Muse-only
+  pointers, and stable other-client status as `CLAUDE.md` appears/disappears.
+- `mcp/e2e/grokMuseClients.e2e.mjs`: launches the actual MCP server with each
+  installer's persisted configuration against archd, reads the map, draws a
+  pending proposal, claims/replies to an exact request and checks presence.
+  This is not a native vendor CLI test.
 
-## Live trial still needed for each vendor
+Native Grok `@xai-official/grok` 1.0.67 was installed here: help, catalog and
+ACP initialization were checked without an account. It advertises `grok.com`
+as its authentication method; the driver also accepts the documented
+`cached_token` / `xai.api_key` methods. This container cannot apply its read-only
+sandbox; Grok refuses to run with missing protections. Muse's installer domain
+is blocked by workspace network policy, so no native Muse trial was possible.
+Muse protocol behavior is checked against Meta's published MSP v1 schema/SDK,
+not guessed `exec --json` output. See [research](../GROK_MUSE_RESEARCH.md).
 
-1. Install the official [Grok Build](https://docs.x.ai/build/overview) or
-   [Muse Code](https://dev.meta.ai/docs/muse-code) CLI and sign in using the
-   vendor's own browser flow. Open the same project in Ambio and the terminal.
-2. In **Settings → Agents**, choose the client and **Add Ambio**. Check the
-   displayed config and workflow paths, then start a fresh terminal session.
-   Muse must trust the project to load project instructions.
-3. Check Ambio in Grok's `/mcps` or Muse's `/mcp`. Run `/ambio-map`, review
-   the proposed map in Ambio, and confirm it only after review.
-4. Send an Ask message to that client from Ambio. Paste the handoff into its
-   terminal chat. Confirm the exact request is claimed and its reply appears
-   in the right Ambio conversation. Test follow-ups while the chat watches.
-5. Ask for a structural proposal. Confirm it draws on a sheet and leaves the
-   plan pending before any build. Explicitly authorize a build and check the
-   structural comparison and final reply.
-6. Test **Repair**, **Test**, and **Disconnect**. Other MCP servers and authored
-   instructions must survive. Record OS, CLI version, selected model and plan,
-   path overrides, observed tool calls and any prompts or errors; omit tokens.
+## Run the signed-in trials locally
 
-Direct launch, resume, event translation and permission modes from Ambio need
-separate conversation drivers. Until then, start `grok` or `muse` yourself.
+Use Node 22.18+ (or Node 24) for TypeScript imports, Go on PATH, repository npm
+dependencies installed, and each official CLI installed and signed in. Run
+from the repository root. These opt-in tests use a throwaway Python project,
+isolated archd/MCP and your CLI's existing account; they spend account usage.
+They do not install global MCP settings or change your own source project.
 
-## Recorded automated results
+```sh
+npm ci
+npm run build:archd
+npm run build:adapters
 
-- TypeScript check and production build passed.
-- Unit suite after PR #10 review fixes: 737 passed, 14 skipped, zero failures.
-- Both new installed-launcher MCP round trips passed.
-- Full MCP suite: 39 passed, six skipped, two unrelated failures. The Go
-  investigation selected an executable reporting `Go: Unknown option: run`;
-  `proposalPlacement.e2e.mjs:94` hit the clustering race already tracked as
-  `proposal-placement-e2e-race` in WORK.md. Neither runtime nor proposal logic
-  was changed for the client integrations.
+AMBIO_LIVE_CONVERSATION_HOST=grok node --test mcp/e2e/conversation.live.mjs
+AMBIO_LIVE_CONVERSATION_HOST=muse node --test mcp/e2e/conversation.live.mjs
+
+AMBIO_LIVE_DRAW_FIRST_HOST=grok node --test mcp/e2e/drawFirst.live.mjs
+AMBIO_LIVE_DRAW_FIRST_HOST=muse node --test mcp/e2e/drawFirst.live.mjs
+```
+
+For PowerShell, assign each variable first, e.g.
+`$env:AMBIO_LIVE_CONVERSATION_HOST='grok'`, then run the corresponding `node`
+command. Optional model overrides are `AMBIO_LIVE_CONVERSATION_MODEL` and
+`AMBIO_LIVE_DRAW_FIRST_MODEL`. `AMBIO_LIVE_RECORD_DIR` chooses where the
+per-vendor draw-first JSON report is saved (default: the OS temp directory's
+`ambio-draw-first-recordings`). Keep console failures with the run's log tail.
+Do not include credentials in reports.
+
+Conversation trials use the production driver and runner: Ask, a follow-up
+that requires history and the same native session, then a Build shell command.
+They check addressed replies, host-attributed presence and unchanged source.
+Draw-first trials use the same launch route to propose a structural change,
+verify no code changed before human approval, then approve and build the plan.
+
+Also run the app locally and check:
+
+1. Guided setup offers **Map with Grok Build** / **Map with Muse Code** when
+   installed, including model selection and visible progress. The automatic
+   default still prefers a runnable agent over a connected editor.
+2. Send Ask, Propose and Build from the agent panel. Check live activity,
+   continued conversations and Stop. Grok Ask/Propose fail visibly if its
+   read-only sandbox cannot start; Muse's no-edit restriction is prompt-based.
+3. Sign out of one CLI and send: the run must fail with a visible recovery
+   path, not stay running indefinitely. Sign back in using the CLI.
+4. To test your own terminal sessions, use Settings → Agents → Add Ambio.
+   Test `/ambio-map`, inbox watching, Repair, Test and Disconnect. Other
+   clients' configuration and authored instructions must survive. Muse's
+   global MCP entry is optional; moving Ambio must not abort unrelated Muse
+   sessions. Removing dedicated setup preserves shared MCP/skill sources.
+
+Record OS, CLI version, model, account plan, result and any native prompts.
+Shared-skill deduplication and attribution of independently opened Grok
+sessions that inherit another client's MCP entry remain a separate runtime
+compatibility check. Ambio-started sessions receive explicit host identity.
+
+## Recorded checks for this update
+
+- Unit suite: 762 passed, 14 skipped, zero failures.
+- TypeScript check: passed.
+- Production build: passed. Both installed-launcher MCP round trips: passed.
+- Signed-in native conversation/draw-first trials: pending Max's local run.

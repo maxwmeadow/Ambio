@@ -59,9 +59,9 @@ export function ChooseAgent({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  // Preserve the screen's selected client; otherwise prefer a runnable choice.
-  const fallback = (foundApps.some(host => host.id === selectedAppId) ? selectedAppId : null)
-    ?? runnable?.find(choice => choice.kind !== 'setup')?.id
+  // Automatic app preselection must not displace an agent Ambio can run.
+  const fallback = runnable?.find(choice => choice.kind !== 'setup')?.id
+    ?? (foundApps.some(host => host.id === selectedAppId) ? selectedAppId : null)
     ?? (foundApps.find(host => stateOf(host) === 'live' || stateOf(host) === 'installed') ?? foundApps[0])?.id
     ?? runnable?.[0]?.id ?? null
   const chosen = selection && (runnable?.some(choice => choice.id === selection) || apps.some(host => host.id === selection))

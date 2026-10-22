@@ -8,6 +8,7 @@ import { resolveNodeCommand } from './platformPaths.ts'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
+import { MuseClient } from './museClient.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -19,6 +20,7 @@ const NPM_PACKAGES: Record<string, { name: string; bin: string; entry: string }>
   'claude-code': { name: '@anthropic-ai/claude-code', bin: 'claude', entry: 'cli.js' },
   codex: { name: '@openai/codex', bin: 'codex', entry: 'bin/codex.js' },
   'copilot-cli': { name: '@github/copilot', bin: 'copilot', entry: 'index.js' },
+  grok: { name: '@xai-official/grok', bin: 'grok', entry: 'bin/grok-bootstrap.js' },
 }
 
 /**
@@ -38,7 +40,7 @@ function npmNative(hostId: string, packageDir: string, platform: NodeJS.Platform
   const target = `${platform}-${arch}`
   // Installed inside the package, or hoisted beside it.
   const scopes = [join(packageDir, 'node_modules'), join(packageDir, '..', '..')]
-  const candidates = hostId === 'copilot-cli'
+  const candidates = hostId === 'grok' ? [join(packageDir, 'bin', exe('grok-native'))] : hostId === 'copilot-cli'
     ? scopes.map(scope => join(scope, '@github', `copilot-${target}`, exe('copilot')))
     : hostId === 'codex' && NATIVE_TRIPLES[target]
       ? [...scopes.map(scope => join(scope, '@openai', `codex-${target}`, 'vendor', NATIVE_TRIPLES[target], 'bin', exe('codex'))),
@@ -76,6 +78,7 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
   const names = CLI_NAMES[hostId]
   if (!names) return undefined
   const dirs = [...environmentPath(env).split(delimiter).filter(Boolean), join(home, '.local', 'bin'), join(home, '.volta', 'bin'), join(home, '.asdf', 'shims'), '/opt/homebrew/bin', '/usr/local/bin']
+  if (hostId === 'grok') dirs.push(join(env.GROK_HOME ?? join(home, '.grok'), 'bin'))
   for (const versions of [join(home, '.nvm', 'versions', 'node'), join(home, '.asdf', 'installs', 'nodejs')]) {
     try { dirs.push(...fs.readdirSync(versions).sort().reverse().map(version => join(versions, version, 'bin'))) } catch { /* manager not installed */ }
   }
@@ -95,7 +98,10 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
     if (!script) continue
     const native = npmNative(hostId, join(dir, pkg.name), platform as NodeJS.Platform)
     if (native) return { command: native, args: [] }
-    return { command: node, args: [script], bundledNode: true }
+    // Grok's declared bin is a shell wrapper; its JS bootstrap is the Node entry.
+    const entry = hostId === 'grok' ? join(dir, pkg.name, 'bin', 'grok-bootstrap.js') : script
+    if (!fs.existsSync(entry)) continue
+    return { command: node, args: [entry], bundledNode: true }
   }
   return undefined
 }
@@ -184,6 +190,7 @@ export interface RunInput {
   fresh?: () => { args: string[]; stdin?: string; sessionId?: string }
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
   acp?: { mcpServers: AcpMcpServer[]; resume?: string }
+  muse?: { mcpServers: AcpMcpServer[]; resume?: string; model?: string }
 }
 
 /** How many events a run keeps for the inbox to show. */
@@ -199,7 +206,7 @@ export function checkDeliveryMessage(message: { id?: string; workspaceId?: strin
  * executes the same request again. MCP claims still fence replies across hosts. */
 export class DeliveryRunner {
   private live = new Map<string, { child: ChildProcess; run: DeliveryRun }>()
-  private acp = new Map<string, AcpClient>()
+  private acp = new Map<string, AcpClient | MuseClient>()
   private directory: string
   private spawnProcess: typeof spawn
   constructor(directory: string, spawnProcess: typeof spawn = spawn) {
@@ -346,14 +353,17 @@ export class DeliveryRunner {
       const session = (sessionId: string) => {
         if (sessionId && sessionId !== run.sessionId) { run.sessionId = sessionId; this.save(run); this.rememberSession(run) }
       }
-      // An ACP agent is spoken with, not just listened to: the same lines are
+      // A protocol agent is spoken with, not just listened to: the same lines are
       // the protocol, and the turn ends when the agent says it has.
       let acpStopReason: string | undefined
       let acpError: string | undefined
-      const acp = !(attempt.acp && input.acp) ? undefined : new AcpClient({
-        cwd: rootPath, prompt: input.prompt, mode: input.mode ?? 'build', mcpServers: input.acp.mcpServers, resume: input.acp.resume,
-        send: line => { try { child.stdin?.write(`${line}\n`) } catch { /* the close handler reports an agent that has gone */ } },
+      const protocolTurn = {
+        cwd: rootPath, prompt: input.prompt, mode: input.mode ?? 'build',
+        send: (line: string) => { try { child.stdin?.write(`${line}\n`) } catch { /* close reports the failure */ } },
         onSession: session, onEvent: report,
+      }
+      const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
+        ...protocolTurn, mcpServers: input.acp.mcpServers, resume: input.acp.resume, authentication: input.driver?.acpAuthentication,
       })
       const understand = (chunk: Buffer) => {
         if (!input.driver && !acp) return

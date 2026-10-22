@@ -161,13 +161,16 @@ keyboard, and a refused step ends the turn, so agents Ambio runs are given every
 permission they offer (decision 2026-10-19). A build runs unrestricted: Claude
 Code `--permission-mode bypassPermissions`, Codex `--sandbox
 danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
-`--dangerously-skip-permissions`, Cursor CLI `--force`, and ACP agents have every
+`--dangerously-skip-permissions`, Cursor CLI `--force`, Grok `--sandbox off`,
+Muse `--yolo` with MSP `allowAll`, and ACP agents have every
 request approved. Ask and Propose may run commands but lose file editing where
 the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
 read-only sandbox (except on Windows, where it cannot start a shell; decision
 2026-10-20), Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
 edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
-Propose also skip permissions and rely on the turn's contract. Each guide says
+Propose also skip permissions and rely on the turn's contract. Grok uses its
+read-only sandbox plus ACP edit refusals for Ask/Propose; Muse relies on the
+turn's no-edit contract for those modes. Each guide says
 this. The permission desk (`POST /api/agent/permission`, `approve_action`)
 remains for the per-agent permission settings planned in WORK.md
 (`agent-permission-modes`).
@@ -183,7 +186,11 @@ a clean process exit is not.
 Ambio gives the agent its MCP server for the session (`session/new`
 `mcpServers`), sets the agent's own mode to match the turn, answers
 `session/request_permission` by the turn's mode, and offers the agent no file
-system or terminal of its own.
+system or terminal of its own. Grok additionally authenticates using an
+advertised headless method and a bounded handshake. Muse uses its published
+Session Protocol instead (`electron/museClient.ts`), with the same runner,
+per-session MCP identity, saved conversations, events and stop behavior.
+Its Ask/Propose restriction is prompt-based; Build is unrestricted.
 
 **Watching (opt-in).** A user can tell a session they already have open to
 watch Ambio. That session calls `get_inbox({watch: true})`, which waits up to
@@ -196,7 +203,7 @@ again. Nothing waits unless the user asked for it.
 Choosing a host that has a session watching sends to that session too
 (`targetHost` limits the open turn to that host's connections), in preference
 to starting a new run. This is how the hosts Ambio cannot start (Claude
-Desktop, Copilot in VS Code, Grok Build CLI, Muse Code CLI, Cursor, Windsurf, Antigravity, JetBrains, Zed)
+Desktop, Copilot in VS Code, Cursor, Windsurf, Antigravity, JetBrains, Zed)
 hold a conversation: **Deliver to** copies a handoff once that also asks the
 chat to stay attached, and every later turn reaches that chat directly.
 
@@ -226,8 +233,8 @@ review feedback. An editor launch is labelled **work has not started yet**.
 | Copilot in VS Code | `code chat` supports a prompt, agent mode, and new/reused windows. A new chat window is empty; a reused window can belong to another project | Copy + open this project in VS Code; paste into the chosen chat |
 | Copilot CLI | `copilot -p`, per-session `--additional-mcp-config`, and named tool permissions | Start a new CLI run with per-run MCP config |
 | Codex (CLI, shared config with IDE extension/app) | `codex exec`, stdin prompts, workspace-write sandbox, `-c` MCP overrides; CLI worktree support varies by version | Start a new CLI run with per-run MCP config |
-| Grok Build CLI | Local stdio MCP and a documented headless surface; no validated Ambio launch driver yet | Copy handoff into the signed-in `grok` session, then watch |
-| Muse Code CLI | Local stdio MCP; `muse exec --json` documented; no validated Ambio launch driver yet | Copy handoff into the signed-in `muse` session, then watch |
+| Grok Build CLI | `grok agent stdio` (ACP), vendor-owned login and `grok models` | Start/resume a CLI session with per-session MCP, events, model selection and Stop; signed-in live trial pending |
+| Muse Code CLI | `muse serve` (MSP v1), vendor-owned login and `model/list` | Start/resume a CLI session with per-session MCP, events, model selection and Stop; signed-in live trial pending |
 | Cursor | Separate Agent CLI has headless mode; editor hooks are tied to user/agent activity. No verified public route to a particular existing editor chat | Copy + open this project in Cursor when its launcher is found |
 | Windsurf / Devin Local | Cascade hooks can observe activity; no verified external prompt route selecting a project and chat | Copy + open this project in Windsurf when its launcher is found |
 | Antigravity | Its IDE MCP setup is separate from Gemini CLI. Gemini's documented `-p` mode does not establish an Antigravity chat-delivery API | Copy + open this project when the `antigravity` launcher is found |

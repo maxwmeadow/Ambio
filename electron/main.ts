@@ -1586,10 +1586,10 @@ function setupIPC(): void {
     const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
     // An ACP agent is given Ambio's tools for the session and continues or
     // restarts the session itself.
-    const session = driver?.acp || driver?.acpArgs
+    const session = driver?.acp || driver?.acpArgs || driver?.muse
     const acp = session ? {
       resume,
-      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: [{ name: 'AMBIO_WORKSPACE_ID', value: project.id }] }))(mcpLaunchSpec())],
+      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: [{ name: 'AMBIO_WORKSPACE_ID', value: project.id }, { name: 'AMBIO_RUN_MESSAGE_ID', value: request.messageId }] }))(mcpLaunchSpec())],
     } : undefined
     // A host with both ways in is tried as a session first; print mode is the
     // same turn started the way it always was.
@@ -1597,8 +1597,8 @@ function setupIPC(): void {
     const run = await deliveryRunner.start({
       ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
       args: plan.args, stdin: plan.stdin, threadId, mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
-      ...(acp ? { acp } : {}),
-      ...(driver?.acp ? {} : { fresh: printPlan }),
+      ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
+      ...(driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
     })
     return { detail: run.detail, run }
   })

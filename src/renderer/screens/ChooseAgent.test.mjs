@@ -19,40 +19,46 @@ const bundled = await build({
   } }],
 })
 const module = { exports: {} }
-new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports)
+const require = createRequire(import.meta.url)
+new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(name => name === 'react' ? {
+  ...React, useState: initial => React.useState(initial === null ? globalThis.ambioSetupSelection ?? null : initial),
+} : require(name), module, module.exports)
 const { ChooseAgent } = module.exports
 const hosts = [
   { id: 'grok', label: 'Grok Build CLI', modality: 'cli' },
   { id: 'muse', label: 'Muse Code CLI', modality: 'cli' },
-  { id: 'codex', label: 'Codex', modality: 'cli' },
+  { id: 'claude-code', label: 'Claude Code', modality: 'cli' },
+  { id: 'cursor', label: 'Cursor', modality: 'editor' },
 ].map(host => ({ ...host, configured: true, workflowInstalled: true, sharedSurfaces: [] }))
-
-for (const selectedAppId of ['grok', 'muse']) {
-  test(`guided setup displays and preserves preselected ${selectedAppId} alongside runnable agents`, t => {
-    globalThis.ambioSetupChoices = [{ id: 'codex', label: 'Codex', kind: 'run', host: { id: 'codex' } }]
-    t.after(() => { delete globalThis.ambioSetupChoices })
-    const html = renderToStaticMarkup(React.createElement(ChooseAgent, {
-      hosts, selectedAppId, stateOf: () => 'installed', blankProject: false,
-      workspaceId: 'fixture', projectRoot: '/fixture', notes: {}, locateNotices: {},
-      onChoice() {}, onSelectApp() {},
-    }))
+function render(selectedAppId = 'cursor') {
+  return renderToStaticMarkup(React.createElement(ChooseAgent, {
+    hosts, selectedAppId, stateOf: () => 'installed', blankProject: false,
+    workspaceId: 'fixture', projectRoot: '/fixture', notes: {}, locateNotices: {}, onChoice() {}, onSelectApp() {},
+  }))
+}
+function choices(t) {
+  globalThis.ambioSetupChoices = hosts.filter(host => host.modality === 'cli').map(host => ({ id: host.id, label: host.label, kind: 'run', host }))
+  t.after(() => { delete globalThis.ambioSetupChoices; delete globalThis.ambioSetupSelection })
+}
+test('an automatically preselected Cursor does not override a runnable agent', t => {
+  choices(t)
+  // Discovery's first runnable agent remains the setup default.
+  globalThis.ambioSetupChoices.reverse()
+  assert.match(render(), /Map with Claude Code/)
+  assert.doesNotMatch(render(), /Continue with Cursor/)
+})
+for (const id of ['grok', 'muse']) {
+  test(`an explicit ${id} selection maps with it from Ambio`, t => {
+    choices(t)
+    globalThis.ambioSetupSelection = id
+    const html = render()
+    assert.match(html, new RegExp(`Map with ${hosts.find(host => host.id === id).label}`))
     const otherApps = html.split('In another app')[1]
-    assert.match(otherApps, /Grok Build CLI/)
-    assert.match(otherApps, /Muse Code CLI/)
-    assert.doesNotMatch(otherApps, /<strong>Codex<\/strong>/)
-    const name = hosts.find(host => host.id === selectedAppId).label
-    assert.ok(html.includes(`aria-checked="true"`) && html.includes(`Continue with ${name}`))
-    assert.doesNotMatch(html, /Map with (Grok|Muse)/)
+    assert.doesNotMatch(otherApps, /<strong>(Grok Build CLI|Muse Code CLI)<\/strong>/)
   })
 }
-
-test('MCP-only CLIs stay visible while runnable discovery is unavailable', t => {
+test('an installed editor stays available while launch discovery is loading', t => {
+  choices(t)
   globalThis.ambioSetupChoices = null
-  t.after(() => { delete globalThis.ambioSetupChoices })
-  const html = renderToStaticMarkup(React.createElement(ChooseAgent, {
-    hosts, selectedAppId: 'muse', stateOf: () => 'installed', blankProject: false,
-    workspaceId: 'fixture', projectRoot: '/fixture', notes: {}, locateNotices: {}, onChoice() {},
-  }))
-  assert.match(html, /Grok Build CLI/)
-  assert.match(html, /Continue with Muse Code CLI/)
+  assert.match(render(), /Continue with Cursor/)
 })

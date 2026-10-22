@@ -2,7 +2,7 @@ import { dirname, join, resolve } from 'path'
 import os from 'os'
 import fs from 'fs'
 import { DRAW_FIRST_WORKFLOW, DRAW_FIRST_SKILL_DESCRIPTION } from '../src/shared/agentWorkflow.ts'
-import { agentRuleCleanupFiles, agentRuleFiles, installAgentRule, ruleInstalled, type AgentRuleFile } from './agentRules.ts'
+import { agentRuleCleanupFiles, agentRuleFiles, installAgentRule, installMuseContext, ruleInstalled, type AgentRuleFile } from './agentRules.ts'
 import {
   getPlatformPaths,
   getClaudeDesktopConfigCandidates,
@@ -1051,6 +1051,7 @@ export function buildHosts(
         const rules = agentRuleFiles(host.id, projectRoot)
         const paths = [...result.paths]
         try {
+          if (host.id === 'muse') installMuseContext(projectRoot)
           for (const rule of rules) { installAgentRule(rule); paths.push(rule.path) }
           return { ...result, paths, detail: result.detail + (rules.length ? ' Added project instructions to draw structural changes before code.' : ' Draw-first guidance is available through Ambio MCP.') }
         } catch (error) {

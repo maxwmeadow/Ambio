@@ -1,5 +1,5 @@
 // Opt-in real host trial. No developer project or global host config is changed.
-// AMBIO_LIVE_DRAW_FIRST_HOST=codex|claude-code|copilot-cli node --test mcp/e2e/drawFirst.live.mjs
+// AMBIO_LIVE_DRAW_FIRST_HOST=codex|claude-code|copilot-cli|grok|muse node --test mcp/e2e/drawFirst.live.mjs
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
@@ -8,10 +8,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
+import { DeliveryRunner, deliveryPlan, findDeliveryCli } from '../../electron/agentDelivery.ts'
+import { agentDriver } from '../../electron/agentDrivers.ts'
 import { agentRuleFiles, installAgentRule } from '../../electron/agentRules.ts'
 
 const host = process.env.AMBIO_LIVE_DRAW_FIRST_HOST
-const supported = ['codex', 'claude-code', 'copilot-cli']
+const supported = ['codex', 'claude-code', 'copilot-cli', 'grok', 'muse']
 
 function sourceSnapshot(root) {
   const files = {}
@@ -27,6 +29,33 @@ function sourceSnapshot(root) {
 }
 
 async function runHost(harness, prompt) {
+  if (host === 'grok' || host === 'muse') {
+    const launcher = findDeliveryCli(host)
+    assert.ok(launcher, `${host} is not installed`)
+    const driver = agentDriver(host)
+    const runs = fs.mkdtempSync(path.join(os.tmpdir(), `ambio-${host}-draw-`))
+    const runner = new DeliveryRunner(runs)
+    const mcp = { command: process.execPath, args: [fileURLToPath(new URL('../ambio-mcp.ts', import.meta.url))] }
+    const binding = { AMBIO_API_URL: harness.apiBase, AMBIO_API_TOKEN: 'ambio-isolated-test-token-for-mcp-harness', AMBIO_ACTIVE_PROJECT: harness.activeProjectPath, AMBIO_WORKSPACE_ID: harness.workspaceId }
+    const model = process.env.AMBIO_LIVE_DRAW_FIRST_MODEL || undefined
+    const plan = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode: 'build', cwd: harness.projectDir, model })
+    const protocol = { mcpServers: [{ name: 'ambio', command: mcp.command, args: [...mcp.args, `--ambio-host=${host}`], env: Object.entries(binding).map(([name, value]) => ({ name, value })) }] }
+    let run
+    try {
+      const started = await runner.start({ workspaceId: harness.workspaceId, messageId: 'draw-first', hostId: host, rootPath: harness.projectDir, revision: 'initial', launcher, driver, prompt, args: plan.args, mode: 'build', ...(driver.muse ? { muse: { ...protocol, model } } : { acp: protocol }) })
+      for (let waited = 0; waited < 180; waited++) {
+        run = runner.list(harness.workspaceId).find(run => run.key === started.key)
+        if (['completed', 'failed', 'stopped', 'launch-failed'].includes(run?.state)) break
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      return { code: run?.state === 'completed' ? 0 : 1, timedOut: run?.state === 'running', stdout: fs.readFileSync(run.logPath, 'utf8') + '\n' + runner.events(harness.workspaceId, started.key).map(event => event.text).join('\n'), stderr: run?.detail ?? 'No launch receipt' }
+    } finally {
+      runner.stopAll()
+      // The runner's process close handler writes its final receipt after stop.
+      await new Promise(resolve => setTimeout(resolve, 100))
+      fs.rmSync(runs, { recursive: true, force: true })
+    }
+  }
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: '', AMBIO_API_URL: harness.apiBase, AMBIO_API_TOKEN: 'ambio-isolated-test-token-for-mcp-harness', AMBIO_ACTIVE_PROJECT: harness.activeProjectPath }
   const mcp = { command: process.execPath, args: [fileURLToPath(new URL('../ambio-mcp.ts', import.meta.url)), `--ambio-host=${host}`], env: { AMBIO_API_URL: env.AMBIO_API_URL, AMBIO_API_TOKEN: env.AMBIO_API_TOKEN, AMBIO_ACTIVE_PROJECT: env.AMBIO_ACTIVE_PROJECT } }
   let binary, args

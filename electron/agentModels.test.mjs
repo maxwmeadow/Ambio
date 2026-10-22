@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { antigravityModels, codexModels, copilotModels, validModel } from './agentModels.ts'
+import { antigravityModels, codexModels, copilotModels, grokModels, validModel } from './agentModels.ts'
 import { deliveryPlan } from './agentDelivery.ts'
 
 test('each agent’s own model list is read the way it publishes it', () => {
@@ -25,10 +25,15 @@ test('a chosen model reaches each agent with its own flag, and none is passed by
   const mcp = { command: 'node', args: ['mcp.js'] }
   const turn = { mode: 'ask', model: 'opus' }
   const args = host => deliveryPlan(host, mcp, 'ws', 'p', turn).args
-  for (const host of ['claude-code', 'copilot-cli', 'cursor-cli', 'antigravity-cli']) assert.equal(args(host)[args(host).indexOf('--model') + 1], 'opus', host)
+  for (const host of ['claude-code', 'copilot-cli', 'cursor-cli', 'antigravity-cli', 'grok']) assert.equal(args(host)[args(host).indexOf('--model') + 1], 'opus', host)
   assert.ok(args('codex').includes('model="opus"'))
   for (const host of ['claude-code', 'codex', 'copilot-cli']) {
     const plain = deliveryPlan(host, mcp, 'ws', 'p', { mode: 'ask' }).args
     assert.ok(!plain.includes('--model') && !plain.some(arg => arg.startsWith('model=')), host)
   }
+})
+
+// Captured from the official @xai-official/grok 1.0.67 native binary, without login.
+test('Grok catalog excludes authentication notices and its default heading', () => {
+  assert.deepEqual(grokModels('You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n'), [{ id: 'grok-4.6', label: 'grok-4.6' }, { id: 'grok-4.5', label: 'grok-4.5' }])
 })

@@ -5,7 +5,7 @@
 //   AMBIO_LIVE_CONVERSATION_HOST=claude-code node --test mcp/e2e/conversation.live.mjs
 //
 // Hosts: claude-code, codex, copilot-cli, cursor-cli, devin-cli,
-// antigravity-cli, antigravity-acp. The host's CLI must be installed and
+// antigravity-cli, antigravity-acp, grok, muse. The host's CLI must be installed and
 // signed in.
 //
 // What it proves that stand-in agents cannot: the real CLI accepts what its
@@ -97,27 +97,26 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     assert.equal(sent.status, 200, await sent.text())
     const prompt = workOrderHandoff('harness', harness.workspaceId, harness.projectDir, id)
     const resume = driver.resumable ? runner.session(harness.workspaceId, 'live-ask', host) : undefined
-    const extra = model && !driver.acp && !driver.acpArgs ? ['--model', model] : []
     // Codex starts MCP servers with only the environment it is given, so the
     // harness's address goes into the server's config (a running Ambio needs
     // none: the server finds it by its default port and token file).
     const harnessEnv = host === 'codex' ? Object.entries(binding).flatMap(([name, value]) => ['-c', `mcp_servers.ambio.env.${name}=${JSON.stringify(value)}`]) : []
     const withHarness = args => harnessEnv.length && args.at(-1) === '-' ? [...args.slice(0, -1), ...harnessEnv, '-'] : [...args, ...harnessEnv]
-    const print = () => { const plan = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir }); return { ...plan, args: withHarness([...plan.args, ...extra]) } }
-    const session = driver.acp || driver.acpArgs
+    const print = () => { const plan = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...plan, args: withHarness(plan.args) } }
+    const session = driver.acp || driver.acpArgs || driver.muse
     const acp = session ? {
       resume,
-      mcpServers: [{ name: 'ambio', command: mcp.command, args: [...mcp.args, `--ambio-host=${host}`], env: Object.entries({ ...binding, AMBIO_WORKSPACE_ID: harness.workspaceId }).map(([name, value]) => ({ name, value })) }],
+      mcpServers: [{ name: 'ambio', command: mcp.command, args: [...mcp.args, `--ambio-host=${host}`], env: Object.entries({ ...binding, AMBIO_WORKSPACE_ID: harness.workspaceId, AMBIO_RUN_MESSAGE_ID: id }).map(([name, value]) => ({ name, value })) }],
       askUser: async question => {
         const response = await fetch(`${harness.apiBase}/api/agent/permission`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: harness.workspaceId, messageId: id, hostId: host, ...question }) })
         return (await response.json()).decision === 'allow'
       },
     } : undefined
-    const plan = driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir }); return { ...made, args: withHarness([...made.args, ...extra]) } })()
+    const plan = driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...made, args: withHarness(made.args) } })()
     const started = await runner.start({
       workspaceId: harness.workspaceId, messageId: id, hostId: host, rootPath: harness.projectDir, revision: 'initial', launcher, prompt,
       args: plan.args, stdin: plan.stdin, threadId: 'live-ask', mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
-      ...(acp ? { acp } : {}), ...(driver.acp ? {} : { fresh: print }),
+      ...(acp ? driver.muse ? { muse: { ...acp, model: model || undefined } } : { acp } : {}), ...(driver.acp || driver.muse ? {} : { fresh: print }),
     })
     let run
     for (let waited = 0; waited < 420; waited++) {
@@ -130,6 +129,10 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     const output = () => `${run?.state}: ${run?.detail}\nevents: ${JSON.stringify(events.map(event => event.text))}\nlog tail: ${fs.readFileSync(run.logPath, 'utf8').slice(-2500)}`
     assert.equal(run?.state, 'completed', output())
     assert.equal(message?.status, 'answered', `the agent never replied through Ambio.\n${output()}`)
+    if (host === 'grok' || host === 'muse') {
+      const presence = await (await fetch(`${harness.apiBase}/api/agent/presence?workspace=${encodeURIComponent(harness.workspaceId)}`)).json()
+      assert.ok(presence.connections.some(connection => connection.hostId === host && connection.lastToolAt > 0), `missing ${host} attribution`)
+    }
     console.log(`\n[${mode}] ${note}\n  -> ${message.reply.body.replace(/\s+/g, ' ').slice(0, 300)}\n  session ${run.sessionId ?? '(none)'}${run.resumed ? ' (continued)' : ''}\n  did: ${events.filter(event => event.kind === 'tool').map(event => event.text).join(' | ')}`)
     return { run, events, reply: message.reply.body }
   }
@@ -143,7 +146,7 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
   const second = await turn('live-ask-2', 'ask', 'In the file you just named, which method returns its argument unchanged? Reply with the method name only.')
   assert.match(second.reply, /\bget\b/)
   console.log(`\n  session continued: ${second.run.resumed === true} (driver says it can: ${driver.resumable})`)
-  if (host === 'claude-code') {
+  if (['claude-code', 'grok', 'muse'].includes(host)) {
     assert.equal(second.run.resumed, true, 'the second turn did not continue the host session')
     assert.equal(second.run.sessionId, first.run.sessionId)
   }

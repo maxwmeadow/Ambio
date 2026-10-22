@@ -22,6 +22,7 @@ export interface AcpTurn {
   mcpServers: AcpMcpServer[]
   /** The agent session an earlier turn of this conversation ran in. */
   resume?: string
+  authentication?: 'grok'
   /** Sends one line to the agent. */
   send: (line: string) => void
   onSession: (sessionId: string) => void
@@ -40,7 +41,7 @@ export interface AcpOutcome {
   resumed: boolean
 }
 
-type Pending = { resolve: (value: any) => void; reject: (error: Error) => void }
+type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer?: ReturnType<typeof setTimeout> }
 
 // A question or a proposal may look, run commands and talk to Ambio; it may
 // not edit the project's files. A build is allowed everything it asks for.
@@ -83,7 +84,11 @@ export class AcpClient {
   private request<T = any>(method: string, params: unknown): Promise<T> {
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      // Grok's auth may otherwise wait for a browser that an Ambio-started
+      // process cannot present. Model turns have no handshake time limit.
+      const timer = this.turn.authentication === 'grok' && method !== 'session/prompt'
+        ? setTimeout(() => { this.pending.delete(id); reject(new Error(`Grok did not answer ${method}. Run grok login in a terminal, then send again.`)) }, 30000) : undefined
+      this.pending.set(id, { resolve, reject, timer })
       this.turn.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
     })
   }
@@ -93,7 +98,7 @@ export class AcpClient {
     if (this.closed) return
     this.closed = true
     this.flushText()
-    for (const waiting of this.pending.values()) waiting.reject(new Error(reason))
+    for (const waiting of this.pending.values()) { clearTimeout(waiting.timer); waiting.reject(new Error(reason)) }
     this.pending.clear()
   }
 
@@ -112,6 +117,7 @@ export class AcpClient {
       const waiting = this.pending.get(message.id)
       if (!waiting) return
       this.pending.delete(message.id)
+      clearTimeout(waiting.timer)
       if (message.error) waiting.reject(new Error(String(message.error.message ?? 'The agent refused the request.')))
       else waiting.resolve(message.result ?? {})
       return
@@ -183,6 +189,14 @@ export class AcpClient {
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: 'ambio', title: 'Ambio', version: '1' },
     })
+    if (turn.authentication === 'grok') {
+      const methods: Array<{ id: string }> = initialized.authMethods ?? []
+      const methodId = process.env.XAI_API_KEY && methods.some(method => method.id === 'xai.api_key')
+        ? 'xai.api_key' : methods.find(method => method.id === 'cached_token')?.id ?? methods.find(method => method.id === 'grok.com')?.id
+      if (!methodId) throw new Error('Grok has no supported headless sign-in method. Update Grok and run grok login in a terminal.')
+      try { await this.request('authenticate', { methodId, _meta: { headless: true } }) }
+      catch { throw new Error('Grok is not signed in. Run grok login in a terminal, then send again.') }
+    }
     const capabilities = initialized.agentCapabilities ?? {}
     let resumed = false
     let session: any

@@ -1,6 +1,6 @@
 import fs from 'fs'
-import { dirname } from 'path'
-import { removeAgentRule } from './agentRules.ts'
+import { dirname, join } from 'path'
+import { removeAgentRule, removeMuseContext } from './agentRules.ts'
 import {
   inboxSkillPath,
   buildSkillPath,
@@ -120,6 +120,9 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
     }
   }
 
+  if (host.id === 'muse') {
+    try { removeMuseContext(projectRoot) } catch { unreadable.push(join(projectRoot ?? '', 'AGENTS.md')) }
+  }
   for (const rule of host.ruleCleanupFiles?.(projectRoot) ?? host.ruleFiles?.(projectRoot) ?? []) {
     const shared = others.some(other => other.id !== host.id &&
       (other.ruleFiles?.(projectRoot) ?? []).some(candidate => candidate.path === rule.path) &&

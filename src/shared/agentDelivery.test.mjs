@@ -47,5 +47,5 @@ test('setup and Settings classify launch support without depending on successful
     assert.equal(canStartAgent(id), true)
     assert.ok(agentDriver(id), `shared launch capability lacks a driver: ${id}`)
   }
-  for (const id of ['grok', 'muse', 'cursor', 'claude-desktop']) assert.equal(canStartAgent(id), false)
+  for (const id of ['cursor', 'claude-desktop']) assert.equal(canStartAgent(id), false)
 })

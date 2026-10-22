@@ -68,6 +68,9 @@ export interface AgentDriver {
    * prompt, the session and its MCP servers go over the protocol.
    */
   acp?: boolean
+  acpAuthentication?: 'grok'
+  /** Muse Session Protocol over muse serve. */
+  muse?: boolean
   plan(turn: DriverTurn): DriverPlan
   read(line: string): DriverOutput
   /** What a line of the host's error output means, for hosts that explain a failed turn there. */
@@ -391,9 +394,19 @@ const DRIVERS: Record<string, AgentDriver> = {
   codex,
   'copilot-cli': copilotCli,
   'cursor-cli': cursorCli,
-  // Windsurf's local agent speaks ACP, which lets Ambio hand it its MCP
-  // server for the session. (Gemini CLI did too; Google replaced it with
-  // Antigravity and refuses it for personal accounts.)
+  grok: {
+    resumable: true, acp: true, acpAuthentication: 'grok',
+    plan: turn => ({ args: ['--sandbox', turn.mode === 'build' ? 'off' : 'read-only', 'agent', '--no-leader', ...modelFlag(turn), 'stdio'] }),
+    readError: line => /error:|not signed in|authentication required/i.test(line) ? { events: [{ kind: 'error', text: clip(line, 1200) }] } : NOTHING,
+    read: () => NOTHING,
+  },
+  muse: {
+    resumable: true, muse: true,
+    plan: () => ({ args: ['serve', '--yolo'] }),
+    readError: line => /not signed in|not logged in|authentication|credential/i.test(line) ? { events: [{ kind: 'error', text: 'Muse could not authenticate. Sign in to Muse in a terminal, then send again. See the run output for details.' }] } : NOTHING,
+    read: () => NOTHING,
+  },
+  // Windsurf's local agent speaks ACP, with per-session MCP servers.
   'devin-cli': acpDriver(['acp']),
   // Antigravity's own CLI has no ACP mode; Google ships a separate ACP server.
   'antigravity-acp': acpDriver([]),

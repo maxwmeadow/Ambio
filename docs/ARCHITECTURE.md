@@ -60,11 +60,27 @@ Provider setup is in Settings → Agents; the picker opens it when none is set u
 
 Models: `electron/agentModels.ts` lists what each agent Ambio runs can use, read
 the way that agent publishes it (Claude Code's aliases, Codex's
-`~/.codex/models_cache.json`, `copilot help config`, `agy models`), cached per
+`~/.codex/models_cache.json`, `copilot help config`, `agy models`, `grok models`, and Muse MSP
+`model/list`), cached per
 session (`agent:models`). A delivery request may carry a model, which each
 driver passes with its own flag. Ambio chat services keep the models found when
 tested, and a turn may use any of them. The choice is made in the composer
 (`AgentModelMenu`) and in setup, remembered per agent.
+
+Grok Build runs `grok --sandbox <profile> agent --no-leader [--model …] stdio`
+through `acpClient.ts`. Its advertised authentication method uses the CLI's
+existing account (bounded handshake); each session receives Ambio's host,
+workspace and request identity. Ask/Propose use the read-only sandbox and
+refuse ACP file-edit permissions. Build uses the unrestricted profile.
+Muse Code runs `muse serve --yolo` through `museClient.ts`, implementing Meta's
+published MSP v1: initialize, session start/resume with MCP overrides, model
+selection, item events, turn completion and interruption. A resumed session
+must match the project root. Interactive native requests fail visibly rather
+than hanging. Muse Ask/Propose rely on the work-order prompt's restriction;
+there is no claim of an enforced read-only sandbox for those modes.
+Both drivers reuse DeliveryRunner's receipts, session storage and Stop;
+neither copies vendor credentials into Ambio chat. Native account validation
+is tracked in [testing/GROK_MUSE_CLIENTS.md](testing/GROK_MUSE_CLIENTS.md).
 
 Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) sends the
 mapping brief (`agent:mapping-brief`, the same text the installed workflow
@@ -127,15 +143,17 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 (`~/.grok/config.toml`, TOML `mcp_servers`) and Muse Code
 (`$XDG_CONFIG_HOME/muse/settings.json`, default `~/.config/muse/settings.json`,
 JSON `mcp_servers` with explicit stdio transport). Each gets its own native
-skills plus a managed project draw-first block (`AGENTS.md`, or Muse's existing
-instruction file). A generated `AGENTS.md` explicitly directs the agent to
-read an existing lower-precedence authored instruction file, and removal
+skills plus a stable managed project draw-first block in `AGENTS.md`. Muse
+setup adds a separate pointer scoped to Muse when Ambio's generated file
+would shadow authored lower-priority instructions. That choice is frozen at
+setup and excluded from the shared workflow checksum. Other clients neither
+create the pointer nor change repair status when `CLAUDE.md` appears. Removal
 checks every candidate for unchanged managed blocks. Muse's server is optional
 so unavailable Ambio tools do not prevent an unrelated Muse run. Config
 overrides, inspection, repair and uninstall use those same paths. MCP
 arguments identify presence as `grok` or `muse`. These clients use the existing
-copy-handoff/watch route; they do not have conversation launch drivers or
-native subscription auth. Settings and guided setup use the shared
+conversation launch routes described above and can also watch existing
+terminal sessions. They do not add native subscription auth. Settings and guided setup use the shared
 `canStartAgent` capability rather than treating every CLI as runnable or
 depending on a successful discovery call. Compatibility MCP/skill files
 owned by other clients are reported as shared setup and are not removed.
@@ -428,8 +446,8 @@ sheet, build spec and comparison in one transaction → an agent claims by ID
 you accept or request changes. Agent-reported results are labelled unverified.
 
 **Delivery** (`electron/agentDelivery.ts`, `AgentDelivery.tsx`): the send panel
-lists every installer host. Claude Code, Codex, Copilot CLI and Antigravity CLI
-(and, experimentally, Cursor and Devin) start fresh local runs after the request
+lists every installer host. Claude Code, Codex, Copilot CLI, Antigravity CLI,
+Grok Build, Muse Code (and, experimentally, Cursor and Devin) start fresh local runs after the request
 is durably saved; editor/desktop hosts copy the handoff and
 open the project/app when a launcher is available. The main process verifies the
 registered project, current request state and claim before launching, supplies
@@ -451,7 +469,8 @@ so context does not depend on the host. `electron/agentDrivers.ts` holds one
 driver per started host: how to start a turn, continue the host's session,
 apply the turn's mode as permissions, and read its output. The runner stores
 host sessions per conversation and a run's activity events; `acpClient.ts`
-drives hosts that speak the Agent Client Protocol. A session told to watch
+drives hosts that speak the Agent Client Protocol and `museClient.ts` drives
+Muse MSP sessions. A session told to watch
 waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in

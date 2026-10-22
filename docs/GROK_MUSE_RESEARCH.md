@@ -5,20 +5,20 @@ This is a feasibility assessment; no authenticated vendor run was performed.
 
 Implementation update: dedicated local installers, detection, repair, removal
 and native workflow skills are now implemented for both clients. Their
-delivery route remains copy-handoff/watch; launch drivers and live vendor
-account trials remain follow-ups. This does not add native subscription auth.
+launch routes now use Grok ACP and Muse MSP with per-session MCP binding,
+models, continuation, activity and Stop. Signed-in vendor trials remain pending. This does not add native subscription auth.
 
 ## Recommendation
 
-Add Grok Build and Muse Code as external MCP clients first, then add launch
-drivers. Offer their ordinary API-key services in native Ambio chat. Do not
+Use Grok Build and Muse Code as external MCP clients, including Ambio-started
+CLI sessions. Offer their ordinary API-key services in native Ambio chat. Do not
 advertise direct subscription sign-in for native chat: neither investigation
 found a published third-party flow equivalent to Ambio's ChatGPT integration.
 
 | Route | Grok | Meta Muse |
 |---|---|---|
 | Coding client connects to Ambio | Grok Build supports local stdio MCP | Muse Code supports local stdio MCP |
-| Ambio starts the coding client | Feasible; needs driver and live validation | Feasible; needs driver and live validation |
+| Ambio starts the coding client | Implemented; signed-in live validation pending | Implemented; signed-in live validation pending |
 | Vendor model in native Ambio chat | Ordinary API key; compatible API | Ordinary Model API key; compatible API |
 | Subscription sign-in in native Ambio chat | No public third-party flow found | No public third-party flow found; subscription credentials restricted to the coding harness |
 | Vendor web chat calls Ambio | Custom remote MCP connectors available | Connector developer preview; separate from Muse Code |
@@ -28,8 +28,7 @@ found a published third-party flow equivalent to Ambio's ChatGPT integration.
 - `electron/agentInstallers.ts`, `agentRules.ts`, `agentDelivery.ts`,
   `agentDrivers.ts`, `agentModels.ts`, and `src/shared/agentDelivery.ts` contain
   the connection, launch, workflow and model-picker integration points. These
-  now include dedicated Grok and Muse MCP installer entries; launch drivers
-  remain unimplemented.
+  now include dedicated Grok and Muse MCP installers and launch drivers.
 - `mcp/ambio-mcp.ts` uses `StdioServerTransport`. That fits local coding
   clients; it is not a remote HTTP MCP endpoint for a web chat connector.
 - `src/shared/agentChat.ts`, `electron/chatProviders.ts`, `agentChat.ts`, and
@@ -151,3 +150,27 @@ installation path.
 
 The installer implementation is covered separately by unit and real MCP
 protocol tests; no authenticated vendor compatibility is claimed here.
+
+
+## Launch implementation and evidence (2026-10-22)
+
+Grok uses ACP (`grok agent --no-leader --model … stdio`) with a global sandbox
+profile. Official npm `@xai-official/grok` 1.0.67 was installed in a task-only
+folder: native help, model catalog and ACP initialization were checked. This
+binary advertises `grok.com`; older documented examples advertise
+`cached_token` / `xai.api_key`. Ambio selects an offered method and requests
+headless authentication, with a timeout and terminal-login recovery. The
+workspace has no vendor login; no model turn was claimed as verified. Its
+container cannot apply Grok's read-only sandbox; it fails closed.
+
+Muse uses `muse serve --yolo` and the published
+[Meta Muse Code SDK protocol](https://github.com/meta-models/muse-code-sdk/tree/main/schema/msp)
+(v1, SDK snapshot 1.4.12), without adding an SDK dependency. Session construction
+accepts per-session MCP overrides and model choice; native start/resume
+subscriptions carry item and turn events. Model discovery uses `model/list`
+without creating a session. The official Muse installer domain is blocked by
+the workspace's network policy, so no native Muse binary was available here.
+Protocol fixtures are not evidence of signed-in native compatibility.
+
+The user will run the real account trials locally. Reproducible commands and
+remaining acceptance checks are in [testing/GROK_MUSE_CLIENTS.md](testing/GROK_MUSE_CLIENTS.md).
