@@ -242,6 +242,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `grok-muse-launch-review` **Fix PR #10 launch review before native trials.** Plain Muse serve; Claude-only permission-hook binding; actionable Grok sandbox failures and startup-aware timeouts; investigate Muse denyUnmatched with Ambio tools; extend driver/UI peers and live acceptance checks. Keep the PR draft and leave unrelated CI failures alone. (Codex, codex/grok-muse-mcp-clients, 2026-10-22, Max review of 9ccd4a2)
+
 
 - ⬜ `grok-muse-compatibility` **Validate inherited MCP identity and skill deduplication in the real CLIs.** Shared config can retain another client's `--ambio-host` attribution, and shared skills can survive removal of dedicated setup; Settings now reports the shared files but does not override other clients' configuration or claim runtime deduplication. (2026-10-22, PR #10 review)
 - ⬜ `ci-main-gofmt` **Fix the Go formatting failures already present on main.** Review reports all OS jobs fail gofmt in `internal/db/sheet_layouts.go`, `internal/db/sheets.go`, and `internal/indexer/imports_more_test.go`; unrelated to PR #10. (2026-10-22, Claude review supplied by Max)
