@@ -1,5 +1,18 @@
 export type DeliveryRoute = 'run' | 'open' | 'copy'
 
+/** Launch capability is static; discovery only decides whether it is installed. */
+export const DRIVEN_CLI_NAMES: Record<string, string[]> = {
+  'claude-code': ['claude'],
+  codex: ['codex'],
+  'copilot-cli': ['copilot'],
+  'cursor-cli': ['cursor-agent'],
+  'devin-cli': ['devin'],
+  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
+  'antigravity-cli': ['agy'],
+}
+
+export const canStartAgent = (hostId: string): boolean => Object.hasOwn(DRIVEN_CLI_NAMES, hostId)
+
 export interface DeliveryHost {
   id: string
   label: string

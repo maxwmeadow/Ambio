@@ -42,7 +42,7 @@ for (const platform of ['linux', 'darwin', 'win32']) {
       if (id === 'muse') {
         const settings = JSON.parse(config)
         assert.equal(settings.model, 'chosen-model')
-        assert.deepEqual(settings.mcp_servers.ambio, { transport: 'stdio', enabled: true, mode: 'required', command, args: [...args, '--ambio-host=muse'] })
+        assert.deepEqual(settings.mcp_servers.ambio, { transport: 'stdio', enabled: true, mode: 'optional', command, args: [...args, '--ambio-host=muse'] })
       } else {
         assert.equal((config.match(/^\[mcp_servers\.ambio\]/gm) ?? []).length, 1)
         assert.match(config, /model = "chosen-model"/)
@@ -91,7 +91,65 @@ test('Muse refuses malformed config or server maps without changing them', t => 
     assert.equal(result.ok, false)
     assert.equal(fs.readFileSync(host.configPath(), 'utf8'), source)
     assert.equal(fs.existsSync(host.commandPath(project)), false)
+    assert.deepEqual(inspectHostConfiguration(host).unreadablePaths, [host.configPath()])
+    if (source !== '{invalid') assert.match(result.detail, /valid JSON.*server map/)
   }
+})
+
+for (const otherId of ['codex', 'grok', 'copilot-cli']) {
+  for (const museFirst of [true, false]) {
+    test(`Muse instructions survive ${otherId} setup and either removal order (Muse first: ${museFirst})`, t => {
+      const { home, project } = fixture(t)
+      const hosts = buildHosts(home)
+      const muse = hosts.find(host => host.id === 'muse')
+      const other = hosts.find(host => host.id === otherId)
+      const claude = path.join(project, 'CLAUDE.md')
+      const authored = '# Project contract\nKeep the billing workflow.\n'
+      fs.writeFileSync(claude, authored)
+      assert.ok(muse.install('node', ['ambio.mjs'], '# Ambio mapping', project).ok)
+      assert.ok(other.install('node', ['ambio.mjs'], '# Ambio mapping', project).ok)
+      const agents = path.join(project, 'AGENTS.md')
+      assert.match(fs.readFileSync(agents, 'utf8'), /Read and follow.*CLAUDE.md/)
+      assert.ok(inspectHostConfiguration(muse, project).workflowInstalled)
+      const order = museFirst ? [muse, other] : [other, muse]
+      assert.ok(uninstallHost(order[0], project, [order[1]]).ok)
+      assert.ok(inspectHostConfiguration(order[1], project).workflowInstalled)
+      assert.ok(uninstallHost(order[1], project).ok)
+      assert.equal(fs.existsSync(agents), false)
+      assert.ok(fs.readFileSync(claude, 'utf8').startsWith(authored))
+      assert.doesNotMatch(fs.readFileSync(claude, 'utf8'), /ambio:draw-first/)
+    })
+  }
+}
+
+test('Muse cleans an older managed candidate after an externally created AGENTS.md changes precedence', t => {
+  const { home, project } = fixture(t)
+  const muse = buildHosts(home).find(host => host.id === 'muse')
+  const original = path.join(project, '.claude', 'CLAUDE.md')
+  fs.mkdirSync(path.dirname(original), { recursive: true })
+  fs.writeFileSync(original, '# My original rules\n')
+  assert.ok(muse.install('node', ['ambio.mjs'], '# Ambio mapping', project).ok)
+  fs.writeFileSync(path.join(project, 'AGENTS.md'), '# New authored rules\n')
+  assert.ok(uninstallHost(muse, project).ok)
+  assert.doesNotMatch(fs.readFileSync(original, 'utf8'), /ambio:draw-first/)
+  assert.equal(fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'), '# New authored rules\n')
+})
+
+test('Grok inspects ancestor configs through the nearest git root, including a worktree git file', t => {
+  const { root, home, project } = fixture(t)
+  const nested = path.join(project, 'packages', 'api')
+  fs.mkdirSync(nested, { recursive: true })
+  fs.writeFileSync(path.join(project, '.git'), 'gitdir: elsewhere\n')
+  const locations = [path.join(project, '.grok', 'config.toml'), path.join(project, 'packages', '.grok', 'config.toml')]
+  for (const file of [...locations, path.join(root, '.grok', 'config.toml')]) {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, '[mcp_servers.ambio]\ncommand = "node"\n')
+  }
+  const grok = buildHosts(home).find(host => host.id === 'grok')
+  assert.deepEqual(new Set(inspectHostConfiguration(grok, nested).configuredPaths), new Set(locations))
+  assert.ok(uninstallHost(grok, nested).ok)
+  for (const file of locations) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /ambio/)
+  assert.match(fs.readFileSync(path.join(root, '.grok', 'config.toml'), 'utf8'), /ambio/)
 })
 
 test('Muse appends to existing project instructions without shadowing them', t => {
@@ -116,4 +174,26 @@ test('Grok and Muse share project rules without removing another configured clie
     assert.ok(uninstallHost(hosts[i], project, hosts.slice(i + 1)).ok)
     assert.equal(fs.existsSync(path.join(project, 'AGENTS.md')), i !== hosts.length - 1)
   }
+})
+
+test('shared compatibility files are reported, preserved and not counted as dedicated setup', t => {
+  const { home, project } = fixture(t)
+  const hosts = buildHosts(home)
+  const claude = hosts.find(host => host.id === 'claude-code')
+  const codex = hosts.find(host => host.id === 'codex')
+  const grok = hosts.find(host => host.id === 'grok')
+  const muse = hosts.find(host => host.id === 'muse')
+  for (const host of [claude, codex]) assert.ok(host.install('node', ['ambio.mjs'], '# Ambio mapping', project).ok)
+  assert.equal(inspectHostConfiguration(grok, project).configured, false)
+  assert.ok(inspectHostConfiguration(grok, project).inheritedPaths.includes(claude.configPath()))
+  for (const host of [grok, muse]) {
+    assert.ok(host.install('node', ['ambio.mjs'], '# Ambio mapping', project).ok)
+    assert.ok(uninstallHost(host, project, [claude, codex]).ok)
+    const remaining = inspectHostConfiguration(host, project)
+    assert.equal(remaining.configured, false)
+    assert.ok(remaining.inheritedPaths.includes(codex.commandPath(project)))
+    assert.ok(fs.existsSync(claude.commandPath(project)))
+  }
+  assert.ok(inspectHostConfiguration(claude, project).configured)
+  assert.ok(inspectHostConfiguration(codex, project).configured)
 })

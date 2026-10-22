@@ -120,7 +120,7 @@ export function uninstallHost(host: HostDescriptor, projectRoot: string | undefi
     }
   }
 
-  for (const rule of host.ruleFiles?.(projectRoot) ?? []) {
+  for (const rule of host.ruleCleanupFiles?.(projectRoot) ?? host.ruleFiles?.(projectRoot) ?? []) {
     const shared = others.some(other => other.id !== host.id &&
       (other.ruleFiles?.(projectRoot) ?? []).some(candidate => candidate.path === rule.path) &&
       inspectHostConfiguration(other, projectRoot).configured)

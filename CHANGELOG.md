@@ -13,6 +13,12 @@ in the app as "What's New" after updating, so write it for users.
   terminal session and paste Ambio's handoff to send it work.
 
 ### Fixed
+- Grok Build and Muse Code appear in guided setup even without a launch
+  driver. Muse keeps existing project guidance through mixed-client setup
+  and removal, and unavailable Ambio tools no longer abort Muse sessions.
+- Invalid MCP server-map shapes are flagged for repair with a specific error.
+  Grok configuration discovery follows parent folders to the Git root, and
+  shared setup inherited from other clients is shown separately.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.

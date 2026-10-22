@@ -242,7 +242,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `grok-muse-review` **Address PR #10 review:** show MCP-only CLIs in guided setup, preserve Muse instruction precedence and clean every managed candidate, make Muse optional, and correct diagnostics/discovery/docs. Keep signed-in launch drivers separate. (Codex, codex/grok-muse-mcp-clients, 2026-10-22)
+- ⬜ `grok-muse-compatibility` **Validate inherited MCP identity and skill deduplication in the real CLIs.** Shared config can retain another client's `--ambio-host` attribution, and shared skills can survive removal of dedicated setup; Settings now reports the shared files but does not override other clients' configuration or claim runtime deduplication. (2026-10-22, PR #10 review)
+- ⬜ `ci-main-gofmt` **Fix the Go formatting failures already present on main.** Review reports all OS jobs fail gofmt in `internal/db/sheet_layouts.go`, `internal/db/sheets.go`, and `internal/indexer/imports_more_test.go`; unrelated to PR #10. (2026-10-22, Claude review supplied by Max)
 
 - ⬜ `grok-muse-live-validation` **Record authenticated Grok Build and Muse Code client trials.** Installers and real MCP protocol checks pass; record model-driven mapping, draw-first proposals, addressed replies and watching follow-ups using [docs/testing/GROK_MUSE_CLIENTS.md](docs/testing/GROK_MUSE_CLIENTS.md). (2026-10-22, MCP client implementation)
 - ⬜ `grok-muse-drivers` **Start Grok Build and Muse Code conversations from Ambio.** MCP client setup currently uses copy-handoff/watch. Add validated launch/resume/event/model/permission drivers while keeping vendor-owned authentication; scope and sources in [docs/GROK_MUSE_RESEARCH.md](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, client coverage follow-up)
@@ -314,6 +315,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-22 `grok-muse-review` Fixed guided setup visibility/preselection and discovery-independent Settings grouping; preserved authored Muse instructions through mixed-client installation and cleanup; made Muse MCP optional; added JSON shape diagnostics, ancestor Grok discovery, shared-setup reporting and missing protocol/test documentation. Regression suite: 737 passed, 14 skipped; both installed-launcher MCP round trips, types and build pass. Signed-in drivers and runtime compatibility identity/deduplication remain open. (codex/grok-muse-mcp-clients)
 
 - 2026-10-22 `grok-muse-clients` Added Grok Build and Muse Code MCP installers, detection/repair/removal, native workflow skills, preserved project guidance, truthful Settings grouping and handoff guides. Type check, app build, unit suite (724 passed, 14 skipped) and both installed-launcher MCP round trips pass; live vendor CLI trials and conversation drivers remain separate items. Full MCP suite also hit the tracked proposal-placement race and an environment Go executable mismatch. (codex/grok-muse-mcp-clients)
 

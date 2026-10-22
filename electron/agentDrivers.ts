@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import { DRIVEN_CLI_NAMES, type DeliveryEvent } from '../src/shared/agentDelivery.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -405,16 +405,7 @@ export function agentDriver(hostId: string): AgentDriver | undefined {
 }
 
 /** The executable each driven host installs. */
-export const DRIVER_CLI_NAMES: Record<string, string[]> = {
-  'claude-code': ['claude'],
-  codex: ['codex'],
-  'copilot-cli': ['copilot'],
-  // Cursor also installs it as `agent`, a name too common to trust on a PATH.
-  'cursor-cli': ['cursor-agent'],
-  'devin-cli': ['devin'],
-  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
-  'antigravity-cli': ['agy'],
-}
+export const DRIVER_CLI_NAMES = DRIVEN_CLI_NAMES
 
 /**
  * Codex's sandbox for a turn. A question or a proposal runs any command but

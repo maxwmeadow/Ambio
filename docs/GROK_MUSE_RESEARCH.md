@@ -27,7 +27,7 @@ found a published third-party flow equivalent to Ambio's ChatGPT integration.
 
 - `electron/agentInstallers.ts`, `agentRules.ts`, `agentDelivery.ts`,
   `agentDrivers.ts`, `agentModels.ts`, and `src/shared/agentDelivery.ts` contain
-  the connection, launch, workflow and model-picker integration points. There
+  the connection, launch, workflow and model-picker integration points. These
   now include dedicated Grok and Muse MCP installer entries; launch drivers
   remain unimplemented.
 - `mcp/ambio-mcp.ts` uses `StdioServerTransport`. That fits local coding
@@ -78,6 +78,12 @@ No public third-party subscription OAuth contract was found. The current
 limits the included pool to eligible first-party Grok/Cursor surfaces; it
 does not establish entitlement for Ambio's native harness.
 
+Compatibility caveat: Grok may load another client's Ambio MCP configuration,
+including its `--ambio-host` identity. That connection can therefore appear
+under the originating client. Settings reports shared compatibility files
+separately from dedicated setup; removal preserves files owned by other
+clients. Disable the relevant compatibility source in Grok to exclude them.
+
 [Grok web connectors](https://docs.x.ai/grok/connectors) support custom MCP
 servers with authentication. This would require a reachable remote MCP
 transport and a deliberate authenticated bridge to the local project.
@@ -96,7 +102,8 @@ and installed-version behavior before shipping an installer.
 It also supports Streamable HTTP and remote-server OAuth through
 `muse mcp login <server>`. That OAuth connects Muse to an external tool; it
 does not authorize Ambio to spend a Muse subscription. A required server's
-startup failure aborts the run, so setup must diagnose unavailable Ambio tools.
+startup failure aborts the run; Ambio explicitly installs `mode: "optional"`
+so a moved or removed Ambio app does not prevent unrelated Muse sessions.
 
 [Authentication](https://dev.meta.ai/docs/muse-code/auth) supports browser
 sign-in or API keys. For a Muse driver, retain vendor-owned authentication;
@@ -113,6 +120,13 @@ No public third-party subscription sign-in contract was found. More concretely,
 restrict coding subscription credentials to the subscribed coding harness.
 Do not extract those credentials to power Ambio's bundled OpenCode harness.
 This does not prevent integrating Muse Code itself as an external agent.
+
+Both clients may discover Ambio skills from shared user skill directories in
+addition to the dedicated native directory. Settings reports existing shared
+skill files as potential inherited setup; it cannot establish which sources
+a particular running CLI has enabled. Removing dedicated setup preserves
+other clients' skills. Deduplication and session identity need signed-in CLI
+validation; neither is claimed as solved by the installer.
 
 [Meta AI Connectors](https://dev.meta.ai/products/connectors) is a separate,
 limited developer preview for bringing service tools into Meta AI using

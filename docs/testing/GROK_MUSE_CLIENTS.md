@@ -17,6 +17,14 @@ harnesses. This does not enable their subscriptions in native Ambio chat.
   client rather than the vendors' CLIs and requires no model credentials.
 - Existing all-host installer, draw-first, uninstall and delivery tests
   include both clients. Delivery stays on the copy-handoff/watch route.
+- Review regressions cover Muse → Codex/Grok/Copilot setup followed by both
+  removal orders, stale managed blocks in lower-precedence files, explicit
+  optional Muse mode, invalid JSON shapes, ancestor Grok configurations, and
+  preservation/reporting of shared compatibility files.
+- `ChooseAgent.test.mjs` renders the real setup view with deterministic
+  discovery: both MCP-only CLIs remain visible and preselected even while
+  launch discovery is unavailable. Shared launch capability also keeps
+  Settings grouping stable when its discovery call fails.
 
 ## Live trial still needed for each vendor
 
@@ -44,7 +52,7 @@ separate conversation drivers. Until then, start `grok` or `muse` yourself.
 ## Recorded automated results
 
 - TypeScript check and production build passed.
-- Unit suite: 724 passed, 14 skipped, zero failures.
+- Unit suite after PR #10 review fixes: 737 passed, 14 skipped, zero failures.
 - Both new installed-launcher MCP round trips passed.
 - Full MCP suite: 39 passed, six skipped, two unrelated failures. The Go
   investigation selected an executable reporting `Go: Unknown option: run`;

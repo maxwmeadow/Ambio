@@ -121,19 +121,26 @@ Electron app (electron/)            Coding agents (Claude Code, Codex, Cursor, .
 ```
 
 
-## Processes
+## External MCP clients
 
 `electron/agentInstallers.ts` includes local MCP clients for Grok Build
 (`~/.grok/config.toml`, TOML `mcp_servers`) and Muse Code
 (`$XDG_CONFIG_HOME/muse/settings.json`, default `~/.config/muse/settings.json`,
 JSON `mcp_servers` with explicit stdio transport). Each gets its own native
 skills plus a managed project draw-first block (`AGENTS.md`, or Muse's existing
-instruction file so authored guidance is not shadowed). Config
+instruction file). A generated `AGENTS.md` explicitly directs the agent to
+read an existing lower-precedence authored instruction file, and removal
+checks every candidate for unchanged managed blocks. Muse's server is optional
+so unavailable Ambio tools do not prevent an unrelated Muse run. Config
 overrides, inspection, repair and uninstall use those same paths. MCP
 arguments identify presence as `grok` or `muse`. These clients use the existing
 copy-handoff/watch route; they do not have conversation launch drivers or
-native subscription auth. Settings groups clients by actual launch support,
-so a CLI with MCP support alone is shown with agents in other apps.
+native subscription auth. Settings and guided setup use the shared
+`canStartAgent` capability rather than treating every CLI as runnable or
+depending on a successful discovery call. Compatibility MCP/skill files
+owned by other clients are reported as shared setup and are not removed.
+
+## Processes
 
 - **archd** listens only on loopback (API `7743`, WebSocket `7744`, runtime
   adapters `7745`), moving to free ports when those are taken and publishing

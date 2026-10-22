@@ -65,7 +65,7 @@ active session in this workspace. The session link, notes, and summary survive
 restarts and remain visible with the request history.
 
 The same `get_inbox` and `reply_to_canvas` tools are exposed to every configured MCP
-host. Claude Code, Copilot VS Code/CLI, Codex, Cursor, Windsurf, and Antigravity
+host. Claude Code, Copilot VS Code/CLI, Codex, Grok Build, Muse Code, Cursor, Windsurf, and Antigravity
 install a reusable inbox skill; Claude Desktop, JetBrains, and Zed use the copyable
 natural-language prompt and MCP tools without a skill dependency. The installer
 checks both skill files before marking a skill-capable host ready. The local installer
@@ -196,7 +196,7 @@ again. Nothing waits unless the user asked for it.
 Choosing a host that has a session watching sends to that session too
 (`targetHost` limits the open turn to that host's connections), in preference
 to starting a new run. This is how the hosts Ambio cannot start (Claude
-Desktop, Copilot in VS Code, Cursor, Windsurf, Antigravity, JetBrains, Zed)
+Desktop, Copilot in VS Code, Grok Build CLI, Muse Code CLI, Cursor, Windsurf, Antigravity, JetBrains, Zed)
 hold a conversation: **Deliver to** copies a handoff once that also asks the
 chat to stay attached, and every later turn reaches that chat directly.
 
@@ -207,14 +207,14 @@ for those two the first handoff is placed in the chat instead of pasted
 allow GitHub Copilot to open the link, then opens Copilot Chat with the
 handoff filled in, in Ask mode for an Ask turn, and waits for the user to
 send it. Opened on its own, the link does not bring VS Code forward; Deliver
-opens the project first, which does. Cursor's link is unconfirmed. The other five
+opens the project first, which does. Cursor's link is unconfirmed. The remaining hosts
 document no such route, and the clipboard handoff remains theirs.
 
 ## Delivery routes (2026-09-30)
 
-**Deliver to** lists all ten installer modalities. The default is **Choose chat
-manually**, preserving the existing workflow. Choosing a CLI makes Send save the
-request first, then start a fresh local run; choosing an editor/desktop host copies
+**Deliver to** lists all twelve installer modalities. The default is **Choose chat
+manually**, preserving the existing workflow. Choosing a CLI with a launch driver makes Send save the
+request first, then start a fresh local run; choosing an MCP-only CLI or editor/desktop host copies
 the same handoff and opens the project/app when its launcher is available. The
 request card can deliver an already-saved request, including one reopened with
 review feedback. An editor launch is labelled **work has not started yet**.
@@ -226,6 +226,8 @@ review feedback. An editor launch is labelled **work has not started yet**.
 | Copilot in VS Code | `code chat` supports a prompt, agent mode, and new/reused windows. A new chat window is empty; a reused window can belong to another project | Copy + open this project in VS Code; paste into the chosen chat |
 | Copilot CLI | `copilot -p`, per-session `--additional-mcp-config`, and named tool permissions | Start a new CLI run with per-run MCP config |
 | Codex (CLI, shared config with IDE extension/app) | `codex exec`, stdin prompts, workspace-write sandbox, `-c` MCP overrides; CLI worktree support varies by version | Start a new CLI run with per-run MCP config |
+| Grok Build CLI | Local stdio MCP and a documented headless surface; no validated Ambio launch driver yet | Copy handoff into the signed-in `grok` session, then watch |
+| Muse Code CLI | Local stdio MCP; `muse exec --json` documented; no validated Ambio launch driver yet | Copy handoff into the signed-in `muse` session, then watch |
 | Cursor | Separate Agent CLI has headless mode; editor hooks are tied to user/agent activity. No verified public route to a particular existing editor chat | Copy + open this project in Cursor when its launcher is found |
 | Windsurf / Devin Local | Cascade hooks can observe activity; no verified external prompt route selecting a project and chat | Copy + open this project in Windsurf when its launcher is found |
 | Antigravity | Its IDE MCP setup is separate from Gemini CLI. Gemini's documented `-p` mode does not establish an Antigravity chat-delivery API | Copy + open this project when the `antigravity` launcher is found |
