@@ -242,6 +242,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `grok-muse-review` **Address PR #10 review:** show MCP-only CLIs in guided setup, preserve Muse instruction precedence and clean every managed candidate, make Muse optional, and correct diagnostics/discovery/docs. Keep signed-in launch drivers separate. (Codex, codex/grok-muse-mcp-clients, 2026-10-22)
+
 - ⬜ `grok-muse-live-validation` **Record authenticated Grok Build and Muse Code client trials.** Installers and real MCP protocol checks pass; record model-driven mapping, draw-first proposals, addressed replies and watching follow-ups using [docs/testing/GROK_MUSE_CLIENTS.md](docs/testing/GROK_MUSE_CLIENTS.md). (2026-10-22, MCP client implementation)
 - ⬜ `grok-muse-drivers` **Start Grok Build and Muse Code conversations from Ambio.** MCP client setup currently uses copy-handoff/watch. Add validated launch/resume/event/model/permission drivers while keeping vendor-owned authentication; scope and sources in [docs/GROK_MUSE_RESEARCH.md](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, client coverage follow-up)
 - ⬜ `grok-muse-native-chat` **Verify Grok and Meta Model API in native Ambio chat and add setup guidance/presets.** Use ordinary API keys through the compatible-provider path; test streaming, tools and follow-ups. No public ChatGPT-style third-party plan sign-in found; Meta subscription credentials are harness-restricted. See [research](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, Max's sign-in research request)
