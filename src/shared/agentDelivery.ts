@@ -133,6 +133,8 @@ const PASTED = (name: string): DestinationGuide => ({
 })
 
 export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
+  grok: PASTED('Grok Build CLI'),
+  muse: PASTED('Muse Code CLI'),
   [CHAT_DELIVERY]: {
     need: ['A ChatGPT plan connection or a model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],
     how: [

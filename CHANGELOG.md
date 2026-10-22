@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+### Added
+- Add Ambio to Grok Build and Meta Muse Code from Settings → Agents or guided
+  setup, with mapping, inbox and draw-first workflows. Use your own signed-in
+  terminal session and paste Ambio's handoff to send it work.
+
 ### Fixed
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI

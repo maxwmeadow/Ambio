@@ -242,6 +242,10 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `grok-muse-live-validation` **Record authenticated Grok Build and Muse Code client trials.** Installers and real MCP protocol checks pass; record model-driven mapping, draw-first proposals, addressed replies and watching follow-ups using [docs/testing/GROK_MUSE_CLIENTS.md](docs/testing/GROK_MUSE_CLIENTS.md). (2026-10-22, MCP client implementation)
+- ⬜ `grok-muse-drivers` **Start Grok Build and Muse Code conversations from Ambio.** MCP client setup currently uses copy-handoff/watch. Add validated launch/resume/event/model/permission drivers while keeping vendor-owned authentication; scope and sources in [docs/GROK_MUSE_RESEARCH.md](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, client coverage follow-up)
+- ⬜ `grok-muse-native-chat` **Verify Grok and Meta Model API in native Ambio chat and add setup guidance/presets.** Use ordinary API keys through the compatible-provider path; test streaming, tools and follow-ups. No public ChatGPT-style third-party plan sign-in found; Meta subscription credentials are harness-restricted. See [research](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, Max's sign-in research request)
+
 - ⬜ `e2e-full-run-flakes-windows` **Full Playwright runs on Windows fail one test intermittently, a different one each time; each passes on its own.** Seen 2026-10-15 across four full runs: `settings.spec.ts` "keeps its frame across sections" three times, `canvas.spec.ts` "Edit → Undo puts a moved system back" once (an 8s poll). Likely load or timing; find what each waits on. (2026-10-15)
 
 - ⬜ `agent-driver-live-validation` **Run the conversation drivers against the hosts not yet run for real.** `AMBIO_LIVE_CONVERSATION_HOST=<host> node --test mcp/e2e/conversation.live.mjs`. Passing: Claude Code, Codex, Copilot CLI, Antigravity CLI (questions; builds cannot run commands). Left: Cursor CLI, Devin CLI and Google's `agy_acp_server` (not installed), and confirming Cursor's chat link (VS Code's works: it fills the chat and waits for send). (2026-10-15, conversations)
@@ -308,6 +312,10 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-22 `grok-muse-clients` Added Grok Build and Muse Code MCP installers, detection/repair/removal, native workflow skills, preserved project guidance, truthful Settings grouping and handoff guides. Type check, app build, unit suite (724 passed, 14 skipped) and both installed-launcher MCP round trips pass; live vendor CLI trials and conversation drivers remain separate items. Full MCP suite also hit the tracked proposal-placement race and an environment Go executable mismatch. (codex/grok-muse-mcp-clients)
+
+- 2026-10-22 `grok-muse-research` Audited Ambio integration points and official Grok/Muse MCP, CLI auth, model APIs and web connectors; recorded feasible client/API-key routes, subscription-sign-in limits and follow-up work in docs/GROK_MUSE_RESEARCH.md. (codex/grok-muse-mcp-clients)
 
 - 2026-10-20 `run-needs-install` Antigravity's and Cursor's CLIs reach Ambio only through their app's settings: setup adds Ambio as part of Map (naming the file and permission), the main process refuses to start them without it, composer readiness blocks with the reason, and the handoff and draw-first workflow tell agents to stop rather than read or write `~/.ambio` or call the daemon. Found when an Antigravity mapping run, with no Ambio tools, reset a work-order claim in the database directly. claude/agent-install-required
 - 2026-10-20 `docs-audit` Docs checked against main after the day's merges: ARCHITECTURE (verified date, schema line no longer hard-coded - closes `architecture-schema-version-doc` -, language table and readers, investigation recorders, delivery hosts and own worktrees), PRODUCT §6, README (branches, investigations, ChatGPT plan, proposal review, reasoning), INVESTIGATIONS, INBOX_PROTOCOL, MCP_SURFACE, AGENTS.md, the canvas contract (change badges), the QA checklist; CHANGELOG sections merged and this log put back in date order. claude/docs-audit

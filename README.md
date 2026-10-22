@@ -117,6 +117,8 @@ The currently supported installers are:
 - Claude (Claude Code CLI and Claude Desktop)
 - GitHub Copilot (VS Code extension and Copilot CLI)
 - Codex
+- Grok Build CLI
+- Meta Muse Code CLI
 - Cursor
 - Windsurf
 - Antigravity
@@ -129,6 +131,13 @@ arrive on the map; check what was built against what you drew. Agents can
 start the loop too, by drawing their plan on a sheet for you to confirm.
 
 The mapping command is harness-dependent. For example, Codex uses `$ambio-map`, Claude Code uses `/ambio-map`, and Antigravity uses its installed `ambio-map` skill. The setup screen always shows the correct instruction for the selected harness.
+
+For Grok Build and Muse Code, install and sign in to the vendor's CLI, then
+choose it in **Settings → Agents** or guided setup and add Ambio. Start a
+fresh `grok` or `muse` session in your project and run `/ambio-map`. Both also
+get `/ambio-inbox` and `/ambio-build`. Messages from Ambio use a copied
+handoff pasted into that terminal chat; direct launching from Ambio is not
+available yet. Account sign-in and plan usage stay with the vendor's client.
 
 Agents keep working when the Ambio window is closed: Ambio's background
 service starts when an agent needs it and stops again when it has been idle.

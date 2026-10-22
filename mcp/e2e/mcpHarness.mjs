@@ -208,7 +208,10 @@ export async function startHarness(options = {}) {
       workspaceId, rootPath: projectDir, name: options.projectName ?? 'harness',
     }))
 
-    const mcp = spawn(process.execPath, [MCP_ENTRY, '--ambio-host=ambio-harness'], {
+    // Installer tests can launch the exact command/args written for a client.
+    const launcher = options.mcpLauncher?.({ command: process.execPath, args: [MCP_ENTRY], projectDir })
+      ?? { command: process.execPath, args: [MCP_ENTRY, '--ambio-host=ambio-harness'] }
+    const mcp = spawn(launcher.command, launcher.args, {
       cwd: projectDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {

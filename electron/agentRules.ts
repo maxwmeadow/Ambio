@@ -17,7 +17,12 @@ export function agentRuleFiles(hostId: string, projectRoot?: string): AgentRuleF
   switch (hostId) {
     case 'claude-code': return file('.claude/rules/ambio-draw-first.md')
     case 'codex':
+    case 'grok':
     case 'copilot-cli': return file('AGENTS.md', '', true)
+    // Muse loads only the first instruction file at each directory level.
+    // Append to its existing choice instead of shadowing authored guidance.
+    case 'muse': return file(['AGENTS.md', 'CLAUDE.md', '.agents/AGENTS.md', '.claude/CLAUDE.md']
+      .find(path => fs.existsSync(join(projectRoot, path))) ?? 'AGENTS.md', '', true)
     case 'copilot': return file('.github/copilot-instructions.md', '', true)
     case 'cursor': return file('.cursor/rules/ambio-draw-first.mdc', '---\nalwaysApply: true\n---\n\n')
     case 'windsurf': return [

@@ -107,6 +107,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
   const row = (host: AgentHostInfo) => {
     const state = agentConnectionState(host, presence)
+    const canStart = started.some(target => target.id === host.id)
     const name = host.modalityLabel || host.label
     const live = presence.filter(item => item.hostId === host.id)
     const verified = Math.max(0, ...live.map(item => item.lastToolAt ?? 0))
@@ -127,7 +128,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
           <div className="ambio-agent-connections__identity">
             <strong>{name}</strong>
             <small>
-              {(host.modality === 'cli' ? CLI_STATE_LABEL : STATE_LABEL)[state]}
+              {(canStart ? CLI_STATE_LABEL : STATE_LABEL)[state]}
               {state === 'live' && live.length > 1 ? ` · ${live.length} sessions` : ''}
               {state === 'live' && (verified > 0
                 ? ` · last tool call ${new Date(verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -148,11 +149,11 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
                   {working('install') ? 'Repairing…' : 'Repair'}
                 </button>
               </>
-            ) : host.modality === 'cli' && state === 'missing' ? null : (
+            ) : canStart && state === 'missing' ? null : (
               <button type="button" className="ambio-settings__button ambio-agent-connections__primary" disabled={!!busy}
-                title={host.modality === 'cli' ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
+                title={canStart ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
                 onClick={() => void act(host, 'install', () => window.ambio.installAgent(host.id, projectRoot), `${host.restartAction}: ${host.restartDetail}`)}>
-                {working('install') ? 'Adding…' : host.modality === 'cli' ? 'Add to my sessions' : 'Add Ambio'}
+                {working('install') ? 'Adding…' : canStart ? 'Add to my sessions' : 'Add Ambio'}
               </button>
             )}
             <button type="button" className="ambio-agent-connections__disclose" aria-expanded={expanded}
@@ -234,10 +235,11 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
   if (hosts === null) return <p className="ambio-settings__text">Looking for agents…</p>
 
-  // A CLI belongs with the agents Ambio runs whether or not it is installed.
-  const ownSessions = sorted.filter(host => host.modality === 'cli')
-  const inApps = shown.filter(host => host.modality !== 'cli')
-  const appsMissing = missing.filter(host => host.modality !== 'cli')
+  // MCP support alone does not mean Ambio has a conversation driver for a CLI.
+  const runnable = new Set(started.map(target => target.id))
+  const ownSessions = sorted.filter(host => runnable.has(host.id))
+  const inApps = shown.filter(host => !runnable.has(host.id))
+  const appsMissing = missing.filter(host => !runnable.has(host.id))
   // Terminal agents that ride on an editor's Ambio setup, started by Ambio.
   const companions = started.filter(target => !(hosts ?? []).some(host => host.id === target.id))
 
@@ -267,7 +269,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
       <section className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-apps-title">
         <h3 id="ambio-agents-apps-title">Agents in other apps</h3>
-        <p className="ambio-settings__text">These work in their own app. Add Ambio once and restart the app; its chat can then use your map and take messages from Ambio{workspaceId ? '' : '. Open a project to see which are connected now'}.</p>
+        <p className="ambio-settings__text">These work in their own app or terminal. Add Ambio once and start a fresh session; its chat can then use your map and take messages from Ambio{workspaceId ? '' : '. Open a project to see which are connected now'}.</p>
         {inApps.length > 0
           ? <ul className="ambio-agent-connections__list">{inApps.map(row)}</ul>
           : <p className="ambio-agent-connections__empty">No supported app was found on this computer. If one is installed, find it under the list below and point Ambio at its configuration file.</p>}

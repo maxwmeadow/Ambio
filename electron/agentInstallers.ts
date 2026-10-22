@@ -168,7 +168,8 @@ function installJsonServer(
   extraEntryFields: Record<string, unknown> = {},
 ): InstallResult {
   const existing = readJson(path)
-  if (existing === null) {
+  if (existing === null || typeof existing !== 'object' || Array.isArray(existing) ||
+    (existing[key] !== undefined && (!existing[key] || typeof existing[key] !== 'object' || Array.isArray(existing[key])))) {
     return {
       ok: false,
       detail: `${path} could not be read as JSON. Fix or move it, then try again - Ambio will not overwrite configuration it cannot understand.`,
@@ -453,6 +454,11 @@ export function buildHosts(
   const copilotVsCodeConfig = primary('copilot', getVsCodeUserMcpPath(homeDir, platform, false, appDataDir))
   const copilotCliConfig = primary('copilot-cli', join(homeDir, '.copilot', 'mcp-config.json'))
   const codexConfig = primary('codex', join(homeDir, '.codex', 'config.toml'))
+  const grokConfig = primary('grok', join(homeDir, '.grok', 'config.toml'))
+  // Muse uses XDG configuration on every platform, rather than Electron's
+  // application-data folder. An injected home must never use our real XDG dir.
+  const museDir = join(homeDir === home() ? process.env.XDG_CONFIG_HOME || join(homeDir, '.config') : join(homeDir, '.config'), 'muse')
+  const museConfig = primary('muse', join(museDir, 'settings.json'))
   const cursorConfig = primary('cursor', join(homeDir, '.cursor', 'mcp.json'))
   const windsurfConfig = primary('windsurf', join(homeDir, '.codeium', 'windsurf', 'mcp_config.json'))
   const antigravityConfig = primary('antigravity', join(homeDir, '.gemini', 'config', 'mcp_config.json'))
@@ -670,6 +676,68 @@ export function buildHosts(
           ok: true,
           detail: 'Added Ambio and installed the $ambio-map skill. Restart Codex if it is not visible yet.',
           paths: [path, ...skillPaths],
+        }
+      },
+    },
+
+    // ── Grok Build ───────────────────────────────────────────────────────────
+    {
+      id: 'grok',
+      label: 'Grok Build (CLI)',
+      familyId: 'grok',
+      familyLabel: 'Grok',
+      modality: 'cli',
+      modalityLabel: 'Grok Build CLI',
+      configPath: () => grokConfig,
+      serverLocations: projectRoot => [
+        { format: 'toml', path: grokConfig },
+        ...(projectRoot ? [{ format: 'toml' as const, path: join(projectRoot, '.grok', 'config.toml') }] : []),
+      ],
+      commandPath: () => join(homeDir, '.grok', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
+      triggerKind: 'slash command',
+      restartAction: 'Start fresh Grok session',
+      restartDetail: 'Exit the current session and run grok in your project. Use /mcps to check Ambio and /ambio-map to map it.',
+      install: (command, args, brief) => {
+        const existing = fs.existsSync(grokConfig) ? fs.readFileSync(grokConfig, 'utf8') : ''
+        const block = [
+          '[mcp_servers.ambio]',
+          `command = ${JSON.stringify(command)}`,
+          `args = [${identifiedArgs(args, 'grok').map(arg => JSON.stringify(arg)).join(', ')}]`,
+        ].join('\n')
+        fs.mkdirSync(join(grokConfig, '..'), { recursive: true })
+        fs.writeFileSync(grokConfig, upsertTomlTable(existing,
+          /^\s*\[\s*mcp_servers\s*\.\s*(?:ambio|"ambio"|'ambio')\s*\]\s*(?:#.*)?$/, block), 'utf8')
+        return {
+          ok: true,
+          detail: 'Added Ambio and installed /ambio-map, /ambio-inbox and /ambio-build for Grok Build. Start a fresh Grok session.',
+          paths: [grokConfig, ...installAgentSkill(join(homeDir, '.grok', 'skills', 'ambio-map', 'SKILL.md'), brief)],
+        }
+      },
+    },
+
+    // ── Meta Muse Code ───────────────────────────────────────────────────────
+    {
+      id: 'muse',
+      label: 'Meta Muse Code (CLI)',
+      familyId: 'muse',
+      familyLabel: 'Muse',
+      modality: 'cli',
+      modalityLabel: 'Muse Code CLI',
+      configPath: () => museConfig,
+      serverLocations: () => [{ format: 'json', path: museConfig, keyPath: ['mcp_servers'] }],
+      commandPath: () => join(museDir, 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
+      triggerKind: 'slash command',
+      restartAction: 'Start fresh Muse session',
+      restartDetail: 'Exit the current session and run muse in your project. Trust the project to load its instructions; use /mcp to check Ambio and /ambio-map to map it.',
+      install: (command, args, brief) => {
+        const result = installJsonServer(museConfig, 'mcp_servers', command, identifiedArgs(args, 'muse'), 'Muse Code', { transport: 'stdio', enabled: true, mode: 'required' })
+        if (!result.ok) return result
+        return {
+          ok: true,
+          detail: 'Added Ambio and installed /ambio-map, /ambio-inbox and /ambio-build for Muse Code. Start a fresh Muse session.',
+          paths: [...result.paths, ...installAgentSkill(join(museDir, 'skills', 'ambio-map', 'SKILL.md'), brief)],
         }
       },
     },
