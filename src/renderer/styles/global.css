@@ -8481,3 +8481,19 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 .ambio-choose__required strong { font-size: 12.5px; }
 .ambio-choose__required small { color: #5b6863; font-size: 11px; }
 .ambio-choose__required code { font-size: 10.5px; overflow-wrap: anywhere; }
+.ambio-canvas-preparation {
+  position: absolute;
+  z-index: 8;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 8px 10px;
+  border: 1px solid #626d68;
+  border-radius: 2px;
+  background: #e5e3dc;
+  color: #26332f;
+  font-size: 12px;
+}

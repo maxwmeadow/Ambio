@@ -1,0 +1,635 @@
+{
+  "baseline": "334e537",
+  "cases": [
+    {
+      "name": "fresh nested packing and infrastructure band",
+      "systems": [
+        {
+          "id": "a",
+          "parentId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "b",
+          "parentId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "c",
+          "parentId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "files": [
+        {
+          "id": "f1",
+          "systemId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "f2",
+          "systemId": "b",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "f3",
+          "systemId": "c",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "loose",
+          "systemId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "infra": [
+        {
+          "id": "db",
+          "category": "database",
+          "positionX": 0,
+          "positionY": 0
+        }
+      ],
+      "dependencies": [
+        {
+          "src": "f1",
+          "dst": "f3"
+        },
+        {
+          "src": "f2",
+          "dst": "f3"
+        }
+      ],
+      "layouts": [],
+      "expected": {
+        "descriptors": [
+          {
+            "id": "a",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": 422.2245965275659,
+              "y": 67.22459652756591,
+              "width": 344,
+              "height": 388.8,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "c",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": -122.09683594354348,
+              "y": 390.2584678241447,
+              "width": 320,
+              "height": 220,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "db",
+            "nodeType": "infra",
+            "parentId": null,
+            "geometry": {
+              "x": -122.09683594354348,
+              "y": 802.2584678241446,
+              "width": 260,
+              "height": 160,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "loose",
+            "nodeType": "file",
+            "parentId": null,
+            "geometry": {
+              "x": 4.802011376192747,
+              "y": -371.74153217585524,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "b",
+            "nodeType": "system",
+            "parentId": "a",
+            "geometry": {
+              "x": 12,
+              "y": 34.8,
+              "width": 320,
+              "height": 220,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "f1",
+            "nodeType": "file",
+            "parentId": "a",
+            "geometry": {
+              "x": 12,
+              "y": 266.8,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "f3",
+            "nodeType": "file",
+            "parentId": "c",
+            "geometry": {
+              "x": 12,
+              "y": 34.8,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "f2",
+            "nodeType": "file",
+            "parentId": "b",
+            "geometry": {
+              "x": 12,
+              "y": 25.299999999999997,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 2,
+            "worldScale": 1,
+            "contentScale": 1
+          }
+        ],
+        "generated": [
+          "a",
+          "b",
+          "c",
+          "db",
+          "f1",
+          "f2",
+          "f3",
+          "loose"
+        ],
+        "resized": [],
+        "placements": [
+          [
+            "db",
+            {
+              "parentId": null,
+              "x": -122.09683594354348,
+              "y": 802.2584678241446
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "authored compressed frames stay fixed",
+      "systems": [
+        {
+          "id": "a",
+          "parentId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "b",
+          "parentId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "files": [
+        {
+          "id": "f1",
+          "systemId": "b",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "infra": [],
+      "dependencies": [],
+      "layouts": [
+        {
+          "nodeId": "a",
+          "parentNodeId": null,
+          "positionX": -200,
+          "positionY": 500,
+          "width": 1000,
+          "height": 800,
+          "scale": 0.8,
+          "interiorScale": 0.65
+        },
+        {
+          "nodeId": "b",
+          "parentNodeId": "a",
+          "positionX": 130,
+          "positionY": 160,
+          "width": 620,
+          "height": 420,
+          "scale": 1,
+          "interiorScale": 0.7
+        },
+        {
+          "nodeId": "f1",
+          "parentNodeId": "b",
+          "positionX": 40,
+          "positionY": 120,
+          "width": 220,
+          "height": 110,
+          "scale": 1,
+          "interiorScale": 1
+        }
+      ],
+      "expected": {
+        "descriptors": [
+          {
+            "id": "a",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": -200,
+              "y": 500,
+              "width": 1000,
+              "height": 800,
+              "scale": 0.8,
+              "interiorScale": 0.65
+            },
+            "depth": 0,
+            "worldScale": 0.8,
+            "contentScale": 0.52
+          },
+          {
+            "id": "b",
+            "nodeType": "system",
+            "parentId": "a",
+            "geometry": {
+              "x": 130,
+              "y": 160,
+              "width": 620,
+              "height": 420,
+              "scale": 1,
+              "interiorScale": 0.7
+            },
+            "depth": 1,
+            "worldScale": 0.52,
+            "contentScale": 0.364
+          },
+          {
+            "id": "f1",
+            "nodeType": "file",
+            "parentId": "b",
+            "geometry": {
+              "x": 40,
+              "y": 120,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 2,
+            "worldScale": 0.364,
+            "contentScale": 0.364
+          }
+        ],
+        "generated": [],
+        "resized": [],
+        "placements": []
+      }
+    },
+    {
+      "name": "incoming child among authored siblings",
+      "systems": [
+        {
+          "id": "a",
+          "parentId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "b",
+          "parentId": null,
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "files": [
+        {
+          "id": "known",
+          "systemId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "incoming",
+          "systemId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "infra": [],
+      "dependencies": [],
+      "layouts": [
+        {
+          "nodeId": "a",
+          "parentNodeId": null,
+          "positionX": 100,
+          "positionY": 100,
+          "width": 620,
+          "height": 420,
+          "scale": 1,
+          "interiorScale": 1
+        },
+        {
+          "nodeId": "b",
+          "parentNodeId": null,
+          "positionX": 900,
+          "positionY": 100,
+          "width": 620,
+          "height": 420,
+          "scale": 1,
+          "interiorScale": 1
+        },
+        {
+          "nodeId": "known",
+          "parentNodeId": "a",
+          "positionX": 60,
+          "positionY": 130,
+          "width": 220,
+          "height": 110,
+          "scale": 1,
+          "interiorScale": 1
+        }
+      ],
+      "expected": {
+        "descriptors": [
+          {
+            "id": "a",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": 100,
+              "y": 100,
+              "width": 620,
+              "height": 420,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "b",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": 900,
+              "y": 100,
+              "width": 620,
+              "height": 420,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "incoming",
+            "nodeType": "file",
+            "parentId": "a",
+            "geometry": {
+              "x": 60,
+              "y": 252,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "known",
+            "nodeType": "file",
+            "parentId": "a",
+            "geometry": {
+              "x": 60,
+              "y": 130,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          }
+        ],
+        "generated": [
+          "incoming"
+        ],
+        "resized": [],
+        "placements": [
+          [
+            "incoming",
+            {
+              "parentId": "a",
+              "x": 60,
+              "y": 252
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "invalid legacy parent and cycle degrade to roots",
+      "systems": [
+        {
+          "id": "a",
+          "parentId": "b",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        },
+        {
+          "id": "b",
+          "parentId": "a",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "files": [
+        {
+          "id": "orphan",
+          "systemId": "missing",
+          "positionX": 0,
+          "positionY": 0,
+          "width": null,
+          "height": null
+        }
+      ],
+      "infra": [],
+      "dependencies": [],
+      "layouts": [
+        {
+          "nodeId": "a",
+          "parentNodeId": "b",
+          "positionX": 10,
+          "positionY": 20,
+          "width": 620,
+          "height": 420,
+          "scale": 1,
+          "interiorScale": 1
+        },
+        {
+          "nodeId": "b",
+          "parentNodeId": "a",
+          "positionX": 40,
+          "positionY": 50,
+          "width": 620,
+          "height": 420,
+          "scale": 1,
+          "interiorScale": 1
+        },
+        {
+          "nodeId": "orphan",
+          "parentNodeId": "missing",
+          "positionX": 0,
+          "positionY": 0,
+          "width": 220,
+          "height": 110,
+          "scale": 1,
+          "interiorScale": 1
+        }
+      ],
+      "expected": {
+        "descriptors": [
+          {
+            "id": "a",
+            "nodeType": "system",
+            "parentId": null,
+            "geometry": {
+              "x": 10,
+              "y": 20,
+              "width": 620,
+              "height": 420,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "orphan",
+            "nodeType": "file",
+            "parentId": null,
+            "geometry": {
+              "x": 0,
+              "y": 0,
+              "width": 220,
+              "height": 110,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 0,
+            "worldScale": 1,
+            "contentScale": 1
+          },
+          {
+            "id": "b",
+            "nodeType": "system",
+            "parentId": "a",
+            "geometry": {
+              "x": 40,
+              "y": 50,
+              "width": 620,
+              "height": 420,
+              "scale": 1,
+              "interiorScale": 1
+            },
+            "depth": 1,
+            "worldScale": 1,
+            "contentScale": 1
+          }
+        ],
+        "generated": [],
+        "resized": [],
+        "placements": []
+      }
+    }
+  ]
+}

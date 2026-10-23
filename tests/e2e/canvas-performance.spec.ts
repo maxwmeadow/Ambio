@@ -3,6 +3,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
+import { canvasComponentCounts, canvasViewportSettled, installCanvasCameraTrace } from './canvasComponentCounts'
 
 // Structural performance regressions are deterministic across machines. Frame
 // timings belong in profiling runs, rather than machine-dependent CI limits.
@@ -89,6 +90,10 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
       if (mode === 'proposal') await expect(canvas).toHaveClass(/ambio-canvas-review-ready/)
       if (mode === 'sheet') await page.getByRole('button', { name: 'Performance Draft STR', exact: true }).click()
       await page.waitForTimeout(1600)
+      if (process.env.AMBIO_PERF_PROFILE && (scenario === 'floor' || scenario === 'sheet')) {
+        await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      }
       if (process.env.AMBIO_PERF_PROFILE) console.log('CANVAS_INITIAL', mode, JSON.stringify(await canvas.evaluate(root => ({
         nodes: root.querySelectorAll('.react-flow__node').length,
         viewport: root.querySelector<HTMLElement>('.react-flow__viewport')?.style.transform,
@@ -217,7 +222,13 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
           requestAnimationFrame(frame)
           return { ...w.__ambioPerfMetrics }
         })
+        // A live update while Flow queues a fit must preserve its destination
+        // and duration. Inline default options used to overwrite that request.
+        await page.evaluate(installCanvasCameraTrace, true)
         await navigate(snapshot.files[0].relPath)
+        await expect.poll(() => page.evaluate(id => (window as any).__canvasCameraTrace.some((event: any) =>
+          event.selected === id && event.options?.duration === 850), snapshot.files[0].id)).toBe(true)
+        expect(await page.evaluate(() => (window as any).__canvasFitInterrupted)).toBe(true)
         const mapBox = (await canvas.boundingBox())!
         await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
         await page.mouse.wheel(0, 80)
@@ -282,6 +293,23 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
         root.querySelector('[data-perf-badge="outer"]')?.remove()
         root.querySelector('[data-perf-badge="inner"]')?.parentElement?.remove()
       })
+      const components = await page.evaluate(canvasComponentCounts)
+      expect(components.canonicalNodes).toBeGreaterThan(40)
+      expect(components.wrappers).toBeGreaterThan(0)
+      expect(components.wrappers).toBeLessThanOrEqual(Math.max(64, components.domNodes * 2))
+      expect(components.minimapWrappers).toBe(0)
+      expect(await page.evaluate(() => (window as any).__ambioSceneLog)).toBeUndefined()
+      if (scenario === 'floor' && !process.env.AMBIO_PERF_SNAPSHOT) {
+        await page.evaluate(() => {
+          const w = window as any, graph = w.__ambioGraphStore, state = graph.getState()
+          w.__ambioSceneDebug = true
+          graph.setState({ floorLayouts: [{ workspaceId: 'demo', nodeId: state.systems[0].id,
+            nodeType: 'system', parentNodeId: null, parentNodeType: null, containmentKind: 'root',
+            positionX: 50000, positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }] })
+        })
+        await expect.poll(() => page.evaluate(() => (window as any).__ambioSceneLog?.length ?? 0)).toBeGreaterThan(0)
+        await page.evaluate(() => { (window as any).__ambioSceneDebug = false })
+      }
     } finally {
       await app?.close()
       if (dirname(resolve(home)) === resolve(tmpdir()) && basename(home).startsWith('ambio-canvas-perf-')) rmSync(home, { recursive: true, force: true })

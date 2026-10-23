@@ -1,5 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { skipAgentGuides } from './agentGuides'
+import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeGeometry'
+import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -263,7 +265,7 @@ test.beforeEach(async () => {
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
   // Measure interactions only after both have reached their authored frame.
   await expect(page.locator('.layout-transition')).toHaveCount(0)
-  await page.waitForTimeout(600)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
 })
 
 test.afterEach(async () => {
@@ -277,6 +279,47 @@ const canvasZoom = () => page.locator('.react-flow__viewport')
 
 test('renders the deterministic Floor baseline', async () => {
   await expect(page.locator('.react-flow')).toHaveScreenshot('floor-baseline.png')
+})
+
+test('clipped dashed routes preserve browser rasterization at ordinary and extreme zoom', async () => {
+  const cases = [0.02, 0.5, 1, 2, 100].flatMap(zoom => [true, false].map(nonScaling => {
+    const points = [{ x: -157, y: 50 }, { x: 100, y: 50 }, { x: 100, y: 400 },
+      { x: 200, y: 400 }, { x: 200, y: 50 }, { x: 220, y: 50 }].map(p => ({ x: p.x / zoom, y: p.y / zoom }))
+    const path = points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join('')
+    const parts = clipOrthogonalEdge(points, { x: -64 / zoom, y: -64 / zoom, width: 384 / zoom, height: 256 / zoom })
+    return { zoom, nonScaling, path, parts }
+  }))
+  for (const c of cases) {
+    await page.evaluate(c => {
+      const common = `fill="none" stroke="black" stroke-width="${c.nonScaling ? 2 : 2 / c.zoom}" stroke-dasharray="${c.nonScaling ? '6 4' : `${6 / c.zoom} ${4 / c.zoom}`}" ${c.nonScaling ? 'vector-effect="non-scaling-stroke"' : ''}`
+      // Match React Flow's HTML camera transform and overflow-visible SVG,
+      // rather than testing only an SVG-internal transform.
+      const wrap = (content: string) => `<div style="width:100%;height:100%;transform:scale(${c.zoom});transform-origin:0 0"><svg width="256" height="128" style="overflow:visible">${content}</svg></div>`
+      const host = document.createElement('div'); host.dataset.edgeParityHost = 'true'
+      const base = 'position:fixed;top:20px;width:256px;height:128px;overflow:hidden;background:white;z-index:2147483000;pointer-events:none'
+      host.innerHTML = `<div data-edge-raster="original" style="${base};left:20px">${wrap(`<path d="${c.path}" ${common}/>` )}</div>` +
+        `<div data-edge-raster="clipped" style="${base};left:300px">${wrap(c.parts.map(p => `<path d="${p.path}" ${common} stroke-dashoffset="${p.startLength}"/>`).join(''))}</div>`
+      document.body.append(host)
+    }, c)
+    try {
+      const original = await page.locator('[data-edge-raster="original"]').screenshot()
+      const clipped = await page.locator('[data-edge-raster="clipped"]').screenshot()
+      const difference = await app.evaluate(({ nativeImage }, images) => {
+        const a = nativeImage.createFromBuffer(Buffer.from(images.original, 'base64')).toBitmap()
+        const b = nativeImage.createFromBuffer(Buffer.from(images.clipped, 'base64')).toBitmap()
+        if (a.length !== b.length) return { maximum: 255, changed: -1 }
+        let maximum = 0, changed = 0
+        for (let i = 0; i < a.length; i++) {
+          const difference = Math.abs(a[i] - b[i])
+          maximum = Math.max(maximum, difference); changed += Number(difference > 1)
+        }
+        return { maximum, changed }
+      }, { original: original.toString('base64'), clipped: clipped.toString('base64') })
+      expect(difference.changed, JSON.stringify({ zoom: c.zoom, nonScaling: c.nonScaling, ...difference })).toBe(0)
+    } finally {
+      await page.evaluate(() => document.querySelector('[data-edge-parity-host]')?.remove())
+    }
+  }
 })
 
 test('autofits complete system names while their contents are covered', async () => {
@@ -1916,22 +1959,20 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   // shared system through the product search path, then create a deliberate
   // multi-file selection without depending on overview DOM materialization.
   const canvasFile = await revealFileNode('file_canvas')
-  const storeFile = await revealFileNode('file_store')
-  await canvasFile.click()
-  const storeBox = await storeFile.boundingBox()
-  expect(storeBox).not.toBeNull()
-  if (!storeBox) return
-  const viewport = page.viewportSize()!
-  const storePoint = {
-    x: Math.max(1, Math.min(viewport.width - 1, storeBox.x + Math.min(20, storeBox.width / 2))),
-    y: Math.max(1, Math.min(viewport.height - 1, storeBox.y + Math.min(20, storeBox.height / 2))),
-  }
+  // Fit their common system so both files are actually in the camera. Fitting
+  // each file in turn leaves the first one offscreen once navigation is correct.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Canvas Renderer')
+  await page.getByRole('option').first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const storeFile = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(storeFile).toBeVisible()
+  await canvasFile.click({ position: { x: 10, y: 10 } })
   // macOS routes Ctrl+click to the context menu, so the additive modifier has
   // to follow the host. The canvas accepts Meta, Control and Shift alike.
   const additiveModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-  await page.keyboard.down(additiveModifier)
-  await page.mouse.click(storePoint.x, storePoint.y)
-  await page.keyboard.up(additiveModifier)
+  // Stay on the card background: its disabled language badge consumes clicks.
+  await storeFile.click({ position: { x: 10, y: 10 }, modifiers: [additiveModifier] })
 
   const selectionActions = page.locator('.ambio-selection-actions')
   await expect(selectionActions).toBeVisible()
@@ -2398,6 +2439,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await relationships.uncheck()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
   for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
@@ -2617,10 +2659,17 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
 })
 
 test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
+  // Put the first endpoint in the actual viewport. A path whose entire bounding
+  // box is offscreen is correctly culled; it cannot prove visible edge parity.
+  const placement = await page.locator('.react-flow').first().evaluate(root => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(root.querySelector('.react-flow__viewport')!).transform)
+    return { x: (root.clientWidth * .45 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
+  })
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
     kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
-    positionX: 1500 + i * 800, positionY: 1200, width: 620, height: 420, scale: 1,
+    positionX: i === 0 ? placement.x : 1500 + i * 800, positionY: i === 0 ? placement.y : 1200,
+    width: 620, height: 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
@@ -2642,6 +2691,9 @@ test('culls a large planned sheet over a small Floor and retains measurements du
   await expect(compactFile.locator('[data-render-tier]')).toBeAttached()
   await expect(compactFile.locator('.ambio-sheet-change-badge')).toHaveText('Added')
   await page.waitForTimeout(650)
+  await expect(canvas.locator('.react-flow__node[data-id="planned:large-planned-179"]')).toHaveCount(0)
+  await expect(relationship).toBeAttached()
+  expect(await relationship.getAttribute('d')).not.toContain('NaN')
   await canvas.evaluate(root => {
     ;(window as any).__sheetMountCount = 0
     ;(window as any).__sheetMountObserver = new MutationObserver(records => {
@@ -2913,8 +2965,15 @@ test('Delete on a sheet proposes removing live code, listed and restorable', asy
   await expect(page.locator('.react-flow__node[data-id^="planned:"]').first()).toBeVisible()
   await page.keyboard.press('Escape')
   await page.locator('.react-flow__pane').click({ position: { x: 420, y: 420 } })
+  // New System Here fits its new card. Reach the other system through the
+  // normal navigation path before testing its removal, rather than clicking
+  // a node that is correctly outside the camera after that fit.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Shared Types')
+  await page.getByRole('option').filter({ hasText: 'Shared Types' }).first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const system = page.locator('.react-flow__node[data-id="sys_shared"]')
-  await system.click()
+  await system.click({ position: { x: 10, y: 10 } })
   await page.keyboard.press('Delete')
   await expect(page.getByText(/proposed for removal/).first()).toBeVisible()
   await expect(system).toBeHidden()

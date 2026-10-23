@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { canvasViewportSettled } from './canvasComponentCounts'
 import { startHarness, harnessFetch } from '../../mcp/e2e/mcpHarness.mjs'
 
 for (const creation of ['drag', 'click']) {
@@ -66,6 +67,7 @@ for (const creation of ['drag', 'click']) {
       const systemNode = page.locator(`.react-flow__node[data-id="planned:${system.id}"]`)
       await expect(systemNode).toBeVisible()
       const centerSystem = async () => {
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
         const box = await systemNode.boundingBox()
         const canvas = await page.locator('.react-flow').boundingBox()
         const shift = { x: canvas.x + canvas.width / 2 - box.x - box.width / 2, y: canvas.y + canvas.height / 2 - box.y - box.height / 2 }
@@ -97,6 +99,10 @@ for (const creation of ['drag', 'click']) {
       expect(rootFile).toBeTruthy()
       const fileNode = page.locator(`.react-flow__node[data-id="planned:${rootFile.id}"]`)
       await expect(fileNode).toBeVisible()
+      // Frame both participants after the new file's intentional focus flight.
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       // A new node animates into place; drag from where it settles, not from
       // where it was mid-flight.
       const settled = async locator => {
@@ -137,14 +143,9 @@ for (const creation of ['drag', 'click']) {
       await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
       await expect(systemNode).toBeAttached()
       await centerSystem()
-      const reopenedBox = await systemNode.boundingBox()
-      await page.mouse.move(reopenedBox.x + reopenedBox.width / 2, reopenedBox.y + reopenedBox.height / 2)
-      for (let index = 0; index < 12; index++) {
-        if (await page.locator(`.react-flow__node[data-id="planned:${nestedFile.id}"]`).count()) break
-        await page.mouse.wheel(0, -100)
-        await page.waitForTimeout(100)
-      }
-      await page.waitForTimeout(900)
+      await systemNode.click({ position: { x: 10, y: 10 } })
+      await page.keyboard.press('ControlOrMeta+Shift+0')
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       for (const file of [nestedFile, clickFile, rootFile]) {
         const node = page.locator(`.react-flow__node[data-id="planned:${file.id}"]`)
         await expect(node).toBeAttached()

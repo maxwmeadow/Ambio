@@ -1,5 +1,6 @@
 import React from 'react'
 import { EdgeText, type EdgeProps, getSmoothStepPath } from '@xyflow/react'
+import { ClippedDashedEdge } from './ClippedDashedEdge'
 
 /**
  * Hard-corner stepped edge that respects the actual source and target faces.
@@ -52,6 +53,9 @@ export function OrthogonalEdge({
 
   return (
     <>
+      {!isLiving && !isTraced && !isSliced && style?.strokeDasharray ? <ClippedDashedEdge
+        id={id} path={pathD} markerEnd={markerEnd}
+        style={{ ...style, stroke, transition: 'stroke 0.2s ease, stroke-width 0.2s ease' }} /> : <>
       <path
         id={id}
         d={pathD}
@@ -82,6 +86,7 @@ export function OrthogonalEdge({
         strokeWidth={12}
         style={{ cursor: 'pointer' }}
       />
+      </>}
       {label != null && (
         <EdgeText
           x={labelX}

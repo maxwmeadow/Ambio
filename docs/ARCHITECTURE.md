@@ -547,22 +547,57 @@ target and cancels wheel easing/pending growth fits on its own canvas before
 flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
 or `window.__ambioBinDragDebug = true`.
 
-`canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
-canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
-camera queries; scene/request versions reject stale replies. Buffered culling and
-short retention replace React Flow's exact-edge culler above 40 composed nodes.
-Before the first worker reply, root shells already intersect that same viewport
-buffer instead of all mounting at once; active/selected/relationship priorities
-remain in force.
-Visible relationship endpoints retain their handle shells outside the viewport.
-`useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
-consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
-has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
-chooses silhouette, compact identity or the original editable node. Selected and
-active nodes bypass background admission. Navigation prewarms one destination
-and shared symbol data while intermediate cards stay compact during motion.
-Compact cards retain sheet change badges; focused relationship endpoints retain
-their full presentation along with the existing selection/activity exceptions.
+`canvas/scene/canonicalScene.ts` keeps the complete scene, stable ID order and
+absolute geometry outside React Flow. `useCanvasRenderBudget.tsx` materializes
+buffered visibility, required ancestors, selected/live nodes and endpoints of
+admitted relationships. It iterates admitted IDs on camera replies instead of
+mapping the project array. Flow owns a disposable interaction subset; its own
+component culler can release DOM within that subset. During layout glides the
+outgoing subset is retained, rather than adopting the entire project.
+`useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
+waits for accepted preparation before using a target's current measurement.
+Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots
+include unadopted children and apply their compensation through the normal
+controlled-node callback. Only active resize owners need remain adopted.
+
+`scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
+frame preparation, separate from `floorSceneProjection.ts` (React node data).
+`scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet
+preparation and spatial queries. Numeric jobs yield between loop chunks, coalesce
+by channel and reject superseded tokens. Workspace/sheet scopes and immutable
+input identity gate adoption and generated-placement persistence. An equivalent
+metadata/save echo reuses an accepted or pending preparation. Unchanged layout
+and semantic-parent echoes preserve identities in `store/floorLayoutUpdates.ts`.
+Timestamp-only layout echoes do not invalidate renderer geometry; authoritative
+save timestamps remain in SQLite. Failed initial saves latch the attempt and
+surface Retry instead of repeatedly rebuilding and issuing network writes.
+
+The worker indexes conservative endpoint bounds for relationships, matching
+Flow's visibility rule, including paths crossing the viewport with both endpoints
+offscreen. Disconnected offscreen relationships no longer pull all their endpoints
+into Flow. Endpoint shells retain their ordinary measured handles and routing;
+this is not the planned batched relationship renderer. Visible high-degree hubs
+still cost one edge and its required endpoint geometry per relationship.
+
+`sceneRecords` preserves spatial revisions without JSON signatures. Admission
+retention membership is prepared once per spatial revision. Initial shells
+already respect the viewport buffer while the worker answer is pending. Rich
+detail remains per-node subscribed and admitted in small batches. Small worker
+fallbacks prepare cooperatively; scenes/relationships above 2,000 refuse a large
+synchronous fallback. A worker error retains coherent content and exposes Retry.
+Cancelled work that cannot acknowledge within one second is terminated, covering
+an atomic packing primitive that fails to yield; current jobs then surface a
+recoverable error. No such failure silently triggers a huge UI-thread rebuild.
+`sceneIntegrity.ts` validates changed immutable nodes incrementally and repeats
+its full canonical audit for structural revisions. Empty activity avoids full
+activity indexes; scene ID signatures do not sort again on selection.
+
+`renderBudgetStore.ts` and `nodes/BudgetedNodes.tsx` retain silhouette, compact
+identity and editable detail tiers. Navigation prewarms its destination and
+shared symbols while intermediate cards stay compact. Compact cards retain sheet
+and checkout badges; focused relationships keep their full presentation.
+See [testing/CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md) for
+measurements, validation and remaining cold-loading/density limits.
 
 `nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
 cancellable requests (four concurrent), revision invalidation and bounded LRU
@@ -571,7 +606,10 @@ WebSocket dispatch yields between messages through `canvas/frameWorkQueue.ts`
 (3 ms / 24 messages per batch); queue overflow uses snapshot resync. Individual
 messages remain atomic. `useCanvasFrameTiming.ts` samples active camera windows
 and shares one renderer long-frame observer; all diagnostics are local and
-bounded. See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
+bounded. Full geometry snapshots/diffs in `sceneDiagnostics.ts` require
+`window.__ambioSceneDebug = true`; this investigative tracer does not run in
+ordinary frames. Scene-integrity checks and recovery remain active independently.
+See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
 five-part implementation, measured results and remaining scaling limits.
 
 `canvas/perfTrace.ts` adds opt-in stage timings for snapshot resync fetch/decode/application,
@@ -582,9 +620,25 @@ Electron input/frame/process-memory measurements live in
 `tests/fixtures/canvasScale.ts` and `tests/e2e/canvas-scale.spec.ts`; the real
 SQLite query/JSON benchmark is `internal/db/canvas_scale_bench_test.go`.
 See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
-DOM culling does not yet bound React components: React Flow and its minimap
-still create per-ID wrappers/subscriptions for hidden nodes. This is a measured
-scaling limit, not a completed progressive scene boundary.
+`CanvasMiniMap.tsx` has one React Flow store subscription and renders only admitted
+marks from `minimapGeometry.ts`; camera updates reuse their geometry. It preserves
+the existing passive minimap presentation without per-hidden-ID wrappers. Native
+E2E checks count actual React wrapper components as well as DOM nodes so hidden
+subscriptions cannot regress unnoticed. Complete canonical geometry lives outside
+React Flow; Flow owns only the admitted interaction subset described above.
+Full snapshot decoding, canonical React-node projection, worker copying and total
+model storage still scale with project size. This is not a completed progressive
+data/adoption boundary.
+Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
+normal commit if a focused field is culled. React suppresses synthetic blur during
+deletion; relying on browser focus loss would discard an unfinished edit.
+`edges/ClippedDashedEdge.tsx` clips very long static dashed paths to the buffered
+camera before SVG stroking; `clippedEdgeGeometry.ts` preserves their canonical
+arc distance and real target markers. This avoids millions of offscreen dashes
+without changing relationship geometry or editing. Raster parity includes the
+HTML camera at ordinary/extreme zoom. React Flow defaults and connection/selection
+callbacks retain stable identities: changing the default fit options during a
+queued manual fit can otherwise replace its destination and duration.
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is

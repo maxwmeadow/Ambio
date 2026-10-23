@@ -10,6 +10,13 @@ import { SystemNode } from './SystemNode'
 import { InfraNode } from './InfraNode'
 import { getPerfMetrics } from '../perfMetrics'
 import { SheetChangeBadge } from './SheetChangeBadge'
+import { BranchOverlayMark } from './BranchOverlayMark'
+import { useCheckoutStore } from '../../store/checkoutStore'
+
+function CompactBranchMark({ id }: { id: string }) {
+  const marks = useCheckoutStore(state => state.overlayByFile.get(id))
+  return <BranchOverlayMark marks={marks} />
+}
 
 /** Geometry and a cheap identity remain available while rich content waits for
  * admission. Selection/hover/activity promotes the actual editable component. */
@@ -27,6 +34,7 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
     onPointerEnter={props.promote} style={{ position: 'relative', width: '100%', height: '100%',
       opacity: d.dimmed ? (system ? .3 : .22) : 1 }}>
     <SheetChangeBadge change={d.sheetChange} width={width} />
+    {file && <CompactBranchMark id={props.id} />}
     <div style={{ position: 'absolute', inset: 0, width: `${100 / scale}%`, height: `${100 / scale}%`,
       transform: `scale(${scale})`, transformOrigin: 'top left', isolation: 'isolate' }}>
       <ShapeBackdrop shape={shape} fill="var(--bg-surface)" stroke={color} width={width / scale} height={height / scale} />

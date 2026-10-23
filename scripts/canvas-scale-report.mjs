@@ -16,7 +16,8 @@ for (const row of rows) {
   const missed = Object.entries(row.targets ?? {}).filter(([,value]) => value === false).map(([key]) => key)
   const unverified = Object.entries(row.targets ?? {}).filter(([,value]) => value === null).map(([key]) => key)
   const result = missed.join(', ') || (row.status === 'failed' ? 'collection failed' : unverified.length ? `unverified: ${unverified.join(', ')}` : 'none')
-  console.log(`| ${row.fixture.systems + row.fixture.files} | ${row.shape} | ${row.status} | ${number(row.cold?.usableMs)} | ${number(warm?.p95)} / ${number(warm?.p99)} | ${number(row.selectionFeedback?.p95)} | ${number((row.sampledPeakPrivateKiB ?? row.peakPrivateKiB) / 1024 || null)} | ${result} |`)
+  const diagnostic = row.diagnosticSolidEdges ? 'solid-edge control' : row.instrumented ? 'CPU profile' : row.cameraIntentTrace ? 'camera trace' : ''
+  console.log(`| ${row.fixture.systems + row.fixture.files} | ${row.shape} | ${row.status}${diagnostic ? ` (${diagnostic})` : ''} | ${number(row.cold?.usableMs)} | ${number(warm?.p95)} / ${number(warm?.p99)} | ${number(row.selectionFeedback?.p95)} | ${number((row.sampledPeakPrivateKiB ?? row.peakPrivateKiB) / 1024 || null)} | ${result} |`)
 }
 console.log('\n* Includes scripted search and its intentional 850 ms flight/settle; not pure cold-layout time. Null targets are unverified, not passes. Stage timings are inclusive and cannot be summed across nested work.')
 for (const row of rows) {

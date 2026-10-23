@@ -8,6 +8,19 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Large maps keep their complete geometry outside the interactive canvas and
+  prepare Floor and sheet layouts in the background. Search follows current
+  geometry through updates, while worker failures retain the map and offer Retry.
+- Layout save failures no longer cause repeated saves and repacking. Unchanged
+  save echoes and ordinary selections avoid unnecessary geometry and activity work.
+- Large maps no longer create hidden canvas and minimap components for every
+  project entity. Selection avoids unnecessary scene serialization, compact
+  file cards retain other branches' change marks, and focused inline drafts
+  save normally when their node leaves the viewport.
+- Search keeps its intended destination and smooth camera flight through live
+  updates. Long dashed relationships no longer draw millions of invisible dash
+  segments outside the viewport. Full geometry debugging no longer runs during
+  ordinary canvas interaction.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.

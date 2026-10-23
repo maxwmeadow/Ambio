@@ -75,17 +75,47 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 
 ## Rendering budget (approved 2026-10-20)
 
-- Above 40 composed nodes, spatial visibility runs in a worker, with a local
-  fallback if the worker cannot run. Canonical layout, semantic membership and
-  authored dimensions remain independent from viewport culling.
-- The viewport has a 240-screen-pixel buffer. Recently visible nodes may stay
-  mounted for 450 ms, capped at about two buffered screenfuls, to absorb quick
-  reversals. Fit includes viewport-culled nodes and excludes semantically hidden
-  descendants, so virtualization cannot change the camera's scene bounds. Active
-  relationship endpoints retain mounted shells/handles even outside the buffer.
+- Above 40 composed nodes, spatial visibility runs in the same worker as
+  numeric Floor/sheet preparation. Complete canonical geometry lives outside
+  React Flow; its interaction collection contains the admitted region and
+  required interaction/relationship ancestors and endpoints. Canonical layout,
+  semantic membership and authored dimensions remain independent from culling.
+  Pending preparation retains the previous coherent scene and shows progress.
+  Only current workspace/sheet/model requests may adopt geometry or persist
+  generated placement. Equivalent metadata/save echoes reuse preparation.
+  Small worker failures can recover cooperatively. Above 2,000 entities or
+  relationships, no huge synchronous fallback is attempted: retain coherent
+  content and offer Retry. Unresponsive superseded work is terminated after its
+  cancellation acknowledgement deadline instead of blocking newer work forever.
+- The detail budget has a 240-screen-pixel buffer and retains recent admissions
+  for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
+  React Flow additionally culls offscreen components; retention no longer requires
+  their DOM or subscribers to stay mounted. Fit includes viewport-culled nodes
+  and excludes semantically hidden descendants. Canonical geometry remains
+  available for camera bounds, offscreen drop targets and resize compensation.
+  Relationship admission includes viewport-crossing endpoint bounds even when
+  both endpoints are offscreen; disconnected offscreen paths need not adopt
+  their endpoints. Admitted endpoints initialize ordinary handles and preserve
+  valid offscreen routing after their shells unmount. Layout glides retain the
+  outgoing interaction subset until the transition phase ends, so final-position
+  culling cannot cut off a moving card.
   While the first spatial answer is pending, root shells already respect this
   buffer; startup must not admit every off-screen root at once. The same active
   node and relationship endpoint exceptions apply.
+- The passive minimap retains its size, colors, rounded marks, viewport mask
+  and admitted-node bounds. It has one surface subscription and creates marks
+  only for admitted nodes, rather than a subscribed component per project entity.
+- Focused inline titles, symbol names and metadata finish their normal save
+  before culling removes the input. Escape still cancels the draft. Removing a
+  browser input does not itself dispatch React's blur event; drafts must not be
+  silently discarded during camera or semantic visibility changes.
+- Very long static dashed relationships draw only their buffered viewport
+  segments. Their canonical route, dash phase, real endpoint arrows and click
+  target remain equivalent to the full route. No arrow is added at a clip cut.
+  Explicit search/reply fits retain their target and 850 ms duration through
+  concurrent canvas updates; default Fit options cannot replace a queued request.
+  Navigation issued during preparation waits for its accepted geometry. A manual
+  navigation takes priority over initial automatic framing.
 - A node smaller than 14 pixels on its shortest side may use its silhouette.
   Other background file cards use compact identity while detail waits. Systems
   and infrastructure retain their normal identity at readable sizes. Selection,
@@ -105,7 +135,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   bounded LRU. Large lists do not create one DOM row per indexed symbol.
 - Local diagnostics record camera frame tails, renderer long frames, detail
   admissions, requests and background batches. There is no uploaded telemetry
-  or idle animation-frame sampling loop.
+  or idle animation-frame sampling loop. Full geometry mutation tracing requires
+  `window.__ambioSceneDebug = true`; scene-integrity protection remains active.
+
+- An initial layout save failure is reported with Retry. It must not create an
+  automatic save/repack loop; retry cannot write another workspace's geometry.
 
 ## Semantic zoom
 
