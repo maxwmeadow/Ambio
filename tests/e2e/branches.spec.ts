@@ -193,6 +193,10 @@ test('another branch’s work is drawn on the Floor until the lens turns it off'
   const modified = page.locator('.react-flow__node[data-id="file_canvas"] .ambio-branch-overlay-mark[data-change="modified"]')
   await expect(modified).toBeVisible()
   await expect(modified).toHaveAttribute('title', 'Changed on codex/retry-checkout')
+  // A card off screen is not mounted, so fly to the deleted file as well.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/store/graphStore.ts')
+  await page.getByRole('option').first().click()
   await expect(page.locator('.react-flow__node[data-id="file_store"] .ambio-branch-overlay-mark[data-change="deleted"]')).toBeAttached()
   await page.waitForTimeout(900)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overlay-files.png') })
