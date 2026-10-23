@@ -144,17 +144,17 @@ func TestCFilesAndHeaders(t *testing.T) {
 func TestStylesheetsAreIndexedWithImportEdges(t *testing.T) {
 	sqlDB, root, _ := journalFixture(t)
 	files := map[string]string{
-		"web/src/Button.tsx":              "import './Button.css'\nimport styles from './Button.module.css'\nexport function Button() { return null }\n",
-		"web/src/Button.css":              "@import \"./tokens.css\";\n@import url(https://fonts.example/inter.css);\n.button { color: var(--ink); }\n",
-		"web/src/Button.module.css":       ".primary { composes: base from './base.module.css'; }\n",
-		"web/src/base.module.css":         ".base { padding: 4px; }\n",
-		"web/src/tokens.css":              ":root { --ink: #111; }\n",
-		"web/src/App.tsx":                 "import { Button } from './Button'\nimport './styles/app.scss'\nexport const App = Button\n",
-		"web/src/styles/app.scss":         "@use 'sass:math';\n@use './variables' as v;\n@use 'mixins';\n@import 'tailwindcss';\n.app { width: math.div(10px, 2); }\n",
-		"web/src/styles/_variables.scss":  "$ink: #111;\n",
+		"web/src/Button.tsx":                "import './Button.css'\nimport styles from './Button.module.css'\nexport function Button() { return null }\n",
+		"web/src/Button.css":                "@import \"./tokens.css\";\n@import url(https://fonts.example/inter.css);\n.button { color: var(--ink); }\n",
+		"web/src/Button.module.css":         ".primary { composes: base from './base.module.css'; }\n",
+		"web/src/base.module.css":           ".base { padding: 4px; }\n",
+		"web/src/tokens.css":                ":root { --ink: #111; }\n",
+		"web/src/App.tsx":                   "import { Button } from './Button'\nimport './styles/app.scss'\nexport const App = Button\n",
+		"web/src/styles/app.scss":           "@use 'sass:math';\n@use './variables' as v;\n@use 'mixins';\n@import 'tailwindcss';\n.app { width: math.div(10px, 2); }\n",
+		"web/src/styles/_variables.scss":    "$ink: #111;\n",
 		"web/src/styles/mixins/_index.scss": "@mixin card($pad) {\n  padding: $pad;\n}\n@function double($n) { @return $n * 2; }\n",
-		"web/src/legacy/theme.less":       "@import (reference) \"palette\";\n.theme { color: @ink; }\n",
-		"web/src/legacy/palette.less":     "@ink: #111;\n",
+		"web/src/legacy/theme.less":         "@import (reference) \"palette\";\n.theme { color: @ink; }\n",
+		"web/src/legacy/palette.less":       "@ink: #111;\n",
 	}
 	for rel, body := range files {
 		abs := filepath.Join(root.Path, filepath.FromSlash(rel))

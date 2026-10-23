@@ -1,5 +1,12 @@
 import { defineConfig } from '@playwright/test'
 
+// Every spec launches Ambio with a HOME of its own, but Electron's user data
+// and the agent config paths follow XDG_CONFIG_HOME first. GitHub's Linux
+// runners set it, so one spec's dismissed introductions leaked into the next
+// and the app touched the runner's real config. Unset, they fall back to the
+// isolated HOME. Workers inherit this environment.
+for (const name of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME']) delete process.env[name]
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 45_000,

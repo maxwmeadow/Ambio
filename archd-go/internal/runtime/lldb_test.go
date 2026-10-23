@@ -14,15 +14,24 @@ import (
 // C/C++ under whichever debugger the machine has: gdb, or lldb-dap (macOS
 // ships it with the command line tools; there is no gdb there).
 func TestCppCallsRecordedUnderTheSystemDebugger(t *testing.T) {
-	compiler, err := exec.LookPath("clang++")
-	if err != nil {
-		if compiler, err = exec.LookPath("g++"); err != nil {
-			t.Skip("no C++ compiler")
-		}
-	}
 	dbg, err := findCppDebugger()
 	if err != nil {
 		t.Skip(err.Error())
+	}
+	// Build with the debugger's own toolchain: on Windows clang++ writes PDB
+	// debug info, which MinGW gdb cannot read, so no breakpoint ever binds.
+	compilers := []string{"g++", "clang++"}
+	if isLLDB(dbg) {
+		compilers = []string{"clang++", "g++"}
+	}
+	var compiler string
+	for _, name := range compilers {
+		if compiler, err = exec.LookPath(name); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		t.Skip("no C++ compiler")
 	}
 	if isLLDB(dbg) && macOSDebuggingBlocked() {
 		t.Skip(macOSDebuggingHint)

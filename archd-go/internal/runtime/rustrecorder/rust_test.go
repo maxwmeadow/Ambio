@@ -129,6 +129,10 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 	return string(out), docs
 }
 
+// slashed spells a panic location the same on every host: Rust prints
+// src\main.rs on Windows.
+func slashed(out string) string { return strings.ReplaceAll(out, `\`, "/") }
+
 // programOutput drops Cargo's progress lines and the thread id a panic prints.
 func programOutput(out string) string {
 	var kept []string
@@ -230,7 +234,7 @@ fn main() {
 	out, docs := cargoRun(t, dir, true, []map[string]string{{"absPath": file, "symbol": "reserve"}, {"absPath": file, "symbol": "price"}}, "run", "-q")
 	// The program prints what it would have: same panic, same place.
 	// (Older compilers word the panic line differently; the place is the same.)
-	if programOutput(out) != programOutput(plain) || !strings.Contains(out, "panicked at") || !strings.Contains(out, "src/main.rs:9:28") {
+	if programOutput(out) != programOutput(plain) || !strings.Contains(out, "panicked at") || !strings.Contains(slashed(out), "src/main.rs:9:28") {
 		t.Fatalf("output differs.\nordinary:\n%s\nrecorded:\n%s", plain, out)
 	}
 	if strings.Contains(out, "warning") {
@@ -488,7 +492,7 @@ mod tests {
 	if strings.Contains(out, "failed to parse manifest") {
 		t.Skip("this toolchain predates the 2024 edition")
 	}
-	if !strings.Contains(out, "test result: FAILED. 0 passed; 1 failed") || !strings.Contains(out, "src/lib.rs:16:9") {
+	if !strings.Contains(out, "test result: FAILED. 0 passed; 1 failed") || !strings.Contains(slashed(out), "src/lib.rs:16:9") {
 		t.Fatalf("the test fails as it would have, at its own line:\n%s", out)
 	}
 	if strings.Contains(out, "recorded less") || strings.Contains(out, "not recording") {
