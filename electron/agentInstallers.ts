@@ -1,8 +1,8 @@
-import { join, resolve } from 'path'
+import { dirname, join, resolve } from 'path'
 import os from 'os'
 import fs from 'fs'
 import { DRAW_FIRST_WORKFLOW, DRAW_FIRST_SKILL_DESCRIPTION } from '../src/shared/agentWorkflow.ts'
-import { agentRuleFiles, installAgentRule, ruleInstalled, type AgentRuleFile } from './agentRules.ts'
+import { agentRuleCleanupFiles, agentRuleFiles, installAgentRule, installMuseContext, ruleInstalled, type AgentRuleFile } from './agentRules.ts'
 import {
   getPlatformPaths,
   getClaudeDesktopConfigCandidates,
@@ -41,8 +41,11 @@ export interface HostDescriptor {
   modalityLabel: string
   /** Where this host keeps MCP servers, used both to detect and to install. */
   configPath: () => string
-  /** Every user or workspace MCP configuration this host can read. */
+  /** Dedicated configurations Ambio owns for this client and may remove. */
   serverLocations: (projectRoot?: string) => ServerLocation[]
+  /** Compatibility files owned by other clients; report without editing them. */
+  inheritedServerLocations?: (projectRoot?: string) => ServerLocation[]
+  inheritedSkillPaths?: () => string[]
   /**
    * Other surfaces that read this exact configuration. Installing the host
    * configures these too - they are listed so a user looking for "Claude Code
@@ -60,6 +63,7 @@ export interface HostDescriptor {
   additionalCommandPaths?: () => string[]
   /** Always-loaded project instructions, where the host supports them. */
   ruleFiles?: (projectRoot?: string) => AgentRuleFile[]
+  ruleCleanupFiles?: (projectRoot?: string) => AgentRuleFile[]
   /** Undo what install changed beyond the server entry and workflow files. */
   uninstallExtras?: () => string[]
   /** The command a user types once installed. */
@@ -88,9 +92,21 @@ export interface HostConfigurationStatus {
   /** Whether the host-specific reusable workflow is present. */
   workflowInstalled: boolean
   workflowPath: string | null
+  inheritedPaths: string[]
 }
 
 const home = () => os.homedir()
+const jsonObject = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value)
+
+/** Grok loads each project config between cwd and the nearest git boundary. */
+function grokProjectDirectories(projectRoot: string): string[] {
+  const roots: string[] = []
+  for (let current = resolve(projectRoot); ; current = dirname(current)) {
+    roots.push(current)
+    if (fs.existsSync(join(current, '.git'))) return roots
+    if (dirname(current) === current) return [resolve(projectRoot)]
+  }
+}
 
 function projectPathVariants(projectRoot: string): string[] {
   const absolute = resolve(projectRoot)
@@ -174,6 +190,9 @@ function installJsonServer(
       detail: `${path} could not be read as JSON. Fix or move it, then try again - Ambio will not overwrite configuration it cannot understand.`,
       paths: [path],
     }
+  }
+  if (!jsonObject(existing) || existing[key] !== undefined && !jsonObject(existing[key])) {
+    return { ok: false, detail: `${path} is valid JSON, but must contain an object with a "${key}" server map. Fix that structure, then try again; Ambio left it unchanged.`, paths: [path] }
   }
   const servers = (existing[key] ?? {}) as Record<string, unknown>
   existing[key] = { ...servers, ambio: { ...extraEntryFields, command, args } }
@@ -367,18 +386,17 @@ export function inspectHostConfiguration(
 
     if (location.format === 'json') {
       const config = readJson(location.path)
-      if (config === null) {
+      if (!jsonObject(config)) {
         unreadablePaths.add(location.path)
         continue
       }
       let servers: unknown = config
       for (const key of location.keyPath) {
-        if (servers === null || typeof servers !== 'object' || Array.isArray(servers)) {
-          servers = undefined
-          break
-        }
+        if (servers === undefined) break
+        if (!jsonObject(servers)) { unreadablePaths.add(location.path); break }
         servers = (servers as Record<string, unknown>)[key]
       }
+      if (servers !== undefined && !jsonObject(servers)) unreadablePaths.add(location.path)
       if (
         servers !== null &&
         typeof servers === 'object' &&
@@ -415,6 +433,13 @@ export function inspectHostConfiguration(
   }
 
   const isDesktopChat = host.triggerKind === 'chat prompt'
+  const inheritedPaths = (host.inheritedServerLocations?.(projectRoot) ?? []).filter(location => {
+    if (location.format !== 'json' || !fs.existsSync(location.path)) return false
+    let value: unknown = readJson(location.path)
+    for (const key of location.keyPath) value = jsonObject(value) ? value[key] : undefined
+    return jsonObject(value) && Object.hasOwn(value, 'ambio')
+  }).map(location => location.path)
+  inheritedPaths.push(...(host.inheritedSkillPaths?.() ?? []).filter(path => fs.existsSync(path)))
 
   return {
     configured: configuredPaths.size > 0,
@@ -426,6 +451,7 @@ export function inspectHostConfiguration(
         fs.existsSync(path) && fs.existsSync(inboxSkillPath(path)) && fs.existsSync(buildSkillPath(path))) : false
     })()) && (host.ruleFiles?.(projectRoot) ?? []).every(ruleInstalled),
     workflowPath: host.commandPath?.(projectRoot) ?? null,
+    inheritedPaths: [...new Set(inheritedPaths)],
   }
 }
 
@@ -453,6 +479,11 @@ export function buildHosts(
   const copilotVsCodeConfig = primary('copilot', getVsCodeUserMcpPath(homeDir, platform, false, appDataDir))
   const copilotCliConfig = primary('copilot-cli', join(homeDir, '.copilot', 'mcp-config.json'))
   const codexConfig = primary('codex', join(homeDir, '.codex', 'config.toml'))
+  const grokConfig = primary('grok', join(homeDir, '.grok', 'config.toml'))
+  // Muse uses XDG configuration on every platform, rather than Electron's
+  // application-data folder. An injected home must never use our real XDG dir.
+  const museDir = join(homeDir === home() ? process.env.XDG_CONFIG_HOME || join(homeDir, '.config') : join(homeDir, '.config'), 'muse')
+  const museConfig = primary('muse', join(museDir, 'settings.json'))
   const cursorConfig = primary('cursor', join(homeDir, '.cursor', 'mcp.json'))
   const windsurfConfig = primary('windsurf', join(homeDir, '.codeium', 'windsurf', 'mcp_config.json'))
   const antigravityConfig = primary('antigravity', join(homeDir, '.gemini', 'config', 'mcp_config.json'))
@@ -670,6 +701,78 @@ export function buildHosts(
           ok: true,
           detail: 'Added Ambio and installed the $ambio-map skill. Restart Codex if it is not visible yet.',
           paths: [path, ...skillPaths],
+        }
+      },
+    },
+
+    // ── Grok Build ───────────────────────────────────────────────────────────
+    {
+      id: 'grok',
+      label: 'Grok Build (CLI)',
+      familyId: 'grok',
+      familyLabel: 'Grok',
+      modality: 'cli',
+      modalityLabel: 'Grok Build CLI',
+      configPath: () => grokConfig,
+      inheritedServerLocations: projectRoot => [
+        { format: 'json', path: claudeCodeConfig, keyPath: ['mcpServers'] },
+        { format: 'json', path: cursorConfig, keyPath: ['mcpServers'] },
+        ...(projectRoot ? grokProjectDirectories(projectRoot).flatMap(root => [
+          { format: 'json' as const, path: join(root, '.mcp.json'), keyPath: ['mcpServers'] },
+          { format: 'json' as const, path: join(root, '.cursor', 'mcp.json'), keyPath: ['mcpServers'] },
+        ]) : []),
+      ],
+      inheritedSkillPaths: () => ['.agents', '.claude'].map(dir => join(homeDir, dir, 'skills', 'ambio-map', 'SKILL.md')),
+      serverLocations: projectRoot => [
+        { format: 'toml', path: grokConfig },
+        ...(projectRoot ? grokProjectDirectories(projectRoot).map(root => ({ format: 'toml' as const, path: join(root, '.grok', 'config.toml') })) : []),
+      ],
+      commandPath: () => join(homeDir, '.grok', 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
+      triggerKind: 'slash command',
+      restartAction: 'Start fresh Grok session',
+      restartDetail: 'Exit the current session and run grok in your project. Use /mcps to check Ambio and /ambio-map to map it.',
+      install: (command, args, brief) => {
+        const existing = fs.existsSync(grokConfig) ? fs.readFileSync(grokConfig, 'utf8') : ''
+        const block = [
+          '[mcp_servers.ambio]',
+          `command = ${JSON.stringify(command)}`,
+          `args = [${identifiedArgs(args, 'grok').map(arg => JSON.stringify(arg)).join(', ')}]`,
+        ].join('\n')
+        fs.mkdirSync(join(grokConfig, '..'), { recursive: true })
+        fs.writeFileSync(grokConfig, upsertTomlTable(existing,
+          /^\s*\[\s*mcp_servers\s*\.\s*(?:ambio|"ambio"|'ambio')\s*\]\s*(?:#.*)?$/, block), 'utf8')
+        return {
+          ok: true,
+          detail: 'Added Ambio and installed /ambio-map, /ambio-inbox and /ambio-build for Grok Build. Start a fresh Grok session.',
+          paths: [grokConfig, ...installAgentSkill(join(homeDir, '.grok', 'skills', 'ambio-map', 'SKILL.md'), brief)],
+        }
+      },
+    },
+
+    // ── Meta Muse Code ───────────────────────────────────────────────────────
+    {
+      id: 'muse',
+      label: 'Meta Muse Code (CLI)',
+      familyId: 'muse',
+      familyLabel: 'Muse',
+      modality: 'cli',
+      modalityLabel: 'Muse Code CLI',
+      configPath: () => museConfig,
+      inheritedSkillPaths: () => ['.agents', '.claude', '.codex'].map(dir => join(homeDir, dir, 'skills', 'ambio-map', 'SKILL.md')),
+      serverLocations: () => [{ format: 'json', path: museConfig, keyPath: ['mcp_servers'] }],
+      commandPath: () => join(museDir, 'skills', 'ambio-map', 'SKILL.md'),
+      command: '/ambio-map',
+      triggerKind: 'slash command',
+      restartAction: 'Start fresh Muse session',
+      restartDetail: 'Exit the current session and run muse in your project. Trust the project to load its instructions; use /mcp to check Ambio and /ambio-map to map it.',
+      install: (command, args, brief) => {
+        const result = installJsonServer(museConfig, 'mcp_servers', command, identifiedArgs(args, 'muse'), 'Muse Code', { transport: 'stdio', enabled: true, mode: 'optional' })
+        if (!result.ok) return result
+        return {
+          ok: true,
+          detail: 'Added Ambio and installed /ambio-map, /ambio-inbox and /ambio-build for Muse Code. Start a fresh Muse session.',
+          paths: [...result.paths, ...installAgentSkill(join(museDir, 'skills', 'ambio-map', 'SKILL.md'), brief)],
         }
       },
     },
@@ -940,6 +1043,7 @@ export function buildHosts(
     return {
       ...host,
       ruleFiles: (projectRoot?: string) => agentRuleFiles(host.id, projectRoot),
+      ruleCleanupFiles: (projectRoot?: string) => agentRuleCleanupFiles(host.id, projectRoot),
       promptText: host.promptText ? `${host.promptText}\n\n${DRAW_FIRST_WORKFLOW}` : undefined,
       install: (command: string, args: string[], brief: string, projectRoot?: string): InstallResult => {
         const result = install(command, args, brief, projectRoot)
@@ -947,6 +1051,7 @@ export function buildHosts(
         const rules = agentRuleFiles(host.id, projectRoot)
         const paths = [...result.paths]
         try {
+          if (host.id === 'muse') installMuseContext(projectRoot)
           for (const rule of rules) { installAgentRule(rule); paths.push(rule.path) }
           return { ...result, paths, detail: result.detail + (rules.length ? ' Added project instructions to draw structural changes before code.' : ' Draw-first guidance is available through Ambio MCP.') }
         } catch (error) {

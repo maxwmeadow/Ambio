@@ -7,7 +7,24 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+### Added
+- Add Ambio to Grok Build and Meta Muse Code from Settings → Agents or guided
+  setup, with mapping, inbox and draw-first workflows. Ambio can start both
+  signed-in CLIs, select a model, continue conversations, show activity and
+  stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
+
 ### Fixed
+- Muse launches plain `serve` and preserves its configured sandbox; protocol
+  clients no longer receive Claude Code’s permission-hook tool. Grok reports
+  missing/unusable Linux bubblewrap clearly and allows longer MCP startup
+  without misreporting it as a sign-in failure.
+- Setup again prefers an agent Ambio can run unless you explicitly pick
+  another app. Muse-only instruction pointers no longer affect other clients
+  or change their repair status when CLAUDE.md appears. Muse keeps project guidance through mixed-client setup
+  and removal, and unavailable Ambio tools no longer abort Muse sessions.
+- Invalid MCP server-map shapes are flagged for repair with a specific error.
+  Grok configuration discovery follows parent folders to the Git root, and
+  shared setup inherited from other clients is shown separately.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.

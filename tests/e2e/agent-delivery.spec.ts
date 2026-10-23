@@ -18,6 +18,15 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, fakeAgent)
     if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${fakeAgent}`, { mode: 0o755 })
   }
+  const protocolPeer = fs.readFileSync(path.join(__dirname, 'fixtures', 'grok-muse-agent.cjs'), 'utf8')
+  const grokBootstrap = path.join(bin, 'node_modules', '@xai-official', 'grok', 'bin', 'grok-bootstrap.js')
+  fs.mkdirSync(path.dirname(grokBootstrap), { recursive: true })
+  fs.writeFileSync(grokBootstrap, protocolPeer)
+  if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, 'grok'), `#!${process.execPath}\n${protocolPeer}`, { mode: 0o755 })
+  // A native Node executable called muse runs the fixture's `serve` script.
+  // This exercises native CLI discovery on Windows too, without a shell shim.
+  fs.copyFileSync(process.execPath, path.join(bin, process.platform === 'win32' ? 'muse.exe' : 'muse'))
+  fs.writeFileSync(path.join(root, 'serve'), protocolPeer)
   if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, 'zed'), `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(path.join(root, 'editor-opened.json'))},JSON.stringify(process.argv.slice(2)))`, { mode: 0o755 })
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   // Only the stand-in agents are on PATH. Windows also needs its own system
@@ -29,11 +38,11 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   for (const dir of Object.values(windowsProfile)) fs.mkdirSync(dir, { recursive: true })
   const app = await electron.launch({
     args: ['.', ...(process.env.AMBIO_HEADLESS_E2E === '1' && process.platform === 'linux' ? ['--no-sandbox', '--ozone-platform=headless'] : [])],
-    env: { ...env, HOME: home, USERPROFILE: home, ...windowsProfile, PATH: launchPath, AMBIO_E2E: '1', AMBIO_E2E_AGENTS: '1', AMBIO_API_TOKEN: 'ambio-isolated-ui-delivery-test-token-12345' },
+    env: { ...env, HOME: home, USERPROFILE: home, GROK_HOME: path.join(home, '.grok'), XDG_CONFIG_HOME: path.join(home, '.config'), ...windowsProfile, PATH: launchPath, AMBIO_E2E: '1', AMBIO_E2E_AGENTS: '1', AMBIO_API_TOKEN: 'ambio-isolated-ui-delivery-test-token-12345' },
   })
   try {
     const page = await app.firstWindow()
-    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(10)
+    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(12)
     await page.setViewportSize({ width: 1280, height: 1000 })
     const orders: any[] = []
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
@@ -74,7 +83,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await confirm()
     // The agent menu lists every destination, in Ambio's own menu.
     await destination.open()
-    await expect(destination.items()).toHaveCount(12)
+    await expect(destination.items()).toHaveCount(14)
     await page.screenshot({ path: 'test-results/agent-menu.png' })
     await destination.close()
     await destination.choose('codex')
@@ -102,9 +111,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
-    for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
+    for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['grok', 'Grok Build (CLI)'], ['muse', 'Meta Muse Code (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
       await destination.choose(host)
-      if (host === 'copilot-cli') await confirm()
+      if (['grok', 'muse', 'copilot-cli'].includes(host)) await confirm()
       // The agent pill keeps one shape whichever agent and model are chosen.
       pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
       await inbox.locator('.ambio-inbox__compose-tools').screenshot({ path: `test-results/pill-${host}.png` })
@@ -132,6 +141,14 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect.poll(() => { try { return String(JSON.parse(fs.readFileSync(captured, 'utf8')).prompt) } catch { return '' } }).toContain(orders.at(-1).id)
       const actual = JSON.parse(fs.readFileSync(captured, 'utf8'))
       expect(actual.workspace).toBe('demo'); expect(actual.cwd).toBe(fs.realpathSync(root))
+      if (host === 'grok' || host === 'muse') {
+        expect(actual.permissionHook).toBeUndefined()
+        const mcp = host === 'grok' ? actual.mcpServers[0] : actual.mcpServers.ambio
+        expect(mcp.args).toContain(`--ambio-host=${host}`)
+        const mcpEnv = host === 'grok' ? Object.fromEntries(mcp.env.map((entry: { name: string; value: string }) => [entry.name, entry.value])) : mcp.env
+        expect(mcpEnv).toEqual({ AMBIO_WORKSPACE_ID: 'demo' })
+        if (host === 'muse') expect(actual.args).toEqual(['serve'])
+      }
       if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
@@ -140,9 +157,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await expect(inbox.locator('.ambio-inbox__turn-status').last().getByRole('button', { name: 'Try again' })).toBeVisible()
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
-    expect(orders).toHaveLength(3)
+    expect(orders).toHaveLength(5)
     // Earlier turns whose runs ended unanswered were withdrawn when the next message went.
-    await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled'])
+    await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]')).toHaveText(['Cancelled', 'Cancelled', 'Cancelled', 'Cancelled'])
     await expect(inbox.getByRole('button', { name: 'Show output' })).toHaveCount(1)
     expect(new Set(pillWidths).size).toBe(1)
     const firstMessageId = orders.at(-1).id

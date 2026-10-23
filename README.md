@@ -46,7 +46,7 @@ you and your agents that keeps you both on the same page:
   what they do, not by folder, and the map updates as files change. Agents
   propose how the code is organised; you approve or correct it.
 - **Your agents read and write the same model.** Ambio can run Claude Code,
-  Codex, Copilot CLI and Antigravity CLI for you, or its own Ambio chat with
+  Codex, Copilot CLI, Antigravity CLI, Grok Build and Muse Code for you, or its own Ambio chat with
   your API key; Copilot in VS Code, Cursor, Claude Desktop, Windsurf,
   Antigravity, JetBrains and Zed connect through MCP. Either way they ask where
   things are and what depends on what, author systems, record infrastructure,
@@ -106,7 +106,7 @@ Everything Ambio knows about your code stays on your machine - see
 1. Open a codebase in Ambio.
 2. Review which folders and files belong in the index.
 3. Choose who maps it. An agent Ambio runs (Claude Code, Codex, Copilot CLI,
-   Antigravity CLI, or Ambio chat) maps it when you press **Map**, with its
+   Antigravity CLI, Grok Build, Muse Code, or Ambio chat) maps it when you press **Map**, with its
    progress shown live; pick its model beside the button. For an agent in
    another app, add Ambio to it, restart it, and run the mapping command shown.
 4. Review the proposed systems, nesting, and file placement.
@@ -117,6 +117,8 @@ The currently supported installers are:
 - Claude (Claude Code CLI and Claude Desktop)
 - GitHub Copilot (VS Code extension and Copilot CLI)
 - Codex
+- Grok Build CLI
+- Meta Muse Code CLI
 - Cursor
 - Windsurf
 - Antigravity
@@ -129,6 +131,14 @@ arrive on the map; check what was built against what you drew. Agents can
 start the loop too, by drawing their plan on a sheet for you to confirm.
 
 The mapping command is harness-dependent. For example, Codex uses `$ambio-map`, Claude Code uses `/ambio-map`, and Antigravity uses its installed `ambio-map` skill. The setup screen always shows the correct instruction for the selected harness.
+
+For Grok Build and Muse Code, install and sign in to the vendor's CLI, then
+choose it in guided setup to **Map with** that agent, or send it work from
+the agent panel. Ambio starts it in the project with its tools attached.
+To add Ambio to your own terminal sessions too, use **Settings → Agents**;
+this installs mapping, inbox and build skills. Account sign-in and plan
+usage stay with the vendor's client. Signed-in live trials are tracked in
+[the client test guide](docs/testing/GROK_MUSE_CLIENTS.md).
 
 Agents keep working when the Ambio window is closed: Ambio's background
 service starts when an agent needs it and stops again when it has been idle.

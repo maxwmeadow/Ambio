@@ -5,7 +5,7 @@ import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingChoice, type 
 import { OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
 import { AgentModelSelect, useAgentModel } from '../components/AgentModelMenu'
 import { chatModels } from '../../shared/agentChat'
-import { RUN_NEEDS_INSTALL } from '../../shared/agentDelivery'
+import { canStartAgent, RUN_NEEDS_INSTALL } from '../../shared/agentDelivery'
 
 /**
  * Setup's first step: one list of agents and one action for the one chosen.
@@ -49,8 +49,8 @@ export function ChooseAgent({
   onChoice: (choice: MappingChoice) => void
 }) {
   const runnable = useRunnableChoices()
-  // CLIs are agents Ambio runs; only apps need Ambio added and a restart.
-  const apps = useMemo(() => hosts.filter(host => host.modality !== 'cli'), [hosts])
+  // A terminal client can have MCP support without a launch driver.
+  const apps = useMemo(() => hosts.filter(host => !canStartAgent(host.id)), [hosts])
   const foundApps = apps.filter(host => stateOf(host) !== 'missing')
   const missingApps = apps.filter(host => stateOf(host) === 'missing')
   const [showMissing, setShowMissing] = useState(false)
@@ -59,8 +59,9 @@ export function ChooseAgent({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  // Until the user picks, an agent Ambio can run now, else an app with Ambio, else the first app.
+  // Automatic app preselection must not displace an agent Ambio can run.
   const fallback = runnable?.find(choice => choice.kind !== 'setup')?.id
+    ?? (foundApps.some(host => host.id === selectedAppId) ? selectedAppId : null)
     ?? (foundApps.find(host => stateOf(host) === 'live' || stateOf(host) === 'installed') ?? foundApps[0])?.id
     ?? runnable?.[0]?.id ?? null
   const chosen = selection && (runnable?.some(choice => choice.id === selection) || apps.some(host => host.id === selection))
@@ -180,8 +181,9 @@ export function ChooseAgent({
                 : option(choice.id, choice.label, 'Needs your API key', 'attention'))}
         </div>
         <div className="ambio-choose__group">
-          <h3>In another app <span>Add Ambio once, then restart the app</span></h3>
+          <h3>In another app <span>Add Ambio once, then start a fresh app or terminal session</span></h3>
           {foundApps.map(appOption)}
+          {!showMissing && missingApps.filter(host => host.id === chosen).map(appOption)}
           {showMissing && missingApps.map(appOption)}
           <div className="ambio-choose__more">
             {missingApps.length > 0 && <button type="button" className="ambio-choose__quiet" aria-expanded={showMissing} onClick={() => setShowMissing(value => !value)}>

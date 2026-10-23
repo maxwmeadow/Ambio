@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
+import { MuseClient } from './museClient.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -61,6 +62,38 @@ export function antigravityModels(output: string): ModelOption[] {
   })
 }
 
+/** Native `grok models` catalog, excluding headings and sign-in messages. */
+export function grokModels(output: string): ModelOption[] {
+  return output.split(/\r?\n/).flatMap(line => {
+    const match = /^\s*[-*]\s+(\S+)(?:\s+\(default\))?\s*$/.exec(line)
+    return match && validModel(match[1]) ? [{ id: match[1], label: match[1] }] : []
+  })
+}
+
+/** Muse's published MSP model/list, without creating a session or a turn. */
+function museModels(launcher: DriverLauncher): Promise<ModelOption[]> {
+  return new Promise(resolve => {
+    const child = spawn(launcher.command, [...launcher.args, 'serve'], { cwd: tmpdir(), windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] })
+    const client = new MuseClient({ cwd: tmpdir(), prompt: '', mode: 'ask', mcpServers: [], send: line => child.stdin?.write(`${line}\n`), onSession: () => {}, onEvent: () => {} })
+    let buffer = ''
+    let finished = false
+    const finish = (models: ModelOption[]) => {
+      if (finished) return
+      finished = true; clearTimeout(timer); client.close(); child.stdin?.end(); child.kill(); resolve(models)
+    }
+    const timer = setTimeout(() => finish([]), 30000)
+    child.stdin?.on('error', () => {})
+    child.on('error', () => finish([])); child.on('close', () => finish([]))
+    child.stdout.on('data', chunk => {
+      buffer += chunk.toString('utf8')
+      const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? ''
+      if (buffer.length > 1 << 20) { finish([]); return }
+      for (const line of lines) client.receive(line)
+    })
+    child.once('spawn', () => { void client.models().then(models => finish(models.filter(model => validModel(model.modelId)).map(model => ({ id: model.modelId, label: model.displayLabel || model.modelId }))), () => finish([])) })
+  })
+}
+
 function run(launcher: DriverLauncher, args: string[]): Promise<string> {
   return new Promise(resolve => {
     // Nothing is written to it: some CLIs (agy) read stdin even when told what to do.
@@ -85,6 +118,8 @@ export function listModels(hostId: string, launcher: DriverLauncher | undefined,
       try { return codexModels(fs.readFileSync(join(home, '.codex', 'models_cache.json'), 'utf8')) } catch { return [] }
     }
     if (!launcher) return []
+    if (hostId === 'grok') return grokModels(await run(launcher, ['models']))
+    if (hostId === 'muse') return museModels(launcher)
     if (hostId === 'copilot-cli') return copilotModels(await run(launcher, ['help', 'config']))
     if (hostId === 'antigravity-cli') return antigravityModels(await run(launcher, ['models']))
     return []

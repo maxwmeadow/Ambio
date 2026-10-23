@@ -65,7 +65,7 @@ active session in this workspace. The session link, notes, and summary survive
 restarts and remain visible with the request history.
 
 The same `get_inbox` and `reply_to_canvas` tools are exposed to every configured MCP
-host. Claude Code, Copilot VS Code/CLI, Codex, Cursor, Windsurf, and Antigravity
+host. Claude Code, Copilot VS Code/CLI, Codex, Grok Build, Muse Code, Cursor, Windsurf, and Antigravity
 install a reusable inbox skill; Claude Desktop, JetBrains, and Zed use the copyable
 natural-language prompt and MCP tools without a skill dependency. The installer
 checks both skill files before marking a skill-capable host ready. The local installer
@@ -158,16 +158,20 @@ tells the user how to use each destination and what it can do.
 
 **Permissions (for now: full access).** Nobody is at a started agent's
 keyboard, and a refused step ends the turn, so agents Ambio runs are given every
-permission they offer (decision 2026-10-19). A build runs unrestricted: Claude
+permission they offer (decision 2026-10-19). Most Build routes run
+unrestricted; Muse preserves its native sandbox/profile. The settings are: Claude
 Code `--permission-mode bypassPermissions`, Codex `--sandbox
 danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
-`--dangerously-skip-permissions`, Cursor CLI `--force`, and ACP agents have every
+`--dangerously-skip-permissions`, Cursor CLI `--force`, Grok `--sandbox off`,
+Muse MSP `allowAll` with its configured sandbox, and ACP agents have every
 request approved. Ask and Propose may run commands but lose file editing where
 the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
 read-only sandbox (except on Windows, where it cannot start a shell; decision
 2026-10-20), Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
 edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
-Propose also skip permissions and rely on the turn's contract. Each guide says
+Propose also skip permissions and rely on the turn's contract. Grok uses its
+read-only sandbox plus ACP edit refusals for Ask/Propose; Muse relies on the
+turn's no-edit contract for those modes. Each guide says
 this. The permission desk (`POST /api/agent/permission`, `approve_action`)
 remains for the per-agent permission settings planned in WORK.md
 (`agent-permission-modes`).
@@ -183,7 +187,12 @@ a clean process exit is not.
 Ambio gives the agent its MCP server for the session (`session/new`
 `mcpServers`), sets the agent's own mode to match the turn, answers
 `session/request_permission` by the turn's mode, and offers the agent no file
-system or terminal of its own.
+system or terminal of its own. Grok additionally authenticates using an
+advertised headless method and a bounded handshake. Muse uses its published
+Session Protocol instead (`electron/museClient.ts`), with the same runner,
+per-session MCP identity, saved conversations, events and stop behavior.
+Its Ask/Propose restriction is prompt-based. Build uses `allowAll` approval
+mode while keeping Muse’s configured sandbox/profile and project trust.
 
 **Watching (opt-in).** A user can tell a session they already have open to
 watch Ambio. That session calls `get_inbox({watch: true})`, which waits up to
@@ -207,14 +216,14 @@ for those two the first handoff is placed in the chat instead of pasted
 allow GitHub Copilot to open the link, then opens Copilot Chat with the
 handoff filled in, in Ask mode for an Ask turn, and waits for the user to
 send it. Opened on its own, the link does not bring VS Code forward; Deliver
-opens the project first, which does. Cursor's link is unconfirmed. The other five
+opens the project first, which does. Cursor's link is unconfirmed. The remaining hosts
 document no such route, and the clipboard handoff remains theirs.
 
 ## Delivery routes (2026-09-30)
 
-**Deliver to** lists all ten installer modalities. The default is **Choose chat
-manually**, preserving the existing workflow. Choosing a CLI makes Send save the
-request first, then start a fresh local run; choosing an editor/desktop host copies
+**Deliver to** lists all twelve installer modalities. The default is **Choose chat
+manually**, preserving the existing workflow. Choosing a CLI with a launch driver makes Send save the
+request first, then start a fresh local run; choosing an MCP-only CLI or editor/desktop host copies
 the same handoff and opens the project/app when its launcher is available. The
 request card can deliver an already-saved request, including one reopened with
 review feedback. An editor launch is labelled **work has not started yet**.
@@ -226,6 +235,8 @@ review feedback. An editor launch is labelled **work has not started yet**.
 | Copilot in VS Code | `code chat` supports a prompt, agent mode, and new/reused windows. A new chat window is empty; a reused window can belong to another project | Copy + open this project in VS Code; paste into the chosen chat |
 | Copilot CLI | `copilot -p`, per-session `--additional-mcp-config`, and named tool permissions | Start a new CLI run with per-run MCP config |
 | Codex (CLI, shared config with IDE extension/app) | `codex exec`, stdin prompts, workspace-write sandbox, `-c` MCP overrides; CLI worktree support varies by version | Start a new CLI run with per-run MCP config |
+| Grok Build CLI | `grok agent stdio` (ACP), vendor-owned login and `grok models` | Start/resume a CLI session with per-session MCP, events, model selection and Stop; signed-in live trial pending |
+| Muse Code CLI | `muse serve` (MSP v1), vendor-owned login and `model/list` | Start/resume a CLI session with per-session MCP, events, model selection and Stop; signed-in live trial pending |
 | Cursor | Separate Agent CLI has headless mode; editor hooks are tied to user/agent activity. No verified public route to a particular existing editor chat | Copy + open this project in Cursor when its launcher is found |
 | Windsurf / Devin Local | Cascade hooks can observe activity; no verified external prompt route selecting a project and chat | Copy + open this project in Windsurf when its launcher is found |
 | Antigravity | Its IDE MCP setup is separate from Gemini CLI. Gemini's documented `-p` mode does not establish an Antigravity chat-delivery API | Copy + open this project when the `antigravity` launcher is found |

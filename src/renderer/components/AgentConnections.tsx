@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentHostInfo, ConnectionTestResult } from '../../../electron/preload'
-import type { DeliveryHost } from '../../shared/agentDelivery'
+import { canStartAgent, type DeliveryHost } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
 import { agentConnectionState, sortAgentConnections, type AgentConnectionState, type AgentPresenceEntry } from './agentConnectionsModel.ts'
 import '../styles/agentConnections.css'
@@ -107,15 +107,18 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
   const row = (host: AgentHostInfo) => {
     const state = agentConnectionState(host, presence)
+    const canStart = canStartAgent(host.id)
     const name = host.modalityLabel || host.label
     const live = presence.filter(item => item.hostId === host.id)
     const verified = Math.max(0, ...live.map(item => item.lastToolAt ?? 0))
     const note = notes[host.id]
     const result = tests[host.id]
+    const inherited = host.inheritedPaths ?? []
     const expanded = open[host.id] === true
     const working = (key: string) => busy === `${key}:${host.id}`
     const files: Array<{ label: string; path: string }> = [
       ...host.configuredPaths.map(path => ({ label: 'Connection', path })),
+      ...inherited.map(path => ({ label: 'Shared setup', path })),
       ...host.unreadablePaths.map(path => ({ label: 'Unreadable', path })),
       ...(host.configured || host.unreadablePaths.length > 0 ? [] : [{ label: 'Would be written to', path: host.configPath }]),
       ...(host.workflowPath && host.workflowInstalled ? [{ label: 'Workflow', path: host.workflowPath }] : []),
@@ -127,7 +130,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
           <div className="ambio-agent-connections__identity">
             <strong>{name}</strong>
             <small>
-              {(host.modality === 'cli' ? CLI_STATE_LABEL : STATE_LABEL)[state]}
+              {(canStart ? CLI_STATE_LABEL : STATE_LABEL)[state]}
               {state === 'live' && live.length > 1 ? ` · ${live.length} sessions` : ''}
               {state === 'live' && (verified > 0
                 ? ` · last tool call ${new Date(verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -148,11 +151,11 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
                   {working('install') ? 'Repairing…' : 'Repair'}
                 </button>
               </>
-            ) : host.modality === 'cli' && state === 'missing' ? null : (
+            ) : canStart && state === 'missing' ? null : (
               <button type="button" className="ambio-settings__button ambio-agent-connections__primary" disabled={!!busy}
-                title={host.modality === 'cli' ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
+                title={canStart ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
                 onClick={() => void act(host, 'install', () => window.ambio.installAgent(host.id, projectRoot), `${host.restartAction}: ${host.restartDetail}`)}>
-                {working('install') ? 'Adding…' : host.modality === 'cli' ? 'Add to my sessions' : 'Add Ambio'}
+                {working('install') ? 'Adding…' : canStart ? 'Add to my sessions' : 'Add Ambio'}
               </button>
             )}
             <button type="button" className="ambio-agent-connections__disclose" aria-expanded={expanded}
@@ -167,6 +170,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
         {expanded && (
           <div className="ambio-agent-connections__details">
+            {inherited.length > 0 && <p className="ambio-agent-connections__hint">{name} may also discover Ambio through shared setup owned by another client. Removing this client&rsquo;s dedicated setup leaves those files in place. Use the owning client&rsquo;s controls or {name}&rsquo;s compatibility settings to disable inherited tools and skills.</p>}
             {result && (
               <section aria-label={`Test results for ${name}`}>
                 <h4>
@@ -221,7 +225,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
                     if (armed !== host.id) { setArmed(host.id); return }
                     void act(host, 'remove', () => window.ambio.uninstallAgent(host.id, projectRoot))
                   }}>
-                  {working('remove') ? 'Disconnecting…' : armed === host.id ? `Confirm: remove Ambio from ${name}` : 'Disconnect'}
+                  {working('remove') ? 'Disconnecting…' : armed === host.id ? `Confirm: remove Ambio from ${name}` : inherited.length ? 'Remove dedicated setup' : 'Disconnect'}
                 </button>
                 <small>Removes Ambio's connection and workflow files from {name}. Nothing else in its settings changes.</small>
               </section>
@@ -234,10 +238,10 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
   if (hosts === null) return <p className="ambio-settings__text">Looking for agents…</p>
 
-  // A CLI belongs with the agents Ambio runs whether or not it is installed.
-  const ownSessions = sorted.filter(host => host.modality === 'cli')
-  const inApps = shown.filter(host => host.modality !== 'cli')
-  const appsMissing = missing.filter(host => host.modality !== 'cli')
+  // MCP support alone does not mean Ambio has a conversation driver for a CLI.
+  const ownSessions = sorted.filter(host => canStartAgent(host.id))
+  const inApps = shown.filter(host => !canStartAgent(host.id))
+  const appsMissing = missing.filter(host => !canStartAgent(host.id))
   // Terminal agents that ride on an editor's Ambio setup, started by Ambio.
   const companions = started.filter(target => !(hosts ?? []).some(host => host.id === target.id))
 
@@ -267,7 +271,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
       <section className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-apps-title">
         <h3 id="ambio-agents-apps-title">Agents in other apps</h3>
-        <p className="ambio-settings__text">These work in their own app. Add Ambio once and restart the app; its chat can then use your map and take messages from Ambio{workspaceId ? '' : '. Open a project to see which are connected now'}.</p>
+        <p className="ambio-settings__text">These work in their own app or terminal. Add Ambio once and start a fresh session; its chat can then use your map and take messages from Ambio{workspaceId ? '' : '. Open a project to see which are connected now'}.</p>
         {inApps.length > 0
           ? <ul className="ambio-agent-connections__list">{inApps.map(row)}</ul>
           : <p className="ambio-agent-connections__empty">No supported app was found on this computer. If one is installed, find it under the list below and point Ambio at its configuration file.</p>}

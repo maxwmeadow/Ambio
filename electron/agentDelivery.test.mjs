@@ -41,7 +41,7 @@ test('every installer host has a delivery route; editor hosts never masquerade a
     assert.equal(target.available, true)
     assert.match(target.detail, /Paste|paste/)
   }
-  assert.deepEqual(targets.filter(host => host.route === 'run').map(host => host.id), ['claude-code', 'copilot-cli', 'codex'])
+  assert.deepEqual(targets.filter(host => host.route === 'run').map(host => host.id), ['claude-code', 'copilot-cli', 'codex', 'grok', 'muse'])
 })
 
 test('native CLI detection does not accept shell shims; npm Windows installs use bundled Node', t => {

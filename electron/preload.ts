@@ -264,6 +264,7 @@ export interface AgentHostInfo {
   /** Whether any user or project configuration contains an Ambio MCP entry. */
   configured: boolean
   configuredPaths: string[]
+  inheritedPaths?: string[]
   unreadablePaths: string[]
   workflowInstalled: boolean
   workflowPath: string | null

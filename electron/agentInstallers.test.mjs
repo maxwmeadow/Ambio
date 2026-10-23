@@ -184,6 +184,16 @@ test('every harness installs its workflow and MCP in current supported locations
         skill: path.join(home, '.agents', 'skills', 'ambio-map', 'SKILL.md'),
         config: path.join(home, '.codex', 'config.toml'),
       },
+      grok: {
+        command: '/ambio-map',
+        skill: path.join(home, '.grok', 'skills', 'ambio-map', 'SKILL.md'),
+        config: path.join(home, '.grok', 'config.toml'),
+      },
+      muse: {
+        command: '/ambio-map',
+        skill: path.join(home, '.config', 'muse', 'skills', 'ambio-map', 'SKILL.md'),
+        config: path.join(home, '.config', 'muse', 'settings.json'),
+      },
       cursor: {
         command: '/ambio-map',
         skill: path.join(home, '.cursor', 'skills', 'ambio-map', 'SKILL.md'),

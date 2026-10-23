@@ -1,5 +1,20 @@
 export type DeliveryRoute = 'run' | 'open' | 'copy'
 
+/** Launch capability is static; discovery only decides whether it is installed. */
+export const DRIVEN_CLI_NAMES: Record<string, string[]> = {
+  'claude-code': ['claude'],
+  codex: ['codex'],
+  grok: ['grok'],
+  muse: ['muse'],
+  'copilot-cli': ['copilot'],
+  'cursor-cli': ['cursor-agent'],
+  'devin-cli': ['devin'],
+  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
+  'antigravity-cli': ['agy'],
+}
+
+export const canStartAgent = (hostId: string): boolean => Object.hasOwn(DRIVEN_CLI_NAMES, hostId)
+
 export interface DeliveryHost {
   id: string
   label: string
@@ -133,6 +148,16 @@ const PASTED = (name: string): DestinationGuide => ({
 })
 
 export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
+  grok: {
+    need: ['Grok Build CLI installed and signed in with grok login. Nothing needs to be open.'],
+    how: STARTED('Grok Build CLI'),
+    can: ['Ask and Propose: runs in Grok’s read-only sandbox; file-edit requests are refused.', 'Build: full access to files and commands, with its reply returned for review.', FULL_ACCESS],
+  },
+  muse: {
+    need: ['Muse Code CLI installed and signed in. Nothing needs to be open.'],
+    how: STARTED('Muse Code CLI'),
+    can: ['Ask and Propose: is instructed to read and draw plans without changing project files; Muse’s configured permissions still apply.', 'Build: runs without approval prompts, within Muse’s configured sandbox and project trust settings, then returns its reply for review.'],
+  },
   [CHAT_DELIVERY]: {
     need: ['A ChatGPT plan connection or a model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],
     how: [

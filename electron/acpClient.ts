@@ -22,6 +22,7 @@ export interface AcpTurn {
   mcpServers: AcpMcpServer[]
   /** The agent session an earlier turn of this conversation ran in. */
   resume?: string
+  authentication?: 'grok'
   /** Sends one line to the agent. */
   send: (line: string) => void
   onSession: (sessionId: string) => void
@@ -40,7 +41,15 @@ export interface AcpOutcome {
   resumed: boolean
 }
 
-type Pending = { resolve: (value: any) => void; reject: (error: Error) => void }
+type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer?: ReturnType<typeof setTimeout> }
+
+class GrokRequestTimeout extends Error {}
+
+/** Session construction can wait for each of the user's MCP servers to start. */
+export function grokRequestTimeout(method: string): number | undefined {
+  return method === 'session/prompt' ? undefined
+    : ['session/new', 'session/load', 'session/resume'].includes(method) ? 120000 : 30000
+}
 
 // A question or a proposal may look, run commands and talk to Ambio; it may
 // not edit the project's files. A build is allowed everything it asks for.
@@ -83,7 +92,17 @@ export class AcpClient {
   private request<T = any>(method: string, params: unknown): Promise<T> {
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      // Grok's auth may otherwise wait for a browser that an Ambio-started
+      // process cannot present. Model turns have no handshake time limit.
+      const timeout = this.turn.authentication === 'grok' ? grokRequestTimeout(method) : undefined
+      const timer = timeout === undefined ? undefined : setTimeout(() => {
+        this.pending.delete(id)
+        const recovery = method === 'authenticate' ? 'Run grok login in a terminal, then send again.'
+          : method.startsWith('session/') ? 'Check Grok’s MCP server startup and session output, then try again.'
+            : 'Check Grok’s output and installed version, then try again.'
+        reject(new GrokRequestTimeout(`Grok did not answer ${method} within ${timeout / 1000}s. ${recovery}`))
+      }, timeout)
+      this.pending.set(id, { resolve, reject, timer })
       this.turn.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
     })
   }
@@ -93,7 +112,7 @@ export class AcpClient {
     if (this.closed) return
     this.closed = true
     this.flushText()
-    for (const waiting of this.pending.values()) waiting.reject(new Error(reason))
+    for (const waiting of this.pending.values()) { clearTimeout(waiting.timer); waiting.reject(new Error(reason)) }
     this.pending.clear()
   }
 
@@ -112,6 +131,7 @@ export class AcpClient {
       const waiting = this.pending.get(message.id)
       if (!waiting) return
       this.pending.delete(message.id)
+      clearTimeout(waiting.timer)
       if (message.error) waiting.reject(new Error(String(message.error.message ?? 'The agent refused the request.')))
       else waiting.resolve(message.result ?? {})
       return
@@ -183,6 +203,14 @@ export class AcpClient {
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: 'ambio', title: 'Ambio', version: '1' },
     })
+    if (turn.authentication === 'grok') {
+      const methods: Array<{ id: string }> = initialized.authMethods ?? []
+      const methodId = process.env.XAI_API_KEY && methods.some(method => method.id === 'xai.api_key')
+        ? 'xai.api_key' : methods.find(method => method.id === 'cached_token')?.id ?? methods.find(method => method.id === 'grok.com')?.id
+      if (!methodId) throw new Error('Grok has no supported headless authentication method. Update Grok, then try again.')
+      try { await this.request('authenticate', { methodId, _meta: { headless: true } }) }
+      catch { throw new Error('Grok is not signed in. Run grok login in a terminal, then send again.') }
+    }
     const capabilities = initialized.agentCapabilities ?? {}
     let resumed = false
     let session: any
@@ -196,13 +224,17 @@ export class AcpClient {
         }
         this.sessionId = turn.resume
         resumed = true
-      } catch { /* the session is gone; this turn starts a new one */ }
+      } catch (error) {
+        // A timeout does not establish that a retained session is gone, and a
+        // second session would start all the same slow MCP servers again.
+        if (error instanceof GrokRequestTimeout) throw error
+      }
       finally { this.replaying = false; this.text = '' }
     }
     if (!resumed) {
       try { session = await this.request('session/new', setup) } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        throw new Error(/auth/i.test(message) ? `${message}. Sign in to this agent in its own terminal, then send again.` : message)
+        throw new Error(turn.authentication !== 'grok' && /auth/i.test(message) ? `${message}. Sign in to this agent in its own terminal, then send again.` : message)
       }
       this.sessionId = String(session.sessionId ?? '')
       if (!this.sessionId) throw new Error('The agent did not start a session.')

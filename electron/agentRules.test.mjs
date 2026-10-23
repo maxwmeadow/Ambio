@@ -52,7 +52,7 @@ test('a fixture leaves the inherited XDG config untouched and restores it on cle
 test('every supported host receives draw-first guidance and repairs missing project rules', () => {
   const f = fixture()
   try {
-    assert.equal(f.hosts.length, 10)
+    assert.equal(f.hosts.length, 12)
     for (const host of f.hosts) {
       const result = host.install('node', ['ambio.mjs'], '# Ambio mapping', f.project)
       assert.ok(result.ok, `${host.id}: ${result.detail}`)
