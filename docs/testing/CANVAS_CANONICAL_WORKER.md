@@ -5,6 +5,32 @@ This implements the canonical interaction boundary and automatic Floor/sheet
 numeric worker preparation from the approved scalability plan. It does not
 implement the progressive daemon protocol or a batched GPU renderer.
 
+## Merge and testing handoff — 2026-10-23
+
+Implementation checkpoint: **`99f5575`** on **`codex/canvas-scene-scale`**.
+Max will merge into remote main from another session and then test the real app.
+This report records branch validation; it does not confirm a remote merge or
+human acceptance. Further implementation awaits that feedback. Remaining input,
+memory and density targets below stay open in WORK.
+
+Merge the branch including its preceding component-budget and diagnostics
+checkpoints, not just the last implementation commit in isolation. The branch
+started from main `995f20c`; `2631eb5`, `72bce38`, `334e537` and `88e191e` precede
+`99f5575`. Reconcile WORK/CHANGELOG entries with parallel changes, preserving both
+sessions' work. Verify the resulting main against its current integrated feature
+set; the branch's prior test results do not certify a newer merge result.
+
+Architecture, canvas contract, changelog and committed aggregate measurements
+are updated. Raw profiles and local test output under `out/` are ignored and do
+not travel with the merge. The committed JSON below preserves the key evidence.
+No database migration, schema bump or new dependency is introduced by this slice.
+
+Use the [checkpoint recheck](CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
+for real Kohler Floor/sheet zoom, offscreen navigation, editing, workspace changes
+and longer sessions. Record the tested merge commit and machine alongside any
+stutter, missing content or layout regression. Do not mark those manual checks
+passed from the automated results in this report.
+
 ## What changed
 
 - Complete canonical geometry, bounds and ID lookup live outside React Flow.

@@ -616,9 +616,11 @@ See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
 marks from `minimapGeometry.ts`; camera updates reuse their geometry. It preserves
 the existing passive minimap presentation without per-hidden-ID wrappers. Native
 E2E checks count actual React wrapper components as well as DOM nodes so hidden
-subscriptions cannot regress unnoticed. React Flow still owns all canonical nodes
-and scans them for visibility; full-scene projection, loading and geometry remain
-scale limits. This is not a completed progressive scene boundary.
+subscriptions cannot regress unnoticed. Complete canonical geometry lives outside
+React Flow; Flow owns only the admitted interaction subset described above.
+Full snapshot decoding, canonical React-node projection, worker copying and total
+model storage still scale with project size. This is not a completed progressive
+data/adoption boundary.
 Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
 normal commit if a focused field is culled. React suppresses synthetic blur during
 deletion; relying on browser focus loss would discard an unfinished edit.
