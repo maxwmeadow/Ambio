@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createFloorSceneInspector,
   inspectFloorScene,
   partitionCanvasNodeChanges,
 } from './sceneIntegrity.ts'
@@ -16,6 +17,32 @@ const node = (id, parentId, overrides = {}) => ({
   initialHeight: 110,
   data: {},
   ...overrides,
+})
+
+test('incremental integrity preserves the full audit through presentation, geometry and structural changes', () => {
+  const inspect = createFloorSceneInspector(), ids = new Set(['root', 'child'])
+  const original = [node('root'), node('child', 'root')]
+  const before = inspect(original, 2, ids)
+  assert.equal(inspect(original.map(n => ({ ...n, selected: true })), 2, ids), before)
+  for (const changed of [
+    original.map(n => ({ ...n, hidden: true })),
+    [node('root', 'child'), node('child', 'root')],
+    [node('root', undefined, { position: { x: NaN, y: 0 } }), original[1]],
+    [node('root', undefined, { initialHeight: 0 }), original[1]],
+    [node('root', undefined, { style: { opacity: 0 } }), original[1]],
+    [original[1], original[0]], original.slice(1), [], original,
+  ]) assert.deepEqual(inspect(changed, 2, ids), inspectFloorScene(changed, 2, ids))
+})
+
+test('selection does not re-read unchanged node geometry during integrity validation', () => {
+  const inspect = createFloorSceneInspector(), ids = new Set(['root', 'child'])
+  let reads = 0
+  const child = node('child', 'root')
+  Object.defineProperty(child, 'position', { get: () => { reads++; return { x: 20, y: 30 } } })
+  const original = [node('root'), child]
+  inspect(original, 2, ids); reads = 0
+  inspect([{ ...original[0], selected: true }, child], 2, ids)
+  assert.equal(reads, 0)
 })
 
 test('rejects structural view changes while preserving interaction changes', () => {

@@ -6,6 +6,8 @@ Branch: `codex/canvas-scene-scale`. First phase-2 slice of the approved
 [scalability plan](../CANVAS_SCALABILITY_PLAN.md); worker layout, progressive
 data and the batched overview decision remain open.
 
+Next implementation and measured limits: [canonical scene and background preparation](CANVAS_CANONICAL_WORKER.md).
+
 ## Findings and implementation
 
 The previous profile identified hidden React components, rather than visible

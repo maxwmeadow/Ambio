@@ -239,6 +239,7 @@ export default function App() {
       // E2E-only affordance: expose the store so tests can drive live patches
       // (graph:patch choreography) deterministically without a real daemon.
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
+      ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
       return
     }
     if (!window.ambio) {

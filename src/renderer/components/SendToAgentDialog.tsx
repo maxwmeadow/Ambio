@@ -1,6 +1,7 @@
-import { useCanvasFitView } from '../canvas/useCanvasFitView'
+import { useShowOnMap } from '../canvas/useShowOnMap'
+import { canvasScene } from '../canvas/scene/canonicalScene'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, useStoreApi } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage, deleteInboxConversation } from '../store/sheetStore'
@@ -104,7 +105,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     } catch { /* no pending send */ }
   }
   const { getNode } = useReactFlow()
-  const fitView = useCanvasFitView()
+  const flowStore = useStoreApi()
+  const showOnMap = useShowOnMap(true, { duration: 300, maxZoom: 1.2, padding: .5 })
   // Ambio's own agent is one kind of conversation here; the open one is
   // passed in once the list says which conversations are its.
   const [chatActiveId, setChatActiveId] = useState<string | null>(null)
@@ -234,10 +236,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const effectiveSelection = retry.current?.selection ?? selection
   const focus = (ref: string) => {
     const target = referenceTarget(ref)
-    if (!getNode(target.id)) { setError('This item is no longer visible. Open its original sheet or expand its system.'); return }
-    useGraphStore.getState().setSelectedNode(target.id)
-    useGraphStore.getState().setInspectedNode(target.id)
-    void fitView({ nodes: [{ id: target.id }], duration: 300, maxZoom: 1.2, padding: 0.5 })
+    if (!canvasScene(flowStore)?.byId.has(target.id) && !getNode(target.id)) { setError('This item is no longer visible. Open its original sheet or expand its system.'); return }
+    showOnMap(target.id)
   }
   const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => <button type="button" key={ref} disabled={editable && locked} onClick={() => editable ? setExcluded(current => [...current, ref]) : focus(ref)} title={editable ? `Remove ${referenceTarget(ref).label} from message` : 'Show on canvas'}>
     <InboxIcon name="canvas" size={12} /><span>{referenceTarget(ref).label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}

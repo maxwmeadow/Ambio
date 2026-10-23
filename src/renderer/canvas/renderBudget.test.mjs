@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildSceneIndex, queryScene, cameraRect, contains, initialRootVisible, sceneRecords } from './renderBudgetGeometry.ts'
+import { buildSceneIndex, buildRelationshipIndex, queryScene, cameraRect, contains, initialRootVisible, sceneRecords } from './renderBudgetGeometry.ts'
 import { createRenderBudgetStore } from './renderBudgetStore.ts'
 import { virtualRowRange } from './virtualRows.ts'
 import { createFrameWorkQueue } from './frameWorkQueue.ts'
 
 const camera = { x: 0, y: 0, zoom: 1, width: 800, height: 600, moving: false }
 const record = (id, x, y, extra = {}) => ({ id, x, y, width: 220, height: 110, hidden: false, detail: true, kind: 'file', ...extra })
+
+test('relationship admission preserves crossing paths without adopting disconnected offscreen endpoints', () => {
+  const nodes = buildSceneIndex([record('left', -1e6, 0), record('right', 1e6, 0),
+    record('far-a', 2e6, 2e6), record('far-b', 3e6, 2e6), record('hidden', 0, 0, { hidden: true })])
+  const edges = buildRelationshipIndex(nodes, [{ id: 'crossing', source: 'left', target: 'right' },
+    { id: 'offscreen', source: 'far-a', target: 'far-b' }, { id: 'hidden-path', source: 'hidden', target: 'right' }])
+  assert.equal(queryScene(nodes, camera).visible.length, 0)
+  assert.deepEqual(queryScene(edges, camera).visible.map(edge => edge.id), ['crossing'])
+})
 
 test('spatial revisions ignore selection and live chrome but invalidate every geometry input', () => {
   const nodes = [{ id: 'root', type: 'system', position: { x: 4, y: 5 }, style: { width: 400, height: 300 }, data: { childrenVisible: true } },

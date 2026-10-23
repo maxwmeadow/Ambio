@@ -539,28 +539,57 @@ target and cancels wheel easing/pending growth fits on its own canvas before
 flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
 or `window.__ambioBinDragDebug = true`.
 
-`canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
-canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
-camera queries; scene/request versions reject stale replies. Buffered detail
-admission and short retention work alongside React Flow's component culler above
-40 composed nodes. `sceneRecords` preserves the spatial revision across selection
-and live chrome changes without serializing the complete scene; retention
-membership is prepared once per spatial revision, not on each camera answer.
-The exact component culler yields during layout glides to preserve moving cards;
-large transition trees remain part of the scene-controller scalability work.
-Before the first worker reply, root shells already intersect that same viewport
-buffer instead of all mounting at once; active/selected/relationship priorities
-remain in force.
-Relationship endpoints initialize handles even outside the viewport, then retain
-their measured handle geometry when React Flow unmounts their shells.
-`useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
-consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
-has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
-chooses silhouette, compact identity or the original editable node. Selected and
-active nodes bypass background admission. Navigation prewarms one destination
-and shared symbol data while intermediate cards stay compact during motion.
-Compact cards retain sheet change badges and checkout marks; focused relationship endpoints retain
-their full presentation along with the existing selection/activity exceptions.
+`canvas/scene/canonicalScene.ts` keeps the complete scene, stable ID order and
+absolute geometry outside React Flow. `useCanvasRenderBudget.tsx` materializes
+buffered visibility, required ancestors, selected/live nodes and endpoints of
+admitted relationships. It iterates admitted IDs on camera replies instead of
+mapping the project array. Flow owns a disposable interaction subset; its own
+component culler can release DOM within that subset. During layout glides the
+outgoing subset is retained, rather than adopting the entire project.
+`useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
+waits for accepted preparation before using a target's current measurement.
+Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots
+include unadopted children and apply their compensation through the normal
+controlled-node callback. Only active resize owners need remain adopted.
+
+`scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
+frame preparation, separate from `floorSceneProjection.ts` (React node data).
+`scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet
+preparation and spatial queries. Numeric jobs yield between loop chunks, coalesce
+by channel and reject superseded tokens. Workspace/sheet scopes and immutable
+input identity gate adoption and generated-placement persistence. An equivalent
+metadata/save echo reuses an accepted or pending preparation. Unchanged layout
+and semantic-parent echoes preserve identities in `store/floorLayoutUpdates.ts`.
+Timestamp-only layout echoes do not invalidate renderer geometry; authoritative
+save timestamps remain in SQLite. Failed initial saves latch the attempt and
+surface Retry instead of repeatedly rebuilding and issuing network writes.
+
+The worker indexes conservative endpoint bounds for relationships, matching
+Flow's visibility rule, including paths crossing the viewport with both endpoints
+offscreen. Disconnected offscreen relationships no longer pull all their endpoints
+into Flow. Endpoint shells retain their ordinary measured handles and routing;
+this is not the planned batched relationship renderer. Visible high-degree hubs
+still cost one edge and its required endpoint geometry per relationship.
+
+`sceneRecords` preserves spatial revisions without JSON signatures. Admission
+retention membership is prepared once per spatial revision. Initial shells
+already respect the viewport buffer while the worker answer is pending. Rich
+detail remains per-node subscribed and admitted in small batches. Small worker
+fallbacks prepare cooperatively; scenes/relationships above 2,000 refuse a large
+synchronous fallback. A worker error retains coherent content and exposes Retry.
+Cancelled work that cannot acknowledge within one second is terminated, covering
+an atomic packing primitive that fails to yield; current jobs then surface a
+recoverable error. No such failure silently triggers a huge UI-thread rebuild.
+`sceneIntegrity.ts` validates changed immutable nodes incrementally and repeats
+its full canonical audit for structural revisions. Empty activity avoids full
+activity indexes; scene ID signatures do not sort again on selection.
+
+`renderBudgetStore.ts` and `nodes/BudgetedNodes.tsx` retain silhouette, compact
+identity and editable detail tiers. Navigation prewarms its destination and
+shared symbols while intermediate cards stay compact. Compact cards retain sheet
+and checkout badges; focused relationships keep their full presentation.
+See [testing/CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md) for
+measurements, validation and remaining cold-loading/density limits.
 
 `nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
 cancellable requests (four concurrent), revision invalidation and bounded LRU

@@ -3,7 +3,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { canvasComponentCounts, installCanvasCameraTrace } from './canvasComponentCounts'
+import { canvasComponentCounts, canvasViewportSettled, installCanvasCameraTrace } from './canvasComponentCounts'
 
 // Structural performance regressions are deterministic across machines. Frame
 // timings belong in profiling runs, rather than machine-dependent CI limits.
@@ -90,6 +90,10 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
       if (mode === 'proposal') await expect(canvas).toHaveClass(/ambio-canvas-review-ready/)
       if (mode === 'sheet') await page.getByRole('button', { name: 'Performance Draft STR', exact: true }).click()
       await page.waitForTimeout(1600)
+      if (process.env.AMBIO_PERF_PROFILE && (scenario === 'floor' || scenario === 'sheet')) {
+        await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      }
       if (process.env.AMBIO_PERF_PROFILE) console.log('CANVAS_INITIAL', mode, JSON.stringify(await canvas.evaluate(root => ({
         nodes: root.querySelectorAll('.react-flow__node').length,
         viewport: root.querySelector<HTMLElement>('.react-flow__viewport')?.style.transform,

@@ -131,6 +131,11 @@ export function surfaceLivingNodeFx(
   options: LivingVisibilityOptions = {},
   revealIds: ReadonlySet<string> = new Set(Object.keys(directFx)),
 ): Node[] {
+  // Most camera/selection updates carry no activity. Do not build two complete
+  // ID maps just to discover there are no events; expired presentation still
+  // follows the normal cleanup path below.
+  if (Object.keys(directFx).length === 0 && !nodes.some(node =>
+    node.data.fx || node.data.livingReveal || (node.data.livingWindows as unknown[] | undefined)?.length)) return nodes
   const visibility = livingVisibilityIndex(nodes, options)
   const resolved = new Map<string, NodeFx>()
   const byId = new Map(nodes.map(node => [node.id, node]))

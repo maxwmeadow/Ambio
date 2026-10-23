@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { skipAgentGuides } from './agentGuides'
+import { canvasViewportSettled } from './canvasComponentCounts'
 
 // The branch chip, its Checkouts popover and collision marks on systems
 // (docs/GIT_AND_PROJECT_SHAPES.md "The experience"), against the fixture
@@ -113,6 +114,8 @@ async function launch(checkouts: unknown) {
   })
   await page.reload()
   await skipAgentGuides(page)
+  await expect(page.locator('.ambio-canvas-preparation')).toHaveCount(0)
+  await expect(page.locator('.react-flow__node').first()).toBeAttached()
 }
 
 test.afterEach(async () => {
@@ -253,11 +256,11 @@ test('branch marks survive compact file presentation on a larger Floor', async (
   await page.keyboard.press('ControlOrMeta+K')
   await page.getByRole('textbox', { name: 'Search the map' }).fill('Canvas Renderer')
   await page.getByRole('option').first().click()
-  await page.waitForTimeout(1100)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const map = page.locator('.react-flow').first()
   const box = (await map.boundingBox())!
   await page.mouse.move(box.x + box.width - 30, box.y + box.height - 30)
-  await page.mouse.wheel(0, 30)
+  await page.mouse.wheel(0, 240)
   // Hold the real navigation admission state so the assertion does not race
   // the normal upgrade from compact to rich detail after the camera settles.
   await map.evaluate(root => root.dispatchEvent(new CustomEvent('ambio:camera-prewarm', {

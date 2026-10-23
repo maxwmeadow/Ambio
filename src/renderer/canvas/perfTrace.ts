@@ -2,7 +2,7 @@
 export type PerfStage = 'snapshot.fetch' | 'snapshot.decode' | 'snapshot.store' |
   'scene.initial-packing' | 'scene.geometry' | 'scene.floor-projection' |
   'scene.records' | 'scene.signature' | 'scene.visibility-project' |
-  'worker.scene-post' | 'worker.index' | 'worker.query' | 'worker.round-trip'
+  'worker.scene-post' | 'worker.index' | 'worker.query' | 'worker.round-trip' | 'worker.geometry-post' | 'worker.geometry' | 'scene.numeric-input'
 export interface PerfSample { stage: PerfStage; ms: number; at: number; items?: number }
 export function createPerfTrace(capacity = 2048, clock: () => number = () => performance.now()) {
   if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('trace capacity must be a positive integer')

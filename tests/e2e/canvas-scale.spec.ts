@@ -189,10 +189,11 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     try{report.cold=await deadline(opening,coldTimeout,'cold preparation exceeded deadline')}
     catch(error){probing=false;report.failureStage=report.events.at(-1);throw error}
     try{
-      await deadline(page.waitForFunction(()=>{
-        const w=window as any
-        return Boolean(w.__ambioPerfTrace.summary().stages['scene.geometry'])
-      }),coldTimeout,'scene materialization exceeded deadline')
+      const expectedNodes=snapshot.files.filter((file:any)=>file.systemId&&isCanvasSourceFile(file)).length+snapshot.systems.length+snapshot.infraNodes.length
+      await deadline(page.waitForFunction(expected=>{
+        const canvas=document.querySelector<HTMLElement>('[data-ambio-canvas]')
+        return Number(canvas?.dataset.canonicalNodeCount)===expected&&canvas?.dataset.scenePreparing!=='true'
+      },expectedNodes,{timeout:coldTimeout}),coldTimeout,'scene materialization exceeded deadline')
       // A valid camera can be between distant roots. Prove two frame opportunities
       // here; require a visible, centered, selectable destination after search.
       await deadline(page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))),
@@ -264,6 +265,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     expect(report.components.wrappers).toBeGreaterThan(0)
     expect(report.components.wrappers).toBeLessThanOrEqual(Math.max(64,report.components.domNodes*2))
     expect(report.components.minimapWrappers).toBe(0)
+    expect(report.components.flowNodes).toBeLessThanOrEqual(Math.max(128,report.components.domNodes*4+report.observed.finalEdges*2))
     report.frames=quantiles(report.observed.frames);delete report.observed.frames
     report.phaseFrames=Object.fromEntries(Object.entries(report.observed.phaseFrames).map(([phase,values])=>[phase,quantiles(values as number[])]))
     delete report.observed.phaseFrames

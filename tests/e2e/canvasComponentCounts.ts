@@ -10,24 +10,26 @@ export function canvasComponentCounts() {
   while (root.return) root = root.return
   root = root.stateNode?.current ?? root
   const pending = [root]
-  let wrappers = 0, minimapWrappers = 0, canonicalNodes = 0
+  let wrappers = 0, minimapWrappers = 0, flowNodes = 0
   while (pending.length) {
     const fiber = pending.pop()!
     const props = fiber.memoizedProps
     if (typeof props?.id === 'string' && 'resizeObserver' in props && 'nodeTypes' in props) wrappers++
     if (typeof props?.id === 'string' && 'nodeColorFunc' in props) minimapWrappers++
-    if (Array.isArray(props?.nodes) && 'nodeTypes' in props) canonicalNodes = Math.max(canonicalNodes, props.nodes.length)
+    if (Array.isArray(props?.nodes) && 'nodeTypes' in props) flowNodes = Math.max(flowNodes, props.nodes.length)
     if (fiber.child) pending.push(fiber.child)
     if (fiber.sibling) pending.push(fiber.sibling)
   }
-  return { wrappers, minimapWrappers, canonicalNodes, domNodes: document.querySelectorAll('.react-flow__node').length }
+  const canonicalNodes = Number(element.closest('[data-ambio-canvas]')?.dataset.canonicalNodeCount ?? flowNodes)
+  return { wrappers, minimapWrappers, canonicalNodes, flowNodes, domNodes: document.querySelectorAll('.react-flow__node').length }
 }
 
 /** Wait for the real camera queue and animation to settle, rather than assuming
  * a fixed startup delay is enough on a busy Windows runner. */
 export function canvasViewportSettled() {
   const element = document.querySelector('.react-flow') as any
-  if (!element || element.closest('[data-ambio-canvas]')?.classList.contains('layout-transition')) return false
+  const canvas = element?.closest('[data-ambio-canvas]')
+  if (!element || canvas?.classList.contains('layout-transition') || canvas?.dataset.scenePreparing === 'true') return false
   const key = Object.keys(element).find(key => key.startsWith('__reactFiber$'))
   let root = key ? element[key] : null
   if (!root) return false

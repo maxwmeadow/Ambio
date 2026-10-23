@@ -1,3 +1,4 @@
+import { mergeFloorLayoutUpdates, mergeLayoutParents } from './floorLayoutUpdates.ts'
 import { traceSync, beginPerfStage } from '../canvas/perfTrace.ts'
 import { create } from 'zustand'
 import { forgetFileSymbols } from '../canvas/symbolCache.ts'
@@ -1249,25 +1250,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         }
         case 'floor:layouts': {
           const { layouts } = patch.payload as { revision: number; layouts: FloorLayout[] }
-          const changed = new Set(layouts.map(layout => `${layout.nodeType}:${layout.nodeId}`))
           const byKey = new Map(layouts.map(layout => [`${layout.nodeType}:${layout.nodeId}`, layout]))
           return {
-            floorLayouts: [
-              ...state.floorLayouts.filter(layout => !changed.has(`${layout.nodeType}:${layout.nodeId}`)),
-              ...layouts,
-            ],
-            systems: state.systems.map(system => {
-              const layout = byKey.get(`system:${system.id}`)
-              return layout && layout.containmentKind !== 'hosted_by'
-                ? { ...system, parentId: layout.parentNodeId }
-                : system
-            }),
-            files: state.files.map(file => {
-              const layout = byKey.get(`file:${file.id}`)
-              return layout && layout.containmentKind !== 'hosted_by'
-                ? { ...file, systemId: layout.parentNodeId }
-                : file
-            }),
+            floorLayouts: mergeFloorLayoutUpdates(state.floorLayouts, layouts),
+            systems: mergeLayoutParents(state.systems, byKey, 'system'),
+            files: mergeLayoutParents(state.files, byKey, 'file'),
           }
         }
         default:
