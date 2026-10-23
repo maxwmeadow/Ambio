@@ -55,12 +55,22 @@ you and your agents that keeps you both on the same page:
   hosting are detected from code and config, with the tables, topics and keys
   your code uses. They sit in a sidebar and draw their connections onto the map
   when selected; what runs your code is shown as frames around it.
-- **Parallel agents without collisions.** Worktrees are tracked per branch, and
-  two branches changing the same system show up before they are merged.
+- **Branches and worktrees.** The toolbar always shows which branch the map is
+  on (`⇧⌘B` opens every checkout). Other checkouts' work is drawn on the
+  Floor, a branch's architecture can be reviewed against its base, agents Ambio
+  runs can work in a worktree of their own, and two branches changing the same
+  system show up before they are merged. Switching branches is not recorded as
+  code changes.
+- **Debug by running code.** Ask an agent to find the cause of a bug and it
+  runs the code with the suspect functions watched - in JavaScript/TypeScript,
+  Python, Ruby, Go, Java, Kotlin, Scala, C#, PHP and Rust - and gets back what
+  they actually did. A run can start your server first. Each step appears
+  beside the map, and you can talk back.
 - **Keyboard first.** A command palette (`⇧⌘P` / `Ctrl+Shift+P`) reaches every
   command; `⌘/` / `Ctrl+/` lists the shortcuts.
 - **Local.** Architecture, layouts and history live on your computer. There is
-  no account, no analytics, and your code is never uploaded.
+  no account, no analytics, and your code is never uploaded - except what Ambio
+  chat sends to the model service you choose to set up (see [PRIVACY.md](PRIVACY.md)).
 
 ## Install
 
@@ -256,13 +266,22 @@ agent Ambio shows that explanation until you confirm it.
   to approve; **Build** changes code and hands the result back for review.
 - Pick the model beside the request type. Agents Ambio runs offer the models
   they publish; Ambio chat offers its service's models.
-- Agents Ambio runs need only their CLI, signed in. Agents in other apps need
+- Agents Ambio runs need only their CLI, signed in. Antigravity's and Cursor's
+  CLIs also need Ambio added to their app, which setup does when you press Map
+  (it says exactly what it changes). Agents in other apps need
   Ambio added once (Settings → Agents) and stay attached to the conversation
   after the first message.
+- While an agent works, its turn shows what it is doing and, where the agent
+  shares it, what it is thinking. Files it names in its reply are links that
+  take you to them on the map.
+- What an agent proposes - a new system, a file or system moved or renamed, a
+  new dependency - waits under **To review** in the sheet rail until you
+  confirm or reject it.
 
-**Ambio chat** is Ambio's own agent, using your model service. Add one in
-**Settings → Agents**: choose OpenAI, Anthropic, Google, or an OpenAI-compatible
-service, enter your API key, test the connection, and save. Local compatible
+**Ambio chat** is Ambio's own agent, using your model service. In
+**Settings → Agents**, connect an eligible ChatGPT plan (sign in with OpenAI in
+your browser; no API key), or choose OpenAI, Anthropic, Google, or an
+OpenAI-compatible service, enter your API key, test the connection, and save. Local compatible
 services can use a loopback HTTP URL without a key. Set each service's context
 window to match your model. A conversation keeps its service; start a new one
 to use another agent.

@@ -5,6 +5,7 @@ import { CHAT_SETUP, startMapping, useRunnableChoices, type MappingChoice, type 
 import { OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
 import { AgentModelSelect, useAgentModel } from '../components/AgentModelMenu'
 import { chatModels } from '../../shared/agentChat'
+import { RUN_NEEDS_INSTALL } from '../../shared/agentDelivery'
 
 /**
  * Setup's first step: one list of agents and one action for the one chosen.
@@ -86,11 +87,16 @@ export function ChooseAgent({
   // Adding Ambio to a CLI serves the user's own sessions; Ambio's runs do not need it.
   const installer = run?.kind === 'run' ? hosts.find(host => host.id === run.host.id && host.modality === 'cli') : undefined
   const offerInstall = !blankProject && !!installer && !(installer.configured && installer.workflowInstalled)
+  // Some CLIs only reach Ambio through their app's settings: then adding Ambio
+  // is part of mapping, not an option, and the screen says what it changes.
+  const needs = run?.kind === 'run' ? RUN_NEEDS_INSTALL[run.host.id] : undefined
+  const required = needs ? hosts.find(host => host.id === needs.installer) : undefined
+  const mustInstall = !blankProject && !!needs && !!required && !required.configured
 
   const map = async (choice: Exclude<RunnableChoice, { kind: 'setup' }>) => {
     setBusy(true); setError('')
     try {
-      const { run: started, warning } = await startMapping({ choice, workspaceId, projectRoot, installer: offerInstall && addToSessions ? installer : undefined, model: model.value || undefined })
+      const { run: started, warning } = await startMapping({ choice, workspaceId, projectRoot, installer: offerInstall && addToSessions ? installer : undefined, required: mustInstall ? required : undefined, model: model.value || undefined })
       onStarted(started, warning)
     } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)) }
     finally { setBusy(false) }
@@ -103,6 +109,15 @@ export function ChooseAgent({
       <strong>{name}</strong>
       <small>{status}</small>
     </button>
+
+  // A CLI that reaches Ambio only through its app says so until Ambio is added there.
+  const runOption = (id: string, label: string, hostId: string) => {
+    const app = RUN_NEEDS_INSTALL[hostId]
+    const appHost = app ? hosts.find(host => host.id === app.installer) : undefined
+    return app && appHost && !appHost.configured
+      ? option(id, label, `Adds Ambio to ${app.app}`, 'attention')
+      : option(id, label, 'On this computer', 'ready')
+  }
 
   const appOption = (host: AgentHostInfo) => {
     const state = stateOf(host)
@@ -118,6 +133,14 @@ export function ChooseAgent({
   } else if (run && blankProject) {
     detail = <p>Nothing to set up. Choose {run.label} in the agent panel when you send your first message.</p>
     action = <button type="button" className="ambio-connect__primary" onClick={onOpenCanvas}>Open canvas →</button>
+  } else if (run && mustInstall && needs && required) {
+    detail = <div className="ambio-choose__required">
+      <strong>Ambio adds itself to {needs.app} first</strong>
+      <small>
+        {run.label} reaches Ambio&rsquo;s tools only through {needs.app}&rsquo;s own settings. Map adds Ambio&rsquo;s server to <code>{required.configPath}</code>{needs.alsoChanges ? ` ${needs.alsoChanges}` : ''}, so your own {needs.app} sessions get Ambio too. Nothing else changes; remove it any time in Settings &rarr; Agents.
+      </small>
+    </div>
+    action = <div className="ambio-choose__actions"><AgentModelSelect model={model} disabled={busy} /><button type="button" className="ambio-connect__primary" disabled={busy} onClick={() => { void map(run) }}>{busy ? 'Adding Ambio\u2026' : `Add Ambio and map with ${run.label} \u2192`}</button></div>
   } else if (run) {
     detail = offerInstall
       ? <label className="ambio-choose__sessions">
@@ -150,9 +173,9 @@ export function ChooseAgent({
     <div className="ambio-connect__scroll">
       <div className="ambio-choose" role="radiogroup" aria-label="Agents">
         <div className="ambio-choose__group">
-          <h3>Ambio runs it <span>Nothing to install or restart</span></h3>
+          <h3>Ambio runs it <span>Nothing to restart</span></h3>
           {runnable === null ? <p className="ambio-choose__empty">Looking for agents…</p>
-            : runnable.map(choice => choice.kind === 'run' ? option(choice.id, choice.label, 'On this computer', 'ready')
+            : runnable.map(choice => choice.kind === 'run' ? runOption(choice.id, choice.label, choice.host.id)
               : choice.kind === 'chat' ? option(choice.id, choice.label, `Your API key · ${choice.provider.name}`, 'ready')
                 : option(choice.id, choice.label, 'Needs your API key', 'attention'))}
         </div>
@@ -169,7 +192,7 @@ export function ChooseAgent({
         </div>
       </div>
     </div>
-    <footer className="ambio-choose__footer" aria-label="Next step">
+    <footer className="ambio-choose__footer" aria-label="Next step" data-required={mustInstall && run ? '' : undefined}>
       <div className="ambio-choose__detail">
         {detail}
         {note && <p className="ambio-choose__note" data-ok={note.ok} role="status">{note.text}</p>}

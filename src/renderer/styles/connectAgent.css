@@ -1062,3 +1062,8 @@
 .ambio-connect__waiting-line .ambio-choose__quiet { margin-left: auto; }
 .ambio-choose__actions { display: flex; flex: none; gap: 8px; align-items: stretch; }
 .ambio-choose__model { max-width: 200px; padding: 6px 8px; border: 1px solid #b0beb5; background: #fbfaf5; color: #23362f; font: inherit; font-size: 11px; }
+
+/* A required install takes the whole row; the model and Map sit under it. */
+.ambio-choose__footer[data-required] { flex-wrap: wrap; }
+.ambio-choose__footer[data-required] > .ambio-choose__detail { flex-basis: 100%; }
+.ambio-choose__footer[data-required] > .ambio-choose__actions { margin-left: auto; }

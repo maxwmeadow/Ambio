@@ -73,10 +73,16 @@ export function useRunnableChoices(): RunnableChoice[] | null {
  * sessions of that CLI is attempted first when asked; it never blocks the run.
  * Returns the run, and a warning when the add did not work.
  */
-export async function startMapping({ choice, workspaceId, projectRoot, installer, model }: {
-  choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo; model?: string
+export async function startMapping({ choice, workspaceId, projectRoot, installer, required, model }: {
+  choice: Exclude<RunnableChoice, { kind: 'setup' }>; workspaceId: string; projectRoot: string; installer?: AgentHostInfo
+  /** An install the agent cannot work without (RUN_NEEDS_INSTALL): a failure stops the mapping. */
+  required?: AgentHostInfo; model?: string
 }): Promise<{ run: MappingRun; warning?: string }> {
   let warning: string | undefined
+  if (required) {
+    const outcome = await window.ambio.installAgent(required.id, projectRoot).catch(failure => ({ ok: false, detail: String(failure) }))
+    if (!outcome.ok) throw new Error(`Ambio could not be added to ${required.familyLabel || required.label}, so ${choice.label} would have no access to Ambio: ${outcome.detail}`)
+  }
   if (installer) {
     const outcome = await window.ambio.installAgent(installer.id, projectRoot).catch(failure => ({ ok: false, detail: String(failure) }))
     if (!outcome.ok) warning = `Ambio could not be added to your own ${choice.label} sessions: ${outcome.detail} The mapping still runs.`

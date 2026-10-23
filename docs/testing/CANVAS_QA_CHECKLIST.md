@@ -248,7 +248,7 @@ Fixed during this pass:
 - [ ] **M3** `Open project`
 - [ ] **M4** `Send to agent` dialog
 - [ ] **M5** Selection mode toggle reflects state visually
-- [ ] **M6** Status bar counts stay accurate after live changes
+- ~~**M6** Status bar counts stay accurate after live changes~~ (the status bar was removed 2026-10-20, quiet project chrome)
 - [ ] **M7** Replay bar scrubbing
 - [ ] **M8** Read-only mode disables drag, resize, connect, box select, selection
 

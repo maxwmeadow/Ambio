@@ -32,7 +32,8 @@ sessions run in parallel on this repo, each on its own branch.
 - `src/renderer/` - React + React Flow UI; the canvas is `src/renderer/canvas/`.
 - `src/shared/` - code shared by main and renderer (command model, settings).
 - `mcp/` - the MCP server agents talk to.
-- `adapters/` - runtime recording adapters (Node, Python).
+- `adapters/` - run recorders for investigations (Node, Python, Ruby, PHP, the
+  JVM agent and the C# rewriter; Go and Rust live in `archd-go/internal/runtime`).
 - `docs/` - product, decisions, architecture, contracts; `docs/history/` is
   superseded plans.
 
@@ -45,6 +46,7 @@ npx tsc --noEmit                 # types
 npm run test:renderer            # renderer, shared, Electron, MCP unit tests
 cd archd-go && go vet ./... && go test ./...   # daemon
 npm run test:mcp                 # MCP end to end (builds archd)
+npm run test:chat                # Ambio chat's bundled harness, when chat changes
 npm run build                    # the app bundles
 ```
 

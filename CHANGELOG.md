@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
+  exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
+  without Ambio's tools, where the agent could only work around them.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.
@@ -64,6 +67,35 @@ in the app as "What's New" after updating, so write it for users.
   development builds no longer print daemon usage text after a successful build.
 - Settings keeps the same size across sections and scrolls content inside the
   panel, with a compact layout for smaller windows.
+- Investigations on Ubuntu report Python crashes again (the system's crash
+  reporter used to hide them).
+- Tracing Ruby counts calls in files inside subfolders, and in projects
+  reached through a symlink (every project under /var on macOS).
+- Deleting a project right after an agent opened it no longer fails with
+  "workspace data still exists".
+- A file moved on disk no longer drops off the map when the move's delete
+  and create are handled at the same moment.
+- Tracing C++ with gdb is reliable on a busy machine: Ambio no longer races
+  its own launch request, and waits longer for a debugger's first answer.
+- Tracing Go code works again for projects outside Ambio's own folder, and
+  a program that does not build says why.
+- A damaged map is caught when the project opens: Ambio offers to restore
+  the newest backup instead of opening it, and never backs up a damaged
+  map over the good backups.
+- Copying the connection check during agent setup could silently do
+  nothing when the window was not focused.
+- Connections between two live nodes on a sheet were silently dropped, and
+  a drawn dependency could never be confirmed by the code; both work now.
+- A file moved or renamed on disk keeps its system, its place on the map and
+  its history instead of arriving as a new, unsorted file.
+- Every change an agent makes to your systems is now recorded and shown in
+  Review Changes; before, agents could rename, regroup or delete systems
+  without a trace.
+- Returning a file to the unsorted bin could fail.
+- Edits made while Ambio was closed could be missed when a file's timestamp
+  was too close to the last index.
+- A second copy of Ambio, or another program on Ambio's ports, no longer
+  breaks the connection to the map.
 
 ### Changed
 - The "parallel branches" panel no longer pops up over the map when a
@@ -89,6 +121,16 @@ in the app as "What's New" after updating, so write it for users.
   About dialog and desktop icons. The tray icon opens the app when clicked.
 - Axiom is now Ambio. Your maps, settings and agent connections move over
   automatically the first time you open it.
+- Smaller install: the old built-in service and the native modules only it
+  used are gone, so installing Ambio from source no longer compiles native
+  Node code.
+- Ambio runs its agent connection on its own bundled runtime; Node.js no
+  longer needs to be installed.
+- Unlimited projects, with a short recent list and "Show all".
+- Files over 1 MB and minified files are no longer indexed.
+- Map shortcuts: Fit `⌘0`, Zoom `⌘=` / `⌘-`, Tidy Layout `⇧⌘L`,
+  Infrastructure `⇧⌘E` (Ctrl on Windows and Linux). Interface zoom moved to
+  `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
 
 ### Added
 - Investigations run code in more languages: Ruby, Go, Java, Kotlin, Scala,
@@ -306,49 +348,6 @@ in the app as "What's New" after updating, so write it for users.
 - Review Changes keeps offering to make the code match while it still
   disagrees, and a sent order shows whether Ambio found the code now matches,
   checked against the code rather than taken from the agent's reply.
-
-### Changed
-- Smaller install: the old built-in service and the native modules only it
-  used are gone, so installing Ambio from source no longer compiles native
-  Node code.
-- Ambio runs its agent connection on its own bundled runtime; Node.js no
-  longer needs to be installed.
-- Unlimited projects, with a short recent list and "Show all".
-- Files over 1 MB and minified files are no longer indexed.
-- Map shortcuts: Fit `⌘0`, Zoom `⌘=` / `⌘-`, Tidy Layout `⇧⌘L`,
-  Infrastructure `⇧⌘E` (Ctrl on Windows and Linux). Interface zoom moved to
-  `⌥⌘=` / `⌥⌘-` / `⌥⌘0`, and Agent Log to `⇧⌘A`.
-
-### Fixed
-- Investigations on Ubuntu report Python crashes again (the system's crash
-  reporter used to hide them).
-- Tracing Ruby counts calls in files inside subfolders, and in projects
-  reached through a symlink (every project under /var on macOS).
-- Deleting a project right after an agent opened it no longer fails with
-  "workspace data still exists".
-- A file moved on disk no longer drops off the map when the move's delete
-  and create are handled at the same moment.
-- Tracing C++ with gdb is reliable on a busy machine: Ambio no longer races
-  its own launch request, and waits longer for a debugger's first answer.
-- Tracing Go code works again for projects outside Ambio's own folder, and
-  a program that does not build says why.
-- A damaged map is caught when the project opens: Ambio offers to restore
-  the newest backup instead of opening it, and never backs up a damaged
-  map over the good backups.
-- Copying the connection check during agent setup could silently do
-  nothing when the window was not focused.
-- Connections between two live nodes on a sheet were silently dropped, and
-  a drawn dependency could never be confirmed by the code; both work now.
-- A file moved or renamed on disk keeps its system, its place on the map and
-  its history instead of arriving as a new, unsorted file.
-- Every change an agent makes to your systems is now recorded and shown in
-  Review Changes; before, agents could rename, regroup or delete systems
-  without a trace.
-- Returning a file to the unsorted bin could fail.
-- Edits made while Ambio was closed could be missed when a file's timestamp
-  was too close to the last index.
-- A second copy of Ambio, or another program on Ambio's ports, no longer
-  breaks the connection to the map.
 
 ### Security
 - The app window runs sandboxed under a strict content security policy, and

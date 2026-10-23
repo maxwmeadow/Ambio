@@ -10,9 +10,11 @@ request. That is both a context tax and a selection problem: a model choosing
 between `get_neighbors`, `get_family`, `get_node` and `get_systems_with_files`
 is choosing between four spellings of one question.
 
-The advertised surface is now **~2,460 tokens** with the default profile - a
-74% reduction - and `mcp/toolSurface.test.mjs` fails the build if it creeps
-back.
+The advertised surface was **~2,460 tokens** after the consolidation, a 74%
+reduction. Capabilities added since (investigations, infra contracts, addressed
+work orders, sheet connect/move/rename, server runs) bring it to about **3,850**
+(2026-10-20), still 60% below where it started; `mcp/toolSurface.test.mjs`
+fails the build when it passes its budget.
 
 ## The merge rule
 

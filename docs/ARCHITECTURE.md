@@ -1,6 +1,6 @@
 # Ambio - architecture
 
-How the code is put together today. Verified against `main` on 2026-09-30.
+How the code is put together today. Verified against `main` on 2026-10-20.
 What the product is: [PRODUCT.md](PRODUCT.md). Open work: [../WORK.md](../WORK.md).
 Keep this document current: when you change a component's responsibility, a
 data flow or a limit named here, update it in the same change.
@@ -168,7 +168,8 @@ to API-key billing or another account. Setup and live-account validation:
 
 - One SQLite database per project: `~/.ambio/data/<project id>/ambio.db`
   (cgo `mattn/go-sqlite3`, WAL, bounded pool). `PRAGMA user_version` carries
-  `db.SchemaVersion` (currently 2); a newer database is refused. **Bump
+  `db.SchemaVersion` (the constant in `internal/db/db.go`, with what each
+  version added beside it); a newer database is refused. **Bump
   `SchemaVersion` whenever a migration changes the schema.**
 - Daily backups (`backups/`, seven kept; a map failing `PRAGMA quick_check`
   on open is never backed up and the app offers its newest backup instead),
@@ -386,11 +387,18 @@ app's decision.
 
 | Languages | Symbols | Import edges | Calls | Data flow | Infra from packages | Runtime |
 |---|---|---|---|---|---|---|
-| TS/JS, Python, Go | ✅ | ✅ | ✅ | ✅ | ✅ | Node/Python recording; Go via delve |
-| C# | ✅ | via `using` + namespaces | ✅ | - | regex | netcoredbg |
-| Rust, Java, Ruby | ✅ | `mod`/`use`, `import`, `require` | ✅ | - | regex | Ruby rdbg; Java unverified |
-| C++, C | ✅ | quoted `#include` (the header, or its implementing file) | ✅ | - | - | gdb DAP |
-| Kotlin, Swift, PHP | not parsed | | | | | |
+| TS/JS, Python, Go | ✅ | ✅ | ✅ | ✅ | ✅ | recorded (Node instrumentation, Python `sys.settrace`, Go source overlay) |
+| C# | ✅ | via `using` + namespaces | ✅ | - | regex | recorded (build rewriter) |
+| Rust, Java, Ruby | ✅ | `mod`/`use`, `import`, `require` | ✅ | - | regex | recorded (Cargo wrapper, JVM agent, Ruby recorder) |
+| C++, C | ✅ | `#include`: quoted, and `<dir/file.h>` project headers | ✅ | - | - | gdb or lldb-dap |
+| Kotlin, Scala, Groovy | ✅ | JVM `import`s | - | - | - | recorded (JVM agent) |
+| PHP | ✅ | `require`/`include`, PSR-4 `use` | - | - | - | recorded (prepended recorder) |
+| Swift, Lua, shell, Elixir | ✅ | `import`, `require`, `source`, `alias`/`use` | - | - | - | exit code and output |
+
+`.h` is read as C. Main's readers (`parser/imports_more.go`) cover Java, Rust,
+Ruby and C/C++; `parser/imports_text.go` covers the rest and C/C++ project
+headers, resolved by `indexer/imports_other.go`. What a run can see per
+language, and the toolchain each needs: [INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
@@ -410,15 +418,17 @@ sheet, build spec and comparison in one transaction → an agent claims by ID
 you accept or request changes. Agent-reported results are labelled unverified.
 
 **Delivery** (`electron/agentDelivery.ts`, `AgentDelivery.tsx`): the send panel
-lists every installer host. Claude Code, Codex and Copilot CLI start fresh local
-runs after the request is durably saved; editor/desktop hosts copy the handoff and
+lists every installer host. Claude Code, Codex, Copilot CLI and Antigravity CLI
+(and, experimentally, Cursor and Devin) start fresh local runs after the request
+is durably saved; editor/desktop hosts copy the handoff and
 open the project/app when a launcher is available. The main process verifies the
 registered project, current request state and claim before launching, supplies
 workspace-bound MCP config, and records launch receipts/output under
 `~/.ambio/delivery/`. Receipts prevent duplicate execution across retries/reloads;
 review revisions permit another run. One managed run edits a root at a time.
 Launch status is distinct from MCP claim and reply status. Runs edit the existing
-graph root, can be stopped in the inbox, and are asked to stop when Ambio quits.
+graph root unless Send's *Own worktree* is chosen (see the checkouts section
+above), can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
@@ -464,9 +474,18 @@ GitHub workflows) against an 87-service registry; results are proposals until
 confirmed.
 
 **Investigations and runtime** (`internal/runtime`, `adapters/`): hypothesis
-runs record calls in-process (Node load-time instrumentation, Python
-`sys.monitoring`); DAP inspection mode for other languages is behind the MCP
-debug profile. See [INVESTIGATIONS.md](INVESTIGATIONS.md).
+runs record watched functions in-process with each language's own toolchain:
+Node load-time instrumentation, Python `sys.settrace`, Ruby and PHP recorders
+loaded ahead of the program, a JVM agent (Java, Kotlin, Scala, Groovy), a C#
+build rewriter, a Go source overlay (`-overlay`) and a Rust Cargo wrapper;
+C/C++ runs under gdb or lldb-dap. A run can start a server first (`server`,
+`port`) and then the command that exercises it. `GET
+/api/investigation/readiness` says what runs can see per language in the
+project (shown in the investigations menu). On Windows a run's command reaches
+`cmd.exe` as written (`windowsShell`), and a server's process tree is killed
+while its root is alive. DAP inspection for other languages is behind the MCP
+debug profile. See [INVESTIGATIONS.md](INVESTIGATIONS.md) and
+[INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
 
 ## MCP surface
 

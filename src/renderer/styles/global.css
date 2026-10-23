@@ -8476,3 +8476,9 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 .ambio-delta__unexplained-count[aria-pressed="true"] {
   background: #ead49c;
 }
+
+/* Setup: an install the chosen agent cannot work without, said before Map. */
+.ambio-choose__required { display: flex; flex-direction: column; gap: 3px; color: #34413d; font-size: 12px; line-height: 1.45; }
+.ambio-choose__required strong { font-size: 12.5px; }
+.ambio-choose__required small { color: #5b6863; font-size: 11px; }
+.ambio-choose__required code { font-size: 10.5px; overflow-wrap: anywhere; }

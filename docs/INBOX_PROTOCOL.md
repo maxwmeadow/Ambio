@@ -119,7 +119,7 @@ its host (`electron/agentDrivers.ts`) and passes it on every turn.
 | Codex | `codex exec --json`, Ambio's MCP server set to `default_tools_approval_mode="approve"`, reasoning summaries on (`model_reasoning_summary="auto"`, shown as the turn's thinking) | `codex exec resume <thread>`, sandbox given as `-c sandbox_mode=` (resume has no `--sandbox`) | read-only sandbox; on Windows `danger-full-access`, because the read-only sandbox cannot start a shell there (`codexSandbox`) | `danger-full-access` |
 | Copilot CLI | An ACP session (`copilot --acp`, a public preview); `copilot --prompt` when it cannot hold one | In the ACP session; print mode reports none | `--allow-all-tools --allow-all-paths --allow-all-urls --deny-tool write` | `--yolo` |
 | Cursor CLI (experimental) | `cursor-agent -p --output-format stream-json` | `--resume=<chat>` | `--mode ask` / `--mode plan` | `--force` |
-| Antigravity CLI | `agy -p <prompt> --output-format stream-json --add-dir <project>` | `--conversation <id>` | `--dangerously-skip-permissions`; it has nothing narrower, so the turn's contract keeps it from editing | `--dangerously-skip-permissions` |
+| Antigravity CLI (needs Ambio added to Antigravity: it reads MCP servers only from `~/.gemini/config/mcp_config.json`; Ambio refuses to start it otherwise, `RUN_NEEDS_INSTALL`) | `agy -p <prompt> --output-format stream-json --add-dir <project>` | `--conversation <id>` | `--dangerously-skip-permissions`; it has nothing narrower, so the turn's contract keeps it from editing | `--dangerously-skip-permissions` |
 | Devin CLI, Antigravity agent (experimental) | An Agent Client Protocol session (`devin acp`, Google's `agy_acp_server`) | `session/resume` or `session/load` when the agent offers it | Agent's ask/plan mode; edit, delete, move and execute requests are refused | Permission requests are allowed |
 
 The experimental rows are offered only when their editor (Cursor, Windsurf,
@@ -268,7 +268,8 @@ the request-ID routing. They remain complementary options, not queue drainers.
 The privileged Electron handler reloads the registered project and reads exactly
 the requested message from archd before starting anything. Closed work, legacy
 open-queue work, wrong-workspace requests and live claims are refused. The process
-runs in that project's existing root; inline MCP configuration and environment
+runs in that project's existing root, or in a worktree of its own when Send's
+*Own worktree* is chosen; inline MCP configuration and environment
 pin its workspace and host. It must claim before editing and renew before the
 15-minute lease expires. A race with another claimant is still fenced by MCP.
 

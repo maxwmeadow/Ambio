@@ -271,6 +271,19 @@ export interface DeliveryReadinessResult { tone: ReadinessTone; text: string; fi
  * added and a chat attached for one in another app. Connection details belong
  * to Settings, not here.
  */
+/**
+ * Agents Ambio runs whose CLI has no way to be handed Ambio's MCP server for a
+ * run: they read it from their app's own settings, so they only have Ambio's
+ * tools once Ambio has been added to that app. Without it the agent starts
+ * blind (an Antigravity mapping run, 2026-10-20, then went around Ambio and
+ * edited its database directly). Claude Code, Codex and Copilot CLI get the
+ * server on their command line and need nothing installed.
+ */
+export const RUN_NEEDS_INSTALL: Record<string, { installer: string; app: string; alsoChanges?: string }> = {
+  'antigravity-cli': { installer: 'antigravity', app: 'Antigravity', alsoChanges: 'and allows only Ambio\u2019s tools (mcp(ambio/*)) in Antigravity CLI\u2019s settings' },
+  'cursor-cli': { installer: 'cursor', app: 'Cursor' },
+}
+
 export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watchingHosts, chat }: {
   hostId: string; hosts: DeliveryHost[]; installedIds: string[]; watchers: number; watchingHosts: string[]
   chat?: { service: string; keyMissing: boolean; auth?: 'chatgpt' }
@@ -283,6 +296,10 @@ export function deliveryReadiness({ hostId, hosts, installedIds, watchers, watch
     : { tone: 'attention', text: 'No chat is watching Ambio right now. In your agent chat, say \u201cwatch Ambio\u201d.' }
   const host = hosts.find(item => item.id === hostId)
   if (!host) return { tone: 'neutral', text: 'Send saves your message. Copy its handoff into any agent chat that has Ambio.' }
+  const needs = RUN_NEEDS_INSTALL[host.id]
+  if (host.route === 'run' && host.available && needs && !installedIds.includes(needs.installer)) {
+    return { tone: 'blocked', text: `${host.label} can only use Ambio\u2019s tools once Ambio is added to ${needs.app}. Add it in Settings \u2192 Agents, then send.`, fix: 'agents' }
+  }
   if (host.route === 'run') return host.available
     ? { tone: 'ready', text: `Ambio starts ${host.label} in this project when you send. Nothing else needs to be open.` }
     : { tone: 'blocked', text: `${host.label} was not found on this computer.`, fix: 'agents' }
