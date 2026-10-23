@@ -14,6 +14,10 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Muse launches plain `serve` and preserves its configured sandbox; protocol
+  clients no longer receive Claude Code’s permission-hook tool. Grok reports
+  missing/unusable Linux bubblewrap clearly and allows longer MCP startup
+  without misreporting it as a sign-in failure.
 - Setup again prefers an agent Ambio can run unless you explicitly pick
   another app. Muse-only instruction pointers no longer affect other clients
   or change their repair status when CLAUDE.md appears. Muse keeps project guidance through mixed-client setup

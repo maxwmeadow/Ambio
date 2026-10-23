@@ -156,7 +156,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   muse: {
     need: ['Muse Code CLI installed and signed in. Nothing needs to be open.'],
     how: STARTED('Muse Code CLI'),
-    can: ['Ask and Propose: is instructed to read and draw plans without changing project files; this is a prompt constraint.', 'Build: full access to files and commands, with its reply returned for review.', FULL_ACCESS],
+    can: ['Ask and Propose: is instructed to read and draw plans without changing project files; Muse’s configured permissions still apply.', 'Build: runs without approval prompts, within Muse’s configured sandbox and project trust settings, then returns its reply for review.'],
   },
   [CHAT_DELIVERY]: {
     need: ['A ChatGPT plan connection or a model service with your own API key, added once in Settings \u2192 Agents. Nothing else to install or open.'],

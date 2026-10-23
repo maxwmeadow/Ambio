@@ -43,6 +43,14 @@ export interface AcpOutcome {
 
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer?: ReturnType<typeof setTimeout> }
 
+class GrokRequestTimeout extends Error {}
+
+/** Session construction can wait for each of the user's MCP servers to start. */
+export function grokRequestTimeout(method: string): number | undefined {
+  return method === 'session/prompt' ? undefined
+    : ['session/new', 'session/load', 'session/resume'].includes(method) ? 120000 : 30000
+}
+
 // A question or a proposal may look, run commands and talk to Ambio; it may
 // not edit the project's files. A build is allowed everything it asks for.
 // ACP names what a tool call does, so the rule is on the kind.
@@ -86,8 +94,14 @@ export class AcpClient {
     return new Promise<T>((resolve, reject) => {
       // Grok's auth may otherwise wait for a browser that an Ambio-started
       // process cannot present. Model turns have no handshake time limit.
-      const timer = this.turn.authentication === 'grok' && method !== 'session/prompt'
-        ? setTimeout(() => { this.pending.delete(id); reject(new Error(`Grok did not answer ${method}. Run grok login in a terminal, then send again.`)) }, 30000) : undefined
+      const timeout = this.turn.authentication === 'grok' ? grokRequestTimeout(method) : undefined
+      const timer = timeout === undefined ? undefined : setTimeout(() => {
+        this.pending.delete(id)
+        const recovery = method === 'authenticate' ? 'Run grok login in a terminal, then send again.'
+          : method.startsWith('session/') ? 'Check Grok’s MCP server startup and session output, then try again.'
+            : 'Check Grok’s output and installed version, then try again.'
+        reject(new GrokRequestTimeout(`Grok did not answer ${method} within ${timeout / 1000}s. ${recovery}`))
+      }, timeout)
       this.pending.set(id, { resolve, reject, timer })
       this.turn.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
     })
@@ -193,7 +207,7 @@ export class AcpClient {
       const methods: Array<{ id: string }> = initialized.authMethods ?? []
       const methodId = process.env.XAI_API_KEY && methods.some(method => method.id === 'xai.api_key')
         ? 'xai.api_key' : methods.find(method => method.id === 'cached_token')?.id ?? methods.find(method => method.id === 'grok.com')?.id
-      if (!methodId) throw new Error('Grok has no supported headless sign-in method. Update Grok and run grok login in a terminal.')
+      if (!methodId) throw new Error('Grok has no supported headless authentication method. Update Grok, then try again.')
       try { await this.request('authenticate', { methodId, _meta: { headless: true } }) }
       catch { throw new Error('Grok is not signed in. Run grok login in a terminal, then send again.') }
     }
@@ -210,13 +224,17 @@ export class AcpClient {
         }
         this.sessionId = turn.resume
         resumed = true
-      } catch { /* the session is gone; this turn starts a new one */ }
+      } catch (error) {
+        // A timeout does not establish that a retained session is gone, and a
+        // second session would start all the same slow MCP servers again.
+        if (error instanceof GrokRequestTimeout) throw error
+      }
       finally { this.replaying = false; this.text = '' }
     }
     if (!resumed) {
       try { session = await this.request('session/new', setup) } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        throw new Error(/auth/i.test(message) ? `${message}. Sign in to this agent in its own terminal, then send again.` : message)
+        throw new Error(turn.authentication !== 'grok' && /auth/i.test(message) ? `${message}. Sign in to this agent in its own terminal, then send again.` : message)
       }
       this.sessionId = String(session.sessionId ?? '')
       if (!this.sessionId) throw new Error('The agent did not start a session.')

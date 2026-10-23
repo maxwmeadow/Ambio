@@ -163,7 +163,7 @@ headless authentication, with a timeout and terminal-login recovery. The
 workspace has no vendor login; no model turn was claimed as verified. Its
 container cannot apply Grok's read-only sandbox; it fails closed.
 
-Muse uses `muse serve --yolo` and the published
+Muse uses `muse serve` and the published
 [Meta Muse Code SDK protocol](https://github.com/meta-models/muse-code-sdk/tree/main/schema/msp)
 (v1, SDK snapshot 1.4.12), without adding an SDK dependency. Session construction
 accepts per-session MCP overrides and model choice; native start/resume

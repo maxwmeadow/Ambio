@@ -7,7 +7,11 @@ import type { AcpTurn, AcpOutcome } from './acpClient.ts'
  * The runner owns the process; this class owns its line-delimited JSON-RPC.
  * Session construction binds Ambio directly, without changing Muse settings.
  */
-export interface MuseTurn extends AcpTurn { model?: string }
+export interface MuseTurn extends AcpTurn {
+  model?: string
+  /** Explicit policy experiments use this; normal delivery retains allowAll. */
+  approvalMode?: 'allowAll' | 'denyUnmatched'
+}
 
 // MSP command identities must be UUIDv7, including turn/start and interrupt.
 export function museCommandId(): string {
@@ -115,6 +119,7 @@ export class MuseClient {
 
   async run(): Promise<AcpOutcome> {
     await this.initialize()
+    const approvalMode = this.turn.approvalMode ?? 'allowAll'
     const config = { mcpServers: Object.fromEntries(this.turn.mcpServers.map(server => [server.name, {
       transport: 'stdio', command: server.command, args: server.args, env: Object.fromEntries(server.env.map(entry => [entry.name, entry.value])), mode: 'required',
     }])) }
@@ -126,7 +131,7 @@ export class MuseClient {
       } catch { /* missing/older session: Ambio still supplies the conversation */ }
     }
     if (!this.resumed) result = await this.request('session/start', {
-      commandId: museCommandId(), workspaceRoot: this.turn.cwd, config, approvalMode: 'allowAll',
+      commandId: museCommandId(), workspaceRoot: this.turn.cwd, config, approvalMode,
       ...(this.turn.model ? { modelId: this.turn.model } : {}),
     })
     const session = result.session
@@ -138,7 +143,7 @@ export class MuseClient {
     if (result.pendingRequests?.length) throw new Error('Muse has an interactive request pending. Resolve it in a Muse terminal session, then send again.')
     if (session.activeTurnId) throw new Error('Muse is already running a turn in this session. Stop it in Muse before sending again.')
     if (this.resumed) {
-      await this.request('session/setApprovalMode', { commandId: museCommandId(), sessionId: this.sessionId, mode: 'allowAll' })
+      await this.request('session/setApprovalMode', { commandId: museCommandId(), sessionId: this.sessionId, mode: approvalMode })
       if (this.turn.model) await this.request('session/setModel', { commandId: museCommandId(), sessionId: this.sessionId, model: { modelId: this.turn.model } })
     }
     const commandId = museCommandId()

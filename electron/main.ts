@@ -34,7 +34,7 @@ import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
 import { configurationChecks, probeMcpServer, type ConnectionTestResult } from './agentConnectionTest'
 import { DeliveryRunner, deliveryTargets, deliveryPlan, checkDeliveryMessage, chatDeepLink } from './agentDelivery'
-import { agentDriver, turnMode } from './agentDrivers'
+import { agentDriver, mcpEnvironment, turnMode } from './agentDrivers'
 import { workOrderHandoff } from '../src/shared/workOrderHandoff'
 import type { DeliveryRequest } from '../src/shared/agentDelivery'
 import {
@@ -1589,7 +1589,7 @@ function setupIPC(): void {
     const session = driver?.acp || driver?.acpArgs || driver?.muse
     const acp = session ? {
       resume,
-      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: [{ name: 'AMBIO_WORKSPACE_ID', value: project.id }, { name: 'AMBIO_RUN_MESSAGE_ID', value: request.messageId }] }))(mcpLaunchSpec())],
+      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
     } : undefined
     // A host with both ways in is tried as a session first; print mode is the
     // same turn started the way it always was.

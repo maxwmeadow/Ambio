@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import { delimiter, join } from 'node:path'
 import { DRIVEN_CLI_NAMES, type DeliveryEvent } from '../src/shared/agentDelivery.ts'
 
 /**
@@ -71,6 +73,8 @@ export interface AgentDriver {
   acpAuthentication?: 'grok'
   /** Muse Session Protocol over muse serve. */
   muse?: boolean
+  /** Check local prerequisites before spawning, without widening permissions. */
+  preflight?(mode: TurnMode, env: NodeJS.ProcessEnv, platform: NodeJS.Platform): void
   plan(turn: DriverTurn): DriverPlan
   read(line: string): DriverOutput
   /** What a line of the host's error output means, for hosts that explain a failed turn there. */
@@ -89,10 +93,15 @@ function parse(line: string): Record<string, any> | null {
   try { const value = JSON.parse(line); return value && typeof value === 'object' ? value : null } catch { return null }
 }
 
+/** This variable exposes a host permission hook, not ordinary turn identity. */
+export function mcpEnvironment(hostId: string, workspaceId: string, messageId?: string): Record<string, string> {
+  return { AMBIO_WORKSPACE_ID: workspaceId, ...(hostId === 'claude-code' && messageId ? { AMBIO_RUN_MESSAGE_ID: messageId } : {}) }
+}
+
 function mcpServer(turn: DriverTurn) {
   return {
     command: turn.mcp.command, args: [...turn.mcp.args, `--ambio-host=${turn.hostId}`],
-    env: { AMBIO_WORKSPACE_ID: turn.workspaceId, ...(turn.messageId ? { AMBIO_RUN_MESSAGE_ID: turn.messageId } : {}) },
+    env: mcpEnvironment(turn.hostId, turn.workspaceId, turn.messageId),
   }
 }
 
@@ -396,13 +405,23 @@ const DRIVERS: Record<string, AgentDriver> = {
   'cursor-cli': cursorCli,
   grok: {
     resumable: true, acp: true, acpAuthentication: 'grok',
+    preflight(mode, env, platform) {
+      if (platform !== 'linux' || mode === 'build') return
+      const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
+      const found = (env[pathKey] ?? '').split(delimiter).filter(Boolean).some(directory => {
+        try { const file = join(directory, 'bwrap'); fs.accessSync(file, fs.constants.X_OK); return fs.statSync(file).isFile() } catch { return false }
+      })
+      if (!found) throw new Error('Grok Ask, Propose and setup mapping require bubblewrap on Linux. Install bubblewrap (bwrap on PATH), then try again. Ambio has kept the read-only sandbox enabled.')
+    },
     plan: turn => ({ args: ['--sandbox', turn.mode === 'build' ? 'off' : 'read-only', 'agent', '--no-leader', ...modelFlag(turn), 'stdio'] }),
-    readError: line => /error:|not signed in|authentication required/i.test(line) ? { events: [{ kind: 'error', text: clip(line, 1200) }] } : NOTHING,
+    readError: line => /bwrap.*(?:failed|not found)|could not apply.*sandbox|Refusing to start.*(?:unprotected|protections missing)/i.test(line)
+      ? { events: [{ kind: 'error', text: 'Grok could not start its read-only sandbox. On Linux, install bubblewrap and enable the user namespaces it needs. Fix the sandbox setup, then try again; Ambio has kept read-only protection enabled.' }] }
+      : /error:|not signed in|authentication required/i.test(line) ? { events: [{ kind: 'error', text: clip(line, 1200) }] } : NOTHING,
     read: () => NOTHING,
   },
   muse: {
     resumable: true, muse: true,
-    plan: () => ({ args: ['serve', '--yolo'] }),
+    plan: () => ({ args: ['serve'] }),
     readError: line => /not signed in|not logged in|authentication|credential/i.test(line) ? { events: [{ kind: 'error', text: 'Muse could not authenticate. Sign in to Muse in a terminal, then send again. See the run output for details.' }] } : NOTHING,
     read: () => NOTHING,
   },

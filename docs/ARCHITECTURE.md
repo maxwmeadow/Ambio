@@ -69,15 +69,25 @@ tested, and a turn may use any of them. The choice is made in the composer
 
 Grok Build runs `grok --sandbox <profile> agent --no-leader [--model …] stdio`
 through `acpClient.ts`. Its advertised authentication method uses the CLI's
-existing account (bounded handshake); each session receives Ambio's host,
-workspace and request identity. Ask/Propose use the read-only sandbox and
+existing account (bounded handshake); each session receives explicit Ambio
+host and workspace identity. Only Claude Code’s permission-hook MCP receives
+`AMBIO_RUN_MESSAGE_ID`; ordinary protocols carry their request in the handoff.
+Ask/Propose use the read-only sandbox and
 refuse ACP file-edit permissions. Build uses the unrestricted profile.
-Muse Code runs `muse serve --yolo` through `museClient.ts`, implementing Meta's
+Muse Code runs `muse serve` through `museClient.ts`, implementing Meta's
 published MSP v1: initialize, session start/resume with MCP overrides, model
 selection, item events, turn completion and interruption. A resumed session
 must match the project root. Interactive native requests fail visibly rather
 than hanging. Muse Ask/Propose rely on the work-order prompt's restriction;
 there is no claim of an enforced read-only sandbox for those modes.
+Grok Linux Ask/Propose require executable `bwrap` before spawn; a failed native
+sandbox reports installation/user-namespace recovery without widening access.
+Grok initialization/authentication use 30s deadlines, while session new/load/
+resume allow 120s for MCP startup. Startup timeouts do not trigger a second
+session or suggest signing in. Muse starts plain `serve`; `allowAll` affects
+approvals and leaves the configured sandbox/profile in place. A separate native
+`denyUnmatched` probe tests tool access and actual edit refusal; it is not
+assumed to be a read-only policy.
 Both drivers reuse DeliveryRunner's receipts, session storage and Stop;
 neither copies vendor credentials into Ambio chat. Native account validation
 is tracked in [testing/GROK_MUSE_CLIENTS.md](testing/GROK_MUSE_CLIENTS.md).

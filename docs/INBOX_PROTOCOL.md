@@ -158,11 +158,12 @@ tells the user how to use each destination and what it can do.
 
 **Permissions (for now: full access).** Nobody is at a started agent's
 keyboard, and a refused step ends the turn, so agents Ambio runs are given every
-permission they offer (decision 2026-10-19). A build runs unrestricted: Claude
+permission they offer (decision 2026-10-19). Most Build routes run
+unrestricted; Muse preserves its native sandbox/profile. The settings are: Claude
 Code `--permission-mode bypassPermissions`, Codex `--sandbox
 danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
 `--dangerously-skip-permissions`, Cursor CLI `--force`, Grok `--sandbox off`,
-Muse `--yolo` with MSP `allowAll`, and ACP agents have every
+Muse MSP `allowAll` with its configured sandbox, and ACP agents have every
 request approved. Ask and Propose may run commands but lose file editing where
 the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
 read-only sandbox (except on Windows, where it cannot start a shell; decision
@@ -190,7 +191,8 @@ system or terminal of its own. Grok additionally authenticates using an
 advertised headless method and a bounded handshake. Muse uses its published
 Session Protocol instead (`electron/museClient.ts`), with the same runner,
 per-session MCP identity, saved conversations, events and stop behavior.
-Its Ask/Propose restriction is prompt-based; Build is unrestricted.
+Its Ask/Propose restriction is prompt-based. Build uses `allowAll` approval
+mode while keeping Muse’s configured sandbox/profile and project trust.
 
 **Watching (opt-in).** A user can tell a session they already have open to
 watch Ambio. That session calls `get_inbox({watch: true})`, which waits up to

@@ -46,7 +46,7 @@ test('agents Ambio runs get every permission they offer; a question or a proposa
       }
       if (host === 'cursor-cli') assert.equal(args[args.indexOf('--mode') + 1], mode === 'ask' ? 'ask' : 'plan')
       if (host === 'grok') assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only')
-      if (host === 'muse') assert.deepEqual(args, ['serve', '--yolo'])
+      if (host === 'muse') assert.deepEqual(args, ['serve'])
       if (host === 'antigravity-cli') assert.ok(args.includes('--dangerously-skip-permissions'))
     }
     const build = deliveryPlan(host, mcp, 'ws', 'Claim work order x', { mode: 'build' }).args
@@ -58,7 +58,7 @@ test('agents Ambio runs get every permission they offer; a question or a proposa
     if (host === 'copilot-cli') assert.ok(build.includes('--yolo') && !build.includes('--deny-tool'))
     if (host === 'cursor-cli') assert.ok(build.includes('--force'))
     if (host === 'grok') assert.equal(build[build.indexOf('--sandbox') + 1], 'off')
-    if (host === 'muse') assert.deepEqual(build, ['serve', '--yolo'])
+    if (host === 'muse') assert.deepEqual(build, ['serve'])
     if (host === 'antigravity-cli') assert.ok(build.includes('--dangerously-skip-permissions'))
   }
   // A continued Codex session is given the same sandbox.
@@ -123,7 +123,7 @@ test('a later turn continues the host session where the host can, and names a ne
   // Its ACP server ignores MCP servers named in session/new, so Ambio's goes on the command line.
   const config = JSON.parse(acp[acp.indexOf('--additional-mcp-config') + 1])
   assert.equal(config.mcpServers.ambio.env.AMBIO_WORKSPACE_ID, 'ws')
-  assert.equal(config.mcpServers.ambio.env.AMBIO_RUN_MESSAGE_ID, 'turn-1')
+  assert.equal(config.mcpServers.ambio.env.AMBIO_RUN_MESSAGE_ID, undefined)
   assert.equal(agentDriver('copilot-cli').resumable, true)
   assert.equal(deliveryPlan('copilot-cli', mcp, 'ws', 'p').stdin, undefined)
   assert.throws(() => deliveryPlan('cursor', mcp, 'ws', 'p'), /no direct/)

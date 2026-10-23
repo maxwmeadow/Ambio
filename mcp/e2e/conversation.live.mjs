@@ -20,7 +20,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startHarness, harnessFetch as fetch } from './mcpHarness.mjs'
 import { DeliveryRunner, deliveryPlan, findDeliveryCli } from '../../electron/agentDelivery.ts'
-import { agentDriver } from '../../electron/agentDrivers.ts'
+import { agentDriver, mcpEnvironment } from '../../electron/agentDrivers.ts'
 import { workOrderHandoff } from '../../src/shared/workOrderHandoff.ts'
 
 const host = process.env.AMBIO_LIVE_CONVERSATION_HOST
@@ -56,7 +56,16 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
   t.after(() => fs.rmSync(runs, { recursive: true, force: true }))
   const runner = new DeliveryRunner(runs)
   t.after(() => runner.stopAll())
-  const mcp = { command: process.execPath, args: [MCP_ENTRY] }
+  const startupDelay = Number(process.env.AMBIO_LIVE_MCP_DELAY_MS ?? 0)
+  assert.ok(Number.isInteger(startupDelay) && startupDelay >= 0 && startupDelay <= 90000, 'MCP delay must be 0–90000 ms')
+  let mcpArgs = [MCP_ENTRY]
+  if (startupDelay) {
+    assert.equal(host, 'grok', 'The delayed MCP startup trial is for Grok')
+    const slowMcp = path.join(runs, 'slow-mcp.mjs')
+    fs.writeFileSync(slowMcp, `import { pathToFileURL } from 'node:url'; setTimeout(() => { void import(pathToFileURL(process.argv[2]).href) }, Number(process.argv[3]))`)
+    mcpArgs = [slowMcp, MCP_ENTRY, String(startupDelay)]
+  }
+  const mcp = { command: process.execPath, args: mcpArgs }
   // A host that only reads its own config files is given one inside the
   // throwaway project, never in the developer's home.
   if (host === 'antigravity-cli') {
@@ -106,7 +115,7 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     const session = driver.acp || driver.acpArgs || driver.muse
     const acp = session ? {
       resume,
-      mcpServers: [{ name: 'ambio', command: mcp.command, args: [...mcp.args, `--ambio-host=${host}`], env: Object.entries({ ...binding, AMBIO_WORKSPACE_ID: harness.workspaceId, AMBIO_RUN_MESSAGE_ID: id }).map(([name, value]) => ({ name, value })) }],
+      mcpServers: [{ name: 'ambio', command: mcp.command, args: [...mcp.args, `--ambio-host=${host}`], env: Object.entries({ ...binding, ...mcpEnvironment(host, harness.workspaceId, id) }).map(([name, value]) => ({ name, value })) }],
       askUser: async question => {
         const response = await fetch(`${harness.apiBase}/api/agent/permission`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: harness.workspaceId, messageId: id, hostId: host, ...question }) })
         return (await response.json()).decision === 'allow'

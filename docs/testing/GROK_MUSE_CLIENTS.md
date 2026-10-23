@@ -11,9 +11,12 @@ merge. Neither vendor's model-driven compatibility is claimed as verified yet.
   unrelated settings and authored instructions, optional Muse server mode,
   malformed maps, ancestor Grok config and shared compatibility files.
 - `electron/grokMuseDrivers.test.mjs`: CLI discovery, advertised Grok auth,
-  per-session MCP binding, request identity, Muse MSP v1 start/resume/fresh
+  per-session MCP binding, Claude-only permission-hook environment, Muse MSP v1 start/resume/fresh
   fallback, model selection/discovery, events, Stop, unexpected exit,
   interactive blocking and workspace mismatch. These use strict protocol peers.
+- `tests/e2e/agent-delivery.spec.ts`: Grok ACP and Muse MSP peers exercise
+  discovery, first-use guides, real Send, persisted work-order handoff,
+  workspace/host binding, plain serve arguments and visible completion.
 - `ChooseAgent.test.mjs`: runnable-first defaults, explicit Grok/Muse mapping
   selections and discovery-independent app grouping. Instruction regressions
   cover both removal orders, lower-precedence cleanup, frozen Muse-only
@@ -82,6 +85,74 @@ Also run the app locally and check:
    global MCP entry is optional; moving Ambio must not abort unrelated Muse
    sessions. Removing dedicated setup preserves shared MCP/skill sources.
 
+## Native launch failure and startup checks
+
+- **Muse flag acceptance:** run `muse serve --help`, then the normal Muse
+  conversation trial. Ambio must launch exactly `muse serve`, without
+  `--yolo`; initialize, `session/start` with `allowAll`, and its first turn
+  must succeed. Approval mode does not disable Muse's configured sandbox,
+  select an unrestricted permission profile, or establish project trust.
+- **Grok Linux sandbox:** on a disposable Linux host with no `bwrap` on PATH,
+  try Ask, Propose and setup mapping. Each must have a launch-failed receipt
+  explaining “Install bubblewrap (bwrap on PATH)” before Grok is spawned.
+  Build does not require this read-only preflight. On a host with `bwrap`
+  installed but unusable user namespaces, the native failure must show the
+  bubblewrap/user-namespace recovery message, keep the read-only arguments,
+  and never silently restart with broader permissions. Install/fix bubblewrap
+  and repeat Ask/Propose; a native edit attempt must remain refused.
+- **Slow Grok MCP startup:** the conversation trial can delay its isolated
+  Ambio MCP server before initialization, without touching global config:
+
+  ```sh
+  AMBIO_LIVE_CONVERSATION_HOST=grok AMBIO_LIVE_MCP_DELAY_MS=25000 node --test mcp/e2e/conversation.live.mjs
+  ```
+
+  Repeat at 35000ms to cross Grok's own usual 30s server-start deadline. Grok
+  may reject that server itself; record its outcome. Ambio must not impose a
+  competing 30s session deadline, report “Run grok login”, or create another
+  session because of that startup timeout. Session new/load/resume have 120s
+  deadlines; initialize/authenticate remain bounded at 30s. The unit tests
+  advance fake timers through slow new, load and resume responses and assert
+  the stage-specific errors. Run with a retained session too, using the
+  follow-up in the conversation trial.
+
+## Muse denyUnmatched investigation
+
+The driver now starts plain `serve`. Its normal turns use `allowAll`, preserving
+Muse's configured sandbox/profile. **Ask/Propose no-edit is still a prompt
+constraint; native enforcement has not been established.**
+
+The published MSP v1 schema admits `denyUnmatched` on `session/start` and
+`session/setApprovalMode`. It admits only `mcpServers` in the per-session
+configuration: there is no stable per-session tool-policy override for
+“deny file edits but allow Ambio”. Each MCP override describes transport,
+command, arguments, environment, framing and required/optional startup, with
+no permission allowlist. Choosing a mode does not install new policy rules.
+[Meta's permission documentation](https://dev.meta.ai/docs/muse-code/permissions)
+also describes in-workspace file edits passing approval modes; a mode is not
+proof of a read-only filesystem boundary.
+
+The native probe requests
+`denyUnmatched`, reads the architecture, creates an Ambio sheet, then explicitly
+attempts one native file edit in the disposable project. It only passes if the
+Ambio operations work, a native edit is actually attempted, and the canary is
+unchanged. A model voluntarily declining to edit is inconclusive. Both start
+and resume policy requests have protocol tests, but those cannot prove the
+native policy's behavior. No native Muse binary is available here because the
+installer domain is blocked; the live enforcement result is **pending**, not
+reported as a successful experiment.
+
+```sh
+AMBIO_LIVE_MUSE_PERMISSIONS=1 node --test mcp/e2e/musePermissions.live.mjs
+```
+
+This writes `muse-denyUnmatched.json` under `AMBIO_LIVE_RECORD_DIR` (or the
+usual temp recording directory). If native edits still pass, or Ambio's
+mutating tools are denied, record that reason before considering a default
+switch. Until a native policy/profile proves both requirements, replacing the
+normal mode with `denyUnmatched` would claim an unproved boundary and may
+break mapping. Existing user policy rules/profile can affect the result.
+
 Record OS, CLI version, model, account plan, result and any native prompts.
 Shared-skill deduplication and attribution of independently opened Grok
 sessions that inherit another client's MCP entry remain a separate runtime
@@ -89,7 +160,9 @@ compatibility check. Ambio-started sessions receive explicit host identity.
 
 ## Recorded checks for this update
 
-- Unit suite: 762 passed, 14 skipped, zero failures.
+- Unit suite after launch review: 776 passed, 14 skipped, zero failures.
+- Linux Electron delivery UI test with Grok/Muse protocol peers: passed.
 - TypeScript check: passed.
-- Production build: passed. Both installed-launcher MCP round trips: passed.
+- Production build: passed. Both installed-launcher MCP round trips and both
+  Claude permission-hook MCP checks: passed.
 - Signed-in native conversation/draw-first trials: pending Max's local run.

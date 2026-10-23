@@ -8,7 +8,7 @@ import { resolveNodeCommand } from './platformPaths.ts'
 import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
-import { MuseClient } from './museClient.ts'
+import { MuseClient, type MuseTurn } from './museClient.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -190,7 +190,7 @@ export interface RunInput {
   fresh?: () => { args: string[]; stdin?: string; sessionId?: string }
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
   acp?: { mcpServers: AcpMcpServer[]; resume?: string }
-  muse?: { mcpServers: AcpMcpServer[]; resume?: string; model?: string }
+  muse?: Pick<MuseTurn, 'mcpServers' | 'resume' | 'model' | 'approvalMode'>
 }
 
 /** How many events a run keeps for the inbox to show. */
@@ -320,12 +320,14 @@ export class DeliveryRunner {
       let child: ChildProcess
       try {
         const env: NodeJS.ProcessEnv = { ...process.env, AMBIO_WORKSPACE_ID: input.workspaceId, AMBIO_AGENT_HOST: input.hostId }
+        if (input.hostId !== 'claude-code') delete env.AMBIO_RUN_MESSAGE_ID
         // A GUI app's PATH may omit the directory of its resolved CLI or Node.
         const node = resolveNodeCommand()
         const pathKey = Object.keys(env).find(name => name.toLowerCase() === 'path') ?? 'PATH'
         env[pathKey] = [dirname(input.launcher.command), ...(isAbsolute(node) ? [dirname(node)] : []), ...environmentPath(env).split(delimiter)].join(delimiter)
         if (input.launcher.bundledNode) env.ELECTRON_RUN_AS_NODE = '1'
         else delete env.ELECTRON_RUN_AS_NODE
+        input.driver?.preflight?.(input.mode ?? 'build', env, process.platform)
         child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
       } catch (error) { fail(error as Error); return }
       this.live.set(key, { child, run })

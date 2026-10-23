@@ -242,13 +242,12 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `grok-muse-launch-review` **Fix PR #10 launch review before native trials.** Plain Muse serve; Claude-only permission-hook binding; actionable Grok sandbox failures and startup-aware timeouts; investigate Muse denyUnmatched with Ambio tools; extend driver/UI peers and live acceptance checks. Keep the PR draft and leave unrelated CI failures alone. (Codex, codex/grok-muse-mcp-clients, 2026-10-22, Max review of 9ccd4a2)
 
 
 - ⬜ `grok-muse-compatibility` **Validate inherited MCP identity and skill deduplication in the real CLIs.** Shared config can retain another client's `--ambio-host` attribution, and shared skills can survive removal of dedicated setup; Settings now reports the shared files but does not override other clients' configuration or claim runtime deduplication. (2026-10-22, PR #10 review)
 - ⬜ `ci-main-gofmt` **Fix the Go formatting failures already present on main.** Review reports all OS jobs fail gofmt in `internal/db/sheet_layouts.go`, `internal/db/sheets.go`, and `internal/indexer/imports_more_test.go`; unrelated to PR #10. (2026-10-22, Claude review supplied by Max)
 
-- ⬜ `grok-muse-live-validation` **Record authenticated Grok Build and Muse Code client trials (Max runs locally).** Launch drivers, protocol regressions and installed MCP checks pass; run the documented native conversation/draw-first commands and record model-driven mapping, addressed replies, continuation, Stop and watching follow-ups using [docs/testing/GROK_MUSE_CLIENTS.md](docs/testing/GROK_MUSE_CLIENTS.md). (2026-10-22, MCP client implementation)
+- ⬜ `grok-muse-live-validation` **Record authenticated Grok Build and Muse Code client trials (Max runs locally).** Launch drivers, protocol regressions and installed MCP checks pass; run the documented native conversation/draw-first commands and record model-driven mapping, addressed replies, continuation, Stop, sandbox/slow-start failures, the native Muse denyUnmatched probe and watching follow-ups using [docs/testing/GROK_MUSE_CLIENTS.md](docs/testing/GROK_MUSE_CLIENTS.md). (2026-10-22, MCP client implementation)
 - ⬜ `grok-muse-native-chat` **Verify Grok and Meta Model API in native Ambio chat and add setup guidance/presets.** Use ordinary API keys through the compatible-provider path; test streaming, tools and follow-ups. No public ChatGPT-style third-party plan sign-in found; Meta subscription credentials are harness-restricted. See [research](docs/GROK_MUSE_RESEARCH.md). (2026-10-22, Max's sign-in research request)
 
 - ⬜ `e2e-full-run-flakes-windows` **Full Playwright runs on Windows fail one test intermittently, a different one each time; each passes on its own.** Seen 2026-10-15 across four full runs: `settings.spec.ts` "keeps its frame across sections" three times, `canvas.spec.ts` "Edit → Undo puts a moved system back" once (an 8s poll). Likely load or timing; find what each waits on. (2026-10-15)
@@ -317,6 +316,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 ## Done log
 
 Newest first. One line each: date, slug, what changed, branch/commit.
+
+- 2026-10-22 `grok-muse-launch-review` Fixed plain Muse serve arguments, Claude-only permission-hook bindings, pre-spawn Linux bubblewrap checks and native recovery messages, 120s Grok session/MCP startup deadlines with stage-specific errors, and timeout-safe resume. Added Grok/Muse Electron Send peers, Grok Ask edit-refusal/Stop/sandbox/slow-start tests, delayed native MCP startup trials, and a separate denyUnmatched native policy probe. Normal Muse no-edit remains prompt-based: stable MSP has no per-session rule allowlist; native enforcement plus Ambio tool access is explicitly unverified and documented for Max's local trial. Unit suite: 776 passed, 14 skipped; Linux Electron delivery spec, types, build, both installed MCP round trips and both permission-hook MCP checks pass. PR #10 stays draft; unrelated Go formatting and proposal placement untouched. (codex/grok-muse-mcp-clients)
 
 - 2026-10-22 `grok-muse-launch-parity` Added Ambio-started Grok ACP and Muse MSP routes with discovery, per-session MCP/request identity, vendor-owned auth, models, continuation, events and Stop; exposed setup mapping and started-by-Ambio guides; restored runnable-first setup defaults and stable shared instructions with a separate frozen Muse-only pointer. Unit suite: 762 passed, 14 skipped; types, production build and both installed MCP round trips pass. Native Grok help/catalog/initialization checked; signed-in Grok/Muse trials remain for Max locally, with commands in docs/testing/GROK_MUSE_CLIENTS.md. (codex/grok-muse-mcp-clients)
 
