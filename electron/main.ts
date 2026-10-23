@@ -237,7 +237,7 @@ function registerFolder(rootPath: string): ProjectConfig {
   const id = existing?.id ?? createProjectId()
   const freshConfig: ProjectConfig = {
     id,
-    name: rootPath.split(/[/\\]/).pop() ?? 'Project',
+    name: existing?.name ?? rootPath.split(/[/\\]/).pop() ?? 'Project',
     rootPath,
     creationSource: 'open-codebase',
     rootIsEmpty: fs.readdirSync(rootPath).length === 0,

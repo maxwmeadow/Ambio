@@ -9,6 +9,11 @@ data flow or a limit named here, update it in the same change.
 
 ## Project workbench chrome
 
+`ProjectSetupScreen` edits the display name in both initial setup and Project
+Settings. Confirmation trims the name and saves it with the source boundaries;
+blank names cannot be submitted. Electron's folder registration reuses a known
+project's saved name, so Open Codebase does not reset it to the folder name.
+
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
 Fit and Message Agent visible. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no
@@ -382,7 +387,11 @@ app's decision.
 | C# | ✅ | via `using` + namespaces | ✅ | - | regex | netcoredbg |
 | Rust, Java, Ruby | ✅ | `mod`/`use`, `import`, `require` | ✅ | - | regex | Ruby rdbg; Java unverified |
 | C++, C | ✅ | quoted `#include` (the header, or its implementing file) | ✅ | - | - | gdb DAP |
-| Kotlin, Swift, PHP | not parsed | | | | | |
+
+Kotlin, Swift, PHP, Scala, Groovy, Lua, Shell/Bash and Elixir are also parsed
+for symbols and project import links. CSS, Sass/SCSS and Less are mapped with
+stylesheet imports and symbols. The [README language table](../README.md#file-policy)
+lists supported file extensions and investigation run capabilities.
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git

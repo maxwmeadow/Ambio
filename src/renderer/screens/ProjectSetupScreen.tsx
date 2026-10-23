@@ -120,18 +120,31 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
 
   const trimmedName = name.trim()
   const handleConfirm = () => {
+    if (!trimmedName) return
     if (editing) {
       onConfirm(completeSourceBoundaries(
-        { ...baseConfig, name: trimmedName || projectName },
+        { ...baseConfig, name: trimmedName },
         mergeExclusions(tree, baseConfig.ignoredPaths),
       ))
       return
     }
     onConfirm({
-      ...completeSourceBoundaries(baseConfig, excludedPaths),
+      ...completeSourceBoundaries({ ...baseConfig, name: trimmedName }, excludedPaths),
       openedAt: Date.now(),
     })
   }
+
+  const nameField = (
+    <label className="ambio-project-settings__name">
+      <span>Project name</span>
+      <input
+        value={name}
+        onChange={event => setName(event.target.value)}
+        aria-label="Project name"
+        spellCheck={false}
+      />
+    </label>
+  )
 
   return (
     <main className="ambio-onboarding ambio-project-setup">
@@ -147,15 +160,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             {editing ? (
               <div>
                 <p className="ambio-source-setup__eyebrow">Project settings</p>
-                <label className="ambio-project-settings__name">
-                  <span>Name</span>
-                  <input
-                    value={name}
-                    onChange={event => setName(event.target.value)}
-                    aria-label="Project name"
-                    spellCheck={false}
-                  />
-                </label>
+                {nameField}
                 <p className="ambio-source-setup__description">
                   Choose which folders Ambio reads. Changing them updates the map, and is not reported as a code
                   change in your review of what agents did.
@@ -170,7 +175,8 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
               </div>
             ) : (
               <div>
-                <h1>Set up {projectName}</h1>
+                <h1>Set up your project</h1>
+                {nameField}
                 <code className="ambio-source-setup__path" title={rootPath}>{rootPath}</code>
                 <p className="ambio-source-setup__description">
                   Ambio reads what is checked below and draws it as your map. The defaults suit most projects.
@@ -182,7 +188,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             <details className="ambio-source-setup__help">
               <summary>What does Ambio read?</summary>
               <ul>
-                <li><strong>Source code</strong> (TypeScript, JavaScript, Python, Go, Rust, C#, C and C++, Ruby, Java, and stylesheets) becomes the map.</li>
+                <li><strong>Source code</strong> (TypeScript, JavaScript, Python, Go, Rust, C#, C and C++, Ruby, Java, Kotlin, Swift, PHP, Scala, Groovy, Lua, Shell/Bash, and Elixir) becomes the map. Stylesheets (CSS, Sass/SCSS, and Less) are included too.</li>
                 <li><strong>Documents</strong> (Markdown and text files) are kept searchable in Documents and are not drawn on the map.</li>
                 <li><strong>Everything else</strong> (images, data, JSON and other configuration) is not read.</li>
                 <li><strong>Dependency and build folders</strong> such as node_modules and dist, and folders whose name starts with a dot, are never read.</li>
@@ -236,7 +242,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             <button
               className="ambio-source-setup__submit"
               onClick={handleConfirm}
-              disabled={loading || Boolean(loadError && tree.length === 0) || (editing && !trimmedName)}
+              disabled={loading || Boolean(loadError && tree.length === 0) || !trimmedName}
             >
               <span>
                 <strong>{editing ? 'Save changes' : 'Index this project'}</strong>

@@ -5665,7 +5665,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-source-setup__help {
-  max-width: 760px;
   color: #46544f;
   font-size: 13px;
   line-height: 1.55;
