@@ -793,7 +793,19 @@ pub(crate) mod __ambio_rec {
     }
 
     fn canonical(path: &str) -> String {
-        std::fs::canonicalize(path).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.to_string())
+        let real = match std::fs::canonicalize(path) {
+            Ok(p) => p.to_string_lossy().into_owned(),
+            Err(_) => return path.to_string(),
+        };
+        // Windows answers with a verbatim \\?\ path; the files woven in are
+        // spelled as Go resolves them, without it, and must compare equal.
+        if let Some(rest) = real.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{}", rest)
+        } else if let Some(rest) = real.strip_prefix(r"\\?\") {
+            rest.to_string()
+        } else {
+            real
+        }
     }
 
     fn is_watched(state: &State, f: &F) -> bool {
