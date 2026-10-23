@@ -270,3 +270,23 @@ flowchart LR
 The arrows through progressive reads and the renderer adapter are proposed;
 these systems have not all been implemented. Existing camera/authoring semantics
 and canonical persistence remain authoritative throughout the migration.
+
+## Execution detail — 2026-10-22
+
+Continue the approved phase-2 scope on `codex/canvas-scene-scale`:
+
+- Keep the canonical scene/absolute geometry in a per-canvas registry outside
+  React Flow. Materialize buffered visible IDs, required ancestors, selected/live
+  nodes and relationship endpoints; preserve the outgoing subset during glides.
+  Fit/drop/initial framing use canonical geometry when an entity is not adopted.
+- Extract numeric Floor preparation from React projection. Evolve the existing
+  worker with a versioned preparation protocol/controller, cancellable chunks,
+  stale-result rejection and bounded fallback. Preserve authored layout and the
+  existing mutation/persistence paths.
+- Validate fixed-camera repeated navigation, dense relationships and long-run
+  memory, then benchmark the real daemon loading path using isolated data.
+  Report any remaining limit, including whole-model decode/projection, rather
+  than treating a successful replay as live-project acceptance.
+
+The live Ambio connector is unavailable. This records the already-authorized
+boundaries locally; no live sheet or work session was created.
