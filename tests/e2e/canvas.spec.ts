@@ -839,7 +839,7 @@ test('chooses project sources in a folder-first file browser', async () => {
   setupUrl.searchParams.set('setup', '1')
   await page.goto(setupUrl.toString())
 
-  await expect(page.getByRole('heading', { name: 'Set up Ambio Canvas Fixture' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Set up your project' })).toBeVisible()
   await expect(page.getByText(/Ambio reads what is checked below/)).toBeVisible()
   const sourceTree = page.getByRole('tree', { name: 'Project files and folders' })
   await expect(sourceTree).toBeVisible()
@@ -849,6 +849,12 @@ test('chooses project sources in a folder-first file browser', async () => {
   await expect(sourceTree.getByText('package.json', { exact: true })).toBeVisible()
 
   const startIndexing = page.getByRole('button', { name: /Index this project/ })
+  await expect(startIndexing).toBeEnabled()
+  const projectName = page.getByRole('textbox', { name: 'Project name' })
+  await expect(projectName).toHaveValue('Ambio Canvas Fixture')
+  await projectName.fill('   ')
+  await expect(startIndexing).toBeDisabled()
+  await projectName.fill('  My architecture  ')
   await expect(startIndexing).toBeEnabled()
 
   const rootKinds = await sourceTree.locator(':scope > .ambio-setup-tree__branch').evaluateAll(branches =>
@@ -892,6 +898,19 @@ test('chooses project sources in a folder-first file browser', async () => {
   expect(setupScale.checkboxSize).toBeGreaterThanOrEqual(18)
   expect(setupScale.primaryHeight).toBeGreaterThanOrEqual(58)
   await expect(page.locator('button button')).toHaveCount(0)
+
+  const rootPath = await page.locator('.ambio-source-setup__path').textContent()
+  await startIndexing.click()
+  await expect.poll(() => page.evaluate(async () => {
+    const projects = await window.ambio.listRecentProjects()
+    return projects.find(project => project.id === 'demo')?.name
+  })).toBe('My architecture')
+  // Opening the folder again must keep its display name and directory.
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path!] })
+  }, rootPath)
+  const reopened = await page.evaluate(() => window.ambio.openProjectDialog())
+  expect(reopened).toMatchObject({ id: 'demo', name: 'My architecture', rootPath })
 })
 
 test('keeps documentation in its library and off the architecture canvas', async () => {

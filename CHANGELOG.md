@@ -11,6 +11,10 @@ in the app as "What's New" after updating, so write it for users.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.
+- Setup's language list includes Kotlin, Swift, PHP, Scala, Groovy, Lua,
+  Shell/Bash and Elixir, plus the supported stylesheet formats.
+- The setup page lets you choose a project name independently of its folder.
+  Opening the same folder again keeps the name you chose.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.

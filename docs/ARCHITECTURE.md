@@ -9,6 +9,11 @@ data flow or a limit named here, update it in the same change.
 
 ## Project workbench chrome
 
+`ProjectSetupScreen` edits the display name in both initial setup and Project
+Settings. Confirmation trims the name and saves it with the source boundaries;
+blank names cannot be submitted. Electron's folder registration reuses a known
+project's saved name, so Open Codebase does not reset it to the folder name.
+
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
 Fit and Message Agent visible. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no
@@ -387,10 +392,13 @@ app's decision.
 | PHP | ✅ | `require`/`include`, PSR-4 `use` | - | - | - | recorded (prepended recorder) |
 | Swift, Lua, shell, Elixir | ✅ | `import`, `require`, `source`, `alias`/`use` | - | - | - | exit code and output |
 
+CSS, Sass/SCSS and Less are mapped with stylesheet imports and symbols.
 `.h` is read as C. Main's readers (`parser/imports_more.go`) cover Java, Rust,
 Ruby and C/C++; `parser/imports_text.go` covers the rest and C/C++ project
 headers, resolved by `indexer/imports_other.go`. What a run can see per
 language, and the toolchain each needs: [INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
+The [README language table](../README.md#file-policy) lists supported file
+extensions and investigation run capabilities.
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
