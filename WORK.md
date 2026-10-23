@@ -304,7 +304,7 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ---
 
-- ⬜ `ci-macos-lldb-initialized` **`TestCppCallsRecordedUnderTheSystemDebugger` fails on the macOS runner: lldb-dap never sends `initialized`** within 25s (`daplang.go` waitForInitialized), though `DevToolsSecurity -status` does not report disabled. Reproduce on a Mac or the runner; Linux and Windows (gdb) pass. (2026-10-23, CI cleanup)
+- ⬜ `ci-macos-lldb-initialized` **`TestCppCallsRecordedUnderTheSystemDebugger` and `TestGdbRecordsEveryCallToAWatchedCppFunction` fail on the macOS runner: lldb-dap never sends `initialized`** within 25s (`daplang.go` waitForInitialized), though `DevToolsSecurity -status` does not report disabled. Reproduce on a Mac or the runner; Linux and Windows (gdb) pass. (2026-10-23, CI cleanup)
 
 - ⬜ `ci-windows-rust-demotion` **`TestRustRecordedBuildBehavesLikeTheOrdinaryOne` fails on Windows only:** after `store` is demoted to tier 1 (same as Linux), nothing in `shop`'s lib is recorded except `add` and no further `[ambio]` line explains why. Look at the retry path in `rustrecorder/wrapper.go` (sync, mirror rewrite, evidence path) on Windows. (2026-10-23, CI cleanup)
 
