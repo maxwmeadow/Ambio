@@ -4,9 +4,10 @@ Status: **decided 2026-10-20** (DECISIONS §1; Q1-Q6 below accepted as
 recommended). Build items are in WORK.md under *Git and project shapes*,
 starting with `git-checkout-truth` (stage 0). Built on 2026-10-20: stages 0-5
 and stage 6's first slice (repositories inside a project are listed and
-journal correctly). Stage 4 applies a finished run as uncommitted changes
-rather than merging (DECISIONS 2026-10-20). Left: `git-repo-frames`,
-`git-nested-repo-branches`, `git-add-folder`. It replaced four open questions:
+journal correctly); repository frames on 2026-10-21. Stage 4 applies a
+finished run as uncommitted changes rather than merging (DECISIONS
+2026-10-20). Left: `git-nested-repo-branches`, `git-add-folder`,
+`git-cross-repo-edges`. It replaced four open questions:
 `project-shapes`, `branches-and-worktrees-ux`, `worktrees-one-or-two` and
 `multi-root-projects`.
 
@@ -148,9 +149,10 @@ removes the race instead of tuning debounce timers.
 With more than one repository, the Floor's top level groups by repository: a
 frame per repository, like the hosting frames. Clustered systems never span
 repositories, though a human or agent may group across them as a meaning
-edit. Relationships between repositories are drawn when they resolve: a
-shared package, an HTTP client to a detected service, or infrastructure both
-use.
+edit. Relationships between repositories are drawn when they resolve: an
+import that reaches the other repository today; later a shared package, an
+HTTP client to a detected service, or infrastructure both use (DECISIONS
+2026-10-21).
 
 ## Agents and worktrees
 

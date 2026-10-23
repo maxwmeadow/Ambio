@@ -40,11 +40,14 @@ type Root struct {
 }
 
 type System struct {
-	ID          string   `json:"id"`
-	WorkspaceID string   `json:"workspaceId"`
-	Name        string   `json:"name"`
-	ParentID    *string  `json:"parentId"`
-	Source      string   `json:"source"` // 'cluster'|'user'|'agent' ('directory' is legacy auto-owned)
+	ID          string  `json:"id"`
+	WorkspaceID string  `json:"workspaceId"`
+	Name        string  `json:"name"`
+	ParentID    *string `json:"parentId"`
+	Source      string  `json:"source"` // 'cluster'|'user'|'agent' ('directory' is legacy auto-owned)
+	// Kind says what sort of boundary this is: "" for an ordinary system,
+	// "repository" for the frame holding one repository inside a project.
+	Kind        string   `json:"kind,omitempty"`
 	Color       *string  `json:"color"`
 	Description *string  `json:"description"`
 	AgentNotes  *string  `json:"agentNotes"`
@@ -413,10 +416,11 @@ func UpsertSystem(db *sql.DB, s System) error {
 	_, err := db.Exec(`
 		INSERT INTO systems
 			(id, workspace_id, name, parent_id, source, color, description, agent_notes,
-			 depth, position_x, position_y, width, height, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			 depth, position_x, position_y, width, height, created_at, updated_at, kind)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, parent_id=excluded.parent_id, source=excluded.source,
+			kind=CASE WHEN excluded.kind <> '' THEN excluded.kind ELSE systems.kind END,
 			color=excluded.color, description=excluded.description,
 			agent_notes=excluded.agent_notes, depth=excluded.depth,
 			position_x=excluded.position_x, position_y=excluded.position_y,
@@ -424,14 +428,14 @@ func UpsertSystem(db *sql.DB, s System) error {
 			updated_at=excluded.updated_at`,
 		s.ID, s.WorkspaceID, s.Name, s.ParentID, s.Source, s.Color,
 		s.Description, s.AgentNotes, s.Depth,
-		s.PositionX, s.PositionY, s.Width, s.Height, s.CreatedAt, s.UpdatedAt)
+		s.PositionX, s.PositionY, s.Width, s.Height, s.CreatedAt, s.UpdatedAt, s.Kind)
 	return err
 }
 
 func GetSystems(db Reader, workspaceID string) ([]System, error) {
 	rows, err := db.Query(`
 		SELECT id, workspace_id, name, parent_id, source, color, description, agent_notes,
-		       depth, position_x, position_y, width, height, created_at, updated_at
+		       depth, position_x, position_y, width, height, created_at, updated_at, kind
 		FROM systems WHERE workspace_id = ? ORDER BY depth ASC, name ASC`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -443,7 +447,7 @@ func GetSystems(db Reader, workspaceID string) ([]System, error) {
 		if err := rows.Scan(
 			&s.ID, &s.WorkspaceID, &s.Name, &s.ParentID, &s.Source, &s.Color,
 			&s.Description, &s.AgentNotes, &s.Depth,
-			&s.PositionX, &s.PositionY, &s.Width, &s.Height, &s.CreatedAt, &s.UpdatedAt,
+			&s.PositionX, &s.PositionY, &s.Width, &s.Height, &s.CreatedAt, &s.UpdatedAt, &s.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -456,11 +460,11 @@ func GetSystem(db *sql.DB, id string) (*System, error) {
 	s := &System{}
 	err := db.QueryRow(`
 		SELECT id, workspace_id, name, parent_id, source, color, description, agent_notes,
-		       depth, position_x, position_y, width, height, created_at, updated_at
+		       depth, position_x, position_y, width, height, created_at, updated_at, kind
 		FROM systems WHERE id = ?`, id).Scan(
 		&s.ID, &s.WorkspaceID, &s.Name, &s.ParentID, &s.Source, &s.Color,
 		&s.Description, &s.AgentNotes, &s.Depth,
-		&s.PositionX, &s.PositionY, &s.Width, &s.Height, &s.CreatedAt, &s.UpdatedAt)
+		&s.PositionX, &s.PositionY, &s.Width, &s.Height, &s.CreatedAt, &s.UpdatedAt, &s.Kind)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -528,19 +532,20 @@ func ApplyClusterPlan(
 		if _, err = tx.Exec(`
 			INSERT INTO systems
 				(id, workspace_id, name, parent_id, source, color, description, agent_notes,
-				 depth, position_x, position_y, width, height, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				 depth, position_x, position_y, width, height, created_at, updated_at, kind)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(id) DO UPDATE SET
 				name=excluded.name,
 				parent_id=excluded.parent_id,
 				source='cluster',
+				kind=excluded.kind,
 				depth=excluded.depth,
 				updated_at=excluded.updated_at
 			WHERE systems.source IN ('cluster','directory')`,
 			system.ID, workspaceID, system.Name, system.ParentID, "cluster",
 			system.Color, system.Description, system.AgentNotes, system.Depth,
 			system.PositionX, system.PositionY, system.Width, system.Height,
-			createdAt, now,
+			createdAt, now, system.Kind,
 		); err != nil {
 			return fmt.Errorf("upsert cluster system %q: %w", system.Name, err)
 		}

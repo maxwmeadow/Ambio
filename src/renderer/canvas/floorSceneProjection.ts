@@ -141,7 +141,7 @@ function projectFloorNodesImpl({
         id, type: 'system', parentId: parentId ?? undefined, position, style,
         initialWidth: style.width, initialHeight: style.height,
         data: {
-          id, name: system.name, source: system.source, color, colorRgb: hexToRgb(color),
+          id, name: system.name, source: system.source, kind: system.kind, color, colorRgb: hexToRgb(color),
           description: system.description, agentNotes: system.agentNotes, depth,
           directChildCount: directChildCounts.get(id) ?? 0,
           currentZoom, isChild: !!parentId, childrenVisible: 0, nodeW: style.width,

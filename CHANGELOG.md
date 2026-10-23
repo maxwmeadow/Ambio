@@ -142,7 +142,9 @@ in the app as "What's New" after updating, so write it for users.
   map with the links between their files.
 - A project folder holding several repositories shows each one's branch in
   the toolbar menu, and switching branches inside one of them no longer shows
-  up as code changes.
+  up as code changes. On the map, each repository is a frame of its own
+  labelled with its branch, and the systems Ambio finds stay inside one
+  repository.
 - Agents Ambio starts can work in a worktree of their own (choose "Own
   worktree" when sending), so several can work at once. When one is done,
   apply its work to your branch as uncommitted changes to review and commit,

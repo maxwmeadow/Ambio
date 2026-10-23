@@ -130,7 +130,7 @@ test('deleting a saved native chat removes its transcript across restart without
     const record = { id: 'saved', workspaceId: 'fixture', rootPath: fs.realpathSync(directory), title: 'Finished question', providerId: 'fixture', model: 'fixture', state: 'idle', createdAt: 1, updatedAt: 2 }
     fs.writeFileSync(path.join(directory,'conversations.json'),JSON.stringify([record]))
     fs.writeFileSync(path.join(directory,'saved.json'),JSON.stringify([{id:'reply',role:'assistant',parts:[]}]))
-    const options = { directory, binary: 'must-not-launch', providers: {}, project: id => ({id,rootPath:directory}) }
+    const options = { directory, binary: 'must-not-launch', providers: {}, proxy: new ChatProviderProxy({}), project: id => ({id,rootPath:directory}) }
     const manager = new AgentChat(options)
     assert.equal(manager.list('fixture').length,1)
     manager.remove('saved')

@@ -234,11 +234,11 @@ func RepairUnplacedSheetLayouts(db *sql.DB) error {
 		  AND (EXISTS(SELECT 1 FROM sheet_elements e
 		              WHERE e.sheet_id=sheet_layouts.sheet_id
 		                AND COALESCE(e.system_id,e.file_id,e.infra_id)=sheet_layouts.node_id
-		                AND `+unplacedElement+`)
+		                AND ` + unplacedElement + `)
 		    OR EXISTS(SELECT 1 FROM planned_nodes p
 		              WHERE p.sheet_id=sheet_layouts.sheet_id
 		                AND 'planned:' || p.id=sheet_layouts.node_id
-		                AND `+unplacedPlanned+`))`); err != nil {
+		                AND ` + unplacedPlanned + `))`); err != nil {
 		return fmt.Errorf("repair unplaced sheet layouts: %w", err)
 	}
 	return nil

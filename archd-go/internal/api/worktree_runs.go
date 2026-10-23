@@ -33,7 +33,9 @@ func (s *Server) worktreesRoot() string {
 
 // isAmbioWorktree reports whether Ambio made this checkout for a run.
 func (s *Server) isAmbioWorktree(root db.Root) bool {
-	inside, err := filepath.Rel(s.worktreesRoot(), root.Path)
+	// Git reports a worktree's long, resolved path; the data folder can be a
+	// symlink (macOS /var) or a Windows 8.3 short name (C:\Users\RUNNER~1).
+	inside, err := filepath.Rel(resolvedRootPath(s.worktreesRoot()), resolvedRootPath(root.Path))
 	return err == nil && !strings.HasPrefix(inside, "..") && strings.HasPrefix(root.Branch, ambioBranchPrefix)
 }
 

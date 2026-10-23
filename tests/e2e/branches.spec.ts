@@ -193,6 +193,10 @@ test('another branch’s work is drawn on the Floor until the lens turns it off'
   const modified = page.locator('.react-flow__node[data-id="file_canvas"] .ambio-branch-overlay-mark[data-change="modified"]')
   await expect(modified).toBeVisible()
   await expect(modified).toHaveAttribute('title', 'Changed on codex/retry-checkout')
+  // A card off screen is not mounted, so fly to the deleted file as well.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/store/graphStore.ts')
+  await page.getByRole('option').first().click()
   await expect(page.locator('.react-flow__node[data-id="file_store"] .ambio-branch-overlay-mark[data-change="deleted"]')).toBeAttached()
   await page.waitForTimeout(900)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overlay-files.png') })
@@ -276,5 +280,27 @@ test('a folder of repositories shows each repository and its branch', async () =
     await page.mouse.move(700, 600)
     await page.waitForTimeout(400)
     await page.screenshot({ path: join(SHOTS, 'repositories.png') })
+  }
+})
+
+test('each repository in a folder of repositories is a frame on the Floor with its branch', async () => {
+  await launch(REPOS)
+  await page.evaluate(() => {
+    const store = (window as unknown as { __ambioGraphStore: { getState: () => { systems: Array<Record<string, unknown>> }; setState: (patch: Record<string, unknown>) => void } }).__ambioGraphStore
+    const frames: Record<string, string> = { sys_canvas: 'web', sys_daemon: 'services/api' }
+    store.setState({
+      systems: store.getState().systems.map(system => frames[system.id as string]
+        ? { ...system, name: frames[system.id as string], kind: 'repository' }
+        : system),
+    })
+  })
+  const web = page.locator('.react-flow__node[data-id="sys_canvas"]')
+  await expect(web.locator('.ambio-repository-kicker')).toHaveText('Repository · redesign')
+  await expect(page.locator('.react-flow__node[data-id="sys_daemon"] .ambio-repository-kicker')).toHaveText('Repository · main')
+  await expect(page.locator('.react-flow__node[data-id="sys_mcp"] .ambio-repository-kicker')).toHaveCount(0)
+  if (SHOTS) {
+    await page.mouse.move(700, 600)
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: join(SHOTS, 'repository-frames.png') })
   }
 })

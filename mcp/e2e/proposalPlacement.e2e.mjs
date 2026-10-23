@@ -91,7 +91,10 @@ test('a proposal is drawn inside its parent, owns the files it takes over, and r
     const decided = await (await fetch(`${apiBase}/api/sheets/${sheetId}?workspace=${workspaceId}`)).json()
     const index = decided.elements.find(candidate => candidate.fileId === file('storage/index.py').id)
     assert.equal(index.approvalStatus, 'rejected')
-    assert.equal(index.parentSystemId, file('storage/index.py').systemId ?? null)
+    // Back where it is now: background clustering may have assigned the file
+    // since the harness's first snapshot, and the rejection restores that.
+    const current = (await (await fetch(`${apiBase}/api/snapshot/${workspaceId}`)).json()).files.find(candidate => candidate.relPath === 'storage/index.py')
+    assert.equal(index.parentSystemId, current.systemId ?? null)
     // A system can be proposed under a new name; a file cannot (its name is its path).
     const renamed = await client.callTool('edit_sheet', { op: 'rename', sheet: sheetId, members: ['Records'], name: 'Record Store' })
     assert.equal(renamed.isError, false, renamed.text)
