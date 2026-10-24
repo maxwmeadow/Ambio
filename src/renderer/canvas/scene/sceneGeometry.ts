@@ -13,14 +13,39 @@ export interface FloorGeometryInput {
   systems: GeometrySystem[]; files: GeometryFile[]; infraNodes: GeometryInfra[]
   dependencies: GeometryDependency[]; layouts: FloorLayout[]; placements: Map<string, GeneratedPlacement>
 }
-export function numericGeometryInput(systems: DbSystem[], files: DbFile[], infraNodes: DbInfraNode[], dependencies: DbDependency[], layouts: FloorLayout[], placements: Map<string, GeneratedPlacement>): FloorGeometryInput {
-  const authored = new Set(layouts.filter(row => Number.isFinite(row.width) && row.width > 0 && Number.isFinite(row.height) && row.height > 0).map(row => row.nodeId))
-  return {
-    systems: systems.map(({ id, parentId, positionX, positionY, width, height }) => ({ id, parentId, positionX: authored.has(id) ? 0 : positionX, positionY: authored.has(id) ? 0 : positionY, width: authored.has(id) ? null : width, height: authored.has(id) ? null : height })),
-    files: files.map(({ id, systemId, positionX, positionY, width, height }) => ({ id, systemId, positionX: authored.has(id) ? 0 : positionX, positionY: authored.has(id) ? 0 : positionY, width: authored.has(id) ? null : width, height: authored.has(id) ? null : height })),
-    infraNodes: infraNodes.map(({ id, category, positionX, positionY }) => ({ id, category, positionX, positionY })),
-    dependencies: layouts.length ? [] : dependencies.map(({ src, dst }) => ({ src, dst })), layouts, placements: new Map(placements),
+export function numericGeometryInput(...args: Parameters<typeof numericGeometryInputSteps>): FloorGeometryInput {
+  const steps = numericGeometryInputSteps(...args)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+export function* numericGeometryInputSteps(systems: DbSystem[], files: DbFile[], infraNodes: DbInfraNode[], dependencies: DbDependency[], layouts: FloorLayout[], placements: Map<string, GeneratedPlacement>): Generator<void, FloorGeometryInput> {
+  const authored = new Set<string>()
+  let work = 0
+  for (const row of layouts) {
+    if (Number.isFinite(row.width) && row.width > 0 && Number.isFinite(row.height) && row.height > 0) authored.add(row.nodeId)
+    if ((++work & 255) === 0) yield
   }
+  const input: FloorGeometryInput = { systems: [], files: [], infraNodes: [], dependencies: [], layouts, placements: new Map() }
+  for (const { id, parentId, positionX, positionY, width, height } of systems) {
+    input.systems.push({ id, parentId, positionX: authored.has(id) ? 0 : positionX, positionY: authored.has(id) ? 0 : positionY, width: authored.has(id) ? null : width, height: authored.has(id) ? null : height })
+    if ((++work & 255) === 0) yield
+  }
+  for (const { id, systemId, positionX, positionY, width, height } of files) {
+    input.files.push({ id, systemId, positionX: authored.has(id) ? 0 : positionX, positionY: authored.has(id) ? 0 : positionY, width: authored.has(id) ? null : width, height: authored.has(id) ? null : height })
+    if ((++work & 255) === 0) yield
+  }
+  for (const { id, category, positionX, positionY } of infraNodes) {
+    input.infraNodes.push({ id, category, positionX, positionY })
+    if ((++work & 255) === 0) yield
+  }
+  if (!layouts.length) for (const { src, dst } of dependencies) {
+    input.dependencies.push({ src, dst })
+    if ((++work & 255) === 0) yield
+  }
+  for (const [id, placement] of placements) {
+    input.placements.set(id, placement)
+    if ((++work & 255) === 0) yield
+  }
+  return input
 }
 
 /**

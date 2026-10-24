@@ -1,5 +1,5 @@
 /** Opt-in, bounded local stage tracing. Labels never include project/file data. */
-export type PerfStage = 'snapshot.fetch' | 'snapshot.decode' | 'snapshot.store' |
+export type PerfStage = 'snapshot.fetch' | 'snapshot.decode' | 'snapshot.store' | 'snapshot.batch' |
   'scene.initial-packing' | 'scene.geometry' | 'scene.floor-projection' |
   'scene.records' | 'scene.signature' | 'scene.visibility-project' |
   'worker.scene-post' | 'worker.index' | 'worker.query' | 'worker.round-trip' | 'worker.geometry-post' | 'worker.geometry' | 'scene.numeric-input'
@@ -14,7 +14,7 @@ export function createPerfTrace(capacity = 2048, clock: () => number = () => per
     start(options: { events?: boolean } = {}) { events = Boolean(options.events); enabled = true; samples = []; totals.clear(); dropped = 0 },
     stop() { enabled = false; events = false },
     begin(stage: PerfStage, items?: number) {
-      if (events && /^(snapshot|scene\.(geometry|initial-packing|floor-projection))/.test(stage))
+      if (events && /^(snapshot\.(fetch|decode|store)|scene\.(geometry|initial-packing|floor-projection))/.test(stage))
         console.debug('AMBIO_PERF_STAGE', JSON.stringify({ stage, event: 'begin', items }))
     },
     record(stage: PerfStage, ms: number, items?: number) {
@@ -23,7 +23,7 @@ export function createPerfTrace(capacity = 2048, clock: () => number = () => per
       total.count++; total.totalMs += ms; total.maxMs = Math.max(total.maxMs, ms)
       total.maxItems = Math.max(total.maxItems, items ?? 0); totals.set(stage, total)
       if (samples.length === capacity) { samples.shift(); dropped++ }
-      if (events && /^(snapshot|scene\.(geometry|initial-packing|floor-projection))/.test(stage))
+      if (events && /^(snapshot\.(fetch|decode|store)|scene\.(geometry|initial-packing|floor-projection))/.test(stage))
         console.debug('AMBIO_PERF_STAGE', JSON.stringify({ stage, event: 'end', ms, items }))
       samples.push({ stage, ms, at: clock(), ...(items === undefined ? {} : { items }) })
     },

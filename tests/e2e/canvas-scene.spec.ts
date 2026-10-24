@@ -19,18 +19,26 @@ async function launchScene() {
   await page.addInitScript(() => {
     const w = window as any, NativeWorker = window.Worker
     w.__sceneWorkers = []; w.__sceneMessages = []; w.__sceneTerminations = 0
+    const uploadedItems = new Map<number, number>()
     window.Worker = class extends NativeWorker {
       constructor(...args: ConstructorParameters<typeof Worker>) {
         super(...args); w.__sceneWorkers.push(this)
         this.addEventListener('message', event => {
-          if (event.data.op === 'prepared' && event.data.token === w.__holdPreparationToken) {
+          if (event.data.op === 'prepared' && event.data.token === w.__holdPreparationToken && this === w.__holdPreparationWorker) {
             event.stopImmediatePropagation(); w.__heldPreparation = { worker: this, data: event.data }
           }
         })
       }
       terminate() { w.__sceneTerminations++; return super.terminate() }
       postMessage(message: any, options?: any) {
-        if (message.op === 'prepare' && message.input.systems.length + message.input.files.length === 100000) w.__holdPreparationToken = message.token
+        if (message.op === 'prepare' && message.input.systems.length + message.input.files.length === 100000) { w.__holdPreparationToken = message.token; w.__holdPreparationWorker = this }
+        if (message.op === 'prepare-start') uploadedItems.set(message.token, 0)
+        if (message.op === 'prepare-chunk' && ['systems', 'files'].includes(message.chunk.field))
+          uploadedItems.set(message.token, (uploadedItems.get(message.token) ?? 0) + message.chunk.rows.length)
+        if (message.op === 'prepare-commit') {
+          if (uploadedItems.get(message.token) === 100000) { w.__holdPreparationToken = message.token; w.__holdPreparationWorker = this }
+          uploadedItems.delete(message.token)
+        }
         w.__sceneMessages.push({ op: message.op, channel: message.channel,
           items: message.input ? message.input.systems.length + message.input.files.length + message.input.infraNodes.length : 0 })
         return super.postMessage(message, options)

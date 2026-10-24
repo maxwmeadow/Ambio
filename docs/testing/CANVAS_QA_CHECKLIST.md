@@ -43,7 +43,8 @@ passing automated tests do not fill them in. See
 - [ ] **CP7 — Longer session.** Revisit the same views and search targets for
   10–20 minutes with normal editing/activity. Record whether responsiveness or
   memory steadily worsens and whether reopening changes it. This observation
-  supplements the failed automated heap gate; it does not prove a memory plateau.
+  supplements the [retention fix and automated memory checks](CANVAS_COLD_ADOPTION.md);
+  it does not certify a memory plateau for every project.
 
 - [~] **CP8 — Initial-mapping review mouse pan.** Max found hitches after the
   first mapping, while approving/sending back systems; Floor mouse pan and review

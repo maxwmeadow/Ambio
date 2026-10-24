@@ -97,6 +97,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   relationships, no huge synchronous fallback is attempted: retain coherent
   content and offer Retry. Unresponsive superseded work is terminated after its
   cancellation acknowledgement deadline instead of blocking newer work forever.
+- Large HTTP snapshot reads and canvas preparation publish only completed,
+  current results. Byte decoding runs off-thread for large replies; row/geometry
+  transfers use acknowledged batches. Projection yields without publishing
+  incomplete hierarchy or saving stale placement. Same-scope preparation keeps
+  coherent content visible; empty/new scopes release old prepared models.
+  Failure remains recoverable without synchronously decoding a huge reply.
+  This scheduling change preserves authored geometry, reveal thresholds and
+  navigation timing; it does not imply a fully paged project model.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
   React Flow additionally culls offscreen components; retention no longer requires

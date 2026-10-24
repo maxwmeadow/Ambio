@@ -11,8 +11,9 @@ Handoff update, 2026-10-23: checkpoint `99f5575` and handoff docs `8d28411`
 are ancestors of remote main `908e488`. Max reports that the merged improvements
 work very well, with a specific first-mapping review mouse-pan hitch. That
 follow-up is scoped in [REVIEW_POINTER_PAN.md](testing/REVIEW_POINTER_PAN.md), on
-`codex/review-pointer-pan`. Broader work items remain unclaimed and phases 2–5
-are not declared complete. Canonical-scene evidence and remaining failed gates
+`codex/review-pointer-pan`. The next cold-adoption/scene-retention slice is recorded in
+[CANVAS_COLD_ADOPTION.md](testing/CANVAS_COLD_ADOPTION.md); phases 2–5 are not
+declared complete. Canonical-scene evidence and remaining failed gates
 are in [CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md); the
 [checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
 records manual testing still needed.

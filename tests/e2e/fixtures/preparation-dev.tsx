@@ -20,7 +20,7 @@ function Fixture() {
   const [empty, setEmpty] = useState(false)
   const model = useMemo<FloorModel | null>(() => empty ? null : ({
     scope: 'review:strict-mode', systems: [], infraNodes: [], dependencies: [],
-    files: [{ id: 'file', systemId: null, positionX: 1, positionY: 20, width, height: 110 }] as FloorModel['files'],
+    files: [{ id: 'file', relPath: 'file.ts', language: 'typescript', lineCount: 1, churnScore: 0, indexedAt: 1, systemId: null, positionX: 1, positionY: 20, width, height: 110 }] as FloorModel['files'],
     layouts: [{ nodeId: 'file', parentNodeId: null, positionX: 1, positionY: 20, width, height: 110, scale: 1, interiorScale: 1 }] as FloorModel['layouts'],
   }), [revision, width, empty])
   const prepared = usePreparedFloorGeometry(controller, 'floor', model, placements.current, 0)

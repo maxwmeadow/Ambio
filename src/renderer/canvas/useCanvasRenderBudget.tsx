@@ -50,6 +50,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: Ed
   budget.configure(enabled)
   const [visible, setVisible] = useState<Set<string> | null>(null)
   const controller = useRef<{ update: (records: SceneRecord[], edges: RelationshipRecord[]) => void } | null>(null)
+  const spatialRevision = useRef(0)
   const previousRecords = useRef<SceneRecord[]>([])
   const records = useMemo(() => traceSync('scene.records', () => {
     const next = sceneRecords(nodes, previousRecords.current)
@@ -153,7 +154,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: Ed
     const update = (next: SceneRecord[], edges: RelationshipRecord[]) => {
       if (source === next && sourceEdges === edges) return
       const changed = source !== next
-      source = next; sourceEdges = edges; scene++; bounds = null; localEdges = undefined
+      source = next; sourceEdges = edges; scene = ++spatialRevision.current; bounds = null; localEdges = undefined
       if (changed) {
         local = undefined
         currentIds = new Set(next.filter(record => !record.hidden).map(record => record.id))

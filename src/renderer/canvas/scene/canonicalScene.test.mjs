@@ -36,3 +36,26 @@ test('camera materialization visits the admitted neighborhood rather than 100k p
   assert.equal(next.byId.get('5').selected, true)
   assert.deepEqual(materializedIds(next, ['6'], [], ['5', 'deleted']), ['5', '6'])
 })
+
+
+test('current canonical lookups release the previous scene after collection', async () => {
+  // A separate heap makes the collection check deterministic without changing
+  // ordinary test-runner flags. Keeping the current lookup alive is essential:
+  // the old closure implementation retained its entire previous-scene chain.
+  const { spawnSync } = await import('node:child_process')
+  const moduleUrl = new URL('./canonicalScene.ts', import.meta.url).href
+  const script = `
+    import assert from 'node:assert/strict';
+    import { setImmediate } from 'node:timers/promises';
+    import { canonicalScene } from ${JSON.stringify(moduleUrl)};
+    let current = canonicalScene([{id:'a',position:{x:0,y:0},data:{}}], []);
+    const old = new WeakRef(current);
+    current = canonicalScene([{id:'a',position:{x:0,y:0},data:{},selected:true}], [], current);
+    await setImmediate();
+    for(let i=0;i<3;i++){globalThis.gc();await setImmediate();}
+    assert.equal(old.deref(),undefined);
+    assert.equal(current.byId.get('a').selected,true);
+  `
+  const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', script], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+})

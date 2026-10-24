@@ -77,7 +77,6 @@ import { contentRectFor, FRAME_ITEM_GAP } from './frameGeometry'
 import { packFrame } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
-import { projectFloorNodes } from './floorSceneProjection'
 import { canPersistGeneratedFrame } from './incrementalFrameLayout'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
@@ -627,7 +626,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // readiness therefore tracks the visible render set rather than waiting for
   // measurements that hidden nodes should never produce.
   const nodesInitialized = useNodesInitialized()
+  const caseRun = useGraphStore(s =>
+    !isolatedScene && s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
   const livingVisibilityOptions = useMemo(() => {
+    if (!Object.keys(nodeFx).length && !relationshipFx.length && !Object.keys(agentAttention).length &&
+        !Object.keys(runtimeNodes).length && !activeTrace?.length && !dataFlow && !caseRun && !activeWorkSessions.length) return {}
     const semanticParentById = new Map<string, string | null>()
     const labelById = new Map<string, string>()
     for (const system of systems) {
@@ -643,7 +646,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       labelById.set(infra.id, infra.name)
     }
     return { semanticParentById, labelById }
-  }, [systems, files, infraNodes])
+  }, [systems, files, infraNodes, nodeFx, relationshipFx, agentAttention, runtimeNodes, activeTrace, dataFlow, caseRun, activeWorkSessions])
 
   const [candidateRfNodes, setRfNodes] = useState<Node[]>([])
   const [candidateOwner, setCandidateOwner] = useState<string | null>(null)
@@ -691,11 +694,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // A healthy snapshot from before an index add/delete is not a valid recovery
   // target for the new canonical graph. Reusing it creates a permanent
   // canonical-mismatch loop and leaves deleted nodes interactive.
-  const retainedScene = retainedCandidate &&
+  const retainedScene = useMemo(() => !candidateSceneIntegrity.valid && retainedCandidate &&
     retainedCandidate.length === canonicalNodeIds.size &&
     retainedCandidate.every(node => canonicalNodeIds.has(node.id))
-    ? retainedCandidate
-    : null
+    ? retainedCandidate : null, [candidateSceneIntegrity.valid, retainedCandidate, canonicalNodeIds])
   const rfNodes = deferCanvasMaterialization || candidateOwner !== sceneProjectId
     ? []
     : !candidateSceneIntegrity.valid && retainedScene?.length
@@ -764,14 +766,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // and render the chip from that instead.
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
   const [selectionRevision, setSelectionRevision] = useState(0)
+  const selectionFileIndex = useRef<{ source: DbFile[]; ids: Set<string> }>()
+  if (selectionFileIndex.current?.source !== files) selectionFileIndex.current = undefined
   const commitSelection = useCallback((ids: Set<string>) => {
     const previous = selectedIdsRef.current
     const changed = previous.size !== ids.size || [...ids].some(id => !previous.has(id))
     selectedIdsRef.current = ids
     if (changed) useSheetStore.setState({ selectedCanvasIds: [...ids] })
     if (changed) setSelectionRevision(revision => revision + 1)
-    const currentFileIds = new Set(files.map(file => file.id))
-    const next = [...ids].filter(id => currentFileIds.has(id))
+    if (ids.size && selectionFileIndex.current?.source !== files) selectionFileIndex.current = { source: files, ids: new Set(files.map(file => file.id)) }
+    const next = ids.size ? [...ids].filter(id => selectionFileIndex.current!.ids.has(id)) : []
     setSelectedFileIds(previous => {
       if (previous.length === next.length && next.every(id => previous.includes(id))) {
         return previous
@@ -909,7 +913,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const activePlannedByNodeId = useMemo(() => new Map(
     (layersById[overlaySheetId ?? '']?.planned ?? []).map(p => [`planned:${p.id}`, p]),
   ), [layersById, overlaySheetId])
-  const activeNodeIds = useMemo(() => sheetEditableNodeIds({
+  const activeNodeIds = useMemo(() => !overlaySheetId ? new Set<string>() : sheetEditableNodeIds({
     activeSheetId: overlaySheetId,
     // Live entities are shared with the Floor. Moving one for the first time
     // promotes its geometry into a sparse sheet layout row.
@@ -932,6 +936,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
    */
   const sheetMoves = useMemo(() => {
     const moves = new Map<string, string | null>()
+    if (!visibleLayers.length) return moves
     const floorParent = new Map(floorLayouts.map(layout => [layout.nodeId, layout.parentNodeId ?? null]))
     const semanticParent = new Map<string, string | null>([
       ...systems.map(system => [system.id, system.parentId ?? null] as const),
@@ -961,6 +966,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     .map(element => [element.systemId!, { name: element.proposedName!, pending: element.renameStatus === 'pending' }] as const))), [visibleLayers])
 
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
+    if (!visibleLayers.length) return floorLayouts
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
     const liveFiles = new Map(files.map(file => [file.id, file]))
@@ -1041,18 +1047,18 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
     return [...byId.values()]
   }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
-  const sheetSystemIds = useMemo(() => new Set([
+  const sheetSystemIds = useMemo(() => new Set(visibleLayers.length ? [
     ...systems.map(system => system.id),
     ...overlayPlanned.filter(node => node.kind === 'system').map(node => `planned:${node.id}`),
-  ]), [systems, overlayPlanned])
-  const sheetFileIds = useMemo(() => new Set([
+  ] : []), [systems, overlayPlanned, visibleLayers])
+  const sheetFileIds = useMemo(() => new Set(visibleLayers.length ? [
     ...files.map(file => file.id),
     ...overlayPlanned.filter(node => node.kind !== 'system' && node.kind !== 'infra').map(node => `planned:${node.id}`),
-  ]), [files, overlayPlanned])
-  const sheetInfraIds = useMemo(() => new Set([
+  ] : []), [files, overlayPlanned, visibleLayers])
+  const sheetInfraIds = useMemo(() => new Set(visibleLayers.length ? [
     ...infraNodes.map(infra => infra.id),
     ...overlayPlanned.filter(node => node.kind === 'infra').map(node => `planned:${node.id}`),
-  ]), [infraNodes, overlayPlanned])
+  ] : []), [infraNodes, overlayPlanned, visibleLayers])
   const [isTransitioningLayout, setIsTransitioningLayout] = useState(false)
   // Placements decided for nodes with no persisted row. Refs, not state: they
   // must survive every reprojection without causing one. See GeneratedPlacement.
@@ -1165,13 +1171,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     return { systems: compact.systems, files: virtualFiles, infraNodes: virtualInfra, dependencies,
       layouts: compact.layouts, scope: `${sceneProjectId}:sheets:${visibleSheetIds.join('|')}` }
   }, [visibleLayers, systems, files, infraNodes, dependencies, overlayPlanned, sheetEffectiveLayouts, sheetMoves, sceneProjectId, visibleSheetIds])
-  const sheetPreparation = usePreparedFloorGeometry(sceneWorker, 'sheet', sheetModel, sheetPlacementsRef.current, preparationRetry)
+  const sheetPreparation = usePreparedFloorGeometry(sceneWorker, 'sheet', sheetModel, sheetPlacementsRef.current, preparationRetry, () => currentZoomRef.current)
   const sheetBaseNodes = useMemo(() => {
     if (!sheetModel || !sheetPreparation.value) return null
     const { input, geometry } = sheetPreparation.value
     const virtualSystems = input.systems, virtualFiles = input.files
-    const sheetLayout = projectFloorNodes({ systems: input.systems, files: input.files, infraNodes: input.infraNodes,
-      ...geometry, currentZoom: currentZoomRef.current })
+    const sheetLayout = sheetPreparation.value.nodes
     const originalParents = new Map<string, string | null>([
       ...systems.map(node => [node.id, node.parentId] as const), ...files.map(node => [node.id, node.systemId] as const),
       ...floorLayouts.map(row => [row.nodeId, row.parentNodeId] as const),
@@ -1416,8 +1421,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // callout sits on the file once it is visible, and on its closed system,
   // naming the file, before then. Revealing the file inside the closed system
   // instead covered the system's own title.
-  const caseRun = useGraphStore(s =>
-    !isolatedScene && s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
   const runCalloutList = useMemo(
     () => (isolatedScene ? [] : runCallouts(caseRun)),
     [caseRun, isolatedScene],
@@ -1447,10 +1450,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // map exactly and an incoming live edit still animates on top of a mark.
   const deltaKnownNodeIds = useMemo(() => {
     const ids = new Set<string>()
+    if (!deltaReviewing || !delta) return ids
     for (const file of files) ids.add(file.id)
     for (const system of systems) ids.add(system.id)
     return ids
-  }, [files, systems])
+  }, [files, systems, deltaReviewing, delta])
   const deltaReview = useMemo(
     () => buildDeltaReview(deltaReviewing ? delta : null, deltaKnownNodeIds),
     [delta, deltaReviewing, deltaKnownNodeIds],
@@ -2414,7 +2418,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const floorModel = useMemo<FloorModel | null>(() => deferCanvasMaterialization || systems.length + files.length + infraNodes.length === 0 ? null : {
     systems, files, infraNodes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
   }, [systems, files, infraNodes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
-  const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry)
+  const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
+    reviewMode ? undefined : () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current)
   const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
   const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
 
@@ -2445,7 +2450,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     if (!floorPreparation.current || !floorPreparation.value) return
     const geometry = floorPreparation.value.geometry
     const { generatedLayoutNodeIds, resizedContainerIds } = geometry
-    const layout = projectFloorNodes({ systems, files, infraNodes, ...geometry, currentZoom: currentZoomRef.current })
+    const layout = floorPreparation.value.nodes
     const newEdges: Edge[] = []
     const filesByIdForPersistence = new Map(files.map(file => [file.id, file]))
     const systemIdsForPersistence = new Set(systems.map(system => system.id))
@@ -2586,7 +2591,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     }
 
-    const layoutWithCallbacks = layout.map(n => {
+    const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => {
       return {
         ...n,
         draggable: reviewMode

@@ -71,6 +71,7 @@ test('small worker fallback is asynchronous and preserves geometry; large fallba
   const small = controller.prepare('floor', data).then(value => { settled = true; return value })
   await Promise.resolve(); assert.equal(settled, false)
   assert.deepEqual(await small, prepare(data))
+  assert.equal((await controller.prepare('floor', input(1500))).descriptors.length, 1500, 'authored rows do not count as a second set of scene entities')
   await assert.rejects(controller.prepare('floor', input(2001)), /Background canvas preparation is unavailable/)
   controller.stop()
 })
@@ -102,4 +103,45 @@ test('invalid legacy dimensions retain semantic fallbacks during numeric transfe
   data.layouts[0].width = 0
   const numeric = numericGeometryInput(data.systems, data.files, data.infraNodes, data.dependencies, data.layouts, data.placements)
   assert.deepEqual(prepare(numeric), prepare(data))
+})
+
+
+test('large geometry uploads are acknowledged, bounded and superseded independently of late transfer replies', async () => {
+  const messages = [], port = { postMessage: data => messages.push(data), terminate() {}, onmessage: null, onerror: null }
+  const controller = createSceneController(() => port)
+  const first = controller.prepare('floor', input(3000))
+  const aborted = assert.rejects(first, { name: 'AbortError' })
+  const old = messages[0]
+  assert.equal(old.op, 'prepare-start')
+  port.onmessage({ data: { op: 'prepare-input-next', channel: 'floor', token: old.token } })
+  assert.equal(messages.at(-1).op, 'prepare-chunk')
+  assert.equal(messages.at(-1).chunk.rows.length, 512)
+  const second = controller.prepare('floor', input(4000))
+  await aborted
+  const latest = messages.at(-1), count = messages.length
+  port.onmessage({ data: { op: 'prepare-input-next', channel: 'floor', token: old.token } })
+  assert.equal(messages.length, count)
+  port.onmessage({ data: { op: 'prepare-cancelled', token: old.token } })
+  port.onmessage({ data: { op: 'prepared-start', channel: 'floor', token: latest.token } })
+  port.onmessage({ data: { op: 'prepared-chunk', channel: 'floor', token: latest.token,
+    chunk: { field: 'geometryById', kind: 'map', rows: [['current', { x: 42 }]] } } })
+  port.onmessage({ data: { op: 'prepared', channel: 'floor', token: old.token, geometry: 'stale' } })
+  port.onmessage({ data: { op: 'prepared', channel: 'floor', token: latest.token } })
+  assert.equal((await second).geometryById.get('current').x, 42)
+  controller.stop()
+})
+
+test('new visibility scenes replace in-flight uploads, including a large-to-small transition', () => {
+  const messages = [], port = { postMessage: data => messages.push(data), terminate() {}, onmessage: null, onerror: null }
+  const controller = createSceneController(() => port)
+  const records = Array.from({ length: 3000 }, (_, id) => ({ id: String(id) }))
+  controller.post({ op: 'scene', scene: 1, records, relationships: [] })
+  const first = messages[0]
+  assert.equal(first.op, 'scene-start')
+  controller.post({ op: 'scene', scene: 2, records: [], relationships: [] })
+  const count = messages.length
+  port.onmessage({ data: { op: 'scene-input-next', token: first.token } })
+  assert.equal(messages.length, count)
+  assert.equal(messages.at(-1).scene, 2)
+  controller.stop()
 })

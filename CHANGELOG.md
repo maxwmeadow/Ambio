@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Large maps prepare and transfer their scene in smaller background steps,
+  reducing loading hitches. Repeated navigation releases old complete scenes
+  instead of retaining them in memory.
 - Mouse-drag panning on the first-mapping review page avoids repeated hits on
   every card and unnecessary connection/shadow work. Card shadows return when
   panning stops; approval, selection, dragging and resizing keep their behavior.

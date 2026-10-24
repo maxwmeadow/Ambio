@@ -1,3 +1,4 @@
+import { decodeCanvasSnapshot } from './store/snapshotLoader'
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
@@ -240,6 +241,7 @@ export default function App() {
       // (graph:patch choreography) deterministically without a real daemon.
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
       ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
+      ;(window as unknown as { __ambioDecodeSnapshot?: unknown }).__ambioDecodeSnapshot = decodeCanvasSnapshot
       return
     }
     if (!window.ambio) {

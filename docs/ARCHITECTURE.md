@@ -616,6 +616,21 @@ During a review pane drag, CSS suspends the card/folder backdrop shadow filters;
 resting artwork returns when Flow clears its pane-drag state. No per-move React
 state or model mutation is introduced. See [review pan measurements](testing/REVIEW_POINTER_PAN.md).
 
+Large HTTP resync snapshots use `store/snapshotLoader.ts` and its temporary
+worker: transfer bytes, parse off-thread, receive acknowledged row batches and
+apply only a complete snapshot. Connection changes abort the fetch/reader;
+ordered WebSocket buffering remains authoritative. Small replies decode inline.
+Full WebSocket snapshots/classification events remain atomic. Numeric input,
+input equivalence, React-node projection and initial Floor semantic visibility
+prepare cooperatively through `scene/sceneSteps.ts`. Large numeric, prepared and
+spatial payloads use `scene/sceneTransfer.ts` batches on the existing scene
+worker, with tokens, backpressure and monotonic spatial revisions. Generator
+checkpoints and bounded entry counts do not guarantee a frame deadline for an
+individual large row or primitive. Complete model storage still scales with
+project size. Current lookup objects do not capture earlier canonical scenes;
+this avoids retaining the complete scene history through closure contexts.
+Evidence: [cold adoption and memory](testing/CANVAS_COLD_ADOPTION.md).
+
 `scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
 frame preparation, separate from `floorSceneProjection.ts` (React node data).
 `scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet
@@ -685,8 +700,9 @@ the existing passive minimap presentation without per-hidden-ID wrappers. Native
 E2E checks count actual React wrapper components as well as DOM nodes so hidden
 subscriptions cannot regress unnoticed. Complete canonical geometry lives outside
 React Flow; Flow owns only the admitted interaction subset described above.
-Full snapshot decoding, canonical React-node projection, worker copying and total
-model storage still scale with project size. This is not a completed progressive
+Snapshot decoding, canonical React-node projection, worker copying and total
+model storage still scale with project size, though large HTTP decoding is now
+off-thread and projection/transfer are staged. This is not a completed progressive
 data/adoption boundary.
 Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
 normal commit if a focused field is culled. React suppresses synthetic blur during
