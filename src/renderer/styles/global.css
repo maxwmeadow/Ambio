@@ -6595,6 +6595,22 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   transition: none;
 }
 
+/* Initial-map review has no drawn edges or connection gestures. Its thousands
+   of transparent, disabled handles need not participate in browser layout/hits.
+   Floor/sheet endpoints still require their normal measured handle geometry. */
+.ambio-canvas-review .react-flow__handle {
+  display: none;
+}
+
+/* Review deliberately shows every child, including tiny overview cards. Avoid
+   hundreds of filtered SVG surfaces during a mouse camera drag. Pane dragging
+   is Flow's camera state, not a node drag/resize; resting artwork returns on
+   release without a React state update or scene rebuild. */
+.ambio-canvas-review .react-flow__pane.dragging .ambio-shape-backdrop-path,
+.ambio-canvas-review .react-flow__pane.dragging .ambio-system-backdrop {
+  filter: none !important;
+}
+
 .ambio-review__canvas-empty {
   display: grid;
   height: 100%;

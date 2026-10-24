@@ -518,6 +518,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       }}>
       {/* Semantic systems use a package outline; hosting uses a compute chassis. */}
       <svg
+        className="ambio-system-backdrop"
         width={shellSize.w} height={shellSize.h}
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
           overflow: 'visible',

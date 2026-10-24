@@ -607,6 +607,15 @@ Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots
 include unadopted children and apply their compensation through the normal
 controlled-node callback. Only active resize owners need remain adopted.
 
+Initial-mapping review still shows every child rather than applying Floor
+semantic hiding. Its empty-pane mouse pan captures the pointer on that surface
+without replacing Flow's camera math. Node drags, Shift/lasso and touch remain
+native Flow gestures. Review has no edges/connection gestures: its disabled
+connection handles use `display: none`, while Floor/sheet anchors stay measured.
+During a review pane drag, CSS suspends the card/folder backdrop shadow filters;
+resting artwork returns when Flow clears its pane-drag state. No per-move React
+state or model mutation is introduced. See [review pan measurements](testing/REVIEW_POINTER_PAN.md).
+
 `scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
 frame preparation, separate from `floorSceneProjection.ts` (React node data).
 `scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet

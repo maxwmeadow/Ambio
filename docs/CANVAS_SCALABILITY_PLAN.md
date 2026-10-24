@@ -7,13 +7,15 @@ Canonical Flow materialization and automatic Floor/sheet worker geometry are imp
 Progressive scene/data adoption, cold input acceptance and wider density/memory acceptance remain open.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
 
-Handoff, 2026-10-23: checkpoint `99f5575` on `codex/canvas-scene-scale` is ready
-for Max's other session to merge, then Max will test real projects. Neither merge
-nor human acceptance has been verified here. Further implementation awaits that
-feedback; the remaining WORK items are unclaimed. Automated findings and remaining
-failed gates are recorded in [CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md);
-the [checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
-is the manual handoff. Phases 2–5 are not declared complete.
+Handoff update, 2026-10-23: checkpoint `99f5575` and handoff docs `8d28411`
+are ancestors of remote main `908e488`. Max reports that the merged improvements
+work very well, with a specific first-mapping review mouse-pan hitch. That
+follow-up is scoped in [REVIEW_POINTER_PAN.md](testing/REVIEW_POINTER_PAN.md), on
+`codex/review-pointer-pan`. Broader work items remain unclaimed and phases 2–5
+are not declared complete. Canonical-scene evidence and remaining failed gates
+are in [CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md); the
+[checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
+records manual testing still needed.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
 is a reliably smooth Kohler experience with demonstrated headroom for much

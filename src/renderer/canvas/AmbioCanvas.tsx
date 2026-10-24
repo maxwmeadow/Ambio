@@ -4081,6 +4081,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }, 100)
   }, [getViewport])
 
+  const onCanvasPointerDownCapture = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    traceCanvasHit(event)
+    const target = event.target as HTMLElement
+    // Review exposes every child. Capture a genuine pane pan so Chromium need
+    // not hit-test that entire painted tree again for each mouse position.
+    // Leave node gestures, Shift/lasso selection and touch/pinch to React Flow.
+    if (!reviewMode || event.pointerType !== 'mouse' || !event.isPrimary || event.ctrlKey ||
+        event.button > 2 || (event.button === 2 && !selectionMode) ||
+        !target.classList.contains('react-flow__pane') || target.closest(`[${CANVAS_SCOPE_ATTR}]`) !== event.currentTarget ||
+        (event.button === 0 && (selectionMode || event.shiftKey))) return
+    try { target.setPointerCapture(event.pointerId) }
+    catch { /* A cancelled/synthetic pointer can use Flow's ordinary pan path. */ }
+  }, [reviewMode, selectionMode, traceCanvasHit])
+
   // Canvas commands (docs/INFRA.md, "Canvas chrome"): zoom, tidy and
   // the infrastructure sidebar live in the View and Map menus, the palette
   // and the keyboard (src/shared/appMenu.ts) rather than as buttons on the
@@ -4217,7 +4231,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       data-sheet-phase={sheetPhase.phase ?? undefined}
       onDragOverCapture={onOverlayDragOver}
       onDropCapture={onOverlayDrop}
-      onPointerDownCapture={traceCanvasHit}
+      onPointerDownCapture={onCanvasPointerDownCapture}
       onPointerMoveCapture={traceSuspiciousCursor}
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
