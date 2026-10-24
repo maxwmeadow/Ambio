@@ -13,7 +13,13 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
   const [state, setState] = useState<{ input: FloorModel; geometry: PreparedFloorGeometry } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const cached = useRef<{ controller: SceneController; scope: string; input: FloorGeometryInput; promise: Promise<PreparedFloorGeometry> }>()
-  useEffect(() => () => controller.cancel(channel), [controller, channel])
+  useEffect(() => () => {
+    // The cached promise belongs to this mounted controller/channel lifecycle.
+    // StrictMode replays effects with refs intact: reusing the cancelled job
+    // on its second setup would leave preparation pending forever.
+    cached.current = undefined
+    controller.cancel(channel)
+  }, [controller, channel])
   useEffect(() => controller.subscribe(() => {}, () => {
     if (input) setError('Canvas preparation stopped. Retry to restart it.')
   }), [controller, input])

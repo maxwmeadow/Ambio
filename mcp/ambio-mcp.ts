@@ -779,7 +779,7 @@ const CORE_TOOLS = [
         focus: { type: 'array', items: { type: 'string' }, description: 'System or file ids you expect to touch' },
         messageHandle: { type: 'string', description: 'Claimed request handle from get_inbox' },
       },
-      required: ['goal'],
+      required: [],
     },
   },
   {
@@ -1930,7 +1930,7 @@ Steps to execute:
       }
 
       case 'start_work': {
-        const goal = args.goal as string
+        const goal = (typeof args.goal === 'string' && args.goal.trim()) ? args.goal.trim() : (args.messageHandle ? 'Work on request' : 'Work session')
         const agent = (args.agent as string) ?? ''
         const focus = (args.focus as string[] | undefined) ?? []
         const focusSystemIds: string[] = []

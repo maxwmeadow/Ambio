@@ -6,6 +6,7 @@ import test from 'node:test'
 import { spawn } from 'node:child_process'
 import { DeliveryRunner, deliveryArguments, deliveryTargets, findDeliveryCli, checkDeliveryMessage } from './agentDelivery.ts'
 import { buildHosts } from './agentInstallers.ts'
+import { CLI_CLIENTS } from '../src/shared/agentDelivery.ts'
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-delivery-'))
@@ -34,14 +35,14 @@ test('every installer host has a delivery route; editor hosts never masquerade a
   const hosts = buildHosts(root, path.join(root, 'appdata'), 'linux')
   const targets = deliveryTargets(hosts, { PATH: root }, 'linux', root)
   assert.doesNotThrow(() => structuredClone(targets))
-  assert.deepEqual(targets.map(host => host.id), hosts.map(host => host.id))
+  assert.deepEqual(targets.map(host => host.id), [...hosts.map(host => host.id), ...CLI_CLIENTS.filter(client => !hosts.some(host => host.id === client.id)).map(client => client.id)])
   for (const id of ['claude-desktop', 'copilot', 'cursor', 'windsurf', 'antigravity', 'jetbrains', 'zed']) {
     const target = targets.find(host => host.id === id)
     assert.notEqual(target.route, 'run')
     assert.equal(target.available, true)
     assert.match(target.detail, /Paste|paste/)
   }
-  assert.deepEqual(targets.filter(host => host.route === 'run').map(host => host.id), ['claude-code', 'copilot-cli', 'codex'])
+  assert.deepEqual(targets.filter(host => host.route === 'run').map(host => host.id), CLI_CLIENTS.map(client => client.id))
 })
 
 test('native CLI detection does not accept shell shims; npm Windows installs use bundled Node', t => {

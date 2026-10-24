@@ -203,7 +203,7 @@ test('a host that cannot hold an ACP session runs the same turn in print mode', 
   assert.match(fs.readFileSync(run.logPath, 'utf8'), /running this turn in print mode/)
 })
 
-test('an editor\'s ACP agent is offered only when that editor is set up and the agent is installed', t => {
+test('supported ACP agents remain listed independently of editor discovery and report their CLI availability', t => {
   const root = fixture(t)
   const bin = path.join(root, 'bin')
   fs.mkdirSync(bin)
@@ -212,12 +212,12 @@ test('an editor\'s ACP agent is offered only when that editor is set up and the 
   // Google's ACP server for Antigravity ships as a .par on every platform.
   fs.writeFileSync(path.join(bin, 'agy_acp_server.par'), '', { mode: 0o755 })
   const ids = hosts => deliveryTargets(hosts, env, process.platform, root).map(target => target.id)
-  assert.deepEqual(ids([{ id: 'codex', label: 'Codex' }]), ['codex'])
+  assert.ok(ids([{ id: 'codex', label: 'Codex' }]).includes('devin-cli'))
   assert.ok(ids([{ id: 'windsurf', label: 'Windsurf' }]).includes('devin-cli'))
   // Gemini CLI is no longer offered: Google moved it into Antigravity.
   assert.ok(!ids([{ id: 'antigravity', label: 'Antigravity' }]).includes('gemini-cli'))
   assert.ok(ids([{ id: 'antigravity', label: 'Antigravity' }]).includes('antigravity-acp'))
-  assert.ok(!ids([{ id: 'windsurf', label: 'Windsurf' }]).includes('antigravity-acp'))
+  assert.equal(deliveryTargets([{ id: 'windsurf', label: 'Windsurf' }], env, process.platform, root).find(target => target.id === 'antigravity-acp').available, true)
   assert.equal(agentDriver('devin-cli').acp, true)
   assert.equal(agentDriver('gemini-cli'), undefined)
   assert.deepEqual(agentDriver('devin-cli').plan({}).args, ['acp'])

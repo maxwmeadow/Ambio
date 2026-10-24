@@ -3,6 +3,7 @@ import { agentMenu } from './agentGuides'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { APP_CLIENTS, CLI_CLIENTS } from '../../src/shared/agentDelivery'
 
 test('Send launches the selected CLI after saving, preserves failures, and supports editor handoff', async () => {
   test.setTimeout(90000)
@@ -33,7 +34,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   })
   try {
     const page = await app.firstWindow()
-    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(10)
+    expect(await page.evaluate(() => window.ambio.listDeliveryHosts())).toHaveLength(APP_CLIENTS.length + CLI_CLIENTS.length)
     await page.setViewportSize({ width: 1280, height: 1000 })
     const orders: any[] = []
     await page.route(/^http:\/\/127\.0\.0\.1:774[34]\//, async route => {
@@ -74,11 +75,11 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await confirm()
     // The agent menu lists every destination, in Ambio's own menu.
     await destination.open()
-    await expect(destination.items()).toHaveCount(12)
+    await expect(destination.items()).toHaveCount(APP_CLIENTS.length + CLI_CLIENTS.length + 2)
     await page.screenshot({ path: 'test-results/agent-menu.png' })
     await destination.close()
     await destination.choose('codex')
-    await expect(intro).toHaveAccessibleName('Before you use OpenAI Codex (CLI)')
+    await expect(intro).toHaveAccessibleName('Before you use Codex CLI')
     await expect(intro).toContainText('Choose Codex and send.')
     await expect(intro).toContainText('press the info button next to the agent in the message box')
     await page.screenshot({ path: 'test-results/agent-delivery-introduction.png' })
@@ -94,7 +95,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await guidePicker.choose('claude-code')
     await expect(destination.trigger).toHaveAttribute('data-value', 'claude-code')
     // A first choice made from the guide is introduced too.
-    await expect(intro).toHaveAccessibleName('Before you use Claude Code (CLI)')
+    await expect(intro).toHaveAccessibleName('Before you use Claude Code CLI')
     await confirm()
     await destination.choose('codex')
     await expect(intro).toBeHidden()
@@ -102,7 +103,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
-    for (const [host, label] of [['claude-code', 'Claude Code (CLI)'], ['codex', 'OpenAI Codex (CLI)'], ['copilot-cli', 'GitHub Copilot (CLI)']]) {
+    for (const [host, label] of [['claude-code', 'Claude Code CLI'], ['codex', 'Codex CLI'], ['copilot-cli', 'GitHub Copilot CLI']]) {
       await destination.choose(host)
       if (host === 'copilot-cli') await confirm()
       // The agent pill keeps one shape whichever agent and model are chosen.

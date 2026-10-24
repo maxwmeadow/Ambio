@@ -7,7 +7,8 @@ import { MarkdownView } from '../components/MarkdownView'
 import { AgentConnections } from '../components/AgentConnections'
 import { AmbioWordmark } from '../components/ui/AmbioBrand'
 import { ChatProviderSettings } from '../components/ChatProviderSettings'
-import { CHAT_PROVIDERS_CHANGED, OPEN_MODEL_SERVICES } from '../components/AgentChatPanel'
+import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
+import { OPEN_MODEL_SERVICES, type ModelServiceSetupRequest } from '../modelServiceNavigation'
 import type { ChatProvider } from '../../shared/agentChat'
 
 type Dialog = 'palette' | 'settings' | 'shortcuts' | 'about' | 'acknowledgements' | 'whatsNew' | null
@@ -26,6 +27,7 @@ export function GlobalCommands() {
   const projectOpen = useGraphStore(state => state.currentProject !== null)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general')
+  const [modelServiceSetup, setModelServiceSetup] = useState<ModelServiceSetupRequest>()
   const [toast, setToast] = useState<string | null>(null)
   const [whatsNew, setWhatsNew] = useState<{ version: string; notes: string } | null>(null)
 
@@ -71,18 +73,21 @@ export function GlobalCommands() {
 
   // Project commands enable and disable with the project.
   useEffect(() => { void window.ambio?.setMenuState?.({ projectOpen }) }, [projectOpen])
-  // The agent panel's "set up a model service" opens Settings there.
+  // Connection links carry their destination through Settings to the actual form.
   useEffect(() => {
-    const open = () => { setSettingsSection('agents'); setDialog('settings'); setTimeout(() => document.getElementById('ambio-agents-chat')?.scrollIntoView({ block: 'start' }), 50) }
+    const open = (event: Event) => {
+      setModelServiceSetup({ ...(event as CustomEvent<ModelServiceSetupRequest>).detail })
+      setSettingsSection('agents'); setDialog('settings')
+    }
     window.addEventListener(OPEN_MODEL_SERVICES, open)
     return () => window.removeEventListener(OPEN_MODEL_SERVICES, open)
   }, [])
 
   useCommandHandlers({
     'view.commandPalette': () => setDialog(current => (current === 'palette' ? null : 'palette')),
-    'app.settings': () => { setSettingsSection('general'); setDialog('settings') },
+    'app.settings': () => { setModelServiceSetup(undefined); setSettingsSection('general'); setDialog('settings') },
     // Agent connections are a section of Settings, with or without a project.
-    'agent.connect': () => { setSettingsSection('agents'); setDialog('settings') },
+    'agent.connect': () => { setModelServiceSetup(undefined); setSettingsSection('agents'); setDialog('settings') },
     'help.shortcuts': () => setDialog(current => (current === 'shortcuts' ? null : 'shortcuts')),
     'app.about': () => setDialog('about'),
     'app.checkUpdates': () => {
@@ -121,7 +126,7 @@ export function GlobalCommands() {
   return (
     <>
       {dialog === 'palette' && <CommandPalette projectOpen={projectOpen} platform={platform} onClose={() => setDialog(null)} />}
-      {dialog === 'settings' && <SettingsDialog key={settingsSection} initialSection={settingsSection} onClose={() => setDialog(null)} />}
+      {dialog === 'settings' && <SettingsDialog key={settingsSection} initialSection={settingsSection} modelServiceSetup={modelServiceSetup} onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog platform={platform} onClose={() => setDialog(null)} />}
       {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
       {dialog === 'acknowledgements' && <AcknowledgementsDialog onClose={() => setDialog(null)} />}
@@ -340,7 +345,7 @@ const SECTIONS: Array<{ id: SettingsSection; label: string }> = [
   { id: 'advanced', label: 'Advanced' },
 ]
 
-function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () => void; initialSection?: SettingsSection }) {
+function SettingsDialog({ onClose, initialSection = 'general', modelServiceSetup }: { onClose: () => void; initialSection?: SettingsSection; modelServiceSetup?: ModelServiceSetupRequest }) {
   const [section, setSection] = useState<SettingsSection>(initialSection)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [loaded, setLoaded] = useState(false)
@@ -352,6 +357,8 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
   const project = useGraphStore(state => state.currentProject)
   const [chatProviders, setChatProviders] = useState<ChatProvider[]>([])
   const projectOpen = project !== null
+
+  useEffect(() => { if (modelServiceSetup) setSection('agents') }, [modelServiceSetup])
 
   useEffect(() => {
     if (!window.ambio) { setLoaded(true); return }
@@ -484,13 +491,14 @@ function SettingsDialog({ onClose, initialSection = 'general' }: { onClose: () =
           {section === 'agents' && (
             <>
               <AgentConnections
+                setupRequest={modelServiceSetup}
                 workspaceId={project?.id}
                 projectRoot={project?.rootPath}
                 projectName={project?.name}
                 onGuidedSetup={project ? () => { onClose(); setTimeout(() => emitCommand('agent.guidedSetup'), 0) } : undefined}
-                chat={<div className="ambio-chat"><ChatProviderSettings providers={chatProviders} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
+                chat={<div className="ambio-chat"><ChatProviderSettings providers={chatProviders} setupRequest={modelServiceSetup} onSaved={() => { void window.ambio.chatProviders().then(setChatProviders); window.dispatchEvent(new Event(CHAT_PROVIDERS_CHANGED)) }} /></div>}
               />
-              <RemoveFromAgents />
+              <details className="ambio-agent-connections__bulk"><summary>Disconnect agents from this computer</summary><RemoveFromAgents /></details>
             </>
           )}
 

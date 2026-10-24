@@ -30,7 +30,7 @@ test('an agent that only reaches Ambio through its app is blocked until Ambio is
   const { deliveryReadiness, RUN_NEEDS_INSTALL } = await import('./agentDelivery.ts')
   const hosts = [
     { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true },
-    { id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true },
+    { id: 'claude-code', label: 'Claude Code CLI', route: 'run', available: true },
   ]
   const readiness = installedIds => deliveryReadiness({ hostId: 'antigravity-cli', hosts, installedIds, watchers: 0, watchingHosts: [] })
   assert.equal(RUN_NEEDS_INSTALL['antigravity-cli'].installer, 'antigravity')

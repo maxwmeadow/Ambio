@@ -1,11 +1,49 @@
 export type DeliveryRoute = 'run' | 'open' | 'copy'
 
+/** Supported terminal routes, independent of what happens to be installed. */
+export const CLI_CLIENTS = [
+  { id: 'claude-code', label: 'Claude Code CLI' },
+  { id: 'copilot-cli', label: 'GitHub Copilot CLI' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'cursor-cli', label: 'Cursor CLI' },
+  { id: 'devin-cli', label: 'Devin CLI' },
+  { id: 'antigravity-acp', label: 'Antigravity ACP agent' },
+  { id: 'antigravity-cli', label: 'Antigravity CLI' },
+] as const
+
+/** External clients sharing an existing installer's connection files. */
+export const SHARED_APP_CLIENTS = [
+  { id: 'claude-code-vscode', installer: 'claude-code', label: 'Claude Code in VS Code', modality: 'vscode' },
+  { id: 'claude-code-jetbrains', installer: 'claude-code', label: 'Claude Code in JetBrains', modality: 'editor' },
+  { id: 'codex-ide', installer: 'codex', label: 'Codex IDE extension', modality: 'vscode' },
+  { id: 'codex-app', installer: 'codex', label: 'Codex desktop app', modality: 'desktop' },
+] as const
+
+export function installerHostId(id: string): string {
+  return SHARED_APP_CLIENTS.find(client => client.id === id)?.installer ?? id
+}
+
+export const APP_CLIENTS = [
+  { id: 'claude-desktop', label: 'Claude Desktop' },
+  { id: 'copilot', label: 'GitHub Copilot in VS Code' },
+  { id: 'antigravity', label: 'Antigravity (App & IDE)' },
+  { id: 'cursor', label: 'Cursor IDE' },
+  { id: 'windsurf', label: 'Windsurf IDE' },
+  { id: 'jetbrains', label: 'JetBrains AI Assistant' },
+  { id: 'zed', label: 'Zed Editor' },
+  ...SHARED_APP_CLIENTS,
+] as const
+
 export interface DeliveryHost {
   id: string
   label: string
   route: DeliveryRoute
   available: boolean
   detail: string
+  /** The CLI entry file (the script when using bundled Node), never credentials. */
+  executablePath?: string
+  executableOverride?: string
+  discoveryError?: string
 }
 
 export interface DeliveryRun {

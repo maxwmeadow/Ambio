@@ -62,6 +62,14 @@ loopback OpenCode server per project, persistent harness sessions, streamed text
 tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
 Provider setup is in Settings → Agents; the picker opens it when none is set up.
+The Agents page has three connection categories (`AgentConnections`): Ambio chat,
+CLIs Ambio runs, and agents in other apps. Each client category keeps its selected
+connector independently and shows a compact logo gallery above that connector's
+management controls. Missing clients remain listed. The chat category stays
+mounted while browsing clients so in-progress connection input is preserved.
+`ChatProviderSettings` presents the ChatGPT account card and saved API connections;
+an API editor opens only for an explicit provider or saved connection. Advanced
+endpoint/context settings and ChatGPT account/model controls are disclosures.
 
 Models: `electron/agentModels.ts` lists what each agent Ambio runs can use, read
 the way that agent publishes it (Claude Code's aliases, Codex's
@@ -430,6 +438,45 @@ graph root unless Send's *Own worktree* is chosen (see the checkouts section
 above), can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 
+**Client discovery and executable selection** (`src/shared/agentDelivery.ts`,
+`electron/agentClientDiscovery.ts`, `agentExecutableOverrides.ts`): a stable
+catalog lists every supported terminal and app route, independently of local
+availability. Setup groups wrapping name-and-logo pills (`ConnectorLogo.tsx`)
+into Ambio chat, Ambio runs it, and In another app sections, using bundled assets whose sources
+are recorded in `assets/connectors/SOURCES.md`. Each pill keeps its availability
+in its colored outline, accessible label and tooltip; keyboard selection uses arrows/Home/End across sections.
+Selecting a pill opens a nonmodal sidebar over the field agent. `ChooseAgent`
+owns selection, discovery and setup state and portals the details into a stable
+slot in `ConnectAgentScreen`'s mascot area; closing returns focus to the pill.
+Details scroll independently above pinned actions, with a reduced-motion
+alternative and narrow-screen scrolling into the stacked agent area. The
+field-agent character/title-bar transition is a separately staged UI change.
+Session-option help uses the shared `InfoPopover` in the browser's top layer,
+anchored to its trigger with scroll/resize tracking and native outside-click
+dismissal. It does not participate in the sidebar layout; Escape dismisses the
+help before the sidebar.
+Ambio chat's connection links use `modelServiceNavigation.ts` to carry a typed
+provider destination through Settings into `ChatProviderSettings`, which selects
+and focuses the requested setup after mounting. Existing untargeted model-service
+events still open the connection section. Navigation never initiates OAuth or
+mutates a saved service.
+Codex/Claude IDE and desktop surfaces keep separate installation
+evidence while sharing their existing canonical installer's MCP configuration;
+app-specific actions resolve to that installer rather than writing competing
+connections. Installation/configuration evidence is shown separately from CLI
+availability, and does not establish sign-in or a live connection from a
+particular surface. Private Codex binaries injected into PATH by its extension
+or desktop app are not automatically classified as a standalone CLI.
+The file picker can remember a native executable or npm entrypoint under
+`~/.ambio/agent-executable-overrides.json`. Known npm shell shortcuts resolve
+to their entrypoints; prompts never pass through a shell. Explicit selections
+receive a bounded version/identity check where supported; ACP server selection
+does not start a protocol session merely to inspect it. Discovery and actual
+delivery use the same resolver, recheck saved paths, and expose broken overrides
+instead of silently substituting another executable. Setup refreshes app, CLI
+and model-service sources; bounded requests and generation guards retain the
+catalog and expose errors without letting late results overwrite newer scans.
+
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
 a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`).
 Built-in conversations use `chat:<native session ID>` for their Build work
@@ -566,8 +613,11 @@ frame preparation, separate from `floorSceneProjection.ts` (React node data).
 preparation and spatial queries. Numeric jobs yield between loop chunks, coalesce
 by channel and reject superseded tokens. Workspace/sheet scopes and immutable
 input identity gate adoption and generated-placement persistence. An equivalent
-metadata/save echo reuses an accepted or pending preparation. Unchanged layout
-and semantic-parent echoes preserve identities in `store/floorLayoutUpdates.ts`.
+metadata/save echo reuses an accepted or pending preparation. Preparation caches
+are cleared when their controller/channel lifecycle is cancelled, so development
+effect replay starts a fresh job rather than reusing a rejected promise.
+Unchanged layout and semantic-parent echoes preserve identities in
+`store/floorLayoutUpdates.ts`.
 Timestamp-only layout echoes do not invalidate renderer geometry; authoritative
 save timestamps remain in SQLite. Failed initial saves latch the attempt and
 surface Retry instead of repeatedly rebuilding and issuing network writes.

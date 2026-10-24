@@ -469,11 +469,11 @@ export function buildHosts(
     // ── Anthropic Claude Family ──────────────────────────────────────────────
     {
       id: 'claude-code',
-      label: 'Claude Code (CLI)',
+      label: 'Claude Code CLI',
       familyId: 'claude',
       familyLabel: 'Claude',
       modality: 'cli',
-      modalityLabel: 'Claude Code (CLI)',
+      modalityLabel: 'Claude Code CLI',
       sharedSurfaces: [
         { id: 'claude-code-vscode', label: 'Claude Code in VS Code' },
         { id: 'claude-code-jetbrains', label: 'Claude Code in JetBrains' },
@@ -520,7 +520,7 @@ export function buildHosts(
       familyId: 'claude',
       familyLabel: 'Claude',
       modality: 'desktop',
-      modalityLabel: 'Claude Desktop (App)',
+      modalityLabel: 'Claude Desktop',
       configPath: () => claudeDesktopConfig,
       serverLocations: () => [
         { format: 'json', path: getClaudeDesktopConfigPath(homeDir, platform, appDataDir), keyPath: ['mcpServers'] },
@@ -595,7 +595,7 @@ export function buildHosts(
     },
     {
       id: 'copilot-cli',
-      label: 'GitHub Copilot (CLI)',
+      label: 'GitHub Copilot CLI',
       familyId: 'copilot',
       familyLabel: 'GitHub Copilot',
       modality: 'cli',
@@ -625,7 +625,7 @@ export function buildHosts(
     // ── OpenAI Codex Family ──────────────────────────────────────────────────
     {
       id: 'codex',
-      label: 'OpenAI Codex (CLI)',
+      label: 'Codex CLI',
       familyId: 'codex',
       // Product names, not vendor names: every other family is listed as the
       // thing itself. GitHub Copilot keeps its prefix only because that is the
@@ -770,11 +770,11 @@ export function buildHosts(
     // ── Google Antigravity Family ────────────────────────────────────────────
     {
       id: 'antigravity',
-      label: 'Antigravity (IDE)',
+      label: 'Antigravity (App & IDE)',
       familyId: 'antigravity',
       familyLabel: 'Antigravity',
       modality: 'desktop',
-      modalityLabel: 'Antigravity IDE',
+      modalityLabel: 'Antigravity (App & IDE)',
       sharedSurfaces: [{ id: 'antigravity-cli', label: 'Antigravity CLI (agy)' }],
       configPath: () => antigravityConfig,
       serverLocations: projectRoot => [

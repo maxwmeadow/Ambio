@@ -8,6 +8,33 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Agent setup mapping activity stream provides technical blueprint styling without emojis, balanced titles, robust retry and agent re-selection, reliable live progress stats, and moved the back control to the screen footer.
+- Development canvases, including proposal review, no longer stay blank at
+  "Preparing map" after React replays their initial preparation effects.
+- For Ambio chat and clients Ambio runs, codebase setup uses a streamlined 3-step
+  flow (Choose agent, Map project, Review) without the redundant restart step;
+  external apps continue to show the 4-step flow including Restart.
+- CLI setup controls and the model dropdown use readable text sizes. The
+  session option's help opens in an anchored popup without moving the layout.
+- CLI connector details explain direct local runs and native subscription/API
+  settings. Executable details and the compact recommended session option sit
+  at the bottom, with its explanation available from an info button.
+- Settings → Agents separates Ambio chat, clients Ambio runs, and external
+  apps. ChatGPT has a clear connection card; API connections use an on-demand
+  editor, and client pills open one client's settings at a time.
+- Ambio chat setup explains its native workspace experience, API key providers,
+  and leads with ChatGPT sign-in using eligible plan limits. Provider links open
+  the corresponding connection setup directly.
+- Selecting an agent connector opens its details and setup actions in a
+  closable sidebar over Field Agent 04, leaving more room for connector pills.
+- Agent setup presents supported connectors as compact name-and-logo pills
+  grouped into Ambio chat, clients Ambio runs, and external apps, with
+  availability-colored outlines and keyboard selection.
+- Agent setup and Settings list every supported client, including missing CLIs
+  and separate Codex IDE/desktop routes. Locate and remember CLI executables,
+  inspect discovered paths, and refresh installation results with Rescan.
+- The agent setup card fills the window vertically with matching top and
+  bottom spacing, giving the agent list more room.
 - Large maps keep their complete geometry outside the interactive canvas and
   prepare Floor and sheet layouts in the background. Search follows current
   geometry through updates, while worker failures retain the map and offer Retry.

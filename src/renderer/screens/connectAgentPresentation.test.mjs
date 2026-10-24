@@ -75,10 +75,10 @@ test('agents are listed installed first, then found on this computer, then the r
 
 test('an install says it worked and what to do next; a failure keeps the reason the installer gave', async () => {
   const { installOutcomeNote } = await import('./connectAgentPresentation.ts')
-  const host = { label: 'Claude', modalityLabel: 'Claude Code (CLI)', restartDetail: 'Close the existing terminal session and run claude in a new one.' }
+  const host = { label: 'Claude', modalityLabel: 'Claude Code CLI', restartDetail: 'Close the existing terminal session and run claude in a new one.' }
   assert.deepEqual(installOutcomeNote(host, 'install', { ok: true, detail: 'Added Ambio and installed the /ambio-map skill.' }),
     { ok: true, text: 'Installed. Next: close the existing terminal session and run claude in a new one.' })
-  assert.deepEqual(installOutcomeNote(host, 'remove', { ok: true, detail: 'whatever' }), { ok: true, text: 'Removed from Claude Code (CLI).' })
+  assert.deepEqual(installOutcomeNote(host, 'remove', { ok: true, detail: 'whatever' }), { ok: true, text: 'Removed from Claude Code CLI.' })
   assert.deepEqual(installOutcomeNote(host, 'install', { ok: false, detail: 'C:/x/.claude.json could not be read as JSON.' }),
     { ok: false, text: 'C:/x/.claude.json could not be read as JSON.' })
 })

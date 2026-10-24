@@ -28,7 +28,9 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
-import { RUN_NEEDS_INSTALL } from '../src/shared/agentDelivery'
+import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId } from '../src/shared/agentDelivery'
+import { discoverAppClients } from './agentClientDiscovery'
+import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
@@ -1460,7 +1462,7 @@ function setupIPC(): void {
   ipcMain.handle('agent:hosts', (_event, projectRoot?: string) => {
     const overrides = readOverrides(CONFIG_DIR)
     const present = detectHosts(undefined, undefined, process.platform, overrides)
-    return buildHosts(undefined, undefined, process.platform, overrides).map(host => {
+    return discoverAppClients(buildHosts(undefined, undefined, process.platform, overrides).map(host => {
       const configuration = inspectHostConfiguration(host, projectRoot)
       return {
         id: host.id,
@@ -1480,7 +1482,7 @@ function setupIPC(): void {
         restartDetail: host.restartDetail,
         ...configuration,
       }
-    })
+    }))
   })
 
   // A test run uses the developer's real environment, where real agents and
@@ -1488,7 +1490,7 @@ function setupIPC(): void {
   // shows must not depend on that machine, so in tests every destination is
   // offered only to a spec that brings its own stand-in agents.
   const availableTargets = () => {
-    const targets = deliveryTargets(buildHosts())
+    const targets = deliveryTargets([...buildHosts(), ...SHARED_APP_CLIENTS], process.env, process.platform, os.homedir(), readExecutableOverrides(CONFIG_DIR))
     if (!IS_E2E || process.env.AMBIO_E2E_AGENTS === '1') return targets
     return targets.map(target => ({ ...target, available: false, launcher: undefined, detail: 'Not used in tests.' }))
   }
@@ -1500,6 +1502,14 @@ function setupIPC(): void {
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
   })
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
+  ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
+    const client = CLI_CLIENTS.find(client => client.id === hostId)
+    if (!client) return { ok: false, detail: 'Unknown runnable client.' }
+    const result = await dialog.showOpenDialog({ title: `Locate the executable for ${client.label}`, properties: ['openFile', 'showHiddenFiles'] })
+    if (result.canceled || !result.filePaths.length) return { ok: false, detail: 'Cancelled.' }
+    return setExecutableOverride(CONFIG_DIR, hostId, result.filePaths[0])
+  })
+  ipcMain.handle('agent:clear-executable', (_event, hostId: string) => clearExecutableOverride(CONFIG_DIR, hostId))
   ipcMain.handle('agent:delivery-runs', (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
     return deliveryRunner.list(workspaceId)
@@ -1605,6 +1615,7 @@ function setupIPC(): void {
 
   // Install Ambio into one agent modality.
   ipcMain.handle('agent:install', (_event, hostId: string, projectRoot?: string) => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
@@ -1657,6 +1668,7 @@ function setupIPC(): void {
   // never did, so following the app's own instruction could not work.
   // Point Ambio at a configuration file it could not find on its own.
   ipcMain.handle('agent:locate', async (_event, hostId: string) => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".` }
@@ -1680,6 +1692,7 @@ function setupIPC(): void {
   // Undo the installers: remove Ambio's MCP entry and workflow files from one
   // agent, or from every agent Ambio knows about.
   ipcMain.handle('agent:uninstall', (_event, hostId: string, projectRoot?: string) => {
+    hostId = installerHostId(hostId)
     const hosts = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
     const host = hosts.find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
@@ -1688,11 +1701,12 @@ function setupIPC(): void {
   ipcMain.handle('agent:uninstall-all', (_event, projectRoot?: string) =>
     uninstallAll(buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR)), projectRoot))
 
-  ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, hostId))
+  ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, installerHostId(hostId)))
 
   // Check everything an agent depends on to reach Ambio: its configuration,
   // the workflow files, and that the tool server it would launch starts.
   ipcMain.handle('agent:test', async (_event, hostId: string, projectRoot?: string): Promise<ConnectionTestResult> => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) {

@@ -1,5 +1,25 @@
-/* Agent connections, in Settings. Reuses the Settings row and button styles;
-   everything here is the per-agent list. */
+/* Agent settings: a connection type, a compact client gallery, then one client. */
+.ambio-agent-connections__page-heading { display: flex; align-items: start; gap: 16px; justify-content: space-between; margin-bottom: 20px; }
+.ambio-agent-connections__page-heading h2 { margin: 0 0 7px; font: 600 24px/1.2 var(--font-ui); }
+.ambio-agent-connections__page-heading p { margin: 0; color: #66736b; font-size: 12px; line-height: 1.5; }
+.ambio-agent-connections__page-heading > button { flex: none; }
+.ambio-agent-connections__nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 22px; padding: 4px; border: 1px solid #cdd4cb; border-radius: 8px; background: #e9ece4; }
+.ambio-agent-connections__nav button { flex: 1; min-width: 100px; padding: 9px 10px; border: 0; border-radius: 5px; color: #5c6c60; background: transparent; font: 500 12px var(--font-ui); cursor: pointer; }
+.ambio-agent-connections__nav button[aria-current=page] { color: #f7faf5; background: #315c47; }
+.ambio-agent-connections__toolbar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 18px; color: #65756b; font-size: 11px; }
+.ambio-agent-connections__gallery { display: flex; flex-wrap: wrap; gap: 8px; padding: 3px; margin: 10px 0; }
+.ambio-agent-connections__pill { --client-outline: #abb6ae; display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--client-outline); border-radius: 999px; color: #233c2d; background: #fbfaf6; font: 12px/1.4 var(--font-ui); cursor: pointer; max-width: 100%; }
+.ambio-agent-connections__pill[data-tone=ready] { --client-outline: #438264; }
+.ambio-agent-connections__pill[data-tone=attention] { --client-outline: #b79543; }
+.ambio-agent-connections__pill[aria-pressed=true] { background: #e4eee3; box-shadow: inset 0 0 0 1px var(--client-outline); }
+.ambio-agent-connections__pill:hover:not(:disabled) { background: #f2f6ee; }
+.ambio-agent-connections__pill:disabled { cursor: default; opacity: .6; }
+.ambio-agent-connections__pill span { overflow-wrap: anywhere; }
+.ambio-agent-connections .ambio-choose__logo { display: block; width: 22px; height: 22px; flex: none; object-fit: contain; }
+.ambio-agent-connections__prompt { padding: 18px; color: #758174; background: #edf0e8; border-radius: 8px; font-size: 12px; }
+.ambio-agent-connections__bulk { border-top: 1px solid #d3dccf; padding-top: 15px; margin-top: 12px; color: #6d7468; font-size: 12px; }
+.ambio-agent-connections__bulk summary { cursor: pointer; }
+.ambio-agent-connections .ambio-chat { background: transparent; }
 
 .ambio-agent-connections__list {
   margin: 12px 0 0;
@@ -7,7 +27,10 @@
   border: 1px solid #cfccc0;
   background: #f7f6f1;
   list-style: none;
+  border-radius: 8px;
+  overflow: hidden;
 }
+.ambio-agent-connections__list:empty { display: none; }
 
 .ambio-agent-connections__host + .ambio-agent-connections__host {
   border-top: 1px solid #dcd9ce;
@@ -18,21 +41,8 @@
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
+  flex-wrap: wrap;
 }
-
-.ambio-agent-connections__signal {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border: 1px solid #8b9b8b;
-  border-radius: 50%;
-  background: #c9cdc6;
-}
-
-[data-state='live'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #316f56; background: #5ca877; }
-[data-state='installed'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #8d753c; background: #d1b56a; }
-[data-state='repair'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { border-color: #9c6b4e; background: #cf9275; }
-[data-state='missing'] > .ambio-agent-connections__summary .ambio-agent-connections__signal { background: transparent; }
 
 .ambio-agent-connections__identity {
   display: flex;
@@ -151,6 +161,7 @@
 }
 
 .ambio-agent-connections__hint { margin: 8px 0 0; color: #5f6b66; font-size: 12px; }
+.ambio-agent-connections__host > .ambio-agent-connections__hint { margin: 0; padding: 0 14px 14px; }
 
 .ambio-agent-connections__remove {
   display: flex;
@@ -171,8 +182,8 @@
 
 @media (max-width: 640px) {
   .ambio-agent-connections__summary { flex-wrap: wrap; }
-  .ambio-agent-connections__identity { flex-basis: calc(100% - 21px); }
-  .ambio-agent-connections__actions { flex-wrap: wrap; margin-left: 21px; }
+  .ambio-agent-connections__identity { flex-basis: calc(100% - 34px); }
+  .ambio-agent-connections__actions { flex-wrap: wrap; margin-left: 34px; }
   .ambio-agent-connections__details { padding-left: 14px; }
   .ambio-agent-connections__checks li { grid-template-columns: 14px minmax(0, 1fr); }
   .ambio-agent-connections__checks span { grid-column: 2; }
@@ -181,8 +192,39 @@
   .ambio-agent-connections__remove { flex-wrap: wrap; }
 }
 
-.ambio-agent-connections__kind { display: grid; gap: 8px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--settings-line, #d3dccf); }
-.ambio-agent-connections__kind:last-of-type { border-bottom: 0; }
+.ambio-agent-connections__kind { display: grid; gap: 8px; padding-bottom: 14px; }
+.ambio-agent-connections__kind[hidden] { display: none; }
 .ambio-agent-connections__kind > h3 { margin: 0; font-size: 14px; }
 .ambio-agent-connections__kind .ambio-chat__settings { padding: 0; overflow: visible; }
 .ambio-agent-connections__kind .ambio-chat__settings [role=status] { margin: 0; font-size: 12px; }
+.ambio-agent-connections__hint code {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 3px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  user-select: text;
+  background: #eae8df;
+  border: 1px solid #c9cbc1;
+  border-radius: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: #8da497 transparent;
+}
+.ambio-agent-connections__hint code::-webkit-scrollbar {
+  height: 4px;
+}
+.ambio-agent-connections__hint code::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ambio-agent-connections__hint code::-webkit-scrollbar-thumb {
+  background: #aab8af;
+  border-radius: 2px;
+}
+.ambio-agent-connections__hint code::-webkit-scrollbar-thumb:hover {
+  background: #7e9487;
+}

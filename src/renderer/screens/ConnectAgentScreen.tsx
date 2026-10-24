@@ -3,8 +3,11 @@ import type { ProjectConfig } from '../../shared/types'
 import type { AgentHostInfo, AgentInstallResult } from '../../../electron/preload'
 import { AgentMascot } from '../components/AgentMascot'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
-import { MappingActivity, rememberedMappingRun, type MappingChoice, type MappingRun, type MappingState } from './MapWithAgent'
+import { MappingActivity, rememberedMappingRun, rememberMappingRun, type MappingChoice, type MappingRun, type MappingState, type MappingSummary } from './MapWithAgent'
+import { useSheetStore } from '../store/sheetStore'
+import { MAPPING_CONTRACT } from '../components/inboxModel'
 import { ChooseAgent } from './ChooseAgent'
+import { discoveryRequest } from '../components/agentDiscovery'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import {
   commandKind,
@@ -53,6 +56,12 @@ const BLANK_PROJECT_STEPS: Array<{ id: SetupStep; label: string }> = [
 
 const CODEBASE_STEPS: Array<{ id: SetupStep; label: string }> = [
   { id: 1, label: 'Choose agent' },
+  { id: 2, label: 'Map project' },
+  { id: 3, label: 'Review' },
+]
+
+const CODEBASE_APP_STEPS: Array<{ id: SetupStep; label: string }> = [
+  { id: 1, label: 'Choose agent' },
   { id: 2, label: 'Restart' },
   { id: 3, label: 'Map project' },
   { id: 4, label: 'Review' },
@@ -83,6 +92,7 @@ export function ConnectAgentScreen({
   // family when installing all of it failed.
   const [notes, setNotes] = useState<Record<string, { ok: boolean; text: string }>>({})
   const [rescanning, setRescanning] = useState(false)
+  const [hostDiscoveryError, setHostDiscoveryError] = useState('')
   const [locateNotices, setLocateNotices] = useState<Record<string, string>>({})
   const [hasLivePresence, setHasLivePresence] = useState(false)
   const [liveHostIds, setLiveHostIds] = useState<Set<string>>(() => new Set())
@@ -91,10 +101,68 @@ export function ConnectAgentScreen({
   // A mapping Ambio is running itself needs no install, restart or command.
   const [mappingRun, setMappingRun] = useState<MappingRun | null>(() => blankProject ? null : rememberedMappingRun(project.id))
   const [mappingState, setMappingState] = useState<MappingState | null>(null)
+  const [mappingSummary, setMappingSummary] = useState<MappingSummary | null>(null)
+  const retryMapping = useRef<(() => void) | null>(null)
+  const handleRetry = useCallback(async () => {
+    try {
+      const draftsRes = await fetch(`${archdApi()}/api/architecture-proposal-drafts?workspace=${encodeURIComponent(project.id)}`).catch(() => null)
+      if (draftsRes && draftsRes.ok) {
+        const openDrafts = await draftsRes.json() as Array<{ sessionId: string }>
+        for (const draft of openDrafts) {
+          await fetch(`${archdApi()}/api/architecture-proposal-drafts/${encodeURIComponent(draft.sessionId)}/abort`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspaceId: project.id }),
+          }).catch(() => {})
+        }
+      }
+    } catch { /* ignore draft cleanup */ }
+
+    if (retryMapping.current) {
+      retryMapping.current()
+      return
+    }
+    if (!mappingRun) return
+    try {
+      if (mappingRun.kind === 'run') {
+        const brief = await window.ambio.mappingBrief()
+        const messageId = crypto.randomUUID()
+        await useSheetStore.getState().sendToAgent(project.id, `${MAPPING_CONTRACT}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
+        await window.ambio.deliverWorkOrder({ workspaceId: project.id, messageId, hostId: mappingRun.hostId, ...(mappingRun.model ? { model: mappingRun.model } : {}) })
+        const newRun: MappingRun = { ...mappingRun, messageId }
+        rememberMappingRun(newRun, project.id)
+        setMappingState(null)
+        setMappingRun(newRun)
+      } else {
+        const providers = await window.ambio.chatProviders().catch(() => [])
+        const providerId = providers[0]?.id || 'anthropic'
+        const brief = await window.ambio.mappingBrief()
+        const conversation = await window.ambio.createChat(project.id, providerId, mappingRun.model)
+        await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}\n\n${brief}`, mode: 'propose', ...(mappingRun.model ? { model: mappingRun.model } : {}) })
+        const newRun: MappingRun = { kind: 'chat', workspaceId: project.id, conversationId: conversation.id, label: mappingRun.label, model: mappingRun.model }
+        rememberMappingRun(newRun, project.id)
+        setMappingState(null)
+        setMappingRun(newRun)
+      }
+    } catch (e) {
+      console.error('Retry failed', e)
+    }
+  }, [mappingRun, project.id])
   const [mappingChoice, setMappingChoice] = useState<MappingChoice>(null)
+  const [connectorSidebarTarget, setConnectorSidebarTarget] = useState<HTMLDivElement | null>(null)
   const [mappingWarning, setMappingWarning] = useState('')
+  const [confirmSkipOpen, setConfirmSkipOpen] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userSelectedHost = useRef(false)
+
+  useEffect(() => {
+    if (!confirmSkipOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setConfirmSkipOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [confirmSkipOpen])
 
   const setPhase = useCallback((next: Phase) => {
     const rank: Record<Phase, number> = { waiting: 0, connected: 1, proposed: 2 }
@@ -115,14 +183,24 @@ export function ConnectAgentScreen({
     })
   }, [])
 
-  useEffect(() => {
-    void window.ambio.listAgentHosts(project.rootPath).then(showHosts)
-    return () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }
+  const hostScan = useRef(0)
+  const refreshHosts = useCallback(async () => {
+    const request = ++hostScan.current
+    try {
+      const found = await discoveryRequest(() => window.ambio.listAgentHosts(project.rootPath))
+      if (request === hostScan.current) { showHosts(found); setHostDiscoveryError('') }
+    } catch {
+      if (request === hostScan.current) setHostDiscoveryError('Could not check app installations. Rescan to retry.')
+    }
   }, [project.rootPath, showHosts])
+  useEffect(() => {
+    void refreshHosts()
+    return () => { ++hostScan.current; if (copiedTimer.current) clearTimeout(copiedTimer.current) }
+  }, [refreshHosts])
 
   useEffect(() => {
     if (userSelectedHost.current || liveHostIds.size === 0) return
-    const liveHost = hosts.find(host => liveHostIds.has(host.id))
+    const liveHost = hosts.find(host => liveHostIds.has(host.connectionHostId ?? host.id))
     if (liveHost) setSelectedHostId(liveHost.id)
   }, [hosts, liveHostIds])
 
@@ -213,20 +291,29 @@ export function ConnectAgentScreen({
     }
   }, [blankProject, project.id])
 
-  // The first chunk moves the screen on from "ask your agent" to the review
-  // step by itself. Once only, so Back to the command is not undone.
-  const movedToReview = useRef(false)
-  useEffect(() => {
-    if (blankProject || movedToReview.current || activeStep !== 3) return
-    if (mappingRun ? phase !== 'proposed' : !mapping && phase !== 'proposed') return
-    movedToReview.current = true
-    setActiveStep(4)
-  }, [blankProject, activeStep, mapping, phase, setActiveStep])
-
   const selectedHost = useMemo(
     () => hosts.find(host => host.id === selectedHostId) ?? hosts[0] ?? null,
     [hosts, selectedHostId],
   )
+
+  const needsRestart = !blankProject && !mappingRun && mappingChoice?.kind === 'app'
+
+  useEffect(() => {
+    const maxStep = blankProject ? 2 : needsRestart ? 4 : 3
+    if (activeStep > maxStep) setActiveStep(maxStep as SetupStep)
+  }, [blankProject, needsRestart, activeStep, setActiveStep])
+
+  // Advance to review when a proposed architecture arrives.
+  const movedToReview = useRef(false)
+  useEffect(() => {
+    if (blankProject || movedToReview.current) return
+    const mapStep = needsRestart ? 3 : 2
+    const reviewStep = needsRestart ? 4 : 3
+    if (activeStep !== mapStep) return
+    if (mappingRun ? phase !== 'proposed' : !mapping && phase !== 'proposed') return
+    movedToReview.current = true
+    setActiveStep(reviewStep as SetupStep)
+  }, [blankProject, activeStep, mapping, phase, setActiveStep, needsRestart, mappingRun])
 
   const selectedFamily = useMemo(() => {
     if (!selectedHost) return families[0] ?? null
@@ -243,12 +330,38 @@ export function ConnectAgentScreen({
     !blankProject && phase === 'proposed' ? { state: 'proposal-ready' }
       : mappingActive ? { state: 'connected', caption: mappingState === 'waiting' ? `Waiting - ${mappingLabel} needs your answer.` : `Working - ${mappingLabel} is mapping the project.` }
         : mappingRun ? { state: 'connected', caption: `Ready - the last mapping ${mappingState === 'stopped' ? 'was stopped' : mappingState === 'done' ? 'finished without a proposal' : 'did not finish'}. Choose again to retry.` }
-          : hasLivePresence ? { state: 'connected', caption: `Ready - ${liveHostIds.size && selectedHost && liveHostIds.has(selectedHost.id) ? otherAppName : 'your agent'} is connected.` }
-            : !blankProject && activeStep === 1 && mappingChoice?.kind === 'setup' ? { state: 'sleeping', caption: 'Asleep - set up a model service to use Ambio chat.' }
+          : hasLivePresence ? { state: 'connected', caption: `Ready - ${liveHostIds.size && selectedHost && liveHostIds.has(selectedHost.connectionHostId ?? selectedHost.id) ? otherAppName : 'your agent'} is connected.` }
+            : !blankProject && activeStep === 1 && mappingChoice?.kind === 'setup' ? { state: 'sleeping', caption: 'Asleep - connect ChatGPT or add an API key to use Ambio chat.' }
+              : activeStep === 1 && mappingChoice?.available === false ? { state: 'sleeping', caption: `Needs setup - ${mappingChoice.label}. Select its pill for details.` }
+              : activeStep === 1 && mappingChoice?.kind === 'run' ? { state: 'connected', caption: `Found - ${mappingChoice.label}. Sign in to this CLI before mapping.` }
               : !blankProject && activeStep === 1 && mappingChoice ? { state: 'connected', caption: `Ready - ${mappingChoice.label} is ready. Press Map to start.` }
                 : blankProject && activeStep === 1 ? { state: 'connected', caption: 'Ready - Ambio chat and the agents Ambio runs need no setup.' }
                   : otherAppInstalled ? { state: 'sleeping', caption: `Waiting - restart ${otherAppName} so it can connect.` }
                     : { state: 'sleeping', caption: 'Asleep - no agent is ready yet.' }
+  const fieldAgentCommentary = useMemo(() => {
+    if (!mappingRun) return ''
+    const label = mappingLabel || 'The agent'
+    if (phase === 'proposed') {
+      return 'Architecture proposal ready! You can review the systems, nesting, and file placement.'
+    }
+    if (mappingState === 'failed') {
+      return `${label} stopped before completing the map. You can retry now or choose another agent.`
+    }
+    if (mappingState === 'stopped') {
+      return `${label}'s mapping run was stopped. You can retry with ${label} or pick another agent.`
+    }
+    if (mappingState === 'waiting') {
+      return `${label} has paused and needs your answer. Check the prompt to proceed.`
+    }
+    if (mappingSummary && mappingSummary.systemsCount > 0) {
+      return `${mappingSummary.systemsCount} ${mappingSummary.systemsCount === 1 ? 'system' : 'systems'} drafted on your canvas! ${label} is defining connections and boundaries.`
+    }
+    if (mappingSummary && mappingSummary.filesCount > 0) {
+      return `${label} is scanning codebase structure (${mappingSummary.filesCount} ${mappingSummary.filesCount === 1 ? 'file' : 'files'} inspected). Tracing imports to discover systems.`
+    }
+    return `Observing ${label} as it explores your repository. Systems will be proposed and drawn as it analyzes your code.`
+  }, [mappingRun, mappingLabel, phase, mappingState, mappingSummary])
+
   const mascotState = mascot.state
 
   const selectedPresentation = selectedHost
@@ -256,14 +369,16 @@ export function ConnectAgentScreen({
     : null
 
   const selectedReady = selectedPresentation?.state === 'installed' || selectedPresentation?.state === 'live'
-  const selectedOnline = !!selectedHost && liveHostIds.has(selectedHost.id)
-  const selectedVerified = !!selectedHost && verifiedHostIds.has(selectedHost.id)
+  const selectedOnline = !!selectedHost && liveHostIds.has(selectedHost.connectionHostId ?? selectedHost.id)
+  const selectedVerified = !!selectedHost && verifiedHostIds.has(selectedHost.connectionHostId ?? selectedHost.id)
 
   const rescan = useCallback(async () => {
     setRescanning(true)
     const startedAt = Date.now()
     try {
-      showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      await refreshHosts()
+    } catch {
+      setHostDiscoveryError('Could not check app installations. Rescan to retry.')
     } finally {
       // Scanning is a handful of existsSync calls and finishes far too fast to
       // see. Without a floor the button appears inert, and the user cannot
@@ -272,27 +387,27 @@ export function ConnectAgentScreen({
       if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining))
       setRescanning(false)
     }
-  }, [showHosts, project.rootPath])
+  }, [refreshHosts])
 
   // Detection is guesswork about paths; this is how a user corrects it.
   const locateHost = useCallback(async (host: AgentHostInfo) => {
     const outcome = await window.ambio.locateAgentHost(host.id)
     if (outcome.ok) {
       setLocateNotices(previous => ({ ...previous, [host.id]: outcome.detail }))
-      showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      await refreshHosts()
       return
     }
     // A cancelled dialog is not an error worth reporting back.
     if (outcome.detail !== 'Cancelled.') {
       setLocateNotices(previous => ({ ...previous, [host.id]: outcome.detail }))
     }
-  }, [showHosts, project.rootPath])
+  }, [refreshHosts])
 
   const clearHostOverride = useCallback(async (host: AgentHostInfo) => {
     const outcome = await window.ambio.clearAgentHostOverride(host.id)
     setLocateNotices(previous => ({ ...previous, [host.id]: outcome.detail }))
-    showHosts(await window.ambio.listAgentHosts(project.rootPath))
-  }, [showHosts, project.rootPath])
+    await refreshHosts()
+  }, [refreshHosts])
 
   const chooseHost = (hostId: string) => {
     userSelectedHost.current = true
@@ -307,7 +422,7 @@ export function ConnectAgentScreen({
       const outcome = await window.ambio.installAgent(candidate.id, project.rootPath)
       setResults(current => ({ ...current, [candidate.id]: outcome }))
       setNotes(current => ({ ...current, [candidate.id]: installOutcomeNote(candidate, 'install', outcome) }))
-      if (outcome.ok) showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      if (outcome.ok) await refreshHosts()
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Ambio could not inspect the updated configuration.'
       setResults(current => ({ ...current, [candidate.id]: { ok: false, detail, paths: [] } }))
@@ -324,7 +439,7 @@ export function ConnectAgentScreen({
       // An earlier install result must not keep the row looking installed.
       setResults(current => { const { [candidate.id]: _removed, ...rest } = current; return rest })
       setNotes(current => ({ ...current, [candidate.id]: installOutcomeNote(candidate, 'remove', outcome) }))
-      showHosts(await window.ambio.listAgentHosts(project.rootPath))
+      await refreshHosts()
     } finally {
       setInstalling(null)
     }
@@ -346,21 +461,29 @@ export function ConnectAgentScreen({
   }
 
   const stepComplete = (step: SetupStep) => {
-    if (mappingRun && (step === 1 || step === 2)) return true
-    if (step === 1) {
-      return hosts.some(host => {
-        const state = presentAgentHost(host, results[host.id], liveHostIds.has(host.id)).state
-        return state === 'installed' || state === 'live'
-      })
+    if (blankProject) {
+      if (step === 1) {
+        return hosts.some(host => {
+          const state = presentAgentHost(host, results[host.id], liveHostIds.has(host.connectionHostId ?? host.id)).state
+          return state === 'installed' || state === 'live'
+        })
+      }
+      if (step === 2) return selectedVerified
+      return false
     }
-    if (step === 2) return blankProject ? selectedVerified : phase !== 'waiting'
-    if (step === 3) return phase === 'proposed'
+    if (needsRestart) {
+      if (step === 1) return !!selectedHost && (results[selectedHost.id]?.ok || selectedHost.configured)
+      if (step === 2) return phase !== 'waiting' || activeStep > 2
+      if (step === 3) return phase === 'proposed' || activeStep > 3
+      return false
+    }
+    if (step === 1) return !!mappingRun || (!!mappingChoice && mappingChoice.available !== false)
+    if (step === 2) return phase === 'proposed' || activeStep > 2
     return false
   }
 
-  // A mapping Ambio runs skips the restart; the step says so rather than claiming one happened.
   const stepLabels = blankProject ? BLANK_PROJECT_STEPS
-    : mappingRun || mappingChoice?.kind === 'run' || mappingChoice?.kind === 'chat' ? CODEBASE_STEPS.map(step => step.id === 2 ? { ...step, label: 'No restart needed' } : step) : CODEBASE_STEPS
+    : needsRestart ? CODEBASE_APP_STEPS : CODEBASE_STEPS
 
 
   return (
@@ -383,6 +506,8 @@ export function ConnectAgentScreen({
         <nav
           className="ambio-connect__step-nav"
           data-mode={blankProject ? 'blank' : 'codebase'}
+          data-steps={stepLabels.length}
+          style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
           aria-label="Agent setup steps"
           role="tablist"
         >
@@ -408,16 +533,17 @@ export function ConnectAgentScreen({
               <div className="ambio-connect__step-panel ambio-connect__step-panel--pinned">
                 <h2>{blankProject ? 'Choose your agent' : 'Choose who maps this project'}</h2>
                 {mappingRun
-                  ? <div className="ambio-connect__scroll"><MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => setMappingRun(null)} /></div>
+                  ? <div className="ambio-connect__scroll"><MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={retryMapping.current ?? undefined} onDismiss={() => setMappingRun(null)} /></div>
                   : <ChooseAgent
+                    sidebarTarget={connectorSidebarTarget}
                     blankProject={blankProject} workspaceId={project.id} projectRoot={project.rootPath} hosts={hosts}
                     stateOf={host => presentAgentHost(host, results[host.id], liveHostIds.has(host.id)).state}
                     selectedAppId={selectedHostId} onSelectApp={chooseHost} installing={installing} notes={notes} locateNotices={locateNotices}
                     onInstall={host => { void installHost(host) }} onRemove={host => { void removeHost(host) }}
                     onLocate={host => { void locateHost(host) }} onClearOverride={host => { void clearHostOverride(host) }}
-                    rescanning={rescanning} onRescan={() => { void rescan() }}
+                    rescanning={rescanning} onRescan={rescan} hostDiscoveryError={hostDiscoveryError}
                     onContinue={() => setActiveStep(2)} onOpenCanvas={onComplete} onChoice={setMappingChoice}
-                    onStarted={(run, warning) => { setMappingState(null); setMappingWarning(warning ?? ''); setMappingRun(run); setActiveStep(3) }} />}
+                    onStarted={(run, warning, retry) => { setMappingState(null); setMappingWarning(warning ?? ''); retryMapping.current = retry ?? null; setMappingRun(run); setActiveStep(2) }} />}
               </div>
             )}
 
@@ -475,16 +601,7 @@ export function ConnectAgentScreen({
               </div>
             )}
 
-            {activeStep === 2 && !blankProject && mappingRun && (
-              <div className="ambio-connect__step-panel">
-                <p className="ambio-connect__step-kicker">Step 2 of 4</p>
-                <h2>Nothing to restart</h2>
-                <p className="ambio-connect__step-copy">Ambio runs {mappingRun.label} for you, so there is nothing to install or restart.</p>
-                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} nextLabel="Follow the mapping" onNext={() => setActiveStep(3)} />
-              </div>
-            )}
-
-            {activeStep === 2 && !blankProject && !mappingRun && (
+            {activeStep === 2 && !blankProject && needsRestart && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 2 of 4</p>
                 <h2>{selectedHost?.restartAction || `Restart ${selectedHost?.modalityLabel || selectedHost?.label}`}</h2>
@@ -530,18 +647,26 @@ export function ConnectAgentScreen({
               </div>
             )}
 
-            {activeStep === 3 && !blankProject && mappingRun && (
+            {activeStep === 2 && !blankProject && !needsRestart && (
               <div className="ambio-connect__step-panel">
-                <p className="ambio-connect__step-kicker">Step 3 of 4</p>
-                <h2>{mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label} is mapping this project</h2>
-                <p className="ambio-connect__step-copy">Review opens here when the agent says the map is done.</p>
-                <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
-                {mappingWarning && <p className="ambio-map-with__error" role="status">{mappingWarning}</p>}
-                <StepActions backLabel="Back" onBack={() => setActiveStep(1)} />
+                <p className="ambio-connect__step-kicker">Step 2 of 3</p>
+                {mappingRun ? (
+                  <>
+                    <h2>{mappingRun.kind === 'chat' ? 'Ambio chat' : mappingRun.label} is mapping this{'\u00A0'}project</h2>
+                    <p className="ambio-connect__step-copy">Review opens here when the agent says the map is done.</p>
+                    <MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                    {mappingWarning && <p className="ambio-map-with__error" role="status">{mappingWarning}</p>}
+                  </>
+                ) : (
+                  <>
+                    <h2>Start mapping</h2>
+                    <p className="ambio-connect__step-copy">Select an agent in step 1 to begin mapping your project.</p>
+                  </>
+                )}
               </div>
             )}
 
-            {activeStep === 3 && !blankProject && !mappingRun && (
+            {activeStep === 3 && !blankProject && needsRestart && (
               <div className="ambio-connect__step-panel">
                 <p className="ambio-connect__step-kicker">Step 3 of 4</p>
                 <h2>Ask {selectedHost?.modalityLabel || selectedHost?.label} to map this project</h2>
@@ -605,9 +730,9 @@ export function ConnectAgentScreen({
               </div>
             )}
 
-            {activeStep === 4 && !blankProject && (
+            {((activeStep === 3 && !blankProject && !needsRestart) || (activeStep === 4 && !blankProject && needsRestart)) && (
               <div className="ambio-connect__step-panel">
-                <p className="ambio-connect__step-kicker">Step 4 of 4</p>
+                <p className="ambio-connect__step-kicker">{needsRestart ? 'Step 4 of 4' : 'Step 3 of 3'}</p>
                 <h2>{phase === 'proposed' ? 'Your architecture is ready'
                   : mappingRun ? `${mappingLabel} is mapping this project`
                     : mapping ? 'Your agent is mapping the project' : 'Wait for the proposal'}</h2>
@@ -623,25 +748,93 @@ export function ConnectAgentScreen({
                 {phase === 'proposed'
                   ? <button type="button" className="ambio-connect__review" onClick={onReview}>Review architecture →</button>
                   : mappingRun
-                    ? <MappingActivity run={mappingRun} onState={setMappingState} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
+                    ? <MappingActivity run={mappingRun} onState={setMappingState} onSummary={setMappingSummary} onRetry={handleRetry} onDismiss={() => { setMappingRun(null); setActiveStep(1) }} />
                     : <DraftLine workspaceId={project.id} />}
-                <StepActions backLabel="Back" onBack={() => setActiveStep(3)} />
               </div>
             )}
           </section>
 
           <aside className="ambio-connect__mascot">
             <AgentMascot state={mascotState} caption={mascot.caption} hostLabel={mappingLabel || selectedHost?.modalityLabel || selectedHost?.label || 'agent'} />
+            <div className="ambio-connect__connector-sidebar" ref={setConnectorSidebarTarget} />
           </aside>
         </div>
 
         {!blankProject && (
           <footer className="ambio-connect__footer">
-            <span />
-            <button type="button" onClick={onSkip}>Open canvas without mapping</button>
+            {activeStep > 1 ? (
+              <button
+                type="button"
+                className="ambio-connect__secondary ambio-connect__footer-back"
+                onClick={() => {
+                  if (activeStep === 2) {
+                    setMappingRun(null)
+                    setActiveStep(1)
+                  } else {
+                    setActiveStep((activeStep - 1) as SetupStep)
+                  }
+                }}
+              >
+                Back
+              </button>
+            ) : (
+              <span />
+            )}
+            <button type="button" onClick={() => setConfirmSkipOpen(true)}>Open canvas without mapping</button>
           </footer>
         )}
       </main>
+
+      {confirmSkipOpen && (
+        <div className="ambio-create__scrim" onClick={() => setConfirmSkipOpen(false)}>
+          <div
+            className="ambio-remove-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skip-mapping-title"
+            onClick={event => event.stopPropagation()}
+            tabIndex={-1}
+          >
+            <div className="ambio-remove-modal__head">
+              <span className="ambio-remove-modal__kicker">OPEN WITHOUT MAPPING</span>
+              <h3 id="skip-mapping-title">Are you sure?</h3>
+              <button
+                type="button"
+                className="ambio-remove-modal__close"
+                onClick={() => setConfirmSkipOpen(false)}
+                aria-label="Cancel"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="ambio-remove-modal__body">
+              Opening the canvas without mapping is not the intended experience and is not recommended. Ambio works best when an agent maps your architecture first so your systems and components are understood.
+            </p>
+
+            <div className="ambio-remove-modal__actions">
+              <button
+                type="button"
+                className="ambio-remove-modal__cancel"
+                onClick={() => setConfirmSkipOpen(false)}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ambio-remove-modal__danger"
+                onClick={() => {
+                  setConfirmSkipOpen(false)
+                  onSkip()
+                }}
+              >
+                Open without mapping
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
