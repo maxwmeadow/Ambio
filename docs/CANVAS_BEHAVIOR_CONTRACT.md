@@ -105,6 +105,12 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   Failure remains recoverable without synchronously decoding a huge reply.
   This scheduling change preserves authored geometry, reveal thresholds and
   navigation timing; it does not imply a fully paged project model.
+- Floor preparation may precompute canonical indexes before publication.
+  Selection and activity overlays reuse these only while geometry, ordering,
+  hidden state and semantic detail remain unchanged. An inactive overlay does
+  not replace the scene. Geometry/visibility edits still reconcile and all
+  candidates still pass the existing integrity audit. Review keeps its full
+  visibility policy; sheet-specific composition remains authoritative.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
   React Flow additionally culls offscreen components; retention no longer requires

@@ -601,6 +601,18 @@ admitted relationships. It iterates admitted IDs on camera replies instead of
 mapping the project array. Flow owns a disposable interaction subset; its own
 component culler can release DOM within that subset. During layout glides the
 outgoing subset is retained, rather than adopting the entire project.
+For a Floor projection whose initial semantic visibility is already prepared,
+the preparation hook also constructs records, ID order and absolute boxes in
+cooperative tasks before publication. An exact-array weak cache lets adoption
+reuse those completed indexes. Selection and the runtime/slice/focus/trace
+overlays carry them forward only because they preserve geometry, order, hidden
+state and semantic detail; ordinary geometry/visibility edits miss that cache
+and use the normal reconciliation path. Equivalent model echoes reuse record
+and geometry identity. Idle overlays return the original array without stamping
+unset booleans to false. Saved scenes build persistence lookups only when rows
+need writing; review saved-row membership uses a set instead of nested scans.
+The integrity audit remains authoritative and still runs on the adoption path.
+See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.
 Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots

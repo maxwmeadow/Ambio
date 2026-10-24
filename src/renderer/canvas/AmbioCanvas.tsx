@@ -43,6 +43,7 @@ import { RenderBudgetContext, useCanvasRenderBudget } from './useCanvasRenderBud
 import { useCanvasFrameTiming } from './useCanvasFrameTiming'
 import { useCanvasFitView } from './useCanvasFitView'
 import { canvasScene, canonicalInternalNode } from './scene/canonicalScene'
+import { stampBooleanOverlay, stampRuntimeOverlay } from './nodeOverlays'
 import { CanvasMiniMap } from './CanvasMiniMap'
 import { OrthogonalEdge } from './edges/OrthogonalEdge'
 import { useGraphStore } from '../store/graphStore'
@@ -2452,20 +2453,23 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     const { generatedLayoutNodeIds, resizedContainerIds } = geometry
     const layout = floorPreparation.value.nodes
     const newEdges: Edge[] = []
-    const filesByIdForPersistence = new Map(files.map(file => [file.id, file]))
-    const systemIdsForPersistence = new Set(systems.map(system => system.id))
-    const infraIdsForPersistence = new Set(infraNodes.map(infra => infra.id))
+    let persistenceIndex: { files: Map<string, DbFile>; systems: Set<string>; infra: Set<string> } | undefined
+    const persistence = () => persistenceIndex ??= {
+      files: new Map(files.map(file => [file.id, file])),
+      systems: new Set(systems.map(system => system.id)),
+      infra: new Set(infraNodes.map(infra => infra.id)),
+    }
 
     const serializeFloorNode = (node: Node): Omit<FloorLayout, 'workspaceId' | 'updatedAt'> => {
-      const nodeType: FloorNodeType = systemIdsForPersistence.has(node.id)
-        ? 'system' : filesByIdForPersistence.has(node.id) ? 'file' : 'infra'
+      const nodeType: FloorNodeType = persistence().systems.has(node.id)
+        ? 'system' : persistence().files.has(node.id) ? 'file' : 'infra'
       const ownScale = Number((node.data as any).frameScale ?? 1)
       const worldScale = Number((node.data as any).worldScale ?? ownScale)
       // The parent factor that produced this node's world position is the
       // parent's CONTENT scale; dividing it back out recovers canonical coords.
       const parentWorldScale = node.parentId ? worldScale / Math.max(0.0001, ownScale) : 1
       const parentNodeType = node.parentId
-        ? (infraIdsForPersistence.has(node.parentId) ? 'infra' : 'system')
+        ? (persistence().infra.has(node.parentId) ? 'infra' : 'system')
         : null
       return {
         nodeId: node.id,
@@ -2488,15 +2492,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     // Only freeze an initial layout once real containers exist. Persisting root
     // positions for still-unclassified files would pin them, blocking live
     // classification from later moving them into their system.
-    const everyFileClassified = files.every(file => !!file.systemId)
     if (reviewMode && saveReviewLayouts && reviewEditableNodeIds) {
       // The live Floor freezes every generated row before the first gesture.
       // Review must do the same. Leaving proposal geometry sparse meant the
       // first user move persisted one node, then every untouched node entered
       // fresh-packing again and the whole review appeared to tidy itself.
-      const missingEditableIds = new Set(
-        [...reviewEditableNodeIds].filter(id => !floorLayouts.some(layoutRow => layoutRow.nodeId === id)),
-      )
+      const savedIds = new Set(floorLayouts.map(row => row.nodeId))
+      const missingEditableIds = new Set([...reviewEditableNodeIds].filter(id => !savedIds.has(id)))
       for (const id of resizedContainerIds) {
         if (reviewEditableNodeIds.has(id)) missingEditableIds.add(id)
       }
@@ -2527,7 +2529,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       } else if (reviewLayoutPersistingSceneRef.current !== projectId) {
         setReviewReadySceneId(current => current === projectId ? current : projectId)
       }
-    } else if (!reviewMode && !binMode && !readOnly && currentProject && systems.length > 0 && everyFileClassified && floorLayouts.length === 0 && initialFloorPersistRef.current !== projectId) {
+    } else if (!reviewMode && !binMode && !readOnly && currentProject && systems.length > 0 && floorLayouts.length === 0 && files.every(file => !!file.systemId) && initialFloorPersistRef.current !== projectId) {
       initialFloorPersistRef.current = projectId
       const initialLayouts = layout.map(serializeFloorNode)
       const optimistic = initialLayouts.map(item => ({ ...item, workspaceId: currentProject.id, updatedAt: Date.now() }))
@@ -2547,12 +2549,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           setFloorPersistenceRetry(revision => revision + 1)
         } }])
       })
-    } else if (!reviewMode && !binMode && !readOnly && currentProject && floorLayouts.length > 0) {
+    } else if (!reviewMode && !binMode && !readOnly && currentProject && floorLayouts.length > 0 && (generatedLayoutNodeIds.size > 0 || resizedContainerIds.size > 0)) {
       // Do not pin a just-created, still-unclassified file to the Floor root.
       // Its semantic parent arrives in the classifier's atomic snapshot.
       const persistableGeneratedIds = [...generatedLayoutNodeIds].filter(nodeId => {
-        const file = filesByIdForPersistence.get(nodeId)
-        const nodeType: FloorNodeType = file ? 'file' : systemIdsForPersistence.has(nodeId) ? 'system' : 'infra'
+        const file = persistence().files.get(nodeId)
+        const nodeType: FloorNodeType = file ? 'file' : persistence().systems.has(nodeId) ? 'system' : 'infra'
         return canPersistGeneratedFrame(nodeType, file?.systemId ?? null)
       })
       const reconciledIds = new Set([...persistableGeneratedIds, ...resizedContainerIds])
@@ -2738,23 +2740,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // onto the affected file nodes. runtimeNodes only contains watched files,
   // so untouched nodes keep referential identity and skip re-render.
   useEffect(() => {
-    setRfNodes(curr => curr.map(n => {
-      const rt = runtimeNodes[n.id]
-      const had = (n.data as any).runtime
-      if (!rt && !had) return n
-      if (rt === had) return n
-      return { ...n, data: { ...n.data, runtime: rt ?? null } }
-    }))
+    setRfNodes(curr => stampRuntimeOverlay(curr, runtimeNodes))
   }, [runtimeNodes, layoutVersion])
 
   // ── Data-flow slice (purple overlay) ───────────────────────────────────────
   // Stamp `sliced` on file nodes in the current variable-reference slice.
   useEffect(() => {
     const ids = dataFlow?.fileIds ?? null
-    setRfNodes(curr => curr.map(n => {
-      const inSlice = !!ids && ids.has(n.id)
-      return (n.data as any).sliced === inSlice ? n : { ...n, data: { ...n.data, sliced: inSlice } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'sliced', id => Boolean(ids?.has(id))))
   }, [dataFlow, layoutVersion])
 
   // ── Focused subgraph ───────────────────────────────────────────────────────
@@ -2781,9 +2774,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   useEffect(() => {
     const active = focusEnabled && focusFileIds.size > 0
     if (!active) {
-      setRfNodes(curr => curr.some(n => (n.data as any).dimmed)
-        ? curr.map(n => (n.data as any).dimmed ? { ...n, data: { ...n.data, dimmed: false } } : n)
-        : curr)
+      setRfNodes(curr => stampBooleanOverlay(curr, 'dimmed', () => false))
       return
     }
     // Keep focused files and every ancestor system on their parent chain lit.
@@ -2797,10 +2788,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         sysId = systemById.get(sysId)?.parentId ?? null
       }
     }
-    setRfNodes(curr => curr.map(n => {
-      const dim = !keep.has(n.id)
-      return (n.data as any).dimmed === dim ? n : { ...n, data: { ...n.data, dimmed: dim } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'dimmed', id => !keep.has(id)))
   }, [focusEnabled, focusFileIds, systems, files, layoutVersion])
 
   // ── Call trace ───────────────────────────────────────────────────────────
@@ -2813,10 +2801,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       tracedIds.add(step.callerFile)
       tracedIds.add(step.calleeFile)
     }
-    setRfNodes(curr => curr.map(n => {
-      const traced = tracedIds.has(n.id)
-      return Boolean((n.data as any).isTraced) === traced ? n : { ...n, data: { ...n.data, isTraced: traced } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'isTraced', id => tracedIds.has(id)))
   }, [activeTrace, layoutVersion])
 
   // ── WASD pan ────────────────────────────────────────────────────────────

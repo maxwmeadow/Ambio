@@ -1,7 +1,7 @@
 /** Opt-in, bounded local stage tracing. Labels never include project/file data. */
 export type PerfStage = 'snapshot.fetch' | 'snapshot.decode' | 'snapshot.store' | 'snapshot.batch' |
   'scene.initial-packing' | 'scene.geometry' | 'scene.floor-projection' |
-  'scene.records' | 'scene.signature' | 'scene.visibility-project' |
+  'scene.records' | 'scene.signature' | 'scene.visibility-project' | 'scene.canonical-preparation' |
   'worker.scene-post' | 'worker.index' | 'worker.query' | 'worker.round-trip' | 'worker.geometry-post' | 'worker.geometry' | 'scene.numeric-input'
 export interface PerfSample { stage: PerfStage; ms: number; at: number; items?: number }
 export function createPerfTrace(capacity = 2048, clock: () => number = () => performance.now()) {

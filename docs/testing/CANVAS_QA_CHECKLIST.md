@@ -46,6 +46,13 @@ passing automated tests do not fill them in. See
   supplements the [retention fix and automated memory checks](CANVAS_COLD_ADOPTION.md);
   it does not certify a memory plateau for every project.
 
+The Oct 24 [final-adoption follow-up](CANVAS_FINAL_ADOPTION.md) adds cooperative
+canonical indexes and removes redundant idle overlays/persistence checks. Its
+100k cold-input gate is still inconsistent. CP1–CP7 remain human rechecks;
+automated results do not mark them complete. During CP3/CP4, also activate and
+clear runtime/slice/focus/trace overlays and check selection, tint, authored
+geometry and saved positions after a model update.
+
 - [~] **CP8 — Initial-mapping review mouse pan.** Max found hitches after the
   first mapping, while approving/sending back systems; Floor mouse pan and review
   WASD felt smooth. The targeted fix is on `codex/review-pointer-pan`, based on

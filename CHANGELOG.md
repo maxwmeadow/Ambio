@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Opening a large saved map prepares its navigation geometry in smaller steps
+  and avoids rebuilding it for inactive overlays. Review layout checks no longer
+  compare every editable node against every saved row.
 - Large maps prepare and transfer their scene in smaller background steps,
   reducing loading hitches. Repeated navigation releases old complete scenes
   instead of retaining them in memory.

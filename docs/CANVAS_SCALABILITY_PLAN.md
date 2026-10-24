@@ -124,6 +124,13 @@ and selection improve at 100k; cold input and the 50-cycle heap gate still fail.
 
 WORK item: `canvas-cold-layout-worker`. Depends on phase 1 tracing.
 
+Oct 24 follow-up: completed Floor projections now prepare canonical records,
+ID order and absolute rectangles cooperatively, reuse their indexes on adoption
+and avoid idle-overlay/persistence rebuilds. This is a partial phase-2 slice;
+the 100k cold-input gate remains inconsistent. Integrity checks, other full-model
+consumers and semantic threshold crossings still need measurement and bounded
+work. See [final adoption evidence](testing/CANVAS_FINAL_ADOPTION.md).
+
 Extract deterministic numeric layout/packing from `AmbioCanvas.tsx`, initially
 `runAlternateAxisLayout` and `buildFloorFrameLayout`. Proposed files under
 `src/renderer/canvas/scene/`: `sceneGeometry.ts`, `sceneProtocol.ts`, and

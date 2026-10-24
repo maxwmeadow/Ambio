@@ -4,6 +4,11 @@ Branch: `codex/canvas-cold-adoption`, based on remote main `908e488` plus the
 initial-review pointer-pan fix `2e223a7`. No dependency, database migration,
 server endpoint or renderer-library change.
 
+The subsequent Oct 24 [final-adoption follow-up](CANVAS_FINAL_ADOPTION.md)
+adds cooperative canonical-index preparation and removes redundant overlay and
+persistence work. Its fresh control is retained separately because host timing
+changed; do not compare those runs as if they shared this report's baseline.
+
 ## Findings
 
 The remaining large-map stalls were spread across snapshot decoding, structured

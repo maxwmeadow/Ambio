@@ -1,0 +1,4263 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-24",
+  "branch": "codex/canvas-cold-adoption",
+  "base": "0b5071d plus the completed 08a9d18 cold-adoption slice",
+  "notes": [
+    "Fresh control rebuilds the exact 08a9d18 runtime; its build fingerprint matches the earlier report.",
+    "Run order: first implementation, fresh control, instrumented profile, final implementation, native 10k memory repeats, forced-collection 100k diagnostic.",
+    "All repetitions are retained, including misses and the slower first attempt. Small cold samples and host variability preclude a stable percentage improvement.",
+    "Forced collection and CPU profiling are diagnostic; their frame timings are not native acceptance.",
+    "Raw process metrics with PIDs, CPU profiles and source backups are not included. Complete models remain resident."
+  ],
+  "cases": [
+    {
+      "case": "final-adoption-control-100k/saved-100000-0.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "a4da1ef6a3ec913686caedfa3f4c784a7eb80e9af7c34aea8c95d0ead6e3e28b",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1315.0999999642372,
+        "wallMs": 3224,
+        "usableMs": 4671
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(363.513px, 239.167px) scale(0.481326);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 618,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 50.100000000000364,
+        "max": 133.30000000000018
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 342,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 66.70000000000027,
+          "max": 133.30000000000018
+        },
+        "navigation": {
+          "count": 137,
+          "p50": 8.300000000000182,
+          "p95": 8.600000000000364,
+          "p99": 91.59999999999945,
+          "max": 99.90000000000055
+        },
+        "warm": {
+          "count": 139,
+          "p50": 8.300000000000182,
+          "p95": 9.300000000000182,
+          "p99": 33.30000000000018,
+          "max": 41.69999999999982
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 36,
+        "p95": 36,
+        "p99": 36,
+        "max": 36
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 22,
+          "p50": 13.700000047683716,
+          "p95": 82.80000001192093,
+          "p99": 87.69999998807907,
+          "max": 87.69999998807907
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 20.299999952316284,
+          "p95": 20.299999952316284,
+          "p99": 20.299999952316284,
+          "max": 20.299999952316284
+        },
+        "warm": {
+          "count": 4,
+          "p50": 31.5,
+          "p95": 35.89999997615814,
+          "p99": 35.89999997615814,
+          "max": 35.89999997615814
+        }
+      },
+      "inputQueue": {
+        "count": 27,
+        "p50": 0.6000000238418579,
+        "p95": 80.90000003576279,
+        "p99": 85.40000003576279,
+        "max": 85.40000003576279
+      },
+      "inputToPaintOpportunity": {
+        "count": 27,
+        "p50": 14.799999952316284,
+        "p95": 82.80000001192093,
+        "p99": 87.69999998807907,
+        "max": 87.69999998807907
+      },
+      "browserWork": {
+        "LayoutCount": 372,
+        "LayoutDuration": 0.095403,
+        "RecalcStyleDuration": 0.08081,
+        "ScriptDuration": 1.621387,
+        "TaskDuration": 2.6552260000000003
+      },
+      "sampledPeakPrivateKiB": 1111368,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        299171612,
+        218888012
+      ],
+      "processPrivateKiB": [
+        1099344,
+        1085044
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 424,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2102.800000011921,
+            "ms": 115,
+            "phase": "cold"
+          },
+          {
+            "at": 3654.199999988079,
+            "ms": 116,
+            "phase": "cold"
+          },
+          {
+            "at": 3806.399999976158,
+            "ms": 68,
+            "phase": "cold"
+          },
+          {
+            "at": 4032.399999976158,
+            "ms": 56,
+            "phase": "navigation"
+          },
+          {
+            "at": 4732.099999964237,
+            "ms": 54,
+            "phase": "navigation"
+          },
+          {
+            "at": 4832.599999964237,
+            "ms": 95,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 41,
+          "zoomVisibilityPasses": 162,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 21,
+          "budgetAdmissions": 12,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 20,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 312,
+          "longestCameraFrame": 99.90000000000055,
+          "longAnimationFrames": 11,
+          "longestAnimationFrame": 240,
+          "resizerMounts": 0,
+          "resizerRenderCount": 167,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1256,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 688.6999999880791,
+              "maxMs": 688.6999999880791,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 688.6999999880791
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 2.400000035762787,
+              "maxMs": 0.20000004768371582,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.09999996423721313
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 621.8000000119209,
+              "maxMs": 621.8000000119209,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 621.8000000119209
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.6000000238418579,
+              "maxMs": 0.6000000238418579,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.6000000238418579
+            },
+            "scene.visibility-project": {
+              "count": 15,
+              "totalMs": 7.399999916553497,
+              "maxMs": 3.599999964237213,
+              "maxItems": 100000,
+              "retainedSamples": 15,
+              "retainedP95Ms": 3.599999964237213
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 76.5,
+              "maxMs": 76.5,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 76.5
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 78.50000035762787,
+              "maxMs": 0.5,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 248.10000014305115,
+              "maxMs": 248.10000014305115,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 248.10000014305115
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 197.89999997615814,
+              "maxMs": 197.89999997615814,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 197.89999997615814
+            },
+            "scene.records": {
+              "count": 11,
+              "totalMs": 47.59999996423721,
+              "maxMs": 9.100000023841858,
+              "maxItems": 100000,
+              "retainedSamples": 11,
+              "retainedP95Ms": 9.100000023841858
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 76.49999988079071,
+              "maxMs": 0.40000003576278687,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 20,
+              "totalMs": 600.2000000476837,
+              "maxMs": 324,
+              "maxItems": 0,
+              "retainedSamples": 20,
+              "retainedP95Ms": 324
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 187.39999997615814,
+              "maxMs": 109.09999996423721,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 109.09999996423721
+            },
+            "worker.query": {
+              "count": 20,
+              "totalMs": 1.7000000476837158,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 0,
+              "retainedSamples": 20,
+              "retainedP95Ms": 0.30000001192092896
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-control-100k/saved-100000-1.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "a4da1ef6a3ec913686caedfa3f4c784a7eb80e9af7c34aea8c95d0ead6e3e28b",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.300000000000068
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1468.0999999642372,
+        "wallMs": 3909,
+        "usableMs": 5385
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(355.044px, 233.632px) scale(0.478857);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 695,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 50,
+        "max": 133.30000000000018
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 420,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.800000000000182,
+          "max": 133.30000000000018
+        },
+        "navigation": {
+          "count": 136,
+          "p50": 8.300000000000182,
+          "p95": 16.800000000000182,
+          "p99": 108.19999999999982,
+          "max": 124.89999999999964
+        },
+        "warm": {
+          "count": 139,
+          "p50": 8.300000000000182,
+          "p95": 8.600000000000364,
+          "p99": 16.800000000000182,
+          "max": 33.19999999999982
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 28.100000023841858,
+        "p95": 28.100000023841858,
+        "p99": 28.100000023841858,
+        "max": 28.100000023841858
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 27,
+          "p50": 12.699999988079071,
+          "p95": 91.80000001192093,
+          "p99": 99.69999998807907,
+          "max": 99.69999998807907
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 22.100000023841858,
+          "p95": 22.100000023841858,
+          "p99": 22.100000023841858,
+          "max": 22.100000023841858
+        },
+        "warm": {
+          "count": 4,
+          "p50": 28.100000023841858,
+          "p95": 31.200000047683716,
+          "p99": 31.200000047683716,
+          "max": 31.200000047683716
+        }
+      },
+      "inputQueue": {
+        "count": 32,
+        "p50": 0.699999988079071,
+        "p95": 80.29999995231628,
+        "p99": 96.69999998807907,
+        "max": 96.69999998807907
+      },
+      "inputToPaintOpportunity": {
+        "count": 32,
+        "p50": 13.100000023841858,
+        "p95": 91.80000001192093,
+        "p99": 99.69999998807907,
+        "max": 99.69999998807907
+      },
+      "browserWork": {
+        "LayoutCount": 364,
+        "LayoutDuration": 0.089069,
+        "RecalcStyleDuration": 0.080743,
+        "ScriptDuration": 1.832699,
+        "TaskDuration": 2.9791000000000003
+      },
+      "sampledPeakPrivateKiB": 1138292,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        278984736,
+        287255424
+      ],
+      "processPrivateKiB": [
+        1125352,
+        1138292
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2290.600000023842,
+            "ms": 137,
+            "phase": "cold"
+          },
+          {
+            "at": 4379.900000035763,
+            "ms": 101,
+            "phase": "cold"
+          },
+          {
+            "at": 4519.900000035763,
+            "ms": 70,
+            "phase": "cold"
+          },
+          {
+            "at": 4757.800000011921,
+            "ms": 59,
+            "phase": "navigation"
+          },
+          {
+            "at": 5417.300000011921,
+            "ms": 54,
+            "phase": "navigation"
+          },
+          {
+            "at": 5517,
+            "ms": 114,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 36,
+          "zoomVisibilityPasses": 155,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 15,
+          "budgetAdmissions": 12,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 13,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 320,
+          "longestCameraFrame": 133.19999999999982,
+          "longAnimationFrames": 10,
+          "longestAnimationFrame": 259,
+          "resizerMounts": 0,
+          "resizerRenderCount": 160,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1241,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 736,
+              "maxMs": 736,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 736
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 4.500000238418579,
+              "maxMs": 1.5,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 725.8000000119209,
+              "maxMs": 725.8000000119209,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 725.8000000119209
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.800000011920929,
+              "maxMs": 0.800000011920929,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.800000011920929
+            },
+            "scene.visibility-project": {
+              "count": 14,
+              "totalMs": 7.500000059604645,
+              "maxMs": 3.399999976158142,
+              "maxItems": 100000,
+              "retainedSamples": 14,
+              "retainedP95Ms": 3.399999976158142
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 114.69999998807907,
+              "maxMs": 114.69999998807907,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 114.69999998807907
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 106.99999904632568,
+              "maxMs": 0.7999999523162842,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.40000003576278687
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 324.7999999523163,
+              "maxMs": 324.7999999523163,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 324.7999999523163
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 273.5999999642372,
+              "maxMs": 273.5999999642372,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 273.5999999642372
+            },
+            "scene.records": {
+              "count": 11,
+              "totalMs": 49.70000010728836,
+              "maxMs": 10,
+              "maxItems": 100000,
+              "retainedSamples": 11,
+              "retainedP95Ms": 10
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 91.30000013113022,
+              "maxMs": 0.699999988079071,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 13,
+              "totalMs": 621.5,
+              "maxMs": 351,
+              "maxItems": 0,
+              "retainedSamples": 13,
+              "retainedP95Ms": 351
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 197.9000000357628,
+              "maxMs": 107,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 107
+            },
+            "worker.query": {
+              "count": 13,
+              "totalMs": 1.4000000357627869,
+              "maxMs": 0.3999999761581421,
+              "maxItems": 0,
+              "retainedSamples": 13,
+              "retainedP95Ms": 0.3999999761581421
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-first-100k/saved-100000-0.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "90ff7d039d11477e80256ceaddc363b97baebe171b1b0a3f154325de5e5c3055",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.300000000000068
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1368.9000000357628,
+        "wallMs": 3941,
+        "usableMs": 5496
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(374.721px, 246.484px) scale(0.484902);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 712,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 41.69999999999982,
+        "max": 124.80000000000018
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 443,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.800000000000182,
+          "max": 108.29999999999973
+        },
+        "navigation": {
+          "count": 124,
+          "p50": 8.300000000000182,
+          "p95": 25.199999999999818,
+          "p99": 116.59999999999945,
+          "max": 124.80000000000018
+        },
+        "warm": {
+          "count": 145,
+          "p50": 8.300000000000182,
+          "p95": 8.599999999999454,
+          "p99": 25.199999999999818,
+          "max": 33.30000000000018
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 34.30000001192093,
+        "p95": 34.30000001192093,
+        "p99": 34.30000001192093,
+        "max": 34.30000001192093
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 29,
+          "p50": 14.699999988079071,
+          "p95": 60.69999998807907,
+          "p99": 73.80000001192093,
+          "max": 73.80000001192093
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 41,
+          "p95": 41,
+          "p99": 41,
+          "max": 41
+        },
+        "warm": {
+          "count": 4,
+          "p50": 29.599999964237213,
+          "p95": 34.19999998807907,
+          "p99": 34.19999998807907,
+          "max": 34.19999998807907
+        }
+      },
+      "inputQueue": {
+        "count": 34,
+        "p50": 0.6000000238418579,
+        "p95": 55.40000003576279,
+        "p99": 71.5,
+        "max": 71.5
+      },
+      "inputToPaintOpportunity": {
+        "count": 34,
+        "p50": 14.900000035762787,
+        "p95": 60.69999998807907,
+        "p99": 73.80000001192093,
+        "max": 73.80000001192093
+      },
+      "browserWork": {
+        "LayoutCount": 340,
+        "LayoutDuration": 0.119605,
+        "RecalcStyleDuration": 0.123654,
+        "ScriptDuration": 1.904069,
+        "TaskDuration": 3.3238019999999997
+      },
+      "sampledPeakPrivateKiB": 1104504,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        257046476,
+        273499788
+      ],
+      "processPrivateKiB": [
+        1091256,
+        1104504
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2168.699999988079,
+            "ms": 116,
+            "phase": "cold"
+          },
+          {
+            "at": 4788.600000023842,
+            "ms": 62,
+            "phase": "navigation"
+          },
+          {
+            "at": 4990,
+            "ms": 62,
+            "phase": "navigation"
+          },
+          {
+            "at": 5466.5,
+            "ms": 71,
+            "phase": "navigation"
+          },
+          {
+            "at": 5540,
+            "ms": 74,
+            "phase": "navigation"
+          },
+          {
+            "at": 5633.199999988079,
+            "ms": 123,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 34,
+          "zoomVisibilityPasses": 145,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 11,
+          "budgetAdmissions": 9,
+          "maxBudgetBatch": 3,
+          "mountedRichNodes": 7,
+          "workerQueries": 10,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 331,
+          "longestCameraFrame": 124.80000000000018,
+          "longAnimationFrames": 9,
+          "longestAnimationFrame": 216,
+          "resizerMounts": 0,
+          "resizerRenderCount": 148,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1234,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 685.8000000119209,
+              "maxMs": 685.8000000119209,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 685.8000000119209
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 2.199999988079071,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.09999996423721313
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 681.1000000238419,
+              "maxMs": 681.1000000238419,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 681.1000000238419
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 1.100000023841858,
+              "maxMs": 1.100000023841858,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 1.100000023841858
+            },
+            "scene.visibility-project": {
+              "count": 13,
+              "totalMs": 3.699999988079071,
+              "maxMs": 2.300000011920929,
+              "maxItems": 100000,
+              "retainedSamples": 13,
+              "retainedP95Ms": 2.300000011920929
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 85.89999997615814,
+              "maxMs": 85.89999997615814,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 85.89999997615814
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 115.40000009536743,
+              "maxMs": 2.300000011920929,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.6000000238418579
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 302.70000010728836,
+              "maxMs": 302.70000010728836,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 302.70000010728836
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 372.69999998807907,
+              "maxMs": 372.69999998807907,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 372.69999998807907
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 175.10000002384186,
+              "maxMs": 175.10000002384186,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 175.10000002384186
+            },
+            "scene.records": {
+              "count": 10,
+              "totalMs": 45.199999928474426,
+              "maxMs": 15.899999976158142,
+              "maxItems": 100000,
+              "retainedSamples": 10,
+              "retainedP95Ms": 15.899999976158142
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 112.5,
+              "maxMs": 1.5,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.5
+            },
+            "worker.round-trip": {
+              "count": 10,
+              "totalMs": 356.0999999642372,
+              "maxMs": 203.19999998807907,
+              "maxItems": 0,
+              "retainedSamples": 10,
+              "retainedP95Ms": 203.19999998807907
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 304.39999997615814,
+              "maxMs": 192.19999998807907,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 192.19999998807907
+            },
+            "worker.query": {
+              "count": 10,
+              "totalMs": 1.300000011920929,
+              "maxMs": 0.699999988079071,
+              "maxItems": 0,
+              "retainedSamples": 10,
+              "retainedP95Ms": 0.699999988079071
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-first-100k/saved-100000-1.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "90ff7d039d11477e80256ceaddc363b97baebe171b1b0a3f154325de5e5c3055",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.300000000000068
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1800,
+        "wallMs": 4080,
+        "usableMs": 5557
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(385.329px, 253.403px) scale(0.48864);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 724,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 33.599999999999454,
+        "max": 133.39999999999964
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 451,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 24.899999999999636,
+          "max": 133.39999999999964
+        },
+        "navigation": {
+          "count": 129,
+          "p50": 8.300000000000182,
+          "p95": 16.800000000000182,
+          "p99": 100,
+          "max": 133.19999999999982
+        },
+        "warm": {
+          "count": 144,
+          "p50": 8.300000000000182,
+          "p95": 16.599999999999454,
+          "p99": 33.30000000000018,
+          "max": 33.30000000000018
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 40.5,
+        "p95": 40.5,
+        "p99": 40.5,
+        "max": 40.5
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 27,
+          "p50": 13.900000035762787,
+          "p95": 64.89999997615814,
+          "p99": 91.90000003576279,
+          "max": 91.90000003576279
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 26.30000001192093,
+          "p95": 26.30000001192093,
+          "p99": 26.30000001192093,
+          "max": 26.30000001192093
+        },
+        "warm": {
+          "count": 4,
+          "p50": 37.19999998807907,
+          "p95": 40.40000003576279,
+          "p99": 40.40000003576279,
+          "max": 40.40000003576279
+        }
+      },
+      "inputQueue": {
+        "count": 32,
+        "p50": 0.800000011920929,
+        "p95": 62,
+        "p99": 86.90000003576279,
+        "max": 86.90000003576279
+      },
+      "inputToPaintOpportunity": {
+        "count": 32,
+        "p50": 15.599999964237213,
+        "p95": 64.89999997615814,
+        "p99": 91.90000003576279,
+        "max": 91.90000003576279
+      },
+      "browserWork": {
+        "LayoutCount": 361,
+        "LayoutDuration": 0.128563,
+        "RecalcStyleDuration": 0.108537,
+        "ScriptDuration": 1.848236,
+        "TaskDuration": 3.284045
+      },
+      "sampledPeakPrivateKiB": 1066360,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        253360040,
+        269141552
+      ],
+      "processPrivateKiB": [
+        1051368,
+        1066360
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2675.100000023842,
+            "ms": 135,
+            "phase": "cold"
+          },
+          {
+            "at": 4759.100000023842,
+            "ms": 54,
+            "phase": "cold"
+          },
+          {
+            "at": 4970.600000023842,
+            "ms": 50,
+            "phase": "navigation"
+          },
+          {
+            "at": 5613.5,
+            "ms": 73,
+            "phase": "navigation"
+          },
+          {
+            "at": 5687.100000023842,
+            "ms": 64,
+            "phase": "navigation"
+          },
+          {
+            "at": 5760.800000011921,
+            "ms": 121,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 34,
+          "zoomVisibilityPasses": 150,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 15,
+          "budgetAdmissions": 11,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 15,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 326,
+          "longestCameraFrame": 133.19999999999982,
+          "longAnimationFrames": 9,
+          "longestAnimationFrame": 286,
+          "resizerMounts": 0,
+          "resizerRenderCount": 154,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1244,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 979.1000000238419,
+              "maxMs": 979.1000000238419,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 979.1000000238419
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 3.20000022649765,
+              "maxMs": 0.3999999761581421,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 819,
+              "maxMs": 819,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 819
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.9000000357627869,
+              "maxMs": 0.9000000357627869,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.9000000357627869
+            },
+            "scene.visibility-project": {
+              "count": 13,
+              "totalMs": 3.799999952316284,
+              "maxMs": 2.799999952316284,
+              "maxItems": 100000,
+              "retainedSamples": 13,
+              "retainedP95Ms": 2.799999952316284
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 93.90000003576279,
+              "maxMs": 93.90000003576279,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 93.90000003576279
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 94.69999986886978,
+              "maxMs": 0.5,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.3999999761581421
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 320.1000000834465,
+              "maxMs": 320.1000000834465,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 320.1000000834465
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 265.69999998807907,
+              "maxMs": 265.69999998807907,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 265.69999998807907
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 162.5999999642372,
+              "maxMs": 162.5999999642372,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 162.5999999642372
+            },
+            "scene.records": {
+              "count": 10,
+              "totalMs": 43.09999996423721,
+              "maxMs": 13.699999988079071,
+              "maxItems": 100000,
+              "retainedSamples": 10,
+              "retainedP95Ms": 13.699999988079071
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 103.69999939203262,
+              "maxMs": 0.6000000238418579,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.40000003576278687
+            },
+            "worker.round-trip": {
+              "count": 15,
+              "totalMs": 408.30000019073486,
+              "maxMs": 138.69999998807907,
+              "maxItems": 0,
+              "retainedSamples": 15,
+              "retainedP95Ms": 138.69999998807907
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 227.39999997615814,
+              "maxMs": 132,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 132
+            },
+            "worker.query": {
+              "count": 15,
+              "totalMs": 1.6000001430511475,
+              "maxMs": 0.5,
+              "maxItems": 0,
+              "retainedSamples": 15,
+              "retainedP95Ms": 0.5
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-profile-100k/saved-100000-0.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "instrumented": true,
+      "forcedCollection": false,
+      "buildFingerprint": "90ff7d039d11477e80256ceaddc363b97baebe171b1b0a3f154325de5e5c3055",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1277.9000000357628,
+        "wallMs": 3102,
+        "usableMs": 4567
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(438.134px, 287.777px) scale(0.513342);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 624,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 50,
+        "max": 99.89999999999964
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 347,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 25.09999999999991,
+          "max": 91.59999999999991
+        },
+        "navigation": {
+          "count": 138,
+          "p50": 8.399999999999636,
+          "p95": 8.600000000000364,
+          "p99": 91.59999999999991,
+          "max": 99.89999999999964
+        },
+        "warm": {
+          "count": 139,
+          "p50": 8.300000000000182,
+          "p95": 8.599999999999454,
+          "p99": 16.699999999999818,
+          "max": 24.799999999999272
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 28,
+        "p95": 28,
+        "p99": 28,
+        "max": 28
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 21,
+          "p50": 14.200000047683716,
+          "p95": 64.5,
+          "p99": 65.69999998807907,
+          "max": 65.69999998807907
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 29.400000035762787,
+          "p95": 29.400000035762787,
+          "p99": 29.400000035762787,
+          "max": 29.400000035762787
+        },
+        "warm": {
+          "count": 4,
+          "p50": 26.600000023841858,
+          "p95": 28,
+          "p99": 28,
+          "max": 28
+        }
+      },
+      "inputQueue": {
+        "count": 26,
+        "p50": 0.6000000238418579,
+        "p95": 61.89999997615814,
+        "p99": 64,
+        "max": 64
+      },
+      "inputToPaintOpportunity": {
+        "count": 26,
+        "p50": 15.399999976158142,
+        "p95": 64.5,
+        "p99": 65.69999998807907,
+        "max": 65.69999998807907
+      },
+      "browserWork": {
+        "LayoutCount": 368,
+        "LayoutDuration": 0.082735,
+        "RecalcStyleDuration": 0.071743,
+        "ScriptDuration": 1.4311960000000001,
+        "TaskDuration": 2.416094
+      },
+      "sampledPeakPrivateKiB": 1047880,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        262169064,
+        266748532
+      ],
+      "processPrivateKiB": [
+        1028048,
+        1037920
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2219.5,
+            "ms": 99,
+            "phase": "cold"
+          },
+          {
+            "at": 4063.899999976158,
+            "ms": 50,
+            "phase": "navigation"
+          },
+          {
+            "at": 4747.699999988079,
+            "ms": 55,
+            "phase": "navigation"
+          },
+          {
+            "at": 4804.899999976158,
+            "ms": 50,
+            "phase": "navigation"
+          },
+          {
+            "at": 4860.399999976158,
+            "ms": 93,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 36,
+          "zoomVisibilityPasses": 167,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 17,
+          "budgetAdmissions": 17,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 16,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 315,
+          "longestCameraFrame": 158.19999999999993,
+          "longAnimationFrames": 11,
+          "longestAnimationFrame": 231,
+          "resizerMounts": 0,
+          "resizerRenderCount": 168,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1246,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 673.1999999880791,
+              "maxMs": 673.1999999880791,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 673.1999999880791
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 1.9999998807907104,
+              "maxMs": 0.19999998807907104,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 603.4000000357628,
+              "maxMs": 603.4000000357628,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 603.4000000357628
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.5,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.5
+            },
+            "scene.visibility-project": {
+              "count": 13,
+              "totalMs": 3.400000035762787,
+              "maxMs": 2.599999964237213,
+              "maxItems": 100000,
+              "retainedSamples": 13,
+              "retainedP95Ms": 2.599999964237213
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 64.19999998807907,
+              "maxMs": 64.19999998807907,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 64.19999998807907
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 79.19999980926514,
+              "maxMs": 0.5999999642372131,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 257.10000014305115,
+              "maxMs": 257.10000014305115,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 257.10000014305115
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 227.80000001192093,
+              "maxMs": 227.80000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 227.80000001192093
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 104.80000001192093,
+              "maxMs": 104.80000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 104.80000001192093
+            },
+            "scene.records": {
+              "count": 10,
+              "totalMs": 29.600000083446503,
+              "maxMs": 8.300000011920929,
+              "maxItems": 100000,
+              "retainedSamples": 10,
+              "retainedP95Ms": 8.300000011920929
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 78.19999951124191,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 16,
+              "totalMs": 267.59999990463257,
+              "maxMs": 108.60000002384186,
+              "maxItems": 0,
+              "retainedSamples": 16,
+              "retainedP95Ms": 108.60000002384186
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 196.89999997615814,
+              "maxMs": 103.39999997615814,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 103.39999997615814
+            },
+            "worker.query": {
+              "count": 16,
+              "totalMs": 0.8999999165534973,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 0,
+              "retainedSamples": 16,
+              "retainedP95Ms": 0.30000001192092896
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-verified-100k/saved-100000-0.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1420.5,
+        "wallMs": 3463,
+        "usableMs": 4965
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(363.979px, 239.471px) scale(0.481468);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 655,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 50.099999999999454,
+        "max": 125.09999999999991
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 386,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.799999999999272,
+          "max": 125.09999999999991
+        },
+        "navigation": {
+          "count": 127,
+          "p50": 8.300000000000182,
+          "p95": 16.699999999999818,
+          "p99": 99.89999999999964,
+          "max": 125
+        },
+        "warm": {
+          "count": 142,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.800000000000182,
+          "max": 25.099999999999454
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 29.19999998807907,
+        "p95": 29.19999998807907,
+        "p99": 29.19999998807907,
+        "max": 29.19999998807907
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 24,
+          "p50": 13.899999976158142,
+          "p95": 74.09999996423721,
+          "p99": 81.90000003576279,
+          "max": 81.90000003576279
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 30.900000035762787,
+          "p95": 30.900000035762787,
+          "p99": 30.900000035762787,
+          "max": 30.900000035762787
+        },
+        "warm": {
+          "count": 4,
+          "p50": 28.600000023841858,
+          "p95": 29.19999998807907,
+          "p99": 29.19999998807907,
+          "max": 29.19999998807907
+        }
+      },
+      "inputQueue": {
+        "count": 29,
+        "p50": 0.6000000238418579,
+        "p95": 70.89999997615814,
+        "p99": 79.60000002384186,
+        "max": 79.60000002384186
+      },
+      "inputToPaintOpportunity": {
+        "count": 29,
+        "p50": 14.100000023841858,
+        "p95": 74.09999996423721,
+        "p99": 81.90000003576279,
+        "max": 81.90000003576279
+      },
+      "browserWork": {
+        "LayoutCount": 360,
+        "LayoutDuration": 0.100001,
+        "RecalcStyleDuration": 0.07899,
+        "ScriptDuration": 1.619999,
+        "TaskDuration": 2.72445
+      },
+      "sampledPeakPrivateKiB": 1079316,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        255066824,
+        262810816
+      ],
+      "processPrivateKiB": [
+        1066220,
+        1079316
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 8,
+        "longTasks": [
+          {
+            "at": 2295.099999964237,
+            "ms": 131,
+            "phase": "cold"
+          },
+          {
+            "at": 4361.899999976158,
+            "ms": 52,
+            "phase": "navigation"
+          },
+          {
+            "at": 4505,
+            "ms": 51,
+            "phase": "navigation"
+          },
+          {
+            "at": 5135.599999964237,
+            "ms": 86,
+            "phase": "navigation"
+          },
+          {
+            "at": 5221.799999952316,
+            "ms": 70,
+            "phase": "navigation"
+          },
+          {
+            "at": 5303,
+            "ms": 109,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 38,
+          "zoomVisibilityPasses": 156,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 28,
+          "budgetAdmissions": 13,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 30,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 320,
+          "longestCameraFrame": 125,
+          "longAnimationFrames": 10,
+          "longestAnimationFrame": 274,
+          "resizerMounts": 0,
+          "resizerRenderCount": 156,
+          "symbolFetches": 6,
+          "symbolCacheHits": 37,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1274,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 718.0999999642372,
+              "maxMs": 718.0999999642372,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 718.0999999642372
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 2.400000214576721,
+              "maxMs": 0.19999998807907104,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.09999996423721313
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 700.9000000357628,
+              "maxMs": 700.9000000357628,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 700.9000000357628
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.699999988079071,
+              "maxMs": 0.699999988079071,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.699999988079071
+            },
+            "scene.visibility-project": {
+              "count": 13,
+              "totalMs": 3.6000000834465027,
+              "maxMs": 2.300000011920929,
+              "maxItems": 100000,
+              "retainedSamples": 13,
+              "retainedP95Ms": 2.300000011920929
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 82.30000001192093,
+              "maxMs": 82.30000001192093,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 82.30000001192093
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 86.90000021457672,
+              "maxMs": 0.699999988079071,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.3999999761581421
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 292.89999985694885,
+              "maxMs": 292.89999985694885,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 292.89999985694885
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 241.39999997615814,
+              "maxMs": 241.39999997615814,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 241.39999997615814
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 111.60000002384186,
+              "maxMs": 111.60000002384186,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 111.60000002384186
+            },
+            "scene.records": {
+              "count": 10,
+              "totalMs": 37,
+              "maxMs": 14.700000047683716,
+              "maxItems": 100000,
+              "retainedSamples": 10,
+              "retainedP95Ms": 14.700000047683716
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 84.90000009536743,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 30,
+              "totalMs": 584.2000000476837,
+              "maxMs": 226.30000001192093,
+              "maxItems": 0,
+              "retainedSamples": 30,
+              "retainedP95Ms": 110.69999998807907
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 201,
+              "maxMs": 107.30000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 107.30000001192093
+            },
+            "worker.query": {
+              "count": 30,
+              "totalMs": 3.0000000596046448,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 0,
+              "retainedSamples": 30,
+              "retainedP95Ms": 0.20000004768371582
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-verified-100k/saved-100000-1.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 2,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1383.199999988079,
+        "wallMs": 3405,
+        "usableMs": 4881
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(364.138px, 239.575px) scale(0.481506);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 658,
+        "p50": 8.300000000000182,
+        "p95": 8.5,
+        "p99": 50.100000000000364,
+        "max": 108.30000000000018
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 379,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 25.099999999999454,
+          "max": 108.30000000000018
+        },
+        "navigation": {
+          "count": 136,
+          "p50": 8.300000000000182,
+          "p95": 16.700000000000728,
+          "p99": 99.80000000000018,
+          "max": 99.89999999999964
+        },
+        "warm": {
+          "count": 143,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 25.200000000000728,
+          "max": 33.5
+        }
+      },
+      "selectionFeedback": {
+        "count": 2,
+        "p50": 40.200000047683716,
+        "p95": 40.200000047683716,
+        "p99": 40.200000047683716,
+        "max": 40.200000047683716
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 24,
+          "p50": 14.100000023841858,
+          "p95": 32.80000001192093,
+          "p99": 74,
+          "max": 74
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 28.099999964237213,
+          "p95": 28.099999964237213,
+          "p99": 28.099999964237213,
+          "max": 28.099999964237213
+        },
+        "warm": {
+          "count": 4,
+          "p50": 26.200000047683716,
+          "p95": 40.200000047683716,
+          "p99": 40.200000047683716,
+          "max": 40.200000047683716
+        }
+      },
+      "inputQueue": {
+        "count": 29,
+        "p50": 0.5999999642372131,
+        "p95": 25,
+        "p99": 70.40000003576279,
+        "max": 70.40000003576279
+      },
+      "inputToPaintOpportunity": {
+        "count": 29,
+        "p50": 14.5,
+        "p95": 40.200000047683716,
+        "p99": 74,
+        "max": 74
+      },
+      "browserWork": {
+        "LayoutCount": 372,
+        "LayoutDuration": 0.090571,
+        "RecalcStyleDuration": 0.081555,
+        "ScriptDuration": 1.523827,
+        "TaskDuration": 2.6570880000000003
+      },
+      "sampledPeakPrivateKiB": 1173332,
+      "memoryGrowthRatio": null,
+      "processMemoryGrowthRatio": null,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        210284992,
+        222406240
+      ],
+      "processPrivateKiB": [
+        1173332,
+        1156888
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2244.699999988079,
+            "ms": 114,
+            "phase": "cold"
+          },
+          {
+            "at": 5032.099999964237,
+            "ms": 52,
+            "phase": "navigation"
+          },
+          {
+            "at": 5136.099999964237,
+            "ms": 94,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 35,
+          "zoomVisibilityPasses": 159,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 21,
+          "budgetAdmissions": 13,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 21,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 319,
+          "longestCameraFrame": 99.89999999999964,
+          "longAnimationFrames": 10,
+          "longestAnimationFrame": 265,
+          "resizerMounts": 0,
+          "resizerRenderCount": 163,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1256,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 713.5,
+              "maxMs": 713.5,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 713.5
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 2.5000000596046448,
+              "maxMs": 0.19999998807907104,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.09999996423721313
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 668.2999999523163,
+              "maxMs": 668.2999999523163,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 668.2999999523163
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.5,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.5
+            },
+            "scene.visibility-project": {
+              "count": 13,
+              "totalMs": 3.199999988079071,
+              "maxMs": 2.099999964237213,
+              "maxItems": 100000,
+              "retainedSamples": 13,
+              "retainedP95Ms": 2.099999964237213
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 97.59999996423721,
+              "maxMs": 97.59999996423721,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 97.59999996423721
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 85.50000071525574,
+              "maxMs": 0.6000000238418579,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.3999999761581421
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 284.29999989271164,
+              "maxMs": 284.29999989271164,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 284.29999989271164
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 240.30000001192093,
+              "maxMs": 240.30000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 240.30000001192093
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 137.80000001192093,
+              "maxMs": 137.80000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 137.80000001192093
+            },
+            "scene.records": {
+              "count": 10,
+              "totalMs": 31.100000083446503,
+              "maxMs": 8.5,
+              "maxItems": 100000,
+              "retainedSamples": 10,
+              "retainedP95Ms": 8.5
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 88.49999970197678,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 21,
+              "totalMs": 370.5,
+              "maxMs": 176.89999997615814,
+              "maxItems": 0,
+              "retainedSamples": 21,
+              "retainedP95Ms": 96.19999998807907
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 199,
+              "maxMs": 118.5,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 118.5
+            },
+            "worker.query": {
+              "count": 21,
+              "totalMs": 1.5999999642372131,
+              "maxMs": 0.40000003576278687,
+              "maxItems": 0,
+              "retainedSamples": 21,
+              "retainedP95Ms": 0.19999998807907104
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-memory-10k/saved-10000-0.json",
+      "status": "measured",
+      "entities": 10000,
+      "shape": "saved",
+      "cycles": 50,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.300000000000068
+      },
+      "fixtureFingerprint": "a65a018b13af73d38b4e6b7227a39846c5a8b0331f56456be421e81359426c54",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 1429,
+        "files": 8571,
+        "edges": 0,
+        "layouts": 10000,
+        "roots": 4,
+        "bytes": 5588587
+      },
+      "cold": {
+        "applyReturnedMs": 165.60000002384186,
+        "wallMs": 483,
+        "usableMs": 1896
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(386.963px, 254.471px) scale(0.48929);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 10000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 3461,
+        "p50": 8.300000000001091,
+        "p95": 8.5,
+        "p99": 8.600000000002183,
+        "max": 100
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 58,
+          "p50": 8.300000000000068,
+          "p95": 8.600000000000136,
+          "p99": 16.700000000000045,
+          "max": 16.700000000000045
+        },
+        "navigation": {
+          "count": 147,
+          "p50": 8.300000000000182,
+          "p95": 16.600000000000136,
+          "p99": 33.30000000000018,
+          "max": 100
+        },
+        "warm": {
+          "count": 3256,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 8.600000000000364,
+          "max": 41.70000000000027
+        }
+      },
+      "selectionFeedback": {
+        "count": 50,
+        "p50": 12.899999976158142,
+        "p95": 14,
+        "p99": 15.099999964237213,
+        "max": 15.099999964237213
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 4,
+          "p50": 9.5,
+          "p95": 16.5,
+          "p99": 16.5,
+          "max": 16.5
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 14.400000035762787,
+          "p95": 14.400000035762787,
+          "p99": 14.400000035762787,
+          "max": 14.400000035762787
+        },
+        "warm": {
+          "count": 100,
+          "p50": 12.800000011920929,
+          "p95": 16,
+          "p99": 16.80000001192093,
+          "max": 16.80000001192093
+        }
+      },
+      "inputQueue": {
+        "count": 105,
+        "p50": 0.699999988079071,
+        "p95": 1,
+        "p99": 1.9000000357627869,
+        "max": 2.800000011920929
+      },
+      "inputToPaintOpportunity": {
+        "count": 105,
+        "p50": 12.799999952316284,
+        "p95": 16,
+        "p99": 16.700000047683716,
+        "max": 16.80000001192093
+      },
+      "browserWork": {
+        "LayoutCount": 4397,
+        "LayoutDuration": 0.609434,
+        "RecalcStyleDuration": 0.675664,
+        "ScriptDuration": 2.582723,
+        "TaskDuration": 7.851894
+      },
+      "sampledPeakPrivateKiB": 871612,
+      "memoryGrowthRatio": 1.0334228238320082,
+      "processMemoryGrowthRatio": 0.7407844837467047,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": true
+      },
+      "performanceAccepted": true,
+      "pageHeap": [
+        41564316,
+        37887024,
+        39761868,
+        42639796,
+        44240704,
+        40032104,
+        40497044,
+        40907136,
+        41305932,
+        41735592,
+        42083536,
+        42339784,
+        40731500,
+        42006176,
+        42802540,
+        43579576,
+        44301888,
+        40626956,
+        41730840,
+        42659336,
+        43605740,
+        41330800,
+        42609468,
+        43414756,
+        40787032,
+        41882708,
+        42793272,
+        41123672,
+        42301204,
+        43159320,
+        41849928,
+        43363216,
+        40759312,
+        41794192,
+        42525668,
+        41076832,
+        42147548,
+        42720584,
+        41334576,
+        42447348,
+        43549860,
+        37720972,
+        38268696,
+        40653260,
+        41865792,
+        42755312,
+        42274368,
+        43437252,
+        41027080,
+        42020872
+      ],
+      "processPrivateKiB": [
+        867400,
+        868124,
+        869464,
+        870276,
+        871612,
+        816940,
+        820888,
+        799060,
+        802668,
+        800032,
+        803464,
+        806420,
+        809080,
+        806468,
+        692816,
+        641080,
+        580780,
+        579732,
+        580252,
+        581000,
+        581756,
+        581700,
+        582332,
+        583392,
+        583124,
+        583172,
+        583840,
+        584408,
+        584972,
+        586104,
+        586756,
+        586016,
+        587180,
+        587544,
+        588468,
+        588708,
+        589240,
+        590040,
+        590264,
+        590816,
+        591244,
+        591796,
+        592596,
+        593428,
+        593560,
+        593908,
+        594604,
+        595136,
+        596044,
+        588384
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 426,
+        "peakNodes": 7,
+        "longTasks": [],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 185,
+          "zoomVisibilityPasses": 2129,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 70,
+          "budgetAdmissions": 20,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 67,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 3434,
+          "longestCameraFrame": 41.70000000000027,
+          "longAnimationFrames": 3,
+          "longestAnimationFrame": 377,
+          "resizerMounts": 0,
+          "resizerRenderCount": 2184,
+          "symbolFetches": 6,
+          "symbolCacheHits": 47,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 605,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 79.10000002384186,
+              "maxMs": 79.10000002384186,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 79.10000002384186
+            },
+            "snapshot.batch": {
+              "count": 40,
+              "totalMs": 0.3999999761581421,
+              "maxMs": 0.10000002384185791,
+              "maxItems": 512,
+              "retainedSamples": 40,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 85.30000001192093,
+              "maxMs": 85.30000001192093,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 85.30000001192093
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.30000001192092896,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "scene.visibility-project": {
+              "count": 160,
+              "totalMs": 5.900000035762787,
+              "maxMs": 1,
+              "maxItems": 10000,
+              "retainedSamples": 160,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 12.300000011920929,
+              "maxMs": 12.300000011920929,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 12.300000011920929
+            },
+            "worker.geometry-post": {
+              "count": 41,
+              "totalMs": 9.599999904632568,
+              "maxMs": 0.40000003576278687,
+              "maxItems": 512,
+              "retainedSamples": 41,
+              "retainedP95Ms": 0.40000003576278687
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 33.500000059604645,
+              "maxMs": 33.500000059604645,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 33.500000059604645
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 16.600000023841858,
+              "maxMs": 16.600000023841858,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 16.600000023841858
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 18.30000001192093,
+              "maxMs": 18.30000001192093,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 18.30000001192093
+            },
+            "scene.records": {
+              "count": 154,
+              "totalMs": 46.60000032186508,
+              "maxMs": 2.700000047683716,
+              "maxItems": 10000,
+              "retainedSamples": 154,
+              "retainedP95Ms": 0.40000003576278687
+            },
+            "worker.scene-post": {
+              "count": 66,
+              "totalMs": 14.599999845027924,
+              "maxMs": 0.5,
+              "maxItems": 10000,
+              "retainedSamples": 66,
+              "retainedP95Ms": 0.3999999761581421
+            },
+            "worker.round-trip": {
+              "count": 67,
+              "totalMs": 150.79999977350235,
+              "maxMs": 43.299999952316284,
+              "maxItems": 0,
+              "retainedSamples": 67,
+              "retainedP95Ms": 11.099999964237213
+            },
+            "worker.index": {
+              "count": 3,
+              "totalMs": 28.900000035762787,
+              "maxMs": 10.899999976158142,
+              "maxItems": 10000,
+              "retainedSamples": 3,
+              "retainedP95Ms": 10.899999976158142
+            },
+            "worker.query": {
+              "count": 67,
+              "totalMs": 3.399999976158142,
+              "maxMs": 0.3999999761581421,
+              "maxItems": 0,
+              "retainedSamples": 67,
+              "retainedP95Ms": 0.19999998807907104
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-memory-10k/saved-10000-1.json",
+      "status": "measured",
+      "entities": 10000,
+      "shape": "saved",
+      "cycles": 50,
+      "mockedEndpoints": true,
+      "forcedCollection": false,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "a65a018b13af73d38b4e6b7227a39846c5a8b0331f56456be421e81359426c54",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 1429,
+        "files": 8571,
+        "edges": 0,
+        "layouts": 10000,
+        "roots": 4,
+        "bytes": 5588587
+      },
+      "cold": {
+        "applyReturnedMs": 178.89999997615814,
+        "wallMs": 470,
+        "usableMs": 1842
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(382.195px, 251.362px) scale(0.487527);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 10000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 3410,
+        "p50": 8.300000000001091,
+        "p95": 8.5,
+        "p99": 8.600000000002183,
+        "max": 83.5
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 55,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.700000000000045,
+          "max": 16.700000000000045
+        },
+        "navigation": {
+          "count": 154,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.699999999999818,
+          "max": 83.5
+        },
+        "warm": {
+          "count": 3201,
+          "p50": 8.300000000001091,
+          "p95": 8.5,
+          "p99": 8.600000000002183,
+          "max": 9.099999999998545
+        }
+      },
+      "selectionFeedback": {
+        "count": 50,
+        "p50": 13.600000023841858,
+        "p95": 14.799999952316284,
+        "p99": 16.399999976158142,
+        "max": 16.399999976158142
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 4,
+          "p50": 16.30000001192093,
+          "p95": 21.700000047683716,
+          "p99": 21.700000047683716,
+          "max": 21.700000047683716
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 15,
+          "p95": 15,
+          "p99": 15,
+          "max": 15
+        },
+        "warm": {
+          "count": 100,
+          "p50": 13.5,
+          "p95": 16.299999952316284,
+          "p99": 16.69999998807907,
+          "max": 16.69999998807907
+        }
+      },
+      "inputQueue": {
+        "count": 105,
+        "p50": 0.5999999642372131,
+        "p95": 1.0999999642372131,
+        "p99": 1.4000000357627869,
+        "max": 2.899999976158142
+      },
+      "inputToPaintOpportunity": {
+        "count": 105,
+        "p50": 13.599999964237213,
+        "p95": 16.30000001192093,
+        "p99": 16.69999998807907,
+        "max": 21.700000047683716
+      },
+      "browserWork": {
+        "LayoutCount": 4399,
+        "LayoutDuration": 0.516293,
+        "RecalcStyleDuration": 0.58454,
+        "ScriptDuration": 2.319329,
+        "TaskDuration": 6.945974
+      },
+      "sampledPeakPrivateKiB": 908668,
+      "memoryGrowthRatio": 1.077339400107765,
+      "processMemoryGrowthRatio": 0.6748780019032172,
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": true,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": true
+      },
+      "performanceAccepted": true,
+      "pageHeap": [
+        42048872,
+        42418624,
+        43261444,
+        38133808,
+        38621652,
+        38980200,
+        39399348,
+        39753140,
+        40649272,
+        42081512,
+        43096536,
+        43977656,
+        37394864,
+        37811784,
+        38232836,
+        41514132,
+        42745428,
+        43320636,
+        41702752,
+        42995972,
+        40182568,
+        41388756,
+        42494344,
+        42072028,
+        43258700,
+        40331372,
+        41522532,
+        42565348,
+        40578340,
+        41668772,
+        42578836,
+        41518348,
+        42838160,
+        40237424,
+        41530132,
+        42173480,
+        41390628,
+        42467248,
+        43274496,
+        42486324,
+        43553040,
+        40729456,
+        41871864,
+        42934900,
+        41783820,
+        42827624,
+        43521792,
+        41570560,
+        42669128,
+        43385432
+      ],
+      "processPrivateKiB": [
+        899220,
+        904060,
+        905024,
+        906812,
+        907768,
+        908668,
+        853292,
+        856956,
+        820456,
+        817516,
+        813164,
+        813248,
+        811704,
+        806768,
+        649796,
+        558228,
+        559172,
+        559688,
+        558256,
+        558692,
+        559180,
+        559740,
+        560076,
+        560940,
+        561720,
+        563144,
+        564016,
+        564912,
+        565428,
+        565472,
+        566280,
+        567064,
+        567188,
+        568340,
+        568540,
+        569976,
+        569868,
+        570284,
+        571196,
+        571276,
+        572224,
+        573672,
+        573772,
+        574420,
+        574540,
+        575252,
+        575868,
+        576180,
+        576148,
+        569184
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 426,
+        "peakNodes": 7,
+        "longTasks": [],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 191,
+          "zoomVisibilityPasses": 2129,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 70,
+          "budgetAdmissions": 20,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 67,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 3390,
+          "longestCameraFrame": 16.700000000000045,
+          "longAnimationFrames": 4,
+          "longestAnimationFrame": 476,
+          "resizerMounts": 0,
+          "resizerRenderCount": 2185,
+          "symbolFetches": 6,
+          "symbolCacheHits": 50,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 605,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 83.09999996423721,
+              "maxMs": 83.09999996423721,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 83.09999996423721
+            },
+            "snapshot.batch": {
+              "count": 40,
+              "totalMs": 0.40000003576278687,
+              "maxMs": 0.10000002384185791,
+              "maxItems": 512,
+              "retainedSamples": 40,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 94.5,
+              "maxMs": 94.5,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 94.5
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.2999999523162842,
+              "maxMs": 0.2999999523162842,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.2999999523162842
+            },
+            "scene.visibility-project": {
+              "count": 160,
+              "totalMs": 5.70000022649765,
+              "maxMs": 1,
+              "maxItems": 10000,
+              "retainedSamples": 160,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 9.900000035762787,
+              "maxMs": 9.900000035762787,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 9.900000035762787
+            },
+            "worker.geometry-post": {
+              "count": 41,
+              "totalMs": 10.200000047683716,
+              "maxMs": 0.800000011920929,
+              "maxItems": 512,
+              "retainedSamples": 41,
+              "retainedP95Ms": 0.40000003576278687
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 30.099999964237213,
+              "maxMs": 30.099999964237213,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 30.099999964237213
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 13.899999976158142,
+              "maxMs": 13.899999976158142,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 13.899999976158142
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 16.69999998807907,
+              "maxMs": 16.69999998807907,
+              "maxItems": 10000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 16.69999998807907
+            },
+            "scene.records": {
+              "count": 154,
+              "totalMs": 42.19999957084656,
+              "maxMs": 2.5,
+              "maxItems": 10000,
+              "retainedSamples": 154,
+              "retainedP95Ms": 0.3999999761581421
+            },
+            "worker.scene-post": {
+              "count": 66,
+              "totalMs": 14.299999952316284,
+              "maxMs": 0.6000000238418579,
+              "maxItems": 10000,
+              "retainedSamples": 66,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 67,
+              "totalMs": 134.09999978542328,
+              "maxMs": 48.60000002384186,
+              "maxItems": 0,
+              "retainedSamples": 67,
+              "retainedP95Ms": 11.199999988079071
+            },
+            "worker.index": {
+              "count": 3,
+              "totalMs": 27.899999976158142,
+              "maxMs": 10.899999976158142,
+              "maxItems": 10000,
+              "retainedSamples": 3,
+              "retainedP95Ms": 10.899999976158142
+            },
+            "worker.query": {
+              "count": 67,
+              "totalMs": 2.599999964237213,
+              "maxMs": 0.20000004768371582,
+              "maxItems": 0,
+              "retainedSamples": 67,
+              "retainedP95Ms": 0.10000002384185791
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "final-adoption-collected-100k/saved-100000-0.json",
+      "status": "measured",
+      "entities": 100000,
+      "shape": "saved",
+      "cycles": 50,
+      "mockedEndpoints": true,
+      "forcedCollection": true,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "logicalCpus": 20,
+        "hostRamBytes": 16858472448,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 20,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 8.399999999999977
+      },
+      "fixtureFingerprint": "5dc9559276907092e76a77416a3f2a863c8eabf1ad8ed7f4ab8f7082ea1d3710",
+      "fixture": {
+        "source": "synthetic",
+        "systems": 14286,
+        "files": 85714,
+        "edges": 0,
+        "layouts": 100000,
+        "roots": 4,
+        "bytes": 56477625
+      },
+      "cold": {
+        "applyReturnedMs": 1313.300000011921,
+        "wallMs": 3144,
+        "usableMs": 4581
+      },
+      "initialView": {
+        "nodes": 4,
+        "transform": "transform: translate(366.577px, 241.168px) scale(0.482268);"
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "frames": {
+        "count": 4003,
+        "p50": 8.30000000000291,
+        "p95": 16.600000000000364,
+        "p99": 108.40000000000146,
+        "max": 150.09999999999854
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 348,
+          "p50": 8.300000000000182,
+          "p95": 8.5,
+          "p99": 16.799999999999727,
+          "max": 116.69999999999982
+        },
+        "navigation": {
+          "count": 126,
+          "p50": 8.399999999999636,
+          "p95": 16.600000000000364,
+          "p99": 91.5,
+          "max": 116.69999999999982
+        },
+        "warm": {
+          "count": 3529,
+          "p50": 8.30000000000291,
+          "p95": 16.69999999999709,
+          "p99": 108.40000000000146,
+          "max": 150.09999999999854
+        }
+      },
+      "selectionFeedback": {
+        "count": 50,
+        "p50": 31.5,
+        "p95": 38.10000002384186,
+        "p99": 40.69999998807907,
+        "max": 40.69999998807907
+      },
+      "phaseInputToPaintOpportunity": {
+        "cold": {
+          "count": 21,
+          "p50": 12.100000023841858,
+          "p95": 66,
+          "p99": 114.10000002384186,
+          "max": 114.10000002384186
+        },
+        "navigation": {
+          "count": 1,
+          "p50": 24.69999998807907,
+          "p95": 24.69999998807907,
+          "p99": 24.69999998807907,
+          "max": 24.69999998807907
+        },
+        "warm": {
+          "count": 100,
+          "p50": 28.600000023841858,
+          "p95": 34.89999997615814,
+          "p99": 40.69999998807907,
+          "max": 40.69999998807907
+        }
+      },
+      "inputQueue": {
+        "count": 122,
+        "p50": 0.6000000238418579,
+        "p95": 1.800000011920929,
+        "p99": 64.39999997615814,
+        "max": 111.70000004768372
+      },
+      "inputToPaintOpportunity": {
+        "count": 122,
+        "p50": 26.80000001192093,
+        "p95": 35.30000001192093,
+        "p99": 66,
+        "max": 114.10000002384186
+      },
+      "browserWork": {
+        "LayoutCount": 4325,
+        "LayoutDuration": 0.538136,
+        "RecalcStyleDuration": 0.645729,
+        "ScriptDuration": 8.08784,
+        "TaskDuration": 19.551876999999998
+      },
+      "sampledPeakPrivateKiB": 1036240,
+      "memoryGrowthRatio": 1.0042159281614087,
+      "processMemoryGrowthRatio": 0.8042596613113331,
+      "targets": {
+        "frameP95": true,
+        "frameP99": false,
+        "selection": true,
+        "coldInputPaint": false,
+        "inputPaint": true,
+        "memory": true
+      },
+      "performanceAccepted": false,
+      "pageHeap": [
+        206413224,
+        206604440,
+        206637040,
+        206697688,
+        206759944,
+        206803736,
+        206854596,
+        206873544,
+        206964048,
+        207009456,
+        207069748,
+        207099256,
+        207130912,
+        207153404,
+        207176016,
+        207191436,
+        207194532,
+        207200072,
+        207208312,
+        207228552,
+        207236572,
+        207270072,
+        207275476,
+        207290984,
+        207303376,
+        207354608,
+        207362644,
+        207387688,
+        207387688,
+        207430560,
+        207407344,
+        207465232,
+        207471360,
+        207510476,
+        207548276,
+        207531700,
+        207529776,
+        207532728,
+        207570244,
+        207611916,
+        207683852,
+        207696320,
+        207703924,
+        207709508,
+        207749884,
+        207734188,
+        207740528,
+        207745708,
+        207760908,
+        207775700
+      ],
+      "processPrivateKiB": [
+        992228,
+        987036,
+        985748,
+        985644,
+        923184,
+        930944,
+        914492,
+        922524,
+        915500,
+        921200,
+        892556,
+        829628,
+        812212,
+        808412,
+        813448,
+        805284,
+        806008,
+        806636,
+        815020,
+        807556,
+        819524,
+        808964,
+        811460,
+        816568,
+        811796,
+        817604,
+        817716,
+        818416,
+        818744,
+        826548,
+        813656,
+        816228,
+        814180,
+        824588,
+        815320,
+        828940,
+        745248,
+        728084,
+        733968,
+        722216,
+        740328,
+        740880,
+        741136,
+        741944,
+        740208,
+        740884,
+        751048,
+        738080,
+        752676,
+        738832
+      ],
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "frameToleranceMs": 0.25,
+        "inputP95Ms": 50,
+        "memoryGrowthRatio": 1.1
+      },
+      "observed": {
+        "peakDom": 423,
+        "peakNodes": 7,
+        "longTasks": [
+          {
+            "at": 2071.800000011921,
+            "ms": 122,
+            "phase": "cold"
+          },
+          {
+            "at": 4596.699999988079,
+            "ms": 90,
+            "phase": "navigation"
+          },
+          {
+            "at": 4687.699999988079,
+            "ms": 68,
+            "phase": "navigation"
+          },
+          {
+            "at": 4762.899999976158,
+            "ms": 103,
+            "phase": "navigation"
+          }
+        ],
+        "finalEdges": 0,
+        "finalNodes": 7,
+        "metrics": {
+          "canvasRenderCount": 189,
+          "zoomVisibilityPasses": 2092,
+          "sheetLayoutBuilds": 0,
+          "budgetBatches": 63,
+          "budgetAdmissions": 11,
+          "maxBudgetBatch": 5,
+          "mountedRichNodes": 7,
+          "workerQueries": 63,
+          "workerFallbacks": 0,
+          "activeSymbolRequests": 0,
+          "maxSymbolRequests": 4,
+          "navigationFlights": 1,
+          "prefetchedTargets": 0,
+          "backgroundBatches": 0,
+          "maxBackgroundBatch": 0,
+          "pendingBackgroundMessages": 0,
+          "cameraFrames": 3514,
+          "longestCameraFrame": 150.09999999999854,
+          "longAnimationFrames": 63,
+          "longestAnimationFrame": 231,
+          "resizerMounts": 0,
+          "resizerRenderCount": 2145,
+          "symbolFetches": 6,
+          "symbolCacheHits": 36,
+          "symbolDeduplicatedRequests": 0
+        },
+        "trace": {
+          "enabled": true,
+          "retained": 1628,
+          "dropped": 0,
+          "stages": {
+            "snapshot.fetch": {
+              "count": 1,
+              "totalMs": 689.3999999761581,
+              "maxMs": 689.3999999761581,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 689.3999999761581
+            },
+            "snapshot.batch": {
+              "count": 392,
+              "totalMs": 2.3999998569488525,
+              "maxMs": 0.19999998807907104,
+              "maxItems": 512,
+              "retainedSamples": 392,
+              "retainedP95Ms": 0.09999996423721313
+            },
+            "snapshot.decode": {
+              "count": 1,
+              "totalMs": 622.2999999523163,
+              "maxMs": 622.2999999523163,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 622.2999999523163
+            },
+            "snapshot.store": {
+              "count": 1,
+              "totalMs": 0.800000011920929,
+              "maxMs": 0.800000011920929,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 0.800000011920929
+            },
+            "scene.visibility-project": {
+              "count": 157,
+              "totalMs": 8.599999845027924,
+              "maxMs": 2.299999952316284,
+              "maxItems": 100000,
+              "retainedSamples": 157,
+              "retainedP95Ms": 0.10000002384185791
+            },
+            "scene.numeric-input": {
+              "count": 1,
+              "totalMs": 71.40000003576279,
+              "maxMs": 71.40000003576279,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 71.40000003576279
+            },
+            "worker.geometry-post": {
+              "count": 393,
+              "totalMs": 78.69999992847443,
+              "maxMs": 0.40000003576278687,
+              "maxItems": 512,
+              "retainedSamples": 393,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.geometry": {
+              "count": 1,
+              "totalMs": 261.7999999523163,
+              "maxMs": 261.7999999523163,
+              "maxItems": 0,
+              "retainedSamples": 1,
+              "retainedP95Ms": 261.7999999523163
+            },
+            "scene.floor-projection": {
+              "count": 1,
+              "totalMs": 222.89999997615814,
+              "maxMs": 222.89999997615814,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 222.89999997615814
+            },
+            "scene.canonical-preparation": {
+              "count": 1,
+              "totalMs": 98.5,
+              "maxMs": 98.5,
+              "maxItems": 100000,
+              "retainedSamples": 1,
+              "retainedP95Ms": 98.5
+            },
+            "scene.records": {
+              "count": 154,
+              "totalMs": 548.6000000834465,
+              "maxMs": 17.19999998807907,
+              "maxItems": 100000,
+              "retainedSamples": 154,
+              "retainedP95Ms": 4.400000035762787
+            },
+            "worker.scene-post": {
+              "count": 397,
+              "totalMs": 79.80000030994415,
+              "maxMs": 0.5,
+              "maxItems": 100000,
+              "retainedSamples": 397,
+              "retainedP95Ms": 0.30000001192092896
+            },
+            "worker.round-trip": {
+              "count": 63,
+              "totalMs": 492.99999994039536,
+              "maxMs": 163.60000002384186,
+              "maxItems": 0,
+              "retainedSamples": 63,
+              "retainedP95Ms": 26.400000035762787
+            },
+            "worker.index": {
+              "count": 2,
+              "totalMs": 187.19999998807907,
+              "maxMs": 112.80000001192093,
+              "maxItems": 100000,
+              "retainedSamples": 2,
+              "retainedP95Ms": 112.80000001192093
+            },
+            "worker.query": {
+              "count": 63,
+              "totalMs": 3.8000000715255737,
+              "maxMs": 0.30000001192092896,
+              "maxItems": 0,
+              "retainedSamples": 63,
+              "retainedP95Ms": 0.10000002384185791
+            }
+          }
+        }
+      }
+    }
+  ],
+  "interactionObservations": [
+    {
+      "kind": "pan",
+      "mode": "floor",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 399,
+        "p95": 8.5,
+        "p99": 8.699999999999818,
+        "max": 16.900000000000546
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 10.900000035762787,
+            "maxMs": 2.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 2.800000011920929
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 0.5,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 96,
+      "dom": 2523,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(606.214px, 389.543px) scale(0.0727157);",
+      "browserWork": {
+        "LayoutDuration": 0.004361,
+        "RecalcStyleDuration": 0.016595,
+        "ScriptDuration": 0.120805,
+        "TaskDuration": 0.767445
+      }
+    },
+    {
+      "kind": "pan",
+      "mode": "floor",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 121,
+        "p95": 16.699999999999818,
+        "p99": 16.700000000000728,
+        "max": 16.900000000000546
+      },
+      "cameraMoves": 89,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 16,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 8,
+            "totalMs": 29.099999964237213,
+            "maxMs": 5.5,
+            "maxItems": 0,
+            "retainedSamples": 8,
+            "retainedP95Ms": 5.5
+          },
+          "worker.query": {
+            "count": 8,
+            "totalMs": 0.699999988079071,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 8,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 96,
+      "dom": 2523,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(598.214px, 389.543px) scale(0.0727157);",
+      "browserWork": {
+        "LayoutDuration": 0.00417,
+        "RecalcStyleDuration": 0.009417,
+        "ScriptDuration": 0.114991,
+        "TaskDuration": 0.529717
+      }
+    },
+    {
+      "kind": "pan",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 467,
+        "p95": 25,
+        "p99": 41.600000000000364,
+        "max": 50
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 38.89999997615814,
+            "maxMs": 14.700000047683716,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.700000047683716
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1.100000023841858,
+            "maxMs": 0.30000001192092896,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.30000001192092896
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12035,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.054052,
+        "RecalcStyleDuration": 0.343184,
+        "ScriptDuration": 0.690958,
+        "TaskDuration": 2.383977
+      }
+    },
+    {
+      "kind": "pan",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "reference": {
+        "platform": "win32",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 26,
+        "p95": 75.10000000000036,
+        "p99": 83.29999999999973,
+        "max": 83.29999999999973
+      },
+      "cameraMoves": 14,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 12.800000011920929,
+            "maxMs": 12.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 12.800000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.30000001192092896,
+            "maxMs": 0.30000001192092896,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.30000001192092896
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 11894,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(399.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.047701,
+        "RecalcStyleDuration": 0.020052,
+        "ScriptDuration": 0.21452,
+        "TaskDuration": 0.6583990000000001
+      }
+    },
+    {
+      "kind": "navigation",
+      "mode": "navigation",
+      "canvasRenderCount": 44,
+      "zoomVisibilityPasses": 89,
+      "sheetLayoutBuilds": 0,
+      "budgetBatches": 34,
+      "budgetAdmissions": 49,
+      "maxBudgetBatch": 6,
+      "mountedRichNodes": 5,
+      "workerQueries": 30,
+      "workerFallbacks": 0,
+      "activeSymbolRequests": 0,
+      "maxSymbolRequests": 3,
+      "navigationFlights": 2,
+      "prefetchedTargets": 2,
+      "backgroundBatches": 0,
+      "maxBackgroundBatch": 0,
+      "pendingBackgroundMessages": 0,
+      "cameraFrames": 209,
+      "longestCameraFrame": 224.9000000000001,
+      "longAnimationFrames": 5,
+      "longestAnimationFrame": 365,
+      "resizerMounts": 0,
+      "resizerRenderCount": 27,
+      "symbolFetches": 5,
+      "symbolCacheHits": 11,
+      "symbolDeduplicatedRequests": 0,
+      "frames": {
+        "samples": 209,
+        "p95": 16.5,
+        "p99": 41.69999999999982,
+        "max": 224.9000000000001
+      },
+      "navigationFrames": {
+        "p95": 8.599999999999909,
+        "max": 224.9000000000001
+      }
+    },
+    {
+      "kind": "navigation",
+      "mode": "fallback",
+      "canvasRenderCount": 49,
+      "zoomVisibilityPasses": 132,
+      "sheetLayoutBuilds": 0,
+      "budgetBatches": 44,
+      "budgetAdmissions": 80,
+      "maxBudgetBatch": 6,
+      "mountedRichNodes": 5,
+      "workerQueries": 0,
+      "workerFallbacks": 1,
+      "activeSymbolRequests": 0,
+      "maxSymbolRequests": 3,
+      "navigationFlights": 2,
+      "prefetchedTargets": 2,
+      "backgroundBatches": 0,
+      "maxBackgroundBatch": 0,
+      "pendingBackgroundMessages": 0,
+      "cameraFrames": 280,
+      "longestCameraFrame": 258.2999999999997,
+      "longAnimationFrames": 8,
+      "longestAnimationFrame": 359,
+      "resizerMounts": 0,
+      "resizerRenderCount": 83,
+      "symbolFetches": 5,
+      "symbolCacheHits": 13,
+      "symbolDeduplicatedRequests": 0,
+      "frames": {
+        "samples": 280,
+        "p95": 25,
+        "p99": 125,
+        "max": 258.2999999999997
+      },
+      "navigationFrames": {
+        "p95": 24.90000000000009,
+        "max": 258.2999999999997
+      }
+    }
+  ],
+  "checks": {
+    "types": "passed",
+    "build": "passed",
+    "unit": {
+      "passed": 766,
+      "skipped": 7,
+      "failed": 0
+    },
+    "oldSceneCollection": "passed; separate-process forced-collection controls",
+    "uiScope": "canvas, scene cancellation/recovery, development effect replay, snapshot reader, pan, performance and real-daemon integration; results recorded in the companion report",
+    "canvasUi": {
+      "passed": 75,
+      "failed": 1,
+      "failure": "Undo screen position; expected delta <3 px, observed 435.1044807434082 px",
+      "unchangedIsolatedRepetitions": {
+        "passed": 3,
+        "failed": 0
+      },
+      "attribution": "Same failure reproduced on exact pre-follow-up 08a9d18 runtime; underlying cause unresolved.",
+      "preFollowupControl": {
+        "commit": "08a9d18",
+        "buildFingerprint": "a4da1ef6a3ec913686caedfa3f4c784a7eb80e9af7c34aea8c95d0ead6e3e28b",
+        "passed": 4,
+        "failed": 1,
+        "failureDeltaPx": 435.1266860961914,
+        "artifact": "ignored out/final-adoption-undo-control-trace.zip"
+      }
+    },
+    "liveIntegration": "passed",
+    "restoredFinalBuildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10"
+  },
+  "liveIntegration": {
+    "corpus": "generated TypeScript modules",
+    "files": 512,
+    "authoredSystems": 32,
+    "indexedLines": 1504,
+    "dependencies": 480,
+    "harnessReadyMs": 3306.729,
+    "snapshotHttpMs": 12.779499999999643,
+    "snapshotBytes": 471089,
+    "snapshotToPreparedMs": 419.4835000000003,
+    "components": {
+      "wrappers": 7,
+      "minimapWrappers": 0,
+      "canonicalNodes": 544,
+      "flowNodes": 27,
+      "domNodes": 7
+    },
+    "stages": {
+      "enabled": true,
+      "retained": 621,
+      "dropped": 0,
+      "stages": {
+        "scene.records": {
+          "count": 59,
+          "totalMs": 6.399999797344208,
+          "maxMs": 0.40000003576278687,
+          "maxItems": 544,
+          "retainedSamples": 59,
+          "retainedP95Ms": 0.30000001192092896
+        },
+        "scene.visibility-project": {
+          "count": 122,
+          "totalMs": 11.199999868869781,
+          "maxMs": 1,
+          "maxItems": 544,
+          "retainedSamples": 122,
+          "retainedP95Ms": 0.20000004768371582
+        },
+        "snapshot.fetch": {
+          "count": 1,
+          "totalMs": 65.89999997615814,
+          "maxMs": 65.89999997615814,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 65.89999997615814
+        },
+        "snapshot.batch": {
+          "count": 3,
+          "totalMs": 0.10000002384185791,
+          "maxMs": 0.10000002384185791,
+          "maxItems": 512,
+          "retainedSamples": 3,
+          "retainedP95Ms": 0.10000002384185791
+        },
+        "snapshot.decode": {
+          "count": 1,
+          "totalMs": 16.80000001192093,
+          "maxMs": 16.80000001192093,
+          "maxItems": 0,
+          "retainedSamples": 1,
+          "retainedP95Ms": 16.80000001192093
+        },
+        "snapshot.store": {
+          "count": 1,
+          "totalMs": 0.19999998807907104,
+          "maxMs": 0.19999998807907104,
+          "maxItems": 800,
+          "retainedSamples": 1,
+          "retainedP95Ms": 0.19999998807907104
+        },
+        "scene.numeric-input": {
+          "count": 4,
+          "totalMs": 6.099999964237213,
+          "maxMs": 2.800000011920929,
+          "maxItems": 0,
+          "retainedSamples": 4,
+          "retainedP95Ms": 2.800000011920929
+        },
+        "worker.geometry-post": {
+          "count": 2,
+          "totalMs": 1.100000023841858,
+          "maxMs": 0.6000000238418579,
+          "maxItems": 544,
+          "retainedSamples": 2,
+          "retainedP95Ms": 0.6000000238418579
+        },
+        "worker.geometry": {
+          "count": 2,
+          "totalMs": 106.50000029802322,
+          "maxMs": 101.90000027418137,
+          "maxItems": 0,
+          "retainedSamples": 2,
+          "retainedP95Ms": 101.90000027418137
+        },
+        "scene.floor-projection": {
+          "count": 4,
+          "totalMs": 9.299999952316284,
+          "maxMs": 4.699999988079071,
+          "maxItems": 544,
+          "retainedSamples": 4,
+          "retainedP95Ms": 4.699999988079071
+        },
+        "scene.canonical-preparation": {
+          "count": 4,
+          "totalMs": 3,
+          "maxMs": 2.100000023841858,
+          "maxItems": 544,
+          "retainedSamples": 4,
+          "retainedP95Ms": 2.100000023841858
+        },
+        "worker.scene-post": {
+          "count": 20,
+          "totalMs": 6.399999976158142,
+          "maxMs": 0.40000003576278687,
+          "maxItems": 544,
+          "retainedSamples": 20,
+          "retainedP95Ms": 0.40000003576278687
+        },
+        "worker.round-trip": {
+          "count": 189,
+          "totalMs": 967.099999666214,
+          "maxMs": 34.39999997615814,
+          "maxItems": 0,
+          "retainedSamples": 189,
+          "retainedP95Ms": 14.300000011920929
+        },
+        "worker.index": {
+          "count": 20,
+          "totalMs": 11.099999845027924,
+          "maxMs": 1.100000023841858,
+          "maxItems": 544,
+          "retainedSamples": 20,
+          "retainedP95Ms": 1.100000023841858
+        },
+        "worker.query": {
+          "count": 189,
+          "totalMs": 10.200000524520874,
+          "maxMs": 0.40000003576278687,
+          "maxItems": 0,
+          "retainedSamples": 189,
+          "retainedP95Ms": 0.10000002384185791
+        }
+      }
+    },
+    "realHttp": true,
+    "realWebSocket": true,
+    "watchedEditObserved": true
+  }
+}

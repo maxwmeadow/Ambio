@@ -8,6 +8,7 @@ import { runSceneSteps } from './sceneSteps'
 import { projectFloorNodeSteps } from '../floorSceneProjection'
 import type { Node } from '@xyflow/react'
 import { sameGeometryInputSteps } from './sceneInputs'
+import { prepareCanonicalSceneSteps, type CanonicalScene } from './canonicalScene'
 
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
@@ -17,6 +18,7 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
   const [state, setState] = useState<{ input: FloorModel; geometry: PreparedFloorGeometry; nodes: Node[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const cached = useRef<{ controller: SceneController; scope: string; input: FloorGeometryInput; promise: Promise<PreparedFloorGeometry> }>()
+  const prepared = useRef<{ scope: string; scene: CanonicalScene }>()
   useEffect(() => () => {
     // The cached promise belongs to this mounted controller/channel lifecycle.
     // StrictMode replays effects with refs intact: reusing the cancelled job
@@ -28,7 +30,8 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
     if (input) setError('Canvas preparation stopped. Retry to restart it.')
   }), [controller, input])
   useEffect(() => {
-    if (!input) { cached.current = undefined; controller.cancel(channel); setState(null); setError(null); return }
+    if (!input) { cached.current = undefined; prepared.current = undefined; controller.cancel(channel); setState(null); setError(null); return }
+    if (prepared.current?.scope !== input.scope) prepared.current = undefined
     setState(previous => previous?.input.scope === input.scope ? previous : null)
     const abort = new AbortController()
     setError(null)
@@ -50,7 +53,15 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
       let nodes: Node[]
       try { nodes = await runSceneSteps(projectFloorNodeSteps({ ...input, ...geometry, currentZoom: currentZoom() }), abort.signal) }
       finally { finishProjection() }
-      if (visibilityZoom) nodes = await runSceneSteps(zoomVisibilitySteps(nodes, visibilityZoom()), abort.signal)
+      if (visibilityZoom) {
+        nodes = await runSceneSteps(zoomVisibilitySteps(nodes, visibilityZoom()), abort.signal)
+        const finishCanonical = beginPerfStage('scene.canonical-preparation', nodes.length)
+        let scene: CanonicalScene
+        try { scene = await runSceneSteps(prepareCanonicalSceneSteps(nodes, prepared.current?.scene), abort.signal) }
+        finally { finishCanonical() }
+        if (abort.signal.aborted) return
+        prepared.current = { scope: input.scope, scene }
+      }
       if (abort.signal.aborted) return
       // Only a complete current projection may publish or remember guesses.
       placements.clear()
