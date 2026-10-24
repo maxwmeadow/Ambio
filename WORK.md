@@ -242,6 +242,13 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `abort-stale-proposal-drafts` **Automatically clean up abandoned open proposal drafts.** When an architecture proposal is committed or finalized, or when an agent begins/retries mapping, stale `status='open'` proposal draft sessions from earlier failed or timed-out attempts remain in SQLite. This causes `ProposalDraftProgress` to later display a false "An architecture draft is unfinished" interruption on the Floor canvas.
+  - *Context:* Earlier mapping attempts crashed/timed out mid-stream after `edit_systems(op: "begin_session")`, leaving open drafts. The subsequent successful run committed its own draft into a proposal and materialized onto the Floor, but `GET /api/architecture-proposal-drafts` still returned the older abandoned open drafts (>5m old, paused).
+  - *Fix:*
+    1. In `CommitArchitectureProposalDraft` and `FinalizeArchitectureProposal` (`archd-go/internal/db/`), update all other open drafts in that workspace to `status='aborted'`.
+    2. When beginning a new proposal draft session or retrying mapping in the daemon / frontend, sweep and abort older open drafts for the workspace.
+  - **Done when:** Completing and approving a proposal onto the Floor never leaves stale open drafts or raises the "An architecture draft is unfinished" banner for superseded sessions. (2026-10-24)
+
 - ⬜ `canvas-tidy-frame-worker` **Measure and background explicit Tidy Frame packing.** Automatic Floor/sheet preparation now uses the worker, but this command still calls the packer from its existing mutation controller. Preserve journal/Undo and input responsiveness on a very large frame. (2026-10-22, canonical scene work)
 
 
