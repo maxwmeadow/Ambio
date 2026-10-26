@@ -154,12 +154,15 @@ func plan(argv []string) *job {
 		root = real
 	}
 	if root == "" || !strings.HasPrefix(srcAbs, root+string(filepath.Separator)) {
+		debugf("%s: not recording (%s is outside the workspace %s)", j.crate, srcAbs, root)
 		return nil
 	}
 	head, err := os.ReadFile(srcAbs)
 	if err != nil || bytes.Contains(head, []byte("#![no_std]")) {
+		debugf("%s: not recording (no standard library, or %v)", j.crate, err)
 		return nil // the recorder needs the standard library
 	}
+	debugf("%s: recording %s", j.crate+extra, srcAbs)
 	j.srcDir = filepath.Dir(srcAbs)
 	j.unique = j.crate + extra
 	j.edition = edition

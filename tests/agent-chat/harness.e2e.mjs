@@ -21,7 +21,9 @@ async function until(manager, id, predicate) {
 
 test('real OpenCode: configured service, MCP, multi-turn history, approvals, read-only tools, cancellation and restart', { timeout: 90000 }, async t => {
   assert.ok(fs.existsSync(binary), 'Build the pinned harness with npm run build:agent')
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-chat-harness-'))
+  // Real path: macOS's /var is a link to /private/var, and the chat's tools
+  // treat a path through the link as outside the project.
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-chat-harness-')))
   const root = path.join(directory, 'project'); fs.mkdirSync(root); fs.writeFileSync(path.join(root, 'hello.txt'), 'original')
   const requests = []
   const model = createServer(async (req, res) => {

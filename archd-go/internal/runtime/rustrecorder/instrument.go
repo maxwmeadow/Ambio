@@ -262,12 +262,16 @@ func weave(fn, body *sitter.Node, src []byte, absPath, name string, tier int, ad
 // compiler runs (panic locations are relative to it) and crate names the
 // evidence file, since every crate in a program carries its own copy. From
 // the 2024 edition an extern block must be written `unsafe extern`, which
-// older compilers do not accept.
+// older compilers do not accept; so must `#[link_section]`.
 func Recorder(base, crate, edition string) string {
 	extern := "extern"
+	// The section Windows runs a module's TLS callbacks from, the one hook
+	// left when a program ends through ExitProcess.
+	tls := `#[link_section = ".CRT$XLY"]`
 	if edition >= "2024" {
 		extern = "unsafe extern"
+		tls = `#[unsafe(link_section = ".CRT$XLY")]`
 	}
-	replacer := strings.NewReplacer("__AMBIO_BASE__", strings.ReplaceAll(base, `\`, `\\`), "__AMBIO_CRATE__", crate, "__AMBIO_EXTERN__", extern)
+	replacer := strings.NewReplacer("__AMBIO_BASE__", strings.ReplaceAll(base, `\`, `\\`), "__AMBIO_CRATE__", crate, "__AMBIO_EXTERN__", extern, "__AMBIO_TLS_SECTION__", tls)
 	return "\n" + replacer.Replace(recorderSource)
 }

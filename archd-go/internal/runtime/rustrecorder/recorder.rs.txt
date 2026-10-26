@@ -793,12 +793,45 @@ pub(crate) mod __ambio_rec {
             }
             atexit(at_exit);
         }
+        // Windows' std::process::exit is ExitProcess, which skips the C exit
+        // handlers but still calls each module's TLS callbacks; reading the
+        // callback here keeps the linker from dropping it.
+        #[cfg(windows)]
+        unsafe {
+            std::ptr::read_volatile(&ON_PROCESS_DETACH);
+        }
+        debug(format_args!("recording into {}", dir_for_debug()));
         // A process that is killed keeps what was flushed in the last second.
         let _ = std::thread::Builder::new().name("ambio-recorder-flush".to_string()).spawn(|| loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             write();
         });
         true
+    }
+
+    fn dir_for_debug() -> String {
+        STATE.lock().ok().and_then(|g| g.as_ref().map(|s| s.dir.clone())).unwrap_or_default()
+    }
+
+    /// Set once the process is ending on Windows: the other threads are gone,
+    /// and one may have died holding the state's lock.
+    static EXITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    #[cfg(windows)]
+    #[used]
+    __AMBIO_TLS_SECTION__
+    static ON_PROCESS_DETACH: unsafe extern "system" fn(*mut u8, u32, *mut u8) = on_process_detach;
+
+    #[cfg(windows)]
+    unsafe extern "system" fn on_process_detach(_module: *mut u8, reason: u32, _reserved: *mut u8) {
+        const DLL_PROCESS_DETACH: u32 = 0;
+        if reason != DLL_PROCESS_DETACH || ENABLED.load(Ordering::Relaxed) != 2 {
+            return;
+        }
+        EXITING.store(true, Ordering::Relaxed);
+        debug(format_args!("exiting"));
+        spill_this_thread();
+        write();
     }
 
     fn canonical(path: &str) -> String {
@@ -1169,7 +1202,15 @@ pub(crate) mod __ambio_rec {
 
     fn write() {
         let (doc, path) = {
-            let mut guard = match STATE.lock() { Ok(g) => g, Err(_) => return };
+            let locked = if EXITING.load(Ordering::Relaxed) {
+                STATE.try_lock().map_err(|_| "held by a thread that is gone")
+            } else {
+                STATE.lock().map_err(|_| "poisoned")
+            };
+            let mut guard = match locked {
+                Ok(g) => g,
+                Err(why) => { debug(format_args!("could not write: the recorder's lock is {}", why)); return }
+            };
             let state = match guard.as_mut() { Some(s) => s, None => return };
             state.last_flush = Instant::now();
             let total: u64 = state.fns.iter().map(|f| f.calls.load(Ordering::Relaxed) + f.errors.load(Ordering::Relaxed)).sum::<u64>() + state.uncaught.len() as u64;
