@@ -1,5 +1,10 @@
 # Final canvas adoption follow-up — 2026-10-24
 
+Delivery update, 2026-10-26: included in the consolidated canvas main checkpoint.
+See the [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) for current status,
+remaining work and reproduction. The dated evidence below is preserved.
+
+
 Branch: `codex/canvas-cold-adoption`. Remote main `0b5071d` was merged before
 this follow-up; its new work-list item is preserved. This extends `08a9d18` and
 the initial-review pan fix on the same branch. No dependency, daemon protocol,

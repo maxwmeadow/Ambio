@@ -641,7 +641,9 @@ checkpoints and bounded entry counts do not guarantee a frame deadline for an
 individual large row or primitive. Complete model storage still scales with
 project size. Current lookup objects do not capture earlier canonical scenes;
 this avoids retaining the complete scene history through closure contexts.
-Evidence: [cold adoption and memory](testing/CANVAS_COLD_ADOPTION.md).
+Evidence: [cold adoption and memory](testing/CANVAS_COLD_ADOPTION.md). The
+[main/device handoff](testing/CANVAS_PERFORMANCE_HANDOFF.md) indexes the delivered
+canvas changes, remaining scalability work and reproducible checks.
 
 `scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
 frame preparation, separate from `floorSceneProjection.ts` (React node data).

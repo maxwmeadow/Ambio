@@ -1,5 +1,10 @@
 # Initial-mapping review mouse panning — 2026-10-23
 
+Delivery update, 2026-10-26: included in the consolidated canvas main checkpoint.
+See the [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) for current status,
+remaining work and reproduction. The dated evidence below is preserved.
+
+
 Base: remote main **`908e488`**, pulled into the main checkout and used to start
 **`codex/review-pointer-pan`** in the existing isolated canvas worktree. The
 previous canonical-scene checkpoint and its handoff docs are ancestors of main.

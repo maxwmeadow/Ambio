@@ -14,6 +14,10 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 
 ## Checkpoint recheck — 2026-10-23
 
+The Oct 26 [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) consolidates
+review panning, cold loading/retention and final adoption. Use this same checklist
+on the updated main; no unchecked manual item is completed by that merge.
+
 For the merged `codex/canvas-scene-scale` implementation through `99f5575`.
 Max reports improved performance and the specific review mouse-pan issue in CP8.
 The individual CP1–CP7 checks remain unverified; historical marks below and
@@ -55,10 +59,11 @@ geometry and saved positions after a model update.
 
 - [~] **CP8 — Initial-mapping review mouse pan.** Max found hitches after the
   first mapping, while approving/sending back systems; Floor mouse pan and review
-  WASD felt smooth. The targeted fix is on `codex/review-pointer-pan`, based on
-  main `908e488`; [evidence and scope](REVIEW_POINTER_PAN.md). Recheck primary and
+  WASD felt smooth. The targeted fix, originally on `codex/review-pointer-pan`,
+  is included in the Oct 26 consolidated main delivery;
+  [evidence and scope](REVIEW_POINTER_PAN.md). Recheck primary and
   middle mouse pans, direction reversals, Shift selection, node drag/resize and
-  approval/send-back on the real project after merging this fix. Decorative
+  approval/send-back on the real project after pulling main. Decorative
   shadows may disappear during a camera drag and must return on release.
 
 For a regression, report CP ID, tested main commit, project/sheet, OS/hardware,

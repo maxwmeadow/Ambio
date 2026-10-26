@@ -1,5 +1,10 @@
 # Responsive cold adoption and scene retention — 2026-10-23–24
 
+Delivery update, 2026-10-26: included in the consolidated canvas main checkpoint.
+See the [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) for current status,
+remaining work and reproduction. The dated evidence below is preserved.
+
+
 Branch: `codex/canvas-cold-adoption`, based on remote main `908e488` plus the
 initial-review pointer-pan fix `2e223a7`. No dependency, database migration,
 server endpoint or renderer-library change.
