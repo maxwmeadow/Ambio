@@ -125,6 +125,14 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   // array per snapshot, so a poll that finds nothing new does not re-render.
   const collision = useCheckoutStore(state => (id ? state.bySystem.get(id) : undefined))
   const arrivals = useCheckoutStore(state => (id ? state.arrivals.get(id) : undefined))
+  // A repository's frame says which branch that repository is on.
+  const isRepository = d.kind === 'repository'
+  const repositoryBranch = useCheckoutStore(state => {
+    if (!isRepository) return undefined
+    const folder = d.name.replace(/ \(repository\)$/, '')
+    const repository = state.snapshot?.repositories?.find(candidate => candidate.folder === folder)
+    return repository ? (repository.headState === 'detached' ? `${repository.headCommit.slice(0, 7)} (detached)` : repository.branch) : undefined
+  })
   const otherBranches = collision?.filter(branch => !branch.focused) ?? []
   const infraCategory = d.umlMetadata?.category ?? 'platform'
   const isDeploymentBoundary = d.umlKind === 'infra'
@@ -353,6 +361,11 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
       padding: `0 ${padX}px`,
     }}>
+      {isRepository && (
+        <span className="ambio-repository-kicker" style={{ fontSize: Math.max(9, bigTitleFont * 0.26) }}>
+          Repository{repositoryBranch ? ` · ${repositoryBranch}` : ''}
+        </span>
+      )}
       <EditableNodeTitle value={name} onRename={onRename} style={{
         fontSize: bigTitleFont,
         fontWeight: 700,
@@ -444,6 +457,15 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           pointerEvents: 'none',
         }}>
           AI
+        </span>
+      )}
+      {isRepository && (
+        <span
+          className="ambio-repository-tag"
+          title={repositoryBranch ? `A repository, on ${repositoryBranch}` : 'A repository in this project'}
+          style={{ fontSize: badgeFont * 0.85, padding: `${badgeFont * 0.12}px ${badgeFont * 0.5}px` }}
+        >
+          REPO{repositoryBranch ? ` · ${repositoryBranch}` : ''}
         </span>
       )}
       {collisionBadge(badgeFont * 0.85)}

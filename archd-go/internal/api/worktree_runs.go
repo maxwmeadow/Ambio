@@ -33,7 +33,9 @@ func (s *Server) worktreesRoot() string {
 
 // isAmbioWorktree reports whether Ambio made this checkout for a run.
 func (s *Server) isAmbioWorktree(root db.Root) bool {
-	inside, err := filepath.Rel(s.worktreesRoot(), root.Path)
+	// Git reports a worktree's long, resolved path; the data folder can be a
+	// symlink (macOS /var) or a Windows 8.3 short name (C:\Users\RUNNER~1).
+	inside, err := filepath.Rel(resolvedRootPath(s.worktreesRoot()), resolvedRootPath(root.Path))
 	return err == nil && !strings.HasPrefix(inside, "..") && strings.HasPrefix(root.Branch, ambioBranchPrefix)
 }
 
@@ -82,14 +84,17 @@ func (s *Server) resyncWorktrees(workspaceID string) {
 }
 
 // waitForRoot waits until worktree sync has registered (or dropped) a path.
-func waitForRoot(sqlDB *sql.DB, workspaceID, path string, present bool) (db.Root, bool) {
+// With a branch, it waits for the row to name it: a sync already running
+// when the worktree was added can register it before Git has checked the
+// branch out.
+func waitForRoot(sqlDB *sql.DB, workspaceID, path string, present bool, branch string) (db.Root, bool) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		roots, _ := db.GetActiveRoots(sqlDB, workspaceID)
 		found := false
 		for _, root := range roots {
 			if sameRootPath(root.Path, path) {
-				if present {
+				if present && (branch == "" || root.Branch == branch) {
 					return root, true
 				}
 				found = true
@@ -164,7 +169,7 @@ func (s *Server) handleCreateRunWorktree(w http.ResponseWriter, r *http.Request)
 	// An agent opened at a package of a monorepo works in that package.
 	folder := filepath.Join(worktree, filepath.FromSlash(checkout.Prefix))
 	s.resyncWorktrees(body.WorkspaceID)
-	root, ok := waitForRoot(sqlDB, body.WorkspaceID, folder, true)
+	root, ok := waitForRoot(sqlDB, body.WorkspaceID, folder, true, branch)
 	if !ok {
 		jsonError(w, "the worktree was made but the project did not pick it up", http.StatusInternalServerError)
 		return
@@ -281,7 +286,7 @@ func (s *Server) handleFinishRunWorktree(w http.ResponseWriter, r *http.Request)
 	}
 	_ = os.Remove(filepath.Dir(checkout.TopLevel)) // the workspace's folder, once empty
 	s.resyncWorktrees(body.WorkspaceID)
-	waitForRoot(sqlDB, body.WorkspaceID, run.Path, false)
+	waitForRoot(sqlDB, body.WorkspaceID, run.Path, false, "")
 	jsonOK(w, result)
 }
 

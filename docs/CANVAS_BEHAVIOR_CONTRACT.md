@@ -275,6 +275,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Show on the Floor moves the Floor to another checkout of the repository.
   Files keep their identity, so systems, layout and history stay; the change
   in contents is reconciled quietly, and nothing is journaled.
+- In a project holding several repositories, each repository is a top-level
+  frame (a system of kind `repository`) named for its folder, and inferred
+  systems never span two of them. The frame is an ordinary system: it is
+  renamed, moved, resized and nested like any other. Its identity carries a
+  `REPOSITORY · branch` kicker above the title, and its tab band a
+  `REPO · branch` tag once open; the branch is that repository's own HEAD
+  (`GET /api/checkouts`). Files outside every repository are clustered at the
+  top level beside the frames.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
 

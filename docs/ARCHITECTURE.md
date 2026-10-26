@@ -350,14 +350,24 @@ to API-key billing or another account. Setup and live-account validation:
   (`indexer.SeedRepositories`), so a switch inside one is quiet and leaves a
   `checkout.switched` row naming it on the root's branch. `GET
   /api/checkouts` reports them as `repositories` (`vcs: "repos"` for a plain
-  folder of repositories); the chip reads "N repos". The map is still one
-  projection of the parent folder: per-repository frames, clustering inside
-  one repository, overlays and reviews per nested repository, and adding
-  unrelated folders are WORK follow-ups.
+  folder of repositories); the chip reads "N repos". The map is one
+  projection of the parent folder, with a top-level frame per repository: a
+  system of kind `repository` (`systems.kind`, schema 10) with an ID stable
+  per folder (`repositoryFrameID`). The classifier clusters each
+  repository's files on their own, under its frame, with that repository's
+  co-change (`indexer.clusterRepositories`), so no inferred system spans two
+  repositories; files outside every repository cluster at the top level. A
+  map indexed before frames existed reclusters once on its next sync
+  (`NeedsRepositoryFrames`). Imports resolve against the whole project, so an
+  edge between repositories is drawn wherever an import resolves across them
+  (DECISIONS 2026-10-21). Overlays and reviews per nested repository, and
+  adding unrelated folders, are WORK follow-ups.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
-  files, once any running Git command releases `index.lock` (a lock older
-  than 10 s is taken as left over from a crash).
+  files, once any running Git command releases `index.lock` and `HEAD.lock`
+  (a lock older than 10 s is taken as left over from a crash). Checkout
+  releases `index.lock` before it moves HEAD, so for a second after the
+  index is written the journal also waits for HEAD to move.
   A HEAD move since the journal last looked is classified from the reflog: a
   commit changes nothing; a branch switch makes the files Git wrote quiet and
   leaves one `checkout.switched` row; a pull, merge, reset or rebase is
@@ -411,7 +421,8 @@ extensions and investigation run capabilities.
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
 co-change (1.5, from `git log`), recursive into nested systems with stable IDs
-and TF-IDF names. Agents are asked to author the real tree (`name-architecture`
+and TF-IDF names; in a folder of repositories, per repository under its
+frame. Agents are asked to author the real tree (`name-architecture`
 prompt) rather than repair clusters.
 
 **Review Changes** (`internal/delta`): aggregate the journal to net effect,

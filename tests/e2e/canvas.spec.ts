@@ -4,7 +4,7 @@ import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeG
 import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
@@ -1573,13 +1573,15 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
     const westStep = westResizeFrames[index].width - westResizeFrames[index - 1].width
     const westBodyLag = Math.abs(westResizeFrames[index].bodyRight - westResizeFrames[index].right)
     expect(westBodyLag).toBeLessThanOrEqual(westStep + 0.5)
-    // ...and never on two frames in a row, which is what accumulation looks like.
-    const westPreviousLag = Math.abs(
-      westResizeFrames[index - 1].bodyRight - westResizeFrames[index - 1].right,
-    )
-    expect(Math.min(westBodyLag, westPreviousLag)).toBeLessThan(0.5)
   }
   expect(westResizeFrames.at(-1)!.width).toBeGreaterThan(westResizeFrames[0].width + 30)
+  // ...and catches up exactly once the pointer stops. A lag that persists or
+  // accumulates never closes; a slow frame on a loaded machine does.
+  await expect.poll(() => resizedSystem.evaluate(element => {
+    const right = element.getBoundingClientRect().right
+    const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+    return Math.abs((body?.right ?? Number.NaN) - right)
+  }), { timeout: 1000 }).toBeLessThan(0.5)
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(4)
   await expect.poll(() => viewport.getAttribute('style')).toBe(cameraBefore)
@@ -2894,19 +2896,42 @@ test('an old architecture draft explains recovery and can be discarded', async (
   await expect(title).toHaveCount(0)
 })
 
+/** Where a node sits on the canvas, in flow coordinates: unlike its screen
+ * box, it does not change when the camera settles or pans. */
+async function flowPosition(node: Locator) {
+  return node.evaluate(element => {
+    const match = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec((element as HTMLElement).style.transform)
+    return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: NaN, y: NaN }
+  })
+}
+
+/** Drags a system by its header once the camera has stopped, so the gesture
+ * lands where it was aimed. */
+async function dragSystem(system: Locator) {
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const box = (await system.boundingBox())!
+  await page.mouse.move(box.x + 24, box.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 54, box.y + 40, { steps: 12 })
+  await page.mouse.up()
+}
+
 test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
-  const moved = (await system.boundingBox())!
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
+  const moved = await flowPosition(system)
+  // The move is undoable once saved, which can trail the drop on a slow runner.
+  await page.waitForFunction(() => (window as unknown as { __ambioCanUndo: () => boolean }).__ambioCanUndo())
   await page.keyboard.press('ControlOrMeta+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - start.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - start.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - start.y)).toBeLessThan(1)
+  await page.waitForFunction(() => (window as unknown as { __ambioCanRedo: () => boolean }).__ambioCanRedo())
   await page.keyboard.press('ControlOrMeta+Shift+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - moved.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - moved.y)).toBeLessThan(1)
 })
 
 test('Split System… draws the split on a new sheet', async () => {
@@ -2928,14 +2953,12 @@ test('Split System… draws the split on a new sheet', async () => {
 
 test('a placed system stays put when files arrive and other systems are renamed', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
   await page.waitForTimeout(400)
-  const placed = (await system.boundingBox())!
+  const placed = await flowPosition(system)
 
   // What indexing does: a new file appears in another system, a system is
   // renamed, and the snapshot arrives again with fresh objects.
@@ -2950,7 +2973,7 @@ test('a placed system stays put when files arrive and other systems are renamed'
     })
   })
   await page.waitForTimeout(600)
-  const after = (await system.boundingBox())!
+  const after = await flowPosition(system)
   expect(Math.abs(after.x - placed.x)).toBeLessThan(1)
   expect(Math.abs(after.y - placed.y)).toBeLessThan(1)
 })

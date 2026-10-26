@@ -52,6 +52,9 @@ func RunWrapper(argv []string) int {
 			debugf("%s: not recording (the instrumented crate did not compile)", job.crate)
 			break
 		}
+		if attempt == maxAttempts-1 {
+			debugf("%s: not recording (still not compiling after %d attempts)", job.crate, maxAttempts)
+		}
 	}
 	return run(argv, nil)
 }
@@ -135,10 +138,14 @@ func plan(argv []string) *job {
 	}
 	// `crate::` paths, which the added code uses, arrived with the 2018 edition.
 	if j.srcIndex < 0 || j.crate == "" || outDir == "" || edition == "" || edition == "2015" || strings.HasPrefix(j.crate, "build_script_") {
+		if j.crate != "" {
+			debugf("%s: not recording (source %q, out dir %q, edition %q)", j.crate, j.srcArg, outDir, edition)
+		}
 		return nil
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
+		debugf("%s: not recording (%v)", j.crate, err)
 		return nil
 	}
 	j.cwd = cwd
@@ -154,12 +161,15 @@ func plan(argv []string) *job {
 		root = real
 	}
 	if root == "" || !strings.HasPrefix(srcAbs, root+string(filepath.Separator)) {
+		debugf("%s: not recording (%s is outside the workspace %s)", j.crate, srcAbs, root)
 		return nil
 	}
 	head, err := os.ReadFile(srcAbs)
 	if err != nil || bytes.Contains(head, []byte("#![no_std]")) {
+		debugf("%s: not recording (no standard library, or %v)", j.crate, err)
 		return nil // the recorder needs the standard library
 	}
+	debugf("%s: recording %s", j.crate+extra, srcAbs)
 	j.srcDir = filepath.Dir(srcAbs)
 	j.unique = j.crate + extra
 	j.edition = edition

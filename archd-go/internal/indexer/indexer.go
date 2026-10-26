@@ -1176,7 +1176,7 @@ func clusterAndAssign(sqlDB *sql.DB, root db.Root, journalDrift bool) error {
 		}
 	}
 	plan := newClusterPlan(managedFiles, protectedSystemIDs)
-	assigned, err := clusterLevel(plan, root, input, nil, map[string]struct{}{}, 0)
+	assigned, err := clusterRepositories(plan, root, input, Repositories(root), systems)
 	if err != nil {
 		return err
 	}
