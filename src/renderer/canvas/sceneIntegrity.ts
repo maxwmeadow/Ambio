@@ -56,6 +56,7 @@ export function inspectFloorScene(
   nodes: readonly Node[],
   canonicalNodeCount: number,
   canonicalNodeIds?: ReadonlySet<string>,
+  sceneNodeIds?: Set<string>,
 ): SceneIntegrity {
   if (canonicalNodeCount <= 0) {
     return {
@@ -78,7 +79,7 @@ export function inspectFloorScene(
     }
   }
 
-  const nodeIds = new Set(nodes.map(node => node.id))
+  const nodeIds = sceneNodeIds ?? new Set(nodes.map(node => node.id))
   if (canonicalNodeIds && (
     nodeIds.size !== canonicalNodeIds.size ||
     [...canonicalNodeIds].some(id => !nodeIds.has(id))
@@ -154,8 +155,9 @@ export function createFloorSceneInspector() {
         return result
       }
     }
-    const result = inspectFloorScene(nodes, count, ids)
-    previous = { nodes, count, ids, nodeIds: new Set(nodes.map(node => node.id)), result }
+    const nodeIds = new Set(nodes.map(node => node.id))
+    const result = inspectFloorScene(nodes, count, ids, nodeIds)
+    previous = { nodes, count, ids, nodeIds, result }
     return result
   }
 }

@@ -5,6 +5,17 @@ This implements the canonical interaction boundary and automatic Floor/sheet
 numeric worker preparation from the approved scalability plan. It does not
 implement the progressive daemon protocol or a batched GPU renderer.
 
+## Follow-up after merge
+
+Ancestry at remote main `908e488` confirms this checkpoint and its handoff docs
+were merged. Max reports the improvements work very well, with a specific mouse
+camera-pan hitch on initial-mapping approval. Its reproduction and targeted fix
+are recorded in [REVIEW_POINTER_PAN.md](REVIEW_POINTER_PAN.md). The handoff below
+is the historical pre-merge record; broader cold-input/memory/density acceptance
+remains open. The subsequent [cold-adoption and retention investigation](CANVAS_COLD_ADOPTION.md)
+repairs the scene-history leak and stages HTTP/worker/projection work; its current
+measurements supersede the older failed memory result for that tested scenario.
+
 ## Merge and testing handoff — 2026-10-23
 
 Implementation checkpoint: **`99f5575`** on **`codex/canvas-scene-scale`**.

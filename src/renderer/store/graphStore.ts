@@ -1,3 +1,4 @@
+import { decodeCanvasSnapshot } from './snapshotLoader.ts'
 import { mergeFloorLayoutUpdates, mergeLayoutParents } from './floorLayoutUpdates.ts'
 import { traceSync, beginPerfStage } from '../canvas/perfTrace.ts'
 import { create } from 'zustand'
@@ -1506,9 +1507,11 @@ let ws: WebSocket | null = null
 // Each connectToArchd call invalidates previous sockets' reconnect loops -
 // otherwise every remount would spawn another loop that reconnects forever.
 let wsGeneration = 0
+let snapshotAbort: AbortController | undefined
 
 export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
   const generation = ++wsGeneration
+  snapshotAbort?.abort()
   if (ws) {
     try { ws.close() } catch { /* already closed */ }
     ws = null
@@ -1548,14 +1551,14 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
       if (!workspaceId) return
       resyncing = true
       background.clear()
+      const loading = new AbortController()
+      snapshotAbort = loading
       try {
         const finishFetch = beginPerfStage('snapshot.fetch')
         let response: Response
-        try { response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`) } finally { finishFetch() }
+        try { response = await fetch(`${archdApi()}/api/snapshot/${workspaceId}`, { signal: loading.signal }) } finally { finishFetch() }
         if (!response.ok) throw new Error(`snapshot ${response.status}`)
-        const finishDecode = beginPerfStage('snapshot.decode')
-        let snapshot: CanvasSnapshot
-        try { snapshot = await response.json() as CanvasSnapshot } finally { finishDecode() }
+        const snapshot = await decodeCanvasSnapshot(response, loading.signal)
         if (generation !== wsGeneration || useGraphStore.getState().currentProject?.id !== workspaceId) return
         useGraphStore.getState().applySnapshot(snapshot)
         scheduleInfraDetails()
@@ -1568,6 +1571,7 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
         }
         if (resyncAgain) { resyncAgain = false; void resyncSnapshot('changes-during-resync') }
       } catch (error) {
+        if (loading.signal.aborted) return
         console.error(`[ws] ${reason} resync failed:`, error)
         resyncing = false
         socket.close()
@@ -1616,6 +1620,7 @@ export function connectToArchd(wsUrl = `${archdWs()}/ws`): void {
     socket.onclose = () => {
       background.clear()
       if (generation !== wsGeneration) return
+      snapshotAbort?.abort()
       useGraphStore.getState().setConnectionStatus('disconnected')
       setTimeout(tryConnect, 2000)
     }

@@ -1,5 +1,5 @@
 import type { InternalNode, Node, Rect } from '@xyflow/react'
-import type { SceneRecord } from '../renderBudgetGeometry.ts'
+import { sceneRecordSteps, type SceneRecord } from '../renderBudgetGeometry.ts'
 
 /** Complete geometry is independent of Flow's disposable interaction subset. */
 export interface CanonicalScene {
@@ -10,38 +10,98 @@ export interface CanonicalScene {
   records: SceneRecord[]
 }
 
+// Keep the lookup in its own object scope. Closures created inside
+// canonicalScene share a V8 context with geometry-comparison callbacks, which
+// capture `previous` and can retain every earlier scene through that context.
+class CanonicalNodeLookup {
+  private nodes: Node[]
+  private order: ReadonlyMap<string, number>
+  constructor(nodes: Node[], order: ReadonlyMap<string, number>) { this.nodes = nodes; this.order = order }
+  get size() { return this.nodes.length }
+  has(id: string) { return this.order.has(id) }
+  get(id: string) { const i = this.order.get(id); return i === undefined ? undefined : this.nodes[i] }
+}
+
 export function canonicalScene(nodes: Node[], records: SceneRecord[], previous?: CanonicalScene): CanonicalScene {
+  const steps = canonicalSceneSteps(nodes, records, previous)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+
+export function* canonicalSceneSteps(nodes: Node[], records: SceneRecord[], previous?: CanonicalScene): Generator<void, CanonicalScene> {
   if (previous?.nodes === nodes && previous.records === records) return previous
-  const sameOrder = previous && nodes.length === previous.nodes.length && nodes.every((node, i) => node.id === previous.nodes[i].id)
-  const order = sameOrder ? previous.order : new Map(nodes.map((node, i) => [node.id, i]))
+  let work = 0
+  let sameOrder = Boolean(previous && nodes.length === previous.nodes.length)
+  if (sameOrder && !(records === previous!.records && records.length === nodes.length)) {
+    for (let i = 0; i < nodes.length; i++) {
+      if (++work % 256 === 0) yield
+      if (nodes[i].id !== previous!.nodes[i].id) { sameOrder = false; break }
+    }
+  }
+  let order = sameOrder ? previous!.order : undefined
+  if (!order) {
+    order = new Map()
+    for (let i = 0; i < nodes.length; i++) { if (++work % 256 === 0) yield; order.set(nodes[i].id, i) }
+  }
   // Selection changes two entries in an immutable node array. A keyed view
   // avoids cloning a 100k-entry Map merely to point at those new objects.
-  const byId = { size: nodes.length, has: (id: string) => order.has(id), get: (id: string) => {
-    const i = order.get(id); return i === undefined ? undefined : nodes[i]
-  } }
-  const sameGeometry = previous && records.length === previous.records.length && records.every((record, i) => {
-    const before = previous.records[i]
-    return record === before || record.id === before.id && record.parentId === before.parentId &&
-      record.x === before.x && record.y === before.y && record.width === before.width && record.height === before.height
-  })
-  let rects = sameGeometry ? previous.rects : undefined
+  const byId = new CanonicalNodeLookup(nodes, order)
+  let sameGeometry = Boolean(previous && records.length === previous.records.length)
+  if (sameGeometry && records !== previous!.records) {
+    for (let i = 0; i < records.length; i++) {
+      if (++work % 256 === 0) yield
+      const record = records[i], before = previous!.records[i]
+      if (record !== before && !(record.id === before.id && record.parentId === before.parentId &&
+        record.x === before.x && record.y === before.y && record.width === before.width && record.height === before.height)) {
+        sameGeometry = false; break
+      }
+    }
+  }
+  let rects = sameGeometry ? previous!.rects : undefined
   if (!rects) {
     rects = new Map()
-    const raw = new Map(records.map(record => [record.id, record]))
+    const raw = new Map<string, SceneRecord>()
+    for (const record of records) { if (++work % 256 === 0) yield; raw.set(record.id, record) }
     for (const record of records) {
+      if (++work % 256 === 0) yield
+      if (rects.has(record.id)) continue
+      const parent = record.parentId ? rects.get(record.parentId) : undefined
+      if (!record.parentId || parent) {
+        rects.set(record.id, { x: record.x + (parent?.x ?? 0), y: record.y + (parent?.y ?? 0), width: record.width, height: record.height })
+        continue
+      }
       const chain: SceneRecord[] = [], seen = new Set<string>()
       let current: SceneRecord | undefined = record
       while (current && !rects.has(current.id) && !seen.has(current.id)) {
+        if (++work % 256 === 0) yield
         seen.add(current.id); chain.push(current)
         current = current.parentId ? raw.get(current.parentId) : undefined
       }
       for (let i = chain.length - 1; i >= 0; i--) {
+        if (++work % 256 === 0) yield
         const child = chain[i], parent = child.parentId ? rects.get(child.parentId) : undefined
         rects.set(child.id, { x: child.x + (parent?.x ?? 0), y: child.y + (parent?.y ?? 0), width: child.width, height: child.height })
       }
     }
   }
   return { nodes, byId, order, rects, records }
+}
+
+// Only completed immutable projections are cached. Weak keys allow obsolete
+// projections (including cancelled preparation) to be collected with the scene.
+const preparedScenes = new WeakMap<Node[], CanonicalScene>()
+export const preparedCanonicalScene = (nodes: Node[]) => preparedScenes.get(nodes)
+/** Only for selection/overlay changes that preserve IDs, order, geometry,
+ * hidden state and semantic-detail flags. Never use for structural edits. */
+export function rememberPresentationScene(source: Node[], nodes: Node[]): Node[] {
+  const scene = preparedScenes.get(source)
+  if (scene && source !== nodes) preparedScenes.set(nodes, { ...scene, nodes, byId: new CanonicalNodeLookup(nodes, scene.order) })
+  return nodes
+}
+export function* prepareCanonicalSceneSteps(nodes: Node[], previous?: CanonicalScene): Generator<void, CanonicalScene> {
+  const records = yield* sceneRecordSteps(nodes, previous?.records)
+  const scene = yield* canonicalSceneSteps(nodes, records, previous)
+  preparedScenes.set(nodes, scene)
+  return scene
 }
 
 /** Iterate the admitted set, never the complete project, on camera answers. */

@@ -28,3 +28,14 @@ test('dependency, build and dot folders are never read', () => {
   for (const name of ['node_modules', 'dist', 'vendor', '.git', '.venv', '.anything']) assert.equal(isAlwaysSkippedDir(name), true, name)
   for (const name of ['src', 'venv', 'coverage', 'bin']) assert.equal(isAlwaysSkippedDir(name), false, name)
 })
+
+
+test('source classification respects filename boundaries and document language overrides', () => {
+  for (const path of ['C:\\folder.with.dots\\Main.TSX', 'folder.with.dots/Main.TSX']) {
+    assert.equal(classifyProjectFile(path), 'source')
+    assert.equal(isCanvasSourceFile({ relPath: path }), true)
+  }
+  for (const path of ['folder.ts/no-extension', 'folder.ts/.ts', 'folder.ts/']) assert.equal(classifyProjectFile(path), 'unsupported')
+  assert.equal(isCanvasSourceFile({ relPath: 'example.ts', language: 'markdown' }), false)
+  assert.equal(isCanvasSourceFile({ relPath: 'example.ts', language: 'text' }), false)
+})

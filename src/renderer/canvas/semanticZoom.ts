@@ -61,10 +61,16 @@ function sameVisibility(node: Node, next: {
 }
 
 export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
+  const steps = zoomVisibilitySteps(nodes, zoom)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+export function* zoomVisibilitySteps(nodes: Node[], zoom: number): Generator<void, Node[]> {
+  let work = 0
   let index = visibilityIndices.get(nodes)
   if (!index) {
     const thresholds = new Set<number>()
     for (const node of nodes) {
+      if ((++work & 255) === 0) yield
       const w = Number(node.style?.width ?? node.measured?.width ?? 0)
       const h = Number(node.style?.height ?? node.measured?.height ?? 0)
       if (w > 0 && h > 0) thresholds.add(REVEAL_CONTAINER_PX / Math.sqrt(w * h))
@@ -84,6 +90,7 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
   let changed = false
   const updatedNodes = [...nodes]
   for (const position of index.order) {
+    if ((++work & 255) === 0) yield
     const node = nodes[position]
     const selfVisibility = node.parentId
       ? (childrenVisibleByNode.get(node.parentId) ?? 0)

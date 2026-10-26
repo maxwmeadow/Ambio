@@ -25,6 +25,7 @@
  * The rest of the rules are Ambio's, and live here as pure functions.
  */
 import type { Node, NodeChange } from '@xyflow/react'
+import { rememberPresentationScene } from './scene/canonicalScene.ts'
 
 export function singleNodeSelection(nodeId: string): Set<string> {
   return new Set([nodeId])
@@ -97,7 +98,7 @@ export function stampSelection(nodes: Node[], selectedIds: ReadonlySet<string>):
     changed = true
     return { ...node, selected }
   })
-  return changed ? next : nodes
+  return changed ? rememberPresentationScene(nodes, next) : nodes
 }
 
 export function selectedNodeIds(nodes: Node[]): string[] {

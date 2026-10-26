@@ -75,6 +75,16 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 
 ## Rendering budget (approved 2026-10-20)
 
+- On the initial-mapping approval canvas, a mouse pan begun on the empty pane
+  captures that pointer until release. Node gestures, Shift/lasso selection and
+  touch/pinch remain React Flow interactions; nested canvases own their pointer.
+  This review surface has no connection gestures or drawn relationship edges,
+  so its disabled connection handles stay out of layout/hit testing. Floor/sheet
+  endpoint handles retain their ordinary geometry. While this review camera is
+  being dragged, decorative card/folder shadow filters are suspended and return
+  when panning ends. Resting artwork, node drag/resize chrome and WASD retain
+  their normal appearance. This is an intentional motion-cost reduction added
+  for the 2026-10-23 review mouse-pan regression.
 - Above 40 composed nodes, spatial visibility runs in the same worker as
   numeric Floor/sheet preparation. Complete canonical geometry lives outside
   React Flow; its interaction collection contains the admitted region and
@@ -87,6 +97,20 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   relationships, no huge synchronous fallback is attempted: retain coherent
   content and offer Retry. Unresponsive superseded work is terminated after its
   cancellation acknowledgement deadline instead of blocking newer work forever.
+- Large HTTP snapshot reads and canvas preparation publish only completed,
+  current results. Byte decoding runs off-thread for large replies; row/geometry
+  transfers use acknowledged batches. Projection yields without publishing
+  incomplete hierarchy or saving stale placement. Same-scope preparation keeps
+  coherent content visible; empty/new scopes release old prepared models.
+  Failure remains recoverable without synchronously decoding a huge reply.
+  This scheduling change preserves authored geometry, reveal thresholds and
+  navigation timing; it does not imply a fully paged project model.
+- Floor preparation may precompute canonical indexes before publication.
+  Selection and activity overlays reuse these only while geometry, ordering,
+  hidden state and semantic detail remain unchanged. An inactive overlay does
+  not replace the scene. Geometry/visibility edits still reconcile and all
+  candidates still pass the existing integrity audit. Review keeps its full
+  visibility policy; sheet-specific composition remains authoritative.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
   React Flow additionally culls offscreen components; retention no longer requires
