@@ -75,6 +75,8 @@ for (const creation of ['drag', 'click']) {
         await page.mouse.down({ button: 'middle' })
         await page.mouse.move(canvas.x + canvas.width / 2 + shift.x, canvas.y + canvas.height * 0.8 + shift.y, { steps: 15 })
         await page.mouse.up({ button: 'middle' })
+        // Measure where the pan left the frame, not where it was heading.
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       }
       if (creation === 'click') await page.waitForTimeout(500)
       await centerSystem()
