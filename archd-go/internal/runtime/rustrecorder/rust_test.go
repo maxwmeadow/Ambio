@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -130,6 +131,9 @@ func cargoEnv(dir string, record bool, watches []map[string]string) []string {
 		watchJSON, _ := json.Marshal(watches)
 		env = append(env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AMBIO_RECORDER_DEBUG=1",
 			"AMBIO_EVIDENCE_DIR="+filepath.Join(dir, ".evidence"), "AMBIO_WORKSPACE_ROOT="+root, "AMBIO_WATCHES="+string(watchJSON))
+		if buildDir := BuildDir(runtime.GOOS, ""); buildDir != "" {
+			env = append(env, BuildDirEnv+"="+buildDir)
+		}
 	}
 	return env
 }

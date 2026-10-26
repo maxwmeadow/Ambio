@@ -3,7 +3,8 @@
 // for the workspace's own crates (RUSTC_WORKSPACE_WRAPPER); for each crate the
 // wrapper compiles instrumented copies of its sources, kept under target/, and
 // a recorder module that exists only in those copies. The user's files are
-// never written, and Cargo caches wrapped builds apart from ordinary ones.
+// never written, and wrapped builds are cached apart from ordinary ones
+// (BuildDir).
 //
 // Each function gains code on lines it already has, and paths are remapped,
 // so every panic location and every line of debug info is the user's own.
@@ -28,6 +29,26 @@ var recorderSource string
 // VersionEnv carries Version to the compiler. The recorder module reads it
 // with option_env!, which makes it part of what Cargo's cache depends on.
 const VersionEnv = "AMBIO_RECORDER_VERSION"
+
+// BuildDirEnv is where Cargo keeps fingerprints and intermediate artifacts.
+const BuildDirEnv = "CARGO_BUILD_BUILD_DIR"
+
+// BuildDir is the build directory a recorded build uses on goos, or "" for
+// Cargo's own. Cargo tells wrapped builds apart by a hash of the wrapper in
+// each workspace crate's artifact names, but a Windows MSVC executable's
+// name carries no hash (its PDB path is embedded), so a recorded build would
+// find the ordinary build's executable up to date and record nothing. A
+// build directory of its own keeps the two apart; the executable still lands
+// where the user's build puts it. existing is the user's own setting, if any.
+func BuildDir(goos, existing string) string {
+	if goos != "windows" {
+		return ""
+	}
+	if existing != "" {
+		return existing + "/ambio-recorded"
+	}
+	return "{workspace-root}/target/ambio-recorded"
+}
 
 // instrumentVersion changes whenever Instrument emits different code.
 const instrumentVersion = "1"

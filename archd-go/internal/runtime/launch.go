@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -331,11 +332,17 @@ const rustWrapperEnv = "RUSTC_WORKSPACE_WRAPPER"
 
 // injectRustEnv makes Cargo run archd itself as the compiler wrapper for the
 // workspace's own crates (dependencies are not wrapped). The wrapper compiles
-// instrumented copies of each crate's sources (rustrecorder), and Cargo
-// caches wrapped builds apart from ordinary ones. A wrapper the user already
-// set is theirs: the run then records no Rust, and the note says why.
+// instrumented copies of each crate's sources (rustrecorder), and wrapped
+// builds are cached apart from ordinary ones (rustrecorder.BuildDir). A
+// wrapper the user already set is theirs: the run then records no Rust, and
+// the note says why.
 func injectRustEnv(env []string, archd string) ([]string, string) {
-	out := make([]string, 0, len(env)+2)
+	return injectRustEnvFor(env, archd, goruntime.GOOS)
+}
+
+func injectRustEnvFor(env []string, archd, goos string) ([]string, string) {
+	out := make([]string, 0, len(env)+4)
+	buildDir := ""
 	for _, kv := range env {
 		upper := strings.ToUpper(kv)
 		if strings.HasPrefix(upper, rustWrapperEnv+"=") {
@@ -347,11 +354,21 @@ func injectRustEnv(env []string, archd string) ([]string, string) {
 		if strings.HasPrefix(upper, rustrecorder.WrapperEnv+"=") || strings.HasPrefix(upper, rustrecorder.VersionEnv+"=") {
 			continue
 		}
+		if strings.HasPrefix(upper, rustrecorder.BuildDirEnv+"=") {
+			buildDir = kv[len(rustrecorder.BuildDirEnv)+1:]
+			if goos == "windows" {
+				continue
+			}
+		}
 		out = append(out, kv)
 	}
 	// The version is in Cargo's own environment, where Cargo compares it
 	// with what each cached crate was built against.
-	return append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1", rustrecorder.VersionEnv+"="+rustrecorder.Version()), ""
+	out = append(out, rustWrapperEnv+"="+archd, rustrecorder.WrapperEnv+"=1", rustrecorder.VersionEnv+"="+rustrecorder.Version())
+	if dir := rustrecorder.BuildDir(goos, buildDir); dir != "" {
+		out = append(out, rustrecorder.BuildDirEnv+"="+dir)
+	}
+	return out, ""
 }
 
 // FindPHPAdapterDir locates the PHP run recorder (adapters/php).
