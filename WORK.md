@@ -323,6 +323,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 - ⬜ `ci-macos-lldb-initialized` **`TestCppCallsRecordedUnderTheSystemDebugger` and `TestGdbRecordsEveryCallToAWatchedCppFunction` fail on the macOS runner: lldb-dap never sends `initialized`** within 25s (`daplang.go` waitForInitialized), though `DevToolsSecurity -status` does not report disabled. Reproduce on a Mac or the runner; Linux and Windows (gdb) pass. (2026-10-23, CI cleanup)
 
+- ⬜ `branch-marks-compact-floor-e2e` **`tests/e2e/branches.spec.ts` "branch marks survive compact file presentation on a larger Floor" fails 3 of 4 runs on main** (`908e488`): after the wheel zoom and camera prewarm, `file_store` has no mounted card (`[data-render-tier]` never attaches), so its deleted mark is never checked. Decide whether the camera leaves it outside the admitted viewport (test) or compact admission drops it (renderer). (2026-10-26, merging main into PR 11)
+
 - ⬜ `ci-windows-rust-demotion` **Two Rust recorder tests still fail on Windows only.** `TestRustRunRecordsArgumentsResultsMutationsAndThePanic` writes no evidence when the program panics, and `TestRustRecordedBuildBehavesLikeTheOrdinaryOne` records nothing in `shop`'s lib except `add` after `store` is demoted to tier 1 (same demotion as Linux, which then records everything). Fixed so far: panic locations print with `\`, and watched files never matched because Rust's `canonicalize` answers `\\?\C:\...` (now stripped in `recorder.rs.txt`). Check the panic-hook/atexit flush and the retry path in `rustrecorder/wrapper.go` on Windows. (2026-10-23, CI cleanup)
 
 ## Done log
