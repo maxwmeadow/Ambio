@@ -6,7 +6,7 @@ import { createRenderBudgetStore } from './renderBudgetStore'
 import { buildRelationshipIndex, type RelationshipRecord, buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, sceneRecords, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
 import { getPerfMetrics } from './perfMetrics'
 import type { SceneController } from './scene/sceneController'
-import { canonicalScene, materializedIds, registerCanvasScene, releaseCanvasScene, type CanonicalScene } from './scene/canonicalScene'
+import { canonicalScene, preparedCanonicalScene, materializedIds, registerCanvasScene, releaseCanvasScene, type CanonicalScene } from './scene/canonicalScene'
 
 type BudgetStore = ReturnType<typeof createRenderBudgetStore>
 export const RenderBudgetContext = createContext<BudgetStore | null>(null)
@@ -50,14 +50,16 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: Ed
   budget.configure(enabled)
   const [visible, setVisible] = useState<Set<string> | null>(null)
   const controller = useRef<{ update: (records: SceneRecord[], edges: RelationshipRecord[]) => void } | null>(null)
+  const spatialRevision = useRef(0)
   const previousRecords = useRef<SceneRecord[]>([])
+  const prepared = preparedCanonicalScene(nodes)
   const records = useMemo(() => traceSync('scene.records', () => {
-    const next = sceneRecords(nodes, previousRecords.current)
+    const next = prepared?.records ?? sceneRecords(nodes, previousRecords.current)
     previousRecords.current = next
     return next
   }, nodes.length), [nodes])
   const previousScene = useRef<CanonicalScene>()
-  const scene = useMemo(() => canonicalScene(nodes, records, previousScene.current), [nodes, records])
+  const scene = useMemo(() => prepared ?? canonicalScene(nodes, records, previousScene.current), [nodes, records])
   previousScene.current = scene
   useLayoutEffect(() => {
     registerCanvasScene(flow, scene)
@@ -153,7 +155,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: Ed
     const update = (next: SceneRecord[], edges: RelationshipRecord[]) => {
       if (source === next && sourceEdges === edges) return
       const changed = source !== next
-      source = next; sourceEdges = edges; scene++; bounds = null; localEdges = undefined
+      source = next; sourceEdges = edges; scene = ++spatialRevision.current; bounds = null; localEdges = undefined
       if (changed) {
         local = undefined
         currentIds = new Set(next.filter(record => !record.hidden).map(record => record.id))

@@ -14,10 +14,15 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 
 ## Checkpoint recheck — 2026-10-23
 
-For the `codex/canvas-scene-scale` implementation through `99f5575`, after Max's
-other session merges it. These are fresh **manual checks, all untested**;
-historical marks below and passing automated tests do not fill them in.
-See [measurements and known limits](CANVAS_CANONICAL_WORKER.md).
+The Oct 26 [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) consolidates
+review panning, cold loading/retention and final adoption. Use this same checklist
+on the updated main; no unchecked manual item is completed by that merge.
+
+For the merged `codex/canvas-scene-scale` implementation through `99f5575`.
+Max reports improved performance and the specific review mouse-pan issue in CP8.
+The individual CP1–CP7 checks remain unverified; historical marks below and
+passing automated tests do not fill them in. See
+[measurements and known limits](CANVAS_CANONICAL_WORKER.md).
 
 - [ ] **CP1 — Open/reopen.** Open Kohler from the launcher, then close and reopen
   it. Check loading feedback, a useful map, and saved positions. Record initial
@@ -42,7 +47,24 @@ See [measurements and known limits](CANVAS_CANONICAL_WORKER.md).
 - [ ] **CP7 — Longer session.** Revisit the same views and search targets for
   10–20 minutes with normal editing/activity. Record whether responsiveness or
   memory steadily worsens and whether reopening changes it. This observation
-  supplements the failed automated heap gate; it does not prove a memory plateau.
+  supplements the [retention fix and automated memory checks](CANVAS_COLD_ADOPTION.md);
+  it does not certify a memory plateau for every project.
+
+The Oct 24 [final-adoption follow-up](CANVAS_FINAL_ADOPTION.md) adds cooperative
+canonical indexes and removes redundant idle overlays/persistence checks. Its
+100k cold-input gate is still inconsistent. CP1–CP7 remain human rechecks;
+automated results do not mark them complete. During CP3/CP4, also activate and
+clear runtime/slice/focus/trace overlays and check selection, tint, authored
+geometry and saved positions after a model update.
+
+- [~] **CP8 — Initial-mapping review mouse pan.** Max found hitches after the
+  first mapping, while approving/sending back systems; Floor mouse pan and review
+  WASD felt smooth. The targeted fix, originally on `codex/review-pointer-pan`,
+  is included in the Oct 26 consolidated main delivery;
+  [evidence and scope](REVIEW_POINTER_PAN.md). Recheck primary and
+  middle mouse pans, direction reversals, Shift selection, node drag/resize and
+  approval/send-back on the real project after pulling main. Decorative
+  shadows may disappear during a camera drag and must return on release.
 
 For a regression, report CP ID, tested main commit, project/sheet, OS/hardware,
 display refresh, the action sequence, whether the scene was still preparing,

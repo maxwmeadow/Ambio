@@ -24,9 +24,9 @@ export function isAlwaysSkippedDir(name: string): boolean {
 }
 
 function extensionOf(path: string): string {
-  const name = path.replace(/\\/g, '/').split('/').pop() ?? path
-  const dot = name.lastIndexOf('.')
-  return dot > 0 ? name.slice(dot).toLowerCase() : ''
+  const basenameStart = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1
+  const dot = path.lastIndexOf('.')
+  return dot > basenameStart ? path.slice(dot).toLowerCase() : ''
 }
 
 export function classifyProjectFile(path: string, isDirectory = false): ProjectFileKind {
@@ -43,5 +43,5 @@ export function isDocumentationFile(file: { language?: string; relPath: string }
 }
 
 export function isCanvasSourceFile(file: { language?: string; relPath: string }): boolean {
-  return !isDocumentationFile(file) && classifyProjectFile(file.relPath) === 'source'
+  return file.language !== 'markdown' && file.language !== 'text' && classifyProjectFile(file.relPath) === 'source'
 }

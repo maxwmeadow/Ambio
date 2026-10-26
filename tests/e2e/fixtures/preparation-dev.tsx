@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createSceneController } from '../../../src/renderer/canvas/scene/sceneController'
 import { usePreparedFloorGeometry, type FloorModel } from '../../../src/renderer/canvas/scene/usePreparedFloorGeometry'
 import type { GeneratedPlacement } from '../../../src/renderer/canvas/scene/sceneGeometry'
+import { preparedCanonicalScene } from '../../../src/renderer/canvas/scene/canonicalScene'
 
 function Fixture() {
   const preparations = useRef(0)
@@ -20,13 +21,14 @@ function Fixture() {
   const [empty, setEmpty] = useState(false)
   const model = useMemo<FloorModel | null>(() => empty ? null : ({
     scope: 'review:strict-mode', systems: [], infraNodes: [], dependencies: [],
-    files: [{ id: 'file', systemId: null, positionX: 1, positionY: 20, width, height: 110 }] as FloorModel['files'],
+    files: [{ id: 'file', relPath: 'file.ts', language: 'typescript', lineCount: 1, churnScore: 0, indexedAt: 1, systemId: null, positionX: 1, positionY: 20, width, height: 110 }] as FloorModel['files'],
     layouts: [{ nodeId: 'file', parentNodeId: null, positionX: 1, positionY: 20, width, height: 110, scale: 1, interiorScale: 1 }] as FloorModel['layouts'],
   }), [revision, width, empty])
-  const prepared = usePreparedFloorGeometry(controller, 'floor', model, placements.current, 0)
+  const prepared = usePreparedFloorGeometry(controller, 'floor', model, placements.current, 0, () => .5, () => .5)
   return <>
     <div id="status">{empty ? 'empty' : prepared.error ?? (prepared.current ? 'ready' : 'pending')}</div>
     <div id="geometry">{prepared.value?.geometry.descriptors[0]?.geometry.width}</div>
+    <div id="canonical">{prepared.value && preparedCanonicalScene(prepared.value.nodes)?.rects.get('file')?.width}</div>
     <div id="preparations">{preparations.current}</div>
     <button onClick={() => setRevision(value => value + 1)}>Echo model</button>
     <button onClick={() => setWidth(720)}>Change geometry</button>

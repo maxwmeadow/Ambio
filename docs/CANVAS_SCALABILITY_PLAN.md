@@ -7,13 +7,13 @@ Canonical Flow materialization and automatic Floor/sheet worker geometry are imp
 Progressive scene/data adoption, cold input acceptance and wider density/memory acceptance remain open.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
 
-Handoff, 2026-10-23: checkpoint `99f5575` on `codex/canvas-scene-scale` is ready
-for Max's other session to merge, then Max will test real projects. Neither merge
-nor human acceptance has been verified here. Further implementation awaits that
-feedback; the remaining WORK items are unclaimed. Automated findings and remaining
-failed gates are recorded in [CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md);
-the [checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
-is the manual handoff. Phases 2–5 are not declared complete.
+Handoff update, 2026-10-26: the remaining review-pan, staged cold-loading/
+retention and final-adoption slices are consolidated for main. The
+[main/device handoff](testing/CANVAS_PERFORMANCE_HANDOFF.md) records the source
+commits, fresh verification, historical measurements, known failures and ordered
+remaining work. Phases 2–5 are not declared complete. The
+[checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
+records the manual real-project checks still needed.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
 is a reliably smooth Kohler experience with demonstrated headroom for much
@@ -120,6 +120,13 @@ and selection improve at 100k; cold input and the 50-cycle heap gate still fail.
 ## Phase 2 - Background, incremental scene preparation
 
 WORK item: `canvas-cold-layout-worker`. Depends on phase 1 tracing.
+
+Oct 24 follow-up: completed Floor projections now prepare canonical records,
+ID order and absolute rectangles cooperatively, reuse their indexes on adoption
+and avoid idle-overlay/persistence rebuilds. This is a partial phase-2 slice;
+the 100k cold-input gate remains inconsistent. Integrity checks, other full-model
+consumers and semantic threshold crossings still need measurement and bounded
+work. See [final adoption evidence](testing/CANVAS_FINAL_ADOPTION.md).
 
 Extract deterministic numeric layout/packing from `AmbioCanvas.tsx`, initially
 `runAlternateAxisLayout` and `buildFloorFrameLayout`. Proposed files under

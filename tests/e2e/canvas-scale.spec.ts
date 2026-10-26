@@ -47,6 +47,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     buildFingerprint:createHash('sha256').update(readFileSync('out/renderer/index.html')).digest('hex'),
     reference:{platform:platform(),release:release(),arch:arch(),cpu:cpus()[0]?.model,
       logicalCpus:cpus().length,hostRamBytes:totalmem(),viewport:{width:1400,height:900}},
+    forcedCollection:process.env.AMBIO_SCALE_GC==='1',
     memoryUnit:'Sampled Electron process metrics: KiB; page JavaScript heap: bytes. Worker heap is included in process memory, not separately measured.',
     budgets:{frameP95Ms:16.7,frameP99Ms:33.3,frameToleranceMs:0.25,inputP95Ms:50,memoryGrowthRatio:1.1}}
   let app:ElectronApplication|undefined,memoryTimer:ReturnType<typeof setTimeout>|undefined
@@ -115,6 +116,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     if(process.env.AMBIO_SCALE_PROFILE==='1'){
       report.instrumented=true
       await cdp.send('Profiler.enable');await cdp.send('Profiler.start')
+      report.profileStartedAt=await page.evaluate(()=>performance.now())
       stopProfile=async()=>{
         const result=await deadline(cdp.send('Profiler.stop'),3000,'CPU profile unavailable')
         mkdirSync(outputDir,{recursive:true})
@@ -158,7 +160,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
           s.peakNodes=Math.max(s.peakNodes,document.querySelectorAll('.react-flow__node').length)}
         requestAnimationFrame(frame)};requestAnimationFrame(frame)
       window.addEventListener('pointerdown',event=>{
-        const dispatched=event.timeStamp,received=performance.now()
+        const dispatched=event.timeStamp,received=performance.now(),phase=w.__scale.phase
         const node=(event.target as Element)?.closest('.react-flow__node')
         if(node&&!node.classList.contains('selected')){
           const observer=new MutationObserver(()=>{
@@ -171,7 +173,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
           setTimeout(()=>observer.disconnect(),2000)
         }
         requestAnimationFrame(()=>requestAnimationFrame(()=>{if(w.__scale?.running&&w.__scale.inputs.length<1000)
-          w.__scale.inputs.push({queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
+          w.__scale.inputs.push({phase,queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
       },true)
     })
     const started=Date.now(),box=(await canvas.boundingBox())!
@@ -179,8 +181,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       const w=window as any,trace=w.__ambioPerfTrace,start=performance.now()
       let at=performance.now();trace.begin('snapshot.fetch')
       const response=await fetch(url);trace.record('snapshot.fetch',performance.now()-at)
-      at=performance.now();trace.begin('snapshot.decode')
-      const snapshot=await response.json();trace.record('snapshot.decode',performance.now()-at,snapshot.files.length+snapshot.systems.length)
+      const snapshot=await w.__ambioDecodeSnapshot(response)
       w.__ambioGraphStore.getState().applySnapshot(snapshot)
       return{applyReturnedMs:performance.now()-start}
     },`${apiOrigin}/api/snapshot/scale-fixture`)
@@ -248,6 +249,17 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       // A container's center can correctly be covered by a nested child.
       await targetNode.click({position:{x:10,y:10}})
       await expect.poll(()=>page.evaluate(()=>(window as any).__ambioGraphStore.getState().selectedNodeId)).toBe(target.id)
+      if(report.forcedCollection)await cdp.send('HeapProfiler.collectGarbage')
+      if(process.env.AMBIO_SCALE_HEAP_PROFILE==='1'&&[9,49].includes(cycle)) {
+        report.heapInstrumented=true
+        const chunks:string[]=[]
+        const collect=({chunk}:{chunk:string})=>chunks.push(chunk)
+        cdp.on('HeapProfiler.addHeapSnapshotChunk',collect)
+        try { await cdp.send('HeapProfiler.takeHeapSnapshot') }
+        finally { cdp.off('HeapProfiler.addHeapSnapshotChunk',collect) }
+        mkdirSync(outputDir,{recursive:true})
+        writeFileSync(join(outputDir,`heap-${cycle+1}.heapsnapshot`),chunks.join(''))
+      }
       report.pageHeap??=[];report.pageHeap.push((await cdp.send('Runtime.getHeapUsage')).usedSize)
       report.processPrivateKiB??=[];report.processPrivateKiB.push(latestPrivateKiB)
       if(peakPrivateKiB>2*1024*1024)throw Error('isolated fixture exceeded 2 GiB private-memory guard')
@@ -270,6 +282,8 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     report.phaseFrames=Object.fromEntries(Object.entries(report.observed.phaseFrames).map(([phase,values])=>[phase,quantiles(values as number[])]))
     delete report.observed.phaseFrames
     report.selectionFeedback=quantiles(report.observed.selection);delete report.observed.selection
+    report.phaseInputToPaintOpportunity=Object.fromEntries(['cold','navigation','warm'].map(phase=>
+      [phase,quantiles(report.observed.inputs.filter((i:any)=>i.phase===phase).map((i:any)=>i.paintOpportunityMs))]))
     report.inputQueue=quantiles(report.observed.inputs.map((i:any)=>i.queueMs))
     report.inputToPaintOpportunity=quantiles(report.observed.inputs.map((i:any)=>i.paintOpportunityMs));delete report.observed.inputs
     const after=await cdp.send('Performance.getMetrics')
@@ -280,11 +294,13 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     report.processMemoryGrowthRatio=growthRatio(report.processPrivateKiB)
     expect(report.observed.finalNodes).toBeGreaterThan(0)
     expect(report.observed.metrics.maxBudgetBatch).toBeLessThanOrEqual(6)
+    expect(report.observed.metrics.workerQueries).toBeGreaterThan(0)
     expect(report.pageErrors??[]).toEqual([])
     report.status='measured'
     report.targets={frameP95:report.phaseFrames.warm.count>=60?report.phaseFrames.warm.p95<=16.7+report.budgets.frameToleranceMs:null,
       frameP99:report.phaseFrames.warm.count>=60?report.phaseFrames.warm.p99<=33.3+report.budgets.frameToleranceMs:null,
       selection:report.selectionFeedback.count>=20?report.selectionFeedback.p95<=50:null,
+      coldInputPaint:report.phaseInputToPaintOpportunity.cold.count?report.phaseInputToPaintOpportunity.cold.p95<=50:null,
       inputPaint:report.inputToPaintOpportunity.count?report.inputToPaintOpportunity.p95<=50:null,
       memory:cycles>=50&&report.memoryGrowthRatio!==null&&report.processMemoryGrowthRatio!==null
         ?report.memoryGrowthRatio<=1.1&&report.processMemoryGrowthRatio<=1.1:null}

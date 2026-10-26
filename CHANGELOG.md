@@ -8,6 +8,15 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Opening a large saved map prepares its navigation geometry in smaller steps
+  and avoids rebuilding it for inactive overlays. Review layout checks no longer
+  compare every editable node against every saved row.
+- Large maps prepare and transfer their scene in smaller background steps,
+  reducing loading hitches. Repeated navigation releases old complete scenes
+  instead of retaining them in memory.
+- Mouse-drag panning on the first-mapping review page avoids repeated hits on
+  every card and unnecessary connection/shadow work. Card shadows return when
+  panning stops; approval, selection, dragging and resizing keep their behavior.
 - Agent setup mapping activity stream provides technical blueprint styling without emojis, balanced titles, robust retry and agent re-selection, reliable live progress stats, and moved the back control to the screen footer.
 - Development canvases, including proposal review, no longer stay blank at
   "Preparing map" after React replays their initial preparation effects.

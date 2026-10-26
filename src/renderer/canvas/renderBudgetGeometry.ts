@@ -12,8 +12,14 @@ interface SceneNode {
  * numbers directly instead of allocating every record and serializing the full
  * scene on each click. Order is significant for deterministic query tie breaks. */
 export function sceneRecords(nodes: readonly SceneNode[], previous: SceneRecord[] = []): SceneRecord[] {
+  const steps = sceneRecordSteps(nodes, previous)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+
+export function* sceneRecordSteps(nodes: readonly SceneNode[], previous: SceneRecord[] = []): Generator<void, SceneRecord[]> {
   let next: SceneRecord[] | undefined
   for (let i = 0; i < nodes.length; i++) {
+    if (i % 256 === 0) yield
     const node = nodes[i]
     const old = previous[i]
     const width = Number(node.style?.width ?? node.measured?.width ?? node.initialWidth ?? 1)
