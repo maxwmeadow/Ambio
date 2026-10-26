@@ -199,6 +199,10 @@ export function makeFullyVisible(node: Node): Node {
  */
 export function revealNodePath(nodes: Node[], nodeId: string | null): Node[] {
   if (!nodeId) return nodes
+  const target = nodes.find(node => node.id === nodeId)
+  // A visible root has no hidden ancestry to resolve. Ordinary root selection
+  // must not allocate a complete project index for this no-op.
+  if (!target || (!target.parentId && !target.hidden)) return nodes
   const byId = new Map(nodes.map(node => [node.id, node]))
   if (!byId.has(nodeId)) return nodes
 

@@ -13,15 +13,17 @@ import { getPerfMetrics } from './perfMetrics'
 const navigationRequests = new WeakMap<object, number>()
 const navigationPrefetches = new WeakMap<object, AbortController>()
 
-export function useShowOnMap(inspect = true): (nodeId: string) => void {
+export function useShowOnMap(inspect = true, options: { duration?: number; maxZoom?: number; padding?: number } = {}): (nodeId: string) => void {
   const { fitView, getInternalNode } = useReactFlow()
   const flowStore = useStoreApi()
+  const duration = options.duration ?? 850, padding = options.padding ?? .5, maxZoom = options.maxZoom
   return useCallback((nodeId: string) => {
-    const request = (navigationRequests.get(flowStore) ?? 0) + 1
-    navigationRequests.set(flowStore, request)
-    navigationPrefetches.get(flowStore)?.abort()
+    const key = flowStore.getState
+    const request = (navigationRequests.get(key) ?? 0) + 1
+    navigationRequests.set(key, request)
+    navigationPrefetches.get(key)?.abort()
     const prefetch = new AbortController()
-    navigationPrefetches.set(flowStore, prefetch)
+    navigationPrefetches.set(key, prefetch)
     // A wheel easing loop must yield to this camera flight. Dispatch on this
     // React Flow surface so a nested bin cannot cancel another canvas's camera.
     flowStore.getState().domNode?.dispatchEvent(new Event('ambio:camera-navigation', { bubbles: true }))
@@ -34,17 +36,18 @@ export function useShowOnMap(inspect = true): (nodeId: string) => void {
       getPerfMetrics().prefetchedTargets++
       void fetchFileSymbols(graph.currentProject.id, nodeId, prefetch.signal).catch(() => {})
     }
-    const deadline = performance.now() + 1000
+    const deadline = performance.now() + 30000
     const fly = () => {
-      if (navigationRequests.get(flowStore) !== request) return
+      if (navigationRequests.get(key) !== request || useGraphStore.getState().currentProject?.id !== graph.currentProject?.id) { prefetch.abort(); return }
+      const preparing = flowStore.getState().domNode?.closest('[data-ambio-canvas]')?.getAttribute('data-scene-preparing') === 'true'
       const node = getInternalNode(nodeId)
-      if (node && !node.hidden && node.measured.width) {
+      if (!preparing && node && !node.hidden && node.measured.width) {
         getPerfMetrics().navigationFlights++
-        flowStore.getState().domNode?.dispatchEvent(new CustomEvent('ambio:camera-prewarm', { bubbles: true, detail: { nodeId, duration: 850 } }))
-        void fitView({ nodes: [{ id: nodeId }], duration: 850, padding: 0.5 })
+        flowStore.getState().domNode?.dispatchEvent(new CustomEvent('ambio:camera-prewarm', { bubbles: true, detail: { nodeId, duration } }))
+        void fitView({ nodes: [{ id: nodeId }], duration, padding, maxZoom })
       }
       else if (performance.now() < deadline) requestAnimationFrame(fly)
     }
     requestAnimationFrame(fly)
-  }, [fitView, getInternalNode, flowStore, inspect])
+  }, [fitView, getInternalNode, flowStore, inspect, duration, padding, maxZoom])
 }

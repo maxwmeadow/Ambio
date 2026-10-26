@@ -9,6 +9,11 @@ data flow or a limit named here, update it in the same change.
 
 ## Project workbench chrome
 
+`ProjectSetupScreen` edits the display name in both initial setup and Project
+Settings. Confirmation trims the name and saves it with the source boundaries;
+blank names cannot be submitted. Electron's folder registration reuses a known
+project's saved name, so Open Codebase does not reset it to the folder name.
+
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
 Fit and Message Agent visible. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no
@@ -57,6 +62,14 @@ loopback OpenCode server per project, persistent harness sessions, streamed text
 tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
 Provider setup is in Settings → Agents; the picker opens it when none is set up.
+The Agents page has three connection categories (`AgentConnections`): Ambio chat,
+CLIs Ambio runs, and agents in other apps. Each client category keeps its selected
+connector independently and shows a compact logo gallery above that connector's
+management controls. Missing clients remain listed. The chat category stays
+mounted while browsing clients so in-progress connection input is preserved.
+`ChatProviderSettings` presents the ChatGPT account card and saved API connections;
+an API editor opens only for an explicit provider or saved connection. Advanced
+endpoint/context settings and ChatGPT account/model controls are disclosures.
 
 Models: `electron/agentModels.ts` lists what each agent Ambio runs can use, read
 the way that agent publishes it (Claude Code's aliases, Codex's
@@ -395,10 +408,13 @@ app's decision.
 | PHP | ✅ | `require`/`include`, PSR-4 `use` | - | - | - | recorded (prepended recorder) |
 | Swift, Lua, shell, Elixir | ✅ | `import`, `require`, `source`, `alias`/`use` | - | - | - | exit code and output |
 
+CSS, Sass/SCSS and Less are mapped with stylesheet imports and symbols.
 `.h` is read as C. Main's readers (`parser/imports_more.go`) cover Java, Rust,
 Ruby and C/C++; `parser/imports_text.go` covers the rest and C/C++ project
 headers, resolved by `indexer/imports_other.go`. What a run can see per
 language, and the toolchain each needs: [INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
+The [README language table](../README.md#file-policy) lists supported file
+extensions and investigation run capabilities.
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
@@ -430,6 +446,45 @@ Launch status is distinct from MCP claim and reply status. Runs edit the existin
 graph root unless Send's *Own worktree* is chosen (see the checkouts section
 above), can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
+
+**Client discovery and executable selection** (`src/shared/agentDelivery.ts`,
+`electron/agentClientDiscovery.ts`, `agentExecutableOverrides.ts`): a stable
+catalog lists every supported terminal and app route, independently of local
+availability. Setup groups wrapping name-and-logo pills (`ConnectorLogo.tsx`)
+into Ambio chat, Ambio runs it, and In another app sections, using bundled assets whose sources
+are recorded in `assets/connectors/SOURCES.md`. Each pill keeps its availability
+in its colored outline, accessible label and tooltip; keyboard selection uses arrows/Home/End across sections.
+Selecting a pill opens a nonmodal sidebar over the field agent. `ChooseAgent`
+owns selection, discovery and setup state and portals the details into a stable
+slot in `ConnectAgentScreen`'s mascot area; closing returns focus to the pill.
+Details scroll independently above pinned actions, with a reduced-motion
+alternative and narrow-screen scrolling into the stacked agent area. The
+field-agent character/title-bar transition is a separately staged UI change.
+Session-option help uses the shared `InfoPopover` in the browser's top layer,
+anchored to its trigger with scroll/resize tracking and native outside-click
+dismissal. It does not participate in the sidebar layout; Escape dismisses the
+help before the sidebar.
+Ambio chat's connection links use `modelServiceNavigation.ts` to carry a typed
+provider destination through Settings into `ChatProviderSettings`, which selects
+and focuses the requested setup after mounting. Existing untargeted model-service
+events still open the connection section. Navigation never initiates OAuth or
+mutates a saved service.
+Codex/Claude IDE and desktop surfaces keep separate installation
+evidence while sharing their existing canonical installer's MCP configuration;
+app-specific actions resolve to that installer rather than writing competing
+connections. Installation/configuration evidence is shown separately from CLI
+availability, and does not establish sign-in or a live connection from a
+particular surface. Private Codex binaries injected into PATH by its extension
+or desktop app are not automatically classified as a standalone CLI.
+The file picker can remember a native executable or npm entrypoint under
+`~/.ambio/agent-executable-overrides.json`. Known npm shell shortcuts resolve
+to their entrypoints; prompts never pass through a shell. Explicit selections
+receive a bounded version/identity check where supported; ACP server selection
+does not start a protocol session merely to inspect it. Discovery and actual
+delivery use the same resolver, recheck saved paths, and expose broken overrides
+instead of silently substituting another executable. Setup refreshes app, CLI
+and model-service sources; bounded requests and generation guards retain the
+catalog and expose errors without letting late results overwrite newer scans.
 
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
 a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`).
@@ -548,22 +603,60 @@ target and cancels wheel easing/pending growth fits on its own canvas before
 flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
 or `window.__ambioBinDragDebug = true`.
 
-`canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
-canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
-camera queries; scene/request versions reject stale replies. Buffered culling and
-short retention replace React Flow's exact-edge culler above 40 composed nodes.
-Before the first worker reply, root shells already intersect that same viewport
-buffer instead of all mounting at once; active/selected/relationship priorities
-remain in force.
-Visible relationship endpoints retain their handle shells outside the viewport.
-`useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
-consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
-has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
-chooses silhouette, compact identity or the original editable node. Selected and
-active nodes bypass background admission. Navigation prewarms one destination
-and shared symbol data while intermediate cards stay compact during motion.
-Compact cards retain sheet change badges; focused relationship endpoints retain
-their full presentation along with the existing selection/activity exceptions.
+`canvas/scene/canonicalScene.ts` keeps the complete scene, stable ID order and
+absolute geometry outside React Flow. `useCanvasRenderBudget.tsx` materializes
+buffered visibility, required ancestors, selected/live nodes and endpoints of
+admitted relationships. It iterates admitted IDs on camera replies instead of
+mapping the project array. Flow owns a disposable interaction subset; its own
+component culler can release DOM within that subset. During layout glides the
+outgoing subset is retained, rather than adopting the entire project.
+`useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
+waits for accepted preparation before using a target's current measurement.
+Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots
+include unadopted children and apply their compensation through the normal
+controlled-node callback. Only active resize owners need remain adopted.
+
+`scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
+frame preparation, separate from `floorSceneProjection.ts` (React node data).
+`scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet
+preparation and spatial queries. Numeric jobs yield between loop chunks, coalesce
+by channel and reject superseded tokens. Workspace/sheet scopes and immutable
+input identity gate adoption and generated-placement persistence. An equivalent
+metadata/save echo reuses an accepted or pending preparation. Preparation caches
+are cleared when their controller/channel lifecycle is cancelled, so development
+effect replay starts a fresh job rather than reusing a rejected promise.
+Unchanged layout and semantic-parent echoes preserve identities in
+`store/floorLayoutUpdates.ts`.
+Timestamp-only layout echoes do not invalidate renderer geometry; authoritative
+save timestamps remain in SQLite. Failed initial saves latch the attempt and
+surface Retry instead of repeatedly rebuilding and issuing network writes.
+
+The worker indexes conservative endpoint bounds for relationships, matching
+Flow's visibility rule, including paths crossing the viewport with both endpoints
+offscreen. Disconnected offscreen relationships no longer pull all their endpoints
+into Flow. Endpoint shells retain their ordinary measured handles and routing;
+this is not the planned batched relationship renderer. Visible high-degree hubs
+still cost one edge and its required endpoint geometry per relationship.
+
+`sceneRecords` preserves spatial revisions without JSON signatures. Admission
+retention membership is prepared once per spatial revision. Initial shells
+already respect the viewport buffer while the worker answer is pending. Rich
+detail remains per-node subscribed and admitted in small batches. Small worker
+fallbacks prepare cooperatively; scenes/relationships above 2,000 refuse a large
+synchronous fallback. A worker error retains coherent content and exposes Retry.
+Cancelled work that cannot acknowledge within one second is terminated, covering
+an atomic packing primitive that fails to yield; current jobs then surface a
+recoverable error. No such failure silently triggers a huge UI-thread rebuild.
+`sceneIntegrity.ts` validates changed immutable nodes incrementally and repeats
+its full canonical audit for structural revisions. Empty activity avoids full
+activity indexes; scene ID signatures do not sort again on selection.
+
+`renderBudgetStore.ts` and `nodes/BudgetedNodes.tsx` retain silhouette, compact
+identity and editable detail tiers. Navigation prewarms its destination and
+shared symbols while intermediate cards stay compact. Compact cards retain sheet
+and checkout badges; focused relationships keep their full presentation.
+See [testing/CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md) for
+measurements, validation and remaining cold-loading/density limits.
 
 `nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
 cancellable requests (four concurrent), revision invalidation and bounded LRU
@@ -572,7 +665,10 @@ WebSocket dispatch yields between messages through `canvas/frameWorkQueue.ts`
 (3 ms / 24 messages per batch); queue overflow uses snapshot resync. Individual
 messages remain atomic. `useCanvasFrameTiming.ts` samples active camera windows
 and shares one renderer long-frame observer; all diagnostics are local and
-bounded. See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
+bounded. Full geometry snapshots/diffs in `sceneDiagnostics.ts` require
+`window.__ambioSceneDebug = true`; this investigative tracer does not run in
+ordinary frames. Scene-integrity checks and recovery remain active independently.
+See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
 five-part implementation, measured results and remaining scaling limits.
 
 `canvas/perfTrace.ts` adds opt-in stage timings for snapshot resync fetch/decode/application,
@@ -583,9 +679,25 @@ Electron input/frame/process-memory measurements live in
 `tests/fixtures/canvasScale.ts` and `tests/e2e/canvas-scale.spec.ts`; the real
 SQLite query/JSON benchmark is `internal/db/canvas_scale_bench_test.go`.
 See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
-DOM culling does not yet bound React components: React Flow and its minimap
-still create per-ID wrappers/subscriptions for hidden nodes. This is a measured
-scaling limit, not a completed progressive scene boundary.
+`CanvasMiniMap.tsx` has one React Flow store subscription and renders only admitted
+marks from `minimapGeometry.ts`; camera updates reuse their geometry. It preserves
+the existing passive minimap presentation without per-hidden-ID wrappers. Native
+E2E checks count actual React wrapper components as well as DOM nodes so hidden
+subscriptions cannot regress unnoticed. Complete canonical geometry lives outside
+React Flow; Flow owns only the admitted interaction subset described above.
+Full snapshot decoding, canonical React-node projection, worker copying and total
+model storage still scale with project size. This is not a completed progressive
+data/adoption boundary.
+Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
+normal commit if a focused field is culled. React suppresses synthetic blur during
+deletion; relying on browser focus loss would discard an unfinished edit.
+`edges/ClippedDashedEdge.tsx` clips very long static dashed paths to the buffered
+camera before SVG stroking; `clippedEdgeGeometry.ts` preserves their canonical
+arc distance and real target markers. This avoids millions of offscreen dashes
+without changing relationship geometry or editing. Raster parity includes the
+HTML camera at ordinary/extreme zoom. React Flow defaults and connection/selection
+callbacks retain stable identities: changing the default fit options during a
+queued manual fit can otherwise replace its destination and duration.
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is

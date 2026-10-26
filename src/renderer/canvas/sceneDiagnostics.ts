@@ -56,7 +56,13 @@ export interface SceneMutationRecord extends SceneDelta {
 }
 
 type SceneDiagnosticGlobal = typeof globalThis & {
+  __ambioSceneDebug?: boolean
   __ambioSceneLog?: SceneMutationRecord[]
+}
+
+/** Full geometry snapshots/diffs are investigative work, not frame metrics. */
+export function sceneTracingEnabled(): boolean {
+  return (globalThis as SceneDiagnosticGlobal).__ambioSceneDebug === true
 }
 
 const MAX_RECORDS = 300

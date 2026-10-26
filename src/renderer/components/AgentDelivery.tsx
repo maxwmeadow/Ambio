@@ -227,8 +227,8 @@ function AgentMenu({ label, value, groups, onChange, disabled, variant }: {
     <button type="button" className="ambio-agent-menu__trigger" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
       aria-label={`${label}: ${current?.label ?? 'none'}`} data-value={value} onClick={() => setOpen(!open)}>
       {variant === 'segment' && <InboxIcon name="agent" size={13} />}
-      {/* In the pill the menu's group already says how it runs, so "(CLI)" and the like are left off. */}
-      <span>{(variant === 'segment' ? current?.label.replace(/\s+\((CLI|IDE)\)$/, '') : current?.label) ?? 'Choose an agent'}</span>
+      {/* In the pill the menu's group already says how it runs, so "CLI" and the like are left off. */}
+      <span>{(variant === 'segment' ? current?.label.replace(/\s+(\(CLI\)|\(IDE\)|CLI|IDE)$/, '') : current?.label) ?? 'Choose an agent'}</span>
       <InboxIcon name="chevron" size={11} />
     </button>
     {open && <div className="ambio-agent-menu__list" role="menu" aria-label={label}>

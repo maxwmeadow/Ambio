@@ -225,9 +225,13 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/start"):
-		if strings.TrimSpace(body.Goal) == "" {
-			jsonError(w, "goal is required", 400)
-			return
+		goal := strings.TrimSpace(body.Goal)
+		if goal == "" {
+			if body.MessageID != "" {
+				goal = "Work on work order"
+			} else {
+				goal = "Work session"
+			}
 		}
 		rootID, branch := body.RootID, body.Branch
 		if rootID == "" && body.Cwd != "" {
@@ -258,7 +262,7 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			Branch:         branch,
 			OwnerKey:       body.OwnerKey,
 			Agent:          body.Agent,
-			Goal:           body.Goal,
+			Goal:           goal,
 			FocusSystemIDs: body.FocusSystemIDs,
 			FocusFileIDs:   body.FocusFileIDs,
 		}

@@ -142,7 +142,7 @@ export function actionSummary(tool: string, args: Record<string, unknown>): stri
     case 'plan_element':
       return `Planned ${subject}`
     case 'start_work':
-      return `Started work: ${subject}`
+      return subject ? `Started work: ${subject}` : 'Started work session'
     case 'note_work':
     case 'finish_work':
       return subject

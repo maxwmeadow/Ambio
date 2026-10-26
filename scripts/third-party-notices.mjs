@@ -131,7 +131,11 @@ function main() {
     name: 'Ambio wordmark (derived from Manrope)', version: '780', source: 'font', license: 'OFL-1.1',
     texts: [fs.readFileSync(path.join(ROOT, 'src/renderer/assets/branding/Manrope-OFL.txt'), 'utf8')],
   }
-  const packages = [...npmPackages(), ...goModules(), ...bundledComponents(), wordmark].sort((left, right) => left.name.localeCompare(right.name))
+  const copilotMark = {
+    name: 'GitHub Copilot mark (Primer Octicons)', version: '2026-10-23', source: 'asset', license: 'MIT',
+    texts: [fs.readFileSync(path.join(ROOT, 'src/renderer/assets/connectors/GITHUB-COPILOT-LICENSE.txt'), 'utf8')],
+  }
+  const packages = [...npmPackages(), ...goModules(), ...bundledComponents(), wordmark, copilotMark].sort((left, right) => left.name.localeCompare(right.name))
   const blocked = packages.filter(entry => !licenseAllowed(entry.license))
   if (blocked.length > 0) {
     console.error('Third-party licenses that are not known to be AGPL-3.0 compatible:')

@@ -11,6 +11,7 @@ import {
 import { traceResizeEnd, traceResizeStart, traceResizeStep } from './resizeChrome'
 import { scaleSelectionRects, type SelectionMember } from '../selectionResize'
 import { contentRectFor } from '../frameGeometry'
+import { canvasScene, canonicalChildStarts } from '../scene/canonicalScene'
 
 type HorizontalSide = 'left' | 'right' | null
 type VerticalSide = 'top' | 'bottom' | null
@@ -281,8 +282,9 @@ function AmbioNodeResizerActive({
       width,
       height,
     }
-    const childStarts = new Map<string, { x: number; y: number }>()
-    for (const [candidateId, candidate] of state.nodeLookup) {
+    const canonical = canvasScene(store)
+    const childStarts = canonical ? canonicalChildStarts(canonical, nodeId) : new Map<string, { x: number; y: number }>()
+    if (!canonical) for (const [candidateId, candidate] of state.nodeLookup) {
       if (candidate.parentId === nodeId) childStarts.set(candidateId, { ...candidate.position })
     }
 

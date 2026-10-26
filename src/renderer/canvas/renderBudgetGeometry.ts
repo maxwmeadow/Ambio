@@ -3,10 +3,51 @@ export interface SceneRecord {
   id: string; parentId?: string; x: number; y: number; width: number; height: number
   hidden: boolean; detail: boolean; kind: string
 }
+interface SceneNode {
+  id: string; parentId?: string; position: { x: number; y: number }; type?: string; hidden?: boolean
+  style?: { width?: unknown; height?: unknown }; measured?: { width?: number; height?: number }
+  initialWidth?: number; initialHeight?: number; data: Record<string, unknown>
+}
+/** Preserve the spatial revision across presentation/selection changes. Compare
+ * numbers directly instead of allocating every record and serializing the full
+ * scene on each click. Order is significant for deterministic query tie breaks. */
+export function sceneRecords(nodes: readonly SceneNode[], previous: SceneRecord[] = []): SceneRecord[] {
+  let next: SceneRecord[] | undefined
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    const old = previous[i]
+    const width = Number(node.style?.width ?? node.measured?.width ?? node.initialWidth ?? 1)
+    const height = Number(node.style?.height ?? node.measured?.height ?? node.initialHeight ?? 1)
+    const hidden = Boolean(node.hidden), kind = node.type ?? 'file'
+    const detail = node.type === 'system' ? Boolean(node.data.childrenVisible) : Boolean(node.data.detailRevealed)
+    if (old && old.id === node.id && old.parentId === node.parentId && old.x === node.position.x && old.y === node.position.y &&
+      Object.is(old.width, width) && Object.is(old.height, height) && old.hidden === hidden && old.kind === kind && old.detail === detail) { if (next) next.push(old); continue }
+    next ??= previous.slice(0, i)
+    next.push({ id: node.id, parentId: node.parentId, x: node.position.x, y: node.position.y, width, height, hidden, kind, detail })
+  }
+  return next ?? (nodes.length === previous.length ? previous : previous.slice(0, nodes.length))
+}
 export interface ViewRect { x: number; y: number; width: number; height: number }
 export interface CameraQuery { x: number; y: number; zoom: number; width: number; height: number; moving: boolean }
 export interface IndexedRecord extends SceneRecord { rect: ViewRect }
 export interface SceneIndex { byId: Map<string, IndexedRecord>; cells: Map<string, string[]>; large: string[] }
+export interface RelationshipRecord { id: string; source: string; target: string }
+
+/** Match Flow's conservative endpoint-bounds visibility test. Relationships
+ * crossing the viewport remain admitted even when both endpoints are outside. */
+export function buildRelationshipIndex(nodes: SceneIndex, edges: readonly RelationshipRecord[]): SceneIndex {
+  const records: SceneRecord[] = []
+  for (const edge of edges) {
+    const source = nodes.byId.get(edge.source), target = nodes.byId.get(edge.target)
+    if (!source || !target || source.hidden || target.hidden) continue
+    const x = Math.min(source.rect.x, target.rect.x), y = Math.min(source.rect.y, target.rect.y)
+    records.push({ id: edge.id, x, y,
+      width: Math.max(source.rect.x + source.width, target.rect.x + target.width) - x,
+      height: Math.max(source.rect.y + source.height, target.rect.y + target.height) - y,
+      hidden: false, detail: false, kind: 'relationship' })
+  }
+  return buildSceneIndex(records)
+}
 const CELL = 512
 export const VIEW_BUFFER_PX = 240
 /** Avoid mounting every root while the first worker answer is in flight. */

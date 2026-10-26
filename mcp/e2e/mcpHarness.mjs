@@ -235,6 +235,7 @@ export async function startHarness(options = {}) {
       projectDir,
       activeProjectPath,
       apiBase,
+      wsUrl: `ws://127.0.0.1:${wsPort}/ws`,
       archdLog: () => archdLog,
       stop: () => { client.close(); cleanup() },
     }

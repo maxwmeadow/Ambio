@@ -8,9 +8,53 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Agent setup mapping activity stream provides technical blueprint styling without emojis, balanced titles, robust retry and agent re-selection, reliable live progress stats, and moved the back control to the screen footer.
+- Development canvases, including proposal review, no longer stay blank at
+  "Preparing map" after React replays their initial preparation effects.
+- For Ambio chat and clients Ambio runs, codebase setup uses a streamlined 3-step
+  flow (Choose agent, Map project, Review) without the redundant restart step;
+  external apps continue to show the 4-step flow including Restart.
+- CLI setup controls and the model dropdown use readable text sizes. The
+  session option's help opens in an anchored popup without moving the layout.
+- CLI connector details explain direct local runs and native subscription/API
+  settings. Executable details and the compact recommended session option sit
+  at the bottom, with its explanation available from an info button.
+- Settings → Agents separates Ambio chat, clients Ambio runs, and external
+  apps. ChatGPT has a clear connection card; API connections use an on-demand
+  editor, and client pills open one client's settings at a time.
+- Ambio chat setup explains its native workspace experience, API key providers,
+  and leads with ChatGPT sign-in using eligible plan limits. Provider links open
+  the corresponding connection setup directly.
+- Selecting an agent connector opens its details and setup actions in a
+  closable sidebar over Field Agent 04, leaving more room for connector pills.
+- Agent setup presents supported connectors as compact name-and-logo pills
+  grouped into Ambio chat, clients Ambio runs, and external apps, with
+  availability-colored outlines and keyboard selection.
+- Agent setup and Settings list every supported client, including missing CLIs
+  and separate Codex IDE/desktop routes. Locate and remember CLI executables,
+  inspect discovered paths, and refresh installation results with Rescan.
+- The agent setup card fills the window vertically with matching top and
+  bottom spacing, giving the agent list more room.
+- Large maps keep their complete geometry outside the interactive canvas and
+  prepare Floor and sheet layouts in the background. Search follows current
+  geometry through updates, while worker failures retain the map and offer Retry.
+- Layout save failures no longer cause repeated saves and repacking. Unchanged
+  save echoes and ordinary selections avoid unnecessary geometry and activity work.
+- Large maps no longer create hidden canvas and minimap components for every
+  project entity. Selection avoids unnecessary scene serialization, compact
+  file cards retain other branches' change marks, and focused inline drafts
+  save normally when their node leaves the viewport.
+- Search keeps its intended destination and smooth camera flight through live
+  updates. Long dashed relationships no longer draw millions of invisible dash
+  segments outside the viewport. Full geometry debugging no longer runs during
+  ordinary canvas interaction.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.
+- Setup's language list includes Kotlin, Swift, PHP, Scala, Groovy, Lua,
+  Shell/Bash and Elixir, plus the supported stylesheet formats.
+- The setup page lets you choose a project name independently of its folder.
+  Opening the same folder again keeps the name you chose.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.

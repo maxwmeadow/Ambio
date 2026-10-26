@@ -111,6 +111,8 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('agent:hosts', projectRoot),
 
   listDeliveryHosts: (): Promise<DeliveryHost[]> => ipcRenderer.invoke('agent:delivery-hosts'),
+  locateAgentExecutable: (hostId: string): Promise<AgentOverrideResult> => ipcRenderer.invoke('agent:locate-executable', hostId),
+  clearAgentExecutableOverride: (hostId: string): Promise<AgentOverrideResult> => ipcRenderer.invoke('agent:clear-executable', hostId),
   mappingBrief: (): Promise<string> => ipcRenderer.invoke('agent:mapping-brief'),
   agentModels: (hostId: string): Promise<ModelOption[]> => ipcRenderer.invoke('agent:models', hostId),
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
@@ -261,6 +263,10 @@ export interface AgentHostInfo {
   sharedSurfaces: { id: string; label: string }[]
   /** Whether this agent looks installed on this machine. */
   detected: boolean
+  /** Shared app routes use the installer's existing configuration and host identity. */
+  connectionHostId?: string
+  detectionEvidence?: string[]
+  detectionError?: string
   /** Whether any user or project configuration contains an Ambio MCP entry. */
   configured: boolean
   configuredPaths: string[]
@@ -376,6 +382,8 @@ declare global {
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>
       listDeliveryHosts: () => Promise<DeliveryHost[]>
+      locateAgentExecutable: (hostId: string) => Promise<AgentOverrideResult>
+      clearAgentExecutableOverride: (hostId: string) => Promise<AgentOverrideResult>
       mappingBrief: () => Promise<string>
       agentModels: (hostId: string) => Promise<ModelOption[]>
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>

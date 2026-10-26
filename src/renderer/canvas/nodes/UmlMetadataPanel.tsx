@@ -1,4 +1,5 @@
 import React from 'react'
+import { useCommitOnUnmount } from './useCommitOnUnmount'
 import type {
   PlannedNodeKind,
   PlannedNodeMetadata,
@@ -34,11 +35,12 @@ function EditText({ value, placeholder, editable, onCommit, style }: {
   onCommit: (value: string) => void
   style?: React.CSSProperties
 }) {
+  const inputRef = useCommitOnUnmount(commit)
   const [draft, setDraft] = React.useState(value)
   const [editing, setEditing] = React.useState(false)
   React.useEffect(() => setDraft(value), [value])
   React.useEffect(() => { if (!editable) setEditing(false) }, [editable])
-  const commit = () => {
+  function commit() {
     const next = draft.trim()
     if (next !== value) onCommit(next)
     setEditing(false)
@@ -56,6 +58,7 @@ function EditText({ value, placeholder, editable, onCommit, style }: {
   )
   return (
     <input
+      ref={inputRef}
       className="nodrag nopan nowheel"
       value={draft}
       placeholder={placeholder}

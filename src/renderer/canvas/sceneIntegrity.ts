@@ -119,3 +119,43 @@ export function inspectFloorScene(
     invalidNodeIds,
   }
 }
+
+/** Validate changed immutable nodes, retaining the complete ID/geometry audit
+ * for structural revisions. Selection/chrome updates must not allocate a new
+ * project-wide ID set or re-read every unchanged box. */
+export function createFloorSceneInspector() {
+  let previous: { nodes: readonly Node[]; count: number; ids?: ReadonlySet<string>; nodeIds: Set<string>; result: SceneIntegrity } | undefined
+  return (nodes: readonly Node[], count: number, ids?: ReadonlySet<string>): SceneIntegrity => {
+    if (previous && count > 0 && nodes.length > 0 && previous.result.reason !== 'canonical-mismatch' && previous.nodeIds.size === nodes.length && count === previous.count && ids === previous.ids && nodes.length === previous.nodes.length) {
+      let roots = previous.result.rootCount, visible = previous.result.visibleRootCount
+      const invalid = new Set(previous.result.invalidNodeIds)
+      let structural = false
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i], before = previous.nodes[i]
+        if (node === before) continue
+        if (node.id !== before.id) { structural = true; break }
+        const wasRoot = !before.parentId || !previous.nodeIds.has(before.parentId)
+        const isRoot = !node.parentId || !previous.nodeIds.has(node.parentId)
+        roots += Number(isRoot) - Number(wasRoot)
+        visible += Number(isRoot && visiblyProjected(node)) - Number(wasRoot && visiblyProjected(before))
+        const valid = Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y) && finiteDimension(node, 'width') && finiteDimension(node, 'height')
+        if (valid) invalid.delete(node.id); else invalid.add(node.id)
+      }
+      if (!structural) {
+        const old = previous.result
+        const reason: SceneIntegrity['reason'] = old.reason === 'canonical-mismatch' ? old.reason
+          : roots === 0 ? 'no-root' : visible === 0 ? 'no-visible-root' : invalid.size ? 'invalid-geometry' : null
+        const result: SceneIntegrity = roots === old.rootCount && visible === old.visibleRootCount && reason === old.reason &&
+          invalid.size === old.invalidNodeIds.length && old.invalidNodeIds.every(id => invalid.has(id)) ? old : {
+            valid: reason === null, reason, nodeCount: nodes.length, rootCount: roots, visibleRootCount: visible,
+            invalidNodeIds: invalid.size ? nodes.filter(node => invalid.has(node.id)).map(node => node.id) : [],
+          }
+        previous = { ...previous, nodes, result }
+        return result
+      }
+    }
+    const result = inspectFloorScene(nodes, count, ids)
+    previous = { nodes, count, ids, nodeIds: new Set(nodes.map(node => node.id)), result }
+    return result
+  }
+}

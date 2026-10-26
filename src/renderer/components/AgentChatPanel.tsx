@@ -22,7 +22,7 @@ import '../styles/agentChat.css'
 /** Settings saves a model service; open panels pick it up. */
 export const CHAT_PROVIDERS_CHANGED = 'ambio:chat-providers-changed'
 /** The panel asks for Settings → Agents, at Ambio chat's model services. */
-export const OPEN_MODEL_SERVICES = 'ambio:open-model-services'
+export { OPEN_MODEL_SERVICES } from '../modelServiceNavigation'
 
 /** The thread a built-in conversation's Build work orders share. */
 export const chatThreadId = (conversationId: string) => `chat:${conversationId}`

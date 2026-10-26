@@ -166,7 +166,7 @@ Updated against `main` on 2026-10-20 (first audited 2026-09-30).
 
 | Capability | State |
 |---|---|
-| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP, Scala, Groovy, Lua, shell and Elixir get symbols and file links |
+| Indexing (tree-sitter), live watching, clustering into nested systems | ✅ Deep for TS/JS, Python, Go; C# close; Rust, Java, Ruby, C++ and C get symbols, imports and calls; Kotlin, Swift, PHP, Scala, Groovy, Lua, Shell/Bash and Elixir also get symbols and project import links; CSS, Sass/SCSS and Less are mapped too |
 | Agents propose the architecture; you review and approve | ✅ Chunked proposal sessions that survive restarts |
 | Sheets → addressed work orders → structural comparison | ✅ Real Codex runs pass end to end; one conversation panel (Ask / Propose / Build) launches Claude Code, Codex, Copilot CLI and Antigravity CLI (Cursor, Devin experimental), optionally in their own worktree, or Ambio chat (API key or ChatGPT plan); copy/open routes for other hosts |
 | Agent-drawn sheets and planned elements | ✅ Draw-first skills, project reminders and MCP guidance across supported hosts; agents nest new systems, move, rename and connect, and every part waits under To review; live Codex Propose runs on a real project |

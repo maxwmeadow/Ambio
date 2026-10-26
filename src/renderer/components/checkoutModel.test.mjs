@@ -14,6 +14,22 @@ function snapshot(checkouts, collisions = [], vcs = 'git') {
   return { workspaceId: 'ws', vcs, checkouts, collisions }
 }
 
+test('large checkout arrivals preserve order and inputs across repeated lens projections', () => {
+  const overlay = Object.freeze(Array.from({ length: 20000 }, (_, i) => Object.freeze({
+    path: `src/new-${i}.ts`, change: 'added', systemId: 'canvas',
+  })))
+  const source = snapshot([checkout(), checkout({ rootId: 'other', isFocused: false, overlay,
+    agents: [{ sessionId: 'work' }] })])
+  const projected = buildCanvasOverlay(source, 'all')
+  const paths = projected.arrivals.get('canvas')[0].paths
+  assert.equal(paths.length, 20000)
+  assert.equal(paths[0], 'src/new-0.ts')
+  assert.equal(paths.at(-1), 'src/new-19999.ts')
+  assert.equal(overlay.length, 20000)
+  assert.deepEqual(buildCanvasOverlay(source, 'agents').arrivals, projected.arrivals)
+  assert.equal(buildCanvasOverlay(source, 'off').arrivals.size, 0)
+})
+
 test('one clean checkout reads as just its branch', () => {
   const chip = buildBranchChip(snapshot([checkout()]))
   assert.equal(chip.visible, true)

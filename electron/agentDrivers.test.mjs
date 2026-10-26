@@ -268,18 +268,18 @@ test('an npm-installed CLI is found by the entry its package declares, or the on
   assert.deepEqual(findDeliveryCli('codex', env, 'win32', root, 'node.exe').args, [path.join(codex, 'codex.js')])
 })
 
-test('Cursor\'s terminal agent is offered only when Cursor is set up and the agent is installed', t => {
+test('Cursor CLI stays listed when missing and becomes available when installed independently of the editor', t => {
   const root = fixture(t)
   const bin = path.join(root, 'bin')
   fs.mkdirSync(bin)
   const env = { PATH: bin }
   const hosts = [{ id: 'cursor', label: 'Cursor' }, { id: 'codex', label: 'Codex' }]
-  assert.ok(!deliveryTargets(hosts, env, process.platform, root).some(target => target.id === 'cursor-cli'))
+  assert.equal(deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli').available, false)
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'cursor-agent.exe' : 'cursor-agent'), '', { mode: 0o755 })
   const offered = deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli')
   assert.equal(offered?.route, 'run')
   assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
-  assert.ok(!deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).some(target => target.id === 'cursor-cli'))
+  assert.equal(deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).find(target => target.id === 'cursor-cli').available, true)
 })
 
 // A stand-in for a host CLI: prints the lines it is given, one a line, and

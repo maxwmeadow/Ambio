@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import { delimiter, dirname, isAbsolute, join } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { detectEditors } from './fileAccess.ts'
 import { resolveNodeCommand } from './platformPaths.ts'
-import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
+import { CLI_CLIENTS, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
 
@@ -48,7 +48,7 @@ function npmNative(hostId: string, packageDir: string, platform: NodeJS.Platform
 }
 
 /** The script an installed npm package runs for its command, if it is there. */
-function npmEntry(packageDir: string, pkg: { bin: string; entry: string }): string | undefined {
+function npmEntry(packageDir: string, pkg: { bin: string; entry: string }, unreadable: string[] = []): string | undefined {
   try {
     const manifest = JSON.parse(fs.readFileSync(join(packageDir, 'package.json'), 'utf8')) as { bin?: string | Record<string, string> }
     const declared = typeof manifest.bin === 'string' ? manifest.bin : manifest.bin?.[pkg.bin]
@@ -56,9 +56,15 @@ function npmEntry(packageDir: string, pkg: { bin: string; entry: string }): stri
       const script = join(packageDir, declared)
       if (fs.existsSync(script) && fs.statSync(script).isFile()) return script
     }
-  } catch { /* no manifest: try the entry it used to have */ }
+  } catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(packageDir)
+  }
   const legacy = join(packageDir, pkg.entry)
-  return fs.existsSync(legacy) && fs.statSync(legacy).isFile() ? legacy : undefined
+  try { return fs.statSync(legacy).isFile() ? legacy : undefined }
+  catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(packageDir)
+    return undefined
+  }
 }
 
 function environmentPath(env: NodeJS.ProcessEnv): string {
@@ -66,13 +72,17 @@ function environmentPath(env: NodeJS.ProcessEnv): string {
   return key ? env[key] ?? '' : ''
 }
 
-function executable(file: string): boolean {
-  try { fs.accessSync(file, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK); return fs.statSync(file).isFile() } catch { return false }
+function executable(file: string, unreadable: string[] = []): boolean {
+  try { fs.accessSync(file, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK); return fs.statSync(file).isFile() }
+  catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(file)
+    return false
+  }
 }
 
 /** Resolve known CLIs, including native installs and npm's Windows JS entrypoints.
  * Never invoke a .cmd shim through a shell with a human-authored prompt. */
-export function findDeliveryCli(hostId: string, env = process.env, platform = process.platform, home = os.homedir(), node = process.execPath): DeliveryLauncher | undefined {
+export function findDeliveryCli(hostId: string, env = process.env, platform = process.platform, home = os.homedir(), node = process.execPath, unreadable: string[] = []): DeliveryLauncher | undefined {
   const names = CLI_NAMES[hostId]
   if (!names) return undefined
   const dirs = [...environmentPath(env).split(delimiter).filter(Boolean), join(home, '.local', 'bin'), join(home, '.volta', 'bin'), join(home, '.asdf', 'shims'), '/opt/homebrew/bin', '/usr/local/bin']
@@ -81,17 +91,20 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
   }
   if (platform === 'win32') dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'Microsoft', 'WinGet', 'Links'))
   for (const dir of dirs) {
+    // Editor/desktop apps inject their private Codex into agent sessions' PATH.
+    // Its presence does not establish a standalone CLI installation.
+    if (hostId === 'codex' && /(?:[\\/]\.vscode(?:-insiders)?[\\/]extensions[\\/]openai\.chatgpt-|[\\/]OpenAI[\\/]Codex[\\/]bin[\\/])/i.test(`${dir}/`)) continue
     for (const name of names) {
       // A name that carries its own extension is that file on every platform.
       const command = join(dir, platform === 'win32' && !name.includes('.') ? `${name}.exe` : name)
-      if (executable(command)) return { command, args: [] }
+      if (executable(command, unreadable)) return { command, args: [] }
     }
   }
   const pkg = NPM_PACKAGES[hostId]
   if (!pkg) return undefined
   const npmDirs = [...dirs.map(dir => join(dir, 'node_modules')), join(env.APPDATA ?? join(home, 'AppData', 'Roaming'), 'npm', 'node_modules'), '/usr/local/lib/node_modules', '/opt/homebrew/lib/node_modules']
   for (const dir of npmDirs) {
-    const script = npmEntry(join(dir, pkg.name), pkg)
+    const script = npmEntry(join(dir, pkg.name), pkg, unreadable)
     if (!script) continue
     const native = npmNative(hostId, join(dir, pkg.name), platform as NodeJS.Platform)
     if (native) return { command: native, args: [] }
@@ -101,36 +114,38 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
 }
 
 /** All installed modalities remain visible, even when a host has no public chat API. */
-export function deliveryTargets(hosts: { id: string; label: string }[], env = process.env, platform = process.platform, home = os.homedir()): DeliveryTarget[] {
+export function deliveryTargets(hosts: { id: string; label: string }[], env = process.env, platform = process.platform, home = os.homedir(), overrides: Record<string, string> = {}): DeliveryTarget[] {
   const editors = detectEditors(env, platform, home)
   const editorId: Record<string, string[]> = { copilot: ['vscode'], cursor: ['cursor'], windsurf: ['windsurf'], jetbrains: ['intellij', 'webstorm', 'pycharm', 'goland'], zed: ['zed'] }
   // An editor's own terminal agent is a second way to reach the same host: it
   // can be started for a turn, where the editor's chat can only be pasted into.
-  const companions: DeliveryTarget[] = []
-  if (hosts.some(host => host.id === 'cursor')) {
-    const launcher = findDeliveryCli('cursor-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'cursor-cli', label: 'Cursor CLI', route: 'run', available: true, launcher, detail: 'Cursor\u2019s terminal agent, started by Ambio in this project.' })
-  }
-  for (const [editor, id, label] of [['windsurf', 'devin-cli', 'Devin CLI'], ['antigravity', 'antigravity-acp', 'Antigravity agent']] as const) {
-    if (!hosts.some(host => host.id === editor)) continue
-    const launcher = findDeliveryCli(id, env, platform, home)
-    if (launcher) companions.push({ id, label, route: 'run', available: true, launcher, detail: `${label}, started by Ambio in this project.` })
-  }
-  if (hosts.some(host => host.id === 'antigravity')) {
-    const launcher = findDeliveryCli('antigravity-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, launcher, detail: 'Antigravity\u2019s terminal agent, started by Ambio in this project.' })
-  }
-  return [...hosts.map(({ id, label }) => {
+  const catalog = [...hosts, ...CLI_CLIENTS.filter(client => !hosts.some(host => host.id === client.id))]
+  return catalog.map(({ id, label }) => {
     const host = { id, label }
     if (CLI_NAMES[host.id]) {
-      const launcher = findDeliveryCli(host.id, env, platform, home)
-      return { ...host, route: 'run', available: !!launcher, launcher, detail: launcher ? 'Start a new run in this project. Host permissions still apply.' : 'CLI executable not found. Install it or use copy handoff.' } as DeliveryTarget
+      const selected = overrides[id]
+      let launcher: DeliveryLauncher | undefined
+      let discoveryError: string | undefined
+      if (selected) {
+        try { launcher = selectedDeliveryCli(id, selected, platform) }
+        catch (error) { discoveryError = error instanceof Error ? error.message : String(error) }
+      } else {
+        const unreadable: string[] = []
+        launcher = findDeliveryCli(host.id, env, platform, home, process.execPath, unreadable)
+        if (!launcher && unreadable.length) discoveryError = `Some CLI locations could not be checked: ${[...new Set(unreadable)].slice(0, 3).join(', ')}. Locate the executable or correct access and rescan.`
+      }
+      return { ...host, route: 'run', available: !!launcher, launcher,
+        ...(selected ? { executableOverride: selected } : {}),
+        ...(launcher ? { executablePath: launcher.args[0] ?? launcher.command } : {}),
+        ...(discoveryError ? { discoveryError } : {}),
+        detail: discoveryError ?? (launcher ? 'CLI found, started by Ambio for each request. Sign in to this CLI before starting a run.' : 'CLI not found. Install it or locate its executable.'),
+      } as DeliveryTarget
     }
     let launcher: DeliveryLauncher | undefined
     const editor = editors.find(item => editorId[host.id]?.includes(item.id))
     if (editor) launcher = { command: editor.command, args: [] }
     if (host.id === 'antigravity' && platform !== 'win32') {
-      const command = [...(env.PATH ?? '').split(delimiter).filter(Boolean), '/usr/local/bin'].map(dir => join(dir, 'antigravity')).find(executable)
+      const command = [...(env.PATH ?? '').split(delimiter).filter(Boolean), '/usr/local/bin'].map(dir => join(dir, 'antigravity')).find(file => executable(file))
       if (command) launcher = { command, args: [] }
     }
     if (host.id === 'claude-desktop' && platform === 'darwin') {
@@ -138,7 +153,29 @@ export function deliveryTargets(hosts: { id: string; label: string }[], env = pr
       if (app) launcher = { command: '/usr/bin/open', args: ['-a', app] }
     }
     return { ...host, route: launcher ? 'open' : 'copy', available: true, launcher, detail: launcher ? 'Copy the handoff and open this host. Paste it into the chat you choose.' : 'Copy the handoff, then paste it into this host’s chat. No supported launcher was found.' } as DeliveryTarget
-  }), ...companions]
+  })
+}
+
+/** Resolve a human-selected file without passing prompts through a shell. */
+export function selectedDeliveryCli(hostId: string, file: string, platform = process.platform, node = process.execPath): DeliveryLauncher {
+  if (!CLI_NAMES[hostId]) throw new Error('This client has no runnable CLI.')
+  try {
+    if (!isAbsolute(file) || !fs.statSync(file).isFile()) throw new Error()
+    fs.accessSync(file, /\.(?:[cm]?js|cmd|bat|ps1)$/i.test(file) ? fs.constants.R_OK : process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+  } catch { throw new Error('The selected CLI file is missing, inaccessible, or not executable. Locate it again.') }
+  if (/\.(?:cmd|bat|ps1)$/i.test(file)) {
+    const pkg = NPM_PACKAGES[hostId]
+    const packageDir = pkg && join(dirname(file), 'node_modules', pkg.name)
+    const script = pkg && packageDir && npmEntry(packageDir, pkg)
+    if (script && packageDir) {
+      const native = npmNative(hostId, packageDir, platform)
+      return native ? { command: native, args: [] } : { command: node, args: [script], bundledNode: true }
+    }
+    throw new Error('This is a shell or installer shortcut. Choose the CLI executable or its installed npm entry script instead.')
+  }
+  if (/\.(?:[cm]?js)$/i.test(file)) return { command: node, args: [file], bundledNode: true }
+  if (platform === 'win32' && !/\.exe$/i.test(file) && !CLI_NAMES[hostId].includes(basename(file))) throw new Error('Choose a Windows .exe or an installed npm CLI entry script.')
+  return { command: file, args: [] }
 }
 
 /**

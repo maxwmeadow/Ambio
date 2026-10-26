@@ -97,7 +97,12 @@ function mcpServer(turn: DriverTurn) {
 function toolTarget(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const args = input as Record<string, unknown>
-  for (const key of ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'messageId', 'sheet', 'name']) {
+  for (const key of [
+    'file_path', 'path', 'Path', 'FilePath', 'dir_path', 'DirPath',
+    'command', 'CommandLine', 'pattern', 'Pattern', 'query', 'Query',
+    'url', 'URL', 'messageId', 'sheet', 'name', 'Name', 'goal', 'Goal',
+    'target', 'Target'
+  ]) {
     if (typeof args[key] === 'string' && args[key]) return clip(args[key] as string, 120)
   }
   return ''
@@ -343,6 +348,10 @@ const antigravityCli: AgentDriver = {
       const failed = typeof payload.status === 'string' && !['SUCCESS', 'RUNNING', 'WAITING'].includes(payload.status)
       return { sessionId, events: failed ? [{ kind: 'error', text: clip(String(payload.error ?? `The run ended ${payload.status}.`)) }] : [] }
     }
+    if (message.error && !event) {
+      const errText = typeof message.error === 'string' ? message.error : JSON.stringify(message.error)
+      return { sessionId, events: [{ kind: 'error', text: clip(errText, 600) }] }
+    }
     if (event !== 'step_update') return { sessionId, events: [] }
     const kind = String(payload.step_type ?? payload.type ?? '')
     const state = String(payload.state ?? payload.status ?? '')
@@ -350,10 +359,22 @@ const antigravityCli: AgentDriver = {
     const beginning = !state || /^active$|start|pending|running/i.test(state)
     if (kind === 'tool') {
       if (!beginning) return { sessionId, events: [] }
-      const name = payload.tool_name ?? payload.tool_info?.name ?? payload.tool?.name ?? payload.name ?? 'tool'
+      let name = String(payload.tool_name ?? payload.tool_info?.name ?? payload.tool?.name ?? payload.name ?? 'tool')
       const parameters = payload.tool_info?.parameters ?? payload.tool?.args ?? payload.args ?? payload.input
-      const command = typeof parameters?.CommandLine === 'string' ? clip(parameters.CommandLine, 120) : ''
-      return { sessionId, events: [{ kind: 'tool', text: [String(name), command || toolTarget(parameters)].filter(Boolean).join(' · ') }] }
+      let target = ''
+      if ((name === 'call_mcp_tool' || name === 'mcp') && parameters && typeof parameters === 'object') {
+        const mcpTool = parameters.tool_name ?? parameters.tool
+        if (typeof mcpTool === 'string' && mcpTool) {
+          name = parameters.server_name === 'ambio' || parameters.server === 'ambio' ? `Ambio · ${mcpTool}` : String(mcpTool)
+          target = toolTarget(parameters.arguments ?? parameters.args ?? parameters)
+        }
+      }
+      if (!target && parameters && typeof parameters === 'object') {
+        const command = typeof parameters.CommandLine === 'string' ? clip(parameters.CommandLine, 120)
+          : typeof parameters.command === 'string' ? clip(parameters.command, 120) : ''
+        target = command || toolTarget(parameters)
+      }
+      return { sessionId, events: [{ kind: 'tool', text: [name, target].filter(Boolean).join(' · ') }] }
     }
     // agy 1.4 reports only how many thinking tokens a step used; a build that
     // sends the thinking itself is shown like the other agents'.
