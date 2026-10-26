@@ -10,6 +10,10 @@ in the app as "What's New" after updating, so write it for users.
 ### Fixed
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts
   instead of timing out waiting for the debugger.
+- Switching branches no longer sometimes records the new branch's files as
+  your edits; this happened most on slower disks, often on Windows.
+- A Rust program investigated on Windows that ends with
+  `std::process::exit` keeps what it recorded.
 - Opening a large saved map prepares its navigation geometry in smaller steps
   and avoids rebuilding it for inactive overlays. Review layout checks no longer
   compare every editable node against every saved row.

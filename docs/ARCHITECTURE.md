@@ -364,8 +364,10 @@ to API-key billing or another account. Setup and live-account validation:
   adding unrelated folders, are WORK follow-ups.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
-  files, once any running Git command releases `index.lock` (a lock older
-  than 10 s is taken as left over from a crash).
+  files, once any running Git command releases `index.lock` and `HEAD.lock`
+  (a lock older than 10 s is taken as left over from a crash). Checkout
+  releases `index.lock` before it moves HEAD, so for a second after the
+  index is written the journal also waits for HEAD to move.
   A HEAD move since the journal last looked is classified from the reflog: a
   commit changes nothing; a branch switch makes the files Git wrote quiet and
   leaves one `checkout.switched` row; a pull, merge, reset or rebase is

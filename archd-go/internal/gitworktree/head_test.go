@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func headGit(t *testing.T, dir string, args ...string) string {
@@ -127,5 +128,40 @@ func TestFindRepositoriesListsNestedRepositoriesOnce(t *testing.T) {
 	found := FindRepositories(parent, 3, func(_ string, name string) bool { return name == "node_modules" })
 	if strings.Join(found, ",") != "services/api,web" {
 		t.Fatalf("found = %v", found)
+	}
+}
+
+// Checkout releases index.lock before it takes HEAD.lock: a file event read
+// in between must still wait for HEAD to move.
+func TestBusyCoversTheGapBeforeHeadMoves(t *testing.T) {
+	checkout := Checkout{GitDir: t.TempDir()}
+	write := func(name string, at time.Time) {
+		path := filepath.Join(checkout.GitDir, name)
+		if err := os.WriteFile(path, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	long := time.Now().Add(-time.Hour)
+	write("index", long)
+	if checkout.Busy(10 * time.Second) {
+		t.Fatal("no lock, no command running")
+	}
+	write("HEAD.lock", time.Now())
+	if !checkout.Busy(10 * time.Second) {
+		t.Fatal("HEAD.lock is HEAD moving")
+	}
+	write("HEAD.lock", long)
+	if checkout.Busy(10 * time.Second) {
+		t.Fatal("a stale HEAD.lock is left from a crash")
+	}
+	if checkout.IndexJustWritten() {
+		t.Fatal("the index was written an hour ago")
+	}
+	write("index", time.Now())
+	if !checkout.IndexJustWritten() {
+		t.Fatal("an index just written may be followed by HEAD moving")
 	}
 }
