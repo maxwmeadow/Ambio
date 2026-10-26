@@ -599,6 +599,12 @@ pub(crate) mod __ambio_rec {
 
     static ENABLED: AtomicU8 = AtomicU8::new(0); // 0: not looked yet, 1: off, 2: on
     static STATE: Mutex<Option<State>> = Mutex::new(None);
+    /// AMBIO_RECORDER_DEBUG: say on stderr how evidence was flushed and written.
+    fn debug(what: std::fmt::Arguments) {
+        if std::env::var_os("AMBIO_RECORDER_DEBUG").is_some() {
+            eprintln!("[ambio] {}: {}", CRATE, what);
+        }
+    }
     /// What a thread has counted and not yet added to the shared totals. A
     /// program calls its hot functions from every thread at once; counting
     /// into shared memory on each call would have the cores fighting over it.
@@ -662,11 +668,13 @@ pub(crate) mod __ambio_rec {
     }
 
     fn spill_this_thread() {
-        let _ = LOCAL.try_with(|l| {
-            if let Ok(mut l) = l.try_borrow_mut() {
-                l.spill();
-            }
+        let spilled = LOCAL.try_with(|l| match l.try_borrow_mut() {
+            Ok(mut l) => { l.spill(); true }
+            Err(_) => false,
         });
+        if spilled != Ok(true) {
+            debug(format_args!("could not flush this thread's counts ({})", if spilled.is_err() { "thread storage is gone" } else { "busy" }));
+        }
     }
 
     thread_local! {
@@ -779,6 +787,7 @@ pub(crate) mod __ambio_rec {
                 fn atexit(callback: extern "C" fn()) -> i32;
             }
             extern "C" fn at_exit() {
+                debug(format_args!("exiting"));
                 spill_this_thread();
                 write();
             }
@@ -1165,6 +1174,7 @@ pub(crate) mod __ambio_rec {
             state.last_flush = Instant::now();
             let total: u64 = state.fns.iter().map(|f| f.calls.load(Ordering::Relaxed) + f.errors.load(Ordering::Relaxed)).sum::<u64>() + state.uncaught.len() as u64;
             if total == state.last_written || total == 0 {
+                debug(format_args!("nothing new to write ({} calls)", total));
                 return;
             }
             state.last_written = total;
@@ -1209,8 +1219,9 @@ pub(crate) mod __ambio_rec {
         };
         let _ = std::fs::create_dir_all(std::path::Path::new(&path).parent().unwrap_or(std::path::Path::new(".")));
         let tmp = format!("{}.json.tmp", path);
-        if std::fs::write(&tmp, doc).is_ok() {
-            let _ = std::fs::rename(&tmp, format!("{}.json", path));
+        match std::fs::write(&tmp, doc).and_then(|_| std::fs::rename(&tmp, format!("{}.json", path))) {
+            Ok(()) => debug(format_args!("wrote {}.json", path)),
+            Err(error) => debug(format_args!("could not write {}.json: {}", path, error)),
         }
     }
 
