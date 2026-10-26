@@ -307,13 +307,16 @@ fn main() {
 
 	// Cargo rebuilds when the user's file changes, not the copy: the
 	// dependency file names their sources.
-	deps, _ := filepath.Glob(filepath.Join(dir, "target", "debug", "deps", "shop-*.d"))
+	// (On Windows the recorded build's files are in a build directory of
+	// their own, and an executable's carry no hash.)
+	deps, _ := filepath.Glob(filepath.Join(dir, "target", "*", "deps", "shop*.d"))
+	more, _ := filepath.Glob(filepath.Join(dir, "target", "*", "debug", "deps", "shop*.d"))
 	var listed string
-	for _, d := range deps {
+	for _, d := range append(deps, more...) {
 		raw, _ := os.ReadFile(d)
 		listed += string(raw)
 	}
-	if strings.Contains(listed, "ambio-src") || !strings.Contains(listed, "src/stock.rs") {
+	if strings.Contains(listed, "ambio-src") || !strings.Contains(slashed(listed), "src/stock.rs") {
 		t.Errorf("dependency files:\n%s", listed)
 	}
 }

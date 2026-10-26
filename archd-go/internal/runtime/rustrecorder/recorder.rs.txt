@@ -762,7 +762,7 @@ pub(crate) mod __ambio_rec {
             let _ = PANIC.try_with(|p| *p.borrow_mut() = Some(clip(&message, 200)));
             if std::thread::current().name() == Some("main") {
                 if let Some(at) = info.location() {
-                    let file = if std::path::Path::new(at.file()).is_absolute() { at.file().to_string() } else { format!("{}/{}", BASE, at.file()) };
+                    let file = std::path::Path::new(BASE).join(at.file()).to_string_lossy().into_owned(); // an absolute location replaces BASE
                     let name = LOCAL.try_with(|l| l.try_borrow().ok().and_then(|l| l.stack.last().copied())).ok().flatten();
                     spill_this_thread();
                     if let Ok(mut guard) = STATE.lock() {
