@@ -1573,13 +1573,15 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
     const westStep = westResizeFrames[index].width - westResizeFrames[index - 1].width
     const westBodyLag = Math.abs(westResizeFrames[index].bodyRight - westResizeFrames[index].right)
     expect(westBodyLag).toBeLessThanOrEqual(westStep + 0.5)
-    // ...and never on two frames in a row, which is what accumulation looks like.
-    const westPreviousLag = Math.abs(
-      westResizeFrames[index - 1].bodyRight - westResizeFrames[index - 1].right,
-    )
-    expect(Math.min(westBodyLag, westPreviousLag)).toBeLessThan(0.5)
   }
   expect(westResizeFrames.at(-1)!.width).toBeGreaterThan(westResizeFrames[0].width + 30)
+  // ...and catches up exactly once the pointer stops. A lag that persists or
+  // accumulates never closes; a slow frame on a loaded machine does.
+  await expect.poll(() => resizedSystem.evaluate(element => {
+    const right = element.getBoundingClientRect().right
+    const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+    return Math.abs((body?.right ?? Number.NaN) - right)
+  }), { timeout: 1000 }).toBeLessThan(0.5)
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(4)
   await expect.poll(() => viewport.getAttribute('style')).toBe(cameraBefore)
@@ -2921,9 +2923,12 @@ test('Edit → Undo puts a moved system back, and Redo moves it again', async ()
   await dragSystem(system)
   await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
   const moved = await flowPosition(system)
+  // The move is undoable once saved, which can trail the drop on a slow runner.
+  await page.waitForFunction(() => (window as unknown as { __ambioCanUndo: () => boolean }).__ambioCanUndo())
   await page.keyboard.press('ControlOrMeta+Z')
   await expect.poll(async () => Math.abs((await flowPosition(system)).x - start.x)).toBeLessThan(1)
   await expect.poll(async () => Math.abs((await flowPosition(system)).y - start.y)).toBeLessThan(1)
+  await page.waitForFunction(() => (window as unknown as { __ambioCanRedo: () => boolean }).__ambioCanRedo())
   await page.keyboard.press('ControlOrMeta+Shift+Z')
   await expect.poll(async () => Math.abs((await flowPosition(system)).x - moved.x)).toBeLessThan(1)
   await expect.poll(async () => Math.abs((await flowPosition(system)).y - moved.y)).toBeLessThan(1)

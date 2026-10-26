@@ -241,6 +241,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 ---
 
 ## Inbox
+- `stencil-drop-under-topmost` A stencil dropped where a new planned system overlaps a live one goes to the smaller system (`stencilTargetAt`: deepest, then smallest), even when the planned one is drawn on top; should the topmost drawn system win? Found via `sheet-authoring.spec.mjs` (2026-10-26).
 
 - ⬜ `abort-stale-proposal-drafts` **Automatically clean up abandoned open proposal drafts.** When an architecture proposal is committed or finalized, or when an agent begins/retries mapping, stale `status='open'` proposal draft sessions from earlier failed or timed-out attempts remain in SQLite. This causes `ProposalDraftProgress` to later display a false "An architecture draft is unfinished" interruption on the Floor canvas.
   - *Context:* Earlier mapping attempts crashed/timed out mid-stream after `edit_systems(op: "begin_session")`, leaving open drafts. The subsequent successful run committed its own draft into a proposal and materialized onto the Floor, but `GET /api/architecture-proposal-drafts` still returned the older abandoned open drafts (>5m old, paused).
