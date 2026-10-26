@@ -53,7 +53,7 @@ test('real OpenCode: configured service, MCP, multi-turn history, approvals, rea
   let manager
   const makeManager = () => new AgentChat({ directory: path.join(directory, 'chat'), binary, providers, proxy: new ChatProviderProxy(providers), project: id => ({ id, rootPath: root, name: 'Fixture' }), mcp: () => ({ command: process.execPath, args: [path.join(ROOT, 'tests', 'agent-chat', 'mcp-fixture.mjs')] }), assertExternalIdle: () => {}, workOrder: async () => 'Implement the requested small fixture change.' })
   manager = makeManager()
-  t.after(async () => { await manager.close(); model.closeAllConnections(); model.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true }) })
+  t.after(async () => { await manager.close(); model.closeAllConnections(); model.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }) })
   const conversation = await manager.create('fixture', profile.id)
   await assert.rejects(manager.send({ conversationId: conversation.id, text: 'Unbound change', mode: 'build' }), /requires an addressed/ )
   await manager.send({ conversationId: conversation.id, text: 'hello-turn', mode: 'ask' })
@@ -146,5 +146,5 @@ test('deleting a saved native chat removes its transcript across restart without
     restored.conversations[0].state='working'
     assert.throws(() => restored.remove('saved'),/Stop/)
     assert.equal(restored.list('fixture').length,1)
-  } finally { fs.rmSync(directory,{recursive:true,force:true}) }
+  } finally { fs.rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }) }
 })

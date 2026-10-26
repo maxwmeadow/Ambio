@@ -10,6 +10,8 @@ in the app as "What's New" after updating, so write it for users.
 ### Fixed
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts
   instead of timing out waiting for the debugger.
+- On a busy Windows machine Ambio chat can stop or recover its previous
+  agent process instead of saying it "could not be verified".
 - Switching branches no longer sometimes records the new branch's files as
   your edits; this happened most on slower disks, often on Windows.
 - Investigating a Rust program on Windows records it even when it was already
