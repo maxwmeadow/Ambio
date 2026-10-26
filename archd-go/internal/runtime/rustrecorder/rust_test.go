@@ -103,15 +103,8 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 	t.Helper()
 	cmd := exec.Command("cargo", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "CARGO_TERM_COLOR=never")
+	cmd.Env = cargoEnv(dir, record, watches)
 	evidenceDir := filepath.Join(dir, ".evidence")
-	if record {
-		exe, _ := os.Executable()
-		root, _ := filepath.EvalSymlinks(dir)
-		watchJSON, _ := json.Marshal(watches)
-		cmd.Env = append(cmd.Env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AMBIO_RECORDER_DEBUG=1",
-			"AMBIO_EVIDENCE_DIR="+evidenceDir, "AMBIO_WORKSPACE_ROOT="+root, "AMBIO_WATCHES="+string(watchJSON))
-	}
 	out, _ := cmd.CombinedOutput()
 	var docs []evidence
 	entries, _ := os.ReadDir(evidenceDir)
@@ -127,6 +120,28 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 		docs = append(docs, doc)
 	}
 	return string(out), docs
+}
+
+func cargoEnv(dir string, record bool, watches []map[string]string) []string {
+	env := append(os.Environ(), "CARGO_TERM_COLOR=never")
+	if record {
+		exe, _ := os.Executable()
+		root, _ := filepath.EvalSymlinks(dir)
+		watchJSON, _ := json.Marshal(watches)
+		env = append(env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AMBIO_RECORDER_DEBUG=1",
+			"AMBIO_EVIDENCE_DIR="+filepath.Join(dir, ".evidence"), "AMBIO_WORKSPACE_ROOT="+root, "AMBIO_WATCHES="+string(watchJSON))
+	}
+	return env
+}
+
+// cargoExplain is what Cargo says about a recorded build when no evidence
+// came of it: whether it rebuilt, and how it ran the compiler.
+func cargoExplain(dir string, watches []map[string]string) string {
+	cmd := exec.Command("cargo", "build", "-v")
+	cmd.Dir = dir
+	cmd.Env = append(cargoEnv(dir, true, watches), "CARGO_LOG=cargo::core::compiler::fingerprint=info")
+	out, _ := cmd.CombinedOutput()
+	return string(out)
 }
 
 // slashed spells a panic location the same on every host: Rust prints
@@ -241,7 +256,7 @@ fn main() {
 		t.Fatalf("the rewrite adds no warnings:\n%s", out)
 	}
 	if len(docs) != 1 {
-		t.Fatalf("%d evidence documents:\n%s", len(docs), out)
+		t.Fatalf("%d evidence documents:\n%s\ncargo build -v:\n%s", len(docs), out, cargoExplain(dir, []map[string]string{{"absPath": file, "symbol": "reserve"}}))
 	}
 	doc := docs[0]
 	calls := map[string][2]int{}
