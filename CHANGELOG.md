@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Investigating C or C++ code with lldb (the debugger macOS ships) starts
+  instead of timing out waiting for the debugger.
 - Opening a large saved map prepares its navigation geometry in smaller steps
   and avoids rebuilding it for inactive overlays. Review layout checks no longer
   compare every editable node against every saved row.
