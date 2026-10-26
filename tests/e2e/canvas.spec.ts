@@ -4,7 +4,7 @@ import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeG
 import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
@@ -2894,19 +2894,39 @@ test('an old architecture draft explains recovery and can be discarded', async (
   await expect(title).toHaveCount(0)
 })
 
+/** Where a node sits on the canvas, in flow coordinates: unlike its screen
+ * box, it does not change when the camera settles or pans. */
+async function flowPosition(node: Locator) {
+  return node.evaluate(element => {
+    const match = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec((element as HTMLElement).style.transform)
+    return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: NaN, y: NaN }
+  })
+}
+
+/** Drags a system by its header once the camera has stopped, so the gesture
+ * lands where it was aimed. */
+async function dragSystem(system: Locator) {
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const box = (await system.boundingBox())!
+  await page.mouse.move(box.x + 24, box.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 54, box.y + 40, { steps: 12 })
+  await page.mouse.up()
+}
+
 test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
-  const moved = (await system.boundingBox())!
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
+  const moved = await flowPosition(system)
   await page.keyboard.press('ControlOrMeta+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - start.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - start.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - start.y)).toBeLessThan(1)
   await page.keyboard.press('ControlOrMeta+Shift+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - moved.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - moved.y)).toBeLessThan(1)
 })
 
 test('Split System… draws the split on a new sheet', async () => {
@@ -2928,14 +2948,12 @@ test('Split System… draws the split on a new sheet', async () => {
 
 test('a placed system stays put when files arrive and other systems are renamed', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
   await page.waitForTimeout(400)
-  const placed = (await system.boundingBox())!
+  const placed = await flowPosition(system)
 
   // What indexing does: a new file appears in another system, a system is
   // renamed, and the snapshot arrives again with fresh objects.
@@ -2950,7 +2968,7 @@ test('a placed system stays put when files arrive and other systems are renamed'
     })
   })
   await page.waitForTimeout(600)
-  const after = (await system.boundingBox())!
+  const after = await flowPosition(system)
   expect(Math.abs(after.x - placed.x)).toBeLessThan(1)
   expect(Math.abs(after.y - placed.y)).toBeLessThan(1)
 })
