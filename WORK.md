@@ -128,7 +128,6 @@ Design: [docs/GIT_AND_PROJECT_SHAPES.md](docs/GIT_AND_PROJECT_SHAPES.md) (decide
 
 ## Canvas and the Floor
 
-- 🚧 `canvas-semantic-index-preparation` **Bound semantic visibility indexing and retain it through presentation updates.** Continue phase 2 from the performance handoff: profile the 100k cold path, remove atomic semantic-index preparation where measured, preserve exact reveal/editing behavior and verify cancellation/cache invalidation. **Done when:** deterministic work-bound and parity regressions pass, native before/after repetitions and remaining limits are recorded. (🚧 Codex, codex/review-pan-audit, 2026-10-26)
 
 Desktop Review feedback, 2026-10-26: [device audit](docs/testing/REVIEW_PAN_DEVICE_AUDIT.md) confirms the current desktop checkout/bundle predates the delivered mouse-pan fix. Same-device controls improve after that delivery, while a larger Review case still misses the frame target. Keep `canvas-dense-overview-budget` and real-project acceptance open; synthetic pan tests currently assert correctness but no timing gate.
 
@@ -333,6 +332,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `canvas-undo-screen-position-flake` **Explain one broad-suite Undo mismatch before calling editing acceptance clean.** The Oct 24 final-adoption UI run had a 435 px Undo screen-position error; three isolated repetitions pass unchanged. Exact pre-follow-up runtime `08a9d18` reproduces the same error (4 pass/1 fail); underlying cause unresolved. Inspect initial camera settling, drop/save/Undo timing and canonical placement. [Evidence](docs/testing/CANVAS_FINAL_ADOPTION.md).
 
 ## Done log
+
+- 2026-10-26 — `canvas-semantic-index-preparation`: bounded semantic sorting and prepared the authoritative Floor integrity audit cooperatively; trusted presentation updates retain completed visibility/validation indexes. Types/build, 766 unit tests and 20 focused/preservation UI checks pass. All native controls are retained: final 100k cold input is 71.3/74.7 ms and still fails the target, so `canvas-cold-layout-worker` remains open. [Evidence and next work](docs/testing/CANVAS_SEMANTIC_INTEGRITY.md). (`codex/review-pan-audit`)
 
 - 2026-10-26 — `review-pan-device-audit`: verified the desktop source/bundle still predate the remote Review pan fix, reproduced local mouse/WASD disparity in an isolated control, and measured the delivered build twice plus a larger case and separate browser traces. Dense Review remains open: 256-system mouse/WASD p95 was 29.2/41.7 ms; the full pan suite has separate Floor startup failures. [Report and next steps](docs/testing/REVIEW_PAN_DEVICE_AUDIT.md). (`review-pan-audit`, documentation only)
 

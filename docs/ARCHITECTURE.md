@@ -611,7 +611,16 @@ and use the normal reconciliation path. Equivalent model echoes reuse record
 and geometry identity. Idle overlays return the original array without stamping
 unset booleans to false. Saved scenes build persistence lookups only when rows
 need writing; review saved-row membership uses a set instead of nested scans.
-The integrity audit remains authoritative and still runs on the adoption path.
+The integrity audit remains authoritative. Floor preparation now runs that audit
+cooperatively before publication, against the independent model membership. Its
+completed result is cached for the exact immutable node array and membership
+identity; selection/activity stamps retain it alongside the semantic visibility
+index. Adoption can consume that result without repeating a project-sized audit.
+Geometry, visibility, ordering or membership edits invalidate reuse and still
+take the ordinary audit path. Review/sheet transforms retain their own validation.
+Semantic index preparation uses bounded stable sorts (256 entries per native
+sort and cooperative merges), with a linear path for already depth-ordered nodes.
+No reveal threshold or camera/authoring contract changes.
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.

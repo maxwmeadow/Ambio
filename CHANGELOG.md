@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Large-map preparation splits scene validation and semantic-index sorting into
+  smaller steps. Selection and activity updates reuse unchanged visibility and
+  validation work while geometry and membership edits remain fully checked.
 - Opening a large saved map prepares its navigation geometry in smaller steps
   and avoids rebuilding it for inactive overlays. Review layout checks no longer
   compare every editable node against every saved row.

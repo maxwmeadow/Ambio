@@ -4,6 +4,11 @@ Updated **2026-10-26**. This is the starting point for resuming the canvas work
 on another device. The implementation is a tested checkpoint, not completion
 of the scalability plan or an assertion that every interaction is smooth.
 
+Desktop continuation, 2026-10-26: [semantic indexing and integrity preparation](CANVAS_SEMANTIC_INTEGRITY.md)
+records the next bounded phase-2 implementation, preservation checks and all
+native repetitions. Its final cold-input pair still fails the target; the
+parent phases and dense/progressive-data work remain open.
+
 ## Delivery scope
 
 The `codex/canvas-cold-adoption` branch consolidates these implementations:

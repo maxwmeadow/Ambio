@@ -6,7 +6,57 @@ import {
   applyZoomVisibility,
   makeFullyVisible,
   revealNodePath,
+  zoomVisibilitySteps,
 } from './semanticZoom.ts'
+import { stampSelection } from './selectionController.ts'
+import { stampRuntimeOverlay } from './nodeOverlays.ts'
+
+test('selection and activity retain semantic indexes without retaining stale geometry edits', () => {
+  const original = applyZoomVisibility([
+    node('root', 480, 480), node('child', 20, 20, { depth: 1, parentId: 'root' }),
+  ], .5)
+  const selected = stampSelection(original, new Set(['root']))
+  const active = stampRuntimeOverlay(selected, { root: { status: 'running' } })
+  let reads = 0
+  for (const subject of active) {
+    const style = subject.style
+    Object.defineProperty(subject, 'style', { get() { reads++; return style } })
+  }
+  assert.equal(applyZoomVisibility(active, .51), active)
+  assert.equal(reads, 0)
+  const revealed = applyZoomVisibility(active, 1)
+  assert.equal(revealed[1].hidden, false)
+  assert.equal(revealed[0].selected, true)
+  assert.deepEqual(revealed[0].data.runtime, { status: 'running' })
+  const resized = revealed.map(n => n.id === 'root' ? { ...n, style: { width: 20, height: 20 } } : n)
+  assert.equal(applyZoomVisibility(resized, 1)[1].hidden, true)
+})
+
+test('semantic indexing checkpoints its sort and preserves stable depth order', () => {
+  const nodes = Array.from({ length: 2000 }, (_, i) => node(String(i), 480 + i, 480, {
+    depth: 2000 - i, parentId: i < 1999 ? String(i + 1) : undefined,
+  }))
+  const steps = zoomVisibilitySteps(nodes, 2)
+  let checkpoints = 0, result
+  do { result = steps.next(); if (!result.done) checkpoints++ } while (!result.done)
+  assert.ok(checkpoints > 30, `index/sort/visibility checkpoints: ${checkpoints}`)
+  assert.deepEqual(result.value.map(n => n.id), nodes.map(n => n.id))
+  assert.equal(result.value.every(n => !n.hidden), true)
+
+  // Interrupt after the geometry scan, during the cooperative sorting stage.
+  // An incomplete index must not be published onto the input array.
+  let reads = 0
+  const pending = nodes.map(n => {
+    const data = n.data
+    return { ...n, get data() { reads++; return data } }
+  })
+  const abandoned = zoomVisibilitySteps(pending, 2)
+  for (let i = 0; i < 10; i++) assert.equal(abandoned.next().done, false)
+  abandoned.return()
+  reads = 0
+  assert.equal(applyZoomVisibility(pending, 2).every(n => !n.hidden), true)
+  assert.ok(reads >= pending.length)
+})
 
 const node = (id, width, height, options = {}) => ({
   id,

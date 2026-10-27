@@ -100,15 +100,24 @@ test('current canonical lookups release the previous scene after collection', as
 test('prepared presentation indexes do not retain prior scene arrays through their weak cache', async () => {
   const { spawnSync } = await import('node:child_process')
   const moduleUrl = new URL('./canonicalScene.ts', import.meta.url).href
+  const visibilityUrl = new URL('../semanticZoom.ts', import.meta.url).href
+  const integrityUrl = new URL('../sceneIntegrity.ts', import.meta.url).href
   const script = `
     import assert from 'node:assert/strict';
     import { setImmediate } from 'node:timers/promises';
     import { prepareCanonicalSceneSteps, rememberPresentationScene, preparedCanonicalScene } from ${JSON.stringify(moduleUrl)};
+    import { applyZoomVisibility } from ${JSON.stringify(visibilityUrl)};
+    import { prepareFloorSceneIntegritySteps } from ${JSON.stringify(integrityUrl)};
     function prepare(nodes, previous) {
       const steps=prepareCanonicalSceneSteps(nodes, previous);
       for(;;){ const result=steps.next(); if(result.done) return result.value; }
     }
-    let nodes=[{id:'a',position:{x:0,y:0},data:{}}];
+    let nodes=applyZoomVisibility([{id:'a',position:{x:0,y:0},data:{}}], .5);
+    function validate(nodes) {
+      const steps=prepareFloorSceneIntegritySteps(nodes, 1, new Set(['a']));
+      while(!steps.next().done) {}
+    }
+    validate(nodes);
     let current=prepare(nodes);
     const oldArray=new WeakRef(nodes), oldScene=new WeakRef(current);
     nodes=rememberPresentationScene(nodes,[{...nodes[0],selected:true}]);

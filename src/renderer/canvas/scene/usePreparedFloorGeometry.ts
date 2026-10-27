@@ -9,12 +9,13 @@ import { projectFloorNodeSteps } from '../floorSceneProjection'
 import type { Node } from '@xyflow/react'
 import { sameGeometryInputSteps } from './sceneInputs'
 import { prepareCanonicalSceneSteps, type CanonicalScene } from './canonicalScene'
+import { prepareFloorSceneIntegritySteps } from '../sceneIntegrity'
 
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
   dependencies: DbDependency[]; layouts: FloorLayout[]; scope: string
 }
-export function usePreparedFloorGeometry(controller: SceneController, channel: string, input: FloorModel | null, placements: Map<string, GeneratedPlacement>, retry: number, currentZoom: () => number = () => 0.5, visibilityZoom?: () => number) {
+export function usePreparedFloorGeometry(controller: SceneController, channel: string, input: FloorModel | null, placements: Map<string, GeneratedPlacement>, retry: number, currentZoom: () => number = () => 0.5, visibilityZoom?: () => number, canonicalNodeIds?: ReadonlySet<string>) {
   const [state, setState] = useState<{ input: FloorModel; geometry: PreparedFloorGeometry; nodes: Node[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const cached = useRef<{ controller: SceneController; scope: string; input: FloorGeometryInput; promise: Promise<PreparedFloorGeometry> }>()
@@ -61,6 +62,11 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
         finally { finishCanonical() }
         if (abort.signal.aborted) return
         prepared.current = { scope: input.scope, scene }
+        if (canonicalNodeIds) {
+          const finishIntegrity = beginPerfStage('scene.integrity-preparation', nodes.length)
+          try { await runSceneSteps(prepareFloorSceneIntegritySteps(nodes, canonicalNodeIds.size, canonicalNodeIds), abort.signal) }
+          finally { finishIntegrity() }
+        }
       }
       if (abort.signal.aborted) return
       // Only a complete current projection may publish or remember guesses.
@@ -72,7 +78,7 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
       if (!abort.signal.aborted && error.name !== 'AbortError') setError(error.message)
     })
     return () => { abort.abort() }
-  }, [controller, channel, input, placements, retry])
+  }, [controller, channel, input, placements, retry, canonicalNodeIds])
   const coherent = state?.input.scope === input?.scope ? state : null
   return { value: coherent, current: coherent?.input === input, pending: Boolean(input && coherent?.input !== input && !error), error }
 }

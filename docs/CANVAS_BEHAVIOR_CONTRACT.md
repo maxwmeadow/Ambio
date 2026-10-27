@@ -109,7 +109,12 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   Selection and activity overlays reuse these only while geometry, ordering,
   hidden state and semantic detail remain unchanged. An inactive overlay does
   not replace the scene. Geometry/visibility edits still reconcile and all
-  candidates still pass the existing integrity audit. Review keeps its full
+  candidates still pass the existing integrity audit. That same audit may finish
+  cooperatively before Floor publication and be reused only for the exact node
+  array and canonical membership, including trusted presentation-only stamps.
+  Cancellation never publishes a partial audit; edits invalidate the result.
+  Semantic-index sorting yields in bounded chunks without changing stable depth
+  order or reveal thresholds. Review keeps its full
   visibility policy; sheet-specific composition remains authoritative.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.

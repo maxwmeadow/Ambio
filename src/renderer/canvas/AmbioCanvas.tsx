@@ -2420,7 +2420,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     systems, files, infraNodes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
   }, [systems, files, infraNodes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
   const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
-    reviewMode ? undefined : () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current)
+    reviewMode ? undefined : () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current, canonicalNodeIds)
   const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
   const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
 
