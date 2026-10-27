@@ -52,6 +52,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     budgets:{frameP95Ms:16.7,frameP99Ms:33.3,frameToleranceMs:0.25,inputP95Ms:50,memoryGrowthRatio:1.1}}
   let app:ElectronApplication|undefined,memoryTimer:ReturnType<typeof setTimeout>|undefined
   let stopProfile:(()=>Promise<void>)|undefined
+  let stopTimeline:(()=>Promise<void>)|undefined
   let collecting=true,samplingMemory=false,peakPrivateKiB=0,latestPrivateKiB:number|null=null
   const {ELECTRON_RUN_AS_NODE:_node,ELECTRON_RENDERER_URL:_url,...env}=process.env
   try {
@@ -112,6 +113,22 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       return values.sort((a,b)=>a-b)[Math.floor(values.length/2)]
     })
     const cdp=await page.context().newCDPSession(page);await cdp.send('Performance.enable')
+    if(process.env.AMBIO_SCALE_TIMELINE==='1'){
+      report.instrumented=true
+      await cdp.send('Tracing.start',{categories:'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline',transferMode:'ReturnAsStream'})
+      report.timelineClock=await page.evaluate(()=>{
+        performance.mark('ambio-scale-trace-zero')
+        return performance.getEntriesByName('ambio-scale-trace-zero').at(-1)!.startTime
+      })
+      stopTimeline=async()=>{
+        const completed=new Promise<any>(resolve=>cdp.once('Tracing.tracingComplete',resolve))
+        await cdp.send('Tracing.end');const {stream}=await completed
+        let text='',chunk
+        do{chunk=await cdp.send('IO.read',{handle:stream});text+=chunk.data}while(!chunk.eof)
+        await cdp.send('IO.close',{handle:stream});mkdirSync(outputDir,{recursive:true})
+        writeFileSync(join(outputDir,`${shape}-${entities}-${info.repeatEachIndex}.timeline.json`),text)
+      }
+    }
     if(process.env.AMBIO_SCALE_CAMERA_TRACE==='1')await page.evaluate(installCanvasCameraTrace)
     if(process.env.AMBIO_SCALE_PROFILE==='1'){
       report.instrumented=true
@@ -173,7 +190,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
           setTimeout(()=>observer.disconnect(),2000)
         }
         requestAnimationFrame(()=>requestAnimationFrame(()=>{if(w.__scale?.running&&w.__scale.inputs.length<1000)
-          w.__scale.inputs.push({phase,queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
+          w.__scale.inputs.push({phase,dispatched,received,finished:performance.now(),queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
       },true)
     })
     const started=Date.now(),box=(await canvas.boundingBox())!
@@ -285,6 +302,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     report.phaseInputToPaintOpportunity=Object.fromEntries(['cold','navigation','warm'].map(phase=>
       [phase,quantiles(report.observed.inputs.filter((i:any)=>i.phase===phase).map((i:any)=>i.paintOpportunityMs))]))
     report.inputQueue=quantiles(report.observed.inputs.map((i:any)=>i.queueMs))
+    report.slowestInputs=[...report.observed.inputs].sort((a:any,b:any)=>b.paintOpportunityMs-a.paintOpportunityMs).slice(0,20)
     report.inputToPaintOpportunity=quantiles(report.observed.inputs.map((i:any)=>i.paintOpportunityMs));delete report.observed.inputs
     const after=await cdp.send('Performance.getMetrics')
     report.browserWork=Object.fromEntries(after.metrics.filter(m=>['ScriptDuration','TaskDuration','LayoutDuration','RecalcStyleDuration','LayoutCount'].includes(m.name))
@@ -323,6 +341,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
   finally{
     collecting=false;clearTimeout(memoryTimer)
     if(stopProfile)try{await stopProfile()}catch(error){report.profileError=String(error)}
+    if(stopTimeline)try{await stopTimeline()}catch(error){report.timelineError=String(error)}
     const path=info.outputPath('canvas-scale.json');writeFileSync(path,JSON.stringify(report,null,2))
     mkdirSync(outputDir,{recursive:true})
     const persistentPath=join(outputDir,`${shape}-${entities}-${info.repeatEachIndex}.json`)

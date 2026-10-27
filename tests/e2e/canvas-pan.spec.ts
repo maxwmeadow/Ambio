@@ -51,6 +51,8 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       await expect(canvas.locator('.react-flow__node').first()).toBeVisible()
       if (mode === 'floor') await page.getByRole('button', { name: 'Fit view', exact: true }).click()
       await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      // Diagnostic-only CSS experiments are reported separately from app builds.
+      if (process.env.AMBIO_PAN_STYLE) await page.addStyleTag({ content: process.env.AMBIO_PAN_STYLE })
       // Start the drag on exposed pane, rather than accidentally dragging a node.
       const point = await canvas.evaluate(root => {
         const pane = root.querySelector('.react-flow__pane')!, r = pane.getBoundingClientRect()
@@ -59,7 +61,14 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
         throw Error('No exposed pane start point')
       })
       await page.evaluate(() => document.addEventListener('pointerdown', event => { (window as any).__panPointerId = event.pointerId }, { once: true, capture: true }))
-      if (mode === 'review') await expect.poll(() => canvas.locator('.react-flow__handle').evaluateAll(handles => handles.filter(handle => getComputedStyle(handle).display !== 'none').map(handle => handle.outerHTML.slice(0, 300)))).toEqual([])
+      if (mode === 'review' && !process.env.AMBIO_PAN_STYLE) {
+        if (process.env.AMBIO_PAN_LEGACY_HANDLES === '1') {
+          expect(await canvas.locator('.react-flow__handle').count()).toBeGreaterThan(0)
+          await expect.poll(() => canvas.locator('.react-flow__handle').evaluateAll(handles =>
+            handles.every(handle => getComputedStyle(handle).display === 'none'))).toBe(true)
+        } else await expect(canvas.locator('.react-flow__handle')).toHaveCount(0)
+      }
+      else if (mode === 'floor') expect(await canvas.locator('.react-flow__handle').count()).toBeGreaterThan(0)
       await page.mouse.move(point.x, point.y)
       await page.waitForTimeout(300)
       const cdp = await page.context().newCDPSession(page); await cdp.send('Performance.enable')
@@ -68,8 +77,14 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       const context = {
         buildFingerprint: createHash('sha256').update(readFileSync('out/renderer/index.html')).digest('hex'),
         reference: { platform: platform(), cpu: cpus()[0]?.model, viewport: { width: 1400, height: 900 },
-          browser: await page.evaluate(() => ({ userAgent: navigator.userAgent, pixelRatio: devicePixelRatio })) },
+          browser: await page.evaluate(() => ({ userAgent: navigator.userAgent, pixelRatio: devicePixelRatio })),
+          gpu: process.env.AMBIO_PAN_TIMELINE === '1' ? await app.evaluate(async ({ app }) => ({
+            features: app.getGPUFeatureStatus(), info: await app.getGPUInfo('basic'),
+          })) : undefined },
         instrumented: process.env.AMBIO_PAN_CPU === '1' || process.env.AMBIO_PAN_TIMELINE === '1',
+        diagnosticStyle: process.env.AMBIO_PAN_STYLE ?? null,
+        legacyHandles: process.env.AMBIO_PAN_LEGACY_HANDLES === '1',
+        fixtureFingerprint: createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),
       }
       const before = await cdp.send('Performance.getMetrics'), saves = layoutSaves
       const initial = await page.evaluate(() => {
@@ -120,11 +135,20 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
         s.frames.sort((a: number, b: number) => a - b)
         return { frames: { count: s.frames.length, p95: s.frames[Math.floor(s.frames.length * .95)], p99: s.frames[Math.floor(s.frames.length * .99)], max: s.frames.at(-1) },
           cameraMoves: s.moves, longTasks: s.tasks, stages: w.__ambioPerfTrace.summary(), nodes: document.querySelectorAll('.react-flow__node').length, dom: document.querySelectorAll('*').length,
+          handles: document.querySelectorAll('.react-flow__handle').length,
+          canonicalNodes: Number(document.querySelector('[data-ambio-canvas]')!.getAttribute('data-canonical-node-count')),
+          startTransform: initial.transform,
           renders: w.__ambioPerfMetrics.canvasRenderCount - initial.metrics.canvasRenderCount,
           visibilityPasses: w.__ambioPerfMetrics.zoomVisibilityPasses - initial.metrics.zoomVisibilityPasses,
           transform: document.querySelector('.react-flow__viewport')!.getAttribute('style') }
       }, initial)
       const browserWork = Object.fromEntries(after.metrics.filter(m => ['ScriptDuration', 'TaskDuration', 'LayoutDuration', 'RecalcStyleDuration'].includes(m.name)).map(m => [m.name, m.value - (before.metrics.find(b => b.name === m.name)?.value ?? 0)]))
+      // Reference-machine acceptance is opt-in; ordinary CI checks work bounds.
+      const budgets = { frameP95Ms: 16.7, frameP99Ms: 33.3, timestampToleranceMs: 0.1 }
+      const targets = {
+        frameP95: result.frames.p95 <= budgets.frameP95Ms + budgets.timestampToleranceMs + 1e-6,
+        frameP99: result.frames.p99 <= budgets.frameP99Ms + budgets.timestampToleranceMs + 1e-6,
+      }
       if (process.env.AMBIO_PAN_CPU === '1') { const { profile } = await cdp.send('Profiler.stop'); writeFileSync(info.outputPath('pan.cpuprofile'), JSON.stringify(profile)) }
       if (process.env.AMBIO_PAN_TIMELINE === '1') {
         const completed = new Promise<any>(resolve => cdp.once('Tracing.tracingComplete', resolve))
@@ -133,8 +157,8 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
         do { chunk = await cdp.send('IO.read', { handle: stream }); text += chunk.data } while (!chunk.eof)
         await cdp.send('IO.close', { handle: stream }); writeFileSync(info.outputPath('pan-timeline.json'), text)
       }
-      console.log('CANVAS_PAN', JSON.stringify({ mode, input, systems: snapshot.systems.length, ...context, ...result, browserWork }))
-      await info.attach('pan-metrics', { body: JSON.stringify({ mode, input, ...context, ...result, browserWork }, null, 2), contentType: 'application/json' })
+      console.log('CANVAS_PAN', JSON.stringify({ mode, input, systems: snapshot.systems.length, ...context, ...result, browserWork, budgets, targets }))
+      await info.attach('pan-metrics', { body: JSON.stringify({ mode, input, ...context, ...result, browserWork, budgets, targets }, null, 2), contentType: 'application/json' })
       if (mode === 'review' && input === 'mouse') {
         for (const button of ['middle'] as const) {
           await page.mouse.move(point.x, point.y)
@@ -162,6 +186,7 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       expect(result.cameraMoves).toBeGreaterThan(2)
       expect(result.visibilityPasses).toBe(0)
       expect(errors).toEqual([])
+      if (process.env.AMBIO_PAN_ENFORCE_FRAMES === '1') expect(targets).toEqual({ frameP95: true, frameP99: true })
     } finally {
       await app?.close()
       if (dirname(resolve(home)) === resolve(tmpdir()) && basename(home).startsWith('ambio-pan-')) rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })

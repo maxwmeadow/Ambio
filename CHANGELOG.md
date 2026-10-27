@@ -34,6 +34,18 @@ in the app as "What's New" after updating, so write it for users.
   Changes, and is no longer recorded as a branch switch.
 - Systems are no longer left stale after a switch when a removed system had a
   sub-system named like another top-level system.
+- Dense architecture review omits inactive connection components, reducing
+  mouse-pan stalls. Keyboard camera ownership follows pointer events without
+  forcing a hit test every frame; selection, resizing and artwork stay intact.
+- Opening a large saved map skips unused layout and setup bookkeeping,
+  reducing cold-loading input stalls while preserving hand-placed files and
+  scene validation.
+- Large saved maps avoid repeated source-file classification and project-wide
+  lookup work in the closed Review Changes panel, reducing cold-loading input
+  stalls. File placement, documentation handling and review actions are preserved.
+- Large-map preparation splits scene validation and semantic-index sorting into
+  smaller steps. Selection and activity updates reuse unchanged visibility and
+  validation work while geometry and membership edits remain fully checked.
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts
   instead of timing out waiting for the debugger.
 - On a busy Windows machine Ambio chat can stop or recover its previous

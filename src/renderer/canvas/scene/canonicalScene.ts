@@ -1,5 +1,7 @@
 import type { InternalNode, Node, Rect } from '@xyflow/react'
 import { sceneRecordSteps, type SceneRecord } from '../renderBudgetGeometry.ts'
+import { rememberPresentationVisibility } from '../semanticZoom.ts'
+import { rememberPresentationIntegrity } from '../sceneIntegrity.ts'
 
 /** Complete geometry is independent of Flow's disposable interaction subset. */
 export interface CanonicalScene {
@@ -93,6 +95,8 @@ export const preparedCanonicalScene = (nodes: Node[]) => preparedScenes.get(node
 /** Only for selection/overlay changes that preserve IDs, order, geometry,
  * hidden state and semantic-detail flags. Never use for structural edits. */
 export function rememberPresentationScene(source: Node[], nodes: Node[]): Node[] {
+  rememberPresentationVisibility(source, nodes)
+  rememberPresentationIntegrity(source, nodes)
   const scene = preparedScenes.get(source)
   if (scene && source !== nodes) preparedScenes.set(nodes, { ...scene, nodes, byId: new CanonicalNodeLookup(nodes, scene.order) })
   return nodes

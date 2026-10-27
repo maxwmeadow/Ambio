@@ -1,0 +1,6029 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-26",
+  "baselineCommit": "25d2599",
+  "implementationCommits": [
+    "040d89c",
+    "068158d"
+  ],
+  "scope": "Synthetic initial-mapping Review, production Electron E2E off-desktop window, same-machine serial measurements; not physical-input/compositor or real-project acceptance",
+  "cases": [
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 686,
+        "p95": 29.199999999999818,
+        "p99": 33.400000000000546,
+        "max": 45.900000000000546
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 41.09999996423721,
+            "maxMs": 13.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 13.800000011920929
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.700000047683716,
+            "maxMs": 0.7000000476837158,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.7000000476837158
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.08338,
+        "RecalcStyleDuration": 0.591158,
+        "ScriptDuration": 1.194957,
+        "TaskDuration": 3.0747
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 89,
+        "p95": 41.69999999999982,
+        "p99": 54.30000000000018,
+        "max": 54.30000000000018
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        52
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.399999976158142,
+            "maxMs": 1.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.399999976158142
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.023856,
+        "RecalcStyleDuration": 0.168883,
+        "ScriptDuration": 0.432184,
+        "TaskDuration": 0.956822
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 710,
+        "p95": 29.200000000000728,
+        "p99": 33.400000000000546,
+        "max": 45.900000000000546
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 44.499999940395355,
+            "maxMs": 14.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.399999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.4999999403953552,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.699999988079071
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15647,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.085513,
+        "RecalcStyleDuration": 0.611689,
+        "ScriptDuration": 1.291038,
+        "TaskDuration": 3.194319
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 86,
+        "p95": 41.70000000000073,
+        "p99": 50,
+        "max": 50
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        50
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.2000000476837158,
+            "maxMs": 1.2000000476837158,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.2000000476837158
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15570,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022438,
+        "RecalcStyleDuration": 0.166492,
+        "ScriptDuration": 0.459679,
+        "TaskDuration": 0.9783470000000001
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 684,
+        "p95": 29.200000000000728,
+        "p99": 37.40000000000009,
+        "max": 45.900000000000546
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 44.700000047683716,
+            "maxMs": 14.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.5
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.5,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.080586,
+        "RecalcStyleDuration": 0.598882,
+        "ScriptDuration": 1.297226,
+        "TaskDuration": 3.123878
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 88,
+        "p95": 41.600000000000364,
+        "p99": 54.29999999999973,
+        "max": 54.29999999999973
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        51
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 3.699999988079071,
+            "maxMs": 3.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 3.699999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.800000011920929,
+            "maxMs": 0.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.800000011920929
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15570,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022034,
+        "RecalcStyleDuration": 0.166802,
+        "ScriptDuration": 0.440304,
+        "TaskDuration": 0.960998
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 6,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 703,
+        "p95": 29.199999999999818,
+        "p99": 33.400000000000546,
+        "max": 45.80000000000018
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 42.19999998807907,
+            "maxMs": 14.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.5
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.600000023841858,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15570,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.081244,
+        "RecalcStyleDuration": 0.602589,
+        "ScriptDuration": 1.220133,
+        "TaskDuration": 3.125347
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 7,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 85,
+        "p95": 41.69999999999982,
+        "p99": 54.20000000000027,
+        "max": 54.20000000000027
+      },
+      "cameraMoves": 25,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15625,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022508,
+        "RecalcStyleDuration": 0.158177,
+        "ScriptDuration": 0.434662,
+        "TaskDuration": 0.936714
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 8,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 701,
+        "p95": 29.200000000000728,
+        "p99": 33.400000000000546,
+        "max": 45.899999999999636
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 47.19999998807907,
+            "maxMs": 17.30000001192093,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 17.30000001192093
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.399999976158142,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.083128,
+        "RecalcStyleDuration": 0.596748,
+        "ScriptDuration": 1.232192,
+        "TaskDuration": 3.115049
+      }
+    },
+    {
+      "cohort": "initial-control-256",
+      "kind": "control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 9,
+      "rawLog": "out/dense-review-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "frames": {
+        "count": 87,
+        "p95": 37.600000000000364,
+        "p99": 62.5,
+        "max": 62.5
+      },
+      "cameraMoves": 26,
+      "longTasks": [
+        54
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.4000000357627869,
+            "maxMs": 1.4000000357627869,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.4000000357627869
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 842,
+      "dom": 15810,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(431.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.023072,
+        "RecalcStyleDuration": 0.172214,
+        "ScriptDuration": 0.448942,
+        "TaskDuration": 0.9810530000000001
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 697,
+        "p95": 29.199999999999818,
+        "p99": 33.5,
+        "max": 45.899999999999636
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 43,
+            "maxMs": 14.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.399999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.3000000715255737,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.081937,
+        "RecalcStyleDuration": 0.590532,
+        "ScriptDuration": 1.224759,
+        "TaskDuration": 3.1119950000000003
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 83,
+        "p95": 37.600000000000364,
+        "p99": 50.09999999999991,
+        "max": 50.09999999999991
+      },
+      "cameraMoves": 23,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.4000000357627869,
+            "maxMs": 1.4000000357627869,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.4000000357627869
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15592,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.0211,
+        "RecalcStyleDuration": 0.156145,
+        "ScriptDuration": 0.399285,
+        "TaskDuration": 0.894195
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 698,
+        "p95": 29.199999999999818,
+        "p99": 33.5,
+        "max": 46
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 43.69999998807907,
+            "maxMs": 14.099999964237213,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.099999964237213
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.399999976158142,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.079536,
+        "RecalcStyleDuration": 0.589016,
+        "ScriptDuration": 1.223955,
+        "TaskDuration": 3.076318
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 85,
+        "p95": 37.59999999999991,
+        "p99": 58.5,
+        "max": 58.5
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        54
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.40000003576278687,
+            "maxMs": 0.40000003576278687,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.40000003576278687
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022612,
+        "RecalcStyleDuration": 0.165957,
+        "ScriptDuration": 0.436762,
+        "TaskDuration": 0.9463480000000001
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 684,
+        "p95": 29.199999999999818,
+        "p99": 33.40000000000009,
+        "max": 46
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 42.40000009536743,
+            "maxMs": 13.600000023841858,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 13.600000023841858
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.399999976158142,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.079275,
+        "RecalcStyleDuration": 0.587718,
+        "ScriptDuration": 1.205498,
+        "TaskDuration": 3.053241
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 84,
+        "p95": 41.80000000000018,
+        "p99": 54.19999999999982,
+        "max": 54.19999999999982
+      },
+      "cameraMoves": 24,
+      "longTasks": [
+        50
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15669,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.02166,
+        "RecalcStyleDuration": 0.161795,
+        "ScriptDuration": 0.438137,
+        "TaskDuration": 0.96752
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 6,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 700,
+        "p95": 29.199999999999818,
+        "p99": 33.40000000000009,
+        "max": 45.80000000000018
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 41.19999998807907,
+            "maxMs": 13.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 13.399999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.082199,
+        "RecalcStyleDuration": 0.589134,
+        "ScriptDuration": 1.209689,
+        "TaskDuration": 3.0826409999999997
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 7,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 85,
+        "p95": 37.600000000000364,
+        "p99": 58.399999999999636,
+        "max": 58.399999999999636
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        59
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.4000000357627869,
+            "maxMs": 1.4000000357627869,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.4000000357627869
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15647,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.02248,
+        "RecalcStyleDuration": 0.167478,
+        "ScriptDuration": 0.437813,
+        "TaskDuration": 0.964731
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 8,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 709,
+        "p95": 29.199999999999818,
+        "p99": 33.400000000000546,
+        "max": 45.80000000000018
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 44.699999928474426,
+            "maxMs": 16.19999998807907,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 16.19999998807907
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.699999988079071,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.083685,
+        "RecalcStyleDuration": 0.603509,
+        "ScriptDuration": 1.247481,
+        "TaskDuration": 3.1703509999999997
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-256",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 9,
+      "rawLog": "out/dense-review-final-control-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 86,
+        "p95": 37.600000000000364,
+        "p99": 58.29999999999927,
+        "max": 58.29999999999927
+      },
+      "cameraMoves": 25,
+      "longTasks": [
+        51
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15559,
+      "handles": 6624,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022323,
+        "RecalcStyleDuration": 0.164444,
+        "ScriptDuration": 0.408132,
+        "TaskDuration": 0.929721
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "control-96-first",
+      "kind": "control-with-startup-failure",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-final-control-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 94,
+        "p95": 25.09999999999991,
+        "p99": 29.09999999999991,
+        "max": 29.09999999999991
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.800000011920929,
+            "maxMs": 0.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.800000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.30000001192092896,
+            "maxMs": 0.30000001192092896,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.30000001192092896
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12119,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.00329,
+        "RecalcStyleDuration": 0.007793,
+        "ScriptDuration": 0.192046,
+        "TaskDuration": 0.513056
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96-first",
+      "kind": "control-with-startup-failure",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-final-control-96.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 691,
+        "p95": 16.59999999999991,
+        "p99": 25,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 23.900000035762787,
+            "maxMs": 7.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 7.199999988079071
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1.100000023841858,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12119,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.036752,
+        "RecalcStyleDuration": 0.225056,
+        "ScriptDuration": 0.573082,
+        "TaskDuration": 1.733036
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96-first",
+      "kind": "control-with-startup-failure",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-final-control-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 97,
+        "p95": 25.09999999999991,
+        "p99": 25.200000000000045,
+        "max": 25.200000000000045
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.7999999523162842,
+            "maxMs": 0.7999999523162842,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.7999999523162842
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12107,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.0032,
+        "RecalcStyleDuration": 0.007337,
+        "ScriptDuration": 0.194408,
+        "TaskDuration": 0.506228
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96-first",
+      "kind": "control-with-startup-failure",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-final-control-96.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 686,
+        "p95": 16.599999999999454,
+        "p99": 21,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 22.80000001192093,
+            "maxMs": 6,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 6
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1,
+            "maxMs": 0.30000001192092896,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.30000001192092896
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12123,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.036623,
+        "RecalcStyleDuration": 0.224892,
+        "ScriptDuration": 0.534048,
+        "TaskDuration": 1.6821439999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96-first",
+      "kind": "control-with-startup-failure",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-final-control-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 96,
+        "p95": 25.09999999999991,
+        "p99": 25.200000000000045,
+        "max": 25.200000000000045
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.09999996423721313,
+            "maxMs": 0.09999996423721313,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.09999996423721313
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12115,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(399.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.003129,
+        "RecalcStyleDuration": 0.007194,
+        "ScriptDuration": 0.193794,
+        "TaskDuration": 0.501081
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 691,
+        "p95": 16.59999999999991,
+        "p99": 25,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 20.700000047683716,
+            "maxMs": 5.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.199999988079071
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 0.9999998807907104,
+            "maxMs": 0.2999999523162842,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.2999999523162842
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12103,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.036419,
+        "RecalcStyleDuration": 0.224648,
+        "ScriptDuration": 0.58048,
+        "TaskDuration": 1.719485
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 97,
+        "p95": 25.09999999999991,
+        "p99": 29.200000000000045,
+        "max": 29.200000000000045
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.800000011920929,
+            "maxMs": 0.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.800000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12115,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(399.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.003137,
+        "RecalcStyleDuration": 0.007288,
+        "ScriptDuration": 0.195066,
+        "TaskDuration": 0.5002679999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 690,
+        "p95": 16.59999999999991,
+        "p99": 25,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 21.700000047683716,
+            "maxMs": 5.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.800000011920929
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12115,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.036159,
+        "RecalcStyleDuration": 0.224919,
+        "ScriptDuration": 0.57758,
+        "TaskDuration": 1.708196
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 95,
+        "p95": 25.100000000000136,
+        "p99": 29.09999999999991,
+        "max": 29.09999999999991
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.699999988079071,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.699999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12083,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.00306,
+        "RecalcStyleDuration": 0.006819,
+        "ScriptDuration": 0.190134,
+        "TaskDuration": 0.48488200000000004
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 684,
+        "p95": 12.600000000000364,
+        "p99": 21,
+        "max": 33.399999999999864
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 22.099999964237213,
+            "maxMs": 5.899999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.899999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1.2999999523162842,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12095,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.035504,
+        "RecalcStyleDuration": 0.220218,
+        "ScriptDuration": 0.534091,
+        "TaskDuration": 1.698693
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "control-96",
+      "kind": "primary-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-control96-recheck.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": true,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 95,
+        "p95": 25.09999999999991,
+        "p99": 29.200000000000045,
+        "max": 29.200000000000045
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.6000000238418579,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.6000000238418579
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.09999996423721313,
+            "maxMs": 0.09999996423721313,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.09999996423721313
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 12047,
+      "handles": 5376,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(399.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.003497,
+        "RecalcStyleDuration": 0.007297,
+        "ScriptDuration": 0.200196,
+        "TaskDuration": 0.501125
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 678,
+        "p95": 16.799999999999727,
+        "p99": 21,
+        "max": 25.09999999999991
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.5,
+            "maxMs": 10,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 10
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.699999988079071,
+            "maxMs": 0.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.800000011920929
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8935,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.080372,
+        "RecalcStyleDuration": 0.486202,
+        "ScriptDuration": 0.451346,
+        "TaskDuration": 2.134428
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 91,
+        "p95": 29.200000000000273,
+        "p99": 33.40000000000009,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.699999988079071,
+            "maxMs": 1.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.699999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.9000000357627869,
+            "maxMs": 0.9000000357627869,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.9000000357627869
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8891,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.028385,
+        "RecalcStyleDuration": 0.165516,
+        "ScriptDuration": 0.169975,
+        "TaskDuration": 0.7524569999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 702,
+        "p95": 16.699999999999818,
+        "p99": 20.900000000000546,
+        "max": 25
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.000000059604645,
+            "maxMs": 9.400000035762787,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 9.400000035762787
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.699999988079071,
+            "maxMs": 1,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 1
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8957,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.076655,
+        "RecalcStyleDuration": 0.482905,
+        "ScriptDuration": 0.451374,
+        "TaskDuration": 2.1124490000000002
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 90,
+        "p95": 29.200000000000273,
+        "p99": 29.300000000000182,
+        "max": 29.300000000000182
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8990,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.028206,
+        "RecalcStyleDuration": 0.167568,
+        "ScriptDuration": 0.16148,
+        "TaskDuration": 0.7565580000000001
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 678,
+        "p95": 16.700000000000728,
+        "p99": 20.900000000000546,
+        "max": 29.099999999999454
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.39999997615814,
+            "maxMs": 10.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 10.199999988079071
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.400000035762787,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8968,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.078371,
+        "RecalcStyleDuration": 0.483314,
+        "ScriptDuration": 0.442762,
+        "TaskDuration": 2.1087
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 91,
+        "p95": 33.30000000000018,
+        "p99": 33.40000000000009,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 9089,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.029458,
+        "RecalcStyleDuration": 0.162715,
+        "ScriptDuration": 0.161872,
+        "TaskDuration": 0.7608229999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 6,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 717,
+        "p95": 16.800000000000182,
+        "p99": 20.900000000000546,
+        "max": 25.100000000000364
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 39.1000000834465,
+            "maxMs": 14.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.399999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.6999999284744263,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.699999988079071
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8913,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.078029,
+        "RecalcStyleDuration": 0.490593,
+        "ScriptDuration": 0.447849,
+        "TaskDuration": 2.124015
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 7,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 90,
+        "p95": 29.300000000000182,
+        "p99": 33.40000000000009,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 9001,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.028794,
+        "RecalcStyleDuration": 0.165171,
+        "ScriptDuration": 0.167478,
+        "TaskDuration": 0.756984
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 8,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 702,
+        "p95": 16.700000000000728,
+        "p99": 20.900000000000546,
+        "max": 33.5
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.700000047683716,
+            "maxMs": 9.100000023841858,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 9.100000023841858
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.699999988079071,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.699999988079071
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8924,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.079091,
+        "RecalcStyleDuration": 0.493285,
+        "ScriptDuration": 0.448388,
+        "TaskDuration": 2.154547
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-256",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 9,
+      "rawLog": "out/dense-review-final-256.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 88,
+        "p95": 29.300000000000182,
+        "p99": 33.5,
+        "max": 33.5
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.399999976158142,
+            "maxMs": 1.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.399999976158142
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8979,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.028823,
+        "RecalcStyleDuration": 0.163983,
+        "ScriptDuration": 0.165729,
+        "TaskDuration": 0.7836909999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 683,
+        "p95": 12.5,
+        "p99": 16.700000000000273,
+        "max": 25.100000000000136
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 22.099999964237213,
+            "maxMs": 5.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.699999988079071
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1.0999999642372131,
+            "maxMs": 0.30000001192092896,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.30000001192092896
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6727,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.034424,
+        "RecalcStyleDuration": 0.188829,
+        "ScriptDuration": 0.186498,
+        "TaskDuration": 1.293205
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 96,
+        "p95": 25.100000000000136,
+        "p99": 33.30000000000018,
+        "max": 33.30000000000018
+      },
+      "cameraMoves": 37,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.699999988079071,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.699999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.40000003576278687,
+            "maxMs": 0.40000003576278687,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.40000003576278687
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6759,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(407.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.003383,
+        "RecalcStyleDuration": 0.007416,
+        "ScriptDuration": 0.03253,
+        "TaskDuration": 0.358988
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 703,
+        "p95": 12.400000000000091,
+        "p99": 16.600000000000364,
+        "max": 25
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 20.999999940395355,
+            "maxMs": 5.899999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.899999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 1.0999999642372131,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6763,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.034974,
+        "RecalcStyleDuration": 0.189981,
+        "ScriptDuration": 0.176265,
+        "TaskDuration": 1.258072
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 94,
+        "p95": 25,
+        "p99": 25.09999999999991,
+        "max": 25.09999999999991
+      },
+      "cameraMoves": 41,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.7000000476837158,
+            "maxMs": 0.7000000476837158,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.7000000476837158
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6763,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(391.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.004991,
+        "RecalcStyleDuration": 0.017682,
+        "ScriptDuration": 0.039246,
+        "TaskDuration": 0.386712
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 691,
+        "p95": 12.5,
+        "p99": 16.700000000000045,
+        "max": 25
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 21.500000059604645,
+            "maxMs": 5.900000035762787,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 5.900000035762787
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 0.800000011920929,
+            "maxMs": 0.20000004768371582,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.20000004768371582
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6775,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.035226,
+        "RecalcStyleDuration": 0.189766,
+        "ScriptDuration": 0.183076,
+        "TaskDuration": 1.286959
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-96",
+      "kind": "primary-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-final-96.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 96,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "69ff0176c11fba1977dfcb4e41f5cd098c0de87405149dd1b4bcc842f288c627",
+      "frames": {
+        "count": 95,
+        "p95": 25,
+        "p99": 25.09999999999991,
+        "max": 25.09999999999991
+      },
+      "cameraMoves": 41,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 0.6000000238418579,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.6000000238418579
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.19999998807907104,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.19999998807907104
+          }
+        }
+      },
+      "nodes": 672,
+      "dom": 6747,
+      "handles": 0,
+      "canonicalNodes": 672,
+      "startTransform": "transform: translate(415.517px, 409.561px) scale(0.0689124);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(391.517px, 409.561px) scale(0.0689124);",
+      "browserWork": {
+        "LayoutDuration": 0.005192,
+        "RecalcStyleDuration": 0.018421,
+        "ScriptDuration": 0.037951,
+        "TaskDuration": 0.390123
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 690,
+        "p95": 16.700000000000728,
+        "p99": 21,
+        "max": 25.100000000000364
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.80000001192093,
+            "maxMs": 10.099999964237213,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 10.099999964237213
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.200000047683716,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8902,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.076384,
+        "RecalcStyleDuration": 0.484475,
+        "ScriptDuration": 0.448741,
+        "TaskDuration": 2.127273
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 86,
+        "p95": 33.40000000000009,
+        "p99": 41.59999999999991,
+        "max": 41.59999999999991
+      },
+      "cameraMoves": 31,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.600000023841858,
+            "maxMs": 1.600000023841858,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.600000023841858
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8968,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(407.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.02816,
+        "RecalcStyleDuration": 0.163953,
+        "ScriptDuration": 0.214973,
+        "TaskDuration": 0.79633
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 706,
+        "p95": 16.700000000000728,
+        "p99": 20.900000000000546,
+        "max": 29.299999999999727
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 35.800000071525574,
+            "maxMs": 10.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 10.199999988079071
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.899999976158142,
+            "maxMs": 0.7999999523162842,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.7999999523162842
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8935,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.080622,
+        "RecalcStyleDuration": 0.492995,
+        "ScriptDuration": 0.455049,
+        "TaskDuration": 2.154629
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 3,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 90,
+        "p95": 29.299999999999727,
+        "p99": 33.5,
+        "max": 33.5
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.399999976158142,
+            "maxMs": 1.399999976158142,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.399999976158142
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.40000003576278687,
+            "maxMs": 0.40000003576278687,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.40000003576278687
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8979,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.02842,
+        "RecalcStyleDuration": 0.164696,
+        "ScriptDuration": 0.219352,
+        "TaskDuration": 0.804227
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 4,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 692,
+        "p95": 16.700000000000728,
+        "p99": 20.900000000000546,
+        "max": 29.299999999999272
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 32.89999997615814,
+            "maxMs": 9.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 9.800000011920929
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.399999976158142,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.699999988079071
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8946,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.07984,
+        "RecalcStyleDuration": 0.482662,
+        "ScriptDuration": 0.44467,
+        "TaskDuration": 2.130757
+      }
+    },
+    {
+      "cohort": "handles-only",
+      "kind": "exploratory",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 5,
+      "rawLog": "out/dense-review-no-handles-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 90,
+        "p95": 29.200000000000273,
+        "p99": 33.30000000000018,
+        "max": 33.30000000000018
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8924,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.027472,
+        "RecalcStyleDuration": 0.162928,
+        "ScriptDuration": 0.211882,
+        "TaskDuration": 0.7832269999999999
+      }
+    },
+    {
+      "cohort": "pointer-events",
+      "kind": "exploratory",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-pointer-events-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 88,
+        "p95": 29.200000000000273,
+        "p99": 33.30000000000018,
+        "max": 33.30000000000018
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.2999999523162842,
+            "maxMs": 1.2999999523162842,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.2999999523162842
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 9023,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.029024,
+        "RecalcStyleDuration": 0.169211,
+        "ScriptDuration": 0.165758,
+        "TaskDuration": 0.760633
+      }
+    },
+    {
+      "cohort": "pointer-events",
+      "kind": "exploratory",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-pointer-events-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 91,
+        "p95": 29.300000000000182,
+        "p99": 37.59999999999991,
+        "max": 37.59999999999991
+      },
+      "cameraMoves": 31,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 9001,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.029548,
+        "RecalcStyleDuration": 0.167972,
+        "ScriptDuration": 0.17616,
+        "TaskDuration": 0.770697
+      }
+    },
+    {
+      "cohort": "pointer-events",
+      "kind": "exploratory",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 2,
+      "rawLog": "out/dense-review-pointer-events-first.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 89,
+        "p95": 29.200000000000273,
+        "p99": 33.40000000000009,
+        "max": 33.40000000000009
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8891,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.027566,
+        "RecalcStyleDuration": 0.164684,
+        "ScriptDuration": 0.161569,
+        "TaskDuration": 0.7394419999999999
+      }
+    },
+    {
+      "cohort": "viewport-layer",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-viewport-layer-probe.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .react-flow__viewport { will-change: transform; }",
+      "frames": {
+        "count": 656,
+        "p95": 58.400000000001455,
+        "p99": 70.80000000000018,
+        "max": 79.40000000000055
+      },
+      "cameraMoves": 97,
+      "longTasks": [
+        59,
+        61,
+        60,
+        61,
+        71,
+        82,
+        58,
+        62,
+        63,
+        61,
+        52,
+        50,
+        52,
+        53,
+        53,
+        54,
+        52,
+        56,
+        57,
+        60,
+        57,
+        58,
+        63,
+        60,
+        63,
+        68,
+        69,
+        68,
+        62,
+        59,
+        58,
+        55,
+        61,
+        59,
+        60,
+        59,
+        64,
+        70,
+        85,
+        70,
+        63,
+        54,
+        60,
+        60,
+        55,
+        58,
+        50,
+        55,
+        50,
+        54,
+        54,
+        57,
+        57,
+        66,
+        58,
+        58,
+        65,
+        61,
+        62,
+        67,
+        68,
+        62,
+        59,
+        61,
+        58,
+        55,
+        66,
+        78,
+        74
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 153.29999995231628,
+            "maxMs": 43.69999998807907,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 43.69999998807907
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.800000011920929,
+            "maxMs": 0.8999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.8999999761581421
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15516,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.08005,
+        "RecalcStyleDuration": 0.605195,
+        "ScriptDuration": 1.221183,
+        "TaskDuration": 5.928981
+      }
+    },
+    {
+      "cohort": "viewport-layer",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-viewport-layer-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .react-flow__viewport { will-change: transform; }",
+      "frames": {
+        "count": 79,
+        "p95": 66.69999999999982,
+        "p99": 75.10000000000036,
+        "max": 75.10000000000036
+      },
+      "cameraMoves": 15,
+      "longTasks": [
+        59,
+        60,
+        63,
+        65,
+        69,
+        62,
+        58,
+        58,
+        62,
+        66,
+        72,
+        62,
+        63,
+        59,
+        58
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.199999988079071,
+            "maxMs": 1.199999988079071,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.199999988079071
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15560,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(407.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.013571,
+        "RecalcStyleDuration": 0.096308,
+        "ScriptDuration": 0.265421,
+        "TaskDuration": 0.993645
+      }
+    },
+    {
+      "cohort": "node-containment",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-node-containment-probe.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .react-flow__node { contain: layout style; }",
+      "frames": {
+        "count": 722,
+        "p95": 29.400000000000546,
+        "p99": 37.5,
+        "max": 50.099999999999454
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 43.000000059604645,
+            "maxMs": 14.099999964237213,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 14.099999964237213
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.300000011920929,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15582,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.082052,
+        "RecalcStyleDuration": 0.708031,
+        "ScriptDuration": 1.31818,
+        "TaskDuration": 3.3307610000000003
+      }
+    },
+    {
+      "cohort": "node-containment",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-node-containment-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .react-flow__node { contain: layout style; }",
+      "frames": {
+        "count": 87,
+        "p95": 41.70000000000073,
+        "p99": 54.20000000000073,
+        "max": 54.20000000000073
+      },
+      "cameraMoves": 24,
+      "longTasks": [
+        52,
+        50
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.5999999642372131,
+            "maxMs": 1.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.5999999642372131
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.800000011920929,
+            "maxMs": 0.800000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.800000011920929
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15615,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.022344,
+        "RecalcStyleDuration": 0.199483,
+        "ScriptDuration": 0.440817,
+        "TaskDuration": 0.984896
+      }
+    },
+    {
+      "cohort": "shadows-off",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-no-shadows-wasd-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .ambio-shape-backdrop-path, .ambio-canvas-review .ambio-system-backdrop { filter: none !important; }",
+      "frames": {
+        "count": 106,
+        "p95": 25,
+        "p99": 33.40000000000009,
+        "max": 41.80000000000018
+      },
+      "cameraMoves": 42,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 842,
+      "dom": 9009,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(431.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.035043,
+        "RecalcStyleDuration": 0.201062,
+        "ScriptDuration": 0.24854,
+        "TaskDuration": 0.919115
+      }
+    },
+    {
+      "cohort": "shadows-off",
+      "kind": "rejected-style-probe",
+      "implementationCommit": "040d89c",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-no-shadows-wasd-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "77a5dc978a87f220dad27e48fcbee104b479b4552e87fdc1e8ba6f7c3c5eb74b",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": ".ambio-canvas-review .ambio-shape-backdrop-path, .ambio-canvas-review .ambio-system-backdrop { filter: none !important; }",
+      "frames": {
+        "count": 111,
+        "p95": 25,
+        "p99": 25.09999999999991,
+        "max": 29.199999999999818
+      },
+      "cameraMoves": 43,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.2999999523162842,
+            "maxMs": 1.2999999523162842,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.2999999523162842
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.6000000238418579,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8991,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.035936,
+        "RecalcStyleDuration": 0.210694,
+        "ScriptDuration": 0.247493,
+        "TaskDuration": 0.925507
+      }
+    },
+    {
+      "cohort": "shadow-silhouette",
+      "kind": "rejected-uncommitted-prototype",
+      "implementationCommit": "uncommitted then reverted",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-shadow-geometry-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "1d436fa027cc806a7b40b16ffd52c28cb428ff23f66fe962a68f77fb321d62f9",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 99,
+        "p95": 29.09999999999991,
+        "p99": 29.300000000000182,
+        "max": 29.300000000000182
+      },
+      "cameraMoves": 37,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.300000011920929
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 9873,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(423.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.032293,
+        "RecalcStyleDuration": 0.195297,
+        "ScriptDuration": 0.186904,
+        "TaskDuration": 0.877091
+      }
+    },
+    {
+      "cohort": "shadow-silhouette",
+      "kind": "rejected-uncommitted-prototype",
+      "implementationCommit": "uncommitted then reverted",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-shadow-geometry-probe.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "1d436fa027cc806a7b40b16ffd52c28cb428ff23f66fe962a68f77fb321d62f9",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 101,
+        "p95": 25.09999999999991,
+        "p99": 29.199999999999818,
+        "max": 33.30000000000018
+      },
+      "cameraMoves": 38,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.2000000476837158,
+            "maxMs": 1.2000000476837158,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.2000000476837158
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.3999999761581421
+          }
+        }
+      },
+      "nodes": 842,
+      "dom": 9861,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(431.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.033701,
+        "RecalcStyleDuration": 0.193748,
+        "ScriptDuration": 0.188865,
+        "TaskDuration": 0.884007
+      }
+    },
+    {
+      "cohort": "control-profile",
+      "kind": "instrumented-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-control-profile.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": true,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 721,
+        "p95": 33.30000000000018,
+        "p99": 37.600000000000364,
+        "max": 54.19999999999982
+      },
+      "cameraMoves": 97,
+      "longTasks": [
+        55,
+        53
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 50,
+            "maxMs": 15.899999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 15.899999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.600000023841858,
+            "maxMs": 0.6000000238418579,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.6000000238418579
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15515,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.116797,
+        "RecalcStyleDuration": 0.658223,
+        "ScriptDuration": 1.415106,
+        "TaskDuration": 3.556476
+      }
+    },
+    {
+      "cohort": "control-profile",
+      "kind": "instrumented-control",
+      "implementationCommit": "25d2599",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-control-profile.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "3a8cd578e853290d487d94154e8fb7cab7fa753f249b9ad5f1bbc5707a0cd0a1",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": true,
+      "diagnosticStyle": null,
+      "frames": {
+        "count": 83,
+        "p95": 45.900000000000546,
+        "p99": 54.19999999999982,
+        "max": 54.19999999999982
+      },
+      "cameraMoves": 22,
+      "longTasks": [
+        55,
+        50,
+        52
+      ],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.5,
+            "maxMs": 1.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.5
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 15614,
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.02883,
+        "RecalcStyleDuration": 0.163006,
+        "ScriptDuration": 0.435474,
+        "TaskDuration": 0.949038
+      }
+    },
+    {
+      "cohort": "updated-profile",
+      "kind": "instrumented-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-final-profile.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        },
+        "gpu": {
+          "features": {
+            "2d_canvas": "enabled",
+            "canvas_oop_rasterization": "enabled_on",
+            "direct_rendering_display_compositor": "disabled_off_ok",
+            "gpu_compositing": "enabled",
+            "multiple_raster_threads": "enabled_on",
+            "opengl": "enabled_on",
+            "rasterization": "enabled",
+            "raw_draw": "disabled_off_ok",
+            "skia_graphite": "disabled_off",
+            "video_decode": "enabled",
+            "video_encode": "enabled",
+            "vulkan": "disabled_off",
+            "webgl": "enabled",
+            "webgl2": "enabled",
+            "webgpu": "enabled",
+            "webnn": "disabled_off"
+          },
+          "info": {
+            "auxAttributes": {
+              "amdSwitchable": false,
+              "canSupportThreadedTextureMailbox": false,
+              "directMLFeatureLevel": "Not supported",
+              "dx12FeatureLevel": "Not supported",
+              "glImplementationParts": "(gl=none,angle=none)",
+              "glResetNotificationStrategy": 0,
+              "inProcessGpu": true,
+              "initializationTime": 0,
+              "isAsan": false,
+              "isClangCoverage": false,
+              "jpegDecodeAcceleratorSupported": false,
+              "optimus": false,
+              "overlayInfo": {
+                "bgra8OverlaySupport": "NONE",
+                "directComposition": false,
+                "nv12OverlaySupport": "NONE",
+                "rgb10a2OverlaySupport": "NONE",
+                "supportsOverlays": false,
+                "yuy2OverlaySupport": "NONE"
+              },
+              "passthroughCmdDecoder": false,
+              "sandboxed": false,
+              "subpixelFontRendering": true,
+              "supportsD3dSharedImages": false,
+              "supportsDirectML": false,
+              "supportsDx12": false,
+              "supportsVulkan": false,
+              "targetCpuBits": 64,
+              "visibilityCallbackCallCount": 0,
+              "vulkanVersion": "Not supported"
+            },
+            "gpuDevice": [
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 11269,
+                "driverVersion": "32.0.16.1088",
+                "gpuPreference": 3,
+                "revision": 161,
+                "subSysId": 1393562722,
+                "vendorId": 4318
+              },
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 5056,
+                "driverVersion": "32.0.21036.18",
+                "gpuPreference": 2,
+                "revision": 194,
+                "subSysId": -805301160,
+                "vendorId": 4098
+              },
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 140,
+                "driverVersion": "10.0.26100.9711",
+                "gpuPreference": 0,
+                "revision": 0,
+                "subSysId": 0,
+                "vendorId": 5140
+              }
+            ]
+          }
+        }
+      },
+      "instrumented": true,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 721,
+        "p95": 20.899999999999636,
+        "p99": 25,
+        "max": 29.200000000000728
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 39.90000003576279,
+            "maxMs": 11.5,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 11.5
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.799999952316284,
+            "maxMs": 0.699999988079071,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.699999988079071
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8979,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.115675,
+        "RecalcStyleDuration": 0.534015,
+        "ScriptDuration": 0.487936,
+        "TaskDuration": 2.383356
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": true
+      }
+    },
+    {
+      "cohort": "updated-profile",
+      "kind": "instrumented-updated",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 1,
+      "rawLog": "out/dense-review-final-profile.log",
+      "mode": "review",
+      "input": "wasd",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        },
+        "gpu": {
+          "features": {
+            "2d_canvas": "enabled",
+            "canvas_oop_rasterization": "enabled_on",
+            "direct_rendering_display_compositor": "disabled_off_ok",
+            "gpu_compositing": "enabled",
+            "multiple_raster_threads": "enabled_on",
+            "opengl": "enabled_on",
+            "rasterization": "enabled",
+            "raw_draw": "disabled_off_ok",
+            "skia_graphite": "disabled_off",
+            "video_decode": "enabled",
+            "video_encode": "enabled",
+            "vulkan": "disabled_off",
+            "webgl": "enabled",
+            "webgl2": "enabled",
+            "webgpu": "enabled",
+            "webnn": "disabled_off"
+          },
+          "info": {
+            "auxAttributes": {
+              "amdSwitchable": false,
+              "canSupportThreadedTextureMailbox": false,
+              "directMLFeatureLevel": "Not supported",
+              "dx12FeatureLevel": "Not supported",
+              "glImplementationParts": "(gl=none,angle=none)",
+              "glResetNotificationStrategy": 0,
+              "inProcessGpu": true,
+              "initializationTime": 0,
+              "isAsan": false,
+              "isClangCoverage": false,
+              "jpegDecodeAcceleratorSupported": false,
+              "optimus": false,
+              "overlayInfo": {
+                "bgra8OverlaySupport": "NONE",
+                "directComposition": false,
+                "nv12OverlaySupport": "NONE",
+                "rgb10a2OverlaySupport": "NONE",
+                "supportsOverlays": false,
+                "yuy2OverlaySupport": "NONE"
+              },
+              "passthroughCmdDecoder": false,
+              "sandboxed": false,
+              "subpixelFontRendering": true,
+              "supportsD3dSharedImages": false,
+              "supportsDirectML": false,
+              "supportsDx12": false,
+              "supportsVulkan": false,
+              "targetCpuBits": 64,
+              "visibilityCallbackCallCount": 0,
+              "vulkanVersion": "Not supported"
+            },
+            "gpuDevice": [
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 11269,
+                "driverVersion": "32.0.16.1088",
+                "gpuPreference": 3,
+                "revision": 161,
+                "subSysId": 1393562722,
+                "vendorId": 4318
+              },
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 5056,
+                "driverVersion": "32.0.21036.18",
+                "gpuPreference": 2,
+                "revision": 194,
+                "subSysId": -805301160,
+                "vendorId": 4098
+              },
+              {
+                "active": false,
+                "cudaComputeCapabilityMajor": 0,
+                "deviceId": 140,
+                "driverVersion": "10.0.26100.9711",
+                "gpuPreference": 0,
+                "revision": 0,
+                "subSysId": 0,
+                "vendorId": 5140
+              }
+            ]
+          }
+        }
+      },
+      "instrumented": true,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 88,
+        "p95": 29.300000000000182,
+        "p99": 37.600000000000364,
+        "max": 37.600000000000364
+      },
+      "cameraMoves": 32,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 2,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 1,
+            "totalMs": 1.600000023841858,
+            "maxMs": 1.600000023841858,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 1.600000023841858
+          },
+          "worker.query": {
+            "count": 1,
+            "totalMs": 0.5,
+            "maxMs": 0.5,
+            "maxItems": 0,
+            "retainedSamples": 1,
+            "retainedP95Ms": 0.5
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8891,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.039541,
+        "RecalcStyleDuration": 0.183543,
+        "ScriptDuration": 0.183619,
+        "TaskDuration": 0.8342829999999999
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": false,
+        "frameP99": false
+      }
+    },
+    {
+      "cohort": "mouse-enforced",
+      "kind": "enforced-frame-gate",
+      "implementationCommit": "068158d",
+      "recordOrdinal": 0,
+      "rawLog": "out/dense-review-enforced-256.log",
+      "mode": "review",
+      "input": "mouse",
+      "systems": 256,
+      "buildFingerprint": "134e5424be913eb42fafe04ec3cb5155755847b477183ef0d76d008b98fcaeaa",
+      "reference": {
+        "platform": "win32",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224
+        }
+      },
+      "instrumented": false,
+      "diagnosticStyle": null,
+      "legacyHandles": false,
+      "fixtureFingerprint": "f2bda7591e233ea178bdac86d85ed6a608997c89012043f109bbb2a3637680a0",
+      "frames": {
+        "count": 688,
+        "p95": 16.700000000000728,
+        "p99": 24.899999999999636,
+        "max": 25.100000000000364
+      },
+      "cameraMoves": 97,
+      "longTasks": [],
+      "stages": {
+        "enabled": true,
+        "retained": 10,
+        "dropped": 0,
+        "stages": {
+          "worker.round-trip": {
+            "count": 5,
+            "totalMs": 33.29999989271164,
+            "maxMs": 9.899999976158142,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 9.899999976158142
+          },
+          "worker.query": {
+            "count": 5,
+            "totalMs": 2.3999999165534973,
+            "maxMs": 0.5999999642372131,
+            "maxItems": 0,
+            "retainedSamples": 5,
+            "retainedP95Ms": 0.5999999642372131
+          }
+        }
+      },
+      "nodes": 828,
+      "dom": 8913,
+      "handles": 0,
+      "canonicalNodes": 1792,
+      "startTransform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "renders": 0,
+      "visibilityPasses": 0,
+      "transform": "transform: translate(415.24px, 423.992px) scale(0.02);",
+      "browserWork": {
+        "LayoutDuration": 0.080717,
+        "RecalcStyleDuration": 0.484782,
+        "ScriptDuration": 0.444706,
+        "TaskDuration": 2.129804
+      },
+      "budgets": {
+        "frameP95Ms": 16.7,
+        "frameP99Ms": 33.3,
+        "timestampToleranceMs": 0.1
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true
+      }
+    }
+  ],
+  "summary": {
+    "control-256": {
+      "mouse": {
+        "runs": 5,
+        "frameP95": [
+          29.199999999999818,
+          29.199999999999818,
+          29.199999999999818,
+          29.199999999999818,
+          29.199999999999818
+        ],
+        "frameP99": [
+          33.5,
+          33.5,
+          33.40000000000009,
+          33.40000000000009,
+          33.400000000000546
+        ],
+        "medianFrameP95": 29.199999999999818,
+        "medianFrameP99": 33.400000000000546,
+        "worstFrame": 46,
+        "medianDom": 15515,
+        "handles": [
+          6624
+        ],
+        "mountedNodes": [
+          828
+        ],
+        "canonicalNodes": [
+          1792
+        ],
+        "medianScriptMs": 1223.955,
+        "cameraMoves": [
+          97,
+          97,
+          97,
+          97,
+          97
+        ],
+        "frameP95Passes": 0,
+        "frameP99Passes": 3,
+        "bothFrameGatesPasses": 0,
+        "longTasks": [
+          [],
+          [],
+          [],
+          [],
+          []
+        ]
+      },
+      "wasd": {
+        "runs": 5,
+        "frameP95": [
+          37.600000000000364,
+          37.59999999999991,
+          41.80000000000018,
+          37.600000000000364,
+          37.600000000000364
+        ],
+        "frameP99": [
+          50.09999999999991,
+          58.5,
+          54.19999999999982,
+          58.399999999999636,
+          58.29999999999927
+        ],
+        "medianFrameP95": 37.600000000000364,
+        "medianFrameP99": 58.29999999999927,
+        "worstFrame": 58.5,
+        "medianDom": 15592,
+        "handles": [
+          6624
+        ],
+        "mountedNodes": [
+          828
+        ],
+        "canonicalNodes": [
+          1792
+        ],
+        "medianScriptMs": 436.762,
+        "cameraMoves": [
+          23,
+          25,
+          24,
+          25,
+          25
+        ],
+        "frameP95Passes": 0,
+        "frameP99Passes": 0,
+        "bothFrameGatesPasses": 0,
+        "longTasks": [
+          [],
+          [
+            54
+          ],
+          [
+            50
+          ],
+          [
+            59
+          ],
+          [
+            51
+          ]
+        ]
+      }
+    },
+    "control-96": {
+      "mouse": {
+        "runs": 3,
+        "frameP95": [
+          16.59999999999991,
+          16.59999999999991,
+          12.600000000000364
+        ],
+        "frameP99": [
+          25,
+          25,
+          21
+        ],
+        "medianFrameP95": 16.59999999999991,
+        "medianFrameP99": 25,
+        "worstFrame": 33.40000000000009,
+        "medianDom": 12103,
+        "handles": [
+          5376
+        ],
+        "mountedNodes": [
+          672
+        ],
+        "canonicalNodes": [
+          672
+        ],
+        "medianScriptMs": 577.5799999999999,
+        "cameraMoves": [
+          97,
+          97,
+          97
+        ],
+        "frameP95Passes": 3,
+        "frameP99Passes": 3,
+        "bothFrameGatesPasses": 3,
+        "longTasks": [
+          [],
+          [],
+          []
+        ]
+      },
+      "wasd": {
+        "runs": 3,
+        "frameP95": [
+          25.09999999999991,
+          25.100000000000136,
+          25.09999999999991
+        ],
+        "frameP99": [
+          29.200000000000045,
+          29.09999999999991,
+          29.200000000000045
+        ],
+        "medianFrameP95": 25.09999999999991,
+        "medianFrameP99": 29.200000000000045,
+        "worstFrame": 29.200000000000045,
+        "medianDom": 12083,
+        "handles": [
+          5376
+        ],
+        "mountedNodes": [
+          672
+        ],
+        "canonicalNodes": [
+          672
+        ],
+        "medianScriptMs": 195.066,
+        "cameraMoves": [
+          38,
+          38,
+          38
+        ],
+        "frameP95Passes": 0,
+        "frameP99Passes": 3,
+        "bothFrameGatesPasses": 0,
+        "longTasks": [
+          [],
+          [],
+          []
+        ]
+      }
+    },
+    "updated-256": {
+      "mouse": {
+        "runs": 5,
+        "frameP95": [
+          16.799999999999727,
+          16.699999999999818,
+          16.700000000000728,
+          16.800000000000182,
+          16.700000000000728
+        ],
+        "frameP99": [
+          21,
+          20.900000000000546,
+          20.900000000000546,
+          20.900000000000546,
+          20.900000000000546
+        ],
+        "medianFrameP95": 16.700000000000728,
+        "medianFrameP99": 20.900000000000546,
+        "worstFrame": 33.5,
+        "medianDom": 8935,
+        "handles": [
+          0
+        ],
+        "mountedNodes": [
+          828
+        ],
+        "canonicalNodes": [
+          1792
+        ],
+        "medianScriptMs": 448.38800000000003,
+        "cameraMoves": [
+          97,
+          97,
+          97,
+          97,
+          97
+        ],
+        "frameP95Passes": 5,
+        "frameP99Passes": 5,
+        "bothFrameGatesPasses": 5,
+        "longTasks": [
+          [],
+          [],
+          [],
+          [],
+          []
+        ]
+      },
+      "wasd": {
+        "runs": 5,
+        "frameP95": [
+          29.200000000000273,
+          29.200000000000273,
+          33.30000000000018,
+          29.300000000000182,
+          29.300000000000182
+        ],
+        "frameP99": [
+          33.40000000000009,
+          29.300000000000182,
+          33.40000000000009,
+          33.40000000000009,
+          33.5
+        ],
+        "medianFrameP95": 29.300000000000182,
+        "medianFrameP99": 33.40000000000009,
+        "worstFrame": 33.5,
+        "medianDom": 8990,
+        "handles": [
+          0
+        ],
+        "mountedNodes": [
+          828
+        ],
+        "canonicalNodes": [
+          1792
+        ],
+        "medianScriptMs": 165.72899999999998,
+        "cameraMoves": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "frameP95Passes": 0,
+        "frameP99Passes": 4,
+        "bothFrameGatesPasses": 0,
+        "longTasks": [
+          [],
+          [],
+          [],
+          [],
+          []
+        ]
+      }
+    },
+    "updated-96": {
+      "mouse": {
+        "runs": 3,
+        "frameP95": [
+          12.5,
+          12.400000000000091,
+          12.5
+        ],
+        "frameP99": [
+          16.700000000000273,
+          16.600000000000364,
+          16.700000000000045
+        ],
+        "medianFrameP95": 12.5,
+        "medianFrameP99": 16.700000000000045,
+        "worstFrame": 25.100000000000136,
+        "medianDom": 6763,
+        "handles": [
+          0
+        ],
+        "mountedNodes": [
+          672
+        ],
+        "canonicalNodes": [
+          672
+        ],
+        "medianScriptMs": 183.076,
+        "cameraMoves": [
+          97,
+          97,
+          97
+        ],
+        "frameP95Passes": 3,
+        "frameP99Passes": 3,
+        "bothFrameGatesPasses": 3,
+        "longTasks": [
+          [],
+          [],
+          []
+        ]
+      },
+      "wasd": {
+        "runs": 3,
+        "frameP95": [
+          25.100000000000136,
+          25,
+          25
+        ],
+        "frameP99": [
+          33.30000000000018,
+          25.09999999999991,
+          25.09999999999991
+        ],
+        "medianFrameP95": 25,
+        "medianFrameP99": 25.09999999999991,
+        "worstFrame": 33.30000000000018,
+        "medianDom": 6759,
+        "handles": [
+          0
+        ],
+        "mountedNodes": [
+          672
+        ],
+        "canonicalNodes": [
+          672
+        ],
+        "medianScriptMs": 37.951,
+        "cameraMoves": [
+          37,
+          41,
+          41
+        ],
+        "frameP95Passes": 0,
+        "frameP99Passes": 3,
+        "bothFrameGatesPasses": 0,
+        "longTasks": [
+          [],
+          [],
+          []
+        ]
+      }
+    }
+  },
+  "failures": [
+    {
+      "cohort": "control-96-first",
+      "phase": "before measurement",
+      "input": "mouse",
+      "repeatIndex": 0,
+      "error": "Immediate legacy hidden-handle startup assertion returned false once. Exact transient state was not captured. No timing record produced.",
+      "log": "out/dense-review-final-control-96.log",
+      "followup": "Restored asynchronous polling used by the pre-existing harness; all six control96-recheck cases then passed. Original failure retained, not represented as a passing measurement."
+    }
+  ],
+  "diagnosticBrowserSpans": [
+    {
+      "case": "dense-review-control-profile",
+      "input": "mouse",
+      "rawTimeline": "out/dense-review-control-profile/mouse-pan-timeline.json",
+      "interpretation": "Inclusive sums across nested spans and threads; not additive wall time or physical GPU timings. WASD move counts differ.",
+      "spans": {
+        "FunctionCall": {
+          "totalMs": 1427.4020000000005,
+          "count": 2510
+        },
+        "EventDispatch": {
+          "totalMs": 930.8389999999997,
+          "count": 210
+        },
+        "UpdateLayoutTree": {
+          "totalMs": 658.406,
+          "count": 823
+        },
+        "Layerize": {
+          "totalMs": 553.9499999999946,
+          "count": 714
+        },
+        "GPUTask": {
+          "totalMs": 510.72400000000005,
+          "count": 116
+        },
+        "HitTest": {
+          "totalMs": 177.77399999999997,
+          "count": 116
+        },
+        "Paint": {
+          "totalMs": 143.158,
+          "count": 99
+        },
+        "Layout": {
+          "totalMs": 116.00800000000002,
+          "count": 97
+        },
+        "RasterTask": {
+          "totalMs": 92.487,
+          "count": 396
+        }
+      }
+    },
+    {
+      "case": "dense-review-control-profile",
+      "input": "wasd",
+      "rawTimeline": "out/dense-review-control-profile/wasd-pan-timeline.json",
+      "interpretation": "Inclusive sums across nested spans and threads; not additive wall time or physical GPU timings. WASD move counts differ.",
+      "spans": {
+        "FunctionCall": {
+          "totalMs": 438.8829999999998,
+          "count": 378
+        },
+        "EventDispatch": {
+          "totalMs": 8.725000000000001,
+          "count": 9
+        },
+        "UpdateLayoutTree": {
+          "totalMs": 162.98799999999977,
+          "count": 108
+        },
+        "Layerize": {
+          "totalMs": 166.94000000000025,
+          "count": 85
+        },
+        "GPUTask": {
+          "totalMs": 596.595,
+          "count": 29
+        },
+        "HitTest": {
+          "totalMs": 81.25700000000002,
+          "count": 52
+        },
+        "Paint": {
+          "totalMs": 35.22,
+          "count": 22
+        },
+        "Layout": {
+          "totalMs": 28.661,
+          "count": 22
+        },
+        "RasterTask": {
+          "totalMs": 32.498000000000005,
+          "count": 88
+        }
+      }
+    },
+    {
+      "case": "dense-review-final-profile",
+      "input": "mouse",
+      "rawTimeline": "out/dense-review-final-profile/mouse-pan-timeline.json",
+      "interpretation": "Inclusive sums across nested spans and threads; not additive wall time or physical GPU timings. WASD move counts differ.",
+      "spans": {
+        "FunctionCall": {
+          "totalMs": 500.16499999999667,
+          "count": 2510
+        },
+        "EventDispatch": {
+          "totalMs": 358.66100000000006,
+          "count": 209
+        },
+        "UpdateLayoutTree": {
+          "totalMs": 534.0369999999989,
+          "count": 823
+        },
+        "Layerize": {
+          "totalMs": 540.2599999999939,
+          "count": 709
+        },
+        "GPUTask": {
+          "totalMs": 523.9809999999999,
+          "count": 119
+        },
+        "HitTest": {
+          "totalMs": 165.26700000000002,
+          "count": 112
+        },
+        "Paint": {
+          "totalMs": 131.04499999999993,
+          "count": 99
+        },
+        "Layout": {
+          "totalMs": 115.014,
+          "count": 98
+        },
+        "RasterTask": {
+          "totalMs": 98.21599999999998,
+          "count": 396
+        }
+      }
+    },
+    {
+      "case": "dense-review-final-profile",
+      "input": "wasd",
+      "rawTimeline": "out/dense-review-final-profile/wasd-pan-timeline.json",
+      "interpretation": "Inclusive sums across nested spans and threads; not additive wall time or physical GPU timings. WASD move counts differ.",
+      "spans": {
+        "FunctionCall": {
+          "totalMs": 188.0499999999996,
+          "count": 449
+        },
+        "EventDispatch": {
+          "totalMs": 1.672,
+          "count": 9
+        },
+        "UpdateLayoutTree": {
+          "totalMs": 183.51,
+          "count": 122
+        },
+        "Layerize": {
+          "totalMs": 239.45900000000034,
+          "count": 90
+        },
+        "GPUTask": {
+          "totalMs": 869.022,
+          "count": 42
+        },
+        "HitTest": {
+          "totalMs": 65.07799999999999,
+          "count": 36
+        },
+        "Paint": {
+          "totalMs": 43.70700000000001,
+          "count": 32
+        },
+        "Layout": {
+          "totalMs": 39.303,
+          "count": 32
+        },
+        "RasterTask": {
+          "totalMs": 47.37699999999998,
+          "count": 128
+        }
+      }
+    }
+  ],
+  "completedDate": "2026-10-27"
+}

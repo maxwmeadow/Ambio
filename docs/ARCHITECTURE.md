@@ -654,7 +654,38 @@ and use the normal reconciliation path. Equivalent model echoes reuse record
 and geometry identity. Idle overlays return the original array without stamping
 unset booleans to false. Saved scenes build persistence lookups only when rows
 need writing; review saved-row membership uses a set instead of nested scans.
-The integrity audit remains authoritative and still runs on the adoption path.
+The integrity audit remains authoritative. Floor preparation now runs that audit
+cooperatively before publication, against the independent model membership. Its
+completed result is cached for the exact immutable node array and membership
+identity; selection/activity stamps retain it alongside the semantic visibility
+index. Adoption can consume that result without repeating a project-sized audit.
+Geometry, visibility, ordering or membership edits invalidate reuse and still
+take the ordinary audit path. Review/sheet transforms retain their own validation.
+Semantic index preparation uses bounded stable sorts (256 entries per native
+sort and cooperative merges), with a linear path for already depth-ordered nodes.
+No reveal threshold or camera/authoring contract changes.
+
+Floor file projection reuses `binModel.ts`'s single-pass partition when the
+canvas and bins share an indexed population and placement rules; the partition
+retains all source files in input order as well as placed/unclassified/docs.
+Review-specific populations keep their own filter. `DeltaPanel` leaves file and
+system subscriptions inactive without a delta and builds filter lookups only
+when review opens. These avoid synchronous cold-store consumer work; measured
+controls and limits are in [the cold-input follow-up](testing/CANVAS_COLD_INPUT_WIN.md).
+Loose-file layout membership is built only when a placement query needs it,
+once per immutable layout revision. Canonical membership remains independent
+of candidate geometry and is populated without temporary ID arrays. App's
+authored-system decision reads system sources only; source counts are computed
+when the setup screen is displayed. The [budget confirmation](testing/CANVAS_COLD_INPUT_BUDGET.md)
+records repeated native cold-input results and remaining limits.
+Initial-mapping Review stamps `omitConnectionHandles` in presentation data,
+so full and compact nodes omit inactive React Flow endpoint components and
+their store subscriptions. Disabled Floor/sheet endpoints still mount for
+relationship geometry; the flag is independent of connection permissions.
+WASD ownership follows browser pointer-move/boundary events, including surfaces
+appearing under a stationary pointer, instead of a forced hit test every frame.
+[Dense Review measurements](testing/DENSE_REVIEW_FRAME_COST.md) retain native
+controls, rejected prototypes and the remaining keyboard frame-budget miss.
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.

@@ -281,6 +281,44 @@ test('renders the deterministic Floor baseline', async () => {
   await expect(page.locator('.react-flow')).toHaveScreenshot('floor-baseline.png')
 })
 
+test('WASD follows pointer ownership through stationary overlays and ignores text editing', async () => {
+  const canvas = page.locator('[data-ambio-canvas]').first()
+  const viewport = canvas.locator('.react-flow__viewport')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+  await page.mouse.move(point.x, point.y)
+  const before = await viewport.getAttribute('style')
+  await page.keyboard.down('d')
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(before)
+  // A nested surface appearing beneath a stationary pointer takes ownership.
+  await page.evaluate(point => {
+    const overlay = document.createElement('div')
+    overlay.id = 'wasd-scope-probe'
+    overlay.setAttribute('data-ambio-canvas', 'test-overlay')
+    Object.assign(overlay.style, { position: 'fixed', left: `${point.x - 50}px`, top: `${point.y - 50}px`,
+      width: '100px', height: '100px', background: '#fff', zIndex: '2147483647' })
+    document.body.append(overlay)
+  }, point)
+  await page.waitForTimeout(100)
+  const occluded = await viewport.getAttribute('style')
+  await page.waitForTimeout(100)
+  expect(await viewport.getAttribute('style')).toBe(occluded)
+  await page.evaluate(() => document.getElementById('wasd-scope-probe')!.remove())
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(occluded)
+  await page.keyboard.up('d')
+  await page.evaluate(() => {
+    const input = document.createElement('input')
+    input.id = 'wasd-editor-probe'
+    document.body.append(input)
+    input.focus()
+  })
+  const editing = await viewport.getAttribute('style')
+  await page.keyboard.down('d'); await page.waitForTimeout(100); await page.keyboard.up('d')
+  expect(await viewport.getAttribute('style')).toBe(editing)
+  await page.evaluate(() => document.getElementById('wasd-editor-probe')!.remove())
+})
+
 test('clipped dashed routes preserve browser rasterization at ordinary and extreme zoom', async () => {
   const cases = [0.02, 0.5, 1, 2, 100].flatMap(zoom => [true, false].map(nonScaling => {
     const points = [{ x: -157, y: 50 }, { x: 100, y: 50 }, { x: 100, y: 400 },
@@ -1269,6 +1307,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   // live Floor freezes. No gesture may be the first sparse layout write.
   await expect.poll(() => proposalLayoutSaves).toBe(1)
   await expect(page.locator('.ambio-review__canvas .ambio-canvas-review-ready')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
   expect(new Set(proposalLayoutWriteKeys[0]))
     .toEqual(new Set(['system:canvas', 'system:zoom', 'file:member-a', 'file:member-b']))
 
@@ -1642,6 +1681,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(5)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
 
   const beforePan = await viewport.getAttribute('style')
   await page.keyboard.down('d')
