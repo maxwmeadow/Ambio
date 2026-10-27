@@ -24,8 +24,8 @@ contextBridge.exposeInMainWorld('ambio', {
   testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
   removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
   deleteChat: (id: string): Promise<void> => ipcRenderer.invoke('chat:delete', id),
-  chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
-  createChat: (workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model),
+  chatConversations: (workspaceId: string, mappingAttemptId?: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId, mappingAttemptId),
+  createChat: (workspaceId: string, providerId: string, model?: string, mappingAttemptId?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model, mappingAttemptId),
   chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
   cachedChat: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:cached', id),
   sendChat: (input: ChatSendInput): Promise<void> => ipcRenderer.invoke('chat:send', input),
@@ -343,8 +343,8 @@ declare global {
       testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
       removeChatProvider: (id: string) => Promise<void>
       deleteChat: (id: string) => Promise<void>
-      chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
-      createChat: (workspaceId: string, providerId: string, model?: string) => Promise<ChatConversation>
+      chatConversations: (workspaceId: string, mappingAttemptId?: string) => Promise<ChatConversation[]>
+      createChat: (workspaceId: string, providerId: string, model?: string, mappingAttemptId?: string) => Promise<ChatConversation>
       chatSnapshot: (id: string) => Promise<ChatSnapshot>
       cachedChat: (id: string) => Promise<ChatSnapshot>
       sendChat: (input: ChatSendInput) => Promise<void>

@@ -229,6 +229,12 @@ export async function startHarness(options = {}) {
 
     return {
       client,
+      async createClient(environment) {
+        const child = spawn(process.execPath, [MCP_ENTRY, '--ambio-host=ambio-harness'], { cwd: projectDir, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, AMBIO_API_URL: apiBase, AMBIO_API_TOKEN: API_TOKEN, AMBIO_ACTIVE_PROJECT: activeProjectPath, ...environment } })
+        const connected = new McpClient(child)
+        await connected.request('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'ambio-mapping-harness', version: '1.0.0' } })
+        return connected
+      },
       initialization: initialization.result,
       snapshot,
       workspaceId,

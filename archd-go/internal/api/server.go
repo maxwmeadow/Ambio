@@ -481,6 +481,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/layout/batch", s.handleFloorLayoutBatch)
 	s.registerSheetRoutes(mux)
 	s.registerArchitectureProposalRoutes(mux)
+	mux.HandleFunc("/api/mapping-attempts", s.handleMappingAttempts)
+	mux.HandleFunc("/api/mapping-attempts/", s.handleMappingAttempt)
 	mux.HandleFunc("/api/call-path", s.handleCallPath)
 	mux.HandleFunc("/api/symbols/search", s.handleSymbolSearch)
 	mux.HandleFunc("/api/sheet-import", s.handleSheetImport)

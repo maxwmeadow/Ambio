@@ -35,7 +35,7 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
   const workspaceId = useGraphStore(state => state.currentProject?.id ?? '')
   const {
     proposal, reviewing, cursor, selectedSystemKey, refusals, deciding, error,
-    load, decide, beginReview, endReview, setCursor, selectSystem,
+    load, decide, beginReview, endReview, setCursor, selectSystem, focusSystem,
   } = useProposalStore(useShallow(state => ({
     proposal: state.proposal,
     reviewing: state.reviewing,
@@ -50,6 +50,7 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
     endReview: state.endReview,
     setCursor: state.setCursor,
     selectSystem: state.selectSystem,
+    focusSystem: state.focusSystem,
   })))
 
   const [rejecting, setRejecting] = useState<string | null>(null)
@@ -89,8 +90,10 @@ export function ArchitectureProposalPanel({ embedded = false }: { embedded?: boo
   const focusIndex = useCallback((index: number) => {
     const bounded = Math.max(0, Math.min(index, ordered.length - 1))
     setCursor(bounded)
-    selectSystem(ordered[bounded]?.node.systemKey ?? null)
-  }, [ordered, setCursor, selectSystem])
+    const key = ordered[bounded]?.node.systemKey ?? null
+    selectSystem(key)
+    if (key) focusSystem(key)
+  }, [ordered, setCursor, selectSystem, focusSystem])
 
   const approve = useCallback((systemKey: string) => {
     void decide(systemKey, 'approved')

@@ -58,6 +58,7 @@ export interface DeliveryRun {
   logPath: string
   startedAt: number
   pid?: number
+  processIdentity?: string | null
   /** The conversation and the kind of turn this run answers. */
   threadId?: string
   mode?: 'ask' | 'propose' | 'build'
@@ -65,6 +66,8 @@ export interface DeliveryRun {
   sessionId?: string
   /** This run continued the session an earlier turn left behind. */
   resumed?: boolean
+  /** Finite setup mapping; never resumed as ordinary work. */
+  mappingAttemptId?: string
 }
 
 /** One thing a running agent said or did, as the host reported it. */
@@ -79,6 +82,7 @@ export interface DeliveryRequest {
   workspaceId: string
   messageId: string
   hostId: string
+  mappingAttemptId?: string
   /** The model to run the agent with; unset uses the agent's own default. */
   model?: string
   /** Where an agent Ambio starts works: the project's own checkout (the
@@ -95,6 +99,23 @@ export interface DeliveryResult {
   detail: string
   run?: DeliveryRun
 }
+
+export interface MappingAttempt {
+  id: string
+  workspaceId: string
+  rootId: string
+  messageId?: string
+  state: 'mapping' | 'submitted' | 'cancelled'
+  proposalId?: string
+  notes: string[]
+  systemCount?: number
+  startedAt: number
+  submittedAt?: number
+  endedAt?: number
+}
+
+/** Launcher memory only; never stored in browser state or launch receipts. */
+export interface MappingBinding { attempt: MappingAttempt; token: string }
 
 /** The dropdown value for "save the request and copy the handoff myself". */
 export const MANUAL_DELIVERY = ''

@@ -40,6 +40,8 @@ export interface ChatConversation {
   state: 'idle' | 'working' | 'waiting' | 'interrupted' | 'failed'
   error?: string
   workOrderId?: string
+  /** Setup mapping is a finite, non-resumable session. */
+  mappingAttemptId?: string
 }
 export interface ChatPart {
   id: string

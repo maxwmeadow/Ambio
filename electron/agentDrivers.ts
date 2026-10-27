@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import type { MappingBinding } from '../src/shared/agentDelivery.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -34,6 +35,7 @@ export interface DriverTurn {
   resume?: string
   /** The model the user chose for this turn; unset keeps the host's default. */
   model?: string
+  mapping?: MappingBinding
 }
 
 /** The usual flag for choosing a model, for hosts that take one. */
@@ -89,7 +91,7 @@ function parse(line: string): Record<string, any> | null {
 function mcpServer(turn: DriverTurn) {
   return {
     command: turn.mcp.command, args: [...turn.mcp.args, `--ambio-host=${turn.hostId}`],
-    env: { AMBIO_WORKSPACE_ID: turn.workspaceId, ...(turn.messageId ? { AMBIO_RUN_MESSAGE_ID: turn.messageId } : {}) },
+    env: { AMBIO_WORKSPACE_ID: turn.workspaceId, ...(turn.messageId ? { AMBIO_RUN_MESSAGE_ID: turn.messageId } : {}), ...(turn.mapping ? { AMBIO_MAPPING_ATTEMPT: turn.mapping.attempt.id, AMBIO_API_TOKEN: turn.mapping.token } : {}) },
   }
 }
 
@@ -191,6 +193,8 @@ const codex: AgentDriver = {
         '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
         '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
         '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(turn.workspaceId)}`,
+        ...(turn.messageId ? ['-c', `mcp_servers.ambio.env.AMBIO_RUN_MESSAGE_ID=${JSON.stringify(turn.messageId)}`] : []),
+        ...(turn.mapping ? ['-c', `mcp_servers.ambio.env.AMBIO_MAPPING_ATTEMPT=${JSON.stringify(turn.mapping.attempt.id)}`, '-c', `mcp_servers.ambio.env.AMBIO_API_TOKEN=${JSON.stringify(turn.mapping.token)}`] : []),
         '-c', 'mcp_servers.ambio.enabled=true',
         // With approval_policy "never", Codex refuses every MCP call that needs
         // approval, including Ambio's own (codex-cli 0.162). Ambio's server, and
@@ -324,7 +328,7 @@ const antigravityCli: AgentDriver = {
       // and the project's .agents/mcp_config.json is never loaded.
       // Its print mode cannot ask, so without this any command ends the turn.
       // Nothing narrower exists: Ask and Propose rely on the turn's contract.
-      args: ['-p', turn.prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
+      args: ['-p', turn.prompt, '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
       // Closed at once: agy reads stdin even when the prompt is an argument.
       stdin: undefined,
     }

@@ -260,7 +260,7 @@ export function ChooseAgent({
           {app.configOverride && <> <button type="button" className="ambio-choose__quiet" onClick={() => onClearOverride(app)}>Use the default location</button></>}
         </div>
       </div>
-      action = <button type="button" className="ambio-connect__primary" onClick={onContinue}>Continue with {appName}</button>
+      action = blankProject ? <button type="button" className="ambio-connect__primary" onClick={onContinue}>Continue with {appName}</button> : <p>Map with Ambio chat or a CLI first. You can work with {appName} from the canvas after review.</p>
     }
   }
   const note = app ? notes[app.id] ?? (locateNotices[app.id] ? { ok: true, text: locateNotices[app.id] } : undefined) : undefined

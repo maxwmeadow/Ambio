@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentHostInfo } from '../../../electron/preload'
-import { CLI_CLIENTS, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { CLI_CLIENTS, type DeliveryEvent, type DeliveryHost, type DeliveryRun, type MappingAttempt } from '../../shared/agentDelivery'
+import { archdApi } from '../archdEndpoint.ts'
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
 import { useSheetStore } from '../store/sheetStore'
 import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
@@ -8,17 +9,12 @@ import { MAPPING_CONTRACT } from '../components/inboxModel'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
 import { discoveryRequest } from '../components/agentDiscovery'
 
-/**
- * Mapping a project with an agent Ambio runs itself: Ambio chat, or a CLI on
- * this computer. Nothing to install or restart; the run is an ordinary
- * Propose turn, so it also appears as a conversation in the agent panel.
- * Agents in other apps keep the install → restart → command path.
- */
+/** Mapping is a finite, scoped session whose last action submits the map. */
 
 /** A mapping Ambio started, kept per project so reopening setup follows it. */
 export type MappingRun =
-  | { kind: 'run'; workspaceId: string; messageId: string; hostId: string; label: string; model?: string }
-  | { kind: 'chat'; workspaceId: string; conversationId: string; label: string; model?: string }
+  | { kind: 'run'; workspaceId: string; messageId: string; hostId: string; label: string; model?: string; attemptId?: string }
+  | { kind: 'chat'; workspaceId: string; conversationId: string; label: string; model?: string; attemptId?: string }
 
 const runKey = (workspaceId: string) => `ambio:setup-mapping:${workspaceId}`
 
@@ -41,6 +37,44 @@ export type RunnableChoice =
   | { id: string; label: string; kind: 'setup' }
 
 export const CHAT_SETUP = 'chat-setup'
+
+/** Create the durable boundary before launching any mapping agent. */
+export async function createMappingAttempt(workspaceId: string, messageId?: string): Promise<MappingAttempt> {
+  const response = await fetch(`${archdApi()}/api/mapping-attempts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, messageId }) })
+  if (!response.ok) throw new Error(await response.text())
+  return (await response.json()).attempt as MappingAttempt
+}
+
+export async function stopMappingRun(run: MappingRun): Promise<void> {
+  let revokeError: unknown
+  if (run.attemptId) {
+    try {
+      const response = await fetch(`${archdApi()}/api/mapping-attempts/${encodeURIComponent(run.attemptId)}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: run.workspaceId }) })
+      if (!response.ok) throw new Error(await response.text())
+      if ((await response.json()).endedAt) return
+    } catch (error) { revokeError = error }
+  }
+  if (run.kind === 'chat') {
+    const id = run.conversationId || (await window.ambio.chatConversations(run.workspaceId, run.attemptId)).find(item => item.mappingAttemptId === run.attemptId)?.id
+    if (id) await window.ambio.stopChat(id)
+  }
+  else {
+    const runs = await window.ambio.listDeliveryRuns(run.workspaceId)
+    const current = runs.find(item => item.messageId === run.messageId && ['starting', 'running', 'stopping'].includes(item.state))
+    if (current) await window.ambio.stopDeliveryRun(run.workspaceId, current.key)
+  }
+  if (revokeError) throw revokeError
+  if (run.attemptId) {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const response = await fetch(`${archdApi()}/api/mapping-attempts/${encodeURIComponent(run.attemptId)}?workspace=${encodeURIComponent(run.workspaceId)}`)
+      if (!response.ok) throw new Error(await response.text())
+      if ((await response.json()).endedAt) return
+      await new Promise(resolve => setTimeout(resolve, 150))
+    }
+    throw new Error('The previous mapping agent has not stopped yet. Retry remains locked until it exits.')
+  }
+}
 
 /** What setup has chosen, for the mascot beside it. */
 export type MappingChoice = { label: string; kind: 'chat' | 'run' | 'setup' | 'app'; available?: boolean } | null
@@ -107,20 +141,30 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
   const brief = await window.ambio.mappingBrief()
   let run: MappingRun
   if (choice.kind === 'chat') {
-    const conversation = await window.ambio.createChat(workspaceId, choice.provider.id, model)
-    await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}\n\n${brief}`, mode: 'propose', ...(model ? { model } : {}) })
-    run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label, model }
+    const attempt = await createMappingAttempt(workspaceId)
+    run = { kind: 'chat', workspaceId, conversationId: '', label: choice.label, model, attemptId: attempt.id }
+    rememberMappingRun(run, workspaceId)
+    const conversation = await window.ambio.createChat(workspaceId, choice.provider.id, model, attempt.id)
+    run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label, model, attemptId: attempt.id }
+    rememberMappingRun(run, workspaceId)
+    try {
+      await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}\n\n${brief}`, mode: 'propose', ...(model ? { model } : {}) })
+    } catch (error) { await window.ambio.stopChat(conversation.id); throw error }
+    run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label, model, attemptId: attempt.id }
   } else {
     const messageId = crypto.randomUUID()
     await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
-    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id, ...(model ? { model } : {}) })
-    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model }
+    const attempt = await createMappingAttempt(workspaceId, messageId)
+    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, attemptId: attempt.id }
+    rememberMappingRun(run, workspaceId)
+    await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: choice.host.id, mappingAttemptId: attempt.id, ...(model ? { model } : {}) })
+    run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, attemptId: attempt.id }
   }
   rememberMappingRun(run, workspaceId)
   return { run, warning }
 }
 
-export type MappingState = 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
+export type MappingState = 'stopping' | 'finishing' | 'working' | 'done' | 'failed' | 'stopped' | 'waiting'
 
 /** Live summary shared with the parent stage and Field Agent 04. */
 export interface MappingSummary {
@@ -198,6 +242,7 @@ export function MappingActivity({
   const [items, setItems] = useState<ActivityEvent[]>([])
   const [state, setState] = useState<MappingState>('working')
   const [detail, setDetail] = useState('')
+  const [attempt, setAttempt] = useState<MappingAttempt | null>(null)
   const [current, setCurrent] = useState<DeliveryRun | null>(null)
   const [startTime, setStartTime] = useState<number>(() => Date.now())
   const [elapsed, setElapsed] = useState<number>(0)
@@ -232,8 +277,21 @@ export function MappingActivity({
     const poll = async () => {
       if (finished) return
       try {
+        let mapping: MappingAttempt | undefined
+        if (run.attemptId) {
+          const response = await fetch(`${archdApi()}/api/mapping-attempts/${encodeURIComponent(run.attemptId)}?workspace=${encodeURIComponent(run.workspaceId)}`)
+          if (!response.ok) throw new Error(await response.text())
+          mapping = await response.json() as MappingAttempt
+          if (!active) return
+          setAttempt(mapping)
+          setStartTime(mapping.startedAt)
+          setElapsed(Math.floor(((mapping.submittedAt ?? Date.now()) - mapping.startedAt) / 1000))
+        }
+        if (mapping?.state === 'cancelled' && mapping.endedAt) { setState('stopped'); finished = true; return }
         if (run.kind === 'chat') {
-          const snapshot: ChatSnapshot = await window.ambio.chatSnapshot(run.conversationId)
+          const conversationId = run.conversationId || (await window.ambio.chatConversations(run.workspaceId, run.attemptId)).find(item => item.mappingAttemptId === run.attemptId)?.id
+          if (!conversationId) { setDetail('Recovering the interrupted mapping launch.'); return }
+          const snapshot: ChatSnapshot = await window.ambio.chatSnapshot(conversationId)
           if (!active) return
           const parts = snapshot.messages.filter(message => message.role === 'assistant').flatMap(message => message.parts)
           const converted: ActivityEvent[] = parts.map((part, index) => {
@@ -287,6 +345,8 @@ export function MappingActivity({
           setDetail(latest.state === 'completed' ? '' : latest.detail)
           finished = !['running', 'starting', 'stopping'].includes(latest.state)
         }
+        if (mapping?.state === 'submitted') { setState(mapping.endedAt ? 'done' : 'finishing'); finished = !!mapping.endedAt }
+        else if (mapping?.state === 'cancelled') { setState(mapping.endedAt ? 'stopped' : 'stopping'); finished = !!mapping.endedAt }
       } catch (failure) {
         if (active) setDetail(failure instanceof Error ? failure.message : String(failure))
       }
@@ -331,49 +391,22 @@ export function MappingActivity({
     return detail ? cleanErrorMessage(detail) : ''
   }, [items, detail])
 
+  const isCurrentDraft = Boolean(drafts.newest && drafts.newest.updatedAt >= (current?.startedAt ?? startTime))
+  const systemsCount = attempt ? (attempt.systemCount ?? 0) : (isCurrentDraft ? (drafts.newest?.systemCount ?? 0) : 0)
+
   useEffect(() => {
     onSummary?.({
       state,
       filesCount,
-      systemsCount: drafts.newest?.systemCount ?? 0,
+      systemsCount,
       latestAction,
       error: extractedError || detail,
     })
-  }, [state, filesCount, drafts.newest?.systemCount, latestAction, extractedError, detail, onSummary])
+  }, [state, filesCount, systemsCount, latestAction, extractedError, detail, onSummary])
 
-  const handleFallbackRetry = async () => {
-    try {
-      if (run.kind === 'run') {
-        const brief = await window.ambio.mappingBrief()
-        const messageId = crypto.randomUUID()
-        await useSheetStore.getState().sendToAgent(run.workspaceId, `${MAPPING_CONTRACT}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
-        await window.ambio.deliverWorkOrder({ workspaceId: run.workspaceId, messageId, hostId: run.hostId, ...(run.model ? { model: run.model } : {}) })
-        const newRun: MappingRun = { ...run, messageId }
-        rememberMappingRun(newRun, run.workspaceId)
-        window.location.reload()
-      } else if (run.kind === 'chat') {
-        const providers = await window.ambio.chatProviders().catch(() => [])
-        const providerId = providers[0]?.id || 'anthropic'
-        const brief = await window.ambio.mappingBrief()
-        const conversation = await window.ambio.createChat(run.workspaceId, providerId, run.model)
-        await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}\n\n${brief}`, mode: 'propose', ...(run.model ? { model: run.model } : {}) })
-        const newRun: MappingRun = { kind: 'chat', workspaceId: run.workspaceId, conversationId: conversation.id, label: run.label, model: run.model }
-        rememberMappingRun(newRun, run.workspaceId)
-        window.location.reload()
-      }
-    } catch (e) {
-      console.error('Fallback retry error', e)
-    }
-  }
-
-  const stop = async () => {
-    if (run.kind === 'chat') await window.ambio.stopChat(run.conversationId)
-    else if (current) await window.ambio.stopDeliveryRun(run.workspaceId, current.key)
-  }
+  const stop = async () => { await stopMappingRun(run) }
 
   const label = run.kind === 'chat' ? 'Ambio chat' : run.label
-  const isCurrentDraft = Boolean(drafts.newest && drafts.newest.updatedAt >= (current?.startedAt ?? startTime))
-  const systemsCount = isCurrentDraft ? (drafts.newest?.systemCount ?? 0) : 0
   const elapsedFormatted = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
 
   return (
@@ -383,7 +416,7 @@ export function MappingActivity({
           <span className="ambio-map-activity__pulse" data-state={state} aria-hidden="true" />
           <div className="ambio-map-activity__heading">
             <strong>
-              {state === 'working' ? `${label} is mapping the project`
+              {state === 'stopping' ? 'Stopping the mapping session' : state === 'finishing' ? 'Map submitted — closing the agent session' : state === 'working' ? `${label} is mapping the project`
                 : state === 'waiting' ? `${label} is waiting for you`
                   : state === 'done' ? `${label} finished its run`
                     : state === 'stopped' ? 'Mapping stopped'
@@ -400,8 +433,8 @@ export function MappingActivity({
         </div>
 
         <div className="ambio-map-activity__controls">
-          {state === 'working' || state === 'waiting' ? (
-            <button type="button" className="ambio-connect__secondary" onClick={() => { void stop() }}>
+          {state === 'working' || state === 'waiting' || state === 'finishing' || state === 'stopping' ? (
+            <button type="button" className="ambio-connect__secondary" onClick={() => { void stop().catch(error => setDetail(String(error))) }}>
               Stop
             </button>
           ) : state === 'failed' ? null : (
@@ -439,7 +472,7 @@ export function MappingActivity({
                 className="ambio-connect__primary"
                 onClick={() => {
                   if (onRetry) onRetry()
-                  else void handleFallbackRetry()
+                  else onDismiss()
                 }}
               >
                 Retry with {label}
@@ -454,7 +487,7 @@ export function MappingActivity({
               >
                 Choose again
               </button>
-              {systemsCount > 0 && (
+              {!run.attemptId && systemsCount > 0 && (
                 <button
                   type="button"
                   className="ambio-choose__quiet"

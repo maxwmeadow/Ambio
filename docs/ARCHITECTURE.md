@@ -79,12 +79,50 @@ driver passes with its own flag. Ambio chat services keep the models found when
 tested, and a turn may use any of them. The choice is made in the composer
 (`AgentModelMenu`) and in setup, remembered per agent.
 
-Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) sends the
-mapping brief (`agent:mapping-brief`, the same text the installed workflow
-carries) as a Propose turn: a work order delivered to a CLI Ambio runs, or an
-Ambio chat conversation, whose Propose agent may call `edit_systems`. Progress
-comes from the run's events or the chat snapshot; the proposal itself arrives
-through the usual draft and proposal endpoints.
+Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) creates
+one durable **mapping attempt**, then starts a managed CLI or a dedicated native
+chat runtime. This is a finite mapping task, distinct from ordinary Propose
+conversations. External apps remain available on the canvas; onboarding only
+uses agents Ambio can stop. The mapping brief requires complete source coverage
+and notes before the final submission.
+
+`internal/db/mapping_attempts.go` owns the attempt lifecycle (schema v10): one
+unfinished attempt per workspace, bound to one draft and optional addressed
+request. Draft commit runs in one immediate transaction with proposal creation,
+notes, the submitted receipt and automatic request completion. Chunk arrival,
+notes, cancellation and submission serialize on that transaction boundary.
+Submitted proposals cannot receive new revisions. Cancellation preserves an
+already submitted proposal; retries create new identities. A mapping draft is
+never aborted, but `ResetMappingDraft` clears its chunks (keeping the attempt
+and notes) so an agent can redraw before submitting. Draft systems decode
+strictly (`db.DraftSystems`): an unknown key is refused with the chunk, not
+dropped into a system that owns nothing.
+
+`internal/api/mapping_attempts.go` issues a random task credential whose hash is
+persisted. Every mapped MCP/HTTP call is scoped to the attempt and workspace;
+only code/map inspection, mapping draft operations, notes and activity are
+available. Work sessions, canvas replies, live-map edits, sheets and other work
+are rejected. Submission permanently revokes all calls, with only an identical
+HTTP submit replay allowed to recover a lost acknowledgement. The mapping MCP
+surface and instructions describe this same terminal contract; it never receives
+the desktop's general API credential.
+
+`DeliveryRunner` observes the durable attempt independently of the renderer and
+terminates the managed process tree after submission. Native chat does the same
+through its main-process monitor and disposes its dedicated runtime. Only the
+trusted launcher settles the attempt after process shutdown. Setup says the map
+is submitted while the session is closing; it opens Review only after settlement.
+Review also checks this condition in daemon write transactions and pins the
+exact attempt's proposal, including after renderer reload. Other workspace
+proposals cannot complete setup or replace the reviewed map.
+
+Launch receipts and verified process creation times support crash recovery;
+recovery revokes before killing and never resends inference. Unverified processes
+leave Review locked. An interrupted bootstrap with no process receipt is cancelled
+on the next startup recovery. A failed launch is cancelled and settled. Ordinary
+Ask/Propose/Build permissions and resumable canvas conversations retain their
+existing behavior. Progress comes from CLI events or cached native history;
+submitted counts and timing come from the durable mapping attempt.
 
 `electron/chatProviders.ts` keeps provider metadata and OS-encrypted keys under
 `~/.ambio/chat`; without a secure keychain it keeps keys only in process memory.

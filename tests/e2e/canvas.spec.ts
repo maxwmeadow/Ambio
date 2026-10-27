@@ -3217,6 +3217,11 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     const events = [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }, { at: 6, kind: 'tool', text: 'Read · src/app.ts' }]
     ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => events.slice(0, Date.now() - started > 2500 ? 2 : 1).slice(after))
   })
+  const mappingAttempt = { id: 'mapping-ui', workspaceId: 'demo', rootId: 'root_demo', state: 'mapping', proposalId: '', startedAt: Date.now(), endedAt: 0, systemCount: 0 }
+  await page.route(/\/api\/mapping-attempts(?:\?|$)/, route => route.fulfill({ json: route.request().method() === 'POST' ? { attempt: mappingAttempt, token: 'fixture' } : [mappingAttempt] }))
+  await page.route(/\/api\/mapping-attempts\/mapping-ui\?/, route => route.fulfill({ json: mappingAttempt }))
+  // A historical proposal must never complete this new mapping attempt.
+  await page.route(/\/api\/architecture-proposals\?/, route => route.fulfill({ json: [{ id: 'unrelated-proposal' }] }))
   const setupUrl = new URL(page.url())
   setupUrl.searchParams.set('connect', '1')
   setupUrl.searchParams.delete('blank')
@@ -3286,6 +3291,37 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
   expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
+  await expect(page.getByRole('tab', { name: 'Map project' })).toHaveAttribute('aria-selected', 'true')
+  mappingAttempt.state = 'submitted'
+  mappingAttempt.proposalId = 'mapping-ui'
+  mappingAttempt.systemCount = 7
+  await expect(activity).toContainText('Map submitted — closing the agent session')
+  await expect(activity).toContainText('7 systems')
+  await expect(page.getByRole('tab', { name: 'Map project' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('button', { name: 'Review architecture' })).toHaveCount(0)
+  mappingAttempt.endedAt = Date.now()
+  await expect(page.getByRole('tab', { name: /Review$/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('heading', { name: 'Your architecture is ready' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review architecture' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/setup-mapping-settled.png' })
+  await page.getByRole('tab', { name: /Map project/ }).click()
+  await expect(page.getByRole('heading', { name: 'Project mapping is complete' })).toBeVisible()
+  await expect(activity).toContainText('finished its run')
+  await page.getByRole('tab', { name: /Review$/ }).click()
+  const mappedProposal = {
+    id: 'mapping-ui', workspaceId: 'demo', currentRevision: 1,
+    round: { rationale: 'This exact mapping attempt.', systems: [{ systemKey: 'mapping', name: 'Mapped Responsibility', description: 'Owns the canvas.', parentRefType: 'scope', parentRefId: null, depth: 0, decision: 'pending', fileCount: 1, affectedFileCount: 1 }], memberships: [{ id: 'mapped-file', fileId: 'file_canvas', rootId: 'root_demo', filePath: 'src/renderer/canvas/AmbioCanvas.tsx', targetSystemKey: 'mapping', disposition: 'assign' }], layouts: [] },
+  }
+  await page.route(/\/api\/architecture-proposals\/mapping-ui\?/, route => route.fulfill({ json: mappedProposal }))
+  await page.getByRole('button', { name: 'Review architecture' }).click()
+  // Reopen Review to prove that its pin survives a renderer restart even
+  // when another proposal is now first in the workspace list.
+  setupUrl.searchParams.delete('connect')
+  setupUrl.searchParams.set('review', '1')
+  await page.goto(setupUrl.toString())
+  await expect(page.getByRole('heading', { name: 'Review the architecture your agent found' })).toBeVisible()
+  await expect(page.locator('.ambio-review__panel')).toContainText('Mapped Responsibility')
+  await expect(page.locator('.ambio-review__panel')).toContainText('This exact mapping attempt.')
   await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })
 

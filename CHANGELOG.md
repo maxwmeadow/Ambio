@@ -8,6 +8,10 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Project mapping now ends at submission: notes are saved first, the agent session closes before Review opens, and late calls cannot change the submitted map or start work. Review stays on that exact map after reload.
+- An error in a setup or review screen no longer takes over the whole window: that screen shows the error with a way back to your projects or canvas.
+- A mapping agent that sends a system's files under the wrong name is told so immediately instead of failing at submission, and can clear its draft and redraw the map.
+- The setup mapping replay fills its activity panel instead of leaving a blank strip at the bottom of taller windows.
 - Opening a large saved map prepares its navigation geometry in smaller steps
   and avoids rebuilding it for inactive overlays. Review layout checks no longer
   compare every editable node against every saved row.

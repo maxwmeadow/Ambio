@@ -184,7 +184,7 @@ test('Antigravity\'s own CLI runs in print mode with every permission granted, a
   const driver = agentDriver('antigravity-cli')
   const first = driver.plan({ hostId: 'antigravity-cli', mode: 'build', mcp, workspaceId: 'ws', prompt: 'Claim work order x' })
   // Its print mode cannot ask, so every permission is granted up front.
-  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--output-format', 'stream-json', '--dangerously-skip-permissions'])
+  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions'])
   assert.equal(driver.resumable, true)
   assert.equal(first.stdin, undefined)
   const next = driver.plan({ hostId: 'antigravity-cli', mode: 'ask', mcp, workspaceId: 'ws', prompt: 'p', resume: 'conv-1' })
@@ -248,7 +248,7 @@ test('a host that exits cleanly after being stopped from using Ambio is a failed
   // Any other refusal ends the run too, and says which permission it was.
   assert.match(driver.readError('a tool required the "command" permission that headless mode cannot prompt for').events[0].text, /"command" permission/)
   // The project folder is named as the workspace, or its MCP config is never loaded.
-  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--output-format', 'stream-json', '--dangerously-skip-permissions', '--add-dir', '/proj'])
+  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions', '--add-dir', '/proj'])
 })
 
 test('an npm-installed CLI is found by the entry its package declares, or the one it used to have', t => {
@@ -390,4 +390,17 @@ test('each agent\'s reasoning reaches the turn as thinking, where the agent show
   // agy 1.4 reports only a count of thinking tokens: nothing to show.
   assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', state: 'DONE', usage: { thinking_tokens: 771 } } })).events, [])
   assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', thinking: 'Planning the reply.' } })).events, [{ kind: 'thinking', text: 'Planning the reply.' }])
+})
+
+
+test('direct driver plans retain the finite mapping credential and request binding', () => {
+  const mapping = { attempt: { id: 'map-only' }, token: 'scoped-token' }
+  for (const host of ['claude-code', 'codex', 'copilot-cli']) {
+    const plan = deliveryPlan(host, mcp, 'ws', 'Map only', { mode: 'propose', messageId: 'request', mapping })
+    const serialized = plan.args.join(' ')
+    assert.match(serialized, /AMBIO_MAPPING_ATTEMPT/)
+    assert.match(serialized, /map-only/)
+    assert.match(serialized, /scoped-token/)
+    assert.match(serialized, /AMBIO_RUN_MESSAGE_ID/)
+  }
 })

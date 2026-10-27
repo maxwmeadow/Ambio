@@ -398,6 +398,8 @@ interface AmbioCanvasProps {
     floorLayouts: FloorLayout[]
     editableNodeIds: ReadonlySet<string>
     selectedNodeId: string | null
+    focusNodeId?: string | null
+    focusToken?: number
     onSelectNode: (nodeId: string | null) => void
     onPreviewLayouts: (layouts: Array<Omit<FloorLayout, 'workspaceId' | 'updatedAt'>>) => void
     onSaveLayouts: (layouts: Array<Omit<FloorLayout, 'workspaceId' | 'updatedAt'>>) => Promise<void>
@@ -1500,6 +1502,18 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       maxZoom: DELTA_REVIEW_MAX_ZOOM,
     })
   }, [deltaReviewing, deltaFocusKey, fitView])
+
+  useEffect(() => {
+    if (!reviewMode || !reviewScene?.focusToken || !reviewScene?.focusNodeId) return
+    const targetNodeId = reviewScene.focusNodeId
+    void fitView({
+      nodes: [{ id: targetNodeId }],
+      padding: DELTA_REVIEW_PADDING,
+      duration: 620,
+      minZoom: DELTA_REVIEW_MIN_ZOOM,
+      maxZoom: DELTA_REVIEW_MAX_ZOOM,
+    })
+  }, [reviewMode, reviewScene?.focusToken, reviewScene?.focusNodeId, fitView])
   const updateInteractiveNodes = useCallback((updater: (nodes: Node[]) => Node[]) => {
     if (useSheetStore.getState().activeSheetId) {
       setSheetInteractionNodes(current => updater(current ?? displayNodesRef.current))

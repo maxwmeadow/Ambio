@@ -1085,7 +1085,7 @@
 /* Mapping with an agent Ambio runs: the first choice in setup. */
 /* Blueprint Mapping Activity & Stream Feed */
 .ambio-map-activity,
-.ambio-map-with { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 380px; margin: 0 0 16px; border: 1px solid #9fb3a7; border-radius: 6px; background: #ffffff; color: #23362f; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
+.ambio-map-with { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 380px; margin: 20px 0 16px; border: 1px solid #9fb3a7; border-radius: 6px; background: #ffffff; color: #23362f; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
 .ambio-map-activity[data-state='failed'] { border-color: #d99a88; }
 .ambio-map-activity[data-state='working'] { border-color: #85b09d; }
 .ambio-map-activity__header {
@@ -1134,7 +1134,6 @@
 .ambio-map-activity__feed {
   flex: 1 1 0;
   min-height: 240px;
-  max-height: 440px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 12px 18px;

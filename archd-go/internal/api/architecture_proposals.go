@@ -56,7 +56,7 @@ func proposalErrorStatus(err error) int {
 		return http.StatusNotFound
 	}
 	message := err.Error()
-	if strings.Contains(message, "stale proposal revision") || strings.Contains(message, "already ") || strings.Contains(message, "duplicate ") || strings.Contains(message, "must be approved first") || strings.Contains(message, "UNIQUE constraint") {
+	if strings.Contains(message, "mapping session") || strings.Contains(message, "mapping submission") || strings.Contains(message, "stale proposal revision") || strings.Contains(message, "already ") || strings.Contains(message, "duplicate ") || strings.Contains(message, "must be approved first") || strings.Contains(message, "UNIQUE constraint") {
 		return http.StatusConflict
 	}
 	if strings.Contains(message, "required") || strings.Contains(message, "invalid") || strings.Contains(message, "does not exist") || strings.Contains(message, "does not belong") || strings.Contains(message, "unique file path") || strings.Contains(message, "proposal depth") || strings.Contains(message, "parent must") || strings.Contains(message, "not editable") || strings.Contains(message, "hierarchy cycle") || strings.Contains(message, "needs at least") || strings.Contains(message, "does not resolve") || strings.Contains(message, "resolved to") {

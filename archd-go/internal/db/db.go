@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 9 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames, 8: delta_watermarks per branch, 9: roots.is_focused
+const SchemaVersion = 10 // 10: finite, credential-scoped mapping attempts
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -393,6 +393,16 @@ func migrate(db *sql.DB) error {
 		updated_at INTEGER NOT NULL
 	);
 	CREATE INDEX IF NOT EXISTS architecture_proposal_drafts_ws ON architecture_proposal_drafts(workspace_id,status,updated_at DESC);
+	CREATE TABLE IF NOT EXISTS mapping_attempts (
+		id TEXT PRIMARY KEY REFERENCES architecture_proposal_drafts(id) ON DELETE CASCADE,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		root_id TEXT NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+		message_id TEXT NOT NULL DEFAULT '', token_hash TEXT NOT NULL,
+		state TEXT NOT NULL DEFAULT 'mapping' CHECK(state IN ('mapping','submitted','cancelled')),
+		proposal_id TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '[]',
+		started_at INTEGER NOT NULL, submitted_at INTEGER NOT NULL DEFAULT 0, ended_at INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS mapping_attempt_running ON mapping_attempts(workspace_id) WHERE ended_at=0;
 	CREATE TABLE IF NOT EXISTS architecture_proposal_draft_chunks (
 		draft_id TEXT NOT NULL REFERENCES architecture_proposal_drafts(id) ON DELETE CASCADE,
 		chunk_id TEXT NOT NULL,

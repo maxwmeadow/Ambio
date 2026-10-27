@@ -10,6 +10,12 @@ interface Props {
   /** Rendered in place of a failed child instead of the full-screen error: for
    *  small surfaces (a toolbar chip) whose loss should not cover the app. */
   fallback?: React.ReactNode
+  /** Clears a caught error when it changes: a boundary around a full-window
+   *  screen starts clean when the app moves to another screen or project. */
+  resetKey?: string
+  /** A way out of the failed screen, so one screen's error never strands the
+   *  whole app behind "Try again" re-running the same failing render. */
+  leave?: { label: string; onLeave: () => void }
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -17,6 +23,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error }
+  }
+
+  componentDidUpdate(previous: Props) {
+    if (this.state.error && previous.resetKey !== this.props.resetKey) {
+      this.setState({ error: null, componentStack: null })
+    }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -64,6 +76,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
             >
               Try again
             </button>
+            {this.props.leave && (
+              <button
+                onClick={() => {
+                  this.setState({ error: null, componentStack: null })
+                  this.props.leave?.onLeave()
+                }}
+                style={button}
+              >
+                {this.props.leave.label}
+              </button>
+            )}
             {window.ambio?.reportBug && (
               <button onClick={() => void window.ambio.reportBug()} style={button}>Report a bug</button>
             )}

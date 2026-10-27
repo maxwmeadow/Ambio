@@ -147,6 +147,7 @@ function withOptimisticLayouts(proposal: ProposalSummary, layouts: ProposalLayou
 
 interface ProposalState {
   proposal: ProposalSummary | null
+  pinned: { workspaceId: string; id: string } | null
   loading: boolean
   /** A refusal to show beside the system that caused it, keyed by systemKey. */
   refusals: Record<string, string>
@@ -157,6 +158,8 @@ interface ProposalState {
   reviewing: boolean
   cursor: number
   selectedSystemKey: string | null
+  focusToken: number
+  focusedSystemKey: string | null
 
   load: (workspaceId: string) => Promise<void>
   refresh: () => Promise<void>
@@ -168,11 +171,13 @@ interface ProposalState {
   endReview: () => void
   setCursor: (index: number) => void
   selectSystem: (systemKey: string | null) => void
+  focusSystem: (systemKey: string | null) => void
   clearRefusal: (systemKey: string) => void
 }
 
 export const useProposalStore = create<ProposalState>((set, get) => ({
   proposal: null,
+  pinned: null,
   loading: false,
   refusals: {},
   deciding: [],
@@ -181,6 +186,8 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
   reviewing: false,
   cursor: 0,
   selectedSystemKey: null,
+  focusToken: 0,
+  focusedSystemKey: null,
 
   load: async (workspaceId: string) => {
     if (!workspaceId) return
@@ -198,6 +205,8 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
       reviewing: false,
       cursor: 0,
       selectedSystemKey: null,
+      focusToken: 0,
+      focusedSystemKey: null,
     })
     try {
       const listed = await fetch(
@@ -210,7 +219,8 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
         Array<{ id: string }> | { proposals?: Array<{ id: string }> }
       if (loadGeneration !== proposalLoadGeneration) return
       const list = Array.isArray(body) ? body : body.proposals ?? []
-      const head = list[0]
+      const pinned = get().pinned
+      const head = pinned?.workspaceId === workspaceId ? { id: pinned.id } : list[0]
       if (!head) {
         set({ proposal: null, loading: false })
         return
@@ -361,7 +371,7 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
           deltaDeferredUntil: 0,
         })
       }
-      set({ proposal: finalized, error: null })
+      set({ proposal: finalized, pinned: null, error: null })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The reviewed architecture could not be committed.'
       set({ error: message })
@@ -427,10 +437,12 @@ export const useProposalStore = create<ProposalState>((set, get) => ({
     return save
   },
 
-  beginReview: () => set({ reviewing: true, cursor: 0, selectedSystemKey: null }),
+  beginReview: () => set({ reviewing: true, cursor: 0, selectedSystemKey: null, focusedSystemKey: null }),
   endReview: () => set({ reviewing: false }),
   setCursor: (index: number) => set({ cursor: Math.max(0, index) }),
   selectSystem: (systemKey: string | null) => set({ selectedSystemKey: systemKey }),
+  focusSystem: (systemKey: string | null) =>
+    set(state => ({ focusedSystemKey: systemKey, focusToken: state.focusToken + 1 })),
   clearRefusal: (systemKey: string) =>
     set(state => ({ refusals: { ...state.refusals, [systemKey]: '' } })),
 }))
