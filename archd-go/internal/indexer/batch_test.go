@@ -1,10 +1,14 @@
 package indexer
 
 import (
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
+	"time"
 
 	"ambio.local/archd/internal/db"
 )
@@ -26,9 +30,12 @@ func writeBatchFile(t *testing.T, root db.Root, rel, content string) string {
 func TestReindexBatchMatchesAFreshIndex(t *testing.T) {
 	sqlDB, root, h := journalFixture(t)
 	writeBatchFile(t, root, "src/store.ts", "export function save() { return 1 }\n")
-	writeBatchFile(t, root, "src/api.ts", "import { save } from './store'\nexport function handle() { return save() }\n")
+	writeBatchFile(t, root, "src/api.ts", "import { save } from './store'\nimport { save as again } from './store'\nexport function handle() { return save() + again() }\n")
 	old := writeBatchFile(t, root, "src/legacy.ts", "export function legacy() { return 2 }\n")
 	writeBatchFile(t, root, "src/ui.ts", "import { legacy } from './legacy'\nexport function render() { return legacy() }\n")
+	// Untouched by the checkout, but what they import appears and vanishes.
+	writeBatchFile(t, root, "src/early.ts", "import { fresh } from './fresh'\nexport function early() { return fresh() }\n")
+	writeBatchFile(t, root, "src/stale.ts", "import { legacy } from './legacy'\nexport function stale() { return legacy() }\n")
 	if err := IndexRoot(sqlDB, h, root, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +68,39 @@ func TestReindexBatchMatchesAFreshIndex(t *testing.T) {
 		byID[file.ID] = file.RelPath
 	}
 	sort.Strings(paths)
-	if want := []string{"src/api.ts", "src/deep/nested.ts", "src/fresh.ts", "src/store.ts", "src/ui.ts"}; !equalStrings(paths, want) {
+	if want := []string{"src/api.ts", "src/deep/nested.ts", "src/early.ts", "src/fresh.ts", "src/stale.ts", "src/store.ts", "src/ui.ts"}; !equalStrings(paths, want) {
 		t.Fatalf("files = %v, want %v", paths, want)
+	}
+	edges := importEdges(t, sqlDB, root)
+	for _, want := range []string{"src/api.ts -> src/store.ts", "src/deep/nested.ts -> src/store.ts", "src/early.ts -> src/fresh.ts", "src/ui.ts -> src/fresh.ts"} {
+		if !strings.Contains(strings.Join(edges, "\n"), want+" ") {
+			t.Errorf("imports = %v, want %s", edges, want)
+		}
+	}
+
+	// Weights included: each import counts once, as a fresh index counts it.
+	freshDB, freshRoot, freshHub := journalFixture(t)
+	freshRoot.Path = root.Path
+	if err := db.UpsertRoot(freshDB, freshRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := IndexRoot(freshDB, freshHub, freshRoot, nil); err != nil {
+		t.Fatal(err)
+	}
+	if want := importEdges(t, freshDB, freshRoot); !equalStrings(edges, want) {
+		t.Fatalf("imports = %v, a fresh index has %v", edges, want)
+	}
+}
+
+func importEdges(t *testing.T, sqlDB *sql.DB, root db.Root) []string {
+	t.Helper()
+	files, err := db.GetFilesByRoot(sqlDB, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]string{}
+	for _, file := range files {
+		byID[file.ID] = file.RelPath
 	}
 	deps, err := projectFileDependencies(sqlDB, root.ID)
 	if err != nil {
@@ -70,12 +108,10 @@ func TestReindexBatchMatchesAFreshIndex(t *testing.T) {
 	}
 	var edges []string
 	for _, dep := range deps {
-		edges = append(edges, byID[dep.Src]+" -> "+byID[dep.Dst])
+		edges = append(edges, fmt.Sprintf("%s -> %s ×%d", byID[dep.Src], byID[dep.Dst], dep.Weight))
 	}
 	sort.Strings(edges)
-	if want := []string{"src/api.ts -> src/store.ts", "src/deep/nested.ts -> src/store.ts", "src/ui.ts -> src/fresh.ts"}; !equalStrings(edges, want) {
-		t.Fatalf("imports = %v, want %v", edges, want)
-	}
+	return edges
 }
 
 func equalStrings(a, b []string) bool {
@@ -128,4 +164,26 @@ func TestCallsStayInTheirLanguageAndRepository(t *testing.T) {
 	if want := []string{"web/src/brush.ts -> web/src/view.ts"}; !equalStrings(got, want) {
 		t.Fatalf("calls = %v, want %v", got, want)
 	}
+}
+
+// Classification waits for a batch under way: run against a branch switch
+// half read in, it drew the new files unclassified beside their systems.
+func TestClassificationWaitsForTheBatch(t *testing.T) {
+	sqlDB, root, _ := journalFixture(t)
+	release := lockRoot(root.ID)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := ClusterLive(sqlDB, root); err != nil {
+			t.Error(err)
+		}
+	}()
+	select {
+	case <-done:
+		release()
+		t.Fatal("classification ran while the root was locked")
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	<-done
 }

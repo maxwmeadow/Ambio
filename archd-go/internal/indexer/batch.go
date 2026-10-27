@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"ambio.local/archd/internal/activity"
 	"ambio.local/archd/internal/db"
@@ -30,6 +31,7 @@ const BatchThreshold = 8
 // reconciliation at the end instead of a replay of every file.
 func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []string) (int, error) {
 	defer lockRoot(root.ID)()
+	started := time.Now()
 	traceID := nextLivingTraceID()
 	existing, err := buildExistingMap(sqlDB, root.ID)
 	if err != nil {
@@ -51,6 +53,9 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 			done()
 		}
 	}()
+	// Parsed together up front, and again by nothing: the project graph
+	// reuses these parses.
+	parsed := parseFiles(changed, func(absPath string) string { return relativeTo(root, absPath) })
 	count := 0
 	// Files a person (or agent) changed, as opposed to Git; and whether Git
 	// switched branches, whose changes are not journaled at all.
@@ -105,7 +110,11 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 			prev = &p
 			prevSyms, _ = db.GetSymbolsByFile(sqlDB, p.ID)
 		}
-		if err := indexOneFile(sqlDB, root, relPath, absPath, existing, nil); err != nil {
+		result := parsed[absPath]
+		if result == nil {
+			continue
+		}
+		if err := indexParsedFile(sqlDB, root, relPath, absPath, result, existing, nil); err != nil {
 			log.Printf("indexer: batch index %s: %v", relPath, err)
 			continue
 		}
@@ -146,7 +155,7 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 		return 0, nil
 	}
 
-	if err := rebuildProjectGraph(sqlDB, root); err != nil {
+	if err := rebuildProjectGraph(sqlDB, root, parsed, beforeDeps); err != nil {
 		log.Printf("indexer: batch rebuild graph for %s: %v", root.Path, err)
 	}
 	afterDeps, err := projectFileDependencies(sqlDB, root.ID)
@@ -180,7 +189,7 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 			h.BroadcastPatch(map[string]any{"workspaceId": root.WorkspaceID, "type": "planned:upserted", "payload": p})
 		}
 	}
-	log.Printf("[indexer] batch of %d files in %s: %d relationship changes", count, root.Path, len(relationships))
+	log.Printf("[indexer] batch of %d files in %s: %d relationship changes in %v", count, root.Path, len(relationships), time.Since(started).Round(time.Millisecond))
 	return count, nil
 }
 
@@ -202,16 +211,10 @@ func relativeTo(root db.Root, absPath string) string {
 	return filepath.ToSlash(relPath)
 }
 
-// rebuildProjectGraph rebuilds every file's imports and the project's call
-// graph from one parse of each file, parsed in parallel: what
-// buildImportDependencies and rebuildAllCallGraph do with a parse each, one
-// file after another.
-func rebuildProjectGraph(sqlDB *sql.DB, root db.Root) error {
-	files, err := db.GetFilesByRoot(sqlDB, root.ID)
-	if err != nil {
-		return err
-	}
-	results := make([]*parser.Result, len(files))
+// parseFiles parses files in parallel, keyed by absolute path. A file that
+// cannot be parsed (Git deleted it after the walk) is left out.
+func parseFiles(paths []string, relPath func(string) string) map[string]*parser.Result {
+	results := make([]*parser.Result, len(paths))
 	jobs := make(chan int)
 	var wait sync.WaitGroup
 	for worker := 0; worker < runtime.GOMAXPROCS(0); worker++ {
@@ -219,39 +222,100 @@ func rebuildProjectGraph(sqlDB *sql.DB, root db.Root) error {
 		go func() {
 			defer wait.Done()
 			for index := range jobs {
-				result, err := parser.ParseFile(files[index].Path, files[index].RelPath)
+				result, err := parser.ParseFile(paths[index], relPath(paths[index]))
 				if err != nil {
-					// Deleted by Git and not yet removed from the map.
-					log.Printf("indexer: graph skips %s: %v", files[index].RelPath, err)
+					log.Printf("indexer: parse skips %s: %v", relPath(paths[index]), err)
 					continue
 				}
 				results[index] = result
 			}
 		}()
 	}
-	for index := range files {
+	for index := range paths {
 		jobs <- index
 	}
 	close(jobs)
 	wait.Wait()
+	parsed := make(map[string]*parser.Result, len(paths))
+	for index, result := range results {
+		if result != nil {
+			parsed[paths[index]] = result
+		}
+	}
+	return parsed
+}
+
+// rebuildProjectGraph rebuilds every file's imports and the project's call
+// graph from one parse of each file: what buildImportDependencies and
+// rebuildAllCallGraph do with a parse each, one file after another. Files in
+// parsed are not parsed again, and a file whose imports are those in before
+// is not rewritten: after a checkout most files import what they did.
+func rebuildProjectGraph(sqlDB *sql.DB, root db.Root, parsed map[string]*parser.Result, before []db.Dependency) error {
+	files, err := db.GetFilesByRoot(sqlDB, root.ID)
+	if err != nil {
+		return err
+	}
+	var unparsed []string
+	for _, file := range files {
+		if parsed[file.Path] == nil {
+			unparsed = append(unparsed, file.Path)
+		}
+	}
+	relPaths := make(map[string]string, len(files))
+	for _, file := range files {
+		relPaths[file.Path] = file.RelPath
+	}
+	for absPath, result := range parseFiles(unparsed, func(absPath string) string { return relPaths[absPath] }) {
+		parsed[absPath] = result
+	}
+	// Each import of a file counts once in its edge's weight.
+	current := map[string]map[string]int{}
+	for _, dependency := range before {
+		if dependency.CreatedBy != "parser" {
+			continue
+		}
+		if current[dependency.Src] == nil {
+			current[dependency.Src] = map[string]int{}
+		}
+		current[dependency.Src][dependency.Dst] += dependency.Weight
+	}
 
 	relToID := buildImportPathIndex(files)
 	csIndex := buildCSharpIndex(files)
 	var rawCalls sync.Map
-	for index, file := range files {
-		result := results[index]
+	for _, file := range files {
+		result := parsed[file.Path]
 		if result == nil {
 			continue
 		}
+		var targets []string
 		if strings.HasSuffix(strings.ToLower(file.RelPath), ".cs") {
-			err = buildCSharpDependenciesForFile(sqlDB, root, file, csIndex)
+			targets = csIndex.links(file.ID)
 		} else {
-			err = writeFileImports(sqlDB, root, file, result, relToID)
+			targets = importTargets(file, result, relToID)
 		}
-		if err != nil {
-			log.Printf("indexer: dependencies for %s: %v", file.RelPath, err)
+		if !sameTargets(current[file.ID], targets) {
+			if err := writeImportTargets(sqlDB, root, file, targets); err != nil {
+				log.Printf("indexer: dependencies for %s: %v", file.RelPath, err)
+			}
 		}
 		rawCalls.Store(file.ID, result.Calls)
 	}
 	return buildCallGraph(sqlDB, root, &rawCalls)
+}
+
+func sameTargets(current map[string]int, targets []string) bool {
+	counts := make(map[string]int, len(targets))
+	for _, id := range targets {
+		counts[id]++
+	}
+	if len(counts) != len(current) {
+		return false
+	}
+	for id, count := range counts {
+		if current[id] != count {
+			return false
+		}
+	}
+	return true
 }

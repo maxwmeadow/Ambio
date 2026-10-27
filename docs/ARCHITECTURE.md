@@ -396,11 +396,13 @@ re-cluster debounce; hitting the OS watch limit degrades loudly. A burst of
 fewer than 8 files is indexed file by file and animates; a larger one, or any
 while Git is moving the checkout (`indexer.CheckoutMoving`), and a reconcile
 of 8 or more files, go through `indexer.ReindexBatch`: each file read once,
-imports and calls rebuilt from one parallel parse of the project, one
-relationship diff, no per-file canvas patches (the settle sends
+imports and calls rebuilt from one parallel parse of the project (the
+changed files' parses reused, and a file's imports rewritten only when they
+differ), one relationship diff, no per-file canvas patches (the settle sends
 `classification:updated`). Per file, a switch had cost a whole-project
 reparse and an animation each. Changes to one root's map are serialized
-(`lockRoot`). Relationships a switch shifts between files it did not touch
+(`lockRoot`), and live classification (`ClusterLive`, `ClusterOnly`) waits
+on the same lock, so it never sees a batch half read in. Relationships a switch shifts between files it did not touch
 are not journaled; after a pull they are Git's. The Floor moving to another
 checkout (a quiet-all reconcile) always takes the batch path, so it replays
 nothing on the canvas, and Review Changes neither diffs nor saves an

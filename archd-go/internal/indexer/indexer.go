@@ -179,6 +179,7 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 // produced by an older resolver, so classifying them without this refresh can
 // turn a connected project into an arbitrary graph of isolated files.
 func ClusterOnly(sqlDB *sql.DB, root db.Root) error {
+	defer lockRoot(root.ID)()
 	if err := rebuildSemanticEvidence(sqlDB, root); err != nil {
 		return fmt.Errorf("rebuild semantic evidence: %w", err)
 	}
@@ -717,7 +718,11 @@ func indexOneFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, existing
 	if err != nil {
 		return err
 	}
+	return indexParsedFile(sqlDB, root, relPath, absPath, result, existing, rawCallsMap)
+}
 
+// indexParsedFile stores a file from a parse already made.
+func indexParsedFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, result *parser.Result, existing map[string]db.File, rawCallsMap *sync.Map) error {
 	var fileID string
 	if prev, ok := existing[relPath]; ok {
 		fileID = prev.ID
@@ -1093,6 +1098,9 @@ func clusterScope(files []db.File, systems []db.System) (managed []db.File, prun
 // there is enough evidence to form a useful group. Ordinary edits never
 // reshuffle an already-classified architecture.
 func ClusterLive(sqlDB *sql.DB, root db.Root) (bool, error) {
+	// A batch half applied (a branch switch still being read in) would have
+	// its new files drawn unclassified, beside the systems they belong in.
+	defer lockRoot(root.ID)()
 	files, err := db.GetFilesByRoot(sqlDB, root.ID)
 	if err != nil {
 		return false, err
@@ -1748,26 +1756,39 @@ func rebuildDependenciesForFileWithIndex(sqlDB *sql.DB, root db.Root, f db.File,
 
 // writeFileImports replaces a file's outgoing imports with those of a parse.
 func writeFileImports(sqlDB *sql.DB, root db.Root, f db.File, result *parser.Result, relToID map[string]string) error {
+	return writeImportTargets(sqlDB, root, f, importTargets(f, result, relToID))
+}
+
+// importTargets is the files f imports, as its parse reads them.
+func importTargets(f db.File, result *parser.Result, relToID map[string]string) []string {
+	var targets []string
+	for _, imp := range result.Imports {
+		for _, dstID := range resolveImportFileIDs(f, imp, relToID) {
+			if dstID != f.ID {
+				targets = append(targets, dstID)
+			}
+		}
+	}
+	return targets
+}
+
+// writeImportTargets replaces the parser's imports from f with targets.
+func writeImportTargets(sqlDB *sql.DB, root db.Root, f db.File, targets []string) error {
 	if err := db.DeleteOutgoingDependenciesByFile(sqlDB, f.ID); err != nil {
 		return err
 	}
-	for _, imp := range result.Imports {
-		for _, dstID := range resolveImportFileIDs(f, imp, relToID) {
-			if dstID == f.ID {
-				continue
-			}
-			d := db.Dependency{
-				WorkspaceID:    root.WorkspaceID,
-				Src:            f.ID,
-				Dst:            dstID,
-				SrcType:        "file",
-				DstType:        "file",
-				DependencyType: "IMPORTS",
-				CreatedBy:      "parser",
-			}
-			if err := db.UpsertDependency(sqlDB, d); err != nil {
-				log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, imp, err)
-			}
+	for _, dstID := range targets {
+		d := db.Dependency{
+			WorkspaceID:    root.WorkspaceID,
+			Src:            f.ID,
+			Dst:            dstID,
+			SrcType:        "file",
+			DstType:        "file",
+			DependencyType: "IMPORTS",
+			CreatedBy:      "parser",
+		}
+		if err := db.UpsertDependency(sqlDB, d); err != nil {
+			log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, dstID, err)
 		}
 	}
 	return nil

@@ -24,6 +24,9 @@ in the app as "What's New" after updating, so write it for users.
 - A branch switch no longer journals relationship changes between files it did
   not touch, and calls no longer resolve to another language's or another
   repository's function of the same name.
+- In a folder of several repositories, each repository's frame shows again,
+  with its files inside it; a branch switch no longer leaves the new files
+  scattered beside the frame while the map catches up.
 - Systems are no longer left stale after a switch when a removed system had a
   sub-system named like another top-level system.
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts

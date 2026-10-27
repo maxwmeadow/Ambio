@@ -2,7 +2,6 @@ package indexer
 
 import (
 	"database/sql"
-	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -155,22 +154,5 @@ func (idx *csharpIndex) links(id string) []string {
 // buildCSharpDependenciesForFile replaces a C# file's IMPORTS dependencies
 // with the files declaring the types it uses.
 func buildCSharpDependenciesForFile(sqlDB *sql.DB, root db.Root, f db.File, idx *csharpIndex) error {
-	if err := db.DeleteOutgoingDependenciesByFile(sqlDB, f.ID); err != nil {
-		return err
-	}
-	for _, dstID := range idx.links(f.ID) {
-		d := db.Dependency{
-			WorkspaceID:    root.WorkspaceID,
-			Src:            f.ID,
-			Dst:            dstID,
-			SrcType:        "file",
-			DstType:        "file",
-			DependencyType: "IMPORTS",
-			CreatedBy:      "parser",
-		}
-		if err := db.UpsertDependency(sqlDB, d); err != nil {
-			log.Printf("indexer: upsert cs dependency %s→%s: %v", f.RelPath, dstID, err)
-		}
-	}
-	return nil
+	return writeImportTargets(sqlDB, root, f, idx.links(f.ID))
 }

@@ -570,7 +570,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // be unclassified FROM. Before anyone has authored one, every file is
   // unplaced - binning them all would empty the map and hide the whole project
   // behind a tray, which is the opposite of "the map is always complete".
-  const binsHoldUnclassified = !binMode && systems.length > 0
+  // Repository frames are where files live, not an authored architecture.
+  const binsHoldUnclassified = !binMode && systems.some(system => system.kind !== 'repository')
   const files = useMemo(
     () => binsHoldUnclassified
       ? sceneFiles.filter(file => isCanvasSourceFile(file) && fileBelongsOnFloor(file))
