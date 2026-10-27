@@ -889,31 +889,34 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   }),
   setRecentProjects: (ps) => set({ recentProjects: ps }),
 
-  applySnapshot: (snap) => traceSync('snapshot.store', () => set({
-    // Inferred groupings never reach the canvas. The indexer clusters files by
-    // import topology and names each pile after its most frequent symbol, which
-    // produces boxes called Bar, Lane, Phase and Cochange - words that are real
-    // and describe nothing. Drawing those as your architecture teaches people to
-    // distrust the map before an agent has had a chance to make it true, and the
-    // confusion costs more than the empty space it fills.
-    //
-    // Until someone authors the architecture, the Floor shows the files
-    // themselves. Clustering still runs and its output still serves layout and
-    // evidence; it simply no longer claims to be the answer.
-    systems: keepShownSystems(snap.systems ?? []),
-    withheldSystemHomes: withheldHomes(snap.systems ?? []),
-    files: (snap.files ?? []).map(file => projectFileHome(file, withheldHomes(snap.systems ?? []))),
-    infraNodes: snap.infraNodes ?? [],
-    dependencies: snap.dependencies ?? [],
-    floorLayouts: snap.floorLayouts ?? [],
-    // Start with all top-level systems collapsed
-    expandedSystemIds: new Set(),
-    // A full snapshot is the resting baseline - drop any pending enter/edit
-    // intents so a reload doesn't animate the whole map as if freshly built.
-    nodeFx: {},
-    relationshipFx: [],
-    pendingFileDeletions: {},
-  }), (snap.systems?.length ?? 0) + (snap.files?.length ?? 0)),
+  applySnapshot: (snap) => traceSync('snapshot.store', () => {
+    const homes = withheldHomes(snap.systems ?? [])
+    set({
+      // Inferred groupings never reach the canvas. The indexer clusters files by
+      // import topology and names each pile after its most frequent symbol, which
+      // produces boxes called Bar, Lane, Phase and Cochange - words that are real
+      // and describe nothing. Drawing those as your architecture teaches people to
+      // distrust the map before an agent has had a chance to make it true, and the
+      // confusion costs more than the empty space it fills.
+      //
+      // Until someone authors the architecture, the Floor shows the files
+      // themselves. Clustering still runs and its output still serves layout and
+      // evidence; it simply no longer claims to be the answer.
+      systems: keepShownSystems(snap.systems ?? []),
+      withheldSystemHomes: homes,
+      files: (snap.files ?? []).map(file => projectFileHome(file, homes)),
+      infraNodes: snap.infraNodes ?? [],
+      dependencies: snap.dependencies ?? [],
+      floorLayouts: snap.floorLayouts ?? [],
+      // Start with all top-level systems collapsed
+      expandedSystemIds: new Set(),
+      // A full snapshot is the resting baseline - drop any pending enter/edit
+      // intents so a reload doesn't animate the whole map as if freshly built.
+      nodeFx: {},
+      relationshipFx: [],
+      pendingFileDeletions: {},
+    })
+  }, (snap.systems?.length ?? 0) + (snap.files?.length ?? 0)),
 
   applyClassification: (snap) => set((state) => {
     const previousSystems = new Map(state.systems.map(system => [system.id, system]))
