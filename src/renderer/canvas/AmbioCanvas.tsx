@@ -2598,6 +2598,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => {
       return {
         ...n,
+        // Review has no relationships or connection gestures. CSS hiding left
+        // thousands of Handle store subscriptions running on every pan frame.
+        data: { ...n.data, omitConnectionHandles: true },
         draggable: reviewMode
           ? reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)
           : n.draggable,

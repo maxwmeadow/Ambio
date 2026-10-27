@@ -47,6 +47,8 @@ export interface AgentPresence {
 }
 
 export interface SystemNodeData {
+  /** Review has no endpoints; disabled Floor/sheet endpoints still mount. */
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean
   id: string
@@ -113,6 +115,7 @@ export interface SystemNodeData {
 }
 
 export interface FileNodeData {
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean
   id: string
@@ -155,6 +158,7 @@ export interface FileNodeData {
 }
 
 export interface InfraNodeData {
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   id: string
   label: string

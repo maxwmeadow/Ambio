@@ -47,7 +47,7 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
           lineHeight: 1.1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{label}</span>
       </div>}
     </div>
-    {(['source', 'target'] as const).flatMap(type => [
+    {!d.omitConnectionHandles && (['source', 'target'] as const).flatMap(type => [
       <Handle key={type + '-top'} id={type + '-top'} type={type} position={Position.Top} {...connectionHandleProps(props.isConnectable, scale)} />,
       <Handle key={type + '-right'} id={type + '-right'} type={type} position={Position.Right} {...connectionHandleProps(props.isConnectable, scale)} />,
       <Handle key={type + '-bottom'} id={type + '-bottom'} type={type} position={Position.Bottom} {...connectionHandleProps(props.isConnectable, scale)} />,

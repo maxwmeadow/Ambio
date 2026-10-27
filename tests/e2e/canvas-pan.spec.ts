@@ -51,6 +51,8 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       await expect(canvas.locator('.react-flow__node').first()).toBeVisible()
       if (mode === 'floor') await page.getByRole('button', { name: 'Fit view', exact: true }).click()
       await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      // Diagnostic-only CSS experiments are reported separately from app builds.
+      if (process.env.AMBIO_PAN_STYLE) await page.addStyleTag({ content: process.env.AMBIO_PAN_STYLE })
       // Start the drag on exposed pane, rather than accidentally dragging a node.
       const point = await canvas.evaluate(root => {
         const pane = root.querySelector('.react-flow__pane')!, r = pane.getBoundingClientRect()
@@ -59,7 +61,8 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
         throw Error('No exposed pane start point')
       })
       await page.evaluate(() => document.addEventListener('pointerdown', event => { (window as any).__panPointerId = event.pointerId }, { once: true, capture: true }))
-      if (mode === 'review') await expect.poll(() => canvas.locator('.react-flow__handle').evaluateAll(handles => handles.filter(handle => getComputedStyle(handle).display !== 'none').map(handle => handle.outerHTML.slice(0, 300)))).toEqual([])
+      if (mode === 'review' && !process.env.AMBIO_PAN_STYLE) await expect(canvas.locator('.react-flow__handle')).toHaveCount(0)
+      else if (mode === 'floor') expect(await canvas.locator('.react-flow__handle').count()).toBeGreaterThan(0)
       await page.mouse.move(point.x, point.y)
       await page.waitForTimeout(300)
       const cdp = await page.context().newCDPSession(page); await cdp.send('Performance.enable')
@@ -70,6 +73,7 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
         reference: { platform: platform(), cpu: cpus()[0]?.model, viewport: { width: 1400, height: 900 },
           browser: await page.evaluate(() => ({ userAgent: navigator.userAgent, pixelRatio: devicePixelRatio })) },
         instrumented: process.env.AMBIO_PAN_CPU === '1' || process.env.AMBIO_PAN_TIMELINE === '1',
+        diagnosticStyle: process.env.AMBIO_PAN_STYLE ?? null,
       }
       const before = await cdp.send('Performance.getMetrics'), saves = layoutSaves
       const initial = await page.evaluate(() => {

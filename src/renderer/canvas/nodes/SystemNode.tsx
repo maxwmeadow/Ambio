@@ -288,7 +288,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           : props.style} />
     )
   }
-  const handles = (
+  const handles = d.omitConnectionHandles ? null : (
     <>
       {topHandle('source')}
       <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
