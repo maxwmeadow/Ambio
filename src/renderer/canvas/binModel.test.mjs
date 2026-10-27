@@ -17,6 +17,23 @@ const file = (relPath, overrides = {}) => ({
 
 const liveHome = { hasHome: f => !!f.systemId }
 
+test('partition keeps the complete source order and classifies each filename only once', () => {
+  let reads = 0
+  const paths = ['loose.ts', 'README.md', 'placed.go', 'asset.png', 'other.py']
+  const files = paths.map((path, i) => ({
+    ...file(path, { systemId: i === 2 ? 'system' : null }),
+    get relPath() { reads++; return path },
+  }))
+  const result = partitionCanvasFiles(files, liveHome)
+  assert.equal(reads, paths.length)
+  assert.deepEqual(result.source, [files[0], files[2], files[4]])
+  assert.deepEqual(result.placed, [files[2]])
+  assert.deepEqual(result.unclassified, [files[0], files[4]])
+  assert.deepEqual(result.documents, [files[1]])
+  const documentOverride = file('source.ts', { language: 'markdown', systemId: 'system' })
+  assert.deepEqual(partitionCanvasFiles([documentOverride], liveHome).source, [])
+})
+
 test('a source file with a system is drawn, not binned', () => {
   const { placed, unclassified, documents } = partitionCanvasFiles(
     [file('app/main.py', { systemId: 'sys-1' })], liveHome,

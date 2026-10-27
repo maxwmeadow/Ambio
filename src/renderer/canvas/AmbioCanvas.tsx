@@ -572,10 +572,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // behind a tray, which is the opposite of "the map is always complete".
   const binsHoldUnclassified = !binMode && systems.length > 0
   const files = useMemo(
-    () => binsHoldUnclassified
+    () => sceneFiles === binSourceFiles && !reviewPlacedFileIds
+      ? binsHoldUnclassified ? bins.placed : bins.source
+      : binsHoldUnclassified
       ? sceneFiles.filter(file => isCanvasSourceFile(file) && fileBelongsOnFloor(file))
       : sceneFiles.filter(isCanvasSourceFile),
-    [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
+    [sceneFiles, binSourceFiles, reviewPlacedFileIds, bins, binsHoldUnclassified, fileBelongsOnFloor],
   )
   // Only infra that runs code is on the canvas: confirmed platforms, as frames
   // that hold the systems they host. Everything code talks to (databases,

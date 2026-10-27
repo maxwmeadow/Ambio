@@ -1,4 +1,4 @@
-import { isCanvasSourceFile, isDocumentationFile } from '../../shared/fileKinds.ts'
+import { classifyProjectFile } from '../../shared/fileKinds.ts'
 import type { DbFile } from '../../shared/types.ts'
 
 /**
@@ -21,6 +21,8 @@ import type { DbFile } from '../../shared/types.ts'
  */
 
 export interface BinPartition {
+  /** Every source file, in input order, including files not yet placed. */
+  source: DbFile[]
   /** Rendered on the canvas as normal. */
   placed: DbFile[]
   /** Source files with no home yet: the unclassified bin. */
@@ -42,6 +44,7 @@ export function partitionCanvasFiles(
   { hasHome }: PartitionOptions,
 ): BinPartition {
   const placed: DbFile[] = []
+  const source: DbFile[] = []
   const unclassified: DbFile[] = []
   const documents: DbFile[] = []
 
@@ -50,19 +53,22 @@ export function partitionCanvasFiles(
     // classifier once attached to a system is still a README; letting a stale
     // `system_id` promote it back onto the map is how docs leaked onto the
     // Floor before there was anywhere else for them to go.
-    if (isDocumentationFile(file)) {
+    const kind = file.language === 'markdown' || file.language === 'text'
+      ? 'document' : classifyProjectFile(file.relPath)
+    if (kind === 'document') {
       documents.push(file)
       continue
     }
     // Anything that is neither documentation nor indexable source is not
     // something the canvas can draw or the user can classify. It is dropped
     // rather than binned, so a bin never fills with things you cannot act on.
-    if (!isCanvasSourceFile(file)) continue
+    if (kind !== 'source') continue
+    source.push(file)
     if (hasHome(file)) placed.push(file)
     else unclassified.push(file)
   }
 
-  return { placed, unclassified, documents }
+  return { source, placed, unclassified, documents }
 }
 
 /** Stable display order for a bin: folder first, then filename. */
