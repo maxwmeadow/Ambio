@@ -11,10 +11,17 @@ parent phases and dense/progressive-data work remain open.
 
 ## Delivery scope
 
+Latest desktop follow-up: [cold-input budget confirmation](CANVAS_COLD_INPUT_BUDGET.md)
+meets the unchanged <=50 ms sparse 100k target in **10/10** native confirmation
+runs versus **7/10** fresh previous-build controls. Worst cold input falls from
+55.8 to 44.5 ms. All ten earlier confirmation runs and five exploratory updated runs also pass. This closes that
+repeated benchmark miss; cold-frame tails, dense Review and broader scalability
+acceptance remain open. Implementation: `e3d8100` and `ef40b92` on `codex/review-pan-audit`.
+
 Later desktop follow-up: [measured cold-input improvement](CANVAS_COLD_INPUT_WIN.md)
 compares five fresh exact-main controls with five updated runs: median per-run
 cold-input p95 65.2 to 39.8 ms, with passes improving from 1/5 to 4/5. The retained
-52.5 ms miss keeps full acceptance open. The original delivery evidence below
+52.5 ms miss prompted the confirmation follow-up above. The original delivery evidence below
 remains unchanged.
 
 The `codex/canvas-cold-adoption` branch consolidates these implementations:

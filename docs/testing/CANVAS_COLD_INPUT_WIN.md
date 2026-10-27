@@ -1,5 +1,9 @@
 # Measured cold-input improvement — 2026-10-26
 
+Subsequent work: [cold-input budget confirmation](CANVAS_COLD_INPUT_BUDGET.md)
+removes the retained miss in ten fresh native repetitions, with all earlier
+failures preserved here as historical evidence.
+
 Implementation: `7ca84dd` on `codex/review-pan-audit`, following the
 [semantic/integrity checkpoint](CANVAS_SEMANTIC_INTEGRITY.md).
 This follow-up demonstrates a cold-input latency improvement over unchanged

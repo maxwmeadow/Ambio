@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Opening a large saved map skips unused layout and setup bookkeeping,
+  reducing cold-loading input stalls while preserving hand-placed files and
+  scene validation.
 - Large saved maps avoid repeated source-file classification and project-wide
   lookup work in the closed Review Changes panel, reducing cold-loading input
   stalls. File placement, documentation handling and review actions are preserved.

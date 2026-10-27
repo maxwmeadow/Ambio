@@ -629,6 +629,12 @@ Review-specific populations keep their own filter. `DeltaPanel` leaves file and
 system subscriptions inactive without a delta and builds filter lookups only
 when review opens. These avoid synchronous cold-store consumer work; measured
 controls and limits are in [the cold-input follow-up](testing/CANVAS_COLD_INPUT_WIN.md).
+Loose-file layout membership is built only when a placement query needs it,
+once per immutable layout revision. Canonical membership remains independent
+of candidate geometry and is populated without temporary ID arrays. App's
+authored-system decision reads system sources only; source counts are computed
+when the setup screen is displayed. The [budget confirmation](testing/CANVAS_COLD_INPUT_BUDGET.md)
+records repeated native cold-input results and remaining limits.
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.
