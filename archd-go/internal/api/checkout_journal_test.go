@@ -479,3 +479,49 @@ func TestALargeBranchSwitchJournalsNoCodeEvenWhereResolutionShifts(t *testing.T)
 		t.Fatalf("want the switch row: %#v", events)
 	}
 }
+
+// Reading Review Changes while a sync reshapes the map (the Floor moving to
+// another checkout) compared a half-moved map with the last review and
+// showed hundreds of changes by you, and saved that half map as a snapshot
+// for every later comparison. While a root syncs, no snapshot is taken.
+func TestDeltaTakesNoSnapshotWhileTheMapSyncs(t *testing.T) {
+	repo := newCheckoutRepo(t)
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	sqlDB, _ := server.dbFor("ws")
+	focused, _, err := server.focusedRoot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshots := func() int {
+		var count int
+		if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM root_delta_snapshots`).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		return count
+	}
+	read := func() {
+		response := httptest.NewRecorder()
+		server.handleDelta(response, httptest.NewRequest(http.MethodGet, "/api/delta?workspace=ws", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("delta = %d %s", response.Code, response.Body.String())
+		}
+	}
+	before := snapshots()
+	server.mu.Lock()
+	server.rootSyncing[focused.ID] = true
+	server.mu.Unlock()
+	read()
+	if snapshots() != before {
+		t.Fatal("a delta read during a sync saved a snapshot of the half-synced map")
+	}
+	server.mu.Lock()
+	delete(server.rootSyncing, focused.ID)
+	server.mu.Unlock()
+	time.Sleep(5 * time.Millisecond) // a snapshot is keyed by the millisecond
+	read()
+	if snapshots() == before {
+		t.Fatal("a delta read once the map settled takes a snapshot again")
+	}
+}

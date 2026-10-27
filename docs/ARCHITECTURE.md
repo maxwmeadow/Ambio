@@ -401,7 +401,11 @@ relationship diff, no per-file canvas patches (the settle sends
 `classification:updated`). Per file, a switch had cost a whole-project
 reparse and an animation each. Changes to one root's map are serialized
 (`lockRoot`). Relationships a switch shifts between files it did not touch
-are not journaled; after a pull they are Git's. Calls resolve by name only to
+are not journaled; after a pull they are Git's. The Floor moving to another
+checkout (a quiet-all reconcile) always takes the batch path, so it replays
+nothing on the canvas, and Review Changes neither diffs nor saves an
+architecture snapshot while any root of the project is syncing
+(`workspaceSyncing`); the sync's `delta:ready` re-reads it. Calls resolve by name only to
 code in the caller's language family (JS dialects, C/C++, JVM) and, in a
 folder of several repositories, its own repository unless it imports the
 file (`internal/indexer/call_scope.go`). Re-scoping (changing which folders are

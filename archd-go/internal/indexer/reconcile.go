@@ -145,8 +145,10 @@ func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 		}
 	}
 
-	if len(changedPaths)+len(removedPaths) >= BatchThreshold {
-		// A branch switched or pulled while Ambio was closed: one pass.
+	// A branch switched or pulled while Ambio was closed is one pass; so is
+	// the Floor moving to another checkout, which must not replay its files
+	// on the canvas: the per-file path animates every deletion.
+	if len(changedPaths)+len(removedPaths) >= BatchThreshold || isQuietAll(root.ID) {
 		if changed, err = ReindexBatch(sqlDB, h, root, changedPaths, removedPaths); err != nil {
 			return changed, err
 		}

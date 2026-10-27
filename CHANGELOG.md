@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Showing another checkout on the Floor no longer flashes its files as
+  deleted, and Review Changes no longer counts hundreds of changes "by you"
+  while the map moves between checkouts.
 - The map shows while a project is being indexed for the first time, instead of
   an empty canvas that stays "Updating your map" until the end.
 - Infrastructure changes that arrive with a branch switch are no longer listed
