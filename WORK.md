@@ -241,6 +241,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 ---
 
 ## Inbox
+- `git-submodule-frames` A submodule (a nested repository in a repository) gets no repository frame, and `git submodule add` journals its files as your creations; should a submodule be framed and its checkout be Git's? Found in the git sweep (2026-10-27).
+- `reconcile-after-batch-rereads` After a watcher batch, the HEAD-move reconcile (which walked while the batch held the root lock) re-reads the same files one by one; cheap since content is unchanged, but redundant work after every switch.
 - `stencil-drop-under-topmost` A stencil dropped where a new planned system overlaps a live one goes to the smaller system (`stencilTargetAt`: deepest, then smallest), even when the planned one is drawn on top; should the topmost drawn system win? Found via `sheet-authoring.spec.mjs` (2026-10-26).
 
 - ⬜ `abort-stale-proposal-drafts` **Automatically clean up abandoned open proposal drafts.** When an architecture proposal is committed or finalized, or when an agent begins/retries mapping, stale `status='open'` proposal draft sessions from earlier failed or timed-out attempts remain in SQLite. This causes `ProposalDraftProgress` to later display a false "An architecture draft is unfinished" interruption on the Floor canvas.
