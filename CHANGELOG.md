@@ -8,6 +8,32 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Showing another checkout on the Floor no longer flashes its files as
+  deleted, and Review Changes no longer counts hundreds of changes "by you"
+  while the map moves between checkouts.
+- The map shows while a project is being indexed for the first time, instead of
+  an empty canvas that stays "Updating your map" until the end.
+- Infrastructure changes that arrive with a branch switch are no longer listed
+  as your changes; after a pull they are Git's.
+- Opening a project whose repository has linked worktrees (as agents create)
+  no longer indexes it over and over: Ambio's own `git status` polling kept
+  waking its Git watcher, and each wake restarted the first index.
+- Switching branches, pulling or rebasing is brought into the map in one pass
+  instead of one whole-project rebuild per file, without replaying every file
+  on the canvas and without counting as your editing activity.
+- A branch switch no longer journals relationship changes between files it did
+  not touch, and calls no longer resolve to another language's or another
+  repository's function of the same name.
+- In a folder of several repositories, each repository's frame shows again,
+  with its files inside it; a branch switch no longer leaves the new files
+  scattered beside the frame while the map catches up.
+- A merge, rebase or stash pop that stops on a conflict no longer shows the
+  conflicted file's relationships as deleted by you; the file keeps its place
+  on the map until you resolve it.
+- Renaming the branch you are on keeps its unreviewed changes in Review
+  Changes, and is no longer recorded as a branch switch.
+- Systems are no longer left stale after a switch when a removed system had a
+  sub-system named like another top-level system.
 - Dense architecture review omits inactive connection components, reducing
   mouse-pan stalls. Keyboard camera ownership follows pointer events without
   forcing a hit test every frame; selection, resizing and artwork stay intact.

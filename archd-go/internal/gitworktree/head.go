@@ -189,6 +189,41 @@ func (c Checkout) HeadMessages(from, to Head) []string {
 	return nil
 }
 
+// WasRenamed reports whether HEAD's branch was renamed (`git branch -m`) from
+// one name to another without HEAD moving: the newest reflog entries are the
+// renames, in a chain from from to to.
+func (c Checkout) WasRenamed(from, to Head) bool {
+	if from.Commit != to.Commit || from.Branch == to.Branch {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(c.GitDir, "logs", "HEAD"))
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	name := to.Branch
+	for index := len(lines) - 1; index >= 0; index-- {
+		identity, message, _ := strings.Cut(lines[index], "\t")
+		fields := strings.Fields(identity)
+		renamed, ok := strings.CutPrefix(message, "Branch: renamed refs/heads/")
+		// Git logs each rename twice, once through the null object id.
+		if !ok || len(fields) < 2 || (fields[1] != to.Commit && strings.Trim(fields[1], "0") != "") {
+			return false
+		}
+		before, after, ok := strings.Cut(renamed, " to refs/heads/")
+		if !ok {
+			return false
+		}
+		if after == name {
+			name = before
+		}
+		if name == from.Branch {
+			return true
+		}
+	}
+	return false
+}
+
 func isObjectName(name string) bool {
 	if len(name) != sha1.Size*2 && len(name) != sha256.Size*2 {
 		return false

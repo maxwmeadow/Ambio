@@ -66,3 +66,29 @@ test('assignment is when a new file arrives on the canvas', () => {
     assert.equal(useGraphStore.getState().files.find(f => f.id === 'placed').systemId, 'cluster_hidden')
   })
 })
+
+// archd sent null for a map with files and no systems yet (mid-way through a
+// first index), and applying it threw: the canvas stayed empty.
+test('a snapshot with null lists still applies', () => {
+  const file = { id: 'f1', rootId: 'r', path: '/r/a.ts', relPath: 'a.ts', language: 'typescript', lineCount: 1 }
+  useGraphStore.getState().applySnapshot({ workspaceId: 'ws', systems: null, files: [file], infraNodes: null, dependencies: null, floorLayouts: null })
+  assert.deepEqual(useGraphStore.getState().files.map(item => item.id), ['f1'])
+  assert.deepEqual(useGraphStore.getState().systems, [])
+})
+
+// In a folder holding several repositories each repository is a frame, though
+// the clusterer made it; a file whose own system is an inferred guess is drawn
+// in its repository's frame, and a file in no repository stays unplaced.
+test('repository frames show, and files in inferred systems sit in their repository', () => {
+  const web = { id: 'repo-web', name: 'web', source: 'cluster', kind: 'repository', parentId: null, workspaceId: 'ws' }
+  const inner = { id: 'cluster_web_ui', name: 'Ui', source: 'cluster', parentId: 'repo-web', workspaceId: 'ws' }
+  const loose = { id: 'cluster_loose', name: 'Loose', source: 'cluster', parentId: null, workspaceId: 'ws' }
+  const file = (id, systemId) => ({ id, rootId: 'r', path: '/r/' + id, relPath: id, language: 'typescript', lineCount: 1, systemId })
+  useGraphStore.getState().applySnapshot({ workspaceId: 'ws', systems: [web, inner, loose], files: [file('a.ts', 'cluster_web_ui'), file('b.ts', 'cluster_loose'), file('c.ts', 'repo-web')], infraNodes: [], dependencies: [], floorLayouts: [] })
+  const state = useGraphStore.getState()
+  assert.deepEqual(state.systems.map(system => system.id), ['repo-web'])
+  assert.deepEqual(Object.fromEntries(state.files.map(item => [item.id, item.systemId])), { 'a.ts': 'repo-web', 'b.ts': null, 'c.ts': 'repo-web' })
+
+  withTimersOff(() => useGraphStore.getState().applyDbPatch({ type: 'file:updated', payload: { file: file('d.ts', 'cluster_web_ui'), change: 'created', animate: true } }))
+  assert.equal(useGraphStore.getState().files.find(item => item.id === 'd.ts').systemId, 'repo-web', 'a live file lands in its repository too')
+})

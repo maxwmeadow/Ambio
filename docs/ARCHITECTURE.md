@@ -291,7 +291,14 @@ to API-key billing or another account. Setup and live-account validation:
   The Review Changes watermark is per root and branch (`delta_watermarks`);
   a branch never reviewed falls back to the root's older watermark. The
   worktree monitor also runs for a plain folder and starts watching Git
-  metadata when `.git` appears. Model and plan:
+  metadata when `.git` appears. It follows refs, `HEAD`, `packed-refs` and
+  which linked worktrees exist (`worktrees/<name>` and its `HEAD`, `gitdir`,
+  `locked`), not a worktree's index or logs, which any `git status` there
+  rewrites. Every git command Ambio runs goes through `gitworktree.Command`
+  with `GIT_OPTIONAL_LOCKS=0`, so its own reads write nothing; before both,
+  polling the other checkouts re-synced every checkout every 2 s, and an
+  unindexed root was cleared and queued for a full index on each sync. A
+  root's first full index is queued once while it runs. Model and plan:
   [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
 - **Checkouts** (`api/checkouts.go`, `GET /api/checkouts`): every active root
   as a checkout - branch, head state (`commit`, `detached`, `unborn`, `none`
@@ -384,8 +391,33 @@ to API-key billing or another account. Setup and live-account validation:
 walk the root with ignore rules and the 1 MB / `*.min.*` limits → parse with
 tree-sitter → symbols, imports, calls, variable references, package imports
 and environment reads → call graph → clustering → infra detection. fsnotify
-watches with a 150 ms file debounce and a 1.5 s re-cluster debounce; hitting
-the OS watch limit degrades loudly. Re-scoping (changing which folders are
+changes are gathered into bursts (150 ms quiet, at most 2 s) and a 1.5 s
+re-cluster debounce; hitting the OS watch limit degrades loudly. A burst of
+fewer than 8 files is indexed file by file and animates; a larger one, or any
+holding a file Git wrote (`indexer.GitWroteAny`; a save in the minute after
+a cherry-pick still animates), and a reconcile
+of 8 or more files, go through `indexer.ReindexBatch`: each file read once,
+imports and calls rebuilt from one parallel parse of the project (the
+changed files' parses reused, and a file's imports rewritten only when they
+differ), one relationship diff, no per-file canvas patches (the settle sends
+`classification:updated`). Per file, a switch had cost a whole-project
+reparse and an animation each. Changes to one root's map are serialized
+(`lockRoot`), and live classification (`ClusterLive`, `ClusterOnly`) waits
+on the same lock, so it never sees a batch half read in. Relationships a switch shifts between files it did not touch
+are not journaled; after a pull they are Git's. The Floor moving to another
+checkout (a quiet-all reconcile) always takes the batch path, so it replays
+nothing on the canvas, and Review Changes neither diffs nor saves an
+architecture snapshot while any root of the project is syncing
+(`workspaceSyncing`); the sync's `delta:ready` re-reads it. Calls resolve by name only to
+code in the caller's language family (JS dialects, C/C++, JVM) and, in a
+folder of several repositories, its own repository unless it imports the
+file (`internal/indexer/call_scope.go`). A file Git holds as unmerged with
+conflict markers in it (a merge, rebase, cherry-pick or stash pop stopped on
+a conflict) is not reindexed until it is resolved: parsed, the markers lost
+its relationships (`internal/indexer/conflict.go`). Renaming the branch a
+checkout is on (`git branch -m`, read from HEAD's reflog) is not a move: the
+branch's journal, watermark, snapshots and agent history are carried to the
+new name (`db.RenameBranchHistory`). Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
 make reconcile after a closed period exact. A file moved on disk arrives as a
 delete and a create in either order; the new path takes over the vanished

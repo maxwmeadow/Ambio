@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -425,5 +426,146 @@ func TestABranchSwitchInsideOneOfSeveralRepositoriesIsNotCode(t *testing.T) {
 	}
 	if !hasEvent(events, db.EventCheckoutSwitched, "web: feature", "", "git") {
 		t.Fatalf("want one switch row naming the repository: %#v", events)
+	}
+}
+
+// A branch switch large enough to be indexed as one batch, which also
+// changes how a file it did not touch resolves its calls: caller.go's
+// Render() was ambiguous and becomes unique when the switch removes one of
+// the two definitions. Neither the files Git wrote nor that new edge are
+// anybody's code; only the switch row is journaled.
+func TestALargeBranchSwitchJournalsNoCodeEvenWhereResolutionShifts(t *testing.T) {
+	repo := t.TempDir()
+	runWorktreeGit(t, repo, "init", "-b", "main")
+	runWorktreeGit(t, repo, "config", "user.email", "ambio-test@example.com")
+	runWorktreeGit(t, repo, "config", "user.name", "Ambio Test")
+	writeCheckoutFile(t, repo, "left.go", "package sample\n\nfunc Render() int { return 1 }\n")
+	writeCheckoutFile(t, repo, "right.go", "package sample\n\nfunc Render() int { return 2 }\n")
+	writeCheckoutFile(t, repo, "caller.go", "package sample\n\nfunc Show() int { return Render() }\n")
+	for index := 0; index < 10; index++ {
+		writeCheckoutFile(t, repo, fmt.Sprintf("part%d.go", index), fmt.Sprintf("package sample\n\nfunc Part%d() int { return %d }\n", index, index))
+	}
+	runWorktreeGit(t, repo, "add", ".")
+	runWorktreeGit(t, repo, "commit", "-m", "base")
+	runWorktreeGit(t, repo, "checkout", "-b", "trim")
+	runWorktreeGit(t, repo, "rm", "-q", "right.go")
+	for index := 0; index < 10; index++ {
+		writeCheckoutFile(t, repo, fmt.Sprintf("part%d.go", index), fmt.Sprintf("package sample\n\nfunc Part%d() int { return %d + Show() }\n", index, index))
+	}
+	runWorktreeGit(t, repo, "add", ".")
+	runWorktreeGit(t, repo, "commit", "-m", "trim")
+	runWorktreeGit(t, repo, "checkout", "main")
+
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	since := time.Now().UnixMilli()
+	runWorktreeGit(t, repo, "checkout", "trim")
+	sqlDB, _ := server.dbFor("ws")
+	focused, _, err := server.focusedRoot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForWorktreeTest(t, "right.go off the map", func() bool {
+		file, err := db.GetFileByRelPath(sqlDB, focused.ID, "right.go")
+		return err == nil && file == nil
+	})
+	settleCheckout(server)
+	events := journalSince(t, server, since)
+	for _, event := range codeEvents(events) {
+		t.Errorf("journaled %s %s -> %s by %s", event.Kind, event.SubjectLabel, event.ObjectLabel, event.Actor)
+	}
+	if !hasEvent(events, db.EventCheckoutSwitched, "trim", "trim", "git") {
+		t.Fatalf("want the switch row: %#v", events)
+	}
+}
+
+// Reading Review Changes while a sync reshapes the map (the Floor moving to
+// another checkout) compared a half-moved map with the last review and
+// showed hundreds of changes by you, and saved that half map as a snapshot
+// for every later comparison. While a root syncs, no snapshot is taken.
+func TestDeltaTakesNoSnapshotWhileTheMapSyncs(t *testing.T) {
+	repo := newCheckoutRepo(t)
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	sqlDB, _ := server.dbFor("ws")
+	focused, _, err := server.focusedRoot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshots := func() int {
+		var count int
+		if err := sqlDB.QueryRow(`SELECT COUNT(*) FROM root_delta_snapshots`).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		return count
+	}
+	read := func() {
+		response := httptest.NewRecorder()
+		server.handleDelta(response, httptest.NewRequest(http.MethodGet, "/api/delta?workspace=ws", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("delta = %d %s", response.Code, response.Body.String())
+		}
+	}
+	before := snapshots()
+	server.mu.Lock()
+	server.rootSyncing[focused.ID] = true
+	server.mu.Unlock()
+	read()
+	if snapshots() != before {
+		t.Fatal("a delta read during a sync saved a snapshot of the half-synced map")
+	}
+	server.mu.Lock()
+	delete(server.rootSyncing, focused.ID)
+	server.mu.Unlock()
+	time.Sleep(5 * time.Millisecond) // a snapshot is keyed by the millisecond
+	read()
+	if snapshots() == before {
+		t.Fatal("a delta read once the map settled takes a snapshot again")
+	}
+}
+
+// Renaming the branch you are on (`git branch -m`) is not a switch, and its
+// unreviewed work goes with it: it was left under the old name, and Review
+// Changes on the renamed branch showed nothing.
+func TestRenamingTheBranchKeepsItsUnreviewedWork(t *testing.T) {
+	repo := newCheckoutRepo(t)
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	reviewedFiles := func() int {
+		response := httptest.NewRecorder()
+		server.handleDelta(response, httptest.NewRequest(http.MethodGet, "/api/delta?workspace=ws", nil))
+		var delta struct {
+			Branch string            `json:"branch"`
+			Files  []json.RawMessage `json:"files"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &delta); err != nil {
+			t.Fatalf("delta: %v %s", err, response.Body.String())
+		}
+		return len(delta.Files)
+	}
+	writeCheckoutFile(t, repo, "api.go", "package sample\n\nfunc Api() { _ = 1 }\n")
+	settleCheckout(server)
+	if reviewedFiles() == 0 {
+		t.Fatal("the edit is unreviewed before the rename")
+	}
+
+	since := time.Now().UnixMilli()
+	runWorktreeGit(t, repo, "branch", "-m", "main", "trunk")
+	sqlDB, _ := server.dbFor("ws")
+	waitForWorktreeTest(t, "the root on trunk", func() bool {
+		roots, err := db.GetActiveRoots(sqlDB, "ws")
+		return err == nil && len(roots) == 1 && roots[0].Branch == "trunk"
+	})
+	settleCheckout(server)
+	if reviewedFiles() == 0 {
+		t.Fatal("the renamed branch lost its unreviewed edit")
+	}
+	for _, event := range journalSince(t, server, since) {
+		if event.Kind == db.EventCheckoutSwitched {
+			t.Fatalf("a rename was journaled as a switch: %#v", event)
+		}
 	}
 }

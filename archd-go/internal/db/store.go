@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -594,7 +595,19 @@ func ApplyClusterPlan(
 		}
 	}
 
+	// Deepest first: deleting a parent sets its children's parent to NULL,
+	// which lifts them to the top level, where one named like a top-level
+	// system broke systems_unique_name and rolled the whole plan back.
+	depth := make(map[string]int, len(staleSystemIDs))
 	for _, id := range staleSystemIDs {
+		var level int
+		if tx.QueryRow(`SELECT depth FROM systems WHERE id=?`, id).Scan(&level) == nil {
+			depth[id] = level
+		}
+	}
+	ordered := append([]string(nil), staleSystemIDs...)
+	sort.SliceStable(ordered, func(i, j int) bool { return depth[ordered[i]] > depth[ordered[j]] })
+	for _, id := range ordered {
 		result, deleteErr := tx.Exec(`
 			DELETE FROM systems
 			WHERE id=? AND workspace_id=? AND source IN ('cluster','directory')
@@ -1453,14 +1466,23 @@ func GetCanvasSnapshot(db *sql.DB, workspaceID string) (*CanvasSnapshot, error) 
 	if err != nil {
 		return nil, fmt.Errorf("get floor layouts: %w", err)
 	}
+	// Empty lists, never null: a map mid-way through its first index has
+	// files but no systems yet, and a null there stopped the canvas drawing.
 	return &CanvasSnapshot{
 		WorkspaceID:  workspaceID,
-		Systems:      systems,
-		Files:        files,
-		InfraNodes:   infra,
-		Dependencies: dependencies,
-		FloorLayouts: layouts,
+		Systems:      nonNil(systems),
+		Files:        nonNil(files),
+		InfraNodes:   nonNil(infra),
+		Dependencies: nonNil(dependencies),
+		FloorLayouts: nonNil(layouts),
 	}, nil
+}
+
+func nonNil[T any](items []T) []T {
+	if items == nil {
+		return []T{}
+	}
+	return items
 }
 
 // ─── Call graph ───────────────────────────────────────────────────────────────

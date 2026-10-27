@@ -418,7 +418,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   disagree. A refused edit rolls the layout back with an explanation.
 - Rearranging within the same parent is presentation and records nothing.
 - Inferred (cluster) systems are not drawn, so their files sit at the top
-  level; moving one there changes nothing.
+  level (in a folder of repositories, in their repository's frame); moving
+  one there changes nothing. Repository frames are drawn, but are not an
+  authored architecture: alone they do not send new files to Unsorted.
 - A live system's title is renamable in place.
 - Every meaning edit confirms itself with a notice that offers Undo, and
   appears in Review Changes attributed to you.

@@ -56,7 +56,7 @@ func WorkingChangedPaths(worktreePath string) ([]string, error) {
 }
 
 func gitOutput(worktreePath string, args ...string) ([]byte, error) {
-	command := exec.Command("git", append([]string{"-C", worktreePath}, args...)...)
+	command := Command(worktreePath, args...)
 	output, err := command.Output()
 	if err != nil {
 		// Git's own first line ("fatal: 'main' is already checked out at …")

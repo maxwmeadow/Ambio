@@ -1,7 +1,9 @@
 package db
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -138,5 +140,57 @@ func TestClusterPruningKeepsSystemUsedBySiblingRoot(t *testing.T) {
 	}
 	if len(systems) != 1 || systems[0].ID != system.ID {
 		t.Fatalf("sibling root's system was pruned: %#v", systems)
+	}
+}
+
+// A stale parent listed before its stale child: deleting the parent first set
+// the child's parent to NULL, lifting it beside a top-level system with the
+// same name, and the unique name index rolled the whole plan back.
+func TestApplyClusterPlanRemovesStaleSystemsChildrenFirst(t *testing.T) {
+	sqlDB, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := UpsertWorkspace(sqlDB, Workspace{ID: "ws", Name: "stale"}); err != nil {
+		t.Fatal(err)
+	}
+	parent := "stale-parent"
+	for _, system := range []System{
+		{ID: "kept", WorkspaceID: "ws", Name: "Storage", Source: "cluster"},
+		{ID: parent, WorkspaceID: "ws", Name: "Web", Source: "cluster"},
+		{ID: "stale-child", WorkspaceID: "ws", Name: "Storage", Source: "cluster", ParentID: &parent, Depth: 1},
+	} {
+		if err := UpsertSystem(sqlDB, system); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ApplyClusterPlan(sqlDB, "ws", nil, nil, []string{parent, "stale-child"}); err != nil {
+		t.Fatal(err)
+	}
+	systems, err := GetSystems(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(systems) != 1 || systems[0].ID != "kept" {
+		t.Fatalf("systems = %#v, want only the kept one", systems)
+	}
+}
+
+// The renderer reads every list's length: a map with files and no systems
+// yet (mid-way through its first index) must send [], not null.
+func TestCanvasSnapshotListsAreNeverNull(t *testing.T) {
+	sqlDB, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	snapshot, err := GetCanvasSnapshot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(snapshot)
+	if strings.Contains(string(encoded), "null") {
+		t.Fatalf("snapshot has a null list: %s", encoded)
 	}
 }
