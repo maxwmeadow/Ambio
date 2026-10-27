@@ -209,6 +209,12 @@ export default function App() {
     () => graphSystems.some(system => system.source === 'user' || system.source === 'agent'),
     [graphSystems],
   )
+  // Setup needs an exact source count, but the canvas does not. Keep it lazy
+  // and memoized so setup status updates do not repeatedly classify the files.
+  const getSourceGraphFileCount = useMemo(() => {
+    let count: number | undefined
+    return () => count ??= graphFiles.reduce((total, file) => total + Number(isCanvasSourceFile(file)), 0)
+  }, [graphFiles])
 
   const {
     applySnapshot,
@@ -947,7 +953,7 @@ export default function App() {
     return (
       <ConnectAgentScreen
         project={currentProject}
-        fileCount={graphFiles.reduce((count, file) => count + Number(isCanvasSourceFile(file)), 0)}
+        fileCount={getSourceGraphFileCount()}
         indexing={graphIndexing}
         blankProject={blankProject}
         backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
