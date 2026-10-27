@@ -24,7 +24,6 @@ import { HomeScreen } from './screens/HomeScreen'
 import { ProjectSetupScreen } from './screens/ProjectSetupScreen'
 import { ProjectReviewScreen } from './screens/ProjectReviewScreen'
 import { ConnectAgentScreen } from './screens/ConnectAgentScreen'
-import { readAuthorship } from './canvas/architectureAuthorship.ts'
 import { isCanvasSourceFile } from '../shared/fileKinds'
 import {
   migrateLegacyProjectLifecycle,
@@ -204,11 +203,12 @@ export default function App() {
   const [initialJourneyProjectId, setInitialJourneyProjectId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
   const [agentSetupOpen, setAgentSetupOpen] = useState(false)
-  const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
-  const architectureIsAuthored = readAuthorship({
-    systems: graphSystems,
-    files: sourceGraphFiles,
-  }).authored > 0
+  // This lifecycle decision needs only authored-system presence. Computing the
+  // full authorship summary would classify and count every file on cold load.
+  const architectureIsAuthored = useMemo(
+    () => graphSystems.some(system => system.source === 'user' || system.source === 'agent'),
+    [graphSystems],
+  )
 
   const {
     applySnapshot,
@@ -947,7 +947,7 @@ export default function App() {
     return (
       <ConnectAgentScreen
         project={currentProject}
-        fileCount={sourceGraphFiles.length}
+        fileCount={graphFiles.reduce((count, file) => count + Number(isCanvasSourceFile(file)), 0)}
         indexing={graphIndexing}
         blankProject={blankProject}
         backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}

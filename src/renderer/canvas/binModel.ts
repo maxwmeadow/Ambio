@@ -1,5 +1,25 @@
 import { classifyProjectFile } from '../../shared/fileKinds.ts'
-import type { DbFile } from '../../shared/types.ts'
+import type { DbFile, FloorLayout } from '../../shared/types.ts'
+
+/**
+ * Most files already have a shown system, so their placement does not consult
+ * root layouts. Build this index only on the first loose-file query, and once
+ * per layout revision; subsequent queries must not rescan the project.
+ */
+export function createLooseFileLookup(layouts: readonly FloorLayout[]): Pick<ReadonlySet<string>, 'has'> {
+  let ids: Set<string> | undefined
+  return {
+    has(id) {
+      if (!ids) {
+        ids = new Set<string>()
+        for (const layout of layouts) {
+          if (layout.nodeType === 'file' && layout.containmentKind === 'root') ids.add(layout.nodeId)
+        }
+      }
+      return ids.has(id)
+    },
+  }
+}
 
 /**
  * Which files belong on the canvas, and which belong in a bin.

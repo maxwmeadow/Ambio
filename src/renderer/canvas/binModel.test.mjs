@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { partitionCanvasFiles, sortForBin } from './binModel.ts'
+import { createLooseFileLookup, partitionCanvasFiles, sortForBin } from './binModel.ts'
 
 const file = (relPath, overrides = {}) => ({
   id: relPath,
@@ -16,6 +16,30 @@ const file = (relPath, overrides = {}) => ({
 })
 
 const liveHome = { hasHome: f => !!f.systemId }
+
+test('placed files do not scan layouts; loose-file queries share one exact root-file index', () => {
+  let reads = 0
+  const layouts = [
+    { nodeId: 'root', nodeType: 'file', containmentKind: 'root' },
+    { nodeId: 'nested', nodeType: 'file', containmentKind: 'part_of' },
+    { nodeId: 'frame', nodeType: 'system', containmentKind: 'root' },
+  ].map(layout => ({ ...layout, get nodeType() { reads++; return layout.nodeType } }))
+  const loose = createLooseFileLookup(layouts)
+  const hasHome = f => f.systemId === 'shown' || loose.has(f.id)
+  const placed = file('placed.ts', { systemId: 'shown' })
+  assert.deepEqual(partitionCanvasFiles([placed], { hasHome }).placed, [placed])
+  assert.equal(reads, 0)
+  const root = file('root.ts', { id: 'root', systemId: 'withheld' })
+  const nested = file('nested.ts', { id: 'nested' })
+  assert.deepEqual(partitionCanvasFiles([root, nested], { hasHome }).placed, [root])
+  assert.equal(loose.has('frame'), false)
+  assert.equal(reads, layouts.length)
+  // Replacing the layout population invalidates both positive and negative
+  // membership; a removed root may not remain on the Floor via an old cache.
+  const replacement = createLooseFileLookup([{ nodeId: 'nested', nodeType: 'file', containmentKind: 'root' }])
+  assert.equal(replacement.has('root'), false)
+  assert.equal(replacement.has('nested'), true)
+})
 
 test('partition keeps the complete source order and classifies each filename only once', () => {
   let reads = 0

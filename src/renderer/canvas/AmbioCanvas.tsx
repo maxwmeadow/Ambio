@@ -51,7 +51,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout, FloorNodeType } from '../../shared/types'
 import { isCanvasSourceFile } from '../../shared/fileKinds'
 import { BINNED_FILE_MIME, CanvasBins } from '../components/CanvasBins'
-import { partitionCanvasFiles } from './binModel'
+import { createLooseFileLookup, partitionCanvasFiles } from './binModel'
 import { dropOnFloorAt, registerFloorDropTarget, systemAtFloorPoint } from './binDropBridge'
 import { hideBinGhost, hideRealNode, moveBinGhost, showBinGhost } from './binDragGhost'
 import { GroupDialog } from '../components/GroupDialog'
@@ -544,11 +544,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
    * is the difference - it exists only because a person made it exist - so it
    * is what separates "on the map, just not in a system" from "still unsorted".
    */
-  const looseFileIds = useMemo(() => new Set(
-    floorLayouts
-      .filter(layout => layout.nodeType === 'file' && layout.containmentKind === 'root')
-      .map(layout => layout.nodeId),
-  ), [floorLayouts])
+  const looseFileIds = useMemo(() => createLooseFileLookup(floorLayouts), [floorLayouts])
   // A file has a home only in a system the canvas shows. A system_id that
   // points at a withheld inferred grouping is not a home: without this the
   // file floated loose on the Floor instead of waiting in the Unsorted bin.
@@ -654,11 +650,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [candidateRfNodes, setRfNodes] = useState<Node[]>([])
   const [candidateOwner, setCandidateOwner] = useState<string | null>(null)
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
-  const canonicalNodeIds = useMemo(() => new Set([
-    ...systems.map(system => system.id),
-    ...files.map(file => file.id),
-    ...infraNodes.map(infra => infra.id),
-  ]), [systems, files, infraNodes])
+  const canonicalNodeIds = useMemo(() => {
+    // Keep membership independent of candidate geometry, without allocating
+    // intermediate full-project arrays just to populate the validation set.
+    const ids = new Set<string>()
+    for (const system of systems) ids.add(system.id)
+    for (const file of files) ids.add(file.id)
+    for (const infra of infraNodes) ids.add(infra.id)
+    return ids
+  }, [systems, files, infraNodes])
   const canonicalNodeCount = canonicalNodeIds.size
   const sceneProjectId = binScene ? `bin:${currentProject?.id ?? 'demo'}`
     : reviewScene ? `review:${reviewScene.workspaceId}:${reviewScene.id}` : currentProject?.id ?? 'demo'
