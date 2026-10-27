@@ -621,6 +621,14 @@ take the ordinary audit path. Review/sheet transforms retain their own validatio
 Semantic index preparation uses bounded stable sorts (256 entries per native
 sort and cooperative merges), with a linear path for already depth-ordered nodes.
 No reveal threshold or camera/authoring contract changes.
+
+Floor file projection reuses `binModel.ts`'s single-pass partition when the
+canvas and bins share an indexed population and placement rules; the partition
+retains all source files in input order as well as placed/unclassified/docs.
+Review-specific populations keep their own filter. `DeltaPanel` leaves file and
+system subscriptions inactive without a delta and builds filter lookups only
+when review opens. These avoid synchronous cold-store consumer work; measured
+controls and limits are in [the cold-input follow-up](testing/CANVAS_COLD_INPUT_WIN.md).
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.

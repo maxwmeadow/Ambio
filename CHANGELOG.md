@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Large saved maps avoid repeated source-file classification and project-wide
+  lookup work in the closed Review Changes panel, reducing cold-loading input
+  stalls. File placement, documentation handling and review actions are preserved.
 - Large-map preparation splits scene validation and semantic-index sorting into
   smaller steps. Selection and activity updates reuse unchanged visibility and
   validation work while geometry and membership edits remain fully checked.

@@ -1,5 +1,9 @@
 # Semantic indexing and Floor integrity preparation — 2026-10-26
 
+Subsequent work: [the measured cold-input follow-up](CANVAS_COLD_INPUT_WIN.md)
+finds the remaining synchronous consumer burst and demonstrates a repeated
+native latency improvement. The original failed checkpoint below is preserved.
+
 Continues phase 2 of the [performance handoff](CANVAS_PERFORMANCE_HANDOFF.md)
 from main `c42de0d`, on `codex/review-pan-audit`. The parent cold-adoption gate
 remains open. This checkpoint bounds additional work and preserves validation;

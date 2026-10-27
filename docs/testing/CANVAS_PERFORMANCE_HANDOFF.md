@@ -11,6 +11,12 @@ parent phases and dense/progressive-data work remain open.
 
 ## Delivery scope
 
+Later desktop follow-up: [measured cold-input improvement](CANVAS_COLD_INPUT_WIN.md)
+compares five fresh exact-main controls with five updated runs: median per-run
+cold-input p95 65.2 to 39.8 ms, with passes improving from 1/5 to 4/5. The retained
+52.5 ms miss keeps full acceptance open. The original delivery evidence below
+remains unchanged.
+
 The `codex/canvas-cold-adoption` branch consolidates these implementations:
 
 | Commit | Delivered work |

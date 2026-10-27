@@ -1,0 +1,1873 @@
+{
+  "date": "2026-10-26",
+  "baselineCommit": "c42de0d",
+  "implementationCommit": "7ca84dd",
+  "scope": "Production Electron synthetic 100k saved-layout fixed sparse view; not live self-map or dense-review capacity",
+  "summary": {
+    "unchanged-main-control": {
+      "runs": 5,
+      "coldInputP95": [
+        70.39999997615814,
+        49.30000001192093,
+        65.19999998807907,
+        65.80000001192093,
+        54.40000003576279
+      ],
+      "medianColdInputP95": 65.19999998807907,
+      "passes": 1,
+      "worstColdFrame": 70.80000000000018,
+      "medianReadyMs": 2053
+    },
+    "fixed-confirmation": {
+      "runs": 5,
+      "coldInputP95": [
+        52.5,
+        39.30000001192093,
+        39.80000001192093,
+        45.59999996423721,
+        37.69999998807907
+      ],
+      "medianColdInputP95": 39.80000001192093,
+      "passes": 4,
+      "worstColdFrame": 58.299999999999955,
+      "medianReadyMs": 2024
+    },
+    "reduction": 0.38957055185279427
+  },
+  "cases": [
+    {
+      "cohort": "exploratory-fixed",
+      "repeat": 0,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 746.6000000238419,
+        "wallMs": 1999,
+        "usableMs": 3325
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 6.099999964237213,
+        "p95": 39.40000003576279,
+        "p99": 39.40000003576279,
+        "max": 39.40000003576279
+      },
+      "input": {
+        "count": 20,
+        "p50": 8.400000035762787,
+        "p95": 39.40000003576279,
+        "p99": 39.40000003576279,
+        "max": 39.40000003576279
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 450,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.400000000000091,
+          "max": 54.19999999999993
+        },
+        "navigation": {
+          "count": 265,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 45.80000000000018,
+          "max": 58.40000000000009
+        },
+        "warm": {
+          "count": 242,
+          "p50": 4.199999999999818,
+          "p95": 4.299999999999727,
+          "p99": 16.599999999999454,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 848.6999999880791,
+          "received": 886.6000000238419,
+          "finished": 888.1000000238419,
+          "queueMs": 37.90000003576279,
+          "paintOpportunityMs": 39.40000003576279
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1220.800000011921,
+          "received": 1248,
+          "finished": 1249.699999988079,
+          "queueMs": 27.19999998807907,
+          "paintOpportunityMs": 28.899999976158142
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4275.800000011921,
+          "received": 4276.300000011921,
+          "finished": 4296,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 20.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4797.100000023842,
+          "received": 4797.600000023842,
+          "finished": 4815.800000011921,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 18.69999998807907
+        },
+        {
+          "phase": "cold",
+          "dispatched": 2337,
+          "received": 2337.399999976158,
+          "finished": 2353.899999976158,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 16.899999976158142
+        }
+      ]
+    },
+    {
+      "cohort": "exploratory-fixed",
+      "repeat": 1,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 752.2000000476837,
+        "wallMs": 2033,
+        "usableMs": 3374
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 6.300000011920929,
+        "p95": 44.39999997615814,
+        "p99": 44.39999997615814,
+        "max": 44.39999997615814
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.100000023841858,
+        "p95": 44.39999997615814,
+        "p99": 44.39999997615814,
+        "max": 44.39999997615814
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 461,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 4.300000000000182,
+          "max": 54.19999999999993
+        },
+        "navigation": {
+          "count": 269,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.79999999999973,
+          "max": 58.40000000000009
+        },
+        "warm": {
+          "count": 241,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.600000000000364,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1211.8999999761581,
+          "received": 1254.5999999642372,
+          "finished": 1256.2999999523163,
+          "queueMs": 42.69999998807907,
+          "paintOpportunityMs": 44.39999997615814
+        },
+        {
+          "phase": "cold",
+          "dispatched": 854.8999999761581,
+          "received": 892.5999999642372,
+          "finished": 894,
+          "queueMs": 37.69999998807907,
+          "paintOpportunityMs": 39.10000002384186
+        },
+        {
+          "phase": "cold",
+          "dispatched": 2352.699999988079,
+          "received": 2360.7999999523163,
+          "finished": 2376.599999964237,
+          "queueMs": 8.099999964237213,
+          "paintOpportunityMs": 23.899999976158142
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4839.899999976158,
+          "received": 4840.299999952316,
+          "finished": 4860.099999964237,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 20.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4319,
+          "received": 4319.799999952316,
+          "finished": 4338.799999952316,
+          "queueMs": 0.7999999523162842,
+          "paintOpportunityMs": 19.799999952316284
+        }
+      ]
+    },
+    {
+      "cohort": "exploratory-fixed",
+      "repeat": 2,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 742.5,
+        "wallMs": 2007,
+        "usableMs": 3346
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 6.300000011920929,
+        "p95": 37.39999997615814,
+        "p99": 37.39999997615814,
+        "max": 37.39999997615814
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.400000035762787,
+        "p95": 37.39999997615814,
+        "p99": 37.39999997615814,
+        "max": 37.39999997615814
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 453,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.400000000000091,
+          "max": 54.19999999999993
+        },
+        "navigation": {
+          "count": 264,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 58.40000000000009,
+          "max": 75.09999999999991
+        },
+        "warm": {
+          "count": 241,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 12.5,
+          "max": 16.800000000000182
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 850.8000000119209,
+          "received": 886.5999999642372,
+          "finished": 888.1999999880791,
+          "queueMs": 35.799999952316284,
+          "paintOpportunityMs": 37.39999997615814
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1211.5999999642372,
+          "received": 1243.8999999761581,
+          "finished": 1245.3999999761581,
+          "queueMs": 32.30000001192093,
+          "paintOpportunityMs": 33.80000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4297.699999988079,
+          "received": 4298.199999988079,
+          "finished": 4318,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 20.30000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4818.899999976158,
+          "received": 4819.300000011921,
+          "finished": 4837.099999964237,
+          "queueMs": 0.40000003576278687,
+          "paintOpportunityMs": 18.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4258,
+          "received": 4258.399999976158,
+          "finished": 4273.800000011921,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 15.800000011920929
+        }
+      ]
+    },
+    {
+      "cohort": "unchanged-main-control",
+      "repeat": 0,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 747.8999999761581,
+        "wallMs": 2053,
+        "usableMs": 3412
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 6.600000023841858,
+        "p95": 70.39999997615814,
+        "p99": 70.39999997615814,
+        "max": 70.39999997615814
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.900000035762787,
+        "p95": 70.39999997615814,
+        "p99": 70.39999997615814,
+        "max": 70.39999997615814
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 454,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.299999999999727,
+          "max": 66.79999999999995
+        },
+        "navigation": {
+          "count": 269,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 45.90000000000009,
+          "max": 58.40000000000009
+        },
+        "warm": {
+          "count": 238,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.699999999999818,
+          "max": 20.899999999999636
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1197.5,
+          "ms": 69,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1198.9000000357628,
+          "received": 1267.7000000476837,
+          "finished": 1269.300000011921,
+          "queueMs": 68.80000001192093,
+          "paintOpportunityMs": 70.39999997615814
+        },
+        {
+          "phase": "cold",
+          "dispatched": 836.4000000357628,
+          "received": 873.5,
+          "finished": 875,
+          "queueMs": 37.09999996423721,
+          "paintOpportunityMs": 38.59999996423721
+        },
+        {
+          "phase": "cold",
+          "dispatched": 2367.300000011921,
+          "received": 2378,
+          "finished": 2396.100000023842,
+          "queueMs": 10.699999988079071,
+          "paintOpportunityMs": 28.80000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4356.600000023842,
+          "received": 4357.300000011921,
+          "finished": 4376.700000047684,
+          "queueMs": 0.699999988079071,
+          "paintOpportunityMs": 20.100000023841858
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4877.600000023842,
+          "received": 4878,
+          "finished": 4897.400000035763,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 19.80000001192093
+        }
+      ]
+    },
+    {
+      "cohort": "unchanged-main-control",
+      "repeat": 1,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 770,
+        "wallMs": 2058,
+        "usableMs": 3411
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7.099999964237213,
+        "p95": 49.30000001192093,
+        "p99": 49.30000001192093,
+        "max": 49.30000001192093
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.900000035762787,
+        "p95": 49.30000001192093,
+        "p99": 49.30000001192093,
+        "max": 49.30000001192093
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 455,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 4.300000000000182,
+          "max": 66.70000000000005
+        },
+        "navigation": {
+          "count": 272,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 37.69999999999982,
+          "max": 54.20000000000027
+        },
+        "warm": {
+          "count": 236,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 12.699999999999818,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1214,
+          "ms": 65,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1232.8999999761581,
+          "received": 1280.5999999642372,
+          "finished": 1282.199999988079,
+          "queueMs": 47.69999998807907,
+          "paintOpportunityMs": 49.30000001192093
+        },
+        {
+          "phase": "cold",
+          "dispatched": 866,
+          "received": 897.5999999642372,
+          "finished": 899.1999999880791,
+          "queueMs": 31.599999964237213,
+          "paintOpportunityMs": 33.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4341.800000011921,
+          "received": 4342.199999988079,
+          "finished": 4360.599999964237,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 18.799999952316284
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4850.199999988079,
+          "received": 4850.599999964237,
+          "finished": 4868.300000011921,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 18.100000023841858
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4304.599999964237,
+          "received": 4304.899999976158,
+          "finished": 4319.699999988079,
+          "queueMs": 0.30000001192092896,
+          "paintOpportunityMs": 15.100000023841858
+        }
+      ]
+    },
+    {
+      "cohort": "unchanged-main-control",
+      "repeat": 2,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 765.1999999880791,
+        "wallMs": 2055,
+        "usableMs": 3410
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7.099999964237213,
+        "p95": 65.19999998807907,
+        "p99": 65.19999998807907,
+        "max": 65.19999998807907
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.800000011920929,
+        "p95": 65.19999998807907,
+        "p99": 65.19999998807907,
+        "max": 65.19999998807907
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 455,
+          "p50": 4.199999999999932,
+          "p95": 4.300000000000182,
+          "p99": 8.300000000000182,
+          "max": 66.79999999999995
+        },
+        "navigation": {
+          "count": 270,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.80000000000018,
+          "max": 54.09999999999991
+        },
+        "warm": {
+          "count": 236,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.699999999999818,
+          "max": 16.800000000000182
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1210.199999988079,
+          "ms": 68,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1216.0999999642372,
+          "received": 1279.699999988079,
+          "finished": 1281.2999999523163,
+          "queueMs": 63.60000002384186,
+          "paintOpportunityMs": 65.19999998807907
+        },
+        {
+          "phase": "cold",
+          "dispatched": 841.7999999523163,
+          "received": 886.5999999642372,
+          "finished": 888.3999999761581,
+          "queueMs": 44.80000001192093,
+          "paintOpportunityMs": 46.60000002384186
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4349.699999988079,
+          "received": 4350.299999952316,
+          "finished": 4369.399999976158,
+          "queueMs": 0.5999999642372131,
+          "paintOpportunityMs": 19.69999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4858.299999952316,
+          "received": 4858.799999952316,
+          "finished": 4877.299999952316,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 19
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4312.799999952316,
+          "received": 4313.099999964237,
+          "finished": 4328.199999988079,
+          "queueMs": 0.30000001192092896,
+          "paintOpportunityMs": 15.400000035762787
+        }
+      ]
+    },
+    {
+      "cohort": "unchanged-main-control",
+      "repeat": 3,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 741.5,
+        "wallMs": 1908,
+        "usableMs": 3266
+      },
+      "coldInput": {
+        "count": 14,
+        "p50": 5.899999976158142,
+        "p95": 65.80000001192093,
+        "p99": 65.80000001192093,
+        "max": 65.80000001192093
+      },
+      "input": {
+        "count": 19,
+        "p50": 6.5,
+        "p95": 65.80000001192093,
+        "p99": 65.80000001192093,
+        "max": 65.80000001192093
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 421,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 4.300000000000182,
+          "max": 66.79999999999995
+        },
+        "navigation": {
+          "count": 271,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.59999999999991,
+          "max": 62.59999999999991
+        },
+        "warm": {
+          "count": 239,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 12.600000000000364,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1179.800000011921,
+          "ms": 68,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1185.300000011921,
+          "received": 1249.2000000476837,
+          "finished": 1251.1000000238419,
+          "queueMs": 63.90000003576279,
+          "paintOpportunityMs": 65.80000001192093
+        },
+        {
+          "phase": "cold",
+          "dispatched": 829.1000000238419,
+          "received": 866.3000000119209,
+          "finished": 867.8000000119209,
+          "queueMs": 37.19999998807907,
+          "paintOpportunityMs": 38.69999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4194.200000047684,
+          "received": 4194.600000023842,
+          "finished": 4212.900000035763,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 18.69999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4719.800000011921,
+          "received": 4720.200000047684,
+          "finished": 4737.300000011921,
+          "queueMs": 0.40000003576278687,
+          "paintOpportunityMs": 17.5
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4157,
+          "received": 4157.5,
+          "finished": 4173,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 16
+        }
+      ]
+    },
+    {
+      "cohort": "unchanged-main-control",
+      "repeat": 4,
+      "buildFingerprint": "d80065db78eedeed5c9ee1888cf4077e0e9b0702ef4a583b28187e3da5ec4d10",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 745.4000000357628,
+        "wallMs": 2029,
+        "usableMs": 3382
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7,
+        "p95": 54.40000003576279,
+        "p99": 54.40000003576279,
+        "max": 54.40000003576279
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.699999988079071,
+        "p95": 54.40000003576279,
+        "p99": 54.40000003576279,
+        "max": 54.40000003576279
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 449,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.400000000000091,
+          "max": 70.80000000000018
+        },
+        "navigation": {
+          "count": 263,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 45.90000000000009,
+          "max": 75.09999999999991
+        },
+        "warm": {
+          "count": 239,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.799999999999272,
+          "max": 16.800000000000182
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1199.0999999642372,
+          "ms": 72,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1219.7999999523163,
+          "received": 1272.5999999642372,
+          "finished": 1274.199999988079,
+          "queueMs": 52.80000001192093,
+          "paintOpportunityMs": 54.40000003576279
+        },
+        {
+          "phase": "cold",
+          "dispatched": 847.7999999523163,
+          "received": 886.1999999880791,
+          "finished": 889,
+          "queueMs": 38.40000003576279,
+          "paintOpportunityMs": 41.200000047683716
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4334.199999988079,
+          "received": 4334.699999988079,
+          "finished": 4353.699999988079,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 19.599999964237213
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4855.199999988079,
+          "received": 4855.699999988079,
+          "finished": 4874.099999964237,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 18.899999976158142
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4292.5,
+          "received": 4292.799999952316,
+          "finished": 4309.899999976158,
+          "queueMs": 0.2999999523162842,
+          "paintOpportunityMs": 17.399999976158142
+        }
+      ]
+    },
+    {
+      "cohort": "fixed-confirmation",
+      "repeat": 0,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 755.2999999523163,
+        "wallMs": 1979,
+        "usableMs": 3304
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 6.199999988079071,
+        "p95": 52.5,
+        "p99": 52.5,
+        "max": 52.5
+      },
+      "input": {
+        "count": 20,
+        "p50": 7,
+        "p95": 52.5,
+        "p99": 52.5,
+        "max": 52.5
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 443,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.200000000000273,
+          "max": 54.30000000000007
+        },
+        "navigation": {
+          "count": 257,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.600000000000364,
+          "max": 79.09999999999991
+        },
+        "warm": {
+          "count": 240,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.699999999999818,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": false,
+        "inputPaint": false,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1213.8999999761581,
+          "ms": 50,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1211.800000011921,
+          "received": 1212.3999999761581,
+          "finished": 1264.300000011921,
+          "queueMs": 0.5999999642372131,
+          "paintOpportunityMs": 52.5
+        },
+        {
+          "phase": "cold",
+          "dispatched": 847.8999999761581,
+          "received": 886.8999999761581,
+          "finished": 888.3999999761581,
+          "queueMs": 39,
+          "paintOpportunityMs": 40.5
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4735.300000011921,
+          "received": 4735.599999964237,
+          "finished": 4757.899999976158,
+          "queueMs": 0.2999999523162842,
+          "paintOpportunityMs": 22.599999964237213
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1646.300000011921,
+          "received": 1646.800000011921,
+          "finished": 1667.5,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 21.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4247.599999964237,
+          "received": 4248,
+          "finished": 4267.699999988079,
+          "queueMs": 0.40000003576278687,
+          "paintOpportunityMs": 20.100000023841858
+        }
+      ]
+    },
+    {
+      "cohort": "fixed-confirmation",
+      "repeat": 1,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 777,
+        "wallMs": 2024,
+        "usableMs": 3364
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7.600000023841858,
+        "p95": 39.30000001192093,
+        "p99": 39.30000001192093,
+        "max": 39.30000001192093
+      },
+      "input": {
+        "count": 20,
+        "p50": 8.800000011920929,
+        "p95": 39.30000001192093,
+        "p99": 39.30000001192093,
+        "max": 39.30000001192093
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 458,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 4.300000000000182,
+          "max": 54.200000000000045
+        },
+        "navigation": {
+          "count": 267,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 45.90000000000009,
+          "max": 62.70000000000027
+        },
+        "warm": {
+          "count": 241,
+          "p50": 4.199999999999818,
+          "p95": 4.299999999999272,
+          "p99": 16.599999999999454,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 860.1999999880791,
+          "received": 898.0999999642372,
+          "finished": 899.5,
+          "queueMs": 37.89999997615814,
+          "paintOpportunityMs": 39.30000001192093
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1233.3999999761581,
+          "received": 1263.199999988079,
+          "finished": 1264.8999999761581,
+          "queueMs": 29.80000001192093,
+          "paintOpportunityMs": 31.5
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4305.5,
+          "received": 4306,
+          "finished": 4326,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 20.5
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4826.5,
+          "received": 4826.899999976158,
+          "finished": 4846.799999952316,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 20.299999952316284
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4262.099999964237,
+          "received": 4262.5,
+          "finished": 4279.399999976158,
+          "queueMs": 0.40000003576278687,
+          "paintOpportunityMs": 17.30000001192093
+        }
+      ]
+    },
+    {
+      "cohort": "fixed-confirmation",
+      "repeat": 2,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 757.5,
+        "wallMs": 2021,
+        "usableMs": 3358
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7.099999964237213,
+        "p95": 39.80000001192093,
+        "p99": 39.80000001192093,
+        "max": 39.80000001192093
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.5,
+        "p95": 39.80000001192093,
+        "p99": 39.80000001192093,
+        "max": 39.80000001192093
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 456,
+          "p50": 4.199999999999932,
+          "p95": 4.300000000000068,
+          "p99": 8.399999999999636,
+          "max": 54.19999999999993
+        },
+        "navigation": {
+          "count": 265,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 37.5,
+          "max": 75.09999999999991
+        },
+        "warm": {
+          "count": 240,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.699999999999818,
+          "max": 20.800000000000182
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 847.9000000357628,
+          "received": 886.2000000476837,
+          "finished": 887.7000000476837,
+          "queueMs": 38.30000001192093,
+          "paintOpportunityMs": 39.80000001192093
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1220,
+          "received": 1256.2000000476837,
+          "finished": 1257.9000000357628,
+          "queueMs": 36.200000047683716,
+          "paintOpportunityMs": 37.90000003576279
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4305.600000023842,
+          "received": 4306.100000023842,
+          "finished": 4328.800000011921,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 23.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4830.600000023842,
+          "received": 4830.900000035763,
+          "finished": 4849.600000023842,
+          "queueMs": 0.30000001192092896,
+          "paintOpportunityMs": 19
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4262.900000035763,
+          "received": 4263.300000011921,
+          "finished": 4279,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 16.099999964237213
+        }
+      ]
+    },
+    {
+      "cohort": "fixed-confirmation",
+      "repeat": 3,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 754.6999999880791,
+        "wallMs": 2031,
+        "usableMs": 3355
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7.5,
+        "p95": 45.59999996423721,
+        "p99": 45.59999996423721,
+        "max": 45.59999996423721
+      },
+      "input": {
+        "count": 20,
+        "p50": 8.399999976158142,
+        "p95": 45.59999996423721,
+        "p99": 45.59999996423721,
+        "max": 45.59999996423721
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 455,
+          "p50": 4.199999999999932,
+          "p95": 4.300000000000011,
+          "p99": 8.400000000000091,
+          "max": 58.299999999999955
+        },
+        "navigation": {
+          "count": 266,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.69999999999982,
+          "max": 58.40000000000009
+        },
+        "warm": {
+          "count": 235,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.599999999999454,
+          "max": 16.699999999999818
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1210.7000000476837,
+          "received": 1254.6000000238419,
+          "finished": 1256.300000011921,
+          "queueMs": 43.89999997615814,
+          "paintOpportunityMs": 45.59999996423721
+        },
+        {
+          "phase": "cold",
+          "dispatched": 852.3000000119209,
+          "received": 890.9000000357628,
+          "finished": 892.4000000357628,
+          "queueMs": 38.60000002384186,
+          "paintOpportunityMs": 40.10000002384186
+        },
+        {
+          "phase": "cold",
+          "dispatched": 2349.5,
+          "received": 2359.2000000476837,
+          "finished": 2369.800000011921,
+          "queueMs": 9.700000047683716,
+          "paintOpportunityMs": 20.30000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4298.200000047684,
+          "received": 4298.600000023842,
+          "finished": 4317,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 18.799999952316284
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4802.700000047684,
+          "received": 4803.100000023842,
+          "finished": 4821.400000035763,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 18.69999998807907
+        }
+      ]
+    },
+    {
+      "cohort": "fixed-confirmation",
+      "repeat": 4,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "fixtureFingerprint": "0ecf387be3ef362c7495d196e762a98f7ee27374a7b009e3dac82b896c226e3a",
+      "reference": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "cpu": "AMD Ryzen 9 9900X 12-Core Processor            ",
+        "logicalCpus": 24,
+        "hostRamBytes": 33406287872,
+        "viewport": {
+          "width": 1400,
+          "height": 900
+        },
+        "browser": {
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ambio/0.1.0 Chrome/126.0.6478.234 Electron/31.7.7 Safari/537.36",
+          "pixelRatio": 1.0000000298023224,
+          "hardwareConcurrency": 24,
+          "visibility": "visible",
+          "focused": true
+        },
+        "refreshIntervalMs": 4.199999999999989
+      },
+      "entities": 100000,
+      "cycles": 2,
+      "instrumented": false,
+      "cold": {
+        "applyReturnedMs": 749.2000000476837,
+        "wallMs": 2031,
+        "usableMs": 3373
+      },
+      "coldInput": {
+        "count": 15,
+        "p50": 7,
+        "p95": 37.69999998807907,
+        "p99": 37.69999998807907,
+        "max": 37.69999998807907
+      },
+      "input": {
+        "count": 20,
+        "p50": 7.199999988079071,
+        "p95": 37.69999998807907,
+        "p99": 37.69999998807907,
+        "max": 37.69999998807907
+      },
+      "phaseFrames": {
+        "cold": {
+          "count": 458,
+          "p50": 4.199999999999932,
+          "p95": 4.2999999999999545,
+          "p99": 8.399999999999864,
+          "max": 50
+        },
+        "navigation": {
+          "count": 263,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 41.80000000000018,
+          "max": 79.19999999999982
+        },
+        "warm": {
+          "count": 239,
+          "p50": 4.199999999999818,
+          "p95": 4.300000000000182,
+          "p99": 16.5,
+          "max": 16.800000000000182
+        }
+      },
+      "components": {
+        "wrappers": 7,
+        "minimapWrappers": 0,
+        "canonicalNodes": 100000,
+        "flowNodes": 7,
+        "domNodes": 7
+      },
+      "targets": {
+        "frameP95": true,
+        "frameP99": true,
+        "selection": null,
+        "coldInputPaint": true,
+        "inputPaint": true,
+        "memory": null
+      },
+      "performanceAccepted": false,
+      "coldLongTasks": [
+        {
+          "at": 1206.1000000238419,
+          "ms": 50,
+          "phase": "cold"
+        }
+      ],
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 2353.699999988079,
+          "received": 2374.199999988079,
+          "finished": 2391.399999976158,
+          "queueMs": 20.5,
+          "paintOpportunityMs": 37.69999998807907
+        },
+        {
+          "phase": "cold",
+          "dispatched": 853.3000000119209,
+          "received": 889.1999999880791,
+          "finished": 890.6999999880791,
+          "queueMs": 35.89999997615814,
+          "paintOpportunityMs": 37.39999997615814
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1222.199999988079,
+          "received": 1257.699999988079,
+          "finished": 1259.300000011921,
+          "queueMs": 35.5,
+          "paintOpportunityMs": 37.10000002384186
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4319.199999988079,
+          "received": 4319.699999988079,
+          "finished": 4340.399999976158,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 21.19999998807907
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4840.699999988079,
+          "received": 4841.100000023842,
+          "finished": 4859.5,
+          "queueMs": 0.40000003576278687,
+          "paintOpportunityMs": 18.80000001192093
+        }
+      ]
+    }
+  ],
+  "diagnosticCases": {
+    "previousCheckpoint": {
+      "instrumented": true,
+      "buildFingerprint": "4dfa82d44ca3632e8ebfcb9eba9684d9317226bdefe3345e9ed8ab13fb0bf7cd",
+      "coldStoreReactTask": {
+        "at": 1331.102,
+        "ms": 73.248
+      },
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 1332.5,
+          "received": 1405.199999988079,
+          "finished": 1407,
+          "queueMs": 72.69999998807907,
+          "paintOpportunityMs": 74.5
+        },
+        {
+          "phase": "cold",
+          "dispatched": 960.6999999880791,
+          "received": 1000.6999999880791,
+          "finished": 1002.5,
+          "queueMs": 40,
+          "paintOpportunityMs": 41.80000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4471.099999964237,
+          "received": 4471.699999988079,
+          "finished": 4491.899999976158,
+          "queueMs": 0.6000000238418579,
+          "paintOpportunityMs": 20.80000001192093
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4992.399999976158,
+          "received": 4993.099999964237,
+          "finished": 5013.199999988079,
+          "queueMs": 0.699999988079071,
+          "paintOpportunityMs": 20.80000001192093
+        },
+        {
+          "phase": "cold",
+          "dispatched": 2516.5,
+          "received": 2518.300000011921,
+          "finished": 2535.399999976158,
+          "queueMs": 1.800000011920929,
+          "paintOpportunityMs": 18.899999976158142
+        }
+      ]
+    },
+    "fixed": {
+      "instrumented": true,
+      "buildFingerprint": "5ff26a5993e6c37aec4fb46769a90155e25f2c9d4a84801cc877396f8f6a9970",
+      "coldStoreReactTask": {
+        "at": 1336.3600000610352,
+        "ms": 47.716
+      },
+      "slowestInputs": [
+        {
+          "phase": "cold",
+          "dispatched": 957.4000000357628,
+          "received": 997.8000000119209,
+          "finished": 999.5,
+          "queueMs": 40.39999997615814,
+          "paintOpportunityMs": 42.09999996423721
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4493.900000035763,
+          "received": 4494.600000023842,
+          "finished": 4515.900000035763,
+          "queueMs": 0.699999988079071,
+          "paintOpportunityMs": 22
+        },
+        {
+          "phase": "warm",
+          "dispatched": 5006.300000011921,
+          "received": 5006.800000011921,
+          "finished": 5024.900000035763,
+          "queueMs": 0.5,
+          "paintOpportunityMs": 18.600000023841858
+        },
+        {
+          "phase": "warm",
+          "dispatched": 4455.300000011921,
+          "received": 4455.699999988079,
+          "finished": 4471.699999988079,
+          "queueMs": 0.3999999761581421,
+          "paintOpportunityMs": 16.399999976158142
+        },
+        {
+          "phase": "cold",
+          "dispatched": 1761.5,
+          "received": 1772.699999988079,
+          "finished": 1776,
+          "queueMs": 11.199999988079071,
+          "paintOpportunityMs": 14.5
+        }
+      ]
+    }
+  }
+}
