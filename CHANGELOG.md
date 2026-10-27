@@ -8,6 +8,17 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Opening a project whose repository has linked worktrees (as agents create)
+  no longer indexes it over and over: Ambio's own `git status` polling kept
+  waking its Git watcher, and each wake restarted the first index.
+- Switching branches, pulling or rebasing is brought into the map in one pass
+  instead of one whole-project rebuild per file, without replaying every file
+  on the canvas and without counting as your editing activity.
+- A branch switch no longer journals relationship changes between files it did
+  not touch, and calls no longer resolve to another language's or another
+  repository's function of the same name.
+- Systems are no longer left stale after a switch when a removed system had a
+  sub-system named like another top-level system.
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts
   instead of timing out waiting for the debugger.
 - On a busy Windows machine Ambio chat can stop or recover its previous

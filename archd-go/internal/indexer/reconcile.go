@@ -116,6 +116,7 @@ func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 	}
 
 	seen := make(map[string]struct{}, len(paths))
+	var changedPaths, removedPaths []string
 	for _, absPath := range paths {
 		relPath, relErr := filepath.Rel(root.Path, absPath)
 		if relErr != nil {
@@ -133,25 +134,37 @@ func reconcileRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []strin
 		if known && !force && prev.ContentHash != "" && contentHash(absPath) == prev.ContentHash {
 			continue
 		}
-		if reindexErr := ReindexFile(sqlDB, h, root, absPath); reindexErr != nil {
-			log.Printf("[reconcile] reindex %s: %v", relPath, reindexErr)
-			continue
-		}
-		changed++
+		changedPaths = append(changedPaths, absPath)
 	}
 
 	// Anything the database still knows about but the disk does not was
 	// deleted while we were away.
 	for relPath := range existing {
-		if _, stillThere := seen[relPath]; stillThere {
-			continue
+		if _, stillThere := seen[relPath]; !stillThere {
+			removedPaths = append(removedPaths, filepath.Join(root.Path, filepath.FromSlash(relPath)))
 		}
-		absPath := filepath.Join(root.Path, filepath.FromSlash(relPath))
-		if removeErr := RemoveFile(sqlDB, h, root, absPath); removeErr != nil {
-			log.Printf("[reconcile] remove %s: %v", relPath, removeErr)
-			continue
+	}
+
+	if len(changedPaths)+len(removedPaths) >= BatchThreshold {
+		// A branch switched or pulled while Ambio was closed: one pass.
+		if changed, err = ReindexBatch(sqlDB, h, root, changedPaths, removedPaths); err != nil {
+			return changed, err
 		}
-		changed++
+	} else {
+		for _, absPath := range changedPaths {
+			if reindexErr := ReindexFile(sqlDB, h, root, absPath); reindexErr != nil {
+				log.Printf("[reconcile] reindex %s: %v", absPath, reindexErr)
+				continue
+			}
+			changed++
+		}
+		for _, absPath := range removedPaths {
+			if removeErr := RemoveFile(sqlDB, h, root, absPath); removeErr != nil {
+				log.Printf("[reconcile] remove %s: %v", absPath, removeErr)
+				continue
+			}
+			changed++
+		}
 	}
 
 	if changed > 0 {

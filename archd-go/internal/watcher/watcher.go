@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,18 +29,26 @@ var skipDirs = map[string]bool{
 
 const (
 	fileChangeDebounce     = 150 * time.Millisecond
+	burstMaxWait           = 2 * time.Second
 	classificationDebounce = 1500 * time.Millisecond
 )
 
 // Watcher wraps fsnotify and debounces rapid file saves.
 type Watcher struct {
-	fw               *fsnotify.Watcher
-	sqlDB            *sql.DB
-	h                *hub.Hub
-	rootsMu          sync.RWMutex
-	roots            []db.Root
-	pendingMu        sync.Mutex
-	pendingChanges   map[string]*time.Timer
+	fw           *fsnotify.Watcher
+	sqlDB        *sql.DB
+	h            *hub.Hub
+	rootsMu      sync.RWMutex
+	roots        []db.Root
+	pendingMu    sync.Mutex
+	pending      map[string]struct{}
+	burst        *time.Timer
+	burstStarted time.Time
+	// flushMu keeps bursts in order: one is indexed before the next begins.
+	flushMu sync.Mutex
+	// batchBroadcast marks roots whose last burst was indexed as a batch,
+	// which sends no per-file patches: the canvas learns of it at settle.
+	batchBroadcast   map[string]bool
 	classificationMu sync.Mutex
 	classifications  map[string]*time.Timer
 	reclusterMu      sync.Mutex
@@ -82,7 +91,8 @@ func New(sqlDB *sql.DB, h *hub.Hub, roots []db.Root) (*Watcher, error) {
 		sqlDB:           sqlDB,
 		h:               h,
 		roots:           roots,
-		pendingChanges:  make(map[string]*time.Timer),
+		pending:         make(map[string]struct{}),
+		batchBroadcast:  make(map[string]bool),
 		classifications: make(map[string]*time.Timer),
 	}
 	for _, root := range roots {
@@ -159,10 +169,10 @@ func (w *Watcher) Close() error {
 	w.closed.Store(true)
 
 	w.pendingMu.Lock()
-	for path, timer := range w.pendingChanges {
-		timer.Stop()
-		delete(w.pendingChanges, path)
+	if w.burst != nil {
+		w.burst.Stop()
 	}
+	w.pending = make(map[string]struct{})
 	w.pendingMu.Unlock()
 
 	w.classificationMu.Lock()
@@ -175,27 +185,81 @@ func (w *Watcher) Close() error {
 	return w.fw.Close()
 }
 
+// scheduleChange adds a path to the current burst. A burst is indexed once
+// writes pause for fileChangeDebounce, or after burstMaxWait of continuous
+// writing.
 func (w *Watcher) scheduleChange(absPath string) {
 	if w.closed.Load() {
 		return
 	}
 	w.pendingMu.Lock()
 	defer w.pendingMu.Unlock()
+	if len(w.pending) == 0 {
+		w.burstStarted = time.Now()
+	}
+	w.pending[absPath] = struct{}{}
+	wait := fileChangeDebounce
+	if remaining := burstMaxWait - time.Since(w.burstStarted); remaining < wait {
+		wait = max(remaining, 0)
+	}
+	if w.burst == nil {
+		w.burst = time.AfterFunc(wait, w.flush)
+	} else {
+		w.burst.Reset(wait)
+	}
+}
 
-	if timer, exists := w.pendingChanges[absPath]; exists {
-		timer.Stop()
-		timer.Reset(fileChangeDebounce)
+func (w *Watcher) flush() {
+	w.flushMu.Lock()
+	defer w.flushMu.Unlock()
+	w.pendingMu.Lock()
+	paths := w.pending
+	w.pending = make(map[string]struct{})
+	w.pendingMu.Unlock()
+	if w.closed.Load() || len(paths) == 0 {
 		return
 	}
-	w.pendingChanges[absPath] = time.AfterFunc(fileChangeDebounce, func() {
-		w.pendingMu.Lock()
-		delete(w.pendingChanges, absPath)
-		w.pendingMu.Unlock()
-		if w.closed.Load() {
-			return
+	byRoot := map[string][]string{}
+	roots := map[string]db.Root{}
+	for path := range paths {
+		if root := w.rootFor(path); root != nil {
+			byRoot[root.ID] = append(byRoot[root.ID], path)
+			roots[root.ID] = *root
 		}
-		w.handleChange(absPath)
-	})
+	}
+	for id, list := range byRoot {
+		sort.Strings(list)
+		w.handleBurst(roots[id], list)
+	}
+}
+
+// handleBurst indexes one root's share of a burst. A few files are an edit:
+// each is indexed on its own and animates. Many files, or any while Git is
+// moving the checkout (a switch, pull or rebase writes files in waves), are
+// indexed as one batch (indexer.ReindexBatch).
+func (w *Watcher) handleBurst(root db.Root, paths []string) {
+	if len(paths) < indexer.BatchThreshold && !indexer.CheckoutMoving(w.sqlDB, root) {
+		for _, path := range paths {
+			w.handleChange(path)
+		}
+		return
+	}
+	var changed, removed []string
+	for _, path := range paths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			removed = append(removed, path)
+		} else {
+			changed = append(changed, path)
+		}
+	}
+	log.Printf("watcher: %d files changed together in %s", len(paths), root.Path)
+	if _, err := indexer.ReindexBatch(w.sqlDB, w.h, root, changed, removed); err != nil {
+		log.Printf("watcher: batch %s: %v", root.Path, err)
+	}
+	w.classificationMu.Lock()
+	w.batchBroadcast[root.ID] = true
+	w.classificationMu.Unlock()
+	w.scheduleClassification(root)
 }
 
 func (w *Watcher) handleChange(absPath string) {
@@ -266,11 +330,17 @@ func (w *Watcher) runClassification(root db.Root) {
 	if settled != nil {
 		defer settled(root)
 	}
+	w.classificationMu.Lock()
+	batched := w.batchBroadcast[root.ID]
+	delete(w.batchBroadcast, root.ID)
+	w.classificationMu.Unlock()
 	if err != nil {
 		log.Printf("watcher: live classification %s: %v", root.Path, err)
-		return
+		if !batched {
+			return
+		}
 	}
-	if !changed {
+	if !changed && !batched {
 		return
 	}
 	snapshot, err := db.GetCanvasSnapshot(w.sqlDB, root.WorkspaceID)
@@ -311,7 +381,8 @@ func (w *Watcher) watchNewDir(dir string) {
 			return nil
 		}
 		if isSourceFile(p) {
-			w.handleChange(filepath.Clean(p))
+			// Part of the burst: a checkout that adds folders adds many files.
+			w.scheduleChange(filepath.Clean(p))
 		}
 		return nil
 	})

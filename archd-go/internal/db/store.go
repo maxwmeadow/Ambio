@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -594,7 +595,19 @@ func ApplyClusterPlan(
 		}
 	}
 
+	// Deepest first: deleting a parent sets its children's parent to NULL,
+	// which lifts them to the top level, where one named like a top-level
+	// system broke systems_unique_name and rolled the whole plan back.
+	depth := make(map[string]int, len(staleSystemIDs))
 	for _, id := range staleSystemIDs {
+		var level int
+		if tx.QueryRow(`SELECT depth FROM systems WHERE id=?`, id).Scan(&level) == nil {
+			depth[id] = level
+		}
+	}
+	ordered := append([]string(nil), staleSystemIDs...)
+	sort.SliceStable(ordered, func(i, j int) bool { return depth[ordered[i]] > depth[ordered[j]] })
+	for _, id := range ordered {
 		result, deleteErr := tx.Exec(`
 			DELETE FROM systems
 			WHERE id=? AND workspace_id=? AND source IN ('cluster','directory')

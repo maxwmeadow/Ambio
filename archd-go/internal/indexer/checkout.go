@@ -375,11 +375,24 @@ func sameBlob(absPath, blob string) bool {
 // switch, attributed to Git for a pull or reset. The returned function ends
 // the quiet scope.
 func journalAsGit(sqlDB *sql.DB, root db.Root, relPath, absPath string, deleted bool, actor *string) func() {
-	switch gitWrote(sqlDB, root, relPath, absPath, deleted) {
+	return journalForMove(gitWrote(sqlDB, root, relPath, absPath, deleted), root, relPath, actor)
+}
+
+// journalForMove is journalAsGit for a move already read with gitWrote.
+func journalForMove(move headMoveKind, root db.Root, relPath string, actor *string) func() {
+	switch move {
 	case moveSwitch:
 		return beginQuiet(root.ID, []string{relPath})
 	case moveGit:
 		*actor = activity.ActorGit
 	}
 	return func() {}
+}
+
+// CheckoutMoving reads a root's HEAD (waiting out a running Git command) and
+// reports whether Git is rewriting its files: a switch, pull, reset or rebase
+// seen within the last minute, in the root's repository or one nested in it.
+func CheckoutMoving(sqlDB *sql.DB, root db.Root) bool {
+	NoteHead(sqlDB, root)
+	return activeMove(root.ID) != moveNone
 }

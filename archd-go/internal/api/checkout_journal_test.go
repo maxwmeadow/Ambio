@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -425,5 +426,56 @@ func TestABranchSwitchInsideOneOfSeveralRepositoriesIsNotCode(t *testing.T) {
 	}
 	if !hasEvent(events, db.EventCheckoutSwitched, "web: feature", "", "git") {
 		t.Fatalf("want one switch row naming the repository: %#v", events)
+	}
+}
+
+// A branch switch large enough to be indexed as one batch, which also
+// changes how a file it did not touch resolves its calls: caller.go's
+// Render() was ambiguous and becomes unique when the switch removes one of
+// the two definitions. Neither the files Git wrote nor that new edge are
+// anybody's code; only the switch row is journaled.
+func TestALargeBranchSwitchJournalsNoCodeEvenWhereResolutionShifts(t *testing.T) {
+	repo := t.TempDir()
+	runWorktreeGit(t, repo, "init", "-b", "main")
+	runWorktreeGit(t, repo, "config", "user.email", "ambio-test@example.com")
+	runWorktreeGit(t, repo, "config", "user.name", "Ambio Test")
+	writeCheckoutFile(t, repo, "left.go", "package sample\n\nfunc Render() int { return 1 }\n")
+	writeCheckoutFile(t, repo, "right.go", "package sample\n\nfunc Render() int { return 2 }\n")
+	writeCheckoutFile(t, repo, "caller.go", "package sample\n\nfunc Show() int { return Render() }\n")
+	for index := 0; index < 10; index++ {
+		writeCheckoutFile(t, repo, fmt.Sprintf("part%d.go", index), fmt.Sprintf("package sample\n\nfunc Part%d() int { return %d }\n", index, index))
+	}
+	runWorktreeGit(t, repo, "add", ".")
+	runWorktreeGit(t, repo, "commit", "-m", "base")
+	runWorktreeGit(t, repo, "checkout", "-b", "trim")
+	runWorktreeGit(t, repo, "rm", "-q", "right.go")
+	for index := 0; index < 10; index++ {
+		writeCheckoutFile(t, repo, fmt.Sprintf("part%d.go", index), fmt.Sprintf("package sample\n\nfunc Part%d() int { return %d + Show() }\n", index, index))
+	}
+	runWorktreeGit(t, repo, "add", ".")
+	runWorktreeGit(t, repo, "commit", "-m", "trim")
+	runWorktreeGit(t, repo, "checkout", "main")
+
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	since := time.Now().UnixMilli()
+	runWorktreeGit(t, repo, "checkout", "trim")
+	sqlDB, _ := server.dbFor("ws")
+	focused, _, err := server.focusedRoot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForWorktreeTest(t, "right.go off the map", func() bool {
+		file, err := db.GetFileByRelPath(sqlDB, focused.ID, "right.go")
+		return err == nil && file == nil
+	})
+	settleCheckout(server)
+	events := journalSince(t, server, since)
+	for _, event := range codeEvents(events) {
+		t.Errorf("journaled %s %s -> %s by %s", event.Kind, event.SubjectLabel, event.ObjectLabel, event.Actor)
+	}
+	if !hasEvent(events, db.EventCheckoutSwitched, "trim", "trim", "git") {
+		t.Fatalf("want the switch row: %#v", events)
 	}
 }

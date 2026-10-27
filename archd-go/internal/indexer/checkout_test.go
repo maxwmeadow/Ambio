@@ -70,6 +70,14 @@ func TestAFileWrittenBeforeHeadMovesIsStillTheSwitch(t *testing.T) {
 	t.Cleanup(func() { ForgetCheckout(root.ID) })
 	SeedHead(root.ID, before)
 
+	// Opened before the clock starts: migrating a new map can take a while
+	// on a busy machine, and the gap below is timed.
+	sqlDB, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+
 	// The checkout as a file event sees it mid-way: files and index are the
 	// feature branch's, HEAD still names main until Git gets to it.
 	git("checkout", "-q", "feature")
@@ -89,11 +97,6 @@ func TestAFileWrittenBeforeHeadMovesIsStillTheSwitch(t *testing.T) {
 	}()
 	defer func() { <-moved }()
 
-	sqlDB, err := db.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
 	if got := gitWrote(sqlDB, root, "cart.go", cart, false); got != moveSwitch {
 		t.Fatalf("cart.go written by the checkout: got %v, want the switch", got)
 	}
