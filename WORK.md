@@ -128,6 +128,8 @@ Design: [docs/GIT_AND_PROJECT_SHAPES.md](docs/GIT_AND_PROJECT_SHAPES.md) (decide
 
 ## Canvas and the Floor
 
+- 🚧 `canvas-measured-cold-input` **Deliver a measured latency improvement over unchanged main.** Correlate cold input stalls with browser tasks, remove their dominant cost, and compare repeated serial production-build controls. Keep failed cases and correctness checks. (🚧 Codex, codex/review-pan-audit, 2026-10-26)
+
 
 Desktop Review feedback, 2026-10-26: [device audit](docs/testing/REVIEW_PAN_DEVICE_AUDIT.md) confirms the current desktop checkout/bundle predates the delivered mouse-pan fix. Same-device controls improve after that delivery, while a larger Review case still misses the frame target. Keep `canvas-dense-overview-budget` and real-project acceptance open; synthetic pan tests currently assert correctness but no timing gate.
 
