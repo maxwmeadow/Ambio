@@ -1,6 +1,6 @@
 # Canvas performance: main merge and device handoff
 
-Updated **2026-10-26**. This is the starting point for resuming the canvas work
+Updated **2026-10-27**. This is the starting point for resuming the canvas work
 on another device. The implementation is a tested checkpoint, not completion
 of the scalability plan or an assertion that every interaction is smooth.
 
@@ -10,6 +10,15 @@ native repetitions. Its final cold-input pair still fails the target; the
 parent phases and dense/progressive-data work remain open.
 
 ## Delivery scope
+
+Latest dense Review follow-up, **2026-10-27**:
+[inactive endpoint and pointer-ownership costs](DENSE_REVIEW_FRAME_COST.md).
+Five fresh 256-system runs per input/build lower median mouse frame p95 from
+29.2 to 16.7 ms, with all five updated mouse cases passing the recorded frame
+gates. WASD improves from 37.6 to 29.3 ms and still misses p95. Same 828 mounted
+nodes, about 15.5k to 8.9k DOM elements. Includes all controls, a startup failure,
+GPU/backend metadata and physical-input limitations. The batched-overview and
+broader acceptance items remain open. Implementations: `040d89c`, `068158d`.
 
 Latest desktop follow-up: [cold-input budget confirmation](CANVAS_COLD_INPUT_BUDGET.md)
 meets the unchanged <=50 ms sparse 100k target in **10/10** native confirmation

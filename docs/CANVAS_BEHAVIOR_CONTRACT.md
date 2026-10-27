@@ -79,7 +79,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   captures that pointer until release. Node gestures, Shift/lasso selection and
   touch/pinch remain React Flow interactions; nested canvases own their pointer.
   This review surface has no connection gestures or drawn relationship edges,
-  so its disabled connection handles stay out of layout/hit testing. Floor/sheet
+  so its connection handles are omitted from both full and compact node
+  components. CSS hiding alone leaves their camera subscriptions active. Floor/sheet
   endpoint handles retain their ordinary geometry. While this review camera is
   being dragged, decorative card/folder shadow filters are suspended and return
   when panning ends. Resting artwork, node drag/resize chrome and WASD retain

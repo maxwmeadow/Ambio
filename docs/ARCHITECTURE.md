@@ -635,6 +635,14 @@ of candidate geometry and is populated without temporary ID arrays. App's
 authored-system decision reads system sources only; source counts are computed
 when the setup screen is displayed. The [budget confirmation](testing/CANVAS_COLD_INPUT_BUDGET.md)
 records repeated native cold-input results and remaining limits.
+Initial-mapping Review stamps `omitConnectionHandles` in presentation data,
+so full and compact nodes omit inactive React Flow endpoint components and
+their store subscriptions. Disabled Floor/sheet endpoints still mount for
+relationship geometry; the flag is independent of connection permissions.
+WASD ownership follows browser pointer-move/boundary events, including surfaces
+appearing under a stationary pointer, instead of a forced hit test every frame.
+[Dense Review measurements](testing/DENSE_REVIEW_FRAME_COST.md) retain native
+controls, rejected prototypes and the remaining keyboard frame-budget miss.
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.

@@ -64,7 +64,7 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       if (mode === 'review' && !process.env.AMBIO_PAN_STYLE) {
         if (process.env.AMBIO_PAN_LEGACY_HANDLES === '1') {
           expect(await canvas.locator('.react-flow__handle').count()).toBeGreaterThan(0)
-          expect(await canvas.locator('.react-flow__handle').evaluateAll(handles =>
+          await expect.poll(() => canvas.locator('.react-flow__handle').evaluateAll(handles =>
             handles.every(handle => getComputedStyle(handle).display === 'none'))).toBe(true)
         } else await expect(canvas.locator('.react-flow__handle')).toHaveCount(0)
       }
@@ -77,7 +77,10 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       const context = {
         buildFingerprint: createHash('sha256').update(readFileSync('out/renderer/index.html')).digest('hex'),
         reference: { platform: platform(), cpu: cpus()[0]?.model, viewport: { width: 1400, height: 900 },
-          browser: await page.evaluate(() => ({ userAgent: navigator.userAgent, pixelRatio: devicePixelRatio })) },
+          browser: await page.evaluate(() => ({ userAgent: navigator.userAgent, pixelRatio: devicePixelRatio })),
+          gpu: process.env.AMBIO_PAN_TIMELINE === '1' ? await app.evaluate(async ({ app }) => ({
+            features: app.getGPUFeatureStatus(), info: await app.getGPUInfo('basic'),
+          })) : undefined },
         instrumented: process.env.AMBIO_PAN_CPU === '1' || process.env.AMBIO_PAN_TIMELINE === '1',
         diagnosticStyle: process.env.AMBIO_PAN_STYLE ?? null,
         legacyHandles: process.env.AMBIO_PAN_LEGACY_HANDLES === '1',

@@ -8,6 +8,9 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- Dense architecture review omits inactive connection components, reducing
+  mouse-pan stalls. Keyboard camera ownership follows pointer events without
+  forcing a hit test every frame; selection, resizing and artwork stay intact.
 - Opening a large saved map skips unused layout and setup bookkeeping,
   reducing cold-loading input stalls while preserving hand-placed files and
   scene validation.
