@@ -55,6 +55,13 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 	}()
 	// Parsed together up front, and again by nothing: the project graph
 	// reuses these parses.
+	var resolved []string
+	for _, absPath := range changed {
+		if !awaitingResolution(absPath) {
+			resolved = append(resolved, absPath)
+		}
+	}
+	changed = resolved
 	parsed := parseFiles(changed, func(absPath string) string { return relativeTo(root, absPath) })
 	count := 0
 	// Files a person (or agent) changed, as opposed to Git; and whether Git

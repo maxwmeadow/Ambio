@@ -27,6 +27,9 @@ in the app as "What's New" after updating, so write it for users.
 - In a folder of several repositories, each repository's frame shows again,
   with its files inside it; a branch switch no longer leaves the new files
   scattered beside the frame while the map catches up.
+- A merge, rebase or stash pop that stops on a conflict no longer shows the
+  conflicted file's relationships as deleted by you; the file keeps its place
+  on the map until you resolve it.
 - Systems are no longer left stale after a switch when a removed system had a
   sub-system named like another top-level system.
 - Investigating C or C++ code with lldb (the debugger macOS ships) starts

@@ -389,12 +389,18 @@ func journalForMove(move headMoveKind, root db.Root, relPath string, actor *stri
 	return func() {}
 }
 
-// CheckoutMoving reads a root's HEAD (waiting out a running Git command) and
-// reports whether Git is rewriting its files: a switch, pull, reset or rebase
-// seen within the last minute, in the root's repository or one nested in it.
-func CheckoutMoving(sqlDB *sql.DB, root db.Root) bool {
-	NoteHead(sqlDB, root)
-	return activeMove(root.ID) != moveNone
+// GitWroteAny reports whether Git wrote any of these files (waiting out a
+// running Git command): a switch, pull, reset or rebase landing, in the
+// root's repository or one nested in it. A recent move alone is not enough:
+// a save in the minute after a cherry-pick is still somebody's edit.
+func GitWroteAny(sqlDB *sql.DB, root db.Root, paths []string) bool {
+	for _, absPath := range paths {
+		_, err := os.Stat(absPath)
+		if gitWrote(sqlDB, root, relativeTo(root, absPath), absPath, os.IsNotExist(err)) != moveNone {
+			return true
+		}
+	}
+	return false
 }
 
 // GitMove names what Git is doing to a root's files, as the journal reads

@@ -234,11 +234,11 @@ func (w *Watcher) flush() {
 }
 
 // handleBurst indexes one root's share of a burst. A few files are an edit:
-// each is indexed on its own and animates. Many files, or any while Git is
-// moving the checkout (a switch, pull or rebase writes files in waves), are
-// indexed as one batch (indexer.ReindexBatch).
+// each is indexed on its own and animates. Many files, or a few Git wrote (a
+// switch, pull or rebase writes files in waves), are indexed as one batch
+// (indexer.ReindexBatch).
 func (w *Watcher) handleBurst(root db.Root, paths []string) {
-	if len(paths) < indexer.BatchThreshold && !indexer.CheckoutMoving(w.sqlDB, root) {
+	if len(paths) < indexer.BatchThreshold && !indexer.GitWroteAny(w.sqlDB, root, paths) {
 		for _, path := range paths {
 			w.handleChange(path)
 		}

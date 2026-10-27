@@ -394,7 +394,8 @@ and environment reads → call graph → clustering → infra detection. fsnotif
 changes are gathered into bursts (150 ms quiet, at most 2 s) and a 1.5 s
 re-cluster debounce; hitting the OS watch limit degrades loudly. A burst of
 fewer than 8 files is indexed file by file and animates; a larger one, or any
-while Git is moving the checkout (`indexer.CheckoutMoving`), and a reconcile
+holding a file Git wrote (`indexer.GitWroteAny`; a save in the minute after
+a cherry-pick still animates), and a reconcile
 of 8 or more files, go through `indexer.ReindexBatch`: each file read once,
 imports and calls rebuilt from one parallel parse of the project (the
 changed files' parses reused, and a file's imports rewritten only when they
@@ -410,7 +411,10 @@ architecture snapshot while any root of the project is syncing
 (`workspaceSyncing`); the sync's `delta:ready` re-reads it. Calls resolve by name only to
 code in the caller's language family (JS dialects, C/C++, JVM) and, in a
 folder of several repositories, its own repository unless it imports the
-file (`internal/indexer/call_scope.go`). Re-scoping (changing which folders are
+file (`internal/indexer/call_scope.go`). A file Git holds as unmerged with
+conflict markers in it (a merge, rebase, cherry-pick or stash pop stopped on
+a conflict) is not reindexed until it is resolved: parsed, the markers lost
+its relationships (`internal/indexer/conflict.go`). Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
 make reconcile after a closed period exact. A file moved on disk arrives as a
 delete and a create in either order; the new path takes over the vanished
