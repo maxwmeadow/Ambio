@@ -872,7 +872,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     nodeFx: {},
     relationshipFx: [],
     pendingFileDeletions: {},
-  }), snap.systems.length + snap.files.length),
+  }), (snap.systems?.length ?? 0) + (snap.files?.length ?? 0)),
 
   applyClassification: (snap) => set((state) => {
     const previousSystems = new Map(state.systems.map(system => [system.id, system]))

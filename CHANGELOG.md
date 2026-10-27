@@ -8,6 +8,10 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- The map shows while a project is being indexed for the first time, instead of
+  an empty canvas that stays "Updating your map" until the end.
+- Infrastructure changes that arrive with a branch switch are no longer listed
+  as your changes; after a pull they are Git's.
 - Opening a project whose repository has linked worktrees (as agents create)
   no longer indexes it over and over: Ambio's own `git status` polling kept
   waking its Git watcher, and each wake restarted the first index.

@@ -8,6 +8,7 @@ import (
 	"ambio.local/archd/internal/activity"
 	"ambio.local/archd/internal/db"
 	"ambio.local/archd/internal/delta"
+	"ambio.local/archd/internal/indexer"
 )
 
 // Journal rows for code starting or stopping to use infrastructure
@@ -62,6 +63,12 @@ func (s *Server) journalDetectedLinks(sqlDB *sql.DB, root db.Root, linked, unlin
 		return
 	}
 	actor := activity.ActorFor(root.WorkspaceID)
+	switch indexer.GitMove(root.ID) {
+	case "switch":
+		return // the other branch's infrastructure, not a change to the code
+	case "git":
+		actor = activity.ActorGit
+	}
 	for _, group := range []struct {
 		kind string
 		deps []db.Dependency

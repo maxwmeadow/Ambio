@@ -66,3 +66,12 @@ test('assignment is when a new file arrives on the canvas', () => {
     assert.equal(useGraphStore.getState().files.find(f => f.id === 'placed').systemId, 'cluster_hidden')
   })
 })
+
+// archd sent null for a map with files and no systems yet (mid-way through a
+// first index), and applying it threw: the canvas stayed empty.
+test('a snapshot with null lists still applies', () => {
+  const file = { id: 'f1', rootId: 'r', path: '/r/a.ts', relPath: 'a.ts', language: 'typescript', lineCount: 1 }
+  useGraphStore.getState().applySnapshot({ workspaceId: 'ws', systems: null, files: [file], infraNodes: null, dependencies: null, floorLayouts: null })
+  assert.deepEqual(useGraphStore.getState().files.map(item => item.id), ['f1'])
+  assert.deepEqual(useGraphStore.getState().systems, [])
+})

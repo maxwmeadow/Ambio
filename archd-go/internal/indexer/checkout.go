@@ -396,3 +396,17 @@ func CheckoutMoving(sqlDB *sql.DB, root db.Root) bool {
 	NoteHead(sqlDB, root)
 	return activeMove(root.ID) != moveNone
 }
+
+// GitMove names what Git is doing to a root's files, as the journal reads
+// it: "switch" while a branch switch explains its changes, "git" for a pull,
+// merge, reset or rebase, "" otherwise. Changes derived from the files (infra
+// detected in them, say) are journaled the same way the files are.
+func GitMove(rootID string) string {
+	switch activeMove(rootID) {
+	case moveSwitch:
+		return "switch"
+	case moveGit:
+		return "git"
+	}
+	return ""
+}

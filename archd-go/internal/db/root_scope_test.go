@@ -1,7 +1,9 @@
 package db
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -172,5 +174,23 @@ func TestApplyClusterPlanRemovesStaleSystemsChildrenFirst(t *testing.T) {
 	}
 	if len(systems) != 1 || systems[0].ID != "kept" {
 		t.Fatalf("systems = %#v, want only the kept one", systems)
+	}
+}
+
+// The renderer reads every list's length: a map with files and no systems
+// yet (mid-way through its first index) must send [], not null.
+func TestCanvasSnapshotListsAreNeverNull(t *testing.T) {
+	sqlDB, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	snapshot, err := GetCanvasSnapshot(sqlDB, "ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(snapshot)
+	if strings.Contains(string(encoded), "null") {
+		t.Fatalf("snapshot has a null list: %s", encoded)
 	}
 }

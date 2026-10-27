@@ -1466,14 +1466,23 @@ func GetCanvasSnapshot(db *sql.DB, workspaceID string) (*CanvasSnapshot, error) 
 	if err != nil {
 		return nil, fmt.Errorf("get floor layouts: %w", err)
 	}
+	// Empty lists, never null: a map mid-way through its first index has
+	// files but no systems yet, and a null there stopped the canvas drawing.
 	return &CanvasSnapshot{
 		WorkspaceID:  workspaceID,
-		Systems:      systems,
-		Files:        files,
-		InfraNodes:   infra,
-		Dependencies: dependencies,
-		FloorLayouts: layouts,
+		Systems:      nonNil(systems),
+		Files:        nonNil(files),
+		InfraNodes:   nonNil(infra),
+		Dependencies: nonNil(dependencies),
+		FloorLayouts: nonNil(layouts),
 	}, nil
+}
+
+func nonNil[T any](items []T) []T {
+	if items == nil {
+		return []T{}
+	}
+	return items
 }
 
 // ─── Call graph ───────────────────────────────────────────────────────────────
