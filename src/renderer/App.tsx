@@ -56,7 +56,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { archdApi, archdWs } from './archdEndpoint.ts'
-import { clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
+import { canRedo, canUndo, clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -248,6 +248,10 @@ export default function App() {
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
       ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
       ;(window as unknown as { __ambioDecodeSnapshot?: unknown }).__ambioDecodeSnapshot = decodeCanvasSnapshot
+      // A move reaches Edit → Undo once it is saved, a beat after it shows,
+      // and an undo reaches Redo once its own save returns.
+      ;(window as unknown as { __ambioCanUndo?: unknown }).__ambioCanUndo = canUndo
+      ;(window as unknown as { __ambioCanRedo?: unknown }).__ambioCanRedo = canRedo
       return
     }
     if (!window.ambio) {

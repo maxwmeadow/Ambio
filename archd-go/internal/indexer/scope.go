@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
 )
 
 // InScope reports whether a path relative to root is one the indexer would
@@ -45,4 +46,16 @@ func ignoredBelow(root db.Root, relPath string) bool {
 		}
 	}
 	return false
+}
+
+// RepositoryDepth bounds how deep a root is searched for repositories.
+const RepositoryDepth = 4
+
+// Repositories lists the Git repositories inside a root - several under a
+// parent folder, or submodules - relative to it, skipping what the indexer
+// does not read.
+func Repositories(root db.Root) []string {
+	return gitworktree.FindRepositories(root.Path, RepositoryDepth, func(relDir, name string) bool {
+		return SkipFolder(root, relDir, name)
+	})
 }

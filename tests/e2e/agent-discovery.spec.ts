@@ -79,7 +79,7 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     const sidebar = () => page.getByRole('region', { name: 'Codex CLI', exact: true })
     await expect(page.locator('.ambio-choose__sidebar')).toHaveCount(0)
     await expect(codex()).toContainText('Not found')
-    await expect(agents().getByRole('radio', { name: /^GitHub Copilot \(CLI\)/ })).toContainText('Not found')
+    await expect(agents().getByRole('radio', { name: /^GitHub Copilot CLI/ })).toContainText('Not found')
     await expect(agents().getByRole('radio', { name: /^Codex IDE extension/ })).toContainText('Ambio not added yet')
     await codex().click()
     await expect(sidebar()).toBeVisible()

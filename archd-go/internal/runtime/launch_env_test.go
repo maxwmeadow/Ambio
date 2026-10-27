@@ -129,6 +129,25 @@ func TestRustWrapperIsArchdUnlessTheUserSetTheirOwn(t *testing.T) {
 	}
 }
 
+// On Windows a recorded build keeps its own build directory, or Cargo takes
+// the ordinary build's executable as up to date; elsewhere Cargo already
+// keeps them apart.
+func TestRustRecordedBuildsKeepTheirOwnBuildDirectoryOnWindows(t *testing.T) {
+	env, _ := injectRustEnvFor([]string{"HOME=/h"}, "/ambio/archd", "linux")
+	if strings.Contains(strings.Join(env, "\n"), "CARGO_BUILD_BUILD_DIR") {
+		t.Fatalf("linux env = %q", env)
+	}
+	env, _ = injectRustEnvFor([]string{"HOME=/h"}, `C:\ambio\archd.exe`, "windows")
+	if got := env[len(env)-1]; got != "CARGO_BUILD_BUILD_DIR={workspace-root}/target/ambio-recorded" {
+		t.Fatalf("windows env ends %q", got)
+	}
+	env, _ = injectRustEnvFor([]string{"CARGO_BUILD_BUILD_DIR=D:/cache"}, `C:\ambio\archd.exe`, "windows")
+	joined := strings.Join(env, "\n")
+	if strings.Count(joined, "CARGO_BUILD_BUILD_DIR=") != 1 || !strings.Contains(joined, "CARGO_BUILD_BUILD_DIR=D:/cache/ambio-recorded") {
+		t.Fatalf("the user's build directory is kept, beside: %q", env)
+	}
+}
+
 // A command that compiles first gets time to build; anything else the usual minute.
 func TestDefaultTimeoutAllowsBuilds(t *testing.T) {
 	for command, want := range map[string]time.Duration{

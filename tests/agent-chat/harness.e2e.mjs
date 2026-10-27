@@ -21,7 +21,9 @@ async function until(manager, id, predicate) {
 
 test('real OpenCode: configured service, MCP, multi-turn history, approvals, read-only tools, cancellation and restart', { timeout: 90000 }, async t => {
   assert.ok(fs.existsSync(binary), 'Build the pinned harness with npm run build:agent')
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-chat-harness-'))
+  // Real path: macOS's /var is a link to /private/var, and the chat's tools
+  // treat a path through the link as outside the project.
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-chat-harness-')))
   const root = path.join(directory, 'project'); fs.mkdirSync(root); fs.writeFileSync(path.join(root, 'hello.txt'), 'original')
   const requests = []
   const model = createServer(async (req, res) => {
@@ -51,7 +53,7 @@ test('real OpenCode: configured service, MCP, multi-turn history, approvals, rea
   let manager
   const makeManager = () => new AgentChat({ directory: path.join(directory, 'chat'), binary, providers, proxy: new ChatProviderProxy(providers), project: id => ({ id, rootPath: root, name: 'Fixture' }), mcp: () => ({ command: process.execPath, args: [path.join(ROOT, 'tests', 'agent-chat', 'mcp-fixture.mjs')] }), assertExternalIdle: () => {}, workOrder: async () => 'Implement the requested small fixture change.' })
   manager = makeManager()
-  t.after(async () => { await manager.close(); model.closeAllConnections(); model.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true }) })
+  t.after(async () => { await manager.close(); model.closeAllConnections(); model.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }) })
   const conversation = await manager.create('fixture', profile.id)
   await assert.rejects(manager.send({ conversationId: conversation.id, text: 'Unbound change', mode: 'build' }), /requires an addressed/ )
   await manager.send({ conversationId: conversation.id, text: 'hello-turn', mode: 'ask' })
@@ -130,7 +132,7 @@ test('deleting a saved native chat removes its transcript across restart without
     const record = { id: 'saved', workspaceId: 'fixture', rootPath: fs.realpathSync(directory), title: 'Finished question', providerId: 'fixture', model: 'fixture', state: 'idle', createdAt: 1, updatedAt: 2 }
     fs.writeFileSync(path.join(directory,'conversations.json'),JSON.stringify([record]))
     fs.writeFileSync(path.join(directory,'saved.json'),JSON.stringify([{id:'reply',role:'assistant',parts:[]}]))
-    const options = { directory, binary: 'must-not-launch', providers: {}, project: id => ({id,rootPath:directory}) }
+    const options = { directory, binary: 'must-not-launch', providers: {}, proxy: new ChatProviderProxy({}), project: id => ({id,rootPath:directory}) }
     const manager = new AgentChat(options)
     assert.equal(manager.list('fixture').length,1)
     manager.remove('saved')
@@ -144,5 +146,5 @@ test('deleting a saved native chat removes its transcript across restart without
     restored.conversations[0].state='working'
     assert.throws(() => restored.remove('saved'),/Stop/)
     assert.equal(restored.list('fixture').length,1)
-  } finally { fs.rmSync(directory,{recursive:true,force:true}) }
+  } finally { fs.rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }) }
 })

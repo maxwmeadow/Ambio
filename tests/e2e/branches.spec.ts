@@ -253,19 +253,39 @@ test('branch marks survive compact file presentation on a larger Floor', async (
         positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }))] })
     if (!graph.getState().expandedSystemIds.has('sys_canvas')) graph.getState().toggleSystemExpanded('sys_canvas')
   })
-  await page.keyboard.press('ControlOrMeta+K')
-  await page.getByRole('textbox', { name: 'Search the map' }).fill('Canvas Renderer')
-  await page.getByRole('option').first().click()
+  // The injected systems make the app fit the whole Floor first; a camera set
+  // before that animation finishes is overridden.
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
-  const map = page.locator('.react-flow').first()
-  const box = (await map.boundingBox())!
-  await page.mouse.move(box.x + box.width - 30, box.y + box.height - 30)
-  await page.mouse.wheel(0, 240)
-  // Hold the real navigation admission state so the assertion does not race
-  // the normal upgrade from compact to rich detail after the camera settles.
-  await map.evaluate(root => root.dispatchEvent(new CustomEvent('ambio:camera-prewarm', {
-    detail: { nodeId: 'sys_canvas', duration: 10000 },
-  })))
+  // Frame Canvas Renderer at a zoom where its files show but their detail
+  // never reveals (below DETAIL_REVEAL_EFFECTIVE_ZOOM), so file_store is a
+  // compact card for as long as the camera stays here. Arriving by a search
+  // flight would pass through rich detail, and a card is never demoted while
+  // on screen, so whether it was compact depended on timing.
+  await page.evaluate(() => {
+    const element = document.querySelector('.react-flow') as any
+    const key = Object.keys(element).find(key => key.startsWith('__reactFiber$'))!
+    let root = element[key]
+    while (root.return) root = root.return
+    const pending = [root.stateNode?.current ?? root]
+    while (pending.length) {
+      const fiber = pending.pop()
+      const store = fiber.memoizedProps?.value
+      if (typeof store?.getState === 'function' && store.getState().domNode === element) {
+        const state = store.getState()
+        const system = state.nodeLookup.get('sys_canvas')
+        const zoom = 0.95
+        const cx = system.internals.positionAbsolute.x + (system.measured?.width ?? 0) / 2
+        const cy = system.internals.positionAbsolute.y + (system.measured?.height ?? 0) / 2
+        void state.panZoom.setViewport({ x: state.width / 2 - cx * zoom, y: state.height / 2 - cy * zoom, zoom }, { duration: 0 })
+        return
+      }
+      if (fiber.child) pending.push(fiber.child)
+      if (fiber.sibling) pending.push(fiber.sibling)
+    }
+    throw new Error('no React Flow store')
+  })
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  expect(await page.evaluate(() => (document.querySelector('.react-flow__viewport') as HTMLElement).style.transform)).toContain('scale(0.95)')
   const sibling = page.locator('.react-flow__node[data-id="file_store"]')
   await expect(sibling.locator('[data-render-tier]')).toBeAttached()
   await expect(sibling.locator('.ambio-branch-overlay-mark')).toHaveAttribute('title', 'Deleted on codex/retry-checkout')

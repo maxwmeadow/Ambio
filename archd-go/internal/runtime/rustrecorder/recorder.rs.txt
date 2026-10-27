@@ -599,6 +599,12 @@ pub(crate) mod __ambio_rec {
 
     static ENABLED: AtomicU8 = AtomicU8::new(0); // 0: not looked yet, 1: off, 2: on
     static STATE: Mutex<Option<State>> = Mutex::new(None);
+    /// AMBIO_RECORDER_DEBUG: say on stderr how evidence was flushed and written.
+    fn debug(what: std::fmt::Arguments) {
+        if std::env::var_os("AMBIO_RECORDER_DEBUG").is_some() {
+            eprintln!("[ambio] {}: {}", CRATE, what);
+        }
+    }
     /// What a thread has counted and not yet added to the shared totals. A
     /// program calls its hot functions from every thread at once; counting
     /// into shared memory on each call would have the cores fighting over it.
@@ -662,11 +668,13 @@ pub(crate) mod __ambio_rec {
     }
 
     fn spill_this_thread() {
-        let _ = LOCAL.try_with(|l| {
-            if let Ok(mut l) = l.try_borrow_mut() {
-                l.spill();
-            }
+        let spilled = LOCAL.try_with(|l| match l.try_borrow_mut() {
+            Ok(mut l) => { l.spill(); true }
+            Err(_) => false,
         });
+        if spilled != Ok(true) {
+            debug(format_args!("could not flush this thread's counts ({})", if spilled.is_err() { "thread storage is gone" } else { "busy" }));
+        }
     }
 
     thread_local! {
@@ -754,7 +762,7 @@ pub(crate) mod __ambio_rec {
             let _ = PANIC.try_with(|p| *p.borrow_mut() = Some(clip(&message, 200)));
             if std::thread::current().name() == Some("main") {
                 if let Some(at) = info.location() {
-                    let file = if std::path::Path::new(at.file()).is_absolute() { at.file().to_string() } else { format!("{}/{}", BASE, at.file()) };
+                    let file = std::path::Path::new(BASE).join(at.file()).to_string_lossy().into_owned(); // an absolute location replaces BASE
                     let name = LOCAL.try_with(|l| l.try_borrow().ok().and_then(|l| l.stack.last().copied())).ok().flatten();
                     spill_this_thread();
                     if let Ok(mut guard) = STATE.lock() {
@@ -779,11 +787,20 @@ pub(crate) mod __ambio_rec {
                 fn atexit(callback: extern "C" fn()) -> i32;
             }
             extern "C" fn at_exit() {
+                debug(format_args!("exiting"));
                 spill_this_thread();
                 write();
             }
             atexit(at_exit);
         }
+        // Windows' std::process::exit is ExitProcess, which skips the C exit
+        // handlers but still calls each module's TLS callbacks; reading the
+        // callback here keeps the linker from dropping it.
+        #[cfg(windows)]
+        unsafe {
+            std::ptr::read_volatile(&ON_PROCESS_DETACH);
+        }
+        debug(format_args!("recording into {}", dir_for_debug()));
         // A process that is killed keeps what was flushed in the last second.
         let _ = std::thread::Builder::new().name("ambio-recorder-flush".to_string()).spawn(|| loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
@@ -792,8 +809,45 @@ pub(crate) mod __ambio_rec {
         true
     }
 
+    fn dir_for_debug() -> String {
+        STATE.lock().ok().and_then(|g| g.as_ref().map(|s| s.dir.clone())).unwrap_or_default()
+    }
+
+    /// Set once the process is ending on Windows: the other threads are gone,
+    /// and one may have died holding the state's lock.
+    static EXITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    #[cfg(windows)]
+    #[used]
+    __AMBIO_TLS_SECTION__
+    static ON_PROCESS_DETACH: unsafe extern "system" fn(*mut u8, u32, *mut u8) = on_process_detach;
+
+    #[cfg(windows)]
+    unsafe extern "system" fn on_process_detach(_module: *mut u8, reason: u32, _reserved: *mut u8) {
+        const DLL_PROCESS_DETACH: u32 = 0;
+        if reason != DLL_PROCESS_DETACH || ENABLED.load(Ordering::Relaxed) != 2 {
+            return;
+        }
+        EXITING.store(true, Ordering::Relaxed);
+        debug(format_args!("exiting"));
+        spill_this_thread();
+        write();
+    }
+
     fn canonical(path: &str) -> String {
-        std::fs::canonicalize(path).map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| path.to_string())
+        let real = match std::fs::canonicalize(path) {
+            Ok(p) => p.to_string_lossy().into_owned(),
+            Err(_) => return path.to_string(),
+        };
+        // Windows answers with a verbatim \\?\ path; the files woven in are
+        // spelled as Go resolves them, without it, and must compare equal.
+        if let Some(rest) = real.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{}", rest)
+        } else if let Some(rest) = real.strip_prefix(r"\\?\") {
+            rest.to_string()
+        } else {
+            real
+        }
     }
 
     fn is_watched(state: &State, f: &F) -> bool {
@@ -1148,11 +1202,20 @@ pub(crate) mod __ambio_rec {
 
     fn write() {
         let (doc, path) = {
-            let mut guard = match STATE.lock() { Ok(g) => g, Err(_) => return };
+            let locked = if EXITING.load(Ordering::Relaxed) {
+                STATE.try_lock().map_err(|_| "held by a thread that is gone")
+            } else {
+                STATE.lock().map_err(|_| "poisoned")
+            };
+            let mut guard = match locked {
+                Ok(g) => g,
+                Err(why) => { debug(format_args!("could not write: the recorder's lock is {}", why)); return }
+            };
             let state = match guard.as_mut() { Some(s) => s, None => return };
             state.last_flush = Instant::now();
             let total: u64 = state.fns.iter().map(|f| f.calls.load(Ordering::Relaxed) + f.errors.load(Ordering::Relaxed)).sum::<u64>() + state.uncaught.len() as u64;
             if total == state.last_written || total == 0 {
+                debug(format_args!("nothing new to write ({} calls)", total));
                 return;
             }
             state.last_written = total;
@@ -1197,8 +1260,9 @@ pub(crate) mod __ambio_rec {
         };
         let _ = std::fs::create_dir_all(std::path::Path::new(&path).parent().unwrap_or(std::path::Path::new(".")));
         let tmp = format!("{}.json.tmp", path);
-        if std::fs::write(&tmp, doc).is_ok() {
-            let _ = std::fs::rename(&tmp, format!("{}.json", path));
+        match std::fs::write(&tmp, doc).and_then(|_| std::fs::rename(&tmp, format!("{}.json", path))) {
+            Ok(()) => debug(format_args!("wrote {}.json", path)),
+            Err(error) => debug(format_args!("could not write {}.json: {}", path, error)),
         }
     }
 

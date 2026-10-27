@@ -229,8 +229,18 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 		}
 		state.checkout, state.located = checkout, true
 	}
-	for deadline := time.Now().Add(gitBusyWait); state.checkout.Busy(gitLockStale) && time.Now().Before(deadline); {
-		time.Sleep(50 * time.Millisecond)
+	// Checkout writes the index before it moves HEAD, so an index written
+	// just now with HEAD where it was may be a switch still under way.
+	for deadline := time.Now().Add(gitBusyWait); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if state.checkout.Busy(gitLockStale) {
+			continue
+		}
+		if state.headKnown && state.checkout.IndexJustWritten() {
+			if head, err := state.checkout.ReadHead(); err == nil && head == state.head {
+				continue
+			}
+		}
+		break
 	}
 	head, err := state.checkout.ReadHead()
 	if err != nil {

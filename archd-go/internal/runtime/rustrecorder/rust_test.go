@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -103,15 +104,8 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 	t.Helper()
 	cmd := exec.Command("cargo", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "CARGO_TERM_COLOR=never")
+	cmd.Env = cargoEnv(dir, record, watches)
 	evidenceDir := filepath.Join(dir, ".evidence")
-	if record {
-		exe, _ := os.Executable()
-		root, _ := filepath.EvalSymlinks(dir)
-		watchJSON, _ := json.Marshal(watches)
-		cmd.Env = append(cmd.Env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AMBIO_RECORDER_DEBUG=1",
-			"AMBIO_EVIDENCE_DIR="+evidenceDir, "AMBIO_WORKSPACE_ROOT="+root, "AMBIO_WATCHES="+string(watchJSON))
-	}
 	out, _ := cmd.CombinedOutput()
 	var docs []evidence
 	entries, _ := os.ReadDir(evidenceDir)
@@ -128,6 +122,35 @@ func cargoRun(t *testing.T, dir string, record bool, watches []map[string]string
 	}
 	return string(out), docs
 }
+
+func cargoEnv(dir string, record bool, watches []map[string]string) []string {
+	env := append(os.Environ(), "CARGO_TERM_COLOR=never")
+	if record {
+		exe, _ := os.Executable()
+		root, _ := filepath.EvalSymlinks(dir)
+		watchJSON, _ := json.Marshal(watches)
+		env = append(env, "RUSTC_WORKSPACE_WRAPPER="+exe, WrapperEnv+"=1", VersionEnv+"="+recorderVersion, "AMBIO_RECORDER_DEBUG=1",
+			"AMBIO_EVIDENCE_DIR="+filepath.Join(dir, ".evidence"), "AMBIO_WORKSPACE_ROOT="+root, "AMBIO_WATCHES="+string(watchJSON))
+		if buildDir := BuildDir(runtime.GOOS, ""); buildDir != "" {
+			env = append(env, BuildDirEnv+"="+buildDir)
+		}
+	}
+	return env
+}
+
+// cargoExplain is what Cargo says about a recorded build when no evidence
+// came of it: whether it rebuilt, and how it ran the compiler.
+func cargoExplain(dir string, watches []map[string]string) string {
+	cmd := exec.Command("cargo", "build", "-v")
+	cmd.Dir = dir
+	cmd.Env = append(cargoEnv(dir, true, watches), "CARGO_LOG=cargo::core::compiler::fingerprint=info")
+	out, _ := cmd.CombinedOutput()
+	return string(out)
+}
+
+// slashed spells a panic location the same on every host: Rust prints
+// src\main.rs on Windows.
+func slashed(out string) string { return strings.ReplaceAll(out, `\`, "/") }
 
 // programOutput drops Cargo's progress lines and the thread id a panic prints.
 func programOutput(out string) string {
@@ -230,14 +253,14 @@ fn main() {
 	out, docs := cargoRun(t, dir, true, []map[string]string{{"absPath": file, "symbol": "reserve"}, {"absPath": file, "symbol": "price"}}, "run", "-q")
 	// The program prints what it would have: same panic, same place.
 	// (Older compilers word the panic line differently; the place is the same.)
-	if programOutput(out) != programOutput(plain) || !strings.Contains(out, "panicked at") || !strings.Contains(out, "src/main.rs:9:28") {
+	if programOutput(out) != programOutput(plain) || !strings.Contains(out, "panicked at") || !strings.Contains(slashed(out), "src/main.rs:9:28") {
 		t.Fatalf("output differs.\nordinary:\n%s\nrecorded:\n%s", plain, out)
 	}
 	if strings.Contains(out, "warning") {
 		t.Fatalf("the rewrite adds no warnings:\n%s", out)
 	}
 	if len(docs) != 1 {
-		t.Fatalf("%d evidence documents:\n%s", len(docs), out)
+		t.Fatalf("%d evidence documents:\n%s\ncargo build -v:\n%s", len(docs), out, cargoExplain(dir, []map[string]string{{"absPath": file, "symbol": "reserve"}}))
 	}
 	doc := docs[0]
 	calls := map[string][2]int{}
@@ -284,13 +307,16 @@ fn main() {
 
 	// Cargo rebuilds when the user's file changes, not the copy: the
 	// dependency file names their sources.
-	deps, _ := filepath.Glob(filepath.Join(dir, "target", "debug", "deps", "shop-*.d"))
+	// (On Windows the recorded build's files are in a build directory of
+	// their own, and an executable's carry no hash.)
+	deps, _ := filepath.Glob(filepath.Join(dir, "target", "*", "deps", "shop*.d"))
+	more, _ := filepath.Glob(filepath.Join(dir, "target", "*", "debug", "deps", "shop*.d"))
 	var listed string
-	for _, d := range deps {
+	for _, d := range append(deps, more...) {
 		raw, _ := os.ReadFile(d)
 		listed += string(raw)
 	}
-	if strings.Contains(listed, "ambio-src") || !strings.Contains(listed, "src/stock.rs") {
+	if strings.Contains(listed, "ambio-src") || !strings.Contains(slashed(listed), "src/stock.rs") {
 		t.Errorf("dependency files:\n%s", listed)
 	}
 }
@@ -488,7 +514,7 @@ mod tests {
 	if strings.Contains(out, "failed to parse manifest") {
 		t.Skip("this toolchain predates the 2024 edition")
 	}
-	if !strings.Contains(out, "test result: FAILED. 0 passed; 1 failed") || !strings.Contains(out, "src/lib.rs:16:9") {
+	if !strings.Contains(out, "test result: FAILED. 0 passed; 1 failed") || !strings.Contains(slashed(out), "src/lib.rs:16:9") {
 		t.Fatalf("the test fails as it would have, at its own line:\n%s", out)
 	}
 	if strings.Contains(out, "recorded less") || strings.Contains(out, "not recording") {
