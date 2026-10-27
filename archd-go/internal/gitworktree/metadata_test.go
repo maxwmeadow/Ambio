@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func TestMetadataWatcherReportsBranchHeadChanges(t *testing.T) {
@@ -77,5 +79,29 @@ func TestCommandTakesNoOptionalLocks(t *testing.T) {
 	}
 	if !after.ModTime().Equal(before.ModTime()) {
 		t.Fatal("Ambio's git status rewrote the index")
+	}
+}
+
+// Windows reports a write on a linked worktree's folder whenever a file in
+// it is rewritten; only the folder appearing or going names a checkout.
+func TestAWriteOnAWorktreeFolderIsNotACheckoutChange(t *testing.T) {
+	common := t.TempDir()
+	watcher := &MetadataWatcher{common: common}
+	folder := filepath.Join(common, "worktrees", "agent")
+	for _, test := range []struct {
+		event fsnotify.Event
+		want  bool
+	}{
+		{fsnotify.Event{Name: folder, Op: fsnotify.Write}, false},
+		{fsnotify.Event{Name: filepath.Join(common, "worktrees"), Op: fsnotify.Write}, false},
+		{fsnotify.Event{Name: folder, Op: fsnotify.Create}, true},
+		{fsnotify.Event{Name: folder, Op: fsnotify.Remove}, true},
+		{fsnotify.Event{Name: filepath.Join(folder, "HEAD"), Op: fsnotify.Write}, true},
+		{fsnotify.Event{Name: filepath.Join(folder, "index"), Op: fsnotify.Write}, false},
+	} {
+		got := watcher.relevantPath(test.event.Name) && !watcher.folderWritten(test.event)
+		if got != test.want {
+			t.Errorf("%v %s: got %v, want %v", test.event.Op, test.event.Name, got, test.want)
+		}
 	}
 }

@@ -121,6 +121,23 @@ func (w *MetadataWatcher) relevantPath(path string) bool {
 	return !nested || file == "HEAD" || file == "gitdir" || file == "locked"
 }
 
+// folderWritten is a write reported on a linked worktree's folder (or the
+// worktrees folder): Windows reports one there whenever a file inside is
+// rewritten, a status's index among them. Only the folder appearing,
+// vanishing or moving says a checkout was added or removed.
+func (w *MetadataWatcher) folderWritten(event fsnotify.Event) bool {
+	if event.Op&(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
+		return false
+	}
+	rel, err := filepath.Rel(w.common, event.Name)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	worktree, _, nested := strings.Cut(strings.TrimPrefix(rel, "worktrees/"), "/")
+	return rel == "worktrees" || (strings.HasPrefix(rel, "worktrees/") && worktree != "" && !nested)
+}
+
 func (w *MetadataWatcher) run() {
 	defer close(w.done)
 	defer close(w.changes)
@@ -140,7 +157,7 @@ func (w *MetadataWatcher) run() {
 					}
 				}
 			}
-			if w.relevantPath(event.Name) {
+			if w.relevantPath(event.Name) && !w.folderWritten(event) {
 				select {
 				case w.changes <- struct{}{}:
 				default:
