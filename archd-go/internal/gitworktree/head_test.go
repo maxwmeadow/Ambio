@@ -165,3 +165,25 @@ func TestBusyCoversTheGapBeforeHeadMoves(t *testing.T) {
 		t.Fatal("an index just written may be followed by HEAD moving")
 	}
 }
+
+func TestWasRenamedFollowsAChainOfRenames(t *testing.T) {
+	repo := t.TempDir()
+	headGit(t, repo, "init", "-q", "-b", "main")
+	headGit(t, repo, "-c", "user.email=a@b.c", "-c", "user.name=A", "commit", "-q", "--allow-empty", "-m", "base")
+	checkout, err := Locate(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := checkout.ReadHead()
+	headGit(t, repo, "branch", "-m", "main", "trunk")
+	headGit(t, repo, "branch", "-m", "trunk", "stem")
+	after, _ := checkout.ReadHead()
+	if !checkout.WasRenamed(before, after) {
+		t.Fatal("main became stem by two renames")
+	}
+	headGit(t, repo, "checkout", "-q", "-b", "other")
+	switched, _ := checkout.ReadHead()
+	if checkout.WasRenamed(after, switched) {
+		t.Fatal("checkout -b is a new branch, not a rename")
+	}
+}

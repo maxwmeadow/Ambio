@@ -525,3 +525,47 @@ func TestDeltaTakesNoSnapshotWhileTheMapSyncs(t *testing.T) {
 		t.Fatal("a delta read once the map settled takes a snapshot again")
 	}
 }
+
+// Renaming the branch you are on (`git branch -m`) is not a switch, and its
+// unreviewed work goes with it: it was left under the old name, and Review
+// Changes on the renamed branch showed nothing.
+func TestRenamingTheBranchKeepsItsUnreviewedWork(t *testing.T) {
+	repo := newCheckoutRepo(t)
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	reviewedFiles := func() int {
+		response := httptest.NewRecorder()
+		server.handleDelta(response, httptest.NewRequest(http.MethodGet, "/api/delta?workspace=ws", nil))
+		var delta struct {
+			Branch string            `json:"branch"`
+			Files  []json.RawMessage `json:"files"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &delta); err != nil {
+			t.Fatalf("delta: %v %s", err, response.Body.String())
+		}
+		return len(delta.Files)
+	}
+	writeCheckoutFile(t, repo, "api.go", "package sample\n\nfunc Api() { _ = 1 }\n")
+	settleCheckout(server)
+	if reviewedFiles() == 0 {
+		t.Fatal("the edit is unreviewed before the rename")
+	}
+
+	since := time.Now().UnixMilli()
+	runWorktreeGit(t, repo, "branch", "-m", "main", "trunk")
+	sqlDB, _ := server.dbFor("ws")
+	waitForWorktreeTest(t, "the root on trunk", func() bool {
+		roots, err := db.GetActiveRoots(sqlDB, "ws")
+		return err == nil && len(roots) == 1 && roots[0].Branch == "trunk"
+	})
+	settleCheckout(server)
+	if reviewedFiles() == 0 {
+		t.Fatal("the renamed branch lost its unreviewed edit")
+	}
+	for _, event := range journalSince(t, server, since) {
+		if event.Kind == db.EventCheckoutSwitched {
+			t.Fatalf("a rename was journaled as a switch: %#v", event)
+		}
+	}
+}

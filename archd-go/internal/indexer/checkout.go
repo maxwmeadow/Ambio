@@ -254,6 +254,17 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 	if head == state.head {
 		return true
 	}
+	if state.checkout.WasRenamed(state.head, head) {
+		// Not a move: the branch's history goes with its new name. A nested
+		// repository's branch does not key the root's history.
+		if state.repository == "" {
+			if err := db.RenameBranchHistory(sqlDB, root.ID, state.head.Branch, head.Branch); err != nil {
+				log.Printf("journal: carry %s's history to %s: %v", state.head.Branch, head.Branch, err)
+			}
+		}
+		state.head = head
+		return true
+	}
 	move := &headMove{
 		from: state.head, to: head, lastHit: time.Now(),
 		kind: classifyHeadMove(state.checkout.HeadMessages(state.head, head), state.head, head),

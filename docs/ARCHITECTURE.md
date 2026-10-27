@@ -414,7 +414,10 @@ folder of several repositories, its own repository unless it imports the
 file (`internal/indexer/call_scope.go`). A file Git holds as unmerged with
 conflict markers in it (a merge, rebase, cherry-pick or stash pop stopped on
 a conflict) is not reindexed until it is resolved: parsed, the markers lost
-its relationships (`internal/indexer/conflict.go`). Re-scoping (changing which folders are
+its relationships (`internal/indexer/conflict.go`). Renaming the branch a
+checkout is on (`git branch -m`, read from HEAD's reflog) is not a move: the
+branch's journal, watermark, snapshots and agent history are carried to the
+new name (`db.RenameBranchHistory`). Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
 make reconcile after a closed period exact. A file moved on disk arrives as a
 delete and a create in either order; the new path takes over the vanished
