@@ -3,7 +3,6 @@ package gitworktree
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -96,7 +95,7 @@ func ApplyPatch(path string, patch []byte) (conflicted bool, err error) {
 }
 
 func gitInput(path string, input []byte, args ...string) ([]byte, error) {
-	command := exec.Command("git", append([]string{"-C", path}, args...)...)
+	command := Command(path, args...)
 	command.Stdin = bytes.NewReader(input)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr

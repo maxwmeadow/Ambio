@@ -379,10 +379,15 @@ func (s *Server) syncWorkspaceWorktrees(
 			s.mu.Unlock()
 			s.launchRootSync(sqlDB, root, false)
 		case !indexed:
-			if err := db.DeleteFilesByRoot(sqlDB, root.ID); err != nil {
-				return "", fmt.Errorf("clear root %s: %w", path, err)
+			// The first index of a large checkout takes minutes, and every
+			// sync meanwhile sees the root unindexed. Asking again would
+			// queue another full index after it, over and over.
+			s.mu.Lock()
+			running := s.rootSyncing[root.ID]
+			s.mu.Unlock()
+			if !running {
+				s.launchRootSync(sqlDB, root, true)
 			}
-			s.launchRootSync(sqlDB, root, true)
 		case reconcileExisting || headChanged || !prior.IsActive:
 			if known && prior.IsActive && !slices.Equal(prior.IgnoredPaths, root.IgnoredPaths) {
 				s.mu.Lock()
@@ -463,7 +468,17 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			}
 		}()
 
+		if fullIndex && rootIndexed(sqlDB, root) {
+			// Indexed by the sync that ran before this one was queued.
+			fullIndex = false
+		}
 		if fullIndex {
+			// Cleared here, not when asked: a full index already under way
+			// must not have its files deleted from under it.
+			if err := db.DeleteFilesByRoot(sqlDB, root.ID); err != nil {
+				log.Printf("api: clear root %s: %v", root.Path, err)
+				return
+			}
 			if err := indexer.IndexRoot(sqlDB, s.hub, root, root.IgnoredPaths); err != nil {
 				log.Printf("api: index root %s: %v", root.Path, err)
 				return
@@ -526,6 +541,20 @@ func (s *Server) launchRootSync(sqlDB *sql.DB, root db.Root, fullIndex bool) {
 			"branch":      root.Branch,
 		})
 	}()
+}
+
+// rootIndexed reports whether a root's first full index has completed.
+func rootIndexed(sqlDB *sql.DB, root db.Root) bool {
+	roots, err := db.GetRoots(sqlDB, root.WorkspaceID)
+	if err != nil {
+		return false
+	}
+	for _, current := range roots {
+		if current.ID == root.ID {
+			return current.IndexedAt != nil && *current.IndexedAt > 0
+		}
+	}
+	return false
 }
 
 func (s *Server) startWorktreeMonitor(
