@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { APP_CLIENTS, CLI_CLIENTS } from '../../src/shared/agentDelivery'
+import { hasConnectorLogo } from '../../src/renderer/components/connectorMarks'
 
 test('setup keeps every client visible and locates, persists, rechecks and clears a CLI independently of its extension', async () => {
   test.setTimeout(90000)
@@ -40,7 +41,8 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     for (const client of [...CLI_CLIENTS, ...APP_CLIENTS]) await expect(agents().getByRole('radio', { name: new RegExp(client.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })).toHaveCount(1)
     // Grouped wrapping pills: every route has its product mark, including
     // absent clients. Marks are bundled, so no remote image request is needed.
-    await expect(agents().locator('img')).toHaveCount(CLI_CLIENTS.length + APP_CLIENTS.length + 1)
+    // A client without a bundled mark (Grok) shows a neutral glyph instead.
+    await expect(agents().locator('img')).toHaveCount([...CLI_CLIENTS, ...APP_CLIENTS].filter(client => hasConnectorLogo(client.id)).length + 1)
     await expect.poll(() => agents().locator('img').evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true)
     const pillBoxes = await agents().getByRole('radio').evaluateAll(pills => pills.map(pill => {
       const { x, y, width, height } = pill.getBoundingClientRect(); return { x, y, width, height }
@@ -108,7 +110,9 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     await page.setViewportSize({ width: 1440, height: 1000 })
     await codex().focus()
     await page.keyboard.press('ArrowRight')
-    await expect(agents().getByRole('radio', { name: /^Cursor CLI / })).toHaveAttribute('aria-checked', 'true')
+    // Arrows move to the next pill in CLI_CLIENTS order.
+    const afterCodex = CLI_CLIENTS[CLI_CLIENTS.findIndex(client => client.id === 'codex') + 1].label
+    await expect(agents().getByRole('radio', { name: new RegExp(`^${afterCodex} `) })).toHaveAttribute('aria-checked', 'true')
     await page.keyboard.press('ArrowLeft')
     await expect(codex()).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('button', { name: /^Map with Codex/ })).toHaveCount(0)

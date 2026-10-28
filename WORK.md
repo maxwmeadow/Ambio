@@ -245,6 +245,9 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 ---
 
 ## Inbox
+
+- ⬜ `grok-connector-mark` **Grok has no bundled product mark.** Simple Icons 16.25 has none, so its setup and Settings pills show the neutral glyph. Add one from xAI's official brand source to `assets/connectors` (record it in `SOURCES.md`) and to `connectorMarks.ts`. (2026-10-28)
+- ⬜ `branch-marks-compact-e2e` **`branches.spec.ts` "branch marks survive compact file presentation on a larger Floor" fails.** The camera ends at `scale(0.02)` where the test expects `scale(0.95)`. It already failed at `09225c2`, before the 2026-10-28 merges. (2026-10-28)
 - `git-submodule-frames` A submodule (a nested repository in a repository) gets no repository frame, and `git submodule add` journals its files as your creations; should a submodule be framed and its checkout be Git's? Found in the git sweep (2026-10-27).
 - `reconcile-after-batch-rereads` After a watcher batch, the HEAD-move reconcile (which walked while the batch held the root lock) re-reads the same files one by one; cheap since content is unchanged, but redundant work after every switch.
 - `stencil-drop-under-topmost` A stencil dropped where a new planned system overlaps a live one goes to the smaller system (`stencilTargetAt`: deepest, then smallest), even when the planned one is drawn on top; should the topmost drawn system win? Found via `sheet-authoring.spec.mjs` (2026-10-26).

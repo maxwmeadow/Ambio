@@ -17,6 +17,7 @@ Retrieved 2026-10-23:
 | `zedindustries.svg` | Simple Icons 16.25.0, sourced from https://github.com/zed-industries/zed/blob/ccc939124fa2f366b3029926447fd0a0c46a85c7/assets/icons/logo_96.svg |
 | `antigravity.svg` | https://www.antigravity.google/press → https://www.antigravity.google/assets/image/brand/antigravity-icon__full-color.svg |
 | `devin.svg` | https://devin.ai/favicon.svg |
+| `meta.svg` | Simple Icons 16.25.0, sourced from https://www.meta.com (Muse Code is Meta's) — retrieved 2026-10-28 |
 | `codex.svg` | OpenAI's `openai.chatgpt` VS Code extension 26.1007.21434, `resources/blossom-black.svg`; the OpenAI blossom used by the installed client, https://openai.com/brand/ |
 
 Simple Icons is already an Ambio dependency and distributed under CC0-1.0;
