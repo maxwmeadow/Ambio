@@ -9,10 +9,11 @@ import windsurf from '../assets/connectors/windsurf.svg'
 import jetbrains from '../assets/connectors/jetbrains.svg'
 import zed from '../assets/connectors/zedindustries.svg'
 import meta from '../assets/connectors/meta.svg'
+import grok from '../assets/connectors/grok.svg'
 import ambio from '../assets/branding/mark.svg'
 import { CONNECTOR_MARKS, type ConnectorMark } from './connectorMarks'
 
-const marks: Record<ConnectorMark, string> = { claude, claudeCode, codex, copilot, antigravity, cursor, devin, windsurf, jetbrains, zed, meta }
+const marks: Record<ConnectorMark, string> = { claude, claudeCode, codex, copilot, antigravity, cursor, devin, windsurf, jetbrains, zed, meta, grok }
 
 export function ConnectorLogo({ clientId }: { clientId: string }) {
   const mark = (CONNECTOR_MARKS as Record<string, ConnectorMark | undefined>)[clientId]

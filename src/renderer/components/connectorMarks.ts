@@ -19,6 +19,7 @@ export const CONNECTOR_MARKS = {
   'cursor-cli': 'cursor',
   cursor: 'cursor',
   'devin-cli': 'devin',
+  grok: 'grok',
   muse: 'meta',
   windsurf: 'windsurf',
   jetbrains: 'jetbrains',

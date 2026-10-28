@@ -18,10 +18,12 @@ Retrieved 2026-10-23:
 | `antigravity.svg` | https://www.antigravity.google/press → https://www.antigravity.google/assets/image/brand/antigravity-icon__full-color.svg |
 | `devin.svg` | https://devin.ai/favicon.svg |
 | `meta.svg` | Simple Icons 16.25.0, sourced from https://www.meta.com (Muse Code is Meta's) — retrieved 2026-10-28 |
+| `grok.svg` | https://x.ai/legal/brand-guidelines → https://data.x.ai/logos/SpaceXAI_Grok_Assets.zip, `Grok_Logomark_Dark.svg` — retrieved 2026-10-28 |
 | `codex.svg` | OpenAI's `openai.chatgpt` VS Code extension 26.1007.21434, `resources/blossom-black.svg`; the OpenAI blossom used by the installed client, https://openai.com/brand/ |
 
 Simple Icons is already an Ambio dependency and distributed under CC0-1.0;
 these SVGs retain its mark paths and published brand colors. Brand-specific
-terms still apply to the marks. Antigravity, Devin and Codex files are retained
-as distributed by their official sources. Ambio chat uses Ambio's existing
+terms still apply to the marks. Antigravity, Devin, Grok and Codex files are
+retained as distributed by their official sources; xAI's guidelines require
+its logos be used without alteration. Ambio chat uses Ambio's existing
 approved `assets/branding/mark.svg`.
