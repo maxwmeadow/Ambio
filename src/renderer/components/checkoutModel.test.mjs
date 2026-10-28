@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, collisionsBySystem, overlaySummary } from './checkoutModel.ts'
+import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, collisionsBySystem, conversationWorkplace, overlaySummary } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -136,4 +136,19 @@ test('a folder of repositories reads as how many, and lists each', () => {
     ['web', 'redesign', '1 uncommitted'],
     ['services/api', 'main', '2 ahead · of origin/main'],
   ])
+})
+
+test('a conversation working away from the project checkout names its worktree', () => {
+  const worktree = checkout({ rootId: 'run', path: '/home/me/.ambio/worktrees/shop/fix-login', branch: 'ambio/fix-login', isPrimary: false, isFocused: false, isAmbioRun: true })
+  const checkouts = [checkout(), worktree]
+  const run = (rootPath, startedAt = 1) => ({ rootPath, startedAt })
+  // Working here, or not started yet, says nothing.
+  assert.equal(conversationWorkplace([run('/code/shop'), undefined], '/code/shop', checkouts), '')
+  assert.equal(conversationWorkplace([], '/code/shop', checkouts), '')
+  // The latest turn that ran elsewhere decides; a trailing separator is the same folder.
+  assert.equal(conversationWorkplace([run('/code/shop', 1), run('/home/me/.ambio/worktrees/shop/fix-login/', 2)], '/code/shop/', checkouts), 'in ambio/fix-login')
+  // A worktree the snapshot does not list yet is named by its folder.
+  assert.equal(conversationWorkplace([run('C:\\worktrees\\shop\\fix-login')], 'C:\\code\\shop', []), 'in fix-login')
+  // The primary checkout under another spelling is still here.
+  assert.equal(conversationWorkplace([run('/code/shop-link')], '/code/shop', [checkout({ path: '/code/shop-link' })]), '')
 })

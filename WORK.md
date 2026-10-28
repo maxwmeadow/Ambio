@@ -246,7 +246,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `grok-connector-mark` **Grok has no bundled product mark.** Simple Icons 16.25 has none, so its setup and Settings pills show the neutral glyph. Add one from xAI's official brand source to `assets/connectors` (record it in `SOURCES.md`) and to `connectorMarks.ts`. (2026-10-28)
+- ⬜ `chat-drafts-e2e-clicks` **Two agent-panel e2e tests time out on a click on main:** `agent-chat.spec.ts` "integrated chat configures a service…" (line 103, the conversation row) and `canvas.spec.ts` "unfinished drafts can be dismissed and recovered from the Agent menu" (line 2922). Both fail the same way with and without the worktree-option change. (2026-10-28)
 - ⬜ `branch-marks-compact-e2e` **`branches.spec.ts` "branch marks survive compact file presentation on a larger Floor" fails.** The camera ends at `scale(0.02)` where the test expects `scale(0.95)`. It already failed at `09225c2`, before the 2026-10-28 merges. (2026-10-28)
 - `git-submodule-frames` A submodule (a nested repository in a repository) gets no repository frame, and `git submodule add` journals its files as your creations; should a submodule be framed and its checkout be Git's? Found in the git sweep (2026-10-27).
 - `reconcile-after-batch-rereads` After a watcher batch, the HEAD-move reconcile (which walked while the batch held the root lock) re-reads the same files one by one; cheap since content is unchanged, but redundant work after every switch.
@@ -360,6 +360,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ## Done log
 
+- 2026-10-28 `grok-connector-mark` Grok Build CLI shows xAI's official Grok logomark (`assets/connectors/grok.svg`, unaltered from xAI's logo kit, source in `SOURCES.md`). (`main`)
+- 2026-10-28 `worktree-option` The composer's "Here / Own worktree" toggle became *Build in its own worktree* in the request-type menu, offered only on a new conversation's first turn to an agent Ambio starts; the panel header names the branch a conversation works in (`conversationWorkplace`). Types and 847 unit tests pass; 8 of 10 agent-panel e2e tests pass, the other 2 fail on main too. (`main`)
 - 2026-10-28 `grok-muse-main-merge` Brought `codex/grok-muse-mcp-clients` onto main's client model (Grok and Muse in `CLI_CLIENTS`/`DRIVER_CLI_NAMES`, product-name labels; mapping turns carry the run message id on every host via `mcpEnvironment`). Fixed a regression from the mapping merge: `agent:delivery-runs` awaited mapping recovery on every inbox poll, so an unreachable daemon left every run showing "working"; recovery now succeeds once per workspace and never hides runs. Types, 836 unit tests, chat harness and the agent-delivery UI test pass; MCP e2e and Go fail only on the known Windows EPERM/debugger items. (`main`)
 - 2026-10-27 `review-file-symbols` Review file cards showed "No symbols" for every file: candidate cards have their own node id (`proposal-file:…`) and `FileNode` fetched symbols by node id. A file entry now carries `sourceFileId` (the indexed file it shows); the projection passes it on and `FileNode` reads symbols, source preview, injections and branch marks through it, keeping the node id for node identity. Unit tests and the review e2e (fails without the fix, passes with it) pass. (`claude/mapping-completion-safety`, local changes)
 

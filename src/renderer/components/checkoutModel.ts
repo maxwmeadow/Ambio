@@ -285,3 +285,17 @@ export function buildRepositoryRows(snapshot: CheckoutsSnapshot | null): Reposit
     state: checkoutState(repository),
   }))
 }
+
+/**
+ * Where an earlier turn of this conversation is working, when that is not the
+ * project's own checkout: the worktree's branch, else its folder.
+ */
+export function conversationWorkplace(runs: Array<{ rootPath: string; startedAt: number } | undefined>, rootPath: string, checkouts: CheckoutStatus[] | undefined): string {
+  const trim = (path: string) => path.replace(/[\\/]+$/, '')
+  const away = runs.filter((run): run is { rootPath: string; startedAt: number } => !!run && !!run.rootPath && trim(run.rootPath) !== trim(rootPath))
+    .sort((a, b) => b.startedAt - a.startedAt)[0]
+  if (!away) return ''
+  const checkout = list(checkouts).find(item => trim(item.path) === trim(away.rootPath))
+  if (checkout?.isPrimary) return ''
+  return `in ${checkout?.branch || trim(away.rootPath).split(/[\\/]/).pop()}`
+}

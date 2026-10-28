@@ -12,9 +12,9 @@ import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { usePresence } from './ui/usePresence'
 import { WorkOrderReview } from './WorkOrderReview'
-import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery, WorkPlaceToggle } from './AgentDelivery'
+import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
 import { useCheckoutStore } from '../store/checkoutStore'
-import { focusedCheckout } from './checkoutModel'
+import { conversationWorkplace, focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type ModelOption } from '../../shared/agentDelivery'
 import { chatModels } from '../../shared/agentChat'
 import { AgentModelMenu, useAgentModel } from './AgentModelMenu'
@@ -70,6 +70,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     const head = focusedCheckout(state.snapshot)?.headState
     return head === 'commit' || head === 'detached'
   })
+  const checkouts = useCheckoutStore(state => state.snapshot?.checkouts)
   const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -95,7 +96,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   const [attachedSheetId, setAttachedSheetId] = useState<string | null>(() => { try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:sheet`) ?? 'null'); return typeof saved === 'string' ? saved : null } catch { return null } })
   const attachmentChosen = useRef((() => { try { return localStorage.getItem(`${draftKey}:sheet`) !== null } catch { return false } })())
   const sendLock = useRef(false)
-  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string }>(undefined)
+  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string; where?: 'here' | 'worktree' }>(undefined)
   const restored = useRef(false)
   if (!restored.current) {
     restored.current = true
@@ -202,6 +203,10 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     chatOptions: toChat && chatProvider ? chatModels(chatProvider).map((id): ModelOption => ({ id, label: id })) : undefined,
     current: chatCurrent?.model,
   })
+  // A worktree of its own is decided by a conversation's first turn (later
+  // turns stay where it started), and only for an agent Ambio starts.
+  const worktreeOffered = !!runHost && canWorktree && !current
+  const where = worktreeOffered && mode === 'build' ? delivery.where : 'here'
   const chatVersion = chat.snapshot ? `${chat.snapshot.conversation.state}:${chat.snapshot.approvals.length}:${chat.snapshot.questions.length}:${chat.snapshot.messages.map(message => `${message.id}:${message.parts.map(part => `${part.text.length}${part.state ?? ''}`).join(',')}`).join('|')}` : ''
   const messageVersion = shown.map(message => `${message.id}:${message.status}:${message.reply?.createdAt ?? ''}:${message.review?.id ?? ''}:${message.sessions?.map(session => `${session.id}:${session.endedAt}:${session.notes.length}`).join(',') ?? ''}`).join('|')
   useLayoutEffect(() => {
@@ -259,7 +264,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     for (const stale of shown) if ((stale.status === 'queued' || stale.status === 'delivered') && latestRun(stale.id) && !runWorking(latestRun(stale.id))) await cancelInboxMessage(graph.workspaceId, stale.id).catch(() => {})
     if (!retry.current) {
       const id = crypto.randomUUID()
-      retry.current = { id, note: workOrderNote(mode, note.trim()), selection, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode, model: agentModel.value || undefined }
+      retry.current = { id, note: workOrderNote(mode, note.trim()), selection, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode, model: agentModel.value || undefined, where }
     }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
@@ -273,7 +278,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
       setNote(''); setCodeFitFileIds([]); retry.current = undefined; nearBottom.current = true
       setThreadId(pending.threadId ?? pending.id)
       try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
-      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model)
+      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where)
     } catch (err) {
       const status = (err as { status?: number }).status
       if (status && status >= 400 && status < 500) {
@@ -292,6 +297,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // A send still waiting to be confirmed is that same turn, and stays editable for its retry.
   const inProgress = toChat ? chat.running : !retry.current && !!openTurn && (runWorking(openRun) || !openRun)
   const workingLabel = toChat ? 'Ambio chat' : openRun ? delivery.hosts.find(host => host.id === openRun.hostId)?.label ?? 'The agent' : ''
+  const workplace = conversationWorkplace(shown.map(message => latestRun(message.id)), graph.rootPath, checkouts)
   const stopTurn = async () => {
     if (toChat) { await chat.stop(); return }
     if (!openTurn) return
@@ -324,7 +330,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           useConversationPreferences.getState().forget(graph.workspaceId, id)
           if (currentThreadId === id) { setThreadId(null); setChatActiveId(null) }
         } finally { setSending(false) }
-      }} entries={entries} currentId={currentThreadId} project={graph.name ?? ''} disabled={locked} onOpen={id => { setThreadId(id); textarea.current?.focus() }} />
+      }} entries={entries} currentId={currentThreadId} project={[graph.name ?? '', workplace].filter(Boolean).join(' · ')} disabled={locked} onOpen={id => { setThreadId(id); textarea.current?.focus() }} />
       <button type="button" className="ambio-inbox__icon" disabled={locked || currentThreadId === null} onClick={() => { setThreadId(null); textarea.current?.focus() }} aria-label="New conversation" title="Start a new conversation"><InboxIcon name="plus" /></button>
       <button type="button" className="ambio-inbox__icon" onClick={onClose} aria-label="Close agent inbox"><InboxIcon name="close" /></button>
     </header>
@@ -387,8 +393,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
           fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined}>
           <AgentModelMenu model={agentModel} disabled={locked || inProgress} />
-          {deliveryHost?.route === 'run' && canWorktree && !chatCurrent && <WorkPlaceToggle where={delivery.where} onChange={delivery.setWhere} disabled={locked || inProgress} />}
-        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }} />{inProgress
+        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
+          worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} />{inProgress
           ? <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>
           : <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
@@ -411,10 +417,15 @@ function PermissionCard({ request, hostLabel }: { request: AgentPermissionReques
 }
 
 /** What is being asked for, as one button beside Send that opens the choices. */
-function WorkOrderModeMenu({ mode, disabled, onChange }: { mode: WorkOrderMode; disabled: boolean; onChange: (mode: WorkOrderMode) => void }) {
+/**
+ * The request type. On a conversation's first turn to an agent Ambio starts,
+ * Build can also take a worktree of its own (GIT_AND_PROJECT_SHAPES stage 4).
+ */
+function WorkOrderModeMenu({ mode, disabled, onChange, worktree }: { mode: WorkOrderMode; disabled: boolean; onChange: (mode: WorkOrderMode) => void; worktree?: { on: boolean; onChange: (on: boolean) => void } }) {
   const [open, setOpen] = useState(false)
   const anchor = useRef<HTMLDivElement>(null)
   const current = WORK_ORDER_MODES.find(item => item.mode === mode) ?? WORK_ORDER_MODES[0]
+  const ownWorktree = mode === 'build' && !!worktree?.on
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
@@ -425,14 +436,19 @@ function WorkOrderModeMenu({ mode, disabled, onChange }: { mode: WorkOrderMode; 
     if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
   }}>
     <button type="button" className="ambio-inbox__mode-button" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
-      aria-label={`Request type: ${current.label}`} title={current.hint} onClick={() => setOpen(!open)}>
-      {current.label}<InboxIcon name="chevron" size={11} />
+      aria-label={`Request type: ${ownWorktree ? `${current.label} in its own worktree` : current.label}`} title={ownWorktree ? `${current.hint} In a worktree of its own on an ambio/ branch.` : current.hint} onClick={() => setOpen(!open)}>
+      {ownWorktree ? `${current.label} · worktree` : current.label}<InboxIcon name="chevron" size={11} />
     </button>
     {open && <div className="ambio-inbox__mode-menu" role="menu" aria-label="What you are asking for">
       {WORK_ORDER_MODES.map(item => <button key={item.mode} type="button" role="menuitemradio" aria-checked={mode === item.mode} aria-label={item.label}
         autoFocus={mode === item.mode} onClick={() => { onChange(item.mode); setOpen(false) }}>
         <strong>{item.label}</strong><small>{item.hint}</small>{mode === item.mode && <InboxIcon name="check" size={13} />}
       </button>)}
+      {worktree && <button type="button" role="menuitemcheckbox" aria-checked={worktree.on} className="ambio-inbox__mode-option"
+        title="Lets several agents work at once. Apply or discard its work from the branch menu."
+        onClick={() => { worktree.onChange(!worktree.on); onChange('build'); setOpen(false) }}>
+        <strong>Build in its own worktree</strong><small>On a new ambio/ branch, leaving this checkout alone.</small>{worktree.on && <InboxIcon name="check" size={13} />}
+      </button>}
     </div>}
   </div>
 }

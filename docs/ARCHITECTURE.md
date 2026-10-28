@@ -423,7 +423,10 @@ to API-key billing or another account. Setup and live-account validation:
   Mailer"). Shown in the Checkouts popover ("Review this branch"); agents
   read it through `get_architecture` scope `branches` with `id`.
 - **A worktree per run** (`api/worktree_runs.go`, `electron/main.ts`
-  `agent:deliver`): Send's *Own worktree* asks archd for a worktree
+  `agent:deliver`): *Build in its own worktree* (an option of Build in the
+  composer's request-type menu, offered only on a new conversation's first
+  turn to an agent Ambio starts; later turns stay where the conversation
+  began, which the panel header names) asks archd for a worktree
   (`POST /api/checkouts/worktree`) under `~/.ambio/worktrees/<workspace>/<slug>`
   on `ambio/<slug>`, started at the Floor's commit, and returns once the root
   is registered; the run's cwd and handoff are that folder, so its MCP
@@ -565,7 +568,7 @@ workspace-bound MCP config, and records launch receipts/output under
 `~/.ambio/delivery/`. Receipts prevent duplicate execution across retries/reloads;
 review revisions permit another run. One managed run edits a root at a time.
 Launch status is distinct from MCP claim and reply status. Runs edit the existing
-graph root unless Send's *Own worktree* is chosen (see the checkouts section
+graph root unless a first Build asks for its own worktree (see the checkouts section
 above), can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
 

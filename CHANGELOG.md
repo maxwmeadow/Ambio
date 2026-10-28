@@ -14,6 +14,10 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- The agent panel's “Here” button is gone. Starting a Build in its own
+  worktree is now an option in the Build menu, offered only when a new
+  conversation starts, and the panel header shows which branch a conversation
+  is working in.
 - Mapping with Codex no longer shows only reasoning for minutes at a time: its
   in-memory scripts appear in the activity as “Script” lines, and mapping
   agents now post short progress updates as they work.

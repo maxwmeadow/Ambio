@@ -26,8 +26,9 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
   const [watchingHosts, setWatchingHosts] = useState<string[]>([])
   const watchers = watchingHosts.length
   const [busy, setBusy] = useState('')
-  // Where an agent Ambio starts works (GIT_AND_PROJECT_SHAPES stage 4),
-  // remembered per project; registered in projectLocalState.
+  // Whether a new conversation's Build gets a worktree of its own
+  // (GIT_AND_PROJECT_SHAPES stage 4), remembered per project; registered in
+  // projectLocalState.
   const [where, setWhereState] = useState<'here' | 'worktree'>('here')
   useEffect(() => {
     try { setWhereState(localStorage.getItem(`delivery_where_${workspaceId}`) === 'worktree' ? 'worktree' : 'here') } catch { setWhereState('here') }
@@ -94,11 +95,12 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     void refresh()
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
-  const deliver = async (messageId: string, destination = hostId, model?: string) => {
+  // `place` is the turn's own: only a conversation's first Build can ask for a worktree.
+  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here') => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place })
       if (workspace.current !== workspaceId) return
       // A run says where it stands on its turn; the notice is for routes that need the user.
       setNotice(result.run ? '' : result.detail)
@@ -364,25 +366,5 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
       {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}
       <button type="button" className="ambio-inbox__turn-link" onClick={() => window.ambio.showInFolder(run.logPath)}>Show output</button>
     </div>
-  </div>
-}
-
-/**
- * Where an agent Ambio starts works: in the project's own checkout, or in a
- * worktree of its own so several agents can work at once and each one's work
- * is applied or discarded as a whole (GIT_AND_PROJECT_SHAPES stage 4).
- */
-export function WorkPlaceToggle({ where, onChange, disabled }: { where: 'here' | 'worktree'; onChange: (where: 'here' | 'worktree') => void; disabled?: boolean }) {
-  const own = where === 'worktree'
-  return <div className="ambio-inbox__mode ambio-inbox__where">
-    <button
-      type="button"
-      className="ambio-inbox__mode-button"
-      disabled={disabled}
-      aria-pressed={own}
-      aria-label={own ? 'Works in its own worktree' : 'Works in this checkout'}
-      title={own ? 'The agent gets its own worktree on an ambio/ branch. Apply or discard its work from the branch menu.' : 'The agent works in this checkout. Choose its own worktree to run several at once.'}
-      onClick={() => onChange(own ? 'here' : 'worktree')}
-    >{own ? 'Own worktree' : 'Here'}</button>
   </div>
 }
