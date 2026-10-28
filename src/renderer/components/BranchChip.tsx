@@ -16,7 +16,7 @@ const LENSES: Array<{ value: OverlayLens; label: string; title: string }> = [
 const REFRESH_MS = 5000
 /** Opening the popover checks the remote unless it was checked this recently. */
 const FETCH_FRESH_MS = 60_000
-const MENU_WIDTH = 380
+const MENU_WIDTH = 460
 const VIEWPORT_GUTTER = 8
 
 /** Keeps the checkout snapshot current while a project is open. */
@@ -130,14 +130,17 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
 
   const toggle = useCallback(() => {
     setNotice(null)
-    setOpen(current => {
-      if (!current) {
-        updatePosition()
-        void useCheckoutStore.getState().refresh(workspaceId).then(checkRemote)
-      }
-      return !current
-    })
-  }, [updatePosition, workspaceId, checkRemote])
+    setOpen(current => !current)
+  }, [])
+
+  // Opening refreshes and checks the remote once. This is an effect, not part
+  // of the state update: React may run an updater twice (StrictMode does),
+  // which started two fetches and the second was refused as already running.
+  useEffect(() => {
+    if (!open) return
+    updatePosition()
+    void useCheckoutStore.getState().refresh(workspaceId).then(checkRemote)
+  }, [open, updatePosition, workspaceId, checkRemote])
 
   useCommandHandlers({ 'view.checkouts': toggle })
 

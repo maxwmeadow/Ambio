@@ -110,7 +110,7 @@
   left: var(--ambio-checkouts-left);
   z-index: 10001;
   display: flex;
-  width: 380px;
+  width: 460px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - var(--ambio-checkouts-top) - 8px);
   flex-direction: column;
@@ -128,7 +128,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 10px 8px;
+  padding: 11px 16px 12px;
   border-bottom: 1px solid #1d2925;
   background: linear-gradient(180deg, #4a5a56 0%, #2c3935 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
@@ -137,7 +137,7 @@
 .ambio-checkouts__header h2 {
   margin: 0;
   color: #fffdf5;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
   text-shadow: 0 1px 0 #14201c;
@@ -147,7 +147,7 @@
   margin: 2px 0 0;
   color: #bac5c0;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: 10.5px;
   letter-spacing: 0.06em;
   line-height: 1.2;
   text-transform: uppercase;
@@ -162,7 +162,7 @@
   background: #24312d;
   color: #b8d9d1;
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -180,11 +180,11 @@
   border-left-width: 3px;
   background: #f3dfd8;
   color: #6e2723;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .ambio-checkout {
-  padding: 8px 9px;
+  padding: 13px 16px;
   border-bottom: 1px solid #c3c6c2;
   color: #26342f;
 }
@@ -207,7 +207,7 @@
   overflow: hidden;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 13.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -218,7 +218,7 @@
   border: 1px solid #3c7d76;
   color: #2e675f;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -235,7 +235,7 @@
   gap: 8px;
   margin: 4px 0 0;
   color: #5d6964;
-  font-size: 9.5px;
+  font-size: 12.5px;
   line-height: 1.4;
 }
 
@@ -247,7 +247,7 @@
   margin-top: 4px;
   color: #737d78;
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
   direction: rtl;
@@ -263,7 +263,7 @@
 .ambio-checkout__agents li {
   overflow: hidden;
   color: #3d4b46;
-  font-size: 9.5px;
+  font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -271,7 +271,7 @@
 .ambio-checkout__agents li span {
   color: var(--agent-color, #2e675f);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -283,12 +283,12 @@
 }
 
 .ambio-checkout__actions button {
-  padding: 2px 7px;
+  padding: 4px 10px;
   border: 1px solid #a3aaa6;
   border-radius: 1px;
   background: #f7f6f0;
   color: #26342f;
-  font-size: 9px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -418,12 +418,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 9px 16px;
   border-bottom: 1px solid #c3c6c2;
   background: #e7e5dd;
   color: #5d6964;
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -435,12 +435,12 @@
 }
 
 .ambio-checkouts__lens button {
-  padding: 2px 7px;
+  padding: 3px 9px;
   border: 0;
   background: #f7f6f0;
   color: #26342f;
   font-family: var(--font-sans, inherit);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
   cursor: pointer;
@@ -456,7 +456,7 @@
 .ambio-checkout__overlay {
   margin: 4px 0 0;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .ambio-checkout__swatch {
@@ -471,7 +471,7 @@
 .ambio-checkouts__unplaced {
   margin: 6px 6px 2px;
   color: #5d6964;
-  font-size: 9.5px;
+  font-size: 12.5px;
 }
 
 .ambio-checkout__actions button:disabled {
@@ -484,7 +484,7 @@
   border: 1px solid #17211e;
   background: #24312d;
   color: #e4efe9;
-  font-size: 9px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -529,7 +529,7 @@
 .ambio-checkouts__branches strong {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -537,7 +537,7 @@
 .ambio-checkouts__branches span {
   flex: 0 0 auto;
   color: #737d78;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .ambio-inbox__review-branch {
@@ -569,7 +569,7 @@
   margin: 6px 9px 2px;
   color: #5d6964;
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -602,7 +602,7 @@
    popover"): where it stands in words, then the one action that calls for. */
 .ambio-checkouts__header .ambio-checkouts__path {
   overflow: hidden;
-  max-width: 330px;
+  max-width: 400px;
   direction: rtl;
   letter-spacing: 0;
   text-align: left;
@@ -614,7 +614,7 @@
 .ambio-sync__state {
   margin: 2px 0 0;
   color: #26342f;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -622,20 +622,20 @@
 .ambio-sync__checked {
   margin: 2px 0 0;
   color: #737d78;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .ambio-sync__checked[data-error] { color: #8a4320; }
 
 .ambio-sync__action {
-  margin-top: 8px;
-  padding: 4px 11px;
+  margin-top: 12px;
+  padding: 7px 16px;
   border: 1px solid #17211e;
   border-radius: 1px;
   background: #2c3935;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
   color: #fffdf5;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -659,7 +659,7 @@
 .ambio-sync__uncommitted {
   margin: 7px 0 0;
   color: #5d6964;
-  font-size: 9.5px;
+  font-size: 12.5px;
 }
 
 /* Secondary actions read as links, so the one real action stands out. */
@@ -692,7 +692,7 @@
   border: 0;
   background: transparent;
   color: #2e675f;
-  font-size: 9px;
+  font-size: 12px;
   text-decoration: underline;
   text-decoration-color: #9fbdb6;
   text-underline-offset: 2px;
