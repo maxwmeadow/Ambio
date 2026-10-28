@@ -762,6 +762,10 @@ export interface CheckoutStatus {
   upstream?: string
   ahead: number
   behind: number
+  /** When the repository last heard from a remote (ms); the Floor's checkout only. */
+  fetchedAt?: number
+  /** Where a branch with no upstream would be published; the Floor's checkout only. */
+  publishRemote?: string
   agents: Array<{ sessionId: string; agent?: string; goal: string; startedAt: number }>
   touchedSystems: number
   collidingSystems: number

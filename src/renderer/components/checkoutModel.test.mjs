@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, collisionsBySystem, conversationWorkplace, overlaySummary } from './checkoutModel.ts'
+import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, buildSync, collisionsBySystem, conversationWorkplace, overlaySummary, timeAgo } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -151,4 +151,56 @@ test('a conversation working away from the project checkout names its worktree',
   assert.equal(conversationWorkplace([run('C:\\worktrees\\shop\\fix-login')], 'C:\\code\\shop', []), 'in fix-login')
   // The primary checkout under another spelling is still here.
   assert.equal(conversationWorkplace([run('/code/shop-link')], '/code/shop', [checkout({ path: '/code/shop-link' })]), '')
+})
+
+test('the Floor\'s branch says where it stands against its remote and offers the one action that calls for', () => {
+  const now = Date.parse('2026-10-28T20:00:00Z')
+  const tracked = overrides => buildSync(checkout({ upstream: 'origin/main', fetchedAt: now - 2 * 60000, publishRemote: 'origin', ...overrides }), now)
+
+  const behind = tracked({ behind: 3 })
+  assert.equal(behind.sentence, '3 commits to pull from origin/main')
+  assert.deepEqual(behind.action, { kind: 'pull', label: 'Pull 3 commits' })
+  assert.equal(behind.checked, 'Checked 2 min ago')
+
+  assert.deepEqual(tracked({ ahead: 1 }).action, { kind: 'push', label: 'Push 1 commit' })
+  assert.equal(tracked({ ahead: 1 }).sentence, '1 commit to push to origin/main')
+
+  const current = tracked({})
+  assert.equal(current.sentence, 'Up to date with origin/main')
+  assert.deepEqual(current.action, { kind: 'fetch', label: 'Check for updates', quiet: true })
+
+  // Both sides moved: a merge, not a pull, so no button.
+  const diverged = tracked({ ahead: 2, behind: 1 })
+  assert.match(diverged.sentence, /^1 commit to pull and 2 commits to push: .* both moved on/)
+  assert.equal(diverged.action, undefined)
+
+  // No upstream: publish where there is an obvious remote, else say it is local.
+  const unpublished = buildSync(checkout({ branch: 'idea', publishRemote: 'origin' }), now)
+  assert.equal(unpublished.sentence, 'Not on origin yet')
+  assert.deepEqual(unpublished.action, { kind: 'publish', label: 'Publish to origin' })
+  assert.equal(unpublished.checked, 'Not checked yet')
+  const local = buildSync(checkout({}), now)
+  assert.equal(local.remote, false)
+  assert.equal(local.checked, '')
+  assert.match(local.sentence, /no remote/)
+  assert.equal(local.action, undefined)
+
+  assert.equal(tracked({ changedFiles: 1 }).uncommitted, '1 uncommitted file')
+  assert.equal(tracked({ changedFiles: 4 }).uncommitted, '4 uncommitted files')
+  assert.equal(tracked({}).uncommitted, '')
+
+  // Without a branch to sync, the checkout's own state is the sentence.
+  const detached = buildSync(checkout({ headState: 'detached', branch: '(detached)', headCommit: 'abcdef1234' }), now)
+  assert.match(detached.sentence, /^Detached at/)
+  assert.equal(detached.action, undefined)
+  assert.equal(buildSync(undefined).sentence, '')
+})
+
+test('time since is said in a few words', () => {
+  const now = Date.parse('2026-10-28T20:00:00Z')
+  assert.equal(timeAgo(now - 10_000, now), 'just now')
+  assert.equal(timeAgo(now - 5 * 60000, now), '5 min ago')
+  assert.equal(timeAgo(now - 3 * 3600000, now), '3 h ago')
+  assert.equal(timeAgo(now - 26 * 3600000, now), '1 day ago')
+  assert.equal(timeAgo(now + 60000, now), 'just now')
 })

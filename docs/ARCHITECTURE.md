@@ -438,8 +438,21 @@ to API-key billing or another account. Setup and live-account validation:
   to the same files, conflicts kept with the worktree) or discards it; either
   removes the worktree and its branch. *Switch branch…* (`POST
   /api/checkouts/switch`) is refused with uncommitted changes, and a branch
-  open in another worktree is shown on the Floor instead. Ambio never
-  commits, merges or pushes.
+  open in another worktree is shown on the Floor instead.
+- **Talking to the remote** (docs/GIT_WORKFLOW.md stage 1,
+  `api/checkout_sync.go`, `gitworktree/sync.go`): `POST
+  /api/checkouts/sync` fetches, pulls (`--ff-only`), pushes (never forced)
+  or publishes (`push --set-upstream` to the only remote or `origin`) the
+  Floor's checkout, one at a time per project, with `GIT_TERMINAL_PROMPT=0`
+  and a 2-minute limit so a missing credential fails rather than hangs.
+  `syncRefusal` turns Git's refusals (diverged, local changes in the way,
+  rejected push, sign-in, network) into what to do. The snapshot's Floor
+  checkout carries `fetchedAt` (`FETCH_HEAD`'s time) and `publishRemote`;
+  the popover (`buildSync` in `checkoutModel.ts`) says where the branch
+  stands, leads with Pull, Push, Publish or Check for updates, and fetches
+  on open unless it fetched in the last minute. A pull is journalled by the
+  existing HEAD reconcile as one "Pulled N commits" entry. Ambio does not
+  commit or merge yet (stages 2-3).
 - **Repositories inside a project** (stage 6, first slice): a root is
   searched (depth 4, the indexer's skip rules, cached 30 s) for repositories
   inside it - several under a parent folder, or submodules

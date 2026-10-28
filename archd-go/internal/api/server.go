@@ -99,8 +99,11 @@ type Server struct {
 	rootQuietReconcile map[string]bool
 	collisionCache     map[string]collisionCacheEntry
 	checkoutsCache     map[string]checkoutsCacheEntry
-	nestedCache        map[string]nestedCacheEntry
-	collisionCacheTTL  time.Duration
+	// syncing marks projects with a fetch, pull or push under way (checkout_sync.go).
+	syncMu            sync.Mutex
+	syncing           map[string]bool
+	nestedCache       map[string]nestedCacheEntry
+	collisionCacheTTL time.Duration
 	// Auto-capture: a burst of tracing with no recording running is the signal
 	// that an agent began investigating. Timestamps of recent qualifying
 	// actions per workspace, so one incidental trace during feature work does
@@ -146,6 +149,7 @@ func NewServer(dataDir string, h *hub.Hub, rt *runtime.Manager) *Server {
 		rootQuietReconcile:  make(map[string]bool),
 		collisionCache:      make(map[string]collisionCacheEntry),
 		checkoutsCache:      make(map[string]checkoutsCacheEntry),
+		syncing:             make(map[string]bool),
 		nestedCache:         make(map[string]nestedCacheEntry),
 		collisionCacheTTL:   2 * time.Second,
 		autoCaptureRecent:   make(map[string][]int64),
@@ -508,6 +512,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/checkouts/worktree", s.handleCreateRunWorktree)
 	mux.HandleFunc("/api/checkouts/finish", s.handleFinishRunWorktree)
 	mux.HandleFunc("/api/checkouts/switch", s.handleSwitchBranch)
+	mux.HandleFunc("/api/checkouts/sync", s.handleCheckoutSync)
 	mux.HandleFunc("/api/checkouts/branches", s.handleBranches)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)

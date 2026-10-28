@@ -35,12 +35,17 @@ type checkoutStatus struct {
 	// apply or discard (worktree_runs.go).
 	IsAmbioRun bool `json:"isAmbioRun"`
 	// IsFocused marks the checkout the Floor shows.
-	IsFocused    bool              `json:"isFocused"`
-	ChangedFiles int               `json:"changedFiles"`
-	Upstream     string            `json:"upstream,omitempty"`
-	Ahead        int               `json:"ahead"`
-	Behind       int               `json:"behind"`
-	Agents       []collision.Agent `json:"agents"`
+	IsFocused    bool   `json:"isFocused"`
+	ChangedFiles int    `json:"changedFiles"`
+	Upstream     string `json:"upstream,omitempty"`
+	Ahead        int    `json:"ahead"`
+	Behind       int    `json:"behind"`
+	// FetchedAt is when the repository last heard from a remote (ms; 0 if
+	// never), and PublishRemote where a branch without an upstream would be
+	// published. Both are read for the Floor's checkout only.
+	FetchedAt     int64             `json:"fetchedAt,omitempty"`
+	PublishRemote string            `json:"publishRemote,omitempty"`
+	Agents        []collision.Agent `json:"agents"`
 	// TouchedSystems counts systems this checkout changes against the others;
 	// CollidingSystems those another checkout changes too.
 	TouchedSystems   int    `json:"touchedSystems"`
@@ -230,6 +235,14 @@ func (s *Server) buildCheckouts(sqlDB *sql.DB, workspaceID string, now int64) (c
 		}
 		checkout.ChangedFiles = gitStatus.ChangedFiles
 		checkout.Upstream, checkout.Ahead, checkout.Behind = gitStatus.Upstream, gitStatus.Ahead, gitStatus.Behind
+		if checkout.IsFocused {
+			if fetched := gitworktree.FetchedAt(checkout.Path); !fetched.IsZero() {
+				checkout.FetchedAt = fetched.UnixMilli()
+			}
+			if remotes, err := gitworktree.Remotes(checkout.Path); err == nil {
+				checkout.PublishRemote = gitworktree.PublishRemote(remotes)
+			}
+		}
 	}
 	var focused *db.Root
 	for index := range roots {

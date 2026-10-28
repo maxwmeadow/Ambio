@@ -8,6 +8,12 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Pull, push and publish your branch from the branch chip. The branch menu
+  now says where your branch stands (“3 commits to pull from origin/main”),
+  checks the remote when you open it, and leads with the one action that
+  calls for. Pull only fast-forwards and push is never forced; when Git
+  refuses, Ambio says why and what to do. Other worktrees sit below, with
+  their actions a click away.
 - Add Ambio to Grok Build and Meta Muse Code from Settings → Agents or guided
   setup, with mapping, inbox and draw-first workflows. Ambio can start both
   signed-in CLIs, select a model, continue conversations, show activity and

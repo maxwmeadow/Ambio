@@ -100,6 +100,13 @@ export function apiSwitchBranch(workspaceId: string, branch: string) {
   return postCheckout<{ branch: string }>('/api/checkouts/switch', { workspaceId, branch }, 'Unable to switch branch')
 }
 
+export type CheckoutSyncAction = 'fetch' | 'pull' | 'push' | 'publish'
+
+/** Fetch, fast-forward pull, push or publish the Floor's branch (docs/GIT_WORKFLOW.md stage 1). */
+export function apiSyncCheckout(workspaceId: string, action: CheckoutSyncAction) {
+  return postCheckout<{ action: CheckoutSyncAction; branch: string }>('/api/checkouts/sync', { workspaceId, action }, 'Unable to reach the remote')
+}
+
 export async function apiListBranches(workspaceId: string): Promise<{ current: string; branches: Array<{ name: string; rootId?: string }> }> {
   const res = await fetch(`${archdWsHttp()}/api/checkouts/branches?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) throw new Error(await res.text() || `Unable to list branches (${res.status})`)

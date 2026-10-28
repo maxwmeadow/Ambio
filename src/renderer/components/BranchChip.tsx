@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { CHECKOUTS_CHANGED, REVIEW_BRANCH, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
-import { buildBranchChip, buildCheckoutRows, buildRepositoryRows, type OverlayLens } from './checkoutModel'
-import { apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch } from '../canvas/arcdApi'
+import { buildBranchChip, buildCheckoutRows, buildRepositoryRows, buildSync, focusedCheckout, type OverlayLens } from './checkoutModel'
+import { apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch, apiSyncCheckout, type CheckoutSyncAction } from '../canvas/arcdApi'
 import { useGraphStore } from '../store/graphStore'
 import type { BranchReview } from '../../shared/types'
 
@@ -14,6 +14,8 @@ const LENSES: Array<{ value: OverlayLens; label: string; title: string }> = [
 ]
 
 const REFRESH_MS = 5000
+/** Opening the popover checks the remote unless it was checked this recently. */
+const FETCH_FRESH_MS = 60_000
 const MENU_WIDTH = 380
 const VIEWPORT_GUTTER = 8
 
@@ -71,6 +73,15 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const [reviewing, setReviewing] = useState<{ rootId: string; name: string } | null>(null)
   const [review, setReview] = useState<BranchReview | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  // Checking the remote when the popover opens, and why that failed.
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  // The other worktree whose actions are showing.
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const focused = useMemo(() => focusedCheckout(snapshot), [snapshot])
+  const sync = useMemo(() => buildSync(focused), [focused])
+  const floorRow = rows.find(row => row.focused)
+  const others = rows.filter(row => !row.focused)
   const setSelectedNode = useGraphStore(state => state.setSelectedNode)
   const setInspectedNode = useGraphStore(state => state.setInspectedNode)
 
@@ -102,16 +113,31 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     setPosition({ left, top: bounds.bottom + 5 })
   }, [])
 
+  // Opening the popover asks the remote what is new, so "3 to pull" is true
+  // now rather than as of the last fetch someone happened to run. A fetch
+  // changes only remote-tracking refs (docs/GIT_WORKFLOW.md principle 3).
+  const checkRemote = useCallback(() => {
+    const floor = focusedCheckout(useCheckoutStore.getState().snapshot)
+    if (!floor || floor.headState !== 'commit' || !(floor.upstream || floor.publishRemote)) return
+    if (floor.fetchedAt && Date.now() - floor.fetchedAt < FETCH_FRESH_MS) return
+    setChecking(true)
+    setCheckError(null)
+    apiSyncCheckout(workspaceId, 'fetch')
+      .then(() => useCheckoutStore.getState().refresh(workspaceId))
+      .catch((error: unknown) => setCheckError(error instanceof Error ? error.message : 'Ambio could not reach the remote.'))
+      .finally(() => setChecking(false))
+  }, [workspaceId])
+
   const toggle = useCallback(() => {
     setNotice(null)
     setOpen(current => {
       if (!current) {
         updatePosition()
-        void useCheckoutStore.getState().refresh(workspaceId)
+        void useCheckoutStore.getState().refresh(workspaceId).then(checkRemote)
       }
       return !current
     })
-  }, [updatePosition, workspaceId])
+  }, [updatePosition, workspaceId, checkRemote])
 
   useCommandHandlers({ 'view.checkouts': toggle })
 
@@ -141,7 +167,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     window.addEventListener(REVIEW_BRANCH, reviewBranch)
     return () => window.removeEventListener(REVIEW_BRANCH, reviewBranch)
   }, [updatePosition])
-  useEffect(() => { if (!open) { setReviewing(null); setBranches(null); setConfirmDiscard(null) } }, [open])
+  useEffect(() => { if (!open) { setReviewing(null); setBranches(null); setConfirmDiscard(null); setExpanded(null); setCheckError(null) } }, [open])
 
   const showOnFloor = async (rootId: string) => {
     setShowing(rootId)
@@ -198,6 +224,18 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     return null
   })
 
+  const SYNCING: Record<CheckoutSyncAction, string> = { fetch: 'Checking…', pull: 'Pulling…', push: 'Pushing…', publish: 'Publishing…' }
+  const runSync = (kind: CheckoutSyncAction) => act(`sync:${kind}`, async () => {
+    const floor = focused
+    setCheckError(null)
+    await apiSyncCheckout(workspaceId, kind)
+    const count = (n: number) => `${n} commit${n === 1 ? '' : 's'}`
+    if (kind === 'pull' && floor) return `Pulled ${count(floor.behind)}. Review Changes shows what they changed on the map.`
+    if (kind === 'push' && floor) return `Pushed ${count(floor.ahead)} to ${floor.upstream}.`
+    if (kind === 'publish' && floor) return `Published ${floor.branch} to ${floor.publishRemote}; it now tracks it.`
+    return null
+  })
+
   const openCheckout = async (rootId: string, how: 'reveal' | 'editor') => {
     const result = await window.ambio?.openCheckout?.(workspaceId, rootId, how)
     setNoticeDone(false)
@@ -249,13 +287,13 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
           >
             <header className="ambio-checkouts__header">
               <div>
-                <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : 'Branches and worktrees'}</h2>
-                <p>{chip.repositories ? 'Each repository in this folder' : chip.plain ? 'This folder is not a Git repository'
-                  : reviewing ? (review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…')
-                  : branches ? `The Floor is on ${branches.current}`
-                  : 'Every working copy of this project'}</p>
+                <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : floorRow?.name ?? 'Branches and worktrees'}</h2>
+                {chip.repositories ? <p>Each repository in this folder</p> : chip.plain ? <p>This folder is not a Git repository</p>
+                  : reviewing ? <p>{review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p>
+                  : branches ? <p>The Floor is on {branches.current}</p>
+                  : floorRow ? <p className="ambio-checkouts__path" title={floorRow.path}>{'\u200E'}{floorRow.path}{'\u200E'}</p> : null}
               </div>
-              {!chip.plain && !reviewing && !branches && <output>{chip.repositories || rows.length}</output>}
+              {chip.repositories > 0 && <output>{chip.repositories}</output>}
               {(reviewing || branches) && <button type="button" className="ambio-checkouts__back" onClick={() => { setReviewing(null); setBranches(null) }}>← Back</button>}
             </header>
             {branches && !reviewing ? (
@@ -308,80 +346,124 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                 {review?.truncated ? <p className="ambio-checkouts__unplaced">{review.truncated} more changed files were not read.</p> : null}
               </div>
             ) : (<>
-            {rows.length > 1 && (
-              <div className="ambio-checkouts__lens">
-                <span>Other branches on the Floor</span>
-                <div role="radiogroup" aria-label="Other branches on the Floor">
-                  {LENSES.map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={lens === option.value}
-                      title={option.title}
-                      onClick={() => setLens(option.value)}
-                    >{option.label}</button>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="ambio-checkouts__body">
-              {rows.map(row => (
-                <article className="ambio-checkout" key={row.rootId} data-focused={row.focused || undefined}>
-                  <div className="ambio-checkout__title">
-                    <strong title={row.name}>{row.name}</strong>
-                    {row.focused && <span className="ambio-checkout__tag">on the Floor</span>}
-                    {row.primary && !chip.plain && <span className="ambio-checkout__tag ambio-checkout__tag--quiet">primary</span>}
-                    {row.ambioRun && <span className="ambio-checkout__tag ambio-checkout__tag--quiet">Ambio run</span>}
-                  </div>
-                  {row.state && <p className="ambio-checkout__state">{row.state}</p>}
-                  {/* Left-to-right marks keep the path's own order while the
-                      ellipsis, set right-to-left, trims its start. */}
-                  <code className="ambio-checkout__path" title={row.path}>{'\u200E'}{row.path}{'\u200E'}</code>
-                  {row.agents.length > 0 && (
+              {floorRow && (
+                <article className="ambio-checkout ambio-sync" data-focused>
+                  {others.length > 0 && <div className="ambio-checkout__title"><span className="ambio-checkout__tag">on the Floor</span></div>}
+                  {sync.sentence && <p className="ambio-sync__state">{sync.sentence}</p>}
+                  {sync.remote && (
+                    <p className="ambio-sync__checked" data-error={(!checking && !!checkError) || undefined}>
+                      {checking ? 'Checking for updates…' : checkError ? `Could not check: ${checkError}` : sync.checked}
+                    </p>
+                  )}
+                  {sync.action && (
+                    <button
+                      type="button"
+                      className="ambio-sync__action"
+                      data-quiet={sync.action.quiet || undefined}
+                      disabled={busy !== null || checking}
+                      onClick={() => void runSync(sync.action!.kind)}
+                    >{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</button>
+                  )}
+                  {sync.uncommitted && <p className="ambio-sync__uncommitted">{sync.uncommitted}</p>}
+                  {floorRow.agents.length > 0 && (
                     <ul className="ambio-checkout__agents">
-                      {row.agents.map(agent => (
+                      {floorRow.agents.map(agent => (
                         <li key={agent.id} title={agent.goal}><span>{agent.name}</span> {agent.goal}</li>
                       ))}
                     </ul>
                   )}
-                  {row.overlay && (
-                    <p className="ambio-checkout__overlay" style={{ color: row.tint }}>
-                      <span className="ambio-checkout__swatch" aria-hidden="true" />
-                      {row.overlay} on its branch
-                    </p>
-                  )}
-                  {(row.touchedSystems > 0 || row.collidingSystems > 0) && (
-                    <p className="ambio-checkout__systems">
-                      {row.touchedSystems > 0 && <span>{row.touchedSystems} system{row.touchedSystems === 1 ? '' : 's'} changing</span>}
-                      {row.collidingSystems > 0 && <span data-colliding>{row.collidingSystems} shared with another branch</span>}
-                    </p>
-                  )}
-                  <div className="ambio-checkout__actions">
-                    {row.canShow && (
-                      <button type="button" disabled={showing !== null} onClick={() => void showOnFloor(row.rootId)}>
-                        {showing === row.rootId ? 'Showing…' : 'Show on the Floor'}
-                      </button>
-                    )}
-                    {row.canReview && (
-                      <button type="button" onClick={() => setReviewing({ rootId: row.rootId, name: row.name })}>Review this branch</button>
-                    )}
-                    {row.canSwitch && (
+                  <div className="ambio-checkout__actions ambio-sync__more">
+                    {floorRow.canSwitch && (
                       <button type="button" disabled={busy !== null} onClick={() => void openBranches()}>Switch branch…</button>
                     )}
-                    {row.ambioRun && (
-                      <button type="button" disabled={busy !== null} title={`Bring this run's work into ${chip.label} as uncommitted changes`} onClick={() => void finishRun(row.rootId, 'apply')}>
-                        {busy === `apply:${row.rootId}` ? 'Applying…' : `Apply to ${chip.label}`}
-                      </button>
-                    )}
-                    {row.ambioRun && (confirmDiscard === row.rootId
-                      ? <button type="button" data-danger disabled={busy !== null} onClick={() => void finishRun(row.rootId, 'discard')}>Discard its work</button>
-                      : <button type="button" disabled={busy !== null} onClick={() => setConfirmDiscard(row.rootId)}>Discard…</button>)}
-                    <button type="button" onClick={() => void openCheckout(row.rootId, 'reveal')}>Reveal folder</button>
-                    <button type="button" onClick={() => void openCheckout(row.rootId, 'editor')}>Open in editor</button>
+                    <button type="button" onClick={() => void openCheckout(floorRow.rootId, 'reveal')}>Reveal folder</button>
+                    <button type="button" onClick={() => void openCheckout(floorRow.rootId, 'editor')}>Open in editor</button>
                   </div>
                 </article>
-              ))}
+              )}
+              {others.length > 0 && (
+                <section className="ambio-checkouts__others" aria-label="Other worktrees">
+                  <div className="ambio-checkouts__lens">
+                    <h3>Other worktrees</h3>
+                    <div role="radiogroup" aria-label="Other branches on the Floor">
+                      {LENSES.map(option => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={lens === option.value}
+                          title={option.title}
+                          onClick={() => setLens(option.value)}
+                        >{option.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {others.map(row => {
+                    const isOpen = expanded === row.rootId
+                    return (
+                      <article className="ambio-checkout" key={row.rootId} data-expanded={isOpen || undefined}>
+                        <div className="ambio-checkout__title">
+                          <strong title={row.name}>{row.name}</strong>
+                          {row.ambioRun && <span className="ambio-checkout__tag ambio-checkout__tag--quiet">Ambio run</span>}
+                          <button
+                            type="button"
+                            className="ambio-checkout__expand"
+                            aria-expanded={isOpen}
+                            aria-label={`${isOpen ? 'Hide' : 'Show'} actions for ${row.name}`}
+                            onClick={() => { setExpanded(isOpen ? null : row.rootId); setConfirmDiscard(null) }}
+                          >{isOpen ? 'Less' : 'Actions'}</button>
+                        </div>
+                        {row.state && <p className="ambio-checkout__state">{row.state}</p>}
+                        {row.agents.length > 0 && (
+                          <ul className="ambio-checkout__agents">
+                            {row.agents.map(agent => (
+                              <li key={agent.id} title={agent.goal}><span>{agent.name}</span> {agent.goal}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {row.overlay && (
+                          <p className="ambio-checkout__overlay" style={{ color: row.tint }}>
+                            <span className="ambio-checkout__swatch" aria-hidden="true" />
+                            {row.overlay} on its branch
+                          </p>
+                        )}
+                        {(row.touchedSystems > 0 || row.collidingSystems > 0) && (
+                          <p className="ambio-checkout__systems">
+                            {row.touchedSystems > 0 && <span>{row.touchedSystems} system{row.touchedSystems === 1 ? '' : 's'} changing</span>}
+                            {row.collidingSystems > 0 && <span data-colliding>{row.collidingSystems} shared with another branch</span>}
+                          </p>
+                        )}
+                        {isOpen && (<>
+                          {/* Left-to-right marks keep the path's own order while the
+                              ellipsis, set right-to-left, trims its start. */}
+                          <code className="ambio-checkout__path" title={row.path}>{'\u200E'}{row.path}{'\u200E'}</code>
+                          <div className="ambio-checkout__actions">
+                            {row.canShow && (
+                              <button type="button" disabled={showing !== null} onClick={() => void showOnFloor(row.rootId)}>
+                                {showing === row.rootId ? 'Showing…' : 'Show on the Floor'}
+                              </button>
+                            )}
+                            {row.canReview && (
+                              <button type="button" onClick={() => setReviewing({ rootId: row.rootId, name: row.name })}>Review this branch</button>
+                            )}
+                            {row.ambioRun && (
+                              <button type="button" disabled={busy !== null} title={`Bring this run's work into ${chip.label} as uncommitted changes`} onClick={() => void finishRun(row.rootId, 'apply')}>
+                                {busy === `apply:${row.rootId}` ? 'Applying…' : `Apply to ${chip.label}`}
+                              </button>
+                            )}
+                            {row.ambioRun && (confirmDiscard === row.rootId
+                              ? <button type="button" data-danger disabled={busy !== null} onClick={() => void finishRun(row.rootId, 'discard')}>Discard its work</button>
+                              : <button type="button" disabled={busy !== null} onClick={() => setConfirmDiscard(row.rootId)}>Discard…</button>)}
+                            <button type="button" onClick={() => void openCheckout(row.rootId, 'reveal')}>Reveal folder</button>
+                            <button type="button" onClick={() => void openCheckout(row.rootId, 'editor')}>Open in editor</button>
+                          </div>
+                        </>)}
+                      </article>
+                    )
+                  })}
+                </section>
+              )}
               {repositories.length > 0 && (
                 <section className="ambio-checkouts__repositories" aria-label="Repositories in this folder">
                   {!chip.repositories && <h3>Inside this repository</h3>}

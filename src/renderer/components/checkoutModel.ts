@@ -299,3 +299,55 @@ export function conversationWorkplace(runs: Array<{ rootPath: string; startedAt:
   if (checkout?.isPrimary) return ''
   return `in ${checkout?.branch || trim(away.rootPath).split(/[\\/]/).pop()}`
 }
+
+export interface SyncModel {
+  /** Where the branch stands against its remote, as a sentence. */
+  sentence: string
+  /** The one action the state calls for; quiet when it is only a check. */
+  action?: { kind: 'pull' | 'push' | 'publish' | 'fetch'; label: string; quiet?: boolean }
+  /** Whether there is a remote to check at all. */
+  remote: boolean
+  /** "Checked 2 min ago", "Not checked yet"; empty with no remote. */
+  checked: string
+  /** "1 uncommitted file", or empty when there are none. */
+  uncommitted: string
+}
+
+const commits = (count: number) => `${count} commit${count === 1 ? '' : 's'}`
+
+/** How long ago, in a few words: "just now", "4 min ago", "3 h ago", "2 days ago". */
+export function timeAgo(at: number, now = Date.now()): string {
+  const minutes = Math.floor(Math.max(0, now - at) / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+/**
+ * The Floor's branch against its remote, for the top of the branch popover
+ * (docs/GIT_WORKFLOW.md "The branch popover"): a sentence and the action it
+ * calls for. Diverged branches get no button: that is a merge, not a pull.
+ */
+export function buildSync(checkout: CheckoutStatus | undefined, now = Date.now()): SyncModel {
+  const none: SyncModel = { sentence: '', remote: false, checked: '', uncommitted: '' }
+  if (!checkout) return none
+  const uncommitted = checkout.changedFiles > 0 ? `${checkout.changedFiles} uncommitted file${checkout.changedFiles === 1 ? '' : 's'}` : ''
+  if (checkout.headState !== 'commit' || checkout.error) return { ...none, sentence: checkoutState(checkout), uncommitted }
+  const upstream = checkout.upstream
+  const remote = !!upstream || !!checkout.publishRemote
+  const checked = !remote ? '' : checkout.fetchedAt ? `Checked ${timeAgo(checkout.fetchedAt, now)}` : 'Not checked yet'
+  const base = { remote, checked, uncommitted }
+  if (!upstream) {
+    return checkout.publishRemote
+      ? { ...base, sentence: `Not on ${checkout.publishRemote} yet`, action: { kind: 'publish', label: `Publish to ${checkout.publishRemote}` } }
+      : { ...base, sentence: 'Only on this computer: the repository has no remote' }
+  }
+  const { ahead, behind } = checkout
+  if (ahead > 0 && behind > 0) return { ...base, sentence: `${commits(behind)} to pull and ${commits(ahead)} to push: this branch and ${upstream} have both moved on, so they need a merge` }
+  if (behind > 0) return { ...base, sentence: `${commits(behind)} to pull from ${upstream}`, action: { kind: 'pull', label: `Pull ${commits(behind)}` } }
+  if (ahead > 0) return { ...base, sentence: `${commits(ahead)} to push to ${upstream}`, action: { kind: 'push', label: `Push ${commits(ahead)}` } }
+  return { ...base, sentence: `Up to date with ${upstream}`, action: { kind: 'fetch', label: 'Check for updates', quiet: true } }
+}

@@ -597,3 +597,106 @@
   pointer-events: auto;
   cursor: help;
 }
+
+/* The Floor's branch against its remote (docs/GIT_WORKFLOW.md "The branch
+   popover"): where it stands in words, then the one action that calls for. */
+.ambio-checkouts__header .ambio-checkouts__path {
+  overflow: hidden;
+  max-width: 330px;
+  direction: rtl;
+  letter-spacing: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.ambio-sync__state {
+  margin: 2px 0 0;
+  color: #26342f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ambio-sync__checked {
+  margin: 2px 0 0;
+  color: #737d78;
+  font-size: 9px;
+}
+
+.ambio-sync__checked[data-error] { color: #8a4320; }
+
+.ambio-sync__action {
+  margin-top: 8px;
+  padding: 4px 11px;
+  border: 1px solid #17211e;
+  border-radius: 1px;
+  background: #2c3935;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  color: #fffdf5;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ambio-sync__action:hover:not(:disabled),
+.ambio-sync__action:focus-visible { background: #3c4b46; outline: none; }
+
+.ambio-sync__action[data-quiet] {
+  border-color: #a3aaa6;
+  background: #f7f6f0;
+  box-shadow: none;
+  color: #26342f;
+  font-weight: 400;
+}
+
+.ambio-sync__action[data-quiet]:hover:not(:disabled),
+.ambio-sync__action[data-quiet]:focus-visible { border-color: #3c7d76; background: #dfeae6; }
+
+.ambio-sync__action:disabled { cursor: default; opacity: 0.6; }
+
+.ambio-sync__uncommitted {
+  margin: 7px 0 0;
+  color: #5d6964;
+  font-size: 9.5px;
+}
+
+/* Secondary actions read as links, so the one real action stands out. */
+.ambio-sync__more { margin-top: 9px; gap: 10px; }
+
+.ambio-checkout__actions.ambio-sync__more button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2e675f;
+  text-decoration: underline;
+  text-decoration-color: #9fbdb6;
+  text-underline-offset: 2px;
+}
+
+.ambio-checkout__actions.ambio-sync__more button:hover,
+.ambio-checkout__actions.ambio-sync__more button:focus-visible { background: transparent; color: #1d4a43; text-decoration-color: currentColor; }
+
+.ambio-checkouts__others { margin-top: 4px; }
+
+.ambio-checkouts__others .ambio-checkouts__lens h3 {
+  margin: 0;
+  font: inherit;
+}
+
+.ambio-checkout__expand {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #2e675f;
+  font-size: 9px;
+  text-decoration: underline;
+  text-decoration-color: #9fbdb6;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ambio-checkout[data-expanded] { background: #ebe9e1; }

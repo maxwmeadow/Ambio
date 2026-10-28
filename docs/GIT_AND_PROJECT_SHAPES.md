@@ -9,7 +9,9 @@ finished run as uncommitted changes rather than merging (DECISIONS
 2026-10-20). Left: `git-nested-repo-branches`, `git-add-folder`,
 `git-cross-repo-edges`. It replaced four open questions:
 `project-shapes`, `branches-and-worktrees-ux`, `worktrees-one-or-two` and
-`multi-root-projects`.
+`multi-root-projects`. Q3 (whether Ambio runs Git that changes your
+checkout) was revisited on 2026-10-28: Ambio now handles Git natively,
+designed in [GIT_WORKFLOW.md](GIT_WORKFLOW.md).
 
 ## Why
 
