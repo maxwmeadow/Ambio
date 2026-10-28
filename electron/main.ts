@@ -1540,9 +1540,19 @@ function setupIPC(): void {
     mappingRecoveries.set(workspaceId, recovery)
     return recovery
   }
+  // Recovery closes an earlier instance's mapping sessions, so it is needed
+  // once per workspace. The inbox polls this list: a daemon that cannot answer
+  // yet must not hide this instance's runs, and recovery is retried on a later
+  // poll. An unsettled attempt keeps Review locked in the daemon regardless.
+  const recoveredWorkspaces = new Set<string>()
   ipcMain.handle('agent:delivery-runs', async (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
-    await recoverMappingAttempts(workspaceId)
+    if (!recoveredWorkspaces.has(workspaceId)) {
+      try {
+        await recoverMappingAttempts(workspaceId)
+        recoveredWorkspaces.add(workspaceId)
+      } catch (error) { console.warn('[delivery] mapping recovery deferred:', error instanceof Error ? error.message : error) }
+    }
     return deliveryRunner.list(workspaceId)
   })
   ipcMain.handle('agent:delivery-events', (_event, workspaceId: string, key: string, after?: number) => {

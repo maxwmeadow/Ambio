@@ -708,7 +708,7 @@ export function buildHosts(
     // ── Grok Build ───────────────────────────────────────────────────────────
     {
       id: 'grok',
-      label: 'Grok Build (CLI)',
+      label: 'Grok Build CLI',
       familyId: 'grok',
       familyLabel: 'Grok',
       modality: 'cli',
@@ -753,7 +753,7 @@ export function buildHosts(
     // ── Meta Muse Code ───────────────────────────────────────────────────────
     {
       id: 'muse',
-      label: 'Meta Muse Code (CLI)',
+      label: 'Muse Code CLI',
       familyId: 'muse',
       familyLabel: 'Muse',
       modality: 'cli',
