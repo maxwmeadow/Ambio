@@ -10,32 +10,41 @@ interface Viewport {
 export const CANVAS_SCOPE_ATTR = 'data-ambio-canvas'
 
 /**
- * Where the pointer last was. One listener for every canvas, because the answer
+ * What the pointer is over. Shared by every canvas, because the answer
  * is a property of the document, not of any one surface.
  *
  * Tracked rather than read from `:hover`, because canvases nest: the bin window
  * is a DOM descendant of the Floor, so both match `:hover` at once and the
  * question "which one is the user pointing at?" has no answer in CSS.
  */
-let pointer: { x: number; y: number } | null = null
+let pointerTarget: Element | null = null
 let pointerTracked = false
 
 function trackPointer() {
   if (pointerTracked) return
   pointerTracked = true
-  window.addEventListener('pointermove', event => {
-    pointer = { x: event.clientX, y: event.clientY }
+  const track = (event: PointerEvent) => {
+    pointerTarget = event.target instanceof Element ? event.target : null
+  }
+  window.addEventListener('pointermove', track, { passive: true })
+  // Boundary events also follow a surface appearing beneath a stationary
+  // pointer. The browser already hit-tests these; repeating elementFromPoint
+  // in the camera loop forces a style/layout flush after every transform.
+  window.addEventListener('pointerover', track, { passive: true })
+  window.addEventListener('pointerout', event => {
+    pointerTarget = event.relatedTarget instanceof Element ? event.relatedTarget : null
   }, { passive: true })
+  window.addEventListener('blur', () => { pointerTarget = null })
 }
 
 /**
- * The canvas under the pointer, by hit test rather than by hover, so the
+ * The canvas under the pointer, from browser pointer events rather than CSS hover, so the
  * innermost surface wins when canvases overlap.
  */
 function canvasUnderPointer(): Element | null {
-  if (!pointer) return null
-  return document.elementFromPoint(pointer.x, pointer.y)
-    ?.closest(`[${CANVAS_SCOPE_ATTR}]`) ?? null
+  return pointerTarget?.isConnected
+    ? pointerTarget.closest(`[${CANVAS_SCOPE_ATTR}]`)
+    : null
 }
 
 export interface WasdScope {

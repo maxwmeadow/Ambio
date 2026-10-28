@@ -923,6 +923,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
         onClose={() => setPreviewSymbol(null)}
       />}
 
+      {!d.omitConnectionHandles && <>
       <Handle id="source-top" type="source" position={Position.Top} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="source-bottom" type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, s)} />
@@ -931,6 +932,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
       <Handle id="target-right" type="target" position={Position.Right} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="target-bottom" type="target" position={Position.Bottom} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="target-left" type="target" position={Position.Left} {...connectionHandleProps(isConnectable, s)} />
+      </>}
     </div>
   )
 })

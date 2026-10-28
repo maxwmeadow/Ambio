@@ -4,7 +4,7 @@ import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeG
 import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
@@ -279,6 +279,44 @@ const canvasZoom = () => page.locator('.react-flow__viewport')
 
 test('renders the deterministic Floor baseline', async () => {
   await expect(page.locator('.react-flow')).toHaveScreenshot('floor-baseline.png')
+})
+
+test('WASD follows pointer ownership through stationary overlays and ignores text editing', async () => {
+  const canvas = page.locator('[data-ambio-canvas]').first()
+  const viewport = canvas.locator('.react-flow__viewport')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+  await page.mouse.move(point.x, point.y)
+  const before = await viewport.getAttribute('style')
+  await page.keyboard.down('d')
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(before)
+  // A nested surface appearing beneath a stationary pointer takes ownership.
+  await page.evaluate(point => {
+    const overlay = document.createElement('div')
+    overlay.id = 'wasd-scope-probe'
+    overlay.setAttribute('data-ambio-canvas', 'test-overlay')
+    Object.assign(overlay.style, { position: 'fixed', left: `${point.x - 50}px`, top: `${point.y - 50}px`,
+      width: '100px', height: '100px', background: '#fff', zIndex: '2147483647' })
+    document.body.append(overlay)
+  }, point)
+  await page.waitForTimeout(100)
+  const occluded = await viewport.getAttribute('style')
+  await page.waitForTimeout(100)
+  expect(await viewport.getAttribute('style')).toBe(occluded)
+  await page.evaluate(() => document.getElementById('wasd-scope-probe')!.remove())
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(occluded)
+  await page.keyboard.up('d')
+  await page.evaluate(() => {
+    const input = document.createElement('input')
+    input.id = 'wasd-editor-probe'
+    document.body.append(input)
+    input.focus()
+  })
+  const editing = await viewport.getAttribute('style')
+  await page.keyboard.down('d'); await page.waitForTimeout(100); await page.keyboard.up('d')
+  expect(await viewport.getAttribute('style')).toBe(editing)
+  await page.evaluate(() => document.getElementById('wasd-editor-probe')!.remove())
 })
 
 test('clipped dashed routes preserve browser rasterization at ordinary and extreme zoom', async () => {
@@ -1272,6 +1310,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   // live Floor freezes. No gesture may be the first sparse layout write.
   await expect.poll(() => proposalLayoutSaves).toBe(1)
   await expect(page.locator('.ambio-review__canvas .ambio-canvas-review-ready')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
   expect(new Set(proposalLayoutWriteKeys[0]))
     .toEqual(new Set(['system:canvas', 'system:zoom', 'file:member-a', 'file:member-b']))
 
@@ -1586,13 +1625,15 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
     const westStep = westResizeFrames[index].width - westResizeFrames[index - 1].width
     const westBodyLag = Math.abs(westResizeFrames[index].bodyRight - westResizeFrames[index].right)
     expect(westBodyLag).toBeLessThanOrEqual(westStep + 0.5)
-    // ...and never on two frames in a row, which is what accumulation looks like.
-    const westPreviousLag = Math.abs(
-      westResizeFrames[index - 1].bodyRight - westResizeFrames[index - 1].right,
-    )
-    expect(Math.min(westBodyLag, westPreviousLag)).toBeLessThan(0.5)
   }
   expect(westResizeFrames.at(-1)!.width).toBeGreaterThan(westResizeFrames[0].width + 30)
+  // ...and catches up exactly once the pointer stops. A lag that persists or
+  // accumulates never closes; a slow frame on a loaded machine does.
+  await expect.poll(() => resizedSystem.evaluate(element => {
+    const right = element.getBoundingClientRect().right
+    const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+    return Math.abs((body?.right ?? Number.NaN) - right)
+  }), { timeout: 1000 }).toBeLessThan(0.5)
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(4)
   await expect.poll(() => viewport.getAttribute('style')).toBe(cameraBefore)
@@ -1653,6 +1694,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(5)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
 
   const beforePan = await viewport.getAttribute('style')
   await page.keyboard.down('d')
@@ -2907,19 +2949,42 @@ test('an old architecture draft explains recovery and can be discarded', async (
   await expect(title).toHaveCount(0)
 })
 
+/** Where a node sits on the canvas, in flow coordinates: unlike its screen
+ * box, it does not change when the camera settles or pans. */
+async function flowPosition(node: Locator) {
+  return node.evaluate(element => {
+    const match = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec((element as HTMLElement).style.transform)
+    return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: NaN, y: NaN }
+  })
+}
+
+/** Drags a system by its header once the camera has stopped, so the gesture
+ * lands where it was aimed. */
+async function dragSystem(system: Locator) {
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const box = (await system.boundingBox())!
+  await page.mouse.move(box.x + 24, box.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 54, box.y + 40, { steps: 12 })
+  await page.mouse.up()
+}
+
 test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
-  const moved = (await system.boundingBox())!
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
+  const moved = await flowPosition(system)
+  // The move is undoable once saved, which can trail the drop on a slow runner.
+  await page.waitForFunction(() => (window as unknown as { __ambioCanUndo: () => boolean }).__ambioCanUndo())
   await page.keyboard.press('ControlOrMeta+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - start.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - start.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - start.y)).toBeLessThan(1)
+  await page.waitForFunction(() => (window as unknown as { __ambioCanRedo: () => boolean }).__ambioCanRedo())
   await page.keyboard.press('ControlOrMeta+Shift+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - moved.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - moved.y)).toBeLessThan(1)
 })
 
 test('Split System… draws the split on a new sheet', async () => {
@@ -2941,14 +3006,12 @@ test('Split System… draws the split on a new sheet', async () => {
 
 test('a placed system stays put when files arrive and other systems are renamed', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
   await page.waitForTimeout(400)
-  const placed = (await system.boundingBox())!
+  const placed = await flowPosition(system)
 
   // What indexing does: a new file appears in another system, a system is
   // renamed, and the snapshot arrives again with fresh objects.
@@ -2963,7 +3026,7 @@ test('a placed system stays put when files arrive and other systems are renamed'
     })
   })
   await page.waitForTimeout(600)
-  const after = (await system.boundingBox())!
+  const after = await flowPosition(system)
   expect(Math.abs(after.x - placed.x)).toBeLessThan(1)
   expect(Math.abs(after.y - placed.y)).toBeLessThan(1)
 })

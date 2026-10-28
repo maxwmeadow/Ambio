@@ -51,7 +51,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout, FloorNodeType } from '../../shared/types'
 import { isCanvasSourceFile } from '../../shared/fileKinds'
 import { BINNED_FILE_MIME, CanvasBins } from '../components/CanvasBins'
-import { partitionCanvasFiles } from './binModel'
+import { createLooseFileLookup, partitionCanvasFiles } from './binModel'
 import { dropOnFloorAt, registerFloorDropTarget, systemAtFloorPoint } from './binDropBridge'
 import { hideBinGhost, hideRealNode, moveBinGhost, showBinGhost } from './binDragGhost'
 import { GroupDialog } from '../components/GroupDialog'
@@ -547,11 +547,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
    * is the difference - it exists only because a person made it exist - so it
    * is what separates "on the map, just not in a system" from "still unsorted".
    */
-  const looseFileIds = useMemo(() => new Set(
-    floorLayouts
-      .filter(layout => layout.nodeType === 'file' && layout.containmentKind === 'root')
-      .map(layout => layout.nodeId),
-  ), [floorLayouts])
+  const looseFileIds = useMemo(() => createLooseFileLookup(floorLayouts), [floorLayouts])
   // A file has a home only in a system the canvas shows. A system_id that
   // points at a withheld inferred grouping is not a home: without this the
   // file floated loose on the Floor instead of waiting in the Unsorted bin.
@@ -573,12 +569,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // be unclassified FROM. Before anyone has authored one, every file is
   // unplaced - binning them all would empty the map and hide the whole project
   // behind a tray, which is the opposite of "the map is always complete".
-  const binsHoldUnclassified = !binMode && systems.length > 0
+  // Repository frames are where files live, not an authored architecture.
+  const binsHoldUnclassified = !binMode && systems.some(system => system.kind !== 'repository')
   const files = useMemo(
-    () => binsHoldUnclassified
+    () => sceneFiles === binSourceFiles && !reviewPlacedFileIds
+      ? binsHoldUnclassified ? bins.placed : bins.source
+      : binsHoldUnclassified
       ? sceneFiles.filter(file => isCanvasSourceFile(file) && fileBelongsOnFloor(file))
       : sceneFiles.filter(isCanvasSourceFile),
-    [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
+    [sceneFiles, binSourceFiles, reviewPlacedFileIds, bins, binsHoldUnclassified, fileBelongsOnFloor],
   )
   // Only infra that runs code is on the canvas: confirmed platforms, as frames
   // that hold the systems they host. Everything code talks to (databases,
@@ -655,11 +654,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [candidateRfNodes, setRfNodes] = useState<Node[]>([])
   const [candidateOwner, setCandidateOwner] = useState<string | null>(null)
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
-  const canonicalNodeIds = useMemo(() => new Set([
-    ...systems.map(system => system.id),
-    ...files.map(file => file.id),
-    ...infraNodes.map(infra => infra.id),
-  ]), [systems, files, infraNodes])
+  const canonicalNodeIds = useMemo(() => {
+    // Keep membership independent of candidate geometry, without allocating
+    // intermediate full-project arrays just to populate the validation set.
+    const ids = new Set<string>()
+    for (const system of systems) ids.add(system.id)
+    for (const file of files) ids.add(file.id)
+    for (const infra of infraNodes) ids.add(infra.id)
+    return ids
+  }, [systems, files, infraNodes])
   const canonicalNodeCount = canonicalNodeIds.size
   const sceneProjectId = binScene ? `bin:${currentProject?.id ?? 'demo'}`
     : reviewScene ? `review:${reviewScene.workspaceId}:${reviewScene.id}` : currentProject?.id ?? 'demo'
@@ -2432,7 +2435,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     systems, files, infraNodes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
   }, [systems, files, infraNodes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
   const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
-    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current)
+    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current, canonicalNodeIds)
   const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
   const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
 
@@ -2607,9 +2610,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
     // Review may move only its pending proposal nodes. The lock rides on the
     // node so semantic zoom, which owns draggable, keeps the rest in place.
+    // Review has no relationships or connection gestures. CSS hiding left
+    // thousands of Handle store subscriptions running on every pan frame.
     const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => ({
       ...n,
-      data: { ...n.data, dragLocked: !(reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)) },
+      data: {
+        ...n.data,
+        omitConnectionHandles: true,
+        dragLocked: !(reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)),
+      },
     }))
     // A large first projection is about to be fitted to an overview. Starting
     // its semantic tier at the default 0.5x would briefly mount every child of

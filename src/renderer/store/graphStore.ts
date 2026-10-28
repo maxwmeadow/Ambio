@@ -371,6 +371,8 @@ interface GraphState {
    * swallowed - the bin should pulse once per file, not once per burst.
    */
   unsortedArrivalKey: number
+  /** Each withheld (inferred) system's nearest shown ancestor, where its files are drawn. */
+  withheldSystemHomes: Record<string, string | null>
   getFile: (id: string) => DbFile | undefined
   getSystem: (id: string) => DbSystem | undefined
 }
@@ -393,8 +395,46 @@ function isAuthoredSystem(system: { source?: string | null }): boolean {
   return system.source === 'user' || system.source === 'agent'
 }
 
-function keepAuthoredSystems<T extends { source?: string | null }>(systems: T[]): T[] {
-  return systems.filter(isAuthoredSystem)
+type SystemShape = { id: string; source?: string | null; kind?: string; parentId?: string | null }
+
+/**
+ * Drawn on the canvas: authored systems, and the frame of each repository in
+ * a folder holding several. A repository is not a guess - its folder is one -
+ * so it is drawn though the clusterer made it (canvas contract, Systems).
+ */
+function isShownSystem(system: SystemShape): boolean {
+  return isAuthoredSystem(system) || system.kind === 'repository'
+}
+
+function keepShownSystems<T extends SystemShape>(systems: T[]): T[] {
+  return systems.filter(isShownSystem)
+}
+
+/**
+ * Where a withheld (inferred) system's files are drawn: its nearest shown
+ * ancestor, the repository frame in a folder of repositories, or nowhere.
+ */
+function withheldHomes(systems: readonly SystemShape[]): Record<string, string | null> {
+  const byId = new Map(systems.map(system => [system.id, system]))
+  const homes: Record<string, string | null> = {}
+  for (const system of systems) {
+    if (isShownSystem(system)) continue
+    let home: string | null = null
+    const seen = new Set<string>()
+    for (let parent = system.parentId ? byId.get(system.parentId) : undefined; parent && !seen.has(parent.id); parent = parent.parentId ? byId.get(parent.parentId) : undefined) {
+      seen.add(parent.id)
+      if (isShownSystem(parent)) { home = parent.id; break }
+    }
+    homes[system.id] = home
+  }
+  return homes
+}
+
+/** A file whose system is withheld is drawn in that system's home. */
+function projectFileHome<T extends { systemId?: string | null }>(file: T, homes: Record<string, string | null>): T {
+  const systemId = file.systemId
+  if (!systemId || !(systemId in homes)) return file
+  return { ...file, systemId: homes[systemId] }
 }
 
 /**
@@ -849,37 +889,42 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   }),
   setRecentProjects: (ps) => set({ recentProjects: ps }),
 
-  applySnapshot: (snap) => traceSync('snapshot.store', () => set({
-    // Inferred groupings never reach the canvas. The indexer clusters files by
-    // import topology and names each pile after its most frequent symbol, which
-    // produces boxes called Bar, Lane, Phase and Cochange - words that are real
-    // and describe nothing. Drawing those as your architecture teaches people to
-    // distrust the map before an agent has had a chance to make it true, and the
-    // confusion costs more than the empty space it fills.
-    //
-    // Until someone authors the architecture, the Floor shows the files
-    // themselves. Clustering still runs and its output still serves layout and
-    // evidence; it simply no longer claims to be the answer.
-    systems: keepAuthoredSystems(snap.systems ?? []),
-    files: snap.files ?? [],
-    infraNodes: snap.infraNodes ?? [],
-    dependencies: snap.dependencies ?? [],
-    floorLayouts: snap.floorLayouts ?? [],
-    // Start with all top-level systems collapsed
-    expandedSystemIds: new Set(),
-    // A full snapshot is the resting baseline - drop any pending enter/edit
-    // intents so a reload doesn't animate the whole map as if freshly built.
-    nodeFx: {},
-    relationshipFx: [],
-    pendingFileDeletions: {},
-  }), snap.systems.length + snap.files.length),
+  applySnapshot: (snap) => traceSync('snapshot.store', () => {
+    const homes = withheldHomes(snap.systems ?? [])
+    set({
+      // Inferred groupings never reach the canvas. The indexer clusters files by
+      // import topology and names each pile after its most frequent symbol, which
+      // produces boxes called Bar, Lane, Phase and Cochange - words that are real
+      // and describe nothing. Drawing those as your architecture teaches people to
+      // distrust the map before an agent has had a chance to make it true, and the
+      // confusion costs more than the empty space it fills.
+      //
+      // Until someone authors the architecture, the Floor shows the files
+      // themselves. Clustering still runs and its output still serves layout and
+      // evidence; it simply no longer claims to be the answer.
+      systems: keepShownSystems(snap.systems ?? []),
+      withheldSystemHomes: homes,
+      files: (snap.files ?? []).map(file => projectFileHome(file, homes)),
+      infraNodes: snap.infraNodes ?? [],
+      dependencies: snap.dependencies ?? [],
+      floorLayouts: snap.floorLayouts ?? [],
+      // Start with all top-level systems collapsed
+      expandedSystemIds: new Set(),
+      // A full snapshot is the resting baseline - drop any pending enter/edit
+      // intents so a reload doesn't animate the whole map as if freshly built.
+      nodeFx: {},
+      relationshipFx: [],
+      pendingFileDeletions: {},
+    })
+  }, (snap.systems?.length ?? 0) + (snap.files?.length ?? 0)),
 
   applyClassification: (snap) => set((state) => {
     const previousSystems = new Map(state.systems.map(system => [system.id, system]))
     const previousFiles = new Map(state.files.map(file => [file.id, file]))
     const nextFx = { ...state.nodeFx }
     const pendingDeletionIds = new Set(Object.keys(state.pendingFileDeletions))
-    const nextFiles = (snap.files ?? []).filter(file => !pendingDeletionIds.has(file.id))
+    const homes = withheldHomes(snap.systems ?? [])
+    const nextFiles = (snap.files ?? []).filter(file => !pendingDeletionIds.has(file.id)).map(file => projectFileHome(file, homes))
     const nextDependencies = (snap.dependencies ?? state.dependencies)
       .filter(dependency => !pendingDeletionIds.has(dependency.src) && !pendingDeletionIds.has(dependency.dst))
     const nextFloorLayouts = (snap.floorLayouts ?? state.floorLayouts)
@@ -892,7 +937,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     // The same authored-only rule as applySnapshot and system:upserted, or a
     // re-classification would put the clusterer's guesses back on the canvas.
-    const shownSystems = keepAuthoredSystems(snap.systems ?? [])
+    const shownSystems = keepShownSystems(snap.systems ?? [])
     for (const system of shownSystems) {
       if (previousSystems.has(system.id)) continue
       const key = nextFxKey()
@@ -921,6 +966,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const nextSystemIds = new Set(shownSystems.map(system => system.id))
     return {
       systems: shownSystems,
+      withheldSystemHomes: homes,
       files: nextFiles,
       infraNodes: snap.infraNodes ?? state.infraNodes,
       dependencies: nextDependencies,
@@ -987,8 +1033,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           // reaches the canvas. Admitting it live but dropping it on reload
           // showed a new folder as a system that vanished at the next launch,
           // leaving its files stranded on the Floor.
-          if (!isAuthoredSystem(sys)) {
-            return exists ? { systems: state.systems.filter(s => s.id !== sys.id) } : {}
+          if (!isShownSystem(sys)) {
+            const home = sys.parentId && state.systems.some(s => s.id === sys.parentId)
+              ? sys.parentId
+              : (sys.parentId ? state.withheldSystemHomes[sys.parentId] ?? null : null)
+            const withheldSystemHomes = { ...state.withheldSystemHomes, [sys.id]: home }
+            return exists
+              ? { systems: state.systems.filter(s => s.id !== sys.id), withheldSystemHomes }
+              : { withheldSystemHomes }
           }
           const systems = exists
             ? state.systems.map(s => s.id === sys.id ? sys : s)
@@ -1012,7 +1064,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         case 'file:updated': {
           const payload = patch.payload as DbFile | FileUpdatePatch
           const wrapped = 'file' in payload
-          const file = wrapped ? payload.file : payload
+          const file = projectFileHome(wrapped ? payload.file : payload, state.withheldSystemHomes)
           // Its symbols may have changed with it; the card fetches them again.
           if (state.currentProject) forgetFileSymbols(state.currentProject.id, file.id)
           const exists = state.files.some(f => f.id === file.id)
@@ -1031,7 +1083,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           // animation is for: telling you where to look.
           // "Nobody placed it" includes a clusterer's guess: a system_id that
           // points at a withheld inferred system is not a place on the canvas.
-          if (fxKind === 'enter' && !hasShownSystem(state.systems, file.systemId) && state.systems.length > 0) {
+          if (fxKind === 'enter' && !hasShownSystem(state.systems, file.systemId) && state.systems.some(system => system.kind !== 'repository')) {
             return { files, unsortedArrivalKey: state.unsortedArrivalKey + 1 }
           }
           const key = nextFxKey()
@@ -1185,7 +1237,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           }
         }
         case 'file:assigned': {
-          const { fileId, systemId } = patch.payload as { fileId: string; systemId: string }
+          const assigned = patch.payload as { fileId: string; systemId: string }
+          const fileId = assigned.fileId
+          const systemId = projectFileHome(assigned, state.withheldSystemHomes).systemId as string
           const previous = state.files.find(f => f.id === fileId)
           const files = state.files.map(f => f.id === fileId ? { ...f, systemId } : f)
           if (!previous || previous.systemId === systemId || !hasShownSystem(state.systems, systemId)) {
@@ -1308,6 +1362,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   selectedInfraId: null,
   setSelectedInfra: (id) => set({ selectedInfraId: id }),
   unsortedArrivalKey: 0,
+  withheldSystemHomes: {},
 
   getFile: (id) => get().files.find(f => f.id === id),
   getSystem: (id) => get().systems.find(s => s.id === id),

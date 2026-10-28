@@ -3,7 +3,6 @@ package gitworktree
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -25,7 +24,7 @@ type MetadataWatcher struct {
 }
 
 func gitCommonDir(path string) (string, error) {
-	command := exec.Command("git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	command := Command(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	output, err := command.Output()
 	if err != nil {
 		return "", fmt.Errorf("resolve git common directory for %s: %w", path, err)
@@ -104,8 +103,39 @@ func (w *MetadataWatcher) relevantPath(path string) bool {
 		return false
 	}
 	rel = filepath.ToSlash(rel)
-	return rel == "HEAD" || rel == "packed-refs" || rel == "worktrees" ||
-		strings.HasPrefix(rel, "refs/") || strings.HasPrefix(rel, "worktrees/")
+	if strings.HasSuffix(rel, ".lock") {
+		return false // Git's write in progress; its rename into place follows
+	}
+	if rel == "HEAD" || rel == "packed-refs" || rel == "worktrees" || strings.HasPrefix(rel, "refs/") {
+		return true
+	}
+	// A linked worktree's own folder holds its HEAD and where it lives, and
+	// also its index and logs, which any `git status` or commit there
+	// rewrites: those say nothing about which checkouts exist or where their
+	// branches point, and following them re-read every checkout each time an
+	// editor polled one.
+	worktree, file, nested := strings.Cut(strings.TrimPrefix(rel, "worktrees/"), "/")
+	if !strings.HasPrefix(rel, "worktrees/") || worktree == "" {
+		return false
+	}
+	return !nested || file == "HEAD" || file == "gitdir" || file == "locked"
+}
+
+// folderWritten is a write reported on a linked worktree's folder (or the
+// worktrees folder): Windows reports one there whenever a file inside is
+// rewritten, a status's index among them. Only the folder appearing,
+// vanishing or moving says a checkout was added or removed.
+func (w *MetadataWatcher) folderWritten(event fsnotify.Event) bool {
+	if event.Op&(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
+		return false
+	}
+	rel, err := filepath.Rel(w.common, event.Name)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	worktree, _, nested := strings.Cut(strings.TrimPrefix(rel, "worktrees/"), "/")
+	return rel == "worktrees" || (strings.HasPrefix(rel, "worktrees/") && worktree != "" && !nested)
 }
 
 func (w *MetadataWatcher) run() {
@@ -127,7 +157,7 @@ func (w *MetadataWatcher) run() {
 					}
 				}
 			}
-			if w.relevantPath(event.Name) {
+			if w.relevantPath(event.Name) && !w.folderWritten(event) {
 				select {
 				case w.changes <- struct{}{}:
 				default:

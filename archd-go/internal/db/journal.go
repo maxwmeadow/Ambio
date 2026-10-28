@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -346,6 +347,26 @@ func SetDeltaReviewedAtForRoot(db *sql.DB, workspaceID, rootID string, at int64)
 		ON CONFLICT(root_id, branch) DO UPDATE
 		SET reviewed_at = MAX(reviewed_at, excluded.reviewed_at)`, at, workspaceID, rootID)
 	return err
+}
+
+// RenameBranchHistory moves a checkout's history from a branch's old name to
+// its new one (`git branch -m`): its journal, Review Changes watermark and
+// snapshots, and its agents' sessions and actions. Left behind, the renamed
+// branch read as one with nothing unreviewed.
+func RenameBranchHistory(database *sql.DB, rootID, from, to string) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, table := range []string{"structural_events", "delta_watermarks", "root_delta_snapshots", "work_sessions", "agent_actions"} {
+		// OR REPLACE: a watermark left under the new name by an older branch
+		// of that name gives way to the renamed branch's.
+		if _, err := tx.Exec(`UPDATE OR REPLACE `+table+` SET branch = ? WHERE root_id = ? AND branch = ?`, to, rootID, from); err != nil {
+			return fmt.Errorf("%s: %w", table, err)
+		}
+	}
+	return tx.Commit()
 }
 
 // PruneStructuralEvents drops journal rows past the retention horizon.

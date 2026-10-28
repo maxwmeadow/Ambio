@@ -497,16 +497,16 @@ CREATE TABLE workspaces (
 		name        TEXT NOT NULL,
 		opened_at   INTEGER NOT NULL
 	, delta_reviewed_at INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "canvas_outbox" VALUES ('order', 'ws', NULL, 'Split checkout', '[]', '', '', '', 'queued', NULL, NULL, 1793044171609, NULL, NULL, 'open', 'order', '', '');
+INSERT INTO "canvas_outbox" VALUES ('order', 'ws', NULL, 'Split checkout', '[]', '', '', '', 'queued', NULL, NULL, 1792542064716, NULL, NULL, 'open', 'order', '', '');
 INSERT INTO "dependencies" VALUES ('cart->stripe', 'ws', 'cart', 'stripe', 'file', 'file', 'IMPORTS', 1, 'parser', '', 'confirmed', NULL);
-INSERT INTO "files" VALUES ('cart', 'root', '/fixture/shop/src/orders/cart.ts', 'src/orders/cart.ts', 'typescript', 'orders', 0, 0, 0, 0, 1793044171608, NULL, NULL, '', '', '', 0, 0, '');
-INSERT INTO "files" VALUES ('stripe', 'root', '/fixture/shop/src/payments/stripe.ts', 'src/payments/stripe.ts', 'typescript', 'payments', 0, 0, 0, 0, 1793044171609, NULL, NULL, '', '', '', 0, 0, '');
+INSERT INTO "files" VALUES ('cart', 'root', '/fixture/shop/src/orders/cart.ts', 'src/orders/cart.ts', 'typescript', 'orders', 0, 0, 0, 0, 1792542064715, NULL, NULL, '', '', '', 0, 0, '');
+INSERT INTO "files" VALUES ('stripe', 'root', '/fixture/shop/src/payments/stripe.ts', 'src/payments/stripe.ts', 'typescript', 'payments', 0, 0, 0, 0, 1792542064715, NULL, NULL, '', '', '', 0, 0, '');
 INSERT INTO "roots" VALUES ('root', 'ws', '/fixture/shop', '', '', 1, 1, NULL, 0, 'null', NULL, NULL, 0);
-INSERT INTO "sheet_elements" VALUES ('212d8336-c818-4f1b-a5a5-410cb52d5c7b', 'sheet', 'orders', NULL, NULL, NULL, 'Orders', 0, 0, NULL, NULL, NULL, NULL, '{"version":1}', 0, 0, 'user', '', '', '', 1);
-INSERT INTO "sheets" VALUES ('sheet', 'ws', 'Checkout', NULL, 'structure', '', 'user', 2, NULL, 1793044171609, 1793044171609);
-INSERT INTO "structural_events" VALUES (1, 'ws', 'root', NULL, 1793044171609, 'human', '', 'file.created', 'cart', 'src/orders/cart.ts', '', '', '', 1, '');
-INSERT INTO "systems" VALUES ('orders', 'ws', 'Orders', NULL, 'user', NULL, NULL, NULL, 0, 0, 0, 1793044171608, 1793044171608, NULL, NULL);
-INSERT INTO "systems" VALUES ('payments', 'ws', 'Payments', NULL, 'cluster', NULL, NULL, NULL, 0, 0, 0, 1793044171608, 1793044171608, NULL, NULL);
+INSERT INTO "sheet_elements" VALUES ('df259e63-75d3-409a-98f7-4790b4f54433', 'sheet', 'orders', NULL, NULL, NULL, 'Orders', 0, 0, NULL, NULL, NULL, NULL, '{"version":1}', 0, 0, 'user', '', '', '', 1);
+INSERT INTO "sheets" VALUES ('sheet', 'ws', 'Checkout', NULL, 'structure', '', 'user', 2, NULL, 1792542064716, 1792542064716);
+INSERT INTO "structural_events" VALUES (1, 'ws', 'root', NULL, 1792542064716, 'human', '', 'file.created', 'cart', 'src/orders/cart.ts', '', '', '', 1, '');
+INSERT INTO "systems" VALUES ('orders', 'ws', 'Orders', NULL, 'user', NULL, NULL, NULL, 0, 0, 0, 1792542064715, 1792542064715, NULL, NULL);
+INSERT INTO "systems" VALUES ('payments', 'ws', 'Payments', NULL, 'cluster', NULL, NULL, NULL, 0, 0, 0, 1792542064715, 1792542064715, NULL, NULL);
 INSERT INTO "workspaces" VALUES ('ws', 'shop', 0, 0);
 CREATE INDEX agent_actions_root ON agent_actions(workspace_id, root_id, ts);
 CREATE INDEX agent_actions_ws ON agent_actions(workspace_id, ts);

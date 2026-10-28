@@ -249,7 +249,9 @@ and truncated. It stays on the local machine in archd's data directory.
   `target/.../ambio-src`, with a recorder module that exists only there. The
   project's files are never written, paths are remapped so panic locations
   and debug info name the user's files, and Cargo caches wrapped builds apart
-  from ordinary ones. Values are shown with their `Debug` implementation (a
+  from ordinary ones (on Windows in a build directory of their own,
+  `target/ambio-recorded`: an MSVC executable's name carries no build hash,
+  so Cargo would otherwise take the ordinary build as up to date). Values are shown with their `Debug` implementation (a
   type without one is named, `<Ledger>`), so a custom `Debug` runs. A function
   that returns `Err` counts as failing, like Go's returned errors; one that
   leaves through `?` is recorded as "propagated with `?`" without the value.

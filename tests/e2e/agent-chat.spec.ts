@@ -51,7 +51,9 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     // Ambio chat is one more agent to pick; with no service it opens setup.
     await destination.choose('@chat')
     const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
-    await settings.getByRole('combobox', { name: 'Model provider' }).selectOption('compatible')
+    // A provider is chosen first; its name sits under Advanced settings.
+    await settings.getByRole('button', { name: 'Add OpenAI-compatible API connection' }).click()
+    await settings.getByText('Advanced settings').click()
     await settings.getByRole('textbox', { name: 'Service name' }).fill('My local test service')
     await settings.getByRole('textbox', { name: 'Service URL' }).fill(`http://127.0.0.1:${address.port}/v1`)
     await settings.getByLabel('Service API key').fill('fixture-ui-key')
@@ -60,8 +62,7 @@ test('integrated chat configures a service, streams follow-ups, keeps its agent 
     await expect(settings.getByLabel('Service model')).toHaveValue('fixture-model')
     await settings.getByRole('button', { name: 'Save service' }).click()
     // Model services are part of Settings → Agents, beside the agents Ambio runs and those in other apps.
-    await expect(settings.getByRole('heading', { name: 'Agents Ambio runs' })).toBeVisible()
-    await expect(settings.getByRole('heading', { name: 'Agents in other apps' })).toBeVisible()
+    await expect(settings.getByRole('navigation', { name: 'Agent connection types' }).getByRole('button')).toHaveText(['Ambio chat', 'Ambio runs it', 'In another app'])
     await page.screenshot({ path: 'test-results/settings-agents.png' })
     await settings.getByRole('button', { name: 'Close', exact: true }).click()
     await destination.chooseLabel('Ambio chat · My local test service · fixture-model')

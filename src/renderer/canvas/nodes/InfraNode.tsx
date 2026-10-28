@@ -92,8 +92,10 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
           padding: '5px 9px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
         }}>Choose infrastructure</button>}
     </div>
+    {!d.omitConnectionHandles && <>
     <Handle type="source" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale)} />
     <Handle type="target" position={Position.Left} {...connectionHandleProps(isConnectable, presentationScale)} />
+    </>}
   </div>
 
   const accent = svc?.brand.color ?? 'var(--infra-accent)'
@@ -177,10 +179,12 @@ export const InfraNode = React.memo(function InfraNode({ data, selected, width, 
         )}
       </div>
 
+      {!d.omitConnectionHandles && <>
       <Handle type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, presentationScale)} />
       <Handle type="target" position={Position.Top}    {...connectionHandleProps(isConnectable, presentationScale)} />
       <Handle type="source" position={Position.Right}  {...connectionHandleProps(isConnectable, presentationScale)} />
       <Handle type="target" position={Position.Left}   {...connectionHandleProps(isConnectable, presentationScale)} />
+      </>}
     </div>
   )
 })

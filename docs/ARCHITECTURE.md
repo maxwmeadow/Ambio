@@ -329,7 +329,14 @@ to API-key billing or another account. Setup and live-account validation:
   The Review Changes watermark is per root and branch (`delta_watermarks`);
   a branch never reviewed falls back to the root's older watermark. The
   worktree monitor also runs for a plain folder and starts watching Git
-  metadata when `.git` appears. Model and plan:
+  metadata when `.git` appears. It follows refs, `HEAD`, `packed-refs` and
+  which linked worktrees exist (`worktrees/<name>` and its `HEAD`, `gitdir`,
+  `locked`), not a worktree's index or logs, which any `git status` there
+  rewrites. Every git command Ambio runs goes through `gitworktree.Command`
+  with `GIT_OPTIONAL_LOCKS=0`, so its own reads write nothing; before both,
+  polling the other checkouts re-synced every checkout every 2 s, and an
+  unindexed root was cleared and queued for a full index on each sync. A
+  root's first full index is queued once while it runs. Model and plan:
   [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
 - **Checkouts** (`api/checkouts.go`, `GET /api/checkouts`): every active root
   as a checkout - branch, head state (`commit`, `detached`, `unborn`, `none`
@@ -388,14 +395,24 @@ to API-key billing or another account. Setup and live-account validation:
   (`indexer.SeedRepositories`), so a switch inside one is quiet and leaves a
   `checkout.switched` row naming it on the root's branch. `GET
   /api/checkouts` reports them as `repositories` (`vcs: "repos"` for a plain
-  folder of repositories); the chip reads "N repos". The map is still one
-  projection of the parent folder: per-repository frames, clustering inside
-  one repository, overlays and reviews per nested repository, and adding
-  unrelated folders are WORK follow-ups.
+  folder of repositories); the chip reads "N repos". The map is one
+  projection of the parent folder, with a top-level frame per repository: a
+  system of kind `repository` (`systems.kind`, schema 10) with an ID stable
+  per folder (`repositoryFrameID`). The classifier clusters each
+  repository's files on their own, under its frame, with that repository's
+  co-change (`indexer.clusterRepositories`), so no inferred system spans two
+  repositories; files outside every repository cluster at the top level. A
+  map indexed before frames existed reclusters once on its next sync
+  (`NeedsRepositoryFrames`). Imports resolve against the whole project, so an
+  edge between repositories is drawn wherever an import resolves across them
+  (DECISIONS 2026-10-21). Overlays and reviews per nested repository, and
+  adding unrelated folders, are WORK follow-ups.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
-  files, once any running Git command releases `index.lock` (a lock older
-  than 10 s is taken as left over from a crash).
+  files, once any running Git command releases `index.lock` and `HEAD.lock`
+  (a lock older than 10 s is taken as left over from a crash). Checkout
+  releases `index.lock` before it moves HEAD, so for a second after the
+  index is written the journal also waits for HEAD to move.
   A HEAD move since the journal last looked is classified from the reflog: a
   commit changes nothing; a branch switch makes the files Git wrote quiet and
   leaves one `checkout.switched` row; a pull, merge, reset or rebase is
@@ -412,8 +429,33 @@ to API-key billing or another account. Setup and live-account validation:
 walk the root with ignore rules and the 1 MB / `*.min.*` limits → parse with
 tree-sitter → symbols, imports, calls, variable references, package imports
 and environment reads → call graph → clustering → infra detection. fsnotify
-watches with a 150 ms file debounce and a 1.5 s re-cluster debounce; hitting
-the OS watch limit degrades loudly. Re-scoping (changing which folders are
+changes are gathered into bursts (150 ms quiet, at most 2 s) and a 1.5 s
+re-cluster debounce; hitting the OS watch limit degrades loudly. A burst of
+fewer than 8 files is indexed file by file and animates; a larger one, or any
+holding a file Git wrote (`indexer.GitWroteAny`; a save in the minute after
+a cherry-pick still animates), and a reconcile
+of 8 or more files, go through `indexer.ReindexBatch`: each file read once,
+imports and calls rebuilt from one parallel parse of the project (the
+changed files' parses reused, and a file's imports rewritten only when they
+differ), one relationship diff, no per-file canvas patches (the settle sends
+`classification:updated`). Per file, a switch had cost a whole-project
+reparse and an animation each. Changes to one root's map are serialized
+(`lockRoot`), and live classification (`ClusterLive`, `ClusterOnly`) waits
+on the same lock, so it never sees a batch half read in. Relationships a switch shifts between files it did not touch
+are not journaled; after a pull they are Git's. The Floor moving to another
+checkout (a quiet-all reconcile) always takes the batch path, so it replays
+nothing on the canvas, and Review Changes neither diffs nor saves an
+architecture snapshot while any root of the project is syncing
+(`workspaceSyncing`); the sync's `delta:ready` re-reads it. Calls resolve by name only to
+code in the caller's language family (JS dialects, C/C++, JVM) and, in a
+folder of several repositories, its own repository unless it imports the
+file (`internal/indexer/call_scope.go`). A file Git holds as unmerged with
+conflict markers in it (a merge, rebase, cherry-pick or stash pop stopped on
+a conflict) is not reindexed until it is resolved: parsed, the markers lost
+its relationships (`internal/indexer/conflict.go`). Renaming the branch a
+checkout is on (`git branch -m`, read from HEAD's reflog) is not a move: the
+branch's journal, watermark, snapshots and agent history are carried to the
+new name (`db.RenameBranchHistory`). Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
 make reconcile after a closed period exact. A file moved on disk arrives as a
 delete and a create in either order; the new path takes over the vanished
@@ -449,7 +491,8 @@ extensions and investigation run capabilities.
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
 co-change (1.5, from `git log`), recursive into nested systems with stable IDs
-and TF-IDF names. Agents are asked to author the real tree (`name-architecture`
+and TF-IDF names; in a folder of repositories, per repository under its
+frame. Agents are asked to author the real tree (`name-architecture`
 prompt) rather than repair clusters.
 
 **Review Changes** (`internal/delta`): aggregate the journal to net effect,
@@ -649,7 +692,38 @@ and use the normal reconciliation path. Equivalent model echoes reuse record
 and geometry identity. Idle overlays return the original array without stamping
 unset booleans to false. Saved scenes build persistence lookups only when rows
 need writing; review saved-row membership uses a set instead of nested scans.
-The integrity audit remains authoritative and still runs on the adoption path.
+The integrity audit remains authoritative. Floor preparation now runs that audit
+cooperatively before publication, against the independent model membership. Its
+completed result is cached for the exact immutable node array and membership
+identity; selection/activity stamps retain it alongside the semantic visibility
+index. Adoption can consume that result without repeating a project-sized audit.
+Geometry, visibility, ordering or membership edits invalidate reuse and still
+take the ordinary audit path. Review/sheet transforms retain their own validation.
+Semantic index preparation uses bounded stable sorts (256 entries per native
+sort and cooperative merges), with a linear path for already depth-ordered nodes.
+No reveal threshold or camera/authoring contract changes.
+
+Floor file projection reuses `binModel.ts`'s single-pass partition when the
+canvas and bins share an indexed population and placement rules; the partition
+retains all source files in input order as well as placed/unclassified/docs.
+Review-specific populations keep their own filter. `DeltaPanel` leaves file and
+system subscriptions inactive without a delta and builds filter lookups only
+when review opens. These avoid synchronous cold-store consumer work; measured
+controls and limits are in [the cold-input follow-up](testing/CANVAS_COLD_INPUT_WIN.md).
+Loose-file layout membership is built only when a placement query needs it,
+once per immutable layout revision. Canonical membership remains independent
+of candidate geometry and is populated without temporary ID arrays. App's
+authored-system decision reads system sources only; source counts are computed
+when the setup screen is displayed. The [budget confirmation](testing/CANVAS_COLD_INPUT_BUDGET.md)
+records repeated native cold-input results and remaining limits.
+Initial-mapping Review stamps `omitConnectionHandles` in presentation data,
+so full and compact nodes omit inactive React Flow endpoint components and
+their store subscriptions. Disabled Floor/sheet endpoints still mount for
+relationship geometry; the flag is independent of connection permissions.
+WASD ownership follows browser pointer-move/boundary events, including surfaces
+appearing under a stationary pointer, instead of a forced hit test every frame.
+[Dense Review measurements](testing/DENSE_REVIEW_FRAME_COST.md) retain native
+controls, rejected prototypes and the remaining keyboard frame-budget miss.
 See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
 `useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
 waits for accepted preparation before using a target's current measurement.

@@ -179,6 +179,7 @@ func IndexRoot(sqlDB *sql.DB, h *hub.Hub, root db.Root, ignoredPaths []string) e
 // produced by an older resolver, so classifying them without this refresh can
 // turn a connected project into an arbitrary graph of isolated files.
 func ClusterOnly(sqlDB *sql.DB, root db.Root) error {
+	defer lockRoot(root.ID)()
 	if err := rebuildSemanticEvidence(sqlDB, root); err != nil {
 		return fmt.Errorf("rebuild semantic evidence: %w", err)
 	}
@@ -207,7 +208,11 @@ func rebuildAllCallGraph(sqlDB *sql.DB, root db.Root) error {
 	for _, file := range files {
 		result, err := parser.ParseFile(file.Path, file.RelPath)
 		if err != nil {
-			return fmt.Errorf("parse %s: %w", file.RelPath, err)
+			// A file Git has just deleted (a branch switch in progress) is
+			// still a row until its removal is processed; one unreadable file
+			// must not leave the whole project's calls stale.
+			log.Printf("indexer: call graph skips %s: %v", file.RelPath, err)
+			continue
 		}
 		// Store empty call sets too, so evidence removed since the old index is
 		// removed from call_graph rather than surviving the migration.
@@ -296,9 +301,13 @@ func changedSymbolTouches(fileID string, before, after []db.Symbol, contentChang
 // ReindexFile re-parses a single file and updates its symbols and edges.
 // Called by the watcher on file change events.
 func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
+	defer lockRoot(root.ID)()
 	// A file that grew past the size limit (a regenerated bundle) keeps its
 	// last parse rather than stalling the watcher on it.
 	if fileTooLarge(absPath) || strings.Contains(strings.ToLower(filepath.Base(absPath)), ".min.") {
+		return nil
+	}
+	if awaitingResolution(absPath) {
 		return nil
 	}
 	traceID := nextLivingTraceID()
@@ -352,7 +361,8 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 		return err
 	}
 	newSyms, _ := db.GetSymbolsByFile(sqlDB, file.ID)
-	actor, contentChanged := recordActivity(sqlDB, root.WorkspaceID, prev, prevSyms, file, absPath)
+	move := gitWrote(sqlDB, root, relPath, absPath, false)
+	actor, contentChanged := recordActivity(sqlDB, root.WorkspaceID, prev, prevSyms, file, absPath, move != moveNone)
 	resolutionChanged := prev == nil || movedFrom != "" || symbolResolutionChanged(prevSyms, newSyms)
 
 	// A new file can satisfy imports that were previously external/unresolved,
@@ -429,7 +439,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 		actor = activity.ActorFor(root.WorkspaceID)
 	}
 	if contentChanged || prev == nil || movedFrom != "" {
-		done := journalAsGit(sqlDB, root, relPath, absPath, false, &actor)
+		done := journalForMove(move, root, relPath, &actor)
 		labeler := newSystemLabeler(sqlDB, root)
 		kind := db.EventFileUpdated
 		if prev == nil {
@@ -440,7 +450,11 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 		} else {
 			journalFileChange(sqlDB, root, labeler, file, kind, actor, traceID)
 		}
-		journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
+		// A branch switch's file brings its relationships with it, including
+		// ones between files it did not touch: none of that is anyone's edit.
+		if move != moveSwitch {
+			journalRelationships(sqlDB, root, labeler, relationships, actor, traceID)
+		}
 		done()
 	}
 
@@ -472,6 +486,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 // relationship exits before the file tombstone, allowing the renderer to draw
 // red directional pulses while both endpoints still exist on the Floor.
 func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
+	defer lockRoot(root.ID)()
 	traceID := nextLivingTraceID()
 	relPath, _ := filepath.Rel(root.Path, absPath)
 	relPath = filepath.ToSlash(relPath)
@@ -566,7 +581,8 @@ func RemoveFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error {
 
 // recordActivity turns one watcher-detected save into a weighted edit burst
 // (see internal/activity). No-op saves (unchanged content hash) are dropped.
-func recordActivity(sqlDB *sql.DB, workspaceID string, prev *db.File, prevSyms []db.Symbol, file *db.File, absPath string) (actor string, contentChanged bool) {
+// gitWritten skips the burst: a branch switch or pull is nobody's editing.
+func recordActivity(sqlDB *sql.DB, workspaceID string, prev *db.File, prevSyms []db.Symbol, file *db.File, absPath string, gitWritten bool) (actor string, contentChanged bool) {
 	raw, err := os.ReadFile(absPath)
 	if err != nil {
 		return "", false
@@ -582,6 +598,9 @@ func recordActivity(sqlDB *sql.DB, workspaceID string, prev *db.File, prevSyms [
 	}
 	if hash == prevHash {
 		return "", false // formatter/editor no-op save - not activity
+	}
+	if gitWritten {
+		return activity.ActorGit, true
 	}
 
 	newSyms, _ := db.GetSymbolsByFile(sqlDB, file.ID)
@@ -702,7 +721,11 @@ func indexOneFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, existing
 	if err != nil {
 		return err
 	}
+	return indexParsedFile(sqlDB, root, relPath, absPath, result, existing, rawCallsMap)
+}
 
+// indexParsedFile stores a file from a parse already made.
+func indexParsedFile(sqlDB *sql.DB, root db.Root, relPath, absPath string, result *parser.Result, existing map[string]db.File, rawCallsMap *sync.Map) error {
 	var fileID string
 	if prev, ok := existing[relPath]; ok {
 		fileID = prev.ID
@@ -863,6 +886,10 @@ func buildCallGraph(sqlDB *sql.DB, root db.Root, rawCallsMap *sync.Map) error {
 	}
 	rows.Close()
 	log.Printf("[callgraph] symbol index: %d unique names across project", len(symbolToFiles))
+	scopes, err := callScopes(sqlDB, root)
+	if err != nil {
+		return err
+	}
 
 	// ── Step 2: Build import map as tiebreaker for ambiguous names ───────────
 	// Only used when multiple files define the same symbol name.
@@ -913,7 +940,7 @@ func buildCallGraph(sqlDB *sql.DB, root db.Root, rawCallsMap *sync.Map) error {
 			// in place (candidates[:0]) would corrupt the shared index.
 			filtered := make([]string, 0, len(candidates))
 			for _, fid := range candidates {
-				if fid != callerFileID {
+				if fid != callerFileID && scopes.reachable(callerFileID, fid, imported) {
 					filtered = append(filtered, fid)
 				}
 			}
@@ -1074,6 +1101,9 @@ func clusterScope(files []db.File, systems []db.System) (managed []db.File, prun
 // there is enough evidence to form a useful group. Ordinary edits never
 // reshuffle an already-classified architecture.
 func ClusterLive(sqlDB *sql.DB, root db.Root) (bool, error) {
+	// A batch half applied (a branch switch still being read in) would have
+	// its new files drawn unclassified, beside the systems they belong in.
+	defer lockRoot(root.ID)()
 	files, err := db.GetFilesByRoot(sqlDB, root.ID)
 	if err != nil {
 		return false, err
@@ -1176,7 +1206,7 @@ func clusterAndAssign(sqlDB *sql.DB, root db.Root, journalDrift bool) error {
 		}
 	}
 	plan := newClusterPlan(managedFiles, protectedSystemIDs)
-	assigned, err := clusterLevel(plan, root, input, nil, map[string]struct{}{}, 0)
+	assigned, err := clusterRepositories(plan, root, input, Repositories(root), systems)
 	if err != nil {
 		return err
 	}
@@ -1724,26 +1754,44 @@ func rebuildDependenciesForFileWithIndex(sqlDB *sql.DB, root db.Root, f db.File,
 	if err != nil {
 		return err
 	}
+	return writeFileImports(sqlDB, root, f, result, relToID)
+}
+
+// writeFileImports replaces a file's outgoing imports with those of a parse.
+func writeFileImports(sqlDB *sql.DB, root db.Root, f db.File, result *parser.Result, relToID map[string]string) error {
+	return writeImportTargets(sqlDB, root, f, importTargets(f, result, relToID))
+}
+
+// importTargets is the files f imports, as its parse reads them.
+func importTargets(f db.File, result *parser.Result, relToID map[string]string) []string {
+	var targets []string
+	for _, imp := range result.Imports {
+		for _, dstID := range resolveImportFileIDs(f, imp, relToID) {
+			if dstID != f.ID {
+				targets = append(targets, dstID)
+			}
+		}
+	}
+	return targets
+}
+
+// writeImportTargets replaces the parser's imports from f with targets.
+func writeImportTargets(sqlDB *sql.DB, root db.Root, f db.File, targets []string) error {
 	if err := db.DeleteOutgoingDependenciesByFile(sqlDB, f.ID); err != nil {
 		return err
 	}
-	for _, imp := range result.Imports {
-		for _, dstID := range resolveImportFileIDs(f, imp, relToID) {
-			if dstID == f.ID {
-				continue
-			}
-			d := db.Dependency{
-				WorkspaceID:    root.WorkspaceID,
-				Src:            f.ID,
-				Dst:            dstID,
-				SrcType:        "file",
-				DstType:        "file",
-				DependencyType: "IMPORTS",
-				CreatedBy:      "parser",
-			}
-			if err := db.UpsertDependency(sqlDB, d); err != nil {
-				log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, imp, err)
-			}
+	for _, dstID := range targets {
+		d := db.Dependency{
+			WorkspaceID:    root.WorkspaceID,
+			Src:            f.ID,
+			Dst:            dstID,
+			SrcType:        "file",
+			DstType:        "file",
+			DependencyType: "IMPORTS",
+			CreatedBy:      "parser",
+		}
+		if err := db.UpsertDependency(sqlDB, d); err != nil {
+			log.Printf("indexer: upsert dependency %s→%s: %v", f.RelPath, dstID, err)
 		}
 	}
 	return nil

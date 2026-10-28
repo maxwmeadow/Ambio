@@ -1,4 +1,5 @@
 import type { Node } from '@xyflow/react'
+import { sortSceneSteps } from './scene/sceneSteps.ts'
 
 // A node reveals its contents once its on-screen geometric mean reaches this
 // size. Keeping this size-relative makes semantic zoom independent of depth and
@@ -70,6 +71,13 @@ interface VisibilityIndex {
 // scene array from editing/measurement invalidates it automatically.
 const visibilityIndices = new WeakMap<Node[], VisibilityIndex>()
 
+/** Only for immutable presentation stamps which preserve geometry, order,
+ * hidden state and semantic detail. Ordinary edits must invalidate the index. */
+export function rememberPresentationVisibility(source: Node[], nodes: Node[]): void {
+  const index = visibilityIndices.get(source)
+  if (index && source !== nodes) visibilityIndices.set(nodes, index)
+}
+
 function visibilityTier(thresholds: number[], zoom: number): number {
   let lo = 0, hi = thresholds.length
   while (lo < hi) {
@@ -114,8 +122,13 @@ export function* zoomVisibilitySteps(nodes: Node[], zoom: number, now = performa
   let index = visibilityIndices.get(nodes)
   if (!index) {
     const thresholds = new Set<number>()
-    for (const node of nodes) {
+    const order: number[] = [], depths: number[] = []
+    let depthOrdered = true
+    for (let i = 0; i < nodes.length; i++) {
       if ((++work & 255) === 0) yield
+      const node = nodes[i], depth = Number(node.data.depth ?? 0)
+      order.push(i); depths.push(depth)
+      if (i > 0 && depths[i - 1] > depth) depthOrdered = false
       const w = Number(node.style?.width ?? node.measured?.width ?? 0)
       const h = Number(node.style?.height ?? node.measured?.height ?? 0)
       if (w > 0 && h > 0) thresholds.add(REVEAL_CONTAINER_PX / Math.sqrt(w * h))
@@ -123,8 +136,8 @@ export function* zoomVisibilitySteps(nodes: Node[], zoom: number, now = performa
       if (scale > 0) thresholds.add(DETAIL_REVEAL_EFFECTIVE_ZOOM / scale)
     }
     index = {
-      order: nodes.map((_, i) => i).sort((a, b) => Number(nodes[a].data.depth ?? 0) - Number(nodes[b].data.depth ?? 0)),
-      thresholds: [...thresholds].sort((a, b) => a - b),
+      order: depthOrdered ? order : yield* sortSceneSteps(order, (a, b) => depths[a] - depths[b]),
+      thresholds: yield* sortSceneSteps([...thresholds], (a, b) => a - b),
     }
     visibilityIndices.set(nodes, index)
   }

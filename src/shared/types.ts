@@ -239,6 +239,8 @@ export interface DbSystem {
   name: string
   parentId: string | null
   source: 'directory' | 'user' | 'agent' | 'cluster'
+  /** "repository": the frame holding one repository inside a project. */
+  kind?: string
   color: string | null
   description: string | null
   agentNotes: string | null

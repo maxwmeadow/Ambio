@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func headGit(t *testing.T, dir string, args ...string) string {
@@ -127,5 +128,62 @@ func TestFindRepositoriesListsNestedRepositoriesOnce(t *testing.T) {
 	found := FindRepositories(parent, 3, func(_ string, name string) bool { return name == "node_modules" })
 	if strings.Join(found, ",") != "services/api,web" {
 		t.Fatalf("found = %v", found)
+	}
+}
+
+// Checkout releases index.lock before it takes HEAD.lock: a file event read
+// in between must still wait for HEAD to move.
+func TestBusyCoversTheGapBeforeHeadMoves(t *testing.T) {
+	checkout := Checkout{GitDir: t.TempDir()}
+	write := func(name string, at time.Time) {
+		path := filepath.Join(checkout.GitDir, name)
+		if err := os.WriteFile(path, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	long := time.Now().Add(-time.Hour)
+	write("index", long)
+	if checkout.Busy(10 * time.Second) {
+		t.Fatal("no lock, no command running")
+	}
+	write("HEAD.lock", time.Now())
+	if !checkout.Busy(10 * time.Second) {
+		t.Fatal("HEAD.lock is HEAD moving")
+	}
+	write("HEAD.lock", long)
+	if checkout.Busy(10 * time.Second) {
+		t.Fatal("a stale HEAD.lock is left from a crash")
+	}
+	if checkout.IndexJustWritten() {
+		t.Fatal("the index was written an hour ago")
+	}
+	write("index", time.Now())
+	if !checkout.IndexJustWritten() {
+		t.Fatal("an index just written may be followed by HEAD moving")
+	}
+}
+
+func TestWasRenamedFollowsAChainOfRenames(t *testing.T) {
+	repo := t.TempDir()
+	headGit(t, repo, "init", "-q", "-b", "main")
+	headGit(t, repo, "-c", "user.email=a@b.c", "-c", "user.name=A", "commit", "-q", "--allow-empty", "-m", "base")
+	checkout, err := Locate(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := checkout.ReadHead()
+	headGit(t, repo, "branch", "-m", "main", "trunk")
+	headGit(t, repo, "branch", "-m", "trunk", "stem")
+	after, _ := checkout.ReadHead()
+	if !checkout.WasRenamed(before, after) {
+		t.Fatal("main became stem by two renames")
+	}
+	headGit(t, repo, "checkout", "-q", "-b", "other")
+	switched, _ := checkout.ReadHead()
+	if checkout.WasRenamed(after, switched) {
+		t.Fatal("checkout -b is a new branch, not a rename")
 	}
 }

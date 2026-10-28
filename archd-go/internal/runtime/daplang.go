@@ -252,7 +252,11 @@ func (s *dapLangSession) handshake() error {
 		}()
 		return nil
 	}
-	if s.cfg.requestType != "none" && !s.cfg.launchAfterBreakpoints {
+	// lldb-dap (LLVM 19+, and Xcode's) holds its initialized event until it
+	// has a launch, so waiting for initialized first deadlocks; it does not
+	// run the program before configurationDone, so breakpoints still land.
+	launchFirst := !s.cfg.launchAfterBreakpoints || (s.dbgCmd != nil && isLLDB(s.dbgCmd.Path))
+	if s.cfg.requestType != "none" && launchFirst {
 		if err := sendLaunch(); err != nil {
 			return err
 		}
@@ -268,7 +272,7 @@ func (s *dapLangSession) handshake() error {
 			return err
 		}
 	}
-	if s.cfg.requestType != "none" && s.cfg.launchAfterBreakpoints {
+	if s.cfg.requestType != "none" && !launchFirst {
 		if err := sendLaunch(); err != nil {
 			return err
 		}

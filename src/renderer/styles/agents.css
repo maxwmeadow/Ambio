@@ -574,3 +574,26 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* A repository's frame inside a project of several (git-repo-frames). */
+.ambio-repository-kicker {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ambio-repository-tag {
+  flex-shrink: 0;
+  overflow: hidden;
+  max-width: 45%;
+  border: 1px solid var(--border-dim);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: help;
+}

@@ -80,7 +80,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   captures that pointer until release. Node gestures, Shift/lasso selection and
   touch/pinch remain React Flow interactions; nested canvases own their pointer.
   This review surface has no connection gestures or drawn relationship edges,
-  so its disabled connection handles stay out of layout/hit testing. Floor/sheet
+  so its connection handles are omitted from both full and compact node
+  components. CSS hiding alone leaves their camera subscriptions active. Floor/sheet
   endpoint handles retain their ordinary geometry. While this review camera is
   being dragged, decorative card/folder shadow filters are suspended and return
   when panning ends. Resting artwork, node drag/resize chrome and WASD retain
@@ -110,8 +111,12 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   Selection and activity overlays reuse these only while geometry, ordering,
   hidden state and semantic detail remain unchanged. An inactive overlay does
   not replace the scene. Geometry/visibility edits still reconcile and all
-  candidates still pass the existing integrity audit. Sheet-specific
-  composition remains authoritative.
+  candidates still pass the existing integrity audit. That same audit may finish
+  cooperatively before Floor publication and be reused only for the exact node
+  array and canonical membership, including trusted presentation-only stamps.
+  Cancellation never publishes a partial audit; edits invalidate the result.
+  Semantic-index sorting yields in bounded chunks without changing stable depth
+  order or reveal thresholds. Sheet-specific composition remains authoritative.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
   React Flow additionally culls offscreen components; retention no longer requires
@@ -290,6 +295,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Show on the Floor moves the Floor to another checkout of the repository.
   Files keep their identity, so systems, layout and history stay; the change
   in contents is reconciled quietly, and nothing is journaled.
+- In a project holding several repositories, each repository is a top-level
+  frame (a system of kind `repository`) named for its folder, and inferred
+  systems never span two of them. The frame is an ordinary system: it is
+  renamed, moved, resized and nested like any other. Its identity carries a
+  `REPOSITORY · branch` kicker above the title, and its tab band a
+  `REPO · branch` tag once open; the branch is that repository's own HEAD
+  (`GET /api/checkouts`). Files outside every repository are clustered at the
+  top level beside the frames.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
 
@@ -419,7 +432,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   disagree. A refused edit rolls the layout back with an explanation.
 - Rearranging within the same parent is presentation and records nothing.
 - Inferred (cluster) systems are not drawn, so their files sit at the top
-  level; moving one there changes nothing.
+  level (in a folder of repositories, in their repository's frame); moving
+  one there changes nothing. Repository frames are drawn, but are not an
+  authored architecture: alone they do not send new files to Unsorted.
 - A live system's title is renamable in place.
 - Every meaning edit confirms itself with a notice that offers Undo, and
   appears in Review Changes attributed to you.

@@ -87,7 +87,7 @@ func TestAWorktreeRunIsAppliedAsUncommittedWorkOrDiscarded(t *testing.T) {
 	runWorktreeGit(t, repo, "worktree", "add", "-b", "mine", other)
 	server.resyncWorktrees("ws")
 	sqlDB, _ := server.dbFor("ws")
-	root, ok := waitForRoot(sqlDB, "ws", other, true)
+	root, ok := waitForRoot(sqlDB, "ws", other, true, "")
 	if !ok {
 		t.Fatal("the user's worktree was not registered")
 	}

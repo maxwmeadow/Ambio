@@ -41,7 +41,9 @@ export function processStamp(pid: number): string | null {
       return `${fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim()}:${fields[19]}`
     }
     if (process.platform === 'darwin') return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 3000 }).trim() || ''
-    return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim() || null
+    // PowerShell can take several seconds to start on a busy machine; timing
+    // out would leave the process unverifiable, so it could not be stopped.
+    return execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`], { encoding: 'utf8', timeout: 20000, windowsHide: true }).trim() || null
   } catch { return null }
 }
 export interface ChatProject { id: string; rootPath: string; name: string }
@@ -580,6 +582,9 @@ export class AgentChat {
     if (process.platform === 'win32') await new Promise<void>(resolve => {
       const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(runtime.process.pid), '/T', '/F'], { shell: false, windowsHide: true })
       killer.once('close', () => resolve()); killer.once('error', () => { runtime.process.kill(); resolve() }); setTimeout(resolve, 3000)
+    }).then(() => {
+      // taskkill returns before the process has let go of its folder.
+      if (runtime.process.exitCode === null && runtime.process.signalCode === null) return new Promise<void>(resolve => { runtime.process.once('exit', () => resolve()); setTimeout(resolve, 3000) })
     })
     else {
       const pid = runtime.process.pid

@@ -1,5 +1,25 @@
-import { isCanvasSourceFile, isDocumentationFile } from '../../shared/fileKinds.ts'
-import type { DbFile } from '../../shared/types.ts'
+import { classifyProjectFile } from '../../shared/fileKinds.ts'
+import type { DbFile, FloorLayout } from '../../shared/types.ts'
+
+/**
+ * Most files already have a shown system, so their placement does not consult
+ * root layouts. Build this index only on the first loose-file query, and once
+ * per layout revision; subsequent queries must not rescan the project.
+ */
+export function createLooseFileLookup(layouts: readonly FloorLayout[]): Pick<ReadonlySet<string>, 'has'> {
+  let ids: Set<string> | undefined
+  return {
+    has(id) {
+      if (!ids) {
+        ids = new Set<string>()
+        for (const layout of layouts) {
+          if (layout.nodeType === 'file' && layout.containmentKind === 'root') ids.add(layout.nodeId)
+        }
+      }
+      return ids.has(id)
+    },
+  }
+}
 
 /**
  * Which files belong on the canvas, and which belong in a bin.
@@ -21,6 +41,8 @@ import type { DbFile } from '../../shared/types.ts'
  */
 
 export interface BinPartition {
+  /** Every source file, in input order, including files not yet placed. */
+  source: DbFile[]
   /** Rendered on the canvas as normal. */
   placed: DbFile[]
   /** Source files with no home yet: the unclassified bin. */
@@ -42,6 +64,7 @@ export function partitionCanvasFiles(
   { hasHome }: PartitionOptions,
 ): BinPartition {
   const placed: DbFile[] = []
+  const source: DbFile[] = []
   const unclassified: DbFile[] = []
   const documents: DbFile[] = []
 
@@ -50,19 +73,22 @@ export function partitionCanvasFiles(
     // classifier once attached to a system is still a README; letting a stale
     // `system_id` promote it back onto the map is how docs leaked onto the
     // Floor before there was anywhere else for them to go.
-    if (isDocumentationFile(file)) {
+    const kind = file.language === 'markdown' || file.language === 'text'
+      ? 'document' : classifyProjectFile(file.relPath)
+    if (kind === 'document') {
       documents.push(file)
       continue
     }
     // Anything that is neither documentation nor indexable source is not
     // something the canvas can draw or the user can classify. It is dropped
     // rather than binned, so a bin never fills with things you cannot act on.
-    if (!isCanvasSourceFile(file)) continue
+    if (kind !== 'source') continue
+    source.push(file)
     if (hasHome(file)) placed.push(file)
     else unclassified.push(file)
   }
 
-  return { placed, unclassified, documents }
+  return { source, placed, unclassified, documents }
 }
 
 /** Stable display order for a bin: folder first, then filename. */

@@ -24,7 +24,6 @@ import { HomeScreen } from './screens/HomeScreen'
 import { ProjectSetupScreen } from './screens/ProjectSetupScreen'
 import { ProjectReviewScreen } from './screens/ProjectReviewScreen'
 import { ConnectAgentScreen } from './screens/ConnectAgentScreen'
-import { readAuthorship } from './canvas/architectureAuthorship.ts'
 import { isCanvasSourceFile } from '../shared/fileKinds'
 import {
   migrateLegacyProjectLifecycle,
@@ -57,7 +56,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { archdApi, archdWs } from './archdEndpoint.ts'
-import { clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
+import { canRedo, canUndo, clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -204,11 +203,18 @@ export default function App() {
   const [initialJourneyProjectId, setInitialJourneyProjectId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
   const [agentSetupOpen, setAgentSetupOpen] = useState(false)
-  const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
-  const architectureIsAuthored = readAuthorship({
-    systems: graphSystems,
-    files: sourceGraphFiles,
-  }).authored > 0
+  // This lifecycle decision needs only authored-system presence. Computing the
+  // full authorship summary would classify and count every file on cold load.
+  const architectureIsAuthored = useMemo(
+    () => graphSystems.some(system => system.source === 'user' || system.source === 'agent'),
+    [graphSystems],
+  )
+  // Setup needs an exact source count, but the canvas does not. Keep it lazy
+  // and memoized so setup status updates do not repeatedly classify the files.
+  const getSourceGraphFileCount = useMemo(() => {
+    let count: number | undefined
+    return () => count ??= graphFiles.reduce((total, file) => total + Number(isCanvasSourceFile(file)), 0)
+  }, [graphFiles])
 
   const {
     applySnapshot,
@@ -242,6 +248,10 @@ export default function App() {
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
       ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
       ;(window as unknown as { __ambioDecodeSnapshot?: unknown }).__ambioDecodeSnapshot = decodeCanvasSnapshot
+      // A move reaches Edit → Undo once it is saved, a beat after it shows,
+      // and an undo reaches Redo once its own save returns.
+      ;(window as unknown as { __ambioCanUndo?: unknown }).__ambioCanUndo = canUndo
+      ;(window as unknown as { __ambioCanRedo?: unknown }).__ambioCanRedo = canRedo
       return
     }
     if (!window.ambio) {
@@ -958,7 +968,7 @@ export default function App() {
         : { label: 'Back to projects', onLeave: () => { void closeProject() } }}>
         <ConnectAgentScreen
           project={currentProject}
-          fileCount={sourceGraphFiles.length}
+          fileCount={getSourceGraphFileCount()}
           indexing={graphIndexing}
           blankProject={blankProject}
           backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
