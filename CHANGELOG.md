@@ -14,6 +14,9 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Mapping with Codex no longer shows only reasoning for minutes at a time: its
+  in-memory scripts appear in the activity as “Script” lines, and mapping
+  agents now post short progress updates as they work.
 - Muse launches plain `serve` and preserves its configured sandbox; protocol
   clients no longer receive Claude Code’s permission-hook tool. Grok reports
   missing/unusable Linux bubblewrap clearly and allows longer MCP startup

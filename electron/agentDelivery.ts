@@ -394,6 +394,7 @@ export class DeliveryRunner {
     const rootPath = run.rootPath
     {
       let child: ChildProcess
+      let childEnv: NodeJS.ProcessEnv = process.env
       try {
         const env: NodeJS.ProcessEnv = { ...process.env, AMBIO_WORKSPACE_ID: input.workspaceId, AMBIO_AGENT_HOST: input.hostId }
         // The run message id is Claude Code's permission hook (mcpEnvironment);
@@ -407,6 +408,7 @@ export class DeliveryRunner {
         if (input.launcher.bundledNode) env.ELECTRON_RUN_AS_NODE = '1'
         else delete env.ELECTRON_RUN_AS_NODE
         input.driver?.preflight?.(input.mode ?? 'build', env, process.platform)
+        childEnv = env
         child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
       } catch (error) {
         if (input.mapping) void mappingAttemptState(input.workspaceId, input.mapping.attempt.id, 'cancel')
@@ -448,8 +450,19 @@ export class DeliveryRunner {
         if (event.kind !== 'error') spoke = true
         fs.appendFileSync(this.eventsFile(key), `${JSON.stringify({ at: Date.now(), ...event })}\n`)
       }
+      // What the host records outside its output, followed once the session is known.
+      const since = Date.now()
+      let unfollow: (() => void) | undefined
       const session = (sessionId: string) => {
         if (sessionId && sessionId !== run.sessionId) { run.sessionId = sessionId; this.save(run); this.rememberSession(run) }
+        if (sessionId && !unfollow && input.driver?.follow) {
+          try {
+            unfollow = input.driver.follow({
+              sessionId, since, env: childEnv, report,
+              note: text => { try { fs.appendFileSync(run.logPath, `\n[Ambio] ${text}\n`) } catch { /* the log is best effort */ } },
+            })
+          } catch { unfollow = () => {} }
+        }
       }
       // A protocol agent is spoken with, not just listened to: the same lines are
       // the protocol, and the turn ends when the agent says it has.
@@ -524,6 +537,7 @@ export class DeliveryRunner {
         // A last line with no newline is still something the agent said.
         if (pending) understand(Buffer.from('\n'))
         if (pendingError) understandError(Buffer.from('\n'))
+        unfollow?.()
         acp?.close()
         this.acp.delete(key)
         this.live.delete(key)

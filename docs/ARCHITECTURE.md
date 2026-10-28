@@ -629,7 +629,16 @@ latest few while it works. Thinking comes from Claude Code's `thinking` blocks
 (when the model fills them), Codex's reasoning summaries
 (`model_reasoning_summary="auto"`), Cursor's streamed `thinking` events and ACP
 `agent_thought_chunk` updates, each tidied to one line (`thought`). Antigravity
-CLI 1.4 reports only a count of thinking tokens. Ambio chat keeps OpenCode's
+CLI 1.4 reports only a count of thinking tokens. A driver can also `follow`
+what its host records outside its output: in code mode (codex-cli 0.165) Codex
+works through JavaScript `exec` snippets, and one that only works on data in
+memory prints nothing on `--json`, so `codexTranscript.ts` tails the session's
+`$CODEX_HOME/sessions/…/rollout-…-<thread id>.jsonl` and reports each
+tool-free snippet as a `Script · …` tool event. The transcript is Codex's
+internal format: a missing file, an unrecognised shape or a read error stops
+the following with a note in the run's raw log and the turn carries on.
+Mapping turns also send `MAPPING_PROGRESS` after the contract, asking the agent
+for a one-line progress message before each major step. Ambio chat keeps OpenCode's
 `reasoning` parts as a `reasoning` chat part, shown collapsed above the reply.
 
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies

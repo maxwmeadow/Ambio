@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
 import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
 import type { MappingBinding } from '../src/shared/agentDelivery.ts'
+import { followCodexTranscript } from './codexTranscript.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -81,6 +82,12 @@ export interface AgentDriver {
   read(line: string): DriverOutput
   /** What a line of the host's error output means, for hosts that explain a failed turn there. */
   readError?(line: string): DriverOutput
+  /**
+   * Follows what the host records of a session outside its output, for hosts
+   * whose output leaves work out. Started once the session is known; returns
+   * the stop. Best effort: it reports nothing rather than failing the turn.
+   */
+  follow?(session: { sessionId: string, since: number, env: NodeJS.ProcessEnv, report: (event: DriverOutput['events'][number]) => void, note: (text: string) => void }): () => void
 }
 
 const NOTHING: DriverOutput = { events: [] }
@@ -263,6 +270,9 @@ const codex: AgentDriver = {
     if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 160)}` }] }
     return NOTHING
   },
+  // In code mode a script that only works on data in memory prints nothing on
+  // --json; its session transcript records it (codexTranscript.ts).
+  follow: session => followCodexTranscript(session),
 }
 
 /** Copilot CLI: everything for a build; every tool but writing files otherwise. */

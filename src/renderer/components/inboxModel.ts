@@ -103,6 +103,14 @@ export function workOrderNote(mode: WorkOrderMode, note: string): string {
  */
 export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Your only task is to map this project thoroughly. Inspect source, group every indexed file by responsibility, and check the complete hierarchy before submitting with edit_systems. Do not create sheets, work orders, work sessions, investigations or live-map edits. Save any mapping notes with update_work(note) BEFORE submission. commit_session (or propose for a small map) is your FINAL action: it permanently locks this session, automatically completes the mapping request and stops the agent before the human enters Review. Do not call start_work, reply_to_canvas, finish work, read more tools or perform any other action after submission. The human starts ordinary work only after reviewing this map.'
 
+/**
+ * Asks a mapping agent to narrate as it goes. Some agents (Codex in code mode)
+ * do long stretches of work that print nothing, so the person watching sees
+ * only these. Sent after the contract, which stays the prefix that marks a
+ * mapping request.
+ */
+export const MAPPING_PROGRESS = 'While you work, post a one-sentence progress message before each major step (reading code, grouping files, drafting or checking the hierarchy), saying what you are about to do, so the person watching can follow along.'
+
 /** How a mapping turn reads in the conversation, instead of its whole brief. */
 export const MAPPING_TITLE = 'Map this project\u2019s architecture'
 

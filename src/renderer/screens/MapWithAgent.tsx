@@ -5,7 +5,7 @@ import { archdApi } from '../archdEndpoint.ts'
 import type { ChatProvider, ChatSnapshot } from '../../shared/agentChat'
 import { useSheetStore } from '../store/sheetStore'
 import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
-import { MAPPING_CONTRACT } from '../components/inboxModel'
+import { MAPPING_CONTRACT, MAPPING_PROGRESS } from '../components/inboxModel'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
 import { discoveryRequest } from '../components/agentDiscovery'
 
@@ -148,12 +148,12 @@ export async function startMapping({ choice, workspaceId, projectRoot, installer
     run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label, model, attemptId: attempt.id }
     rememberMappingRun(run, workspaceId)
     try {
-      await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT}\n\n${brief}`, mode: 'propose', ...(model ? { model } : {}) })
+      await window.ambio.sendChat({ conversationId: conversation.id, text: `${MAPPING_CONTRACT} ${MAPPING_PROGRESS}\n\n${brief}`, mode: 'propose', ...(model ? { model } : {}) })
     } catch (error) { await window.ambio.stopChat(conversation.id); throw error }
     run = { kind: 'chat', workspaceId, conversationId: conversation.id, label: choice.label, model, attemptId: attempt.id }
   } else {
     const messageId = crypto.randomUUID()
-    await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
+    await useSheetStore.getState().sendToAgent(workspaceId, `${MAPPING_CONTRACT} ${MAPPING_PROGRESS}\n\n${brief}`, [], null, messageId, [], { threadId: messageId, mode: 'propose' })
     const attempt = await createMappingAttempt(workspaceId, messageId)
     run = { kind: 'run', workspaceId, messageId, hostId: choice.host.id, label: choice.label, model, attemptId: attempt.id }
     rememberMappingRun(run, workspaceId)
