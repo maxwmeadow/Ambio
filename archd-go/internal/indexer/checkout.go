@@ -229,8 +229,18 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 		}
 		state.checkout, state.located = checkout, true
 	}
-	for deadline := time.Now().Add(gitBusyWait); state.checkout.Busy(gitLockStale) && time.Now().Before(deadline); {
-		time.Sleep(50 * time.Millisecond)
+	// Checkout writes the index before it moves HEAD, so an index written
+	// just now with HEAD where it was may be a switch still under way.
+	for deadline := time.Now().Add(gitBusyWait); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if state.checkout.Busy(gitLockStale) {
+			continue
+		}
+		if state.headKnown && state.checkout.IndexJustWritten() {
+			if head, err := state.checkout.ReadHead(); err == nil && head == state.head {
+				continue
+			}
+		}
+		break
 	}
 	head, err := state.checkout.ReadHead()
 	if err != nil {
@@ -242,6 +252,17 @@ func (state *checkoutState) observe(sqlDB *sql.DB, root db.Root) bool {
 		return true
 	}
 	if head == state.head {
+		return true
+	}
+	if state.checkout.WasRenamed(state.head, head) {
+		// Not a move: the branch's history goes with its new name. A nested
+		// repository's branch does not key the root's history.
+		if state.repository == "" {
+			if err := db.RenameBranchHistory(sqlDB, root.ID, state.head.Branch, head.Branch); err != nil {
+				log.Printf("journal: carry %s's history to %s: %v", state.head.Branch, head.Branch, err)
+			}
+		}
+		state.head = head
 		return true
 	}
 	move := &headMove{
@@ -365,11 +386,44 @@ func sameBlob(absPath, blob string) bool {
 // switch, attributed to Git for a pull or reset. The returned function ends
 // the quiet scope.
 func journalAsGit(sqlDB *sql.DB, root db.Root, relPath, absPath string, deleted bool, actor *string) func() {
-	switch gitWrote(sqlDB, root, relPath, absPath, deleted) {
+	return journalForMove(gitWrote(sqlDB, root, relPath, absPath, deleted), root, relPath, actor)
+}
+
+// journalForMove is journalAsGit for a move already read with gitWrote.
+func journalForMove(move headMoveKind, root db.Root, relPath string, actor *string) func() {
+	switch move {
 	case moveSwitch:
 		return beginQuiet(root.ID, []string{relPath})
 	case moveGit:
 		*actor = activity.ActorGit
 	}
 	return func() {}
+}
+
+// GitWroteAny reports whether Git wrote any of these files (waiting out a
+// running Git command): a switch, pull, reset or rebase landing, in the
+// root's repository or one nested in it. A recent move alone is not enough:
+// a save in the minute after a cherry-pick is still somebody's edit.
+func GitWroteAny(sqlDB *sql.DB, root db.Root, paths []string) bool {
+	for _, absPath := range paths {
+		_, err := os.Stat(absPath)
+		if gitWrote(sqlDB, root, relativeTo(root, absPath), absPath, os.IsNotExist(err)) != moveNone {
+			return true
+		}
+	}
+	return false
+}
+
+// GitMove names what Git is doing to a root's files, as the journal reads
+// it: "switch" while a branch switch explains its changes, "git" for a pull,
+// merge, reset or rebase, "" otherwise. Changes derived from the files (infra
+// detected in them, say) are journaled the same way the files are.
+func GitMove(rootID string) string {
+	switch activeMove(rootID) {
+	case moveSwitch:
+		return "switch"
+	case moveGit:
+		return "git"
+	}
+	return ""
 }

@@ -12,7 +12,7 @@ import {
   sessionDuration,
   type DeltaReview,
 } from '../canvas/deltaReview.ts'
-import type { DeltaClaim } from '../../shared/types'
+import type { DbFile, DbSystem, DeltaClaim } from '../../shared/types'
 import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
 import { codeFitNoticeBody, openMakeCodeMatch } from '../canvas/codeFit.ts'
@@ -21,6 +21,8 @@ import { NO_FILTER, claimMatches, isFiltered, reviewFilterOptions, type FilterOp
 
 /** One id, so a refreshed delta replaces its invitation instead of stacking. */
 const DELTA_INVITATION = 'delta-review'
+const EMPTY_FILES: DbFile[] = []
+const EMPTY_SYSTEMS: DbSystem[] = []
 
 /**
  * Morning Delta review panel.
@@ -213,8 +215,8 @@ export function DeltaPanel() {
       reviewing: state.deltaReviewing,
       cursor: state.deltaCursor,
       deferredUntil: state.deltaDeferredUntil,
-      files: state.files,
-      systems: state.systems,
+      files: state.delta ? state.files : EMPTY_FILES,
+      systems: state.delta ? state.systems : EMPTY_SYSTEMS,
       startReview: state.startDeltaReview,
       setCursor: state.setDeltaCursor,
       deferDelta: state.deferDelta,
@@ -258,10 +260,10 @@ export function DeltaPanel() {
   useEffect(() => { setFilter(NO_FILTER); setSeen(new Set()) }, [delta?.until])
   const filterContext = useMemo(() => ({
     sessions: review.sessions,
-    systemOfFile: new Map(files.map(file => [file.id, file.systemId])),
+    systemOfFile: new Map(reviewing ? files.map(file => [file.id, file.systemId]) : []),
     sessionGoals: new Map(review.sessionList.map(session => [session.id, session.goal])),
-    systemNames: new Map(systems.map(system => [system.id, system.name])),
-  }), [review, files, systems])
+    systemNames: new Map(reviewing ? systems.map(system => [system.id, system.name]) : []),
+  }), [reviewing, review, files, systems])
   const options = useMemo(() => reviewFilterOptions(all, filterContext), [all, filterContext])
   const unexplained = options.who.find(option => option.value === 'unexplained')?.count ?? 0
   const visible = useMemo(

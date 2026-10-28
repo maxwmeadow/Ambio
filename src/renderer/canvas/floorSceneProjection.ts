@@ -2,7 +2,6 @@ import { traceSync } from './perfTrace.ts'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles.ts'
 import type { Node } from '@xyflow/react'
 import type { DbFile, DbInfraNode, DbSystem, FloorNodeType } from '../../shared/types'
-import { countDirectChildren } from './directChildCounts.ts'
 import { frameContentInsets, type FrameGeometry } from './frameGeometry.ts'
 import { fitPresentationScale, minimumContainerSize } from './resizeGeometry.ts'
 import type { FileNodeData, InfraNodeData, SystemNodeData } from './sceneTypes'
@@ -53,7 +52,11 @@ function hexToRgb(hex: string): string {
 /** Convert canonical Floor descriptors into the React Flow scene model. */
 export const projectFloorNodes: typeof projectFloorNodesImpl = input => traceSync('scene.floor-projection', () => projectFloorNodesImpl(input), input.descriptors.length)
 
-function projectFloorNodesImpl({
+function projectFloorNodesImpl(input: FloorSceneProjectionInput): Node[] {
+  const steps = projectFloorNodeSteps(input)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+export function* projectFloorNodeSteps({
   systems,
   files,
   infraNodes,
@@ -63,11 +66,17 @@ function projectFloorNodesImpl({
   worldScaleById,
   contentScaleById,
   currentZoom,
-}: FloorSceneProjectionInput): Node[] {
-  const systemsById = new Map(systems.map(system => [system.id, system]))
-  const filesById = new Map(files.map(file => [file.id, file]))
-  const infraById = new Map(infraNodes.map(infra => [infra.id, infra]))
-  const directChildCounts = countDirectChildren(descriptors)
+}: FloorSceneProjectionInput): Generator<void, Node[]> {
+  let work = 0
+  const systemsById = new Map<string, DbSystem>(), filesById = new Map<string, DbFile>(), infraById = new Map<string, DbInfraNode>()
+  for (const row of systems) { systemsById.set(row.id, row); if ((++work & 255) === 0) yield }
+  for (const row of files) { filesById.set(row.id, row); if ((++work & 255) === 0) yield }
+  for (const row of infraNodes) { infraById.set(row.id, row); if ((++work & 255) === 0) yield }
+  const directChildCounts = new Map<string, number>()
+  for (const row of descriptors) {
+    if (row.parentId) directChildCounts.set(row.parentId, (directChildCounts.get(row.parentId) ?? 0) + 1)
+    if ((++work & 255) === 0) yield
+  }
 
   /**
    * How far the user has resized this frame away from its authored design size.
@@ -123,7 +132,7 @@ function projectFloorNodesImpl({
     }
   }
 
-  return descriptors.map(descriptor => {
+  const project = (descriptor: FloorSceneDescriptor): Node => {
     const { id, parentId, geometry, worldScale, contentScale, depth } = descriptor
     // A child sits in its parent's CONTENT space, so its position rides the
     // parent's contentScale - not the parent's own world scale. The two are
@@ -141,7 +150,7 @@ function projectFloorNodesImpl({
         id, type: 'system', parentId: parentId ?? undefined, position, style,
         initialWidth: style.width, initialHeight: style.height,
         data: {
-          id, name: system.name, source: system.source, color, colorRgb: hexToRgb(color),
+          id, name: system.name, source: system.source, kind: system.kind, color, colorRgb: hexToRgb(color),
           description: system.description, agentNotes: system.agentNotes, depth,
           directChildCount: directChildCounts.get(id) ?? 0,
           currentZoom, isChild: !!parentId, childrenVisible: 0, nodeW: style.width,
@@ -165,7 +174,7 @@ function projectFloorNodesImpl({
         id, type: 'file', parentId: parentId ?? undefined, position, style,
         initialWidth: style.width, initialHeight: style.height,
         data: {
-          id, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
+          id, sourceFileId: file.sourceFileId, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
           language: file.language, lineCount: file.lineCount, indexedAt: file.indexedAt, churnScore: file.churnScore,
           shape: (file.shapeOverride || file.shape || '') as FileNodeData['shape'],
           displayName: file.displayName ?? '', depth,
@@ -214,5 +223,11 @@ function projectFloorNodesImpl({
       } satisfies InfraNodeData as unknown as Record<string, unknown>,
       draggable: true, selectable: true,
     }
-  })
+  }
+  const nodes: Node[] = []
+  for (const descriptor of descriptors) {
+    nodes.push(project(descriptor))
+    if ((++work & 255) === 0) yield
+  }
+  return nodes
 }

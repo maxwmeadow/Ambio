@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,24 @@ type DraftSystem struct {
 	ParentKey   string   `json:"parentKey"`
 	RootID      string   `json:"rootId"`
 	Files       []string `json:"files"`
+}
+
+// DraftSystems is a chunk's systems as an agent sent them. They decode
+// strictly: an unknown key (filePaths for files, say) would otherwise be
+// dropped in silence, leave the system owning nothing, and surface only at
+// commit as "no proposed system owns a file" - after the chunk is stored and
+// can no longer be corrected under its chunkId.
+type DraftSystems []DraftSystem
+
+func (systems *DraftSystems) UnmarshalJSON(raw []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var decoded []DraftSystem
+	if err := decoder.Decode(&decoded); err != nil {
+		return fmt.Errorf("systems: %s; each system takes systemKey, name, description, parentKey, rootId and files", strings.TrimPrefix(err.Error(), "json: "))
+	}
+	*systems = decoded
+	return nil
 }
 
 type ArchitectureProposalDraft struct {
@@ -66,7 +85,16 @@ func BeginArchitectureProposalDraft(database *sql.DB, workspaceID, rationale str
 	return &ArchitectureProposalDraft{ID: id, WorkspaceID: workspaceID, Rationale: rationale, Status: "open", Systems: []DraftSystem{}, UpdatedAt: now}, nil
 }
 
+type proposalReader interface {
+	QueryRow(string, ...any) *sql.Row
+	Query(string, ...any) (*sql.Rows, error)
+}
+
 func GetArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (*ArchitectureProposalDraft, error) {
+	return getArchitectureProposalDraft(database, id, workspaceID)
+}
+
+func getArchitectureProposalDraft(database proposalReader, id, workspaceID string) (*ArchitectureProposalDraft, error) {
 	draft := &ArchitectureProposalDraft{ID: id, WorkspaceID: workspaceID, Systems: []DraftSystem{}, ChunkIDs: []string{}}
 	err := database.QueryRow(`SELECT rationale,status,proposal_id,updated_at FROM architecture_proposal_drafts WHERE id=? AND workspace_id=?`, id, workspaceID).
 		Scan(&draft.Rationale, &draft.Status, &draft.ProposalID, &draft.UpdatedAt)
@@ -280,7 +308,12 @@ func AddArchitectureProposalDraftChunk(database *sql.DB, id, workspaceID, chunkI
 }
 
 func CommitArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (*ArchitectureProposal, error) {
-	draft, err := GetArchitectureProposalDraft(database, id, workspaceID)
+	tx, err := database.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	draft, err := getArchitectureProposalDraft(tx, id, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +321,27 @@ func CommitArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (
 		return nil, fmt.Errorf("draft is already aborted")
 	}
 	if draft.Status == "committed" {
+		tx.Rollback()
 		return GetArchitectureProposal(database, draft.ProposalID, workspaceID, false)
+	}
+	// Versions before v10 saved the proposal and closed its draft in separate
+	// transactions. Recover that old crash window without creating a second map.
+	var existing string
+	err = tx.QueryRow(`SELECT id FROM architecture_proposals WHERE id=? AND workspace_id=?`, id, workspaceID).Scan(&existing)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if existing != "" {
+		if _, err := tx.Exec(`UPDATE architecture_proposal_drafts SET status='committed',proposal_id=?,updated_at=? WHERE id=? AND workspace_id=?`, existing, time.Now().UnixMilli(), id, workspaceID); err != nil {
+			return nil, err
+		}
+		if err := sealMappingAttemptTx(tx, workspaceID, id, existing); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return GetArchitectureProposal(database, existing, workspaceID, false)
 	}
 	if len(draft.Systems) == 0 {
 		return nil, fmt.Errorf("draft needs at least one system")
@@ -347,19 +400,37 @@ func CommitArchitectureProposalDraft(database *sql.DB, id, workspaceID string) (
 	if err := dropEmptySystems(&round); err != nil {
 		return nil, err
 	}
-	// A proposal id derived from the draft makes commit retryable if the daemon
-	// exits after creating the proposal but before updating the draft status.
-	proposal, err := CreateArchitectureProposal(database, ArchitectureProposal{ID: id, WorkspaceID: workspaceID, ParentScopeType: "workspace", CreatedBy: "agent", Round: round})
-	if err != nil {
-		if existing, lookupErr := GetArchitectureProposal(database, id, workspaceID, false); lookupErr == nil {
-			proposal = existing
-		} else {
-			return nil, err
-		}
-	}
-	if _, err := database.Exec(`UPDATE architecture_proposal_drafts SET status='committed',proposal_id=?,updated_at=? WHERE id=? AND workspace_id=? AND status='open'`, proposal.ID, time.Now().UnixMilli(), id, workspaceID); err != nil {
+	// The immediate write transaction freezes the exact chunk set while the
+	// proposal and its mapping receipt are created. Abort/add cannot interleave.
+	var notes string
+	err = tx.QueryRow(`SELECT notes FROM mapping_attempts WHERE workspace_id=? AND id=?`, workspaceID, id).Scan(&notes)
+	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
+	if err == nil {
+		if err := mappingActiveTx(tx, workspaceID, id); err != nil {
+			return nil, err
+		}
+		var entries []string
+		if err := json.Unmarshal([]byte(notes), &entries); err != nil {
+			return nil, err
+		}
+		round.EvidenceSummary = strings.Join(entries, "\n\n")
+	}
+	proposal, err := createArchitectureProposalTx(tx, ArchitectureProposal{ID: id, WorkspaceID: workspaceID, ParentScopeType: "workspace", CreatedBy: "agent", Round: round})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`UPDATE architecture_proposal_drafts SET status='committed',proposal_id=?,updated_at=? WHERE id=? AND workspace_id=? AND status='open'`, proposal.ID, time.Now().UnixMilli(), id, workspaceID); err != nil {
+		return nil, err
+	}
+	if err := sealMappingAttemptTx(tx, workspaceID, id, proposal.ID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	return proposal, nil
 }
 
@@ -369,6 +440,13 @@ func AbortArchitectureProposalDraft(database *sql.DB, id, workspaceID string) er
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	var mapping int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM mapping_attempts WHERE id=? AND workspace_id=?`, id, workspaceID).Scan(&mapping); err != nil {
+		return err
+	}
+	if mapping != 0 {
+		return fmt.Errorf("mapping drafts must be stopped through their mapping attempt")
+	}
 	result, err := tx.Exec(`UPDATE architecture_proposal_drafts SET status='aborted',updated_at=? WHERE id=? AND workspace_id=? AND status='open'`, time.Now().UnixMilli(), id, workspaceID)
 	if err != nil {
 		return err

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
-import { DRIVEN_CLI_NAMES, type DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import type { MappingBinding } from '../src/shared/agentDelivery.ts'
 
 /**
  * How Ambio drives each agent CLI for one turn of a conversation.
@@ -36,6 +37,7 @@ export interface DriverTurn {
   resume?: string
   /** The model the user chose for this turn; unset keeps the host's default. */
   model?: string
+  mapping?: MappingBinding
 }
 
 /** The usual flag for choosing a model, for hosts that take one. */
@@ -93,15 +95,25 @@ function parse(line: string): Record<string, any> | null {
   try { const value = JSON.parse(line); return value && typeof value === 'object' ? value : null } catch { return null }
 }
 
-/** This variable exposes a host permission hook, not ordinary turn identity. */
-export function mcpEnvironment(hostId: string, workspaceId: string, messageId?: string): Record<string, string> {
-  return { AMBIO_WORKSPACE_ID: workspaceId, ...(hostId === 'claude-code' && messageId ? { AMBIO_RUN_MESSAGE_ID: messageId } : {}) }
+/**
+ * The Ambio MCP server's environment for one turn. The run message id exposes
+ * a host permission hook, not ordinary turn identity, so only Claude Code gets
+ * it - except on a mapping turn, where it binds the attempt to its request and
+ * travels with the attempt's scoped credential (the server then withholds the
+ * permission hook).
+ */
+export function mcpEnvironment(hostId: string, workspaceId: string, messageId?: string, mapping?: MappingBinding): Record<string, string> {
+  return {
+    AMBIO_WORKSPACE_ID: workspaceId,
+    ...((hostId === 'claude-code' || mapping) && messageId ? { AMBIO_RUN_MESSAGE_ID: messageId } : {}),
+    ...(mapping ? { AMBIO_MAPPING_ATTEMPT: mapping.attempt.id, AMBIO_API_TOKEN: mapping.token } : {}),
+  }
 }
 
 function mcpServer(turn: DriverTurn) {
   return {
     command: turn.mcp.command, args: [...turn.mcp.args, `--ambio-host=${turn.hostId}`],
-    env: mcpEnvironment(turn.hostId, turn.workspaceId, turn.messageId),
+    env: mcpEnvironment(turn.hostId, turn.workspaceId, turn.messageId, turn.mapping),
   }
 }
 
@@ -109,7 +121,12 @@ function mcpServer(turn: DriverTurn) {
 function toolTarget(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const args = input as Record<string, unknown>
-  for (const key of ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'messageId', 'sheet', 'name']) {
+  for (const key of [
+    'file_path', 'path', 'Path', 'FilePath', 'dir_path', 'DirPath',
+    'command', 'CommandLine', 'pattern', 'Pattern', 'query', 'Query',
+    'url', 'URL', 'messageId', 'sheet', 'name', 'Name', 'goal', 'Goal',
+    'target', 'Target'
+  ]) {
     if (typeof args[key] === 'string' && args[key]) return clip(args[key] as string, 120)
   }
   return ''
@@ -156,7 +173,7 @@ const claudeCode: AgentDriver = {
         events: message.message.content.flatMap((block: any) => {
           if (block?.type === 'text' && block.text?.trim()) return [{ kind: 'text' as const, text: clip(block.text, 1200) }]
           // A thinking block carries its text when the model shows it; some leave it empty.
-          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return [{ kind: 'thinking' as const, text: thought(block.thinking) }]
+          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return thinkingEvents(block.thinking)
           if (block?.type === 'tool_use') return [{ kind: 'tool' as const, text: [String(block.name ?? 'tool').replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ') }]
           return []
         }),
@@ -167,9 +184,32 @@ const claudeCode: AgentDriver = {
   },
 }
 
-/** An agent's reasoning as one quiet line: markdown emphasis and line breaks dropped. */
-export function thought(text: unknown): string {
-  return clip(String(text).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(), 400)
+/**
+ * An agent's reasoning as quiet lines, one per section: markdown emphasis and
+ * line breaks dropped. A line that is only bold text starts a section (Codex's
+ * summaries are a run of such headings, each with or without a paragraph), and
+ * the heading is set apart from what follows it rather than run into it.
+ */
+export function thoughts(text: unknown): string[] {
+  const sections: { heading: string, body: string[] }[] = []
+  for (const line of String(text).split(/\r?\n/)) {
+    const heading = /^\s*\*\*(.+?)\*\*\s*$/.exec(line)?.[1]
+    if (heading !== undefined) sections.push({ heading, body: [] })
+    else if (line.trim()) {
+      if (!sections.length) sections.push({ heading: '', body: [] })
+      sections[sections.length - 1].body.push(line)
+    }
+  }
+  const flat = (part: string) => part.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim()
+  return sections
+    .map(({ heading, body }) => [flat(heading), flat(body.join(' '))].filter(Boolean).join(' — '))
+    .filter(Boolean)
+    .map(line => clip(line, 400))
+}
+
+/** Reasoning as thinking events, one per section. */
+export function thinkingEvents(text: unknown): DriverOutput['events'] {
+  return thoughts(text).map(line => ({ kind: 'thinking' as const, text: line }))
 }
 
 /** Cursor streams thinking in pieces; each session's is said whole when it completes. */
@@ -198,6 +238,8 @@ const codex: AgentDriver = {
         '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
         '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
         '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(turn.workspaceId)}`,
+        ...(turn.messageId ? ['-c', `mcp_servers.ambio.env.AMBIO_RUN_MESSAGE_ID=${JSON.stringify(turn.messageId)}`] : []),
+        ...(turn.mapping ? ['-c', `mcp_servers.ambio.env.AMBIO_MAPPING_ATTEMPT=${JSON.stringify(turn.mapping.attempt.id)}`, '-c', `mcp_servers.ambio.env.AMBIO_API_TOKEN=${JSON.stringify(turn.mapping.token)}`] : []),
         '-c', 'mcp_servers.ambio.enabled=true',
         // With approval_policy "never", Codex refuses every MCP call that needs
         // approval, including Ambio's own (codex-cli 0.162). Ambio's server, and
@@ -215,7 +257,7 @@ const codex: AgentDriver = {
     if (!item) return NOTHING
     const finished = message.type === 'item.completed'
     if (item.type === 'agent_message' && finished && item.text?.trim()) return { events: [{ kind: 'text', text: clip(item.text, 1200) }] }
-    if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: [{ kind: 'thinking', text: thought(item.text) }] }
+    if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: thinkingEvents(item.text) }
     if (item.type === 'command_execution' && !finished) return { events: [{ kind: 'tool', text: `Shell · ${clip(String(item.command ?? ''), 120)}` }] }
     if (item.type === 'mcp_tool_call' && !finished) return { events: [{ kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server ?? 'MCP'} · ${item.tool ?? 'tool'}` }] }
     if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 160)}` }] }
@@ -289,7 +331,7 @@ const cursorCli: AgentDriver = {
       if (message.subtype !== 'completed') return { sessionId, events: [] }
       const text = cursorThinking.get(key) ?? ''
       cursorThinking.delete(key)
-      return { sessionId, events: text.trim() ? [{ kind: 'thinking', text: thought(text) }] : [] }
+      return { sessionId, events: thinkingEvents(text) }
     }
     if (message.type === 'tool_call' && message.subtype === 'started') {
       const call = message.tool_call ?? {}
@@ -331,7 +373,7 @@ const antigravityCli: AgentDriver = {
       // and the project's .agents/mcp_config.json is never loaded.
       // Its print mode cannot ask, so without this any command ends the turn.
       // Nothing narrower exists: Ask and Propose rely on the turn's contract.
-      args: ['-p', turn.prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
+      args: ['-p', turn.prompt, '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions', ...(turn.cwd ? ['--add-dir', turn.cwd] : []), ...(turn.resume ? ['--conversation', turn.resume] : []), ...modelFlag(turn)],
       // Closed at once: agy reads stdin even when the prompt is an argument.
       stdin: undefined,
     }
@@ -355,6 +397,10 @@ const antigravityCli: AgentDriver = {
       const failed = typeof payload.status === 'string' && !['SUCCESS', 'RUNNING', 'WAITING'].includes(payload.status)
       return { sessionId, events: failed ? [{ kind: 'error', text: clip(String(payload.error ?? `The run ended ${payload.status}.`)) }] : [] }
     }
+    if (message.error && !event) {
+      const errText = typeof message.error === 'string' ? message.error : JSON.stringify(message.error)
+      return { sessionId, events: [{ kind: 'error', text: clip(errText, 600) }] }
+    }
     if (event !== 'step_update') return { sessionId, events: [] }
     const kind = String(payload.step_type ?? payload.type ?? '')
     const state = String(payload.state ?? payload.status ?? '')
@@ -362,15 +408,27 @@ const antigravityCli: AgentDriver = {
     const beginning = !state || /^active$|start|pending|running/i.test(state)
     if (kind === 'tool') {
       if (!beginning) return { sessionId, events: [] }
-      const name = payload.tool_name ?? payload.tool_info?.name ?? payload.tool?.name ?? payload.name ?? 'tool'
+      let name = String(payload.tool_name ?? payload.tool_info?.name ?? payload.tool?.name ?? payload.name ?? 'tool')
       const parameters = payload.tool_info?.parameters ?? payload.tool?.args ?? payload.args ?? payload.input
-      const command = typeof parameters?.CommandLine === 'string' ? clip(parameters.CommandLine, 120) : ''
-      return { sessionId, events: [{ kind: 'tool', text: [String(name), command || toolTarget(parameters)].filter(Boolean).join(' · ') }] }
+      let target = ''
+      if ((name === 'call_mcp_tool' || name === 'mcp') && parameters && typeof parameters === 'object') {
+        const mcpTool = parameters.tool_name ?? parameters.tool
+        if (typeof mcpTool === 'string' && mcpTool) {
+          name = parameters.server_name === 'ambio' || parameters.server === 'ambio' ? `Ambio · ${mcpTool}` : String(mcpTool)
+          target = toolTarget(parameters.arguments ?? parameters.args ?? parameters)
+        }
+      }
+      if (!target && parameters && typeof parameters === 'object') {
+        const command = typeof parameters.CommandLine === 'string' ? clip(parameters.CommandLine, 120)
+          : typeof parameters.command === 'string' ? clip(parameters.command, 120) : ''
+        target = command || toolTarget(parameters)
+      }
+      return { sessionId, events: [{ kind: 'tool', text: [name, target].filter(Boolean).join(' · ') }] }
     }
     // agy 1.4 reports only how many thinking tokens a step used; a build that
     // sends the thinking itself is shown like the other agents'.
     const thinking = typeof payload.thinking === 'string' ? payload.thinking : typeof payload.thinking_text === 'string' ? payload.thinking_text : ''
-    if (thinking.trim()) return { sessionId, events: [{ kind: 'thinking', text: thought(thinking) }] }
+    if (thinking.trim()) return { sessionId, events: thinkingEvents(thinking) }
     if (kind === 'agent_response') {
       const key = `${sessionId}:${payload.step_index}`
       if (typeof payload.text_delta === 'string') antigravityText.set(key, (antigravityText.get(key) ?? '') + payload.text_delta)
@@ -437,7 +495,19 @@ export function agentDriver(hostId: string): AgentDriver | undefined {
 }
 
 /** The executable each driven host installs. */
-export const DRIVER_CLI_NAMES = DRIVEN_CLI_NAMES
+/** The executable each driven host installs. */
+export const DRIVER_CLI_NAMES: Record<string, string[]> = {
+  'claude-code': ['claude'],
+  codex: ['codex'],
+  grok: ['grok'],
+  muse: ['muse'],
+  'copilot-cli': ['copilot'],
+  // Cursor also installs it as `agent`, a name too common to trust on a PATH.
+  'cursor-cli': ['cursor-agent'],
+  'devin-cli': ['devin'],
+  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
+  'antigravity-cli': ['agy'],
+}
 
 /**
  * Codex's sandbox for a turn. A question or a proposal runs any command but

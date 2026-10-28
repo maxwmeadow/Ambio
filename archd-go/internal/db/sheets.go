@@ -77,9 +77,9 @@ type Annotation struct {
 }
 
 type CanvasMessage struct {
-	ID                 string  `json:"id"`
-	WorkspaceID        string  `json:"workspaceId"`
-	DeliveryMode       string  `json:"deliveryMode"`
+	ID           string `json:"id"`
+	WorkspaceID  string `json:"workspaceId"`
+	DeliveryMode string `json:"deliveryMode"`
 	// ThreadID groups conversation turns: the first turn's ID, or chat:<native
 	// session> for Build work orders belonging to a built-in conversation.
 	ThreadID string `json:"threadId"`
@@ -88,7 +88,7 @@ type CanvasMessage struct {
 	Mode string `json:"mode"`
 	// TargetHost limits an open turn to sessions of one host (the one the
 	// user told to watch); empty means any watching session may take it.
-	TargetHost string `json:"targetHost,omitempty"`
+	TargetHost         string  `json:"targetHost,omitempty"`
 	SheetID            *string `json:"sheetId"`
 	Note               string  `json:"note"`
 	Selection          string  `json:"selection"`     // json array of durable refs

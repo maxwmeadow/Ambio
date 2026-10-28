@@ -40,8 +40,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   every fit, search result, selection and chip centres there, not under the
   panel.
 - Navigation from outside the canvas (a file chip in a reply, a row under To
-  review) brings the node into view the way search does: it opens a collapsed
-  system, selects the node and fits once the node has been measured.
+  review, a system in the mapping review list) brings the node into view the
+  way search does: it opens a collapsed system, selects the node and fits once
+  the node has been measured. All of them share one flight and its framing.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and
@@ -75,17 +76,76 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 
 ## Rendering budget (approved 2026-10-20)
 
-- Above 40 composed nodes, spatial visibility runs in a worker, with a local
-  fallback if the worker cannot run. Canonical layout, semantic membership and
-  authored dimensions remain independent from viewport culling.
-- The viewport has a 240-screen-pixel buffer. Recently visible nodes may stay
-  mounted for 450 ms, capped at about two buffered screenfuls, to absorb quick
-  reversals. Fit includes viewport-culled nodes and excludes semantically hidden
-  descendants, so virtualization cannot change the camera's scene bounds. Active
-  relationship endpoints retain mounted shells/handles even outside the buffer.
+- On the initial-mapping approval canvas, a mouse pan begun on the empty pane
+  captures that pointer until release. Node gestures, Shift/lasso selection and
+  touch/pinch remain React Flow interactions; nested canvases own their pointer.
+  This review surface has no connection gestures or drawn relationship edges,
+  so its connection handles are omitted from both full and compact node
+  components. CSS hiding alone leaves their camera subscriptions active. Floor/sheet
+  endpoint handles retain their ordinary geometry. While this review camera is
+  being dragged, decorative card/folder shadow filters are suspended and return
+  when panning ends. Resting artwork, node drag/resize chrome and WASD retain
+  their normal appearance. This is an intentional motion-cost reduction added
+  for the 2026-10-23 review mouse-pan regression.
+- Above 40 composed nodes, spatial visibility runs in the same worker as
+  numeric Floor/sheet preparation. Complete canonical geometry lives outside
+  React Flow; its interaction collection contains the admitted region and
+  required interaction/relationship ancestors and endpoints. Canonical layout,
+  semantic membership and authored dimensions remain independent from culling.
+  Pending preparation retains the previous coherent scene and shows progress.
+  Only current workspace/sheet/model requests may adopt geometry or persist
+  generated placement. Equivalent metadata/save echoes reuse preparation.
+  Small worker failures can recover cooperatively. Above 2,000 entities or
+  relationships, no huge synchronous fallback is attempted: retain coherent
+  content and offer Retry. Unresponsive superseded work is terminated after its
+  cancellation acknowledgement deadline instead of blocking newer work forever.
+- Large HTTP snapshot reads and canvas preparation publish only completed,
+  current results. Byte decoding runs off-thread for large replies; row/geometry
+  transfers use acknowledged batches. Projection yields without publishing
+  incomplete hierarchy or saving stale placement. Same-scope preparation keeps
+  coherent content visible; empty/new scopes release old prepared models.
+  Failure remains recoverable without synchronously decoding a huge reply.
+  This scheduling change preserves authored geometry, reveal thresholds and
+  navigation timing; it does not imply a fully paged project model.
+- Floor preparation may precompute canonical indexes before publication.
+  Selection and activity overlays reuse these only while geometry, ordering,
+  hidden state and semantic detail remain unchanged. An inactive overlay does
+  not replace the scene. Geometry/visibility edits still reconcile and all
+  candidates still pass the existing integrity audit. That same audit may finish
+  cooperatively before Floor publication and be reused only for the exact node
+  array and canonical membership, including trusted presentation-only stamps.
+  Cancellation never publishes a partial audit; edits invalidate the result.
+  Semantic-index sorting yields in bounded chunks without changing stable depth
+  order or reveal thresholds. Sheet-specific composition remains authoritative.
+- The detail budget has a 240-screen-pixel buffer and retains recent admissions
+  for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
+  React Flow additionally culls offscreen components; retention no longer requires
+  their DOM or subscribers to stay mounted. Fit includes viewport-culled nodes
+  and excludes semantically hidden descendants. Canonical geometry remains
+  available for camera bounds, offscreen drop targets and resize compensation.
+  Relationship admission includes viewport-crossing endpoint bounds even when
+  both endpoints are offscreen; disconnected offscreen paths need not adopt
+  their endpoints. Admitted endpoints initialize ordinary handles and preserve
+  valid offscreen routing after their shells unmount. Layout glides retain the
+  outgoing interaction subset until the transition phase ends, so final-position
+  culling cannot cut off a moving card.
   While the first spatial answer is pending, root shells already respect this
   buffer; startup must not admit every off-screen root at once. The same active
   node and relationship endpoint exceptions apply.
+- The passive minimap retains its size, colors, rounded marks, viewport mask
+  and admitted-node bounds. It has one surface subscription and creates marks
+  only for admitted nodes, rather than a subscribed component per project entity.
+- Focused inline titles, symbol names and metadata finish their normal save
+  before culling removes the input. Escape still cancels the draft. Removing a
+  browser input does not itself dispatch React's blur event; drafts must not be
+  silently discarded during camera or semantic visibility changes.
+- Very long static dashed relationships draw only their buffered viewport
+  segments. Their canonical route, dash phase, real endpoint arrows and click
+  target remain equivalent to the full route. No arrow is added at a clip cut.
+  Explicit search/reply fits retain their target and 850 ms duration through
+  concurrent canvas updates; default Fit options cannot replace a queued request.
+  Navigation issued during preparation waits for its accepted geometry. A manual
+  navigation takes priority over initial automatic framing.
 - A node smaller than 14 pixels on its shortest side may use its silhouette.
   Other background file cards use compact identity while detail waits. Systems
   and infrastructure retain their normal identity at readable sizes. Selection,
@@ -105,7 +165,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   bounded LRU. Large lists do not create one DOM row per indexed symbol.
 - Local diagnostics record camera frame tails, renderer long frames, detail
   admissions, requests and background batches. There is no uploaded telemetry
-  or idle animation-frame sampling loop.
+  or idle animation-frame sampling loop. Full geometry mutation tracing requires
+  `window.__ambioSceneDebug = true`; scene-integrity protection remains active.
+
+- An initial layout save failure is reported with Retry. It must not create an
+  automatic save/repack loop; retry cannot write another workspace's geometry.
 
 ## Semantic zoom
 
@@ -116,7 +180,21 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Hidden descendants fade to opacity `0`, become non-interactive at opacity
   `<= 0.1`, scale toward `0.92`, and blur toward `3px`.
 - Opacity transitions over `0.25s ease-out`.
+- Opening a system is sequenced (`REVEAL_MOTION`, changed 2026-10-27): its
+  centred name fades out over `200ms`, and only then do its tab title, count
+  and the nodes it reveals fade in over `300ms`. Revealed nodes mount already
+  visible, so their entrance is played on mount, anchored to the moment of the
+  reveal; a node scrolled into view or remounted later has none. Closing is
+  immediate: the contents unmount, the tab title fades out over `120ms` and the
+  name returns over `240ms`. Reduced motion skips the node entrance.
 - A node being dragged or directly interacted with is forced fully visible.
+- The mapping review canvas has the same semantic zoom as the Floor (changed
+  2026-10-27; it used to reveal every system and file at once): systems start
+  closed with their name, and open as you zoom in.
+- Revealing a node never makes it draggable when its scene locked it: review's
+  approved and live nodes stay in place at every zoom.
+- The initial fit settles the zoom tier once it lands; a visibility pass queued
+  by its last animation frame is dropped rather than folding the scene back.
 - File detail reveals when effective zoom reaches `1.075`, where effective
   zoom is viewport zoom multiplied by the node world scale.
 - File details crossfade over `0.25s`; hidden details do not receive pointer
@@ -217,6 +295,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Show on the Floor moves the Floor to another checkout of the repository.
   Files keep their identity, so systems, layout and history stay; the change
   in contents is reconciled quietly, and nothing is journaled.
+- In a project holding several repositories, each repository is a top-level
+  frame (a system of kind `repository`) named for its folder, and inferred
+  systems never span two of them. The frame is an ordinary system: it is
+  renamed, moved, resized and nested like any other. Its identity carries a
+  `REPOSITORY · branch` kicker above the title, and its tab band a
+  `REPO · branch` tag once open; the branch is that repository's own HEAD
+  (`GET /api/checkouts`). Files outside every repository are clustered at the
+  top level beside the frames.
 - Drop preview translation affects the visual shell, not the logical React
   Flow frame or interaction chrome.
 
@@ -346,7 +432,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   disagree. A refused edit rolls the layout back with an explanation.
 - Rearranging within the same parent is presentation and records nothing.
 - Inferred (cluster) systems are not drawn, so their files sit at the top
-  level; moving one there changes nothing.
+  level (in a folder of repositories, in their repository's frame); moving
+  one there changes nothing. Repository frames are drawn, but are not an
+  authored architecture: alone they do not send new files to Unsorted.
 - A live system's title is renamable in place.
 - Every meaning edit confirms itself with a notice that offers Undo, and
   appears in Review Changes attributed to you.

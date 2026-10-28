@@ -87,9 +87,20 @@ func (s *Server) handleDelta(w http.ResponseWriter, r *http.Request) {
 	summary := delta.Aggregate(events, since, now)
 	summary.RootID = root.ID
 	summary.Branch = root.Branch
-	after, snapshotErr := s.saveDeltaSnapshotForRoot(sqlDB, root, now)
+	// While a sync is reshaping the map (the Floor moving to another
+	// checkout, a catch-up), the architecture is half one thing and half
+	// another: compared with the last review it read as hundreds of changes
+	// by you, and saving it would poison every later comparison. The journal
+	// alone answers until the sync's delta:ready brings the app back.
+	var after *delta.ArchitectureSnapshot
+	snapshotErr := errMapSyncing
+	if !s.workspaceSyncing(sqlDB, workspaceID) {
+		after, snapshotErr = s.saveDeltaSnapshotForRoot(sqlDB, root, now)
+	}
 	if snapshotErr != nil {
-		log.Printf("api: save delta snapshot for %s: %v", workspaceID, snapshotErr)
+		if snapshotErr != errMapSyncing {
+			log.Printf("api: save delta snapshot for %s: %v", workspaceID, snapshotErr)
+		}
 		summary.Claims = delta.BuildClaims(
 			summary, s.systemTopologyForRoot(sqlDB, workspaceID, root.ID),
 		)
@@ -122,6 +133,25 @@ func (s *Server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		log.Printf("api: work sessions for %s: %v", workspaceID, err)
 	}
 	jsonOK(w, summary)
+}
+
+var errMapSyncing = errors.New("the map is syncing")
+
+// workspaceSyncing reports a root of the workspace being indexed or
+// reconciled right now.
+func (s *Server) workspaceSyncing(sqlDB *sql.DB, workspaceID string) bool {
+	roots, err := db.GetRoots(sqlDB, workspaceID)
+	if err != nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, root := range roots {
+		if s.rootSyncing[root.ID] {
+			return true
+		}
+	}
+	return false
 }
 
 func dispatchedIntents(sqlDB *sql.DB, workspaceID string) []delta.Intent {
@@ -225,9 +255,13 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/start"):
-		if strings.TrimSpace(body.Goal) == "" {
-			jsonError(w, "goal is required", 400)
-			return
+		goal := strings.TrimSpace(body.Goal)
+		if goal == "" {
+			if body.MessageID != "" {
+				goal = "Work on work order"
+			} else {
+				goal = "Work session"
+			}
 		}
 		rootID, branch := body.RootID, body.Branch
 		if rootID == "" && body.Cwd != "" {
@@ -258,7 +292,7 @@ func (s *Server) handleWork(w http.ResponseWriter, r *http.Request) {
 			Branch:         branch,
 			OwnerKey:       body.OwnerKey,
 			Agent:          body.Agent,
-			Goal:           body.Goal,
+			Goal:           goal,
 			FocusSystemIDs: body.FocusSystemIDs,
 			FocusFileIDs:   body.FocusFileIDs,
 		}

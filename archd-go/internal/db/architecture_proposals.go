@@ -157,6 +157,22 @@ func validateProposalRound(round *ArchitectureProposalRound) error {
 }
 
 func CreateArchitectureProposal(database *sql.DB, proposal ArchitectureProposal) (*ArchitectureProposal, error) {
+	tx, err := database.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	created, err := createArchitectureProposalTx(tx, proposal)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return created, nil
+}
+
+func createArchitectureProposalTx(tx *sql.Tx, proposal ArchitectureProposal) (*ArchitectureProposal, error) {
 	if proposal.WorkspaceID == "" {
 		return nil, fmt.Errorf("workspace id is required")
 	}
@@ -186,11 +202,6 @@ func CreateArchitectureProposal(database *sql.DB, proposal ArchitectureProposal)
 	if proposal.Round.CreatedBy == "" {
 		proposal.Round.CreatedBy = proposal.CreatedBy
 	}
-	tx, err := database.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback() //nolint:errcheck
 	var exists int
 	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM workspaces WHERE id=?)`, proposal.WorkspaceID).Scan(&exists); err != nil || exists == 0 {
 		if err != nil {
@@ -218,9 +229,6 @@ func CreateArchitectureProposal(database *sql.DB, proposal ArchitectureProposal)
 		return nil, err
 	}
 	if err := insertProposalRound(tx, proposal.ID, &proposal.Round); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &proposal, nil
@@ -342,6 +350,14 @@ func AddArchitectureProposalRevision(database *sql.DB, proposalID, workspaceID s
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	var mapped int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM mapping_attempts WHERE workspace_id=? AND proposal_id=?`, workspaceID, proposalID).Scan(&mapped); err != nil {
+		return nil, err
+	}
+	if mapped > 0 {
+		return nil, fmt.Errorf("mapping submission is sealed; create a new mapping attempt for an agent revision")
+	}
+
 	var current int
 	if err := tx.QueryRow(`SELECT current_revision FROM architecture_proposals WHERE id=? AND workspace_id=?`, proposalID, workspaceID).Scan(&current); err != nil {
 		return nil, err
@@ -379,6 +395,9 @@ func ApplyArchitectureProposalLayouts(database *sql.DB, proposalID, workspaceID 
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	if err := mappingReviewReadyTx(tx, workspaceID, proposalID); err != nil {
+		return nil, err
+	}
 
 	var current int
 	if err := tx.QueryRow(`SELECT current_revision FROM architecture_proposals WHERE id=? AND workspace_id=?`, proposalID, workspaceID).Scan(&current); err != nil {
@@ -749,6 +768,9 @@ func DecideArchitectureProposalSystem(database *sql.DB, proposalID, workspaceID,
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	if err := mappingReviewReadyTx(tx, workspaceID, proposalID); err != nil {
+		return nil, err
+	}
 	var current int
 	if err := tx.QueryRow(`SELECT current_revision FROM architecture_proposals WHERE id=? AND workspace_id=?`, proposalID, workspaceID).Scan(&current); err != nil {
 		return nil, err
@@ -904,6 +926,9 @@ func FinalizeArchitectureProposal(database *sql.DB, proposalID, workspaceID stri
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	if err := mappingReviewReadyTx(tx, workspaceID, proposalID); err != nil {
+		return nil, err
+	}
 	var current int
 	if err := tx.QueryRow(`SELECT current_revision FROM architecture_proposals WHERE id=? AND workspace_id=?`, proposalID, workspaceID).Scan(&current); err != nil {
 		return nil, err

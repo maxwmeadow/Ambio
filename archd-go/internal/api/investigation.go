@@ -14,11 +14,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
 	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
 	"ambio.local/archd/internal/runtime"
 )
 
@@ -253,7 +253,7 @@ func (s *Server) gitInfo(workspaceID string) (commit, branch string) {
 func gitCmd(dir string, args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd := gitworktree.CommandContext(ctx, dir, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

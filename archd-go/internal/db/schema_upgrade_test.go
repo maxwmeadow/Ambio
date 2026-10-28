@@ -11,7 +11,7 @@ import (
 // and today's features work on it. The fixtures were written by the older
 // versions' own code (testdata/schemagen).
 func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
-	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql"} {
+	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql", "schema-v9.sql", "schema-v10.sql"} {
 		t.Run(fixture, func(t *testing.T) {
 			dir := t.TempDir()
 			script, err := os.ReadFile(filepath.Join("testdata", fixture))

@@ -25,6 +25,7 @@ const KEYS = [
   LEGACY_REVIEW_KEY,
   DELIVERY_HOST_KEY,
   SETUP_STEP_KEY,
+  (id: string) => `ambio:setup-mapping:${id}`,
   // Where agents Ambio starts work: here or their own worktree.
   (id: string) => `delivery_where_${id}`,
   // Which other checkouts the Floor draws (store/checkoutStore.ts).

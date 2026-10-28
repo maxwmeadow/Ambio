@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -213,5 +214,15 @@ func TestArchitectureProposalDraftLeavesOutSystemsWithNoIndexedFiles(t *testing.
 	}
 	if strings.Join(proposal.Round.DroppedSystems, ",") != "Config" {
 		t.Fatalf("dropped systems = %v, want Config", proposal.Round.DroppedSystems)
+	}
+}
+func TestDraftSystemsRejectUnknownKeys(t *testing.T) {
+	var systems DraftSystems
+	err := json.Unmarshal([]byte(`[{"systemKey":"core","name":"Core","filePaths":["main.go"]}]`), &systems)
+	if err == nil || !strings.Contains(err.Error(), `"filePaths"`) || !strings.Contains(err.Error(), "files") {
+		t.Fatalf("unknown key not named with the right one: %v", err)
+	}
+	if err := json.Unmarshal([]byte(`[{"systemKey":"core","name":"Core","files":["main.go"]}]`), &systems); err != nil || len(systems) != 1 || systems[0].Files[0] != "main.go" {
+		t.Fatalf("valid systems rejected: %v %#v", err, systems)
 	}
 }

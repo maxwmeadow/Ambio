@@ -12,6 +12,65 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 
 ---
 
+## Checkpoint recheck — 2026-10-23
+
+The Oct 26 [main/device handoff](CANVAS_PERFORMANCE_HANDOFF.md) consolidates
+review panning, cold loading/retention and final adoption. Use this same checklist
+on the updated main; no unchecked manual item is completed by that merge.
+
+For the merged `codex/canvas-scene-scale` implementation through `99f5575`.
+Max reports improved performance and the specific review mouse-pan issue in CP8.
+The individual CP1–CP7 checks remain unverified; historical marks below and
+passing automated tests do not fill them in. See
+[measurements and known limits](CANVAS_CANONICAL_WORKER.md).
+
+- [ ] **CP1 — Open/reopen.** Open Kohler from the launcher, then close and reopen
+  it. Check loading feedback, a useful map, and saved positions. Record initial
+  opening separately from navigation after the map has settled.
+- [ ] **CP2 — Floor and sheets.** Zoom in/out repeatedly, reverse direction and
+  pan across distant systems on Floor and an actual sheet. Look for stalls,
+  blank/teleporting cards, flickering detail or lost selection.
+- [ ] **CP3 — Offscreen navigation.** Search for a distant file and system; follow
+  file pills in chat and canvas references in the inbox. Repeat between far-apart
+  targets, issue a second target during a flight and interrupt with wheel/pan.
+  Check the latest request wins and the intended target remains selected.
+- [ ] **CP4 — Editing/persistence.** Move and resize a nested frame whose children
+  extend offscreen, edit a sheet, then Undo and reopen. Check child containment,
+  authored positions and changes made by both the human and agent paths.
+- [ ] **CP5 — Relationships.** On a sheet, expose relationships and pan through
+  crossings whose endpoints are outside the viewport. Check visible paths, arrows,
+  selection and endpoint geometry, including high-degree systems.
+- [ ] **CP6 — Workspace changes/live updates.** Navigate while an edit/index update
+  arrives, switch sheets/projects while preparation is pending, and open an empty
+  project. No previous-project shapes or stale navigation should reappear. If a
+  preparation/save error occurs, check the notice and explicit Retry recovery.
+- [ ] **CP7 — Longer session.** Revisit the same views and search targets for
+  10–20 minutes with normal editing/activity. Record whether responsiveness or
+  memory steadily worsens and whether reopening changes it. This observation
+  supplements the [retention fix and automated memory checks](CANVAS_COLD_ADOPTION.md);
+  it does not certify a memory plateau for every project.
+
+The Oct 24 [final-adoption follow-up](CANVAS_FINAL_ADOPTION.md) adds cooperative
+canonical indexes and removes redundant idle overlays/persistence checks. Its
+100k cold-input gate is still inconsistent. CP1–CP7 remain human rechecks;
+automated results do not mark them complete. During CP3/CP4, also activate and
+clear runtime/slice/focus/trace overlays and check selection, tint, authored
+geometry and saved positions after a model update.
+
+- [~] **CP8 — Initial-mapping review mouse pan.** Max found hitches after the
+  first mapping, while approving/sending back systems; Floor mouse pan and review
+  WASD felt smooth. The targeted fix, originally on `codex/review-pointer-pan`,
+  is included in the Oct 26 consolidated main delivery;
+  [evidence and scope](REVIEW_POINTER_PAN.md). Recheck primary and
+  middle mouse pans, direction reversals, Shift selection, node drag/resize and
+  approval/send-back on the real project after pulling main. Decorative
+  shadows may disappear during a camera drag and must return on release.
+
+For a regression, report CP ID, tested main commit, project/sheet, OS/hardware,
+display refresh, the action sequence, whether the scene was still preparing,
+and whether it repeats after reopening. Add the finding to WORK Inbox. Keep
+cold opening, warm camera motion and navigation-flight behavior distinct.
+
 ## A. Camera and viewport
 
 - [x] **A1** Wheel zoom over empty pane - flow point under cursor stays under cursor
@@ -43,7 +102,9 @@ Status: `[ ]` untested · `[x]` verified good · `[!]` bug found · `[~]` fixed,
 > the selected node's chrome stays correct and its body renders blank. Caught on
 > camera at zoom ~7.98x. Stopped reproducing immediately after `sceneDiagnostics`
 > was added, but that tracer is read-only and cannot fix rendering - treat it as
-> **masked, not fixed**. If it returns, `[scene-move]` warns with the source
+> **masked, not fixed**. The full geometry tracer is now opt-in because profiling
+> found substantial full-scene diff work. Enable `window.__ambioSceneDebug = true`
+> before reproducing; `[scene-move]` then warns with the source
 > label; leading suspects are `integrity-restore:no-visible-root` and
 > `layout-rebuild`.
 

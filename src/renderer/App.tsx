@@ -1,3 +1,4 @@
+import { decodeCanvasSnapshot } from './store/snapshotLoader'
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
@@ -23,7 +24,6 @@ import { HomeScreen } from './screens/HomeScreen'
 import { ProjectSetupScreen } from './screens/ProjectSetupScreen'
 import { ProjectReviewScreen } from './screens/ProjectReviewScreen'
 import { ConnectAgentScreen } from './screens/ConnectAgentScreen'
-import { readAuthorship } from './canvas/architectureAuthorship.ts'
 import { isCanvasSourceFile } from '../shared/fileKinds'
 import {
   migrateLegacyProjectLifecycle,
@@ -56,7 +56,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { demoSnapshot } from './demo/demoGraph'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { archdApi, archdWs } from './archdEndpoint.ts'
-import { clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
+import { canRedo, canUndo, clearUndo, redoNext, undoLast } from './canvas/undoStack.ts'
 
 const APP_PARAMS = new URLSearchParams(window.location.search)
 const E2E_MODE = APP_PARAMS.get('e2e') === '1'
@@ -203,11 +203,18 @@ export default function App() {
   const [initialJourneyProjectId, setInitialJourneyProjectId] = useState<string | null>(null)
   const [browsingWithoutAgent, setBrowsingWithoutAgent] = useState<string | null>(null)
   const [agentSetupOpen, setAgentSetupOpen] = useState(false)
-  const sourceGraphFiles = useMemo(() => graphFiles.filter(isCanvasSourceFile), [graphFiles])
-  const architectureIsAuthored = readAuthorship({
-    systems: graphSystems,
-    files: sourceGraphFiles,
-  }).authored > 0
+  // This lifecycle decision needs only authored-system presence. Computing the
+  // full authorship summary would classify and count every file on cold load.
+  const architectureIsAuthored = useMemo(
+    () => graphSystems.some(system => system.source === 'user' || system.source === 'agent'),
+    [graphSystems],
+  )
+  // Setup needs an exact source count, but the canvas does not. Keep it lazy
+  // and memoized so setup status updates do not repeatedly classify the files.
+  const getSourceGraphFileCount = useMemo(() => {
+    let count: number | undefined
+    return () => count ??= graphFiles.reduce((total, file) => total + Number(isCanvasSourceFile(file)), 0)
+  }, [graphFiles])
 
   const {
     applySnapshot,
@@ -239,6 +246,12 @@ export default function App() {
       // E2E-only affordance: expose the store so tests can drive live patches
       // (graph:patch choreography) deterministically without a real daemon.
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
+      ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
+      ;(window as unknown as { __ambioDecodeSnapshot?: unknown }).__ambioDecodeSnapshot = decodeCanvasSnapshot
+      // A move reaches Edit → Undo once it is saved, a beat after it shows,
+      // and an undo reaches Redo once its own save returns.
+      ;(window as unknown as { __ambioCanUndo?: unknown }).__ambioCanUndo = canUndo
+      ;(window as unknown as { __ambioCanRedo?: unknown }).__ambioCanRedo = canRedo
       return
     }
     if (!window.ambio) {
@@ -340,6 +353,7 @@ export default function App() {
       // Decision and layout writes update their own store. A new proposal
       // refreshes the invitation even when Ambio was already open.
       const proposalStore = useProposalStore.getState()
+      if (proposalStore.pinned?.workspaceId === currentProject.id && proposalStore.pinned.id !== notice.proposalId) return
       if (proposalStore.proposal?.id !== notice.proposalId) void proposalStore.load(currentProject.id)
     }
     const refreshProposal = async () => {
@@ -347,6 +361,7 @@ export default function App() {
         const response = await fetch(`${archdApi()}/api/architecture-proposals?workspace=${encodeURIComponent(currentProject.id)}`)
         if (!response.ok) return
         const proposals = await response.json() as Array<{ id: string }>
+        if (useProposalStore.getState().pinned?.workspaceId === currentProject.id) return
         const head = proposals[0]
         if (head && useProposalStore.getState().proposal?.id !== head.id) {
           await useProposalStore.getState().load(currentProject.id)
@@ -858,45 +873,49 @@ export default function App() {
   if (projectSettingsFor) {
     const editingOpenProject = currentProject?.id === projectSettingsFor.id
     return (
-      <ProjectSetupScreen
-        key={projectSettingsFor.id}
-        mode="edit"
-        baseConfig={projectSettingsFor}
-        backLabel={editingOpenProject ? 'Canvas' : 'Projects'}
-        onReindex={editingOpenProject ? () => { setProjectSettingsFor(null); emitCommand('project.reindex') } : undefined}
-        onBackupRestored={() => {
-          const restored = projectSettingsFor
-          setProjectSettingsFor(null)
-          // The open map was swapped underneath the canvas; reopen it.
-          if (editingOpenProject) void closeProject().then(() => routeProjectBySourceBoundaryState(restored))
-          else raiseNotice('backup-restored', 'Backup restored', `${restored.name} opens with the restored map.`)
-        }}
-        onCancel={() => setProjectSettingsFor(null)}
-        onConfirm={updated => {
-          setProjectSettingsFor(null)
-          if (editingOpenProject) {
-            // Re-registering with archd applies the new scope as a quiet re-scan.
-            void openProject(updated)
-            return
-          }
-          void window.ambio?.updateProject(updated.id, {
-            name: updated.name,
-            ignoredPaths: updated.ignoredPaths,
-            sourceBoundariesReviewedAt: updated.sourceBoundariesReviewedAt,
-          }).catch(error => raiseFailure('project-settings', 'Could not save project settings', String(error)))
-        }}
-      />
+      <ErrorBoundary resetKey={`settings:${projectSettingsFor.id}`} leave={{ label: editingOpenProject ? 'Back to canvas' : 'Back to projects', onLeave: () => setProjectSettingsFor(null) }}>
+        <ProjectSetupScreen
+          key={projectSettingsFor.id}
+          mode="edit"
+          baseConfig={projectSettingsFor}
+          backLabel={editingOpenProject ? 'Canvas' : 'Projects'}
+          onReindex={editingOpenProject ? () => { setProjectSettingsFor(null); emitCommand('project.reindex') } : undefined}
+          onBackupRestored={() => {
+            const restored = projectSettingsFor
+            setProjectSettingsFor(null)
+            // The open map was swapped underneath the canvas; reopen it.
+            if (editingOpenProject) void closeProject().then(() => routeProjectBySourceBoundaryState(restored))
+            else raiseNotice('backup-restored', 'Backup restored', `${restored.name} opens with the restored map.`)
+          }}
+          onCancel={() => setProjectSettingsFor(null)}
+          onConfirm={updated => {
+            setProjectSettingsFor(null)
+            if (editingOpenProject) {
+              // Re-registering with archd applies the new scope as a quiet re-scan.
+              void openProject(updated)
+              return
+            }
+            void window.ambio?.updateProject(updated.id, {
+              name: updated.name,
+              ignoredPaths: updated.ignoredPaths,
+              sourceBoundariesReviewedAt: updated.sourceBoundariesReviewedAt,
+            }).catch(error => raiseFailure('project-settings', 'Could not save project settings', String(error)))
+          }}
+        />
+      </ErrorBoundary>
     )
   }
 
   // Project setup configuration screen (after folder picked, before indexing)
   if (pendingSetup && currentProject?.id !== pendingSetup.id) {
     return (
-      <ProjectSetupScreen
-        baseConfig={pendingSetup}
-        onConfirm={confirmSetup}
-        onCancel={cancelSetup}
-      />
+      <ErrorBoundary resetKey={`setup:${pendingSetup.id}`} leave={{ label: 'Back to projects', onLeave: cancelSetup }}>
+        <ProjectSetupScreen
+          baseConfig={pendingSetup}
+          onConfirm={confirmSetup}
+          onCancel={cancelSetup}
+        />
+      </ErrorBoundary>
     )
   }
 
@@ -909,25 +928,27 @@ export default function App() {
   // Home screen when no project is open
   if (!currentProject) {
     return (
-      <HomeScreen
-        request={launcherRequest}
-        onEditProject={setProjectSettingsFor}
-        onOpenProject={(config) => {
-          void routeProjectBySourceBoundaryState(config)
-        }}
-        onOpenDialog={openProjectDialog}
-        onCreateProject={(config) => {
-          // A brand-new project has no source boundaries to choose, but it still
-          // needs a live agent before the user begins on its empty Floor.
-          const completed = completeSourceBoundaries({
-            ...config,
-            creationSource: 'new-project',
-            rootIsEmpty: true,
-          }, [])
-          setCreatedProjectId(completed.id)
-          openProject(completed)
-        }}
-      />
+      <ErrorBoundary resetKey="home">
+        <HomeScreen
+          request={launcherRequest}
+          onEditProject={setProjectSettingsFor}
+          onOpenProject={(config) => {
+            void routeProjectBySourceBoundaryState(config)
+          }}
+          onOpenDialog={openProjectDialog}
+          onCreateProject={(config) => {
+            // A brand-new project has no source boundaries to choose, but it still
+            // needs a live agent before the user begins on its empty Floor.
+            const completed = completeSourceBoundaries({
+              ...config,
+              creationSource: 'new-project',
+              rootIsEmpty: true,
+            }, [])
+            setCreatedProjectId(completed.id)
+            openProject(completed)
+          }}
+        />
+      </ErrorBoundary>
     )
   }
 
@@ -942,45 +963,51 @@ export default function App() {
     : !architectureIsAuthored && browsingWithoutAgent !== currentProject.id)
   if (currentProject && (E2E_CONNECT || (!E2E_MODE && (agentSetupOpen || needsAgentSetup)))) {
     return (
-      <ConnectAgentScreen
-        project={currentProject}
-        fileCount={sourceGraphFiles.length}
-        indexing={graphIndexing}
-        blankProject={blankProject}
-        backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
-        onComplete={() => {
-          void window.ambio?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
-            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
-            .catch(error => raiseFailure('agent-setup-save', 'Could not save agent setup', String(error)))
-          setCompletedAgentSetupId(currentProject.id)
-          setAgentSetupOpen(false)
-        }}
-        onReview={() => { setBrowsingWithoutAgent(currentProject.id); setAgentSetupOpen(false) }}
-        onSkip={() => {
-          setBrowsingWithoutAgent(currentProject.id)
-          setAgentSetupOpen(false)
-          void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
-            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
-            .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
-          setReviewActive(false)
-        }}
-        onBack={agentSetupOpen ? () => setAgentSetupOpen(false) : closeProject}
-      />
+      <ErrorBoundary resetKey={`connect:${currentProject.id}`} leave={agentSetupOpen
+        ? { label: 'Back to canvas', onLeave: () => setAgentSetupOpen(false) }
+        : { label: 'Back to projects', onLeave: () => { void closeProject() } }}>
+        <ConnectAgentScreen
+          project={currentProject}
+          fileCount={getSourceGraphFileCount()}
+          indexing={graphIndexing}
+          blankProject={blankProject}
+          backLabel={agentSetupOpen ? '← Canvas' : '← Projects'}
+          onComplete={() => {
+            void window.ambio?.completeProjectLifecycle(currentProject.id, 'agentSetupCompletedAt')
+              .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+              .catch(error => raiseFailure('agent-setup-save', 'Could not save agent setup', String(error)))
+            setCompletedAgentSetupId(currentProject.id)
+            setAgentSetupOpen(false)
+          }}
+          onReview={() => { setBrowsingWithoutAgent(currentProject.id); setAgentSetupOpen(false) }}
+          onSkip={() => {
+            setBrowsingWithoutAgent(currentProject.id)
+            setAgentSetupOpen(false)
+            void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+              .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+              .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
+            setReviewActive(false)
+          }}
+          onBack={agentSetupOpen ? () => setAgentSetupOpen(false) : closeProject}
+        />
+      </ErrorBoundary>
     )
   }
 
   if (currentProject && reviewActive) {
     return (
-      <ProjectReviewScreen
-        project={currentProject}
-        onFinishReview={() => {
-          void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
-            .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
-            .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
-          setReviewActive(false)
-        }}
-        onBack={() => setBrowsingWithoutAgent(null)}
-      />
+      <ErrorBoundary resetKey={`review:${currentProject.id}`} leave={{ label: 'Back to projects', onLeave: () => { void closeProject() } }}>
+        <ProjectReviewScreen
+          project={currentProject}
+          onFinishReview={() => {
+            void window.ambio?.completeProjectLifecycle(currentProject.id, 'reviewCompletedAt')
+              .then(updated => setCurrentProject(current => current?.id === updated.id ? updated : current))
+              .catch(error => raiseFailure('review-save', 'Could not save review completion', String(error)))
+            setReviewActive(false)
+          }}
+          onBack={() => setBrowsingWithoutAgent(null)}
+        />
+      </ErrorBoundary>
     )
   }
 

@@ -34,6 +34,8 @@ export function ProposalReviewCanvas({
   const saveLayouts = useProposalStore(state => state.saveLayouts)
   const selectedSystemKey = useProposalStore(state => state.selectedSystemKey)
   const selectSystem = useProposalStore(state => state.selectSystem)
+  const focusToken = useProposalStore(state => state.focusToken)
+  const focusedSystemKey = useProposalStore(state => state.focusedSystemKey)
 
   const systemKeyByNodeId = useMemo(() => new Map(proposal.systems.map(system => [
     systemNodeId(proposal.id, system.systemKey), system.systemKey,
@@ -161,10 +163,14 @@ export function ProposalReviewCanvas({
     selectedNodeId: selectedSystemKey
       ? systemNodeId(proposal.id, selectedSystemKey)
       : null,
+    focusNodeId: focusedSystemKey
+      ? systemNodeId(proposal.id, focusedSystemKey)
+      : null,
+    focusToken,
     onSelectNode,
     onPreviewLayouts,
     onSaveLayouts,
-  }), [proposal.id, proposal.workspaceId, model, indexedFiles, placedBinFileIds, floorLayouts, editableNodeIds, selectedSystemKey, onSelectNode, onPreviewLayouts, onSaveLayouts])
+  }), [proposal.id, proposal.workspaceId, model, indexedFiles, placedBinFileIds, floorLayouts, editableNodeIds, selectedSystemKey, focusedSystemKey, focusToken, onSelectNode, onPreviewLayouts, onSaveLayouts])
 
   return <AmbioCanvas reviewScene={reviewScene} />
 }

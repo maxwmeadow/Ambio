@@ -3,8 +3,10 @@ import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, use
 import { useStoreApi, type Edge, type Node } from '@xyflow/react'
 import { unstable_batchedUpdates } from 'react-dom'
 import { createRenderBudgetStore } from './renderBudgetStore'
-import { buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
+import { buildRelationshipIndex, type RelationshipRecord, buildSceneIndex, cameraRect, contains, initialRootVisible, queryScene, sceneRecords, type CameraQuery, type SceneRecord, type ViewRect } from './renderBudgetGeometry'
 import { getPerfMetrics } from './perfMetrics'
+import type { SceneController } from './scene/sceneController'
+import { canonicalScene, preparedCanonicalScene, materializedIds, registerCanvasScene, releaseCanvasScene, type CanonicalScene } from './scene/canonicalScene'
 
 type BudgetStore = ReturnType<typeof createRenderBudgetStore>
 export const RenderBudgetContext = createContext<BudgetStore | null>(null)
@@ -17,40 +19,72 @@ export function useNodeRenderTier(id: string) {
   return { tier, promote: () => budget?.promote(id, false) }
 }
 
-function recordFor(node: Node): SceneRecord {
-  return {
-    id: node.id, parentId: node.parentId, x: node.position.x, y: node.position.y,
-    width: Number(node.style?.width ?? node.measured?.width ?? node.initialWidth ?? 1),
-    height: Number(node.style?.height ?? node.measured?.height ?? node.initialHeight ?? 1),
-    hidden: Boolean(node.hidden), kind: node.type ?? 'file',
-    detail: node.type === 'system' ? Boolean(node.data.childrenVisible) : Boolean(node.data.detailRevealed),
-  }
-}
-
-export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: readonly Edge[]) {
-  // React Flow needs mounted handle geometry for a relationship even when an
-  // endpoint is outside the viewport. Keep those cheap endpoint shells alive.
-  const edgeEndpoints = useMemo(() => new Set(edges.filter(edge => !edge.hidden && edge.style?.opacity !== 0)
-    .flatMap(edge => [edge.source, edge.target])), [edges])
+export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: Edge[], transitioning = false, pinned: ReadonlySet<string>, sceneWorker: SceneController, decorate: (node: Node) => Node) {
+  const previousRelationships = useRef<RelationshipRecord[]>([])
+  const relationships = useMemo(() => {
+    const next = edges.filter(edge => !edge.hidden && edge.style?.opacity !== 0)
+      .map(({ id, source, target }) => ({ id, source, target }))
+    const previous = previousRelationships.current
+    if (previous.length === next.length && next.every((edge, i) => edge.id === previous[i].id && edge.source === previous[i].source && edge.target === previous[i].target)) return previous
+    previousRelationships.current = next
+    return next
+  }, [edges])
+  const edgeById = useMemo(() => new Map(edges.map(edge => [edge.id, edge])), [edges])
+  const edgeOrder = useMemo(() => new Map(edges.map((edge, i) => [edge.id, i])), [edges])
+  const [visibleEdges, setVisibleEdges] = useState<Set<string>>(new Set())
+  const selectedEdges = useMemo(() => edges.filter(edge => edge.selected).map(edge => edge.id), [edges])
+  const previousEdges = useRef<Edge[]>([])
+  const projectedEdges = useMemo(() => {
+    if (!enabled) return edges
+    const ids = new Set(visibleEdges)
+    for (const id of selectedEdges) ids.add(id)
+    if (transitioning) for (const edge of previousEdges.current) ids.add(edge.id)
+    const result = [...ids].map(id => edgeById.get(id)).filter((edge): edge is Edge => Boolean(edge))
+      .sort((a, b) => edgeOrder.get(a.id)! - edgeOrder.get(b.id)!)
+    previousEdges.current = result
+    return result
+  }, [edges, selectedEdges, edgeById, edgeOrder, enabled, visibleEdges, transitioning])
+  const edgeEndpoints = useMemo(() => new Set(projectedEdges.flatMap(edge => [edge.source, edge.target])), [projectedEdges])
   const flow = useStoreApi()
   const [budget] = useState(createRenderBudgetStore)
   budget.configure(enabled)
   const [visible, setVisible] = useState<Set<string> | null>(null)
-  const controller = useRef<{ update: (records: SceneRecord[]) => void } | null>(null)
-  const records = useMemo(() => traceSync('scene.records', () => nodes.map(recordFor), nodes.length), [nodes])
-  // Runtime/selection updates should not rebuild a spatial index.
-  const signature = useMemo(() => traceSync('scene.signature', () => JSON.stringify(records), records.length), [records])
+  const controller = useRef<{ update: (records: SceneRecord[], edges: RelationshipRecord[]) => void } | null>(null)
+  const spatialRevision = useRef(0)
+  const previousRecords = useRef<SceneRecord[]>([])
+  const prepared = preparedCanonicalScene(nodes)
+  const records = useMemo(() => traceSync('scene.records', () => {
+    const next = prepared?.records ?? sceneRecords(nodes, previousRecords.current)
+    previousRecords.current = next
+    return next
+  }, nodes.length), [nodes])
+  const previousScene = useRef<CanonicalScene>()
+  const scene = useMemo(() => prepared ?? canonicalScene(nodes, records, previousScene.current), [nodes, records])
+  previousScene.current = scene
+  useLayoutEffect(() => {
+    registerCanvasScene(flow, scene)
+    return () => releaseCanvasScene(flow, scene)
+  }, [flow, scene])
+  const priority = useMemo(() => {
+    const ids = new Set<string>()
+    for (const node of nodes) if (node.selected || node.dragging || node.data.fx || node.data.relationshipFocus ||
+      (node.data.agentPresence as unknown[] | undefined)?.length || node.data.isDropTarget) ids.add(node.id)
+    return ids
+  }, [nodes])
   const latestRecords = useRef(records); latestRecords.current = records
+  const latestRelationships = useRef(relationships); latestRelationships.current = relationships
   const metrics = getPerfMetrics()
-  const projectionCache = useRef(new Map<string, { source: Node; hidden: boolean; node: Node }>())
+  const projectionCache = useRef(new Map<string, { source: Node; hidden: boolean; node: Node; decorate: (node: Node) => Node }>())
+  const previousProjection = useRef<Node[]>([])
 
   useLayoutEffect(() => {
     if (!enabled) { setVisible(null); return }
     let disposed = false, scene = 0, request = 0, accepted = 0
     let queryFrame = 0, mountFrame = 0, settleTimer = 0, retainTimer = 0
     let bounds: ViewRect | null = null, indexedZoom = 0, lastMove = 0, flightUntil = 0
-    let source: SceneRecord[] = [], local: ReturnType<typeof buildSceneIndex> | undefined
-    let worker: Worker | undefined
+    let source: SceneRecord[] = [], sourceEdges: RelationshipRecord[] = [], localEdges: ReturnType<typeof buildRelationshipIndex> | undefined, local: ReturnType<typeof buildSceneIndex> | undefined
+    let currentIds = new Set<string>()
+    let worker = false, workerFailed = false
     const sentQueries = new Map<number, number>()
     let recent = new Map<string, number>()
     let mountLimit = 4, lastAdmissionAt = 0
@@ -72,12 +106,13 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       lastAdmissionAt = now
       if (result.pending) mountFrame = requestAnimationFrame(admit)
     }
-    const receive = (message: { scene: number; request: number; bounds: ViewRect; zoom: number; visible: Array<{ id: string; tier: 0 | 1 | 2 }> }) => {
+    const receive = (message: { scene: number; request: number; bounds: ViewRect; zoom: number; edgeIds: string[]; visible: Array<{ id: string; tier: 0 | 1 | 2 }> }) => {
       if (disposed || message.scene !== scene || message.request < accepted) return
       // During a fast flight, an older buffer may no longer cover the camera.
       if (!contains(message.bounds, cameraRect(camera()))) { schedule(true); return }
       accepted = message.request; bounds = message.bounds; indexedZoom = message.zoom
-      const now = performance.now(), currentIds = new Set(source.filter(r => !r.hidden).map(r => r.id))
+      setVisibleEdges(previous => previous.size === message.edgeIds.length && message.edgeIds.every(id => previous.has(id)) ? previous : new Set(message.edgeIds))
+      const now = performance.now()
       const next = new Set(message.visible.map(r => r.id))
       for (const id of next) recent.set(id, now)
       // Keep at most one recent screenful, for a short grace period.
@@ -103,11 +138,13 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
           sentQueries.set(currentRequest, performance.now())
           if (sentQueries.size > 256) sentQueries.delete(sentQueries.keys().next().value!)
         }
-        worker.postMessage({ op: 'query', scene, request: currentRequest, camera: q, trace: perfTrace.enabled() })
+        sceneWorker.post({ op: 'query', scene, request: currentRequest, camera: q, trace: perfTrace.enabled() })
       }
       else {
+        if (source.length > 2000 || sourceEdges.length > 2000) { sceneWorker.notifyUnavailable(); return }
         local ??= buildSceneIndex(source)
-        receive({ scene, request: currentRequest, ...queryScene(local, q) })
+        localEdges ??= buildRelationshipIndex(local, sourceEdges)
+        receive({ scene, request: currentRequest, ...queryScene(local, q), edgeIds: queryScene(localEdges, q).visible.map(row => row.id) })
       }
     }
     function schedule(force = false) {
@@ -115,27 +152,34 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       if (!force && bounds && contains(bounds, cameraRect(q, 100)) && Math.abs(Math.log(q.zoom / indexedZoom)) < .12) return
       if (!queryFrame) queryFrame = requestAnimationFrame(query)
     }
-    const update = (next: SceneRecord[]) => {
-      source = next; scene++; bounds = null; local = undefined
-      if (worker) traceSync('worker.scene-post', () => worker!.postMessage({ op: 'scene', scene, records: source, trace: perfTrace.enabled() }), source.length)
+    const update = (next: SceneRecord[], edges: RelationshipRecord[]) => {
+      if (source === next && sourceEdges === edges) return
+      const changed = source !== next
+      source = next; sourceEdges = edges; scene = ++spatialRevision.current; bounds = null; localEdges = undefined
+      if (changed) {
+        local = undefined
+        currentIds = new Set(next.filter(record => !record.hidden).map(record => record.id))
+      }
+      if (worker) traceSync('worker.scene-post', () => sceneWorker.post({ op: 'scene', scene,
+        ...(changed ? { records: source } : {}), relationships: edges, trace: perfTrace.enabled() }), source.length)
       schedule(true)
     }
-    try {
-      if (!(globalThis as { __ambioDisableRenderWorker?: boolean }).__ambioDisableRenderWorker) {
-        worker = new Worker(new URL('./renderBudget.worker.ts', import.meta.url), { type: 'module' })
-        worker.onmessage = event => {
-          metrics.workerQueries++
-          const sent = sentQueries.get(event.data.request)
-          if (sent !== undefined) { perfTrace.record('worker.round-trip', performance.now() - sent); sentQueries.delete(event.data.request) }
-          if (event.data.timing?.indexMs !== undefined) perfTrace.record('worker.index', event.data.timing.indexMs, source.length)
-          if (event.data.timing?.queryMs !== undefined) perfTrace.record('worker.query', event.data.timing.queryMs)
-          receive(event.data)
-        }
-        worker.onerror = () => { worker?.terminate(); worker = undefined; metrics.workerFallbacks++; schedule(true) }
-      }
-    } catch { metrics.workerFallbacks++ }
+    const stopWorkerSubscription = sceneWorker.subscribe(data => {
+      metrics.workerQueries++
+      const sent = sentQueries.get(data.request)
+      if (sent !== undefined) { perfTrace.record('worker.round-trip', performance.now() - sent); sentQueries.delete(data.request) }
+      if (data.timing?.indexMs !== undefined) perfTrace.record('worker.index', data.timing.indexMs, source.length)
+      if (data.timing?.queryMs !== undefined) perfTrace.record('worker.query', data.timing.queryMs)
+      receive(data)
+    }, () => {
+      if (workerFailed) return
+      workerFailed = true; worker = false; metrics.workerFallbacks++
+      if (source.length <= 2000 && sourceEdges.length <= 2000) schedule(true)
+    })
+    worker = sceneWorker.available()
+    if (!worker) metrics.workerFallbacks++
     controller.current = { update }
-    update(latestRecords.current)
+    update(latestRecords.current, latestRelationships.current)
     const element = flow.getState().domNode
     const prewarm = (event: Event) => {
       const detail = (event as CustomEvent<{ nodeId: string; duration: number }>).detail
@@ -160,7 +204,7 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       settleTimer = window.setTimeout(() => schedule(true), 130)
     })
     return () => {
-      disposed = true; controller.current = null; worker?.terminate(); unsubscribe()
+      disposed = true; controller.current = null; stopWorkerSubscription(); unsubscribe()
       element?.removeEventListener('ambio:camera-prewarm', prewarm)
       element?.removeEventListener('wheel', interrupt)
       element?.removeEventListener('pointerdown', interrupt)
@@ -168,34 +212,39 @@ export function useCanvasRenderBudget(nodes: Node[], enabled: boolean, edges: re
       clearTimeout(settleTimer); clearTimeout(retainTimer)
       budget.clear()
     }
-  }, [enabled, flow, budget, metrics])
-  useLayoutEffect(() => { controller.current?.update(latestRecords.current) }, [signature])
+  }, [enabled, flow, budget, metrics, sceneWorker])
+  useLayoutEffect(() => { controller.current?.update(latestRecords.current, latestRelationships.current) }, [records, relationships])
 
   const projected = useMemo(() => traceSync('scene.visibility-project', () => {
-    if (!enabled) return nodes
+    if (!enabled) {
+      projectionCache.current.clear()
+      const result = nodes.map(decorate)
+      previousProjection.current = result
+      return result
+    }
     const previous = projectionCache.current
     const state = flow.getState()
     const initialCamera: CameraQuery = { x: state.transform[0], y: state.transform[1], zoom: state.transform[2], width: state.width, height: state.height, moving: true }
-    const next = new Map<string, { source: Node; hidden: boolean; node: Node }>()
-    const result = nodes.map(node => {
-      // Selection, gestures and live signals have priority over the background
-      // budget. A hidden semantic descendant stays hidden unless explicitly
-      // revealed by the existing navigation/activity projection.
-      const important = edgeEndpoints.has(node.id) || node.selected || node.dragging || node.data.fx || (node.data.agentPresence as unknown[] | undefined)?.length || node.data.isDropTarget
-      const hidden = Boolean(node.hidden) || !(important || (visible ? visible.has(node.id) : initialRootVisible(recordFor(node), initialCamera)))
-      const old = previous.get(node.id)
-      if (old?.source === node && old.hidden === hidden) { next.set(node.id, old); return old.node }
-      const width = Number(node.style?.width ?? node.initialWidth), height = Number(node.style?.height ?? node.initialHeight)
-      const projectedNode = { ...node, hidden,
-        data: hidden && !node.hidden ? { ...node.data, renderBudgetHidden: true } : node.data,
-        // Authored dimensions are already canonical. Avoid force-mounting
-        // off-screen wrappers simply to discover their initial size.
-        measured: width > 0 && height > 0 ? { width, height, ...node.measured } : node.measured }
-      next.set(node.id, { source: node, hidden, node: projectedNode })
+    const bootstrap = visible ?? records.filter(record => initialRootVisible(record, initialCamera)).map(record => record.id)
+    const ids = materializedIds(scene, bootstrap, [...priority, ...pinned, ...edgeEndpoints],
+      transitioning ? previousProjection.current.map(node => node.id) : [])
+    const wanted = new Set(ids)
+    const result = ids.map(id => {
+      const source = scene.byId.get(id)!
+      const old = previous.get(id)
+      if (old?.source === source && old.decorate === decorate) return old.node
+      const node = decorate(source)
+      const rect = scene.rects.get(id)!
+      const projectedNode = { ...node,
+        measured: { width: rect.width, height: rect.height, ...node.measured } }
+      previous.set(id, { source, hidden: Boolean(node.hidden), node: projectedNode, decorate })
       return projectedNode
     })
-    projectionCache.current = next
+    for (const id of previous.keys()) if (!wanted.has(id)) previous.delete(id)
+    const prior = previousProjection.current
+    if (prior.length === result.length && result.every((node, index) => node === prior[index])) return prior
+    previousProjection.current = result
     return result
-  }, nodes.length), [nodes, enabled, visible, edgeEndpoints, flow])
-  return { nodes: projected, budget }
+  }, nodes.length), [nodes, records, scene, enabled, visible, priority, pinned, edgeEndpoints, transitioning, flow, decorate])
+  return { nodes: projected, edges: projectedEdges, budget }
 }

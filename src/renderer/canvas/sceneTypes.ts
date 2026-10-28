@@ -47,6 +47,8 @@ export interface AgentPresence {
 }
 
 export interface SystemNodeData {
+  /** Review has no endpoints; disabled Floor/sheet endpoints still mount. */
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean
   id: string
@@ -54,6 +56,8 @@ export interface SystemNodeData {
   /** On a sheet that proposes a rename: the name the map has today. */
   renamedFrom?: string
   source: DbSystem['source']
+  /** "repository" for the frame holding one repository in a project. */
+  kind?: string
   color: string
   colorRgb: string
   description: string | null
@@ -113,9 +117,12 @@ export interface SystemNodeData {
 }
 
 export interface FileNodeData {
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean
   id: string
+  /** The indexed file whose symbols and source this card shows; its own id when absent. */
+  sourceFileId?: string
   label: string
   relPath: string
   language: string
@@ -155,6 +162,7 @@ export interface FileNodeData {
 }
 
 export interface InfraNodeData {
+  omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   id: string
   label: string

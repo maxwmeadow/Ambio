@@ -1,6 +1,7 @@
 import React from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Handle, Position, useStoreApi, type NodeProps } from '@xyflow/react'
 import { useNodeRenderTier } from '../useCanvasRenderBudget'
+import { REVEAL_MOTION, revealEntranceElapsed } from '../semanticZoom'
 import { ShapeBackdrop } from './NodeShell'
 import { LanguageIcon } from '../languages'
 import { fitPresentationScale } from '../resizeGeometry'
@@ -10,6 +11,13 @@ import { SystemNode } from './SystemNode'
 import { InfraNode } from './InfraNode'
 import { getPerfMetrics } from '../perfMetrics'
 import { SheetChangeBadge } from './SheetChangeBadge'
+import { BranchOverlayMark } from './BranchOverlayMark'
+import { useCheckoutStore } from '../../store/checkoutStore'
+
+function CompactBranchMark({ id }: { id: string }) {
+  const marks = useCheckoutStore(state => state.overlayByFile.get(id))
+  return <BranchOverlayMark marks={marks} />
+}
 
 /** Geometry and a cheap identity remain available while rich content waits for
  * admission. Selection/hover/activity promotes the actual editable component. */
@@ -27,6 +35,7 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
     onPointerEnter={props.promote} style={{ position: 'relative', width: '100%', height: '100%',
       opacity: d.dimmed ? (system ? .3 : .22) : 1 }}>
     <SheetChangeBadge change={d.sheetChange} width={width} />
+    {file && <CompactBranchMark id={String(d.sourceFileId ?? props.id)} />}
     <div style={{ position: 'absolute', inset: 0, width: `${100 / scale}%`, height: `${100 / scale}%`,
       transform: `scale(${scale})`, transformOrigin: 'top left', isolation: 'isolate' }}>
       <ShapeBackdrop shape={shape} fill="var(--bg-surface)" stroke={color} width={width / scale} height={height / scale} />
@@ -39,7 +48,7 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
           lineHeight: 1.1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{label}</span>
       </div>}
     </div>
-    {(['source', 'target'] as const).flatMap(type => [
+    {!d.omitConnectionHandles && (['source', 'target'] as const).flatMap(type => [
       <Handle key={type + '-top'} id={type + '-top'} type={type} position={Position.Top} {...connectionHandleProps(props.isConnectable, scale)} />,
       <Handle key={type + '-right'} id={type + '-right'} type={type} position={Position.Right} {...connectionHandleProps(props.isConnectable, scale)} />,
       <Handle key={type + '-bottom'} id={type + '-bottom'} type={type} position={Position.Bottom} {...connectionHandleProps(props.isConnectable, scale)} />,
@@ -48,8 +57,34 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
   </div>
 }
 
+/**
+ * A node that semantic zoom just brought out of hiding fades in once its parent
+ * system's name has cleared (REVEAL_MOTION). It mounts already visible, so a
+ * CSS transition never runs; the entrance is played on React Flow's wrapper on
+ * mount, from where the reveal is now. A node merely scrolled into view, or
+ * remounted later, has no entrance left to play.
+ */
+function useRevealEntrance(id: string, revealedAt: unknown) {
+  const flow = useStoreApi()
+  React.useLayoutEffect(() => {
+    const elapsed = revealEntranceElapsed(revealedAt, performance.now())
+    if (elapsed === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const wrapper = flow.getState().domNode?.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+    const entrance = wrapper?.animate([{ opacity: 0 }, { opacity: 1 }], {
+      delay: REVEAL_MOTION.contentDelayMs,
+      duration: REVEAL_MOTION.contentInMs,
+      easing: REVEAL_MOTION.easeOut,
+      fill: 'backwards',
+    })
+    if (entrance) entrance.currentTime = elapsed
+    return () => entrance?.cancel()
+    // Mount only: an entrance belongs to the reveal that mounted this node.
+  }, [])
+}
+
 function budgeted(Component: React.ComponentType<NodeProps>) {
   return React.memo(function BudgetedNode(props: NodeProps) {
+    useRevealEntrance(props.id, props.data.revealedAt)
     const { tier, promote } = useNodeRenderTier(props.id)
     const d = props.data
     // Active visual signals and gesture chrome retain their full fidelity.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MANUAL_DELIVERY, chooseDeliveryHost } from './agentDelivery.ts'
-import { canStartAgent, DRIVEN_CLI_NAMES } from './agentDelivery.ts'
+import { APP_CLIENTS, CLI_CLIENTS } from './agentDelivery.ts'
 import { agentDriver } from '../../electron/agentDrivers.ts'
 
 const host = (id, available = true) => ({ id, label: id, route: 'copy', available, detail: '' })
@@ -32,7 +32,7 @@ test('an agent that only reaches Ambio through its app is blocked until Ambio is
   const { deliveryReadiness, RUN_NEEDS_INSTALL } = await import('./agentDelivery.ts')
   const hosts = [
     { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true },
-    { id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true },
+    { id: 'claude-code', label: 'Claude Code CLI', route: 'run', available: true },
   ]
   const readiness = installedIds => deliveryReadiness({ hostId: 'antigravity-cli', hosts, installedIds, watchers: 0, watchingHosts: [] })
   assert.equal(RUN_NEEDS_INSTALL['antigravity-cli'].installer, 'antigravity')
@@ -43,9 +43,10 @@ test('an agent that only reaches Ambio through its app is blocked until Ambio is
   assert.equal(deliveryReadiness({ hostId: 'claude-code', hosts, installedIds: [], watchers: 0, watchingHosts: [] }).tone, 'ready')
 })
 test('setup and Settings classify launch support without depending on successful CLI discovery', () => {
-  for (const id of Object.keys(DRIVEN_CLI_NAMES)) {
-    assert.equal(canStartAgent(id), true)
-    assert.ok(agentDriver(id), `shared launch capability lacks a driver: ${id}`)
+  for (const { id } of CLI_CLIENTS) assert.ok(agentDriver(id), `shared launch capability lacks a driver: ${id}`)
+  for (const id of ['grok', 'muse']) assert.ok(CLI_CLIENTS.some(client => client.id === id), id)
+  for (const id of ['cursor', 'claude-desktop']) {
+    assert.equal(CLI_CLIENTS.some(client => client.id === id), false)
+    assert.ok(APP_CLIENTS.some(client => client.id === id), id)
   }
-  for (const id of ['cursor', 'claude-desktop']) assert.equal(canStartAgent(id), false)
 })

@@ -1,4 +1,5 @@
 import React from 'react'
+import { useCommitOnUnmount } from './useCommitOnUnmount'
 
 interface EditableNodeTitleProps {
   value: string
@@ -10,7 +11,7 @@ interface EditableNodeTitleProps {
 export function EditableNodeTitle({ value, onRename, style, title }: EditableNodeTitleProps) {
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(value)
-  const inputRef = React.useRef<HTMLInputElement>(null)
+  const inputRef = useCommitOnUnmount(commit)
 
   React.useEffect(() => {
     if (!editing) setDraft(value)
@@ -24,7 +25,7 @@ export function EditableNodeTitle({ value, onRename, style, title }: EditableNod
     input.setSelectionRange(end, end)
   }, [editing])
 
-  const commit = () => {
+  function commit() {
     const next = draft.trim()
     setEditing(false)
     if (next && next !== value) onRename?.(next)

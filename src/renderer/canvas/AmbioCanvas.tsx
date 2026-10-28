@@ -1,24 +1,14 @@
 /**
- * AmbioCanvas - Infinity-zoom codebase graph.
- *
- * Camera movement changes visibility and render tiers; canonical layout stays fixed.
- *
- * Sizing philosophy:
- *   - Leaf systems: fixed size by depth (LEAF_W/H)
- *   - Container systems: recursive bottom-up - sized to fit their actual children
- *   - Top-level: grid of depth-0 nodes with collision resolution
- *   Every level uses cols = ceil(sqrt(N)) for a square grid.
- *   Sizes cascade bottom-up: containers fit their children exactly.
- *
- * Zoom thresholds:
- *   Dynamically computed from actual layout sizes after each layout pass.
- *   threshold[d] = TARGET_SCREEN_PX / smallestNodeWidth[d-1]
- *   This means children appear when the smallest parent at that depth fills
- *   ~400px of viewport - a "late reveal" Google Maps feel.
- *   Transitions use continuous fade (opacity + scale + blur) over a 30% range.
+ * Ambio's nested canvas interaction controller. Numeric Floor/sheet geometry is
+ * prepared by the shared scene worker. Complete canonical geometry stays
+ * available independently of Flow's disposable viewport interaction subset.
+ * Camera movement changes semantic visibility and render tiers; authored layout
+ * remains fixed. Human and agent edits share the existing persistence paths.
  */
 import type { SheetChange } from './sceneTypes'
-import { traceSync } from './perfTrace'
+import { BASE_FILE_W, BASE_FILE_H, type GeneratedPlacement } from './scene/sceneGeometry'
+import { createSceneController } from './scene/sceneController'
+import { usePreparedFloorGeometry, type FloorModel } from './scene/usePreparedFloorGeometry'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -27,7 +17,6 @@ import {
   getViewportForBounds,
   Background,
   BackgroundVariant,
-  MiniMap,
   useReactFlow,
   useStoreApi,
   useNodesInitialized,
@@ -39,6 +28,7 @@ import {
   type OnNodeDrag,
   type OnMove,
   type Connection,
+  type OnConnectStart,
   applyNodeChanges,
   applyEdgeChanges,
   SelectionMode,
@@ -52,13 +42,16 @@ import { BudgetedSystemNode as SystemNode, BudgetedFileNode as FileNode, Budgete
 import { RenderBudgetContext, useCanvasRenderBudget } from './useCanvasRenderBudget'
 import { useCanvasFrameTiming } from './useCanvasFrameTiming'
 import { useCanvasFitView } from './useCanvasFitView'
+import { canvasScene, canonicalInternalNode } from './scene/canonicalScene'
+import { stampBooleanOverlay, stampRuntimeOverlay } from './nodeOverlays'
+import { CanvasMiniMap } from './CanvasMiniMap'
 import { OrthogonalEdge } from './edges/OrthogonalEdge'
 import { useGraphStore } from '../store/graphStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout, FloorNodeType } from '../../shared/types'
 import { isCanvasSourceFile } from '../../shared/fileKinds'
 import { BINNED_FILE_MIME, CanvasBins } from '../components/CanvasBins'
-import { partitionCanvasFiles } from './binModel'
+import { createLooseFileLookup, partitionCanvasFiles } from './binModel'
 import { dropOnFloorAt, registerFloorDropTarget, systemAtFloorPoint } from './binDropBridge'
 import { hideBinGhost, hideRealNode, moveBinGhost, showBinGhost } from './binDragGhost'
 import { GroupDialog } from '../components/GroupDialog'
@@ -80,15 +73,12 @@ import {
   apiAssignFile,
   apiRemoveFloorLayouts,
   apiSaveFloorLayouts,
-  apiSaveNodePosition,
-  apiUpdateSystem,
 } from './arcdApi'
-import { contentRectFor, FRAME_ITEM_GAP, FRAME_ROOT_GAP, frameContentInsets, normalizeGeometry } from './frameGeometry'
-import { packFrame, placeIncoming } from './packing'
+import { contentRectFor, FRAME_ITEM_GAP } from './frameGeometry'
+import { packFrame } from './packing'
 import { resizeChanged, type NodeResizeParams } from './resizeGeometry'
 import { planCanvasResize, replaceFloorLayouts, type ResizeSessionStart } from './resizePersistence'
-import { projectFloorNodes, type FloorSceneDescriptor } from './floorSceneProjection'
-import { canPersistGeneratedFrame, fitFrameAmongSiblings, orderFramePlacementCandidates, placeInfraBand } from './incrementalFrameLayout'
+import { canPersistGeneratedFrame } from './incrementalFrameLayout'
 import { INFRA_CARD_SIZE, PLATFORM_FRAME_SIZE } from './infraRoles'
 import { easeViewportTowardZoom, MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM, nextWheelZoomTarget, ZOOM_SNAP_EPSILON, zoomViewportAroundPoint } from './viewportMath'
 import {
@@ -103,6 +93,7 @@ import { planCanvasDrop } from './dropPersistence'
 import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
+import { useFlyToNode } from './useShowOnMap'
 import { compactSheetSystems } from './compactSheetSystems'
 import { useSheetView } from './sheetView'
 import { createSheetPresentation } from './sheetPresentation'
@@ -119,7 +110,7 @@ import { arrangeHosting, planHosting, type HostedChild } from './hostingPlan'
 import { readDetectedBy } from './infraRoles'
 import { InfraSidebar } from '../components/InfraSidebar'
 import { runCallouts } from './runTraceProjection'
-import { inspectFloorScene, partitionCanvasNodeChanges } from './sceneIntegrity'
+import { createFloorSceneInspector, partitionCanvasNodeChanges } from './sceneIntegrity'
 import { CANVAS_SCOPE_ATTR, useCanvasWasdPan } from './useCanvasWasdPan'
 import { canvasZoomChrome } from './canvasZoomChrome'
 import { recordCanvasRender, recordZoomVisibilityPass, recordSheetLayoutBuild } from './perfMetrics'
@@ -137,6 +128,7 @@ import {
   recordSceneMutation,
   sceneDeltaIsQuiet,
   sceneGeometry,
+  sceneTracingEnabled,
   type SceneNodeGeometry,
 } from './sceneDiagnostics'
 
@@ -171,6 +163,15 @@ export const NODE_TYPES: NodeTypes = {
 const EDGE_TYPES = {
   orthogonal: OrthogonalEdge as any,
 }
+// StoreUpdater writes changed prop identities into Flow one at a time. In
+// particular, an inline fitViewOptions object can overwrite a queued explicit
+// navigation before its node batch resolves. Keep default inputs stable.
+const INITIAL_FIT_OPTIONS = { padding: 0.14, maxZoom: 1.0 }
+const INITIAL_VIEWPORT = { x: 0, y: 0, zoom: 0.5 }
+const DEFAULT_EDGE_OPTIONS = { type: 'orthogonal' }
+const FLOW_PRO_OPTIONS = { hideAttribution: true }
+const MULTI_SELECTION_KEYS = ['Meta', 'Control', 'Shift']
+const SELECTION_PAN_BUTTONS = [1, 2]
 
 type MoveTraceRow = Record<string, string | number | boolean | null>
 
@@ -248,608 +249,7 @@ function renderedNodeRect(nodeId: string): DOMRect | null {
 //   height = n_rows * ch + (n_rows + 1) * gap
 // The header area equals one gap, so the formula is symmetric in all directions.
 
-export const BASE_FILE_W = 220   // cell width inside a depth-0 system
-export const BASE_FILE_H = 110   // cell height inside a depth-0 system
-const FILE_SCALE  = 2.0   // cell size halves each depth level
-
-/** Cell (file node) size at a given depth. */
-function fileNodeSize(depth: number): { w: number; h: number } {
-  const s = Math.pow(FILE_SCALE, Math.max(0, depth))
-  return {
-    w: Math.max(80, Math.round(BASE_FILE_W / s)),
-    h: Math.max(44, Math.round(BASE_FILE_H / s)),
-  }
-}
-
-/** Uniform gap between / around every cell at depth. Also the header height. */
-function gridGap(depth: number): number {
-  return Math.floor(fileNodeSize(Math.max(0, depth)).h / 2)
-}
-
-/** Total container width for n columns at depth: n*cw + (n+1)*gap */
-function containerW(n: number, depth: number): number {
-  const { w: cw } = fileNodeSize(depth)
-  const gap = gridGap(depth)
-  return n * cw + (n + 1) * gap
-}
-
-/** Total container height for n rows at depth: n*ch + (n+1)*gap */
-function containerH(n: number, depth: number): number {
-  const { h: ch } = fileNodeSize(depth)
-  const gap = gridGap(depth)
-  return n * ch + (n + 1) * gap
-}
-
-/** X position of column col inside a container at depth. */
-function cellX(col: number, depth: number): number {
-  const { w: cw } = fileNodeSize(depth)
-  const gap = gridGap(depth)
-  return (col + 1) * gap + col * cw
-}
-
-/** Y position of row inside a container at depth. */
-function cellY(row: number, depth: number): number {
-  const { h: ch } = fileNodeSize(depth)
-  const gap = gridGap(depth)
-  return (row + 1) * gap + row * ch
-}
-
-/** How many parent cells a child of naturalSize spans. */
-function wUnitsFor(naturalW: number, parentDepth: number): number {
-  const { w: cw } = fileNodeSize(parentDepth)
-  const gap = gridGap(parentDepth)
-  return Math.max(1, Math.ceil((naturalW + gap) / (cw + gap)))
-}
-function hUnitsFor(naturalH: number, parentDepth: number): number {
-  const { h: ch } = fileNodeSize(parentDepth)
-  const gap = gridGap(parentDepth)
-  return Math.max(1, Math.ceil((naturalH + gap) / (ch + gap)))
-}
-
-function snappedW(wUnits: number, parentDepth: number): number {
-  const { w: cw } = fileNodeSize(parentDepth)
-  const gap = gridGap(parentDepth)
-  return wUnits * (cw + gap) - gap
-}
-function snappedH(hUnits: number, parentDepth: number): number {
-  const { h: ch } = fileNodeSize(parentDepth)
-  const gap = gridGap(parentDepth)
-  return hUnits * (ch + gap) - gap
-}
-
-// ─── Alternate Axis Layout Algorithm ──────────────────────────────────────────
-
-interface LayoutNodeResult {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-const runAlternateAxisLayout: typeof runAlternateAxisLayoutImpl = (...args) => traceSync('scene.initial-packing', () => runAlternateAxisLayoutImpl(...args), args[0].length + args[1].length + args[2].length)
-
-function runAlternateAxisLayoutImpl(
-  systems: DbSystem[],
-  files: DbFile[],
-  infraNodes: DbInfraNode[],
-  dependencies: DbDependency[],
-  existingMap: Map<string, any>
-): Map<string, LayoutNodeResult> {
-  const rootParentOf = new Map<string, string>()
-
-  // Fill for systems
-  for (const s of systems) {
-    let cur = s
-    const visited = new Set<string>([cur.id])
-    while (cur.parentId) {
-      const p = systems.find(x => x.id === cur.parentId)
-      if (!p || visited.has(p.id)) break
-      visited.add(p.id)
-      cur = p
-    }
-    rootParentOf.set(s.id, cur.id)
-  }
-
-  // Fill for files
-  for (const f of files) {
-    if (f.systemId) {
-      const rootSysId = rootParentOf.get(f.systemId)
-      if (rootSysId) {
-        rootParentOf.set(f.id, rootSysId)
-      }
-    }
-  }
-
-  // Infra nodes map to themselves
-  for (const inf of infraNodes) {
-    rootParentOf.set(inf.id, inf.id)
-  }
-  const parentMap = new Map<string, string>()
-  for (const f of files) {
-    if (f.systemId) parentMap.set(f.id, f.systemId)
-  }
-  for (const s of systems) {
-    if (s.parentId) parentMap.set(s.id, s.parentId)
-  }
-
-  const childrenOf = new Map<string | null, DbSystem[]>()
-  for (const sys of systems) {
-    const key = sys.parentId ?? null
-    if (!childrenOf.has(key)) childrenOf.set(key, [])
-    childrenOf.get(key)!.push(sys)
-  }
-
-  const filesOf = new Map<string | null, DbFile[]>()
-  for (const f of files) {
-    const key = f.systemId ?? null
-    if (!filesOf.has(key)) filesOf.set(key, [])
-    filesOf.get(key)!.push(f)
-  }
-
-  const computedPositions = new Map<string, LayoutNodeResult>()
-  const computedSizes = new Map<string, { w: number; h: number }>()
-  // An explicit seed map means positions are authoritative. Inferring this
-  // from system-node metadata was brittle (sheet seeds and file-only sheets
-  // legitimately have no typed system entry) and caused every composition to
-  // rerun the root force layout.
-  const isTidy = existingMap.size === 0
-
-  const getSortKey = (id: string) => {
-    const ext = existingMap.get(id)
-    let x = 0, y = 0
-    if (ext?.position?.x !== undefined && ext?.position?.y !== undefined) {
-      x = ext.position.x
-      y = ext.position.y
-    } else {
-      const sys = systems.find(s => s.id === id)
-      if (sys?.positionX !== undefined && sys?.positionY !== undefined) {
-        x = sys.positionX
-        y = sys.positionY
-      } else {
-        const f = files.find(file => file.id === id)
-        if (f?.positionX !== undefined && f?.positionY !== undefined) {
-          x = f.positionX
-          y = f.positionY
-        } else {
-          const inf = infraNodes.find(i => i.id === id)
-          if (inf?.positionX !== undefined && inf?.positionY !== undefined) {
-            x = inf.positionX
-            y = inf.positionY
-          }
-        }
-      }
-    }
-    return y * 10000 + x
-  }
-
-  function layoutNode(systemId: string | null, depth: number) {
-    const childSystems = childrenOf.get(systemId) ?? []
-    const childFiles   = filesOf.get(systemId) ?? []
-    const childInfra   = systemId === null ? infraNodes : []
-
-    // Bottom-up: layout children before the parent
-    for (const cs of childSystems) layoutNode(cs.id, depth + 1)
-
-    // Empty system - minimum single-cell placeholder
-    if (childSystems.length === 0 && childFiles.length === 0 && childInfra.length === 0) {
-      if (systemId !== null) {
-        const d = Math.max(0, depth)
-        computedSizes.set(systemId, { w: containerW(1, d), h: containerH(1, d) })
-      }
-      return
-    }
-
-    if (systemId === null) {
-      // Populate computedSizes for root files
-      for (const f of childFiles) {
-        const fsz = fileNodeSize(0)
-        computedSizes.set(f.id, { w: fsz.w, h: fsz.h })
-      }
-
-      // Root canvas: check if we should keep user-defined positions
-      const rootItems = [
-        ...childSystems.map(s => ({ id: s.id })),
-        ...childFiles.map(f => ({ id: f.id })),
-        ...childInfra.map(i => ({ id: i.id })),
-      ]
-
-      if (!isTidy) {
-        // Keep existing/db positions
-        for (const item of rootItems) {
-          const ext = existingMap.get(item.id)
-          const sz = computedSizes.get(item.id) ?? { w: 400, h: 300 }
-          let x = 0, y = 0
-          if (ext?.position?.x !== undefined && ext?.position?.y !== undefined) {
-            x = ext.position.x
-            y = ext.position.y
-          } else {
-            const sys = systems.find(s => s.id === item.id)
-            if (sys && (sys.positionX !== 0 || sys.positionY !== 0)) {
-              x = sys.positionX
-              y = sys.positionY
-            } else {
-              const file = files.find(f => f.id === item.id)
-              if (file && (file.positionX !== 0 || file.positionY !== 0)) {
-                x = file.positionX
-                y = file.positionY
-              } else {
-                const inf = infraNodes.find(i => i.id === item.id)
-                if (inf && (inf.positionX !== 0 || inf.positionY !== 0)) {
-                  x = inf.positionX
-                  y = inf.positionY
-                }
-              }
-            }
-          }
-          computedPositions.set(item.id, { x, y, w: sz.w, h: sz.h })
-        }
-        return
-      }
-
-      // Tidy layout: arrange top-level nodes using force-directed layout + overlap resolution
-      // Sort root items deterministically by static UUID to ensure consistent starting states without alphabetical bias
-      rootItems.sort((a, b) => a.id.localeCompare(b.id))
-      const rootIds = rootItems.map(item => item.id)
-      const N = rootIds.length
-
-      if (N === 1) {
-        const id = rootIds[0]
-        const sz = computedSizes.get(id) ?? { w: 400, h: 300 }
-        computedPositions.set(id, { x: 0, y: 0, w: sz.w, h: sz.h })
-        return
-      }
-
-      if (N > 1) {
-        const positions = new Map<string, { x: number; y: number }>()
-
-        // Initialize positions in a circle (always start from the circle for a clean, deterministic tidy)
-        const radius = Math.max(400, N * 120)
-        rootIds.forEach((id, idx) => {
-          const angle = (2 * Math.PI * idx) / N
-          const x = radius * Math.cos(angle)
-          const y = radius * Math.sin(angle)
-          positions.set(id, { x, y })
-        })
-
-        // Coupling weight matrix
-        const weights = new Map<string, number>()
-        const getWeight = (id1: string, id2: string) => {
-          const key = id1 < id2 ? `${id1}::${id2}` : `${id2}::${id1}`
-          return weights.get(key) ?? 0
-        }
-        for (const dep of dependencies) {
-          const rSrc = rootParentOf.get(dep.src)
-          const rDst = rootParentOf.get(dep.dst)
-          if (rSrc && rDst && rSrc !== rDst && rootIds.includes(rSrc) && rootIds.includes(rDst)) {
-            const key = rSrc < rDst ? `${rSrc}::${rDst}` : `${rDst}::${rSrc}`
-            weights.set(key, (weights.get(key) ?? 0) + 1)
-          }
-        }
-
-        // Force simulation parameters
-        const ITERATIONS = 200
-        const K_REP = 1200000 // Repulsion force constant
-        const K_ATT = 0.08    // Attraction spring constant
-        const K_GRAV = 0.8 / N + 0.01 // Center gravity force (scales with node count)
-        const cooling = 0.98  // Slower cooling rate for stable migration
-        let temp = 150.0      // Annealing temperature starting value
-
-        for (let step = 0; step < ITERATIONS; step++) {
-          const forces = new Map<string, { fx: number; fy: number }>()
-          rootIds.forEach(id => forces.set(id, { fx: 0, fy: 0 }))
-
-          // Repulsion
-          for (let i = 0; i < N; i++) {
-            const idA = rootIds[i]
-            const posA = positions.get(idA)!
-            for (let j = i + 1; j < N; j++) {
-              const idB = rootIds[j]
-              const posB = positions.get(idB)!
-              const dx = posB.x - posA.x
-              const dy = posB.y - posA.y
-              const distSq = dx * dx + dy * dy
-              const dist = Math.sqrt(distSq) || 0.1
-
-              const force = K_REP / (distSq + 2000)
-              const fx = (dx / dist) * force
-              const fy = (dy / dist) * force
-
-              forces.get(idA)!.fx -= fx
-              forces.get(idA)!.fy -= fy
-              forces.get(idB)!.fx += fx
-              forces.get(idB)!.fy += fy
-            }
-          }
-
-          // Attraction
-          for (let i = 0; i < N; i++) {
-            const idA = rootIds[i]
-            const posA = positions.get(idA)!
-            for (let j = i + 1; j < N; j++) {
-              const idB = rootIds[j]
-              const posB = positions.get(idB)!
-              const w = getWeight(idA, idB)
-              if (w > 0) {
-                const dx = posB.x - posA.x
-                const dy = posB.y - posA.y
-                const dist = Math.sqrt(dx * dx + dy * dy) || 0.1
-
-                const wFactor = Math.min(6, w)
-                const force = K_ATT * wFactor * dist
-                const fx = (dx / dist) * force
-                const fy = (dy / dist) * force
-
-                forces.get(idA)!.fx += fx
-                forces.get(idA)!.fy += fy
-                forces.get(idB)!.fx -= fx
-                forces.get(idB)!.fy -= fy
-              }
-            }
-          }
-
-          // Center gravity and move nodes
-          rootIds.forEach(id => {
-            const pos = positions.get(id)!
-            const force = forces.get(id)!
-
-            force.fx -= pos.x * K_GRAV
-            force.fy -= pos.y * K_GRAV
-
-            const fDist = Math.hypot(force.fx, force.fy) || 0.1
-            const disp = Math.min(temp, fDist)
-            pos.x += (force.fx / fDist) * disp
-            pos.y += (force.fy / fDist) * disp
-          })
-
-          temp *= cooling
-        }
-
-        // Compact the settled cloud toward an even spread. Dependency chains
-        // elongate the simulation into a strip; squeezing the long axis back
-        // to the cloud's geometric-mean spread (never stretching the short
-        // one) keeps neighborhoods intact while the overlap resolver below
-        // re-spreads nodes isotropically into a boxy cluster.
-        if (N > 2) {
-          let meanX = 0, meanY = 0
-          positions.forEach(pos => { meanX += pos.x; meanY += pos.y })
-          meanX /= N
-          meanY /= N
-          let varX = 0, varY = 0
-          positions.forEach(pos => {
-            varX += (pos.x - meanX) ** 2
-            varY += (pos.y - meanY) ** 2
-          })
-          const spreadX = Math.sqrt(varX / N)
-          const spreadY = Math.sqrt(varY / N)
-          if (spreadX > 1 && spreadY > 1) {
-            const target = Math.sqrt(spreadX * spreadY)
-            const squeezeX = Math.max(0.35, Math.min(1, target / spreadX))
-            const squeezeY = Math.max(0.35, Math.min(1, target / spreadY))
-            positions.forEach(pos => {
-              pos.x = meanX + (pos.x - meanX) * squeezeX
-              pos.y = meanY + (pos.y - meanY) * squeezeY
-            })
-          }
-        }
-
-        // Bounding-box overlap resolution
-        const overlapPadding = BASE_FILE_W * 0.8
-        for (let pass = 0; pass < 50; pass++) {
-          let resolvedAny = false
-          for (let i = 0; i < N; i++) {
-            const idA = rootIds[i]
-            const posA = positions.get(idA)!
-            const szA = computedSizes.get(idA) ?? { w: 400, h: 300 }
-
-            const wA = szA.w + overlapPadding
-            const hA = szA.h + overlapPadding
-            const cxA = posA.x + wA / 2
-            const cyA = posA.y + hA / 2
-
-            for (let j = i + 1; j < N; j++) {
-              const idB = rootIds[j]
-              const posB = positions.get(idB)!
-              const szB = computedSizes.get(idB) ?? { w: 400, h: 300 }
-
-              const wB = szB.w + overlapPadding
-              const hB = szB.h + overlapPadding
-              const cxB = posB.x + wB / 2
-              const cyB = posB.y + hB / 2
-
-              const minDistanceX = (wA + wB) / 2
-              const actualDistanceX = Math.abs(cxB - cxA)
-              const overlapX = minDistanceX - actualDistanceX
-
-              const minDistanceY = (hA + hB) / 2
-              const actualDistanceY = Math.abs(cyB - cyA)
-              const overlapY = minDistanceY - actualDistanceY
-
-              if (overlapX > 0 && overlapY > 0) {
-                resolvedAny = true
-                if (overlapX < overlapY) {
-                  const pushX = overlapX / 2
-                  const dirX = cxB > cxA ? 1 : -1
-                  posA.x -= pushX * dirX
-                  posB.x += pushX * dirX
-                } else {
-                  const pushY = overlapY / 2
-                  const dirY = cyB > cyA ? 1 : -1
-                  posA.y -= pushY * dirY
-                  posB.y += pushY * dirY
-                }
-              }
-            }
-          }
-          if (!resolvedAny) break
-        }
-
-        // Commit final positions
-        rootIds.forEach(id => {
-          const pos = positions.get(id)!
-          const sz = computedSizes.get(id) ?? { w: 400, h: 300 }
-          computedPositions.set(id, { x: pos.x, y: pos.y, w: sz.w, h: sz.h })
-        })
-      }
-      return
-    }
-
-    // Non-root: strict grid layout using the uniform-gap formula.
-    // Cell size at this depth = fileNodeSize(depth).
-    // Container: n*cell + (n+1)*gap in both directions.
-    const d   = Math.max(0, depth)
-    const fsz = fileNodeSize(d)
-
-    const items = [
-      ...childSystems.map(c => ({ id: c.id, type: 'system' as const, w: 0, h: 0, wUnits: 1, hUnits: 1 })),
-      ...childFiles.map(f => ({ id: f.id, type: 'file'   as const, w: 0, h: 0, wUnits: 1, hUnits: 1 })),
-    ].sort((a, b) => getSortKey(a.id) - getSortKey(b.id))
-
-    for (const item of items) {
-      if (item.type === 'system') {
-        const sz = computedSizes.get(item.id) ?? { w: containerW(1, d + 1), h: containerH(1, d + 1) }
-        item.wUnits = wUnitsFor(sz.w, d)
-        item.hUnits = hUnitsFor(sz.h, d)
-        item.w = sz.w
-        item.h = sz.h
-      } else {
-        item.w = fsz.w
-        item.h = fsz.h
-        item.wUnits = 1
-        item.hUnits = 1
-      }
-    }
-
-    if (!isTidy) {
-      // 1. Snapped grid placement based on existing positions
-      let maxColUsed = 1
-      let maxRowUsed = 1
-      const occupiedCells = new Set<string>()
-
-      for (const item of items) {
-        let x = 0, y = 0
-        const ext = existingMap.get(item.id)
-        if (ext?.position?.x !== undefined && ext?.position?.y !== undefined) {
-          x = ext.position.x
-          y = ext.position.y
-        } else {
-          if (item.type === 'system') {
-            const sys = systems.find(s => s.id === item.id)
-            x = sys?.positionX ?? 0
-            y = sys?.positionY ?? 0
-          } else {
-            const file = files.find(f => f.id === item.id)
-            x = file?.positionX ?? 0
-            y = file?.positionY ?? 0
-          }
-        }
-
-        const gap = gridGap(d)
-        const cw = fsz.w
-        const ch = fsz.h
-        const col = Math.max(0, Math.round((x - gap) / (cw + gap)))
-        const row = Math.max(0, Math.round((y - gap) / (ch + gap)))
-
-        // Check if this block is free
-        let fits = true
-        for (let c = col; c < col + item.wUnits; c++) {
-          for (let r = row; r < row + item.hUnits; r++) {
-            if (occupiedCells.has(`${c}-${r}`)) {
-              fits = false
-              break
-            }
-          }
-          if (!fits) break
-        }
-
-        let foundCol = col
-        let foundRow = row
-
-        if (!fits) {
-          let found = false
-          // Spiral search up to radius 15
-          for (let r_limit = 1; r_limit <= 15; r_limit++) {
-            for (let dx = -r_limit; dx <= r_limit; dx++) {
-              for (let dy = -r_limit; dy <= r_limit; dy++) {
-                if (Math.abs(dx) !== r_limit && Math.abs(dy) !== r_limit) continue
-                const c = col + dx
-                const r = row + dy
-                if (c < 0 || r < 0) continue
-
-                let possible = true
-                for (let cc = c; cc < c + item.wUnits; cc++) {
-                  for (let rr = r; rr < r + item.hUnits; rr++) {
-                    if (occupiedCells.has(`${cc}-${rr}`)) {
-                      possible = false
-                      break
-                    }
-                  }
-                  if (!possible) break
-                }
-                if (possible) {
-                  foundCol = c
-                  foundRow = r
-                  found = true
-                  break
-                }
-              }
-              if (found) break
-            }
-            if (found) break
-          }
-        }
-
-        const snapX = cellX(foundCol, d)
-        const snapY = cellY(foundRow, d)
-
-        computedPositions.set(item.id, { x: snapX, y: snapY, w: item.w, h: item.h })
-        if (item.type === 'system') {
-          computedSizes.set(item.id, { w: item.w, h: item.h })
-        }
-
-        // Mark cells as occupied
-        for (let c = foundCol; c < foundCol + item.wUnits; c++) {
-          for (let r = foundRow; r < foundRow + item.hUnits; r++) {
-            occupiedCells.add(`${c}-${r}`)
-          }
-        }
-
-        maxColUsed = Math.max(maxColUsed, foundCol + item.wUnits)
-        maxRowUsed = Math.max(maxRowUsed, foundRow + item.hUnits)
-      }
-
-      const totalW = containerW(maxColUsed, d)
-      const totalH = containerH(maxRowUsed, d)
-      computedSizes.set(systemId, { w: totalW, h: totalH })
-    } else {
-      // 2. Auto packing: organic cluster with per-item breathing room.
-      const packed = packFrame(
-        items.map(item => ({ id: item.id, width: item.w, height: item.h })),
-        { baseGap: FRAME_ITEM_GAP },
-      )
-      // The top inset is the tab band, not the plain gap. This used to place
-      // the first row at `gap` from the frame's top border on every side
-      // equally, which only cleared the tab because the old gap happened to be
-      // about as tall as it; at depth it did not.
-      let insets = frameContentInsets(420, Math.max(0, d))
-      for (let round = 0; round < 4; round++) {
-        insets = frameContentInsets(packed.height + insets.top + insets.bottom, Math.max(0, d))
-      }
-      for (const item of items) {
-        const position = packed.positions.get(item.id)!
-        computedPositions.set(item.id, { x: insets.left + position.x, y: insets.top + position.y, w: item.w, h: item.h })
-        if (item.type === 'system') computedSizes.set(item.id, { w: item.w, h: item.h })
-      }
-      computedSizes.set(systemId, {
-        w: packed.width + insets.left + insets.right,
-        h: packed.height + insets.top + insets.bottom,
-      })
-    }
-  }
-
-  layoutNode(null, -1)
-  return computedPositions
-}
-
+export { BASE_FILE_W, BASE_FILE_H } from './scene/sceneGeometry'
 // ─── Node data types ───────────────────────────────────────────────────────
 
 export interface SystemNodeData {
@@ -943,37 +343,6 @@ export interface InfraNodeData {
   worldScale?: number
 }
 
-// ─── Layout engine ─────────────────────────────────────────────────────────
-
-/**
- * Materialize the Floor as nested coordinate frames. Unlike the legacy layout,
- * this never quantizes authored positions, displaces siblings, or derives
- * visual containment from a drop's semantic side effects.
- */
-/**
- * Placements this session has already decided for nodes that have no persisted
- * row, keyed by node id.
- *
- * Without it the projection is NOT a pure function of persisted state: a
- * priority-2 node's position comes from `placeIncoming`, scored against the
- * live bounds and centroid of everything already registered in its frame. So
- * changing ONE node's geometry - any drop writes a row - shifts that centroid
- * and re-places every unpersisted sibling, which then shifts it again for the
- * next one. Dragging a single node made unrelated nodes scatter.
- *
- * Root-level unclassified files never persist at all (deliberately: pinning
- * them would block live classification from moving them into their system), so
- * for those the churn was permanent rather than transient.
- *
- * A remembered placement is dropped as soon as the node gains a persisted row
- * or moves to a different parent, so this only ever supplies the FIRST answer.
- */
-export interface GeneratedPlacement {
-  parentId: string | null
-  x: number
-  y: number
-}
-
 /**
  * A repository/proposal refresh may finish while a pointer gesture is still
  * authoritative. Reproject the new semantic scene, but retain geometry for
@@ -1014,372 +383,6 @@ function isUnplaced(item: { positionX: number; positionY: number; width?: number
   return item.width == null && item.height == null && item.positionX === 0 && item.positionY === 0
 }
 
-const buildFloorFrameLayout: typeof buildFloorFrameLayoutImpl = (...args) => traceSync('scene.geometry', () => buildFloorFrameLayoutImpl(...args), args[0].length + args[1].length + args[2].length)
-
-function buildFloorFrameLayoutImpl(
-  systems: DbSystem[],
-  files: DbFile[],
-  infraNodes: DbInfraNode[],
-  dependencies: DbDependency[],
-  floorLayouts: FloorLayout[],
-  currentZoom: number,
-  generatedPlacements: Map<string, GeneratedPlacement> = new Map(),
-): {
-  rfNodes: Node[]
-  rfEdges: Edge[]
-  generatedLayoutNodeIds: Set<string>
-  resizedContainerIds: Set<string>
-} {
-  const systemsById = new Map(systems.map(system => [system.id, system]))
-  const filesById = new Map(files.map(file => [file.id, file]))
-  const infraById = new Map(infraNodes.map(infra => [infra.id, infra]))
-  const layoutsById = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
-  const initialGraphLayout = floorLayouts.length === 0
-    ? runAlternateAxisLayout(systems, files, infraNodes, dependencies, new Map())
-    : null
-  const nodeTypes = new Map<string, FloorNodeType>([
-    ...systems.map(system => [system.id, 'system'] as const),
-    ...files.map(file => [file.id, 'file'] as const),
-    ...infraNodes.map(infra => [infra.id, 'infra'] as const),
-  ])
-
-  const parentById = new Map<string, string | null>()
-  for (const system of systems) parentById.set(system.id, layoutsById.has(system.id) ? layoutsById.get(system.id)!.parentNodeId : system.parentId)
-  for (const file of files) parentById.set(file.id, layoutsById.has(file.id) ? layoutsById.get(file.id)!.parentNodeId : file.systemId)
-  for (const infra of infraNodes) parentById.set(infra.id, layoutsById.get(infra.id)?.parentNodeId ?? null)
-
-  // Invalid/missing parents and cycles degrade to root instead of making the
-  // graph disappear. The API rejects new invalid writes; this protects legacy DBs.
-  for (const [id, parentId] of parentById) {
-    if (parentId && (!nodeTypes.has(parentId) || nodeTypes.get(parentId) === 'file')) parentById.set(id, null)
-    const visited = new Set<string>([id])
-    let current = parentById.get(id) ?? null
-    while (current) {
-      if (visited.has(current)) { parentById.set(id, null); break }
-      visited.add(current)
-      current = parentById.get(current) ?? null
-    }
-  }
-
-  const siblingsByParent = new Map<string | null, string[]>()
-  for (const [id, parentId] of parentById) {
-    const siblings = siblingsByParent.get(parentId) ?? []
-    siblings.push(id)
-    siblingsByParent.set(parentId, siblings)
-  }
-  for (const siblings of siblingsByParent.values()) siblings.sort()
-
-  const geometryById = new Map<string, ReturnType<typeof normalizeGeometry>>()
-  const occupiedByParent = new Map<string | null, Array<{ x: number; y: number; width: number; height: number }>>()
-  const defaultSize = (id: string) => {
-    const system = systemsById.get(id)
-    if (system) return { width: system.width ?? 620, height: system.height ?? 420 }
-    const file = filesById.get(id)
-    if (file) return { width: file.width ?? BASE_FILE_W, height: file.height ?? BASE_FILE_H }
-    const infra = infraById.get(id)
-    return infra?.category === 'platform' ? PLATFORM_FRAME_SIZE : INFRA_CARD_SIZE
-  }
-
-  const depthCache = new Map<string, number>()
-  const depthOf = (id: string): number => {
-    const cached = depthCache.get(id)
-    if (cached !== undefined) return cached
-    const parentId = parentById.get(id) ?? null
-    const value = parentId ? depthOf(parentId) + 1 : 0
-    depthCache.set(id, value)
-    return value
-  }
-
-  /**
-   * Where a child may sit inside a frame. One helper so incremental placement,
-   * fresh packing and drop placement cannot drift apart on the tab allowance.
-   */
-  const insetsOf = (containerId: string) => {
-    const container = geometryById.get(containerId)
-    const base = defaultSize(containerId)
-    return frameContentInsets(container?.height ?? base.height, depthOf(containerId))
-  }
-
-  // A genuinely fresh Floor is packed bottom-up: deepest frames first, each
-  // frame sized from its packed contents, so a parent can never be smaller
-  // than what it holds and post-hoc growth never creates sibling overlap.
-  const freshPackPositions = new Map<string, { x: number; y: number }>()
-  const freshPackSizes = new Map<string, { width: number; height: number }>()
-  if (initialGraphLayout) {
-    const sizeOf = (id: string) => freshPackSizes.get(id) ?? defaultSize(id)
-    const packedFrames = new Set<string>()
-    const packContainer = (containerId: string) => {
-      if (packedFrames.has(containerId)) return
-      packedFrames.add(containerId)
-      const children = siblingsByParent.get(containerId) ?? []
-      for (const childId of children) if (siblingsByParent.has(childId)) packContainer(childId)
-      if (children.length === 0) return
-      const packed = packFrame(
-        children.map(childId => ({ id: childId, ...sizeOf(childId) })),
-        { baseGap: FRAME_ITEM_GAP },
-      )
-      // The title chrome scales with the frame's presentation scale, and the
-      // frame's size depends on the header in turn - iterate to the fixed
-      // point so children never start under the rendered title band.
-      const base = defaultSize(containerId)
-      const depth = depthOf(containerId)
-      let insets = frameContentInsets(420, depth)
-      for (let round = 0; round < 4; round++) {
-        insets = frameContentInsets(Math.max(220, packed.height + insets.top + insets.bottom), depth)
-      }
-      for (const childId of children) {
-        const position = packed.positions.get(childId)!
-        freshPackPositions.set(childId, {
-          x: insets.left + position.x,
-          y: insets.top + position.y,
-        })
-      }
-      freshPackSizes.set(containerId, {
-        width: Math.max(320, packed.width + insets.left + insets.right),
-        height: Math.max(220, packed.height + insets.top + insets.bottom),
-      })
-    }
-    for (const parentKey of siblingsByParent.keys()) {
-      if (parentKey) packContainer(parentKey)
-    }
-  }
-
-  const generatedLayoutNodeIds = new Set<string>()
-  const placementCandidates = [...parentById].map(([id, parentId]) => {
-    const layout = layoutsById.get(id)
-    const fallback = defaultSize(id)
-    const semantic = systemsById.get(id) ?? filesById.get(id) ?? infraById.get(id)
-    const initialPosition = parentId === null ? initialGraphLayout?.get(id) : undefined
-    let x = layout?.positionX ?? initialPosition?.x ?? semantic?.positionX ?? 0
-    let y = layout?.positionY ?? initialPosition?.y ?? semantic?.positionY ?? 0
-    const fresh = freshPackPositions.get(id)
-    if (!layout && x === 0 && y === 0 && fresh) {
-      x = fresh.x
-      y = fresh.y
-    }
-    if (!layout) generatedLayoutNodeIds.add(id)
-    return {
-      id,
-      parentId,
-      layout,
-      fallback,
-      x,
-      y,
-      placementPriority: layout ? 0 as const : (fresh || x !== 0 || y !== 0) ? 1 as const : 2 as const,
-    }
-  })
-
-  // Database/API order is not spatial order. Register every persisted sibling
-  // first so an incoming system/file cannot be placed underneath a persisted
-  // node that happens to appear later in the snapshot.
-  // Infrastructure nobody has placed goes in a band below the map rather than
-  // wherever the packer finds a gap; it is placed after everything else so
-  // the band knows where the map ends.
-  const bandedInfra: typeof placementCandidates = []
-  for (const candidate of orderFramePlacementCandidates(placementCandidates)) {
-    const { id, parentId, layout, fallback } = candidate
-    if (!layout && parentId === null && infraById.has(id)) {
-      const remembered = generatedPlacements.get(id)
-      if (!remembered || remembered.parentId !== null) {
-        bandedInfra.push(candidate)
-        continue
-      }
-    }
-    let { x, y } = candidate
-    const occupied = occupiedByParent.get(parentId) ?? []
-    if (candidate.placementPriority === 2) {
-      // Decide this ONCE. Re-deriving it on every projection made a node's
-      // position depend on the current geometry of everything around it, so a
-      // single drop scattered every unpersisted node in the frame.
-      const remembered = generatedPlacements.get(id)
-      if (remembered && remembered.parentId === parentId) {
-        x = remembered.x
-        y = remembered.y
-      } else {
-        // A node indexed after the initial layout was persisted clusters in
-        // beside its siblings instead of landing on a blind grid.
-        const spot = placeIncoming(
-          { id, width: fallback.width, height: fallback.height },
-          occupied,
-          {
-            // Same clearance a drop or a repack would use, so a node that
-            // arrives by indexing sits exactly as tightly as one placed by hand.
-            baseGap: parentId ? FRAME_ITEM_GAP : FRAME_ROOT_GAP,
-            origin: parentId
-              ? { x: insetsOf(parentId).left, y: insetsOf(parentId).top }
-              : { x: 80, y: 80 },
-          },
-        )
-        x = spot.x
-        y = spot.y
-        generatedPlacements.set(id, { parentId, x, y })
-      }
-    } else if (generatedPlacements.has(id)) {
-      // It has real geometry now - persisted, semantic, or freshly packed - so
-      // the remembered guess must not outlive it.
-      generatedPlacements.delete(id)
-    }
-    const freshSize = freshPackSizes.get(id)
-    const geometry = normalizeGeometry({
-      x, y,
-      width: layout?.width ?? freshSize?.width ?? fallback.width,
-      height: layout?.height ?? freshSize?.height ?? fallback.height,
-      scale: layout?.scale ?? 1,
-      interiorScale: layout?.interiorScale ?? 1,
-    }, fallback)
-    geometryById.set(id, geometry)
-    occupied.push({ x: geometry.x, y: geometry.y, width: geometry.width * geometry.scale, height: geometry.height * geometry.scale })
-    occupiedByParent.set(parentId, occupied)
-  }
-
-  if (bandedInfra.length > 0) {
-    const roots = occupiedByParent.get(null) ?? []
-    const band = placeInfraBand(
-      bandedInfra.map(candidate => ({
-        id: candidate.id,
-        category: infraById.get(candidate.id)?.category ?? 'api',
-        ...candidate.fallback,
-      })),
-      roots,
-      FRAME_ROOT_GAP,
-    )
-    for (const candidate of bandedInfra) {
-      const spot = band.get(candidate.id)!
-      generatedPlacements.set(candidate.id, { parentId: null, x: spot.x, y: spot.y })
-      const geometry = normalizeGeometry({
-        x: spot.x, y: spot.y,
-        width: candidate.fallback.width, height: candidate.fallback.height,
-        scale: 1, interiorScale: 1,
-      }, candidate.fallback)
-      geometryById.set(candidate.id, geometry)
-      roots.push({ x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height })
-    }
-    occupiedByParent.set(null, roots)
-  }
-
-  const resizedContainerIds = new Set<string>()
-  // Initial-index/legacy containers auto-fit their direct children. Persisted
-  // containers retain authored dimensions as a minimum, but may grow when a
-  // newly indexed child would otherwise sit outside their frame.
-  for (const [containerId, children] of siblingsByParent) {
-    if (!containerId) continue
-    const isContainer = systemsById.has(containerId) || infraById.get(containerId)?.category === 'platform'
-    if (!isContainer || children.length === 0) continue
-    const hasIncomingChild = children.some(childId => !layoutsById.has(childId))
-    if (layoutsById.has(containerId) && !hasIncomingChild) continue
-    const container = geometryById.get(containerId)
-    if (!container) continue
-    const childFrames = children.flatMap(childId => {
-      const child = geometryById.get(childId)
-      return child ? [child] : []
-    })
-    // A persisted frame hemmed in by neighbours compresses its interior
-    // rather than growing over them - an agent assigning a batch of files to
-    // a system used to push that system on top of the next one.
-    const containerParent = parentById.get(containerId) ?? null
-    const siblingRects = layoutsById.has(containerId)
-      ? (siblingsByParent.get(containerParent) ?? []).flatMap(siblingId => {
-          if (siblingId === containerId) return []
-          const sibling = geometryById.get(siblingId)
-          return sibling
-            ? [{ x: sibling.x, y: sibling.y, width: sibling.width * sibling.scale, height: sibling.height * sibling.scale }]
-            : []
-        })
-      : []
-    const fitted = fitFrameAmongSiblings(
-      container, childFrames, insetsOf(containerId).right, siblingRects,
-      containerParent ? FRAME_ITEM_GAP : FRAME_ROOT_GAP,
-    )
-    geometryById.set(containerId, fitted)
-    if (fitted.width !== container.width || fitted.height !== container.height ||
-        fitted.interiorScale !== container.interiorScale) {
-      resizedContainerIds.add(containerId)
-    }
-  }
-
-  // The relationship-aware initializer was historically sized for the legacy
-  // grid renderer. Resolve its root collisions again using the materialized
-  // freeform frame bounds while retaining the force-directed neighborhood.
-  if (initialGraphLayout) {
-    const rootIds = siblingsByParent.get(null) ?? []
-    const padding = 72
-    for (let pass = 0; pass < 100; pass++) {
-      let moved = false
-      for (let leftIndex = 0; leftIndex < rootIds.length; leftIndex++) {
-        const left = geometryById.get(rootIds[leftIndex])!
-        const leftWidth = left.width * left.scale
-        const leftHeight = left.height * left.scale
-        for (let rightIndex = leftIndex + 1; rightIndex < rootIds.length; rightIndex++) {
-          const right = geometryById.get(rootIds[rightIndex])!
-          const rightWidth = right.width * right.scale
-          const rightHeight = right.height * right.scale
-          const overlapX = Math.min(left.x + leftWidth + padding, right.x + rightWidth + padding) - Math.max(left.x, right.x)
-          const overlapY = Math.min(left.y + leftHeight + padding, right.y + rightHeight + padding) - Math.max(left.y, right.y)
-          if (overlapX <= 0 || overlapY <= 0) continue
-          moved = true
-          if (overlapX < overlapY) {
-            const direction = right.x + rightWidth / 2 >= left.x + leftWidth / 2 ? 1 : -1
-            left.x -= direction * overlapX / 2
-            right.x += direction * overlapX / 2
-          } else {
-            const direction = right.y + rightHeight / 2 >= left.y + leftHeight / 2 ? 1 : -1
-            left.y -= direction * overlapY / 2
-            right.y += direction * overlapY / 2
-          }
-        }
-      }
-      if (!moved) break
-    }
-  }
-
-  const depthById = new Map<string, number>()
-  const worldScaleById = new Map<string, number>()
-  const contentScaleById = new Map<string, number>()
-  // A frame's own world scale and the scale it hands to its children are two
-  // different numbers. They differ exactly when a container compresses its
-  // interior, which is what lets that compression leave the container's own
-  // size - and everything derived from it - completely untouched.
-  const resolveFrame = (id: string): { depth: number; worldScale: number; contentScale: number } => {
-    const cachedDepth = depthById.get(id)
-    const cachedScale = worldScaleById.get(id)
-    const cachedContent = contentScaleById.get(id)
-    if (cachedDepth !== undefined && cachedScale !== undefined && cachedContent !== undefined) {
-      return { depth: cachedDepth, worldScale: cachedScale, contentScale: cachedContent }
-    }
-    const parentId = parentById.get(id) ?? null
-    const parent = parentId ? resolveFrame(parentId) : { depth: -1, worldScale: 1, contentScale: 1 }
-    const geometry = geometryById.get(id)
-    const worldScale = parent.contentScale * (geometry?.scale ?? 1)
-    const result = {
-      depth: parent.depth + 1,
-      worldScale,
-      contentScale: worldScale * (geometry?.interiorScale ?? 1),
-    }
-    depthById.set(id, result.depth)
-    worldScaleById.set(id, result.worldScale)
-    contentScaleById.set(id, result.contentScale)
-    return result
-  }
-
-  const descriptors: FloorSceneDescriptor[] = [...parentById.keys()].map(id => {
-    const resolved = resolveFrame(id)
-    return { id, nodeType: nodeTypes.get(id)!, parentId: parentById.get(id) ?? null, geometry: geometryById.get(id)!, ...resolved }
-  }).sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id))
-
-  const rfNodes = projectFloorNodes({
-    systems,
-    files,
-    infraNodes,
-    descriptors,
-    siblingsByParent,
-    geometryById,
-    worldScaleById,
-    contentScaleById,
-    currentZoom,
-  })
-  return { rfNodes, rfEdges: [], generatedLayoutNodeIds, resizedContainerIds }
-}
-
 // ─── Main component ────────────────────────────────────────────────────────
 
 interface AmbioCanvasProps {
@@ -1396,6 +399,8 @@ interface AmbioCanvasProps {
     floorLayouts: FloorLayout[]
     editableNodeIds: ReadonlySet<string>
     selectedNodeId: string | null
+    focusNodeId?: string | null
+    focusToken?: number
     onSelectNode: (nodeId: string | null) => void
     onPreviewLayouts: (layouts: Array<Omit<FloorLayout, 'workspaceId' | 'updatedAt'>>) => void
     onSaveLayouts: (layouts: Array<Omit<FloorLayout, 'workspaceId' | 'updatedAt'>>) => Promise<void>
@@ -1542,11 +547,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
    * is the difference - it exists only because a person made it exist - so it
    * is what separates "on the map, just not in a system" from "still unsorted".
    */
-  const looseFileIds = useMemo(() => new Set(
-    floorLayouts
-      .filter(layout => layout.nodeType === 'file' && layout.containmentKind === 'root')
-      .map(layout => layout.nodeId),
-  ), [floorLayouts])
+  const looseFileIds = useMemo(() => createLooseFileLookup(floorLayouts), [floorLayouts])
   // A file has a home only in a system the canvas shows. A system_id that
   // points at a withheld inferred grouping is not a home: without this the
   // file floated loose on the Floor instead of waiting in the Unsorted bin.
@@ -1568,12 +569,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // be unclassified FROM. Before anyone has authored one, every file is
   // unplaced - binning them all would empty the map and hide the whole project
   // behind a tray, which is the opposite of "the map is always complete".
-  const binsHoldUnclassified = !binMode && systems.length > 0
+  // Repository frames are where files live, not an authored architecture.
+  const binsHoldUnclassified = !binMode && systems.some(system => system.kind !== 'repository')
   const files = useMemo(
-    () => binsHoldUnclassified
+    () => sceneFiles === binSourceFiles && !reviewPlacedFileIds
+      ? binsHoldUnclassified ? bins.placed : bins.source
+      : binsHoldUnclassified
       ? sceneFiles.filter(file => isCanvasSourceFile(file) && fileBelongsOnFloor(file))
       : sceneFiles.filter(isCanvasSourceFile),
-    [sceneFiles, binsHoldUnclassified, fileBelongsOnFloor],
+    [sceneFiles, binSourceFiles, reviewPlacedFileIds, bins, binsHoldUnclassified, fileBelongsOnFloor],
   )
   // Only infra that runs code is on the canvas: confirmed platforms, as frames
   // that hold the systems they host. Everything code talks to (databases,
@@ -1610,9 +614,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   )
   const setSelectedNode = reviewScene?.onSelectNode ?? setLiveSelectedNode
   const currentProject = useGraphStore(s => s.currentProject)
-  const { getViewport, setViewport, getInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const { getViewport, setViewport, getInternalNode: getFlowInternalNode, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
   const fitView = useCanvasFitView()
   const reactFlowStore = useStoreApi()
+  const [preparationRetry, setPreparationRetry] = useState(0)
+  const getInternalNode = useCallback((id: string) => {
+    const node = getFlowInternalNode(id)
+    return node?.measured.width ? node : canonicalInternalNode(canvasScene(reactFlowStore), id) ?? node
+  }, [getFlowInternalNode, reactFlowStore])
   // Subscribed rather than read once: the bin button shows whether the reader
   // is open, and a stale read would leave it stuck looking closed.
   const documentsOpen = useGraphStore(state => state.documentsOpen)
@@ -1620,7 +629,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // readiness therefore tracks the visible render set rather than waiting for
   // measurements that hidden nodes should never produce.
   const nodesInitialized = useNodesInitialized()
+  const caseRun = useGraphStore(s =>
+    !isolatedScene && s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
   const livingVisibilityOptions = useMemo(() => {
+    if (!Object.keys(nodeFx).length && !relationshipFx.length && !Object.keys(agentAttention).length &&
+        !Object.keys(runtimeNodes).length && !activeTrace?.length && !dataFlow && !caseRun && !activeWorkSessions.length) return {}
     const semanticParentById = new Map<string, string | null>()
     const labelById = new Map<string, string>()
     for (const system of systems) {
@@ -1636,17 +649,25 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       labelById.set(infra.id, infra.name)
     }
     return { semanticParentById, labelById }
-  }, [systems, files, infraNodes])
+  }, [systems, files, infraNodes, nodeFx, relationshipFx, agentAttention, runtimeNodes, activeTrace, dataFlow, caseRun, activeWorkSessions])
 
   const [candidateRfNodes, setRfNodes] = useState<Node[]>([])
+  const [candidateOwner, setCandidateOwner] = useState<string | null>(null)
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
-  const canonicalNodeIds = useMemo(() => new Set([
-    ...systems.map(system => system.id),
-    ...files.map(file => file.id),
-    ...infraNodes.map(infra => infra.id),
-  ]), [systems, files, infraNodes])
+  const canonicalNodeIds = useMemo(() => {
+    // Keep membership independent of candidate geometry, without allocating
+    // intermediate full-project arrays just to populate the validation set.
+    const ids = new Set<string>()
+    for (const system of systems) ids.add(system.id)
+    for (const file of files) ids.add(file.id)
+    for (const infra of infraNodes) ids.add(infra.id)
+    return ids
+  }, [systems, files, infraNodes])
   const canonicalNodeCount = canonicalNodeIds.size
-  const sceneProjectId = binScene ? "bin" : reviewScene?.id ?? currentProject?.id ?? "demo"
+  const sceneProjectId = binScene ? `bin:${currentProject?.id ?? 'demo'}`
+    : reviewScene ? `review:${reviewScene.workspaceId}:${reviewScene.id}` : currentProject?.id ?? 'demo'
+  const sceneWorker = useMemo(() => createSceneController(), [preparationRetry, sceneProjectId])
+  useEffect(() => () => sceneWorker.stop(), [sceneWorker])
   const [reviewReadySceneId, setReviewReadySceneId] = useState<string | null>(null)
   const reviewLayoutReady = !reviewMode || reviewReadySceneId === sceneProjectId
   const classifiedFileCount = useMemo(
@@ -1664,12 +685,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // render restarts the debounce on the blank-canvas recovery below, which can
   // starve that recovery indefinitely during exactly the render storms (a save
   // burst with living flows in flight) that it exists to recover from.
+  const [inspectCandidateScene] = useState(createFloorSceneInspector)
   const candidateSceneIntegrity = useMemo(
-    () => inspectFloorScene(candidateRfNodes, canonicalNodeCount, canonicalNodeIds),
-    [candidateRfNodes, canonicalNodeCount, canonicalNodeIds],
+    () => inspectCandidateScene(candidateRfNodes, canonicalNodeCount, canonicalNodeIds),
+    [inspectCandidateScene, candidateRfNodes, canonicalNodeCount, canonicalNodeIds],
   )
   const lastHealthySceneRef = useRef<{ projectId: string; nodes: Node[] } | null>(null)
-  if (!deferCanvasMaterialization && candidateSceneIntegrity.valid && candidateRfNodes.length > 0) {
+  if (lastHealthySceneRef.current?.projectId !== sceneProjectId) lastHealthySceneRef.current = null
+  if (candidateOwner === sceneProjectId && !deferCanvasMaterialization && candidateSceneIntegrity.valid && candidateRfNodes.length > 0) {
     lastHealthySceneRef.current = { projectId: sceneProjectId, nodes: candidateRfNodes }
   }
   const retainedCandidate = lastHealthySceneRef.current?.projectId === sceneProjectId
@@ -1678,12 +701,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // A healthy snapshot from before an index add/delete is not a valid recovery
   // target for the new canonical graph. Reusing it creates a permanent
   // canonical-mismatch loop and leaves deleted nodes interactive.
-  const retainedScene = retainedCandidate &&
+  const retainedScene = useMemo(() => !candidateSceneIntegrity.valid && retainedCandidate &&
     retainedCandidate.length === canonicalNodeIds.size &&
     retainedCandidate.every(node => canonicalNodeIds.has(node.id))
-    ? retainedCandidate
-    : null
-  const rfNodes = deferCanvasMaterialization
+    ? retainedCandidate : null, [candidateSceneIntegrity.valid, retainedCandidate, canonicalNodeIds])
+  const rfNodes = deferCanvasMaterialization || candidateOwner !== sceneProjectId
     ? []
     : !candidateSceneIntegrity.valid && retainedScene?.length
       ? retainedScene
@@ -1730,6 +752,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const lastUserMoveAtRef = useRef(0)
   const cameraFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingInitialFitProjectRef = useRef<string | null>(null)
+  const manualCameraProjectRef = useRef<string | null>(null)
   const runningInitialFitProjectRef = useRef<string | null>(null)
   const canvasRootRef = useRef<HTMLDivElement>(null)
   const zoomChromeRef = useRef<ReturnType<typeof canvasZoomChrome> | null>(null)
@@ -1750,14 +773,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // and render the chip from that instead.
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
   const [selectionRevision, setSelectionRevision] = useState(0)
+  const selectionFileIndex = useRef<{ source: DbFile[]; ids: Set<string> }>()
+  if (selectionFileIndex.current?.source !== files) selectionFileIndex.current = undefined
   const commitSelection = useCallback((ids: Set<string>) => {
     const previous = selectedIdsRef.current
     const changed = previous.size !== ids.size || [...ids].some(id => !previous.has(id))
     selectedIdsRef.current = ids
     if (changed) useSheetStore.setState({ selectedCanvasIds: [...ids] })
     if (changed) setSelectionRevision(revision => revision + 1)
-    const currentFileIds = new Set(files.map(file => file.id))
-    const next = [...ids].filter(id => currentFileIds.has(id))
+    if (ids.size && selectionFileIndex.current?.source !== files) selectionFileIndex.current = { source: files, ids: new Set(files.map(file => file.id)) }
+    const next = ids.size ? [...ids].filter(id => selectionFileIndex.current!.ids.has(id)) : []
     setSelectedFileIds(previous => {
       if (previous.length === next.length && next.every(id => previous.includes(id))) {
         return previous
@@ -1895,7 +920,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const activePlannedByNodeId = useMemo(() => new Map(
     (layersById[overlaySheetId ?? '']?.planned ?? []).map(p => [`planned:${p.id}`, p]),
   ), [layersById, overlaySheetId])
-  const activeNodeIds = useMemo(() => sheetEditableNodeIds({
+  const activeNodeIds = useMemo(() => !overlaySheetId ? new Set<string>() : sheetEditableNodeIds({
     activeSheetId: overlaySheetId,
     // Live entities are shared with the Floor. Moving one for the first time
     // promotes its geometry into a sparse sheet layout row.
@@ -1918,6 +943,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
    */
   const sheetMoves = useMemo(() => {
     const moves = new Map<string, string | null>()
+    if (!visibleLayers.length) return moves
     const floorParent = new Map(floorLayouts.map(layout => [layout.nodeId, layout.parentNodeId ?? null]))
     const semanticParent = new Map<string, string | null>([
       ...systems.map(system => [system.id, system.parentId ?? null] as const),
@@ -1947,6 +973,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     .map(element => [element.systemId!, { name: element.proposedName!, pending: element.renameStatus === 'pending' }] as const))), [visibleLayers])
 
   const sheetEffectiveLayouts = useMemo<FloorLayout[]>(() => {
+    if (!visibleLayers.length) return floorLayouts
     const byId = new Map(floorLayouts.map(layout => [layout.nodeId, layout]))
     const liveSystems = new Map(systems.map(system => [system.id, system]))
     const liveFiles = new Map(files.map(file => [file.id, file]))
@@ -2027,18 +1054,18 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
     return [...byId.values()]
   }, [floorLayouts, systems, files, infraNodes, overlayPlanned, visibleLayers, workspaceIdForOverlay, sheetMoves])
-  const sheetSystemIds = useMemo(() => new Set([
+  const sheetSystemIds = useMemo(() => new Set(visibleLayers.length ? [
     ...systems.map(system => system.id),
     ...overlayPlanned.filter(node => node.kind === 'system').map(node => `planned:${node.id}`),
-  ]), [systems, overlayPlanned])
-  const sheetFileIds = useMemo(() => new Set([
+  ] : []), [systems, overlayPlanned, visibleLayers])
+  const sheetFileIds = useMemo(() => new Set(visibleLayers.length ? [
     ...files.map(file => file.id),
     ...overlayPlanned.filter(node => node.kind !== 'system' && node.kind !== 'infra').map(node => `planned:${node.id}`),
-  ]), [files, overlayPlanned])
-  const sheetInfraIds = useMemo(() => new Set([
+  ] : []), [files, overlayPlanned, visibleLayers])
+  const sheetInfraIds = useMemo(() => new Set(visibleLayers.length ? [
     ...infraNodes.map(infra => infra.id),
     ...overlayPlanned.filter(node => node.kind === 'infra').map(node => `planned:${node.id}`),
-  ]), [infraNodes, overlayPlanned])
+  ] : []), [infraNodes, overlayPlanned, visibleLayers])
   const [isTransitioningLayout, setIsTransitioningLayout] = useState(false)
   // Placements decided for nodes with no persisted row. Refs, not state: they
   // must survive every reprojection without causing one. See GeneratedPlacement.
@@ -2048,12 +1075,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Reconciliation easing must be off for the entire scene while dragging or
   // node bodies glide behind the cursor while their chrome tracks it exactly.
   const [isDraggingScene, setIsDraggingScene] = useState(false)
+  const onSelectionDragStart = useCallback(() => setIsDraggingScene(true), [])
+  const onSelectionDragStop = useCallback(() => setIsDraggingScene(false), [])
 
+  const sheetComposition = `${overlaySheetId ?? ''}|${visibleSheetIds.join('|')}`
+  const previousSheetComposition = useRef(sheetComposition)
   useLayoutEffect(() => {
+    // There is no previous layout to glide from on first mount (including a
+    // Strict Mode effect replay). Only actual sheet changes need this phase.
+    if (previousSheetComposition.current === sheetComposition) return
+    previousSheetComposition.current = sheetComposition
     setIsTransitioningLayout(true)
     const timer = window.setTimeout(() => setIsTransitioningLayout(false), 500)
     return () => window.clearTimeout(timer)
-  }, [overlaySheetId, visibleSheetIds.join('|')])
+  }, [sheetComposition])
 
   useEffect(() => {
     setInspectedNode(null)
@@ -2063,7 +1098,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Layout and authoring callbacks depend on model edits, never on camera or
   // selection. In particular, do not inherit rfNodes here: its visibility flags
   // change during a camera flight and used to rebuild the entire sheet.
-  const sheetBaseNodes = useMemo(() => {
+  const sheetModel = useMemo<FloorModel | null>(() => {
     if (visibleLayers.length === 0) return null
     recordSheetLayoutBuild()
 
@@ -2140,17 +1175,22 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       ...visiblePlanned.filter(node => node.kind === 'system' && isUnplaced(node)).map(node => `planned:${node.id}`),
     ].filter(id => !authored.has(id)))
     const compact = compactSheetSystems(virtualSystems, virtualFiles, sheetEffectiveLayouts, automatic)
-    const sheetLayout = buildFloorFrameLayout(
-      compact.systems, virtualFiles, virtualInfra, dependencies, compact.layouts,
-      currentZoomRef.current, sheetPlacementsRef.current,
-    ).rfNodes
+    return { systems: compact.systems, files: virtualFiles, infraNodes: virtualInfra, dependencies,
+      layouts: compact.layouts, scope: `${sceneProjectId}:sheets:${visibleSheetIds.join('|')}` }
+  }, [visibleLayers, systems, files, infraNodes, dependencies, overlayPlanned, sheetEffectiveLayouts, sheetMoves, sceneProjectId, visibleSheetIds])
+  const sheetPreparation = usePreparedFloorGeometry(sceneWorker, 'sheet', sheetModel, sheetPlacementsRef.current, preparationRetry, () => currentZoomRef.current)
+  const sheetBaseNodes = useMemo(() => {
+    if (!sheetModel || !sheetPreparation.value) return null
+    const { input, geometry } = sheetPreparation.value
+    const virtualSystems = input.systems, virtualFiles = input.files
+    const sheetLayout = sheetPreparation.value.nodes
     const originalParents = new Map<string, string | null>([
       ...systems.map(node => [node.id, node.parentId] as const), ...files.map(node => [node.id, node.systemId] as const),
       ...floorLayouts.map(row => [row.nodeId, row.parentNodeId] as const),
     ])
     const proposedParents = new Map<string, string | null>([
       ...virtualSystems.map(node => [node.id, node.parentId] as const), ...virtualFiles.map(node => [node.id, node.systemId] as const),
-      ...compact.layouts.map(row => [row.nodeId, row.parentNodeId] as const),
+      ...input.layouts.map(row => [row.nodeId, row.parentNodeId] as const),
     ])
     const morphed = sheetLayout.map(sheetNode => {
       const planned = visiblePlannedByNodeId.get(sheetNode.id)
@@ -2307,7 +1347,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     })
     return morphed
-  }, [visibleLayers, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds, floorLayouts, sheetRenames])
+  }, [sheetModel, sheetPreparation.value, effectiveElements, sheetOpinionIds, activeElementByNodeId, systems, files, infraNodes, dependencies, overlayPlanned, visiblePlannedByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, setInfraPickerNode, sheetEffectiveLayouts, sheetMoves, pendingMoveIds, floorLayouts, sheetRenames])
 
   const [sheetVisibility, setSheetVisibility] = useState<{ source: Node[]; nodes: Node[] } | null>(null)
   useEffect(() => { if (!sheetBaseNodes) setSheetVisibility(null) }, [sheetBaseNodes])
@@ -2388,8 +1428,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // callout sits on the file once it is visible, and on its closed system,
   // naming the file, before then. Revealing the file inside the closed system
   // instead covered the system's own title.
-  const caseRun = useGraphStore(s =>
-    !isolatedScene && s.caseFile && s.caseDismissedId !== s.caseFile.id ? s.caseFile.runs.at(-1) ?? null : null)
   const runCalloutList = useMemo(
     () => (isolatedScene ? [] : runCallouts(caseRun)),
     [caseRun, isolatedScene],
@@ -2419,10 +1457,11 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // map exactly and an incoming live edit still animates on top of a mark.
   const deltaKnownNodeIds = useMemo(() => {
     const ids = new Set<string>()
+    if (!deltaReviewing || !delta) return ids
     for (const file of files) ids.add(file.id)
     for (const system of systems) ids.add(system.id)
     return ids
-  }, [files, systems])
+  }, [files, systems, deltaReviewing, delta])
   const deltaReview = useMemo(
     () => buildDeltaReview(deltaReviewing ? delta : null, deltaKnownNodeIds),
     [delta, deltaReviewing, deltaKnownNodeIds],
@@ -2467,6 +1506,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       maxZoom: DELTA_REVIEW_MAX_ZOOM,
     })
   }, [deltaReviewing, deltaFocusKey, fitView])
+
+  // A row in the review list selects its system, which reveals it if semantic
+  // zoom has it folded inside a parent, then flies to it exactly as search
+  // does. No zoom cap: the flight has to get close enough to open the system.
+  const flyToReviewNode = useFlyToNode()
+  useEffect(() => {
+    if (!reviewMode || !reviewScene?.focusToken || !reviewScene?.focusNodeId) return
+    flyToReviewNode(reviewScene.focusNodeId)
+  }, [reviewMode, reviewScene?.focusToken, reviewScene?.focusNodeId, flyToReviewNode])
   const updateInteractiveNodes = useCallback((updater: (nodes: Node[]) => Node[]) => {
     if (useSheetStore.getState().activeSheetId) {
       setSheetInteractionNodes(current => updater(current ?? displayNodesRef.current))
@@ -3001,6 +2049,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // The node a connection was drawn FROM is its source, whichever of the
   // overlapping handles the pointer happened to grab.
   const connectionOrigin = useRef<string | null>(null)
+  const onConnectStart = useCallback<OnConnectStart>((_event, params) => {
+    connectionOrigin.current = params.nodeId
+  }, [])
   const drawnDirection = (conn: Connection): Connection => {
     const origin = connectionOrigin.current
     connectionOrigin.current = null
@@ -3034,89 +2085,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [focusEnabled, setFocusEnabled] = useState(true)
   // Bumped whenever the layout is fully rebuilt, so overlay effects restamp.
   const [layoutVersion, setLayoutVersion] = useState(0)
-
-  const tidyCanvas = useCallback(async () => {
-    if (systems.length === 0 && infraNodes.length === 0) return
-    setIsTidying(true)
-
-    try {
-      const finalPositions = runAlternateAxisLayout(systems, files, infraNodes, dependencies, new Map())
-
-      const projId = currentProject?.id ?? ''
-      const updatedSystems = [...systems]
-      const updatedFiles = [...files]
-      const updatedInfra = [...infraNodes]
-
-      const apiPromises: Promise<any>[] = []
-
-      for (const [id, pos] of finalPositions.entries()) {
-        const sysIndex = updatedSystems.findIndex(s => s.id === id)
-        if (sysIndex !== -1) {
-          const stored = updatedSystems[sysIndex]
-          const updated = {
-            ...stored,
-            positionX: pos.x,
-            positionY: pos.y,
-            width: pos.w,
-            height: pos.h,
-          }
-          updatedSystems[sysIndex] = updated
-          apiPromises.push(apiUpdateSystem(updated))
-          if (projId) {
-            apiPromises.push(apiSaveNodePosition(id, pos.x, pos.y, projId, 'system'))
-          }
-          continue
-        }
-
-        const fileIndex = updatedFiles.findIndex(f => f.id === id)
-        if (fileIndex !== -1) {
-          const stored = updatedFiles[fileIndex]
-          const updated = {
-            ...stored,
-            positionX: pos.x,
-            positionY: pos.y,
-          }
-          updatedFiles[fileIndex] = updated
-          if (projId) {
-            apiPromises.push(apiSaveNodePosition(id, pos.x, pos.y, projId, 'file'))
-          }
-          continue
-        }
-
-        const infraIndex = updatedInfra.findIndex(inf => inf.id === id)
-        if (infraIndex !== -1) {
-          const stored = updatedInfra[infraIndex]
-          const updated = {
-            ...stored,
-            positionX: pos.x,
-            positionY: pos.y,
-          }
-          updatedInfra[infraIndex] = updated
-          continue
-        }
-      }
-
-      // Force the next layout pass to treat it as first layout so it uses DB positions
-      layoutBuiltRef.current = null
-
-      // Update Zustand store
-      useGraphStore.setState({
-        systems: updatedSystems,
-        files: updatedFiles,
-        infraNodes: updatedInfra,
-      })
-
-      // Wait for all API updates to persist
-      await Promise.all(apiPromises)
-
-      // Fit the view to show the new layout
-      queueCameraFit(100, { padding: 0.2, duration: 900, maxZoom: 1.0 })
-    } catch (err) {
-      console.error('[AmbioCanvas] Tidy layout failed', err)
-    } finally {
-      setIsTidying(false)
-    }
-  }, [systems, files, infraNodes, dependencies, currentProject, queueCameraFit])
 
   const tidyFrame = useCallback(async () => {
     const all = displayNodesRef.current
@@ -3257,6 +2225,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const zoomRafRef        = useRef<number | null>(null)
   const layoutBuiltRef = useRef<string | null>(null)
   const initialFloorPersistRef = useRef<string | null>(null)
+  const [floorPersistenceRetry, setFloorPersistenceRetry] = useState(0)
   const incrementalFloorPersistRef = useRef<string | null>(null)
   const reviewLayoutPersistRef = useRef<string | null>(null)
   const reviewLayoutPersistingSceneRef = useRef<string | null>(null)
@@ -3462,6 +2431,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   }, [])
 
 
+  const floorModel = useMemo<FloorModel | null>(() => deferCanvasMaterialization || systems.length + files.length + infraNodes.length === 0 ? null : {
+    systems, files, infraNodes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
+  }, [systems, files, infraNodes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
+  const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
+    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current, canonicalNodeIds)
+  const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
+  const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
+
   useEffect(() => {
     if (deferCanvasMaterialization) {
       pendingInitialFitProjectRef.current = null
@@ -3473,35 +2450,41 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     // an empty folder) has files before any system exists - render them at the
     // top level rather than an empty Floor; live classification groups them into
     // systems as the topology emerges.
-    if (systems.length === 0 && infraNodes.length === 0 && files.length === 0) return
+    if (systems.length === 0 && infraNodes.length === 0 && files.length === 0) {
+      pendingInitialFitProjectRef.current = null
+      setRfNodes(current => current.length ? [] : current)
+      setRfEdges(current => current.length ? [] : current)
+      setCandidateOwner(sceneProjectId)
+      setAdoptedFloorModel(null)
+      return
+    }
 
     const projectId = sceneProjectId
     // On first layout for a project, don't use existing positions - force fresh grid layout.
     // On subsequent data updates (same project), preserve user-dragged positions.
     const isFirstLayout = layoutBuiltRef.current !== projectId
-    const {
-      rfNodes: layout,
-      rfEdges: newEdges,
-      generatedLayoutNodeIds,
-      resizedContainerIds,
-    } = buildFloorFrameLayout(
-      systems, files, infraNodes, dependencies, floorLayouts,
-      currentZoomRef.current, floorPlacementsRef.current,
-    )
-    const filesByIdForPersistence = new Map(files.map(file => [file.id, file]))
-    const systemIdsForPersistence = new Set(systems.map(system => system.id))
-    const infraIdsForPersistence = new Set(infraNodes.map(infra => infra.id))
+    if (!floorPreparation.current || !floorPreparation.value) return
+    const geometry = floorPreparation.value.geometry
+    const { generatedLayoutNodeIds, resizedContainerIds } = geometry
+    const layout = floorPreparation.value.nodes
+    const newEdges: Edge[] = []
+    let persistenceIndex: { files: Map<string, DbFile>; systems: Set<string>; infra: Set<string> } | undefined
+    const persistence = () => persistenceIndex ??= {
+      files: new Map(files.map(file => [file.id, file])),
+      systems: new Set(systems.map(system => system.id)),
+      infra: new Set(infraNodes.map(infra => infra.id)),
+    }
 
     const serializeFloorNode = (node: Node): Omit<FloorLayout, 'workspaceId' | 'updatedAt'> => {
-      const nodeType: FloorNodeType = systemIdsForPersistence.has(node.id)
-        ? 'system' : filesByIdForPersistence.has(node.id) ? 'file' : 'infra'
+      const nodeType: FloorNodeType = persistence().systems.has(node.id)
+        ? 'system' : persistence().files.has(node.id) ? 'file' : 'infra'
       const ownScale = Number((node.data as any).frameScale ?? 1)
       const worldScale = Number((node.data as any).worldScale ?? ownScale)
       // The parent factor that produced this node's world position is the
       // parent's CONTENT scale; dividing it back out recovers canonical coords.
       const parentWorldScale = node.parentId ? worldScale / Math.max(0.0001, ownScale) : 1
       const parentNodeType = node.parentId
-        ? (infraIdsForPersistence.has(node.parentId) ? 'infra' : 'system')
+        ? (persistence().infra.has(node.parentId) ? 'infra' : 'system')
         : null
       return {
         nodeId: node.id,
@@ -3524,15 +2507,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     // Only freeze an initial layout once real containers exist. Persisting root
     // positions for still-unclassified files would pin them, blocking live
     // classification from later moving them into their system.
-    const everyFileClassified = files.every(file => !!file.systemId)
     if (reviewMode && saveReviewLayouts && reviewEditableNodeIds) {
       // The live Floor freezes every generated row before the first gesture.
       // Review must do the same. Leaving proposal geometry sparse meant the
       // first user move persisted one node, then every untouched node entered
       // fresh-packing again and the whole review appeared to tidy itself.
-      const missingEditableIds = new Set(
-        [...reviewEditableNodeIds].filter(id => !floorLayouts.some(layoutRow => layoutRow.nodeId === id)),
-      )
+      const savedIds = new Set(floorLayouts.map(row => row.nodeId))
+      const missingEditableIds = new Set([...reviewEditableNodeIds].filter(id => !savedIds.has(id)))
       for (const id of resizedContainerIds) {
         if (reviewEditableNodeIds.has(id)) missingEditableIds.add(id)
       }
@@ -3563,22 +2544,32 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       } else if (reviewLayoutPersistingSceneRef.current !== projectId) {
         setReviewReadySceneId(current => current === projectId ? current : projectId)
       }
-    } else if (!reviewMode && !binMode && !readOnly && currentProject && systems.length > 0 && everyFileClassified && floorLayouts.length === 0 && initialFloorPersistRef.current !== projectId) {
+    } else if (!reviewMode && !binMode && !readOnly && currentProject && systems.length > 0 && floorLayouts.length === 0 && files.every(file => !!file.systemId) && initialFloorPersistRef.current !== projectId) {
       initialFloorPersistRef.current = projectId
       const initialLayouts = layout.map(serializeFloorNode)
       const optimistic = initialLayouts.map(item => ({ ...item, workspaceId: currentProject.id, updatedAt: Date.now() }))
       useGraphStore.setState({ floorLayouts: optimistic })
-      void apiSaveFloorLayouts(currentProject.id, initialLayouts).catch(error => {
+      const noticeId = `initial-floor-save:${projectId}`
+      void apiSaveFloorLayouts(currentProject.id, initialLayouts).then(() => {
+        resolveInterruption(noticeId)
+      }).catch(error => {
         console.error('[AmbioCanvas] initial Floor layout failed', error)
-        initialFloorPersistRef.current = null
+        if (useGraphStore.getState().currentProject?.id !== projectId) return
+        // Keep the attempt latched. Clearing it here made every failed request
+        // immediately repack and retry, overwhelming the canvas while offline.
         useGraphStore.setState({ floorLayouts: [] })
+        raiseFailure(noticeId, 'Could not save the map layout', String(error), [{ label: 'Retry', run: () => {
+          if (useGraphStore.getState().currentProject?.id !== projectId) return
+          initialFloorPersistRef.current = null
+          setFloorPersistenceRetry(revision => revision + 1)
+        } }])
       })
-    } else if (!reviewMode && !binMode && !readOnly && currentProject && floorLayouts.length > 0) {
+    } else if (!reviewMode && !binMode && !readOnly && currentProject && floorLayouts.length > 0 && (generatedLayoutNodeIds.size > 0 || resizedContainerIds.size > 0)) {
       // Do not pin a just-created, still-unclassified file to the Floor root.
       // Its semantic parent arrives in the classifier's atomic snapshot.
       const persistableGeneratedIds = [...generatedLayoutNodeIds].filter(nodeId => {
-        const file = filesByIdForPersistence.get(nodeId)
-        const nodeType: FloorNodeType = file ? 'file' : systemIdsForPersistence.has(nodeId) ? 'system' : 'infra'
+        const file = persistence().files.get(nodeId)
+        const nodeType: FloorNodeType = file ? 'file' : persistence().systems.has(nodeId) ? 'system' : 'infra'
         return canPersistGeneratedFrame(nodeType, file?.systemId ?? null)
       })
       const reconciledIds = new Set([...persistableGeneratedIds, ...resizedContainerIds])
@@ -3617,21 +2608,18 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     }
 
-    const layoutWithCallbacks = layout.map(n => {
-      const handlers = readOnly || (reviewMode && !reviewLayoutReady) ? undefined : getResizeHandlers(n.id, false)
-      return {
-        ...n,
-        draggable: reviewMode
-          ? reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)
-          : n.draggable,
-        selectable: true,
-        data: {
-          ...n.data,
-          onResizeStart: handlers?.onResizeStart,
-          onResizeEnd: handlers?.onResizeEnd,
-        },
-      }
-    })
+    // Review may move only its pending proposal nodes. The lock rides on the
+    // node so semantic zoom, which owns draggable, keeps the rest in place.
+    // Review has no relationships or connection gestures. CSS hiding left
+    // thousands of Handle store subscriptions running on every pan frame.
+    const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        omitConnectionHandles: true,
+        dragLocked: !(reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)),
+      },
+    }))
     // A large first projection is about to be fitted to an overview. Starting
     // its semantic tier at the default 0.5x would briefly mount every child of
     // a large root before fitView reaches the real overview zoom - exactly the
@@ -3646,12 +2634,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           resizeInteractionNodeIdsRef.current,
         )
       : layoutWithCallbacks
-    const withZoom = reviewMode
-      ? gestureSafeLayout.map(makeFullyVisible)
-      : applyZoomVisibility(gestureSafeLayout, visibilityZoom)
+    const withZoom = applyZoomVisibility(gestureSafeLayout, visibilityZoom)
     const fixed = stampSelection(withZoom, selectedIdsRef.current)
     sceneSourceRef.current = isFirstLayout ? 'layout-build' : 'layout-rebuild'
     setRfNodes(fixed)
+    setCandidateOwner(sceneProjectId)
+    setAdoptedFloorModel(floorModel)
     setRfEdges(newEdges)
     // Signal overlay effects (runtime / focus / trace) to restamp their
     // per-node flags, which this full rebuild just discarded.
@@ -3659,9 +2647,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
     if (isFirstLayout) {
       layoutBuiltRef.current = projectId
-      pendingInitialFitProjectRef.current = projectId
+      pendingInitialFitProjectRef.current = manualCameraProjectRef.current === projectId ? null : projectId
     }
-  }, [systems, files, infraNodes, floorLayouts, dependencies, getResizeHandlers, readOnly, deferCanvasMaterialization, reviewMode, reviewLayoutReady, reviewEditableNodeIds, saveReviewLayouts, reviewLayoutPersistenceRevision, interactionProjectionRevision, sceneProjectId])
+  }, [floorPersistenceRetry, floorModel, floorPreparation.current, floorPreparation.value, systems, files, infraNodes, floorLayouts, dependencies, getResizeHandlers, readOnly, deferCanvasMaterialization, reviewMode, reviewLayoutReady, reviewEditableNodeIds, saveReviewLayouts, reviewLayoutPersistenceRevision, interactionProjectionRevision, sceneProjectId])
 
   // The first camera used to be an 80ms guess after setRfNodes. That raced both
   // React Flow measurement and the immediate persisted-layout reprojection, so
@@ -3670,7 +2658,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // across consecutive frames, then fit exactly once for this project.
   useEffect(() => {
     const fitNodes = rfNodes.filter(node => !node.hidden)
-    if (!nodesInitialized || pendingInitialFitProjectRef.current !== sceneProjectId || fitNodes.length === 0) {
+    if (pendingInitialFitProjectRef.current !== sceneProjectId || fitNodes.length === 0) {
       return
     }
 
@@ -3714,19 +2702,21 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         }
         if (pendingInitialFitProjectRef.current !== sceneProjectId) return
         pendingInitialFitProjectRef.current = null
+        // The fit's last frame may have queued a pass at the overview tier;
+        // run after this one, it would fold the scene back until the next move.
+        if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current)
+        zoomRafRef.current = null
         const settledZoom = getViewport().zoom
         currentZoomRef.current = settledZoom
         lastVisibilityZoomRef.current = settledZoom
         sceneSourceRef.current = 'initial-fit-visibility'
-        setRfNodes(current => reviewMode
-          ? current.map(makeFullyVisible)
-          : applyZoomVisibility(current, settledZoom))
+        setRfNodes(current => applyZoomVisibility(current, settledZoom))
       })
     }
 
     frame = requestAnimationFrame(sampleMeasuredScene)
     return () => cancelAnimationFrame(frame)
-  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId, reviewMode])
+  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId])
 
   // Live reframing - as files stream in from the watcher, gently fit the growing
   // graph so new nodes come into view at a sensible zoom, instead of leaving the
@@ -3768,23 +2758,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // onto the affected file nodes. runtimeNodes only contains watched files,
   // so untouched nodes keep referential identity and skip re-render.
   useEffect(() => {
-    setRfNodes(curr => curr.map(n => {
-      const rt = runtimeNodes[n.id]
-      const had = (n.data as any).runtime
-      if (!rt && !had) return n
-      if (rt === had) return n
-      return { ...n, data: { ...n.data, runtime: rt ?? null } }
-    }))
+    setRfNodes(curr => stampRuntimeOverlay(curr, runtimeNodes))
   }, [runtimeNodes, layoutVersion])
 
   // ── Data-flow slice (purple overlay) ───────────────────────────────────────
   // Stamp `sliced` on file nodes in the current variable-reference slice.
   useEffect(() => {
     const ids = dataFlow?.fileIds ?? null
-    setRfNodes(curr => curr.map(n => {
-      const inSlice = !!ids && ids.has(n.id)
-      return (n.data as any).sliced === inSlice ? n : { ...n, data: { ...n.data, sliced: inSlice } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'sliced', id => Boolean(ids?.has(id))))
   }, [dataFlow, layoutVersion])
 
   // ── Focused subgraph ───────────────────────────────────────────────────────
@@ -3811,9 +2792,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   useEffect(() => {
     const active = focusEnabled && focusFileIds.size > 0
     if (!active) {
-      setRfNodes(curr => curr.some(n => (n.data as any).dimmed)
-        ? curr.map(n => (n.data as any).dimmed ? { ...n, data: { ...n.data, dimmed: false } } : n)
-        : curr)
+      setRfNodes(curr => stampBooleanOverlay(curr, 'dimmed', () => false))
       return
     }
     // Keep focused files and every ancestor system on their parent chain lit.
@@ -3827,10 +2806,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         sysId = systemById.get(sysId)?.parentId ?? null
       }
     }
-    setRfNodes(curr => curr.map(n => {
-      const dim = !keep.has(n.id)
-      return (n.data as any).dimmed === dim ? n : { ...n, data: { ...n.data, dimmed: dim } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'dimmed', id => !keep.has(id)))
   }, [focusEnabled, focusFileIds, systems, files, layoutVersion])
 
   // ── Call trace ───────────────────────────────────────────────────────────
@@ -3843,10 +2819,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       tracedIds.add(step.callerFile)
       tracedIds.add(step.calleeFile)
     }
-    setRfNodes(curr => curr.map(n => {
-      const traced = tracedIds.has(n.id)
-      return Boolean((n.data as any).isTraced) === traced ? n : { ...n, data: { ...n.data, isTraced: traced } }
-    }))
+    setRfNodes(curr => stampBooleanOverlay(curr, 'isTraced', id => tracedIds.has(id)))
   }, [activeTrace, layoutVersion])
 
   // ── WASD pan ────────────────────────────────────────────────────────────
@@ -4057,6 +3030,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     element.addEventListener('wheel', handleWheel, { passive: false })
     const navigate = (event: Event) => {
       event.stopPropagation()
+      manualCameraProjectRef.current = sceneProjectId
+      pendingInitialFitProjectRef.current = null
       if (smoothZoomRafRef.current !== null) cancelAnimationFrame(smoothZoomRafRef.current)
       smoothZoomRafRef.current = null
       targetZoomRef.current = null
@@ -4070,7 +3045,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       element.removeEventListener('wheel', handleWheel)
       element.removeEventListener('ambio:camera-navigation', navigate)
     }
-  }, [handleWheel])
+  }, [handleWheel, sceneProjectId])
 
   const onMove: OnMove = useCallback((event, viewport) => {
     const zoom = viewport.zoom
@@ -4101,11 +3076,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
 
     if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current)
-    zoomRafRef.current = null
-    // Review has no zoom-dependent visibility. Its layout projection already
-    // reveals every node; restamping a new array here reruns the entire scene
-    // projection, React Flow node adoption and diagnostics on every frame.
-    if (reviewMode) return
     zoomRafRef.current = requestAnimationFrame(() => {
       zoomRafRef.current = null
       const draggingId = draggingNodeIdRef.current
@@ -4132,7 +3102,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         return updated
       })
     })
-  }, [reviewMode])
+  }, [])
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
@@ -4892,19 +3862,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
     return attentionNodes.map(n => {
       if (sheetRemovedIds.size > 0 && removed(n.id)) return n.hidden ? n : { ...n, hidden: true }
-      if (!activeNodeIds.has(n.id)) return n
-      const handlers = readOnly ? undefined : getResizeHandlers(n.id, true)
-      if (n.data.onResizeStart === handlers?.onResizeStart && n.data.onResizeEnd === handlers?.onResizeEnd) {
-        return n
-      }
-      return {
-        ...n,
-        data: {
-          ...n.data,
-          onResizeStart: handlers?.onResizeStart,
-          onResizeEnd: handlers?.onResizeEnd,
-        },
-      }
+      return n
     })
   }, [attentionNodes, overlaySheetId, activeNodeIds, readOnly, getResizeHandlers, sheetRemovedIds])
 
@@ -4920,11 +3878,32 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   // Identity of renderedNodes churns every render while a sheet overlay is
   // open, so the recovery below keys off this value-stable signature instead.
-  const renderedSceneSignature = useMemo(
-    () => `${sceneProjectId}:${renderedNodes.map(node => node.id).sort().join('|')}`,
-    [renderedNodes, sceneProjectId],
-  )
-  const renderBudget = useCanvasRenderBudget(renderedNodes, renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT, displayEdges)
+  const sceneIdentityRef = useRef<{ projectId: string; ids: string[]; signature: string }>()
+  const renderedSceneSignature = useMemo(() => {
+    const previous = sceneIdentityRef.current
+    if (previous?.projectId === sceneProjectId && previous.ids.length === renderedNodes.length &&
+      renderedNodes.every((node, i) => node.id === previous.ids[i])) return previous.signature
+    const ids = renderedNodes.map(node => node.id)
+    const signature = `${sceneProjectId}:${[...ids].sort().join('|')}`
+    sceneIdentityRef.current = { projectId: sceneProjectId, ids, signature }
+    return signature
+  }, [renderedNodes, sceneProjectId])
+  const attachNodeInteractions = useCallback((node: Node): Node => {
+    const editable = !readOnly && (!reviewMode || reviewLayoutReady)
+    const handlers = editable ? getResizeHandlers(node.id, Boolean(overlaySheetId && activeNodeIds.has(node.id))) : undefined
+    if (node.data.onResizeStart === handlers?.onResizeStart && node.data.onResizeEnd === handlers?.onResizeEnd) return node
+    return { ...node, data: { ...node.data, onResizeStart: handlers?.onResizeStart, onResizeEnd: handlers?.onResizeEnd } }
+  }, [readOnly, reviewMode, reviewLayoutReady, getResizeHandlers, overlaySheetId, activeNodeIds])
+  const resizeOwner = resizingNodeIdRef.current
+  const pinnedResizeOwners = useMemo(() => new Set(resizeOwner ? [resizeOwner] : []), [resizeOwner])
+  const renderBudget = useCanvasRenderBudget(renderedNodes, renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT, displayEdges, isTransitioningLayout, pinnedResizeOwners, sceneWorker, attachNodeInteractions)
+  useEffect(() => {
+    const retained = new Set(renderBudget.nodes.map(node => node.id))
+    for (const key of resizeHandlersRef.current.keys()) {
+      const id = key.slice(0, key.lastIndexOf(':'))
+      if (!retained.has(id) && !resizeStartRef.current.has(id)) resizeHandlersRef.current.delete(key)
+    }
+  }, [renderBudget.nodes])
   useCanvasFrameTiming()
   const renderedNodesRef = useRef(renderedNodes)
   renderedNodesRef.current = renderedNodes
@@ -4932,6 +3911,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Scene-mutation tracer. Diffs what is actually about to be painted, so a
   // frame where geometry jumps is attributed to the path that caused it.
   useEffect(() => {
+    if (!sceneTracingEnabled()) {
+      if (sceneSnapshotRef.current.length) sceneSnapshotRef.current = []
+      return
+    }
     const next = sceneGeometry(renderedNodes)
     const delta = diffScene(sceneSnapshotRef.current, next)
     sceneSnapshotRef.current = next
@@ -5101,6 +4084,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }, 100)
   }, [getViewport])
 
+  const onCanvasPointerDownCapture = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    traceCanvasHit(event)
+    const target = event.target as HTMLElement
+    // Review exposes every child. Capture a genuine pane pan so Chromium need
+    // not hit-test that entire painted tree again for each mouse position.
+    // Leave node gestures, Shift/lasso selection and touch/pinch to React Flow.
+    if (!reviewMode || event.pointerType !== 'mouse' || !event.isPrimary || event.ctrlKey ||
+        event.button > 2 || (event.button === 2 && !selectionMode) ||
+        !target.classList.contains('react-flow__pane') || target.closest(`[${CANVAS_SCOPE_ATTR}]`) !== event.currentTarget ||
+        (event.button === 0 && (selectionMode || event.shiftKey))) return
+    try { target.setPointerCapture(event.pointerId) }
+    catch { /* A cancelled/synthetic pointer can use Flow's ordinary pan path. */ }
+  }, [reviewMode, selectionMode, traceCanvasHit])
+
   // Canvas commands (docs/INFRA.md, "Canvas chrome"): zoom, tidy and
   // the infrastructure sidebar live in the View and Map menus, the palette
   // and the keyboard (src/shared/appMenu.ts) rather than as buttons on the
@@ -5221,6 +4218,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     <div
       ref={canvasRootRef}
       {...{ [CANVAS_SCOPE_ATTR]: '' }}
+      data-canonical-node-count={renderedNodes.length}
+      data-scene-preparing={floorPending || sheetPreparation.pending || floorPreparation.error || sheetPreparation.error ? 'true' : undefined}
       className={[
         reviewMode ? 'ambio-canvas-review' : '',
         reviewMode && reviewLayoutReady ? 'ambio-canvas-review-ready' : '',
@@ -5235,19 +4234,24 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       data-sheet-phase={sheetPhase.phase ?? undefined}
       onDragOverCapture={onOverlayDragOver}
       onDropCapture={onOverlayDrop}
-      onPointerDownCapture={traceCanvasHit}
+      onPointerDownCapture={onCanvasPointerDownCapture}
       onPointerMoveCapture={traceSuspiciousCursor}
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
+      {(floorPending || sheetPreparation.pending || floorPreparation.error || sheetPreparation.error) &&
+        <div className="ambio-canvas-preparation" role="status">
+          {floorPreparation.error || sheetPreparation.error || 'Preparing map…'}
+          {(floorPreparation.error || sheetPreparation.error) && <button onClick={() => setPreparationRetry(n => n + 1)}>Retry</button>}
+        </div>}
       <FloorEditContext.Provider value={floorEdits}>
       <RenderBudgetContext.Provider value={renderBudget.budget}>
       <ReactFlow
         zoomOnScroll={false}
         nodes={renderBudget.nodes}
-        edges={displayEdges}
+        edges={renderBudget.edges}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        defaultEdgeOptions={{ type: 'orthogonal' }}
+        defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         onNodesChange={readOnly ? undefined : onNodesChange}
         onEdgesChange={readOnly ? undefined : onEdgesChange}
         onConnect={readOnly ? undefined : overlaySheetId ? onConnectPlanned : floorEditable ? onConnectFloor : undefined}
@@ -5263,57 +4267,47 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         onPaneClick={onPaneClick}
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
-        onSelectionDragStart={readOnly ? undefined : () => setIsDraggingScene(true)}
-        onSelectionDragStop={readOnly ? undefined : () => setIsDraggingScene(false)}
+        onSelectionDragStart={readOnly ? undefined : onSelectionDragStart}
+        onSelectionDragStop={readOnly ? undefined : onSelectionDragStop}
         onNodeDragStart={readOnly ? undefined : onNodeDragStart}
         onNodeDrag={readOnly ? undefined : onNodeDrag}
         onNodeDragStop={readOnly ? undefined : onNodeDragStop}
         onMove={onMove}
         minZoom={MIN_CANVAS_ZOOM}
         maxZoom={MAX_CANVAS_ZOOM}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
-        fitViewOptions={{ padding: 0.14, maxZoom: 1.0 }}
-        proOptions={{ hideAttribution: true }}
-        panOnDrag={selectionMode ? [1, 2] : true}
+        defaultViewport={INITIAL_VIEWPORT}
+        fitViewOptions={INITIAL_FIT_OPTIONS}
+        proOptions={FLOW_PRO_OPTIONS}
+        panOnDrag={selectionMode ? SELECTION_PAN_BUTTONS : true}
         selectionOnDrag={readOnly ? false : selectionMode}
         selectionMode={selectionMode ? SelectionMode.Partial : SelectionMode.Full}
         // Must match what the click handler treats as "add to my selection", or
         // React Flow collapses the selection on the same click Ambio extends it
         // on, and the highlight disagrees with what the next drag picks up.
-        multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+        multiSelectionKeyCode={MULTI_SELECTION_KEYS}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly && (!!overlaySheetId || floorEditable)}
         // Source and target handles share each side, and the target is drawn
         // on top; loose mode lets a drag from any handle reach any other, with
         // the node it started from as the source.
         connectionMode={ConnectionMode.Loose}
-        onConnectStart={(_, params) => { connectionOrigin.current = params.nodeId }}
+        onConnectStart={onConnectStart}
         deleteKeyCode={null}
         elementsSelectable={!readOnly}
         snapToGrid={false}
-        // The budget projection owns buffered culling above 40 nodes. Avoid
-        // a second exact-edge culler that would defeat its retention window.
-        onlyRenderVisibleElements={false}
+        // Hidden nodes otherwise still get a NodeWrapper and store subscription.
+        // Keep the full geometry in Flow for Fit, navigation and picking, but
+        // bound its component tree too. The budget still owns buffered detail
+        // admission; Flow retains measured handles after an endpoint unmounts.
+        // A CSS glide still paints between its old and new canonical positions.
+        // Retain the existing transition path until it finishes, so exact
+        // culling cannot cut off a card that is still moving through the view.
+        onlyRenderVisibleElements={renderedNodes.length > VIEWPORT_CULLING_NODE_COUNT && !isTransitioningLayout}
       >
         {/* Pattern color transparent - the drafting line grid is painted by
             .react-flow__background CSS; this component just provides the element. */}
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
-        <MiniMap
-          className="ambio-canvas-minimap"
-          position="top-right"
-          // Top-right, leaving the bottom-right corner to the bins. They are
-          // drop targets and the minimap is not, so the corner belongs to the
-          // thing you have to be able to throw something at.
-          style={{ width: 160, height: 100 }}
-          nodeColor={(n) => {
-            const d = n.data as unknown as SystemNodeData | FileNodeData | InfraNodeData
-            if ('color' in d && d.color) return d.color
-            if (n.type === 'file') return '#6C757D'
-            if (n.type === 'infra') return '#D4A843'
-            return '#2a2e33'
-          }}
-          maskColor="rgba(49,62,58,0.38)"
-        />
+        <CanvasMiniMap />
         <LivingFlowOverlay
           events={relationshipFx}
           nodes={livingDisplayNodes}

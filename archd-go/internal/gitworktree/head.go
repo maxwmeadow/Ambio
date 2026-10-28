@@ -117,12 +117,29 @@ func packedRef(path, ref string) (string, error) {
 }
 
 // Busy reports whether a Git command is rewriting this checkout right now:
-// checkout, merge, reset and friends hold index.lock while they write files
-// and only move HEAD at the end. A lock older than staleAfter is left over
-// from a crashed command and does not count.
+// checkout, merge, reset and friends hold index.lock while they write files,
+// then HEAD.lock while they move HEAD. A lock older than staleAfter is left
+// over from a crashed command and does not count.
 func (c Checkout) Busy(staleAfter time.Duration) bool {
-	info, err := os.Stat(filepath.Join(c.GitDir, "index.lock"))
-	return err == nil && time.Since(info.ModTime()) < staleAfter
+	for _, lock := range []string{"index.lock", "HEAD.lock"} {
+		if info, err := os.Stat(filepath.Join(c.GitDir, lock)); err == nil && time.Since(info.ModTime()) < staleAfter {
+			return true
+		}
+	}
+	return false
+}
+
+// indexSettle is how long after Git writes the index HEAD may still be about
+// to move: checkout releases index.lock once the files and index are written
+// and only then takes HEAD.lock, a gap that is wide on a slow Windows disk.
+const indexSettle = time.Second
+
+// IndexJustWritten reports whether the index was written so recently that the
+// command that wrote it may not have moved HEAD yet. `git status` refreshes
+// the index too, so callers stop waiting once HEAD has moved.
+func (c Checkout) IndexJustWritten() bool {
+	info, err := os.Stat(filepath.Join(c.GitDir, "index"))
+	return err == nil && time.Since(info.ModTime()) < indexSettle
 }
 
 // HeadMessages returns the reflog messages that took HEAD from one state to
@@ -170,6 +187,41 @@ func (c Checkout) HeadMessages(from, to Head) []string {
 		}
 	}
 	return nil
+}
+
+// WasRenamed reports whether HEAD's branch was renamed (`git branch -m`) from
+// one name to another without HEAD moving: the newest reflog entries are the
+// renames, in a chain from from to to.
+func (c Checkout) WasRenamed(from, to Head) bool {
+	if from.Commit != to.Commit || from.Branch == to.Branch {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(c.GitDir, "logs", "HEAD"))
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	name := to.Branch
+	for index := len(lines) - 1; index >= 0; index-- {
+		identity, message, _ := strings.Cut(lines[index], "\t")
+		fields := strings.Fields(identity)
+		renamed, ok := strings.CutPrefix(message, "Branch: renamed refs/heads/")
+		// Git logs each rename twice, once through the null object id.
+		if !ok || len(fields) < 2 || (fields[1] != to.Commit && strings.Trim(fields[1], "0") != "") {
+			return false
+		}
+		before, after, ok := strings.Cut(renamed, " to refs/heads/")
+		if !ok {
+			return false
+		}
+		if after == name {
+			name = before
+		}
+		if name == from.Branch {
+			return true
+		}
+	}
+	return false
 }
 
 func isObjectName(name string) bool {

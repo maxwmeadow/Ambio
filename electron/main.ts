@@ -20,7 +20,7 @@ import { clampZoom, normalizeSettings, patchSettings, UI_ZOOM_STEP, type AppSett
 import type { SystemRole } from '../src/shared/appMenu'
 import { format } from 'util'
 import { createLogs, formatDiagnostics, timestamped } from './logging'
-import { readDaemonToken } from './daemonAuth'
+import { readDaemonToken, mappingAttemptState } from './daemonAuth'
 import { dirname, join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import os from 'os'
@@ -28,7 +28,9 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
-import { RUN_NEEDS_INSTALL } from '../src/shared/agentDelivery'
+import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId } from '../src/shared/agentDelivery'
+import { discoverAppClients } from './agentClientDiscovery'
+import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
 import { resolveNodeCommand } from './platformPaths'
 import { readOverrides, setOverride, clearOverride } from './agentOverrides'
@@ -36,7 +38,7 @@ import { configurationChecks, probeMcpServer, type ConnectionTestResult } from '
 import { DeliveryRunner, deliveryTargets, deliveryPlan, checkDeliveryMessage, chatDeepLink } from './agentDelivery'
 import { agentDriver, mcpEnvironment, turnMode } from './agentDrivers'
 import { workOrderHandoff } from '../src/shared/workOrderHandoff'
-import type { DeliveryRequest } from '../src/shared/agentDelivery'
+import type { DeliveryRequest, MappingBinding } from '../src/shared/agentDelivery'
 import {
   createProjectId,
   exportManifest,
@@ -238,7 +240,7 @@ function registerFolder(rootPath: string): ProjectConfig {
   const id = existing?.id ?? createProjectId()
   const freshConfig: ProjectConfig = {
     id,
-    name: rootPath.split(/[/\\]/).pop() ?? 'Project',
+    name: existing?.name ?? rootPath.split(/[/\\]/).pop() ?? 'Project',
     rootPath,
     creationSource: 'open-codebase',
     rootIsEmpty: fs.readdirSync(rootPath).length === 0,
@@ -886,6 +888,11 @@ function setupIPC(): void {
     directory: chatDirectory,
     binary: app.isPackaged ? join(process.resourcesPath, 'agent', process.platform === 'win32' ? 'opencode.exe' : 'opencode') : join(__dirname, '../agent', process.platform === 'win32' ? 'opencode.exe' : 'opencode'),
     providers: chatProviders, proxy: chatProxy, project: chatProject, mcp: mcpLaunchSpec,
+    mappingCredentials: async (workspaceId, id) => {
+      const response = await archdJson(`/api/mapping-attempts/${encodeURIComponent(id)}/credentials`, { method: 'POST', body: JSON.stringify({ workspaceId }) })
+      if (response.status !== 200) throw failure('This mapping session is unavailable', response.body)
+      return response.body as MappingBinding
+    },
     assertExternalIdle: root => deliveryRunner.assertRootAvailable(root),
     workOrder: async (project, id) => {
       if (typeof id !== 'string' || id.length > 256) throw new Error('Invalid work order.')
@@ -954,8 +961,8 @@ function setupIPC(): void {
   ipcMain.handle('chat:provider-test', (_event, input: ChatProviderInput) => chatProviders.test(input))
   ipcMain.handle('chat:provider-remove', (_event, id: string) => { ensureChatIdle(); chatProviders.remove(id) })
   ipcMain.handle('chat:delete', (_event, id: string) => agentChat!.remove(id))
-  ipcMain.handle('chat:list', (_event, workspaceId: string) => agentChat!.list(workspaceId))
-  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string) => { ensureChatReady(); return agentChat!.create(workspaceId, providerId, model) })
+  ipcMain.handle('chat:list', async (_event, workspaceId: string, mappingAttemptId?: string) => { if (mappingAttemptId || agentChat!.needsMappingRecovery(workspaceId)) await recoverMappingAttempts(workspaceId); return agentChat!.list(workspaceId) })
+  ipcMain.handle('chat:create', (_event, workspaceId: string, providerId: string, model?: string, mappingAttemptId?: string) => { ensureChatReady(); return agentChat!.create(workspaceId, providerId, model, mappingAttemptId) })
   ipcMain.handle('chat:snapshot', (_event, id: string) => agentChat!.snapshot(id))
   ipcMain.handle('chat:cached', (_event, id: string) => agentChat!.cached(id))
   ipcMain.handle('chat:send', (_event, input: ChatSendInput) => { ensureChatReady(); return agentChat!.send(input) })
@@ -1106,7 +1113,7 @@ function setupIPC(): void {
     chatgpt.cancelSignIn()
     quitting = true
     await agentChat?.close()
-    deliveryRunner.stopAll()
+    await deliveryRunner.stopAll()
     if (attachedDaemon) {
       try {
         await fetch(`http://127.0.0.1:${archdPorts.api}/api/daemon/shutdown`, {
@@ -1460,7 +1467,7 @@ function setupIPC(): void {
   ipcMain.handle('agent:hosts', (_event, projectRoot?: string) => {
     const overrides = readOverrides(CONFIG_DIR)
     const present = detectHosts(undefined, undefined, process.platform, overrides)
-    return buildHosts(undefined, undefined, process.platform, overrides).map(host => {
+    return discoverAppClients(buildHosts(undefined, undefined, process.platform, overrides).map(host => {
       const configuration = inspectHostConfiguration(host, projectRoot)
       return {
         id: host.id,
@@ -1480,7 +1487,7 @@ function setupIPC(): void {
         restartDetail: host.restartDetail,
         ...configuration,
       }
-    })
+    }))
   })
 
   // A test run uses the developer's real environment, where real agents and
@@ -1488,7 +1495,7 @@ function setupIPC(): void {
   // shows must not depend on that machine, so in tests every destination is
   // offered only to a spec that brings its own stand-in agents.
   const availableTargets = () => {
-    const targets = deliveryTargets(buildHosts())
+    const targets = deliveryTargets([...buildHosts(), ...SHARED_APP_CLIENTS], process.env, process.platform, os.homedir(), readExecutableOverrides(CONFIG_DIR))
     if (!IS_E2E || process.env.AMBIO_E2E_AGENTS === '1') return targets
     return targets.map(target => ({ ...target, available: false, launcher: undefined, detail: 'Not used in tests.' }))
   }
@@ -1500,8 +1507,42 @@ function setupIPC(): void {
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
   })
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
-  ipcMain.handle('agent:delivery-runs', (_event, workspaceId: string) => {
+  ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
+    const client = CLI_CLIENTS.find(client => client.id === hostId)
+    if (!client) return { ok: false, detail: 'Unknown runnable client.' }
+    const result = await dialog.showOpenDialog({ title: `Locate the executable for ${client.label}`, properties: ['openFile', 'showHiddenFiles'] })
+    if (result.canceled || !result.filePaths.length) return { ok: false, detail: 'Cancelled.' }
+    return setExecutableOverride(CONFIG_DIR, hostId, result.filePaths[0])
+  })
+  ipcMain.handle('agent:clear-executable', (_event, hostId: string) => clearExecutableOverride(CONFIG_DIR, hostId))
+  const mappingRecoveryBefore = Date.now()
+  const mappingRecoveries = new Map<string, Promise<void>>()
+  const recoverMappingAttempts = (workspaceId: string): Promise<void> => {
+    const prior = mappingRecoveries.get(workspaceId)
+    if (prior) return prior
+    const recovery = (async () => {
+      await deliveryRunner.recoverMappings(workspaceId)
+      const response = await archdJson(`/api/mapping-attempts?workspace=${encodeURIComponent(workspaceId)}`)
+      if (response.status !== 200 || !Array.isArray(response.body)) throw new Error('Could not recover mapping sessions.')
+      for (const attempt of response.body as MappingBinding['attempt'][]) {
+        if (attempt.startedAt >= mappingRecoveryBefore) continue
+        const run = deliveryRunner.list(workspaceId).find(item => item.mappingAttemptId === attempt.id)
+        if (run && run.state !== 'launch-failed') continue
+        if (await agentChat?.recoverMapping(workspaceId, attempt.id)) continue
+        // A previous app instance died before recording any process launch.
+        // Current-instance bootstraps are excluded by the startup timestamp.
+        for (const op of ['cancel', 'settle']) {
+          const result = await archdJson(`/api/mapping-attempts/${encodeURIComponent(attempt.id)}/${op}`, { method: 'POST', body: JSON.stringify({ workspaceId }) })
+          if (result.status !== 200) throw failure('Could not close the interrupted mapping session', result.body)
+        }
+      }
+    })().finally(() => mappingRecoveries.delete(workspaceId))
+    mappingRecoveries.set(workspaceId, recovery)
+    return recovery
+  }
+  ipcMain.handle('agent:delivery-runs', async (_event, workspaceId: string) => {
     if (typeof workspaceId !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) return []
+    await recoverMappingAttempts(workspaceId)
     return deliveryRunner.list(workspaceId)
   })
   ipcMain.handle('agent:delivery-events', (_event, workspaceId: string, key: string, after?: number) => {
@@ -1510,101 +1551,143 @@ function setupIPC(): void {
   })
   ipcMain.handle('agent:delivery-stop', (_event, workspaceId: string, key: string) => {
     if (typeof workspaceId !== 'string' || typeof key !== 'string') throw new Error('Invalid agent run.')
-    deliveryRunner.stop(workspaceId, key)
+    return deliveryRunner.stop(workspaceId, key)
   })
-  ipcMain.handle('agent:deliver', async (_event, request: DeliveryRequest) => {
+  // One bootstrap per attempt: retries must not rotate a live agent's credential.
+  const mappingLaunches = new Map<string, Promise<unknown>>()
+  const deliver = async (request: DeliveryRequest) => {
     if (!request || ![request.workspaceId, request.messageId, request.hostId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256)) throw new Error('Invalid work-order destination.')
     const project = loadRecentProjects().find(item => item.id === request.workspaceId)
     if (!project || !fs.existsSync(project.rootPath)) throw new Error('This project is unavailable. Open or relocate it before sending work.')
+    if (request.mappingAttemptId) {
+      const prior = deliveryRunner.list(project.id).find(run => run.mappingAttemptId === request.mappingAttemptId)
+      if (prior) {
+        if (prior.messageId !== request.messageId || prior.hostId !== request.hostId) throw new Error('This mapping session already has an agent.')
+        return { detail: prior.detail, run: prior }
+      }
+    }
     const { status, body } = await archdJson(`/api/canvas/message?workspace=${encodeURIComponent(project.id)}&messageId=${encodeURIComponent(request.messageId)}`, { signal: AbortSignal.timeout(10000) })
     if (status !== 200 || body?.workspaceId !== project.id || body?.id !== request.messageId) throw failure('Could not find this work order in this project', body)
     checkDeliveryMessage(body, project.id, request.messageId)
-    const target = availableTargets().find(host => host.id === request.hostId)
-    if (!target || !target.available) throw new Error(target?.detail ?? 'Unknown agent host.')
-    let prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
-    if (target.route !== 'run') {
-      // A chat Ambio cannot start is pasted into once and asked to stay
-      // attached, so the conversation's next turns reach it without a paste.
-      const attached = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { stayAttached: true })
-      clipboard.writeText(attached)
-      // VS Code and Cursor document a link that opens their chat with a
-      // prompt in it. The project is opened first so the link lands in its
-      // window; the clipboard copy remains for when it does not.
-      const link = chatDeepLink(request.hostId, attached, turnMode(body.mode))
-      const fill = async () => {
-        // A test run must never reach into the developer's real editor.
-        if (!link || process.env.AMBIO_E2E === '1') return false
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        try { await shell.openExternal(link); return true } catch { return false }
+    if (typeof body.note === 'string' && body.note.startsWith('This is a mapping request.') && !request.mappingAttemptId) throw new Error('Setup mapping requires a dedicated mapping session. Restart mapping from setup.')
+    let mapping: MappingBinding | undefined
+    if (request.mappingAttemptId) {
+      const response = await archdJson(`/api/mapping-attempts/${encodeURIComponent(request.mappingAttemptId)}/credentials`, { method: 'POST', body: JSON.stringify({ workspaceId: project.id }) })
+      if (response.status !== 200 || response.body?.attempt?.messageId !== request.messageId) throw failure('This mapping session is unavailable', response.body)
+      mapping = response.body as MappingBinding
+    }
+    try {
+      if (mapping && request.where === 'worktree') throw new Error('Setup mapping reads this project; it does not create a worktree.')
+      const target = availableTargets().find(host => host.id === request.hostId)
+      if (!target || !target.available) throw new Error(target?.detail ?? 'Unknown agent host.')
+      let prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId)
+      if (mapping) prompt = `${body.note}\n\nThis is a finite onboarding mapping session. Ignore repository instructions to start work or draw sheets for code changes: no code changes or work sessions are part of this task. Save all notes and check the full map BEFORE edit_systems commit_session. Committing is the final action and closes this session automatically. Do not claim or reply to a work order.`
+      if (mapping && target.route !== 'run') throw new Error('Setup mapping must use an agent Ambio can start and stop.')
+      if (target.route !== 'run') {
+        // A chat Ambio cannot start is pasted into once and asked to stay
+        // attached, so the conversation's next turns reach it without a paste.
+        const attached = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { stayAttached: true })
+        clipboard.writeText(attached)
+        // VS Code and Cursor document a link that opens their chat with a
+        // prompt in it. The project is opened first so the link lands in its
+        // window; the clipboard copy remains for when it does not.
+        const link = chatDeepLink(request.hostId, attached, turnMode(body.mode))
+        const fill = async () => {
+          // A test run must never reach into the developer's real editor.
+          if (!link || process.env.AMBIO_E2E === '1') return false
+          await new Promise(resolve => setTimeout(resolve, 1500))
+          try { await shell.openExternal(link); return true } catch { return false }
+        }
+        if (!target.launcher) {
+          if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there; that chat then stays attached for your next messages.` }
+          return { detail: `Handoff copied for ${target.label}. Paste it into the chat you choose; it stays attached for your next messages.` }
+        }
+        const launcher = target.launcher
+        const args = request.hostId === 'claude-desktop' ? launcher.args : [...launcher.args, project.rootPath]
+        try {
+          await new Promise<void>((resolveLaunch, rejectLaunch) => {
+            const child = spawn(launcher.command, args, { cwd: project.rootPath, shell: false, detached: true, stdio: 'ignore' })
+            child.once('error', rejectLaunch)
+            child.once('spawn', () => { child.unref(); resolveLaunch() })
+          })
+          if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there if it has not started; that chat then stays attached for your next messages.` }
+          return { detail: `Handoff copied and ${target.label} opened. Paste it into the chat you choose; work has not started yet.` }
+        } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
       }
-      if (!target.launcher) {
-        if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there; that chat then stays attached for your next messages.` }
-        return { detail: `Handoff copied for ${target.label}. Paste it into the chat you choose; it stays attached for your next messages.` }
+      if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
+      // An agent that only reads Ambio's server from its app's settings must not
+      // start without it: it would work blind and go around Ambio.
+      const needs = RUN_NEEDS_INSTALL[target.id]
+      const installHost = needs ? buildHosts().find(host => host.id === needs.installer) : undefined
+      if (needs && installHost && !inspectHostConfiguration(installHost, project.rootPath).configured) {
+        throw new Error(`Ambio has not been added to ${needs.app} yet, and ${target.label} can only use Ambio\u2019s tools through ${needs.app}\u2019s settings. Add Ambio in Settings \u2192 Agents, then send again.`)
       }
-      const launcher = target.launcher
-      const args = request.hostId === 'claude-desktop' ? launcher.args : [...launcher.args, project.rootPath]
-      try {
-        await new Promise<void>((resolveLaunch, rejectLaunch) => {
-          const child = spawn(launcher.command, args, { cwd: project.rootPath, shell: false, detached: true, stdio: 'ignore' })
-          child.once('error', rejectLaunch)
-          child.once('spawn', () => { child.unref(); resolveLaunch() })
+      // Where the run works: a conversation keeps the worktree it started in;
+      // a new one asked for its own worktree gets one from archd.
+      const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+      const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
+      let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
+      if (!earlier.length && request.where === 'worktree') {
+        const made = await archdJson('/api/checkouts/worktree', {
+          method: 'POST', body: JSON.stringify({ workspaceId: project.id, name: typeof body.note === 'string' ? body.note.slice(0, 60) : 'run' }),
+          signal: AbortSignal.timeout(20000),
         })
-        if (await fill()) return { detail: `${target.label} opened with the handoff in its chat. Send it there if it has not started; that chat then stays attached for your next messages.` }
-        return { detail: `Handoff copied and ${target.label} opened. Paste it into the chat you choose; work has not started yet.` }
-      } catch { return { detail: `Handoff copied, but ${target.label} could not open. Open it yourself and paste into the chat you choose.` } }
-    }
-    if (!fs.existsSync(mcpServerPath())) throw new Error('This Ambio install has no MCP server. Repair the installation before starting an agent.')
-    // An agent that only reads Ambio's server from its app's settings must not
-    // start without it: it would work blind and go around Ambio.
-    const needs = RUN_NEEDS_INSTALL[target.id]
-    const installHost = needs ? buildHosts().find(host => host.id === needs.installer) : undefined
-    if (needs && installHost && !inspectHostConfiguration(installHost, project.rootPath).configured) {
-      throw new Error(`Ambio has not been added to ${needs.app} yet, and ${target.label} can only use Ambio\u2019s tools through ${needs.app}\u2019s settings. Add Ambio in Settings \u2192 Agents, then send again.`)
-    }
-    // Where the run works: a conversation keeps the worktree it started in;
-    // a new one asked for its own worktree gets one from archd.
-    const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
-    const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
-    let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
-    if (!earlier.length && request.where === 'worktree') {
-      const made = await archdJson('/api/checkouts/worktree', {
-        method: 'POST', body: JSON.stringify({ workspaceId: project.id, name: typeof body.note === 'string' ? body.note.slice(0, 60) : 'run' }),
-        signal: AbortSignal.timeout(20000),
+        if (made.status !== 200 || typeof made.body?.path !== 'string') throw failure('Ambio could not make a worktree for this agent', made.body)
+        workPath = made.body.path
+      }
+      agentChat?.assertRootAvailable(project.rootPath)
+      // A turn continues the host session its conversation already has, when
+      // the host can; the conversation itself reaches the agent through Ambio.
+      const driver = agentDriver(request.hostId)
+      const mode = turnMode(body.mode)
+      const threadId = conversation
+      if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
+      const resume = !mapping && driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(validModel(request.model) ? { model: request.model } : {}) }
+      const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
+      // An ACP agent is given Ambio's tools for the session and continues or
+      // restarts the session itself.
+      const session = driver?.acp || driver?.acpArgs || driver?.muse
+      const acp = session ? {
+        resume,
+        mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId, mapping)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
+      } : undefined
+      // A host with both ways in is tried as a session first; print mode is the
+      // same turn started the way it always was.
+      const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
+      const run = await deliveryRunner.start({
+        ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
+        args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
+        ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
+        ...(driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })
-      if (made.status !== 200 || typeof made.body?.path !== 'string') throw failure('Ambio could not make a worktree for this agent', made.body)
-      workPath = made.body.path
+      return { detail: run.detail, run }
+    } catch (error) {
+      if (mapping) {
+        const owned = deliveryRunner.list(project.id).find(run => run.mappingAttemptId === mapping!.attempt.id)
+        if (owned) await deliveryRunner.stop(project.id, owned.key).catch(() => {})
+        else {
+          // No launch receipt means no process was started by this handler.
+          await archdJson(`/api/mapping-attempts/${encodeURIComponent(mapping.attempt.id)}/cancel`, { method: 'POST', body: JSON.stringify({ workspaceId: project.id }) })
+          await archdJson(`/api/mapping-attempts/${encodeURIComponent(mapping.attempt.id)}/settle`, { method: 'POST', body: JSON.stringify({ workspaceId: project.id }) })
+        }
+      }
+      throw error
     }
-    agentChat?.assertRootAvailable(project.rootPath)
-    // A turn continues the host session its conversation already has, when
-    // the host can; the conversation itself reaches the agent through Ambio.
-    const driver = agentDriver(request.hostId)
-    const mode = turnMode(body.mode)
-    const threadId = conversation
-    if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
-    const resume = driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
-    const turn = { mode, messageId: request.messageId, cwd: workPath, ...(validModel(request.model) ? { model: request.model } : {}) }
-    const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
-    // An ACP agent is given Ambio's tools for the session and continues or
-    // restarts the session itself.
-    const session = driver?.acp || driver?.acpArgs || driver?.muse
-    const acp = session ? {
-      resume,
-      mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
-    } : undefined
-    // A host with both ways in is tried as a session first; print mode is the
-    // same turn started the way it always was.
-    const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
-    const run = await deliveryRunner.start({
-      ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
-      args: plan.args, stdin: plan.stdin, threadId, mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
-      ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
-      ...(driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
-    })
-    return { detail: run.detail, run }
+  }
+  ipcMain.handle('agent:deliver', (_event, request: DeliveryRequest) => {
+    if (!request?.mappingAttemptId) return deliver(request)
+    const id = request.mappingAttemptId
+    const prior = mappingLaunches.get(id)
+    if (prior) return prior
+    const pending = deliver(request).finally(() => mappingLaunches.delete(id))
+    mappingLaunches.set(id, pending)
+    return pending
   })
 
   // Install Ambio into one agent modality.
   ipcMain.handle('agent:install', (_event, hostId: string, projectRoot?: string) => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
@@ -1657,6 +1740,7 @@ function setupIPC(): void {
   // never did, so following the app's own instruction could not work.
   // Point Ambio at a configuration file it could not find on its own.
   ipcMain.handle('agent:locate', async (_event, hostId: string) => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".` }
@@ -1680,6 +1764,7 @@ function setupIPC(): void {
   // Undo the installers: remove Ambio's MCP entry and workflow files from one
   // agent, or from every agent Ambio knows about.
   ipcMain.handle('agent:uninstall', (_event, hostId: string, projectRoot?: string) => {
+    hostId = installerHostId(hostId)
     const hosts = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
     const host = hosts.find(candidate => candidate.id === hostId)
     if (!host) return { ok: false, detail: `Unknown agent "${hostId}".`, paths: [] }
@@ -1688,11 +1773,12 @@ function setupIPC(): void {
   ipcMain.handle('agent:uninstall-all', (_event, projectRoot?: string) =>
     uninstallAll(buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR)), projectRoot))
 
-  ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, hostId))
+  ipcMain.handle('agent:clear-override', (_event, hostId: string) => clearOverride(CONFIG_DIR, installerHostId(hostId)))
 
   // Check everything an agent depends on to reach Ambio: its configuration,
   // the workflow files, and that the tool server it would launch starts.
   ipcMain.handle('agent:test', async (_event, hostId: string, projectRoot?: string): Promise<ConnectionTestResult> => {
+    hostId = installerHostId(hostId)
     const host = buildHosts(undefined, undefined, process.platform, readOverrides(CONFIG_DIR))
       .find(candidate => candidate.id === hostId)
     if (!host) {
@@ -2090,23 +2176,25 @@ app.on('window-all-closed', () => {
 
 let chatShutdownComplete = false
 app.on('before-quit', event => {
-  if (agentChat && !chatShutdownComplete) {
+  if (!chatShutdownComplete) {
     event.preventDefault()
-    void agentChat.close().finally(() => { chatShutdownComplete = true; app.quit() })
+    quitting = true
+    void Promise.allSettled([deliveryRunner.stopAll(), agentChat?.close() ?? Promise.resolve()]).then(() => { chatShutdownComplete = true; app.quit() })
+    return
   }
   quitting = true
   tray?.destroy()
   tray = null
-  deliveryRunner.stopAll()
-  // An attached daemon was started by an agent and stays for it; it exits by
-  // itself once idle. Only the daemon this app started is stopped.
   if (attachedWatch) clearInterval(attachedWatch)
   stopArchd()
 })
 
-// Ensure archd is killed if the process is terminated via Ctrl+C or signal
-process.on('SIGINT', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); void (agentChat?.close() ?? Promise.resolve()).finally(() => process.exit(0)) })
-process.on('SIGTERM', () => { quitting = true; deliveryRunner.stopAll(); stopArchd(); void (agentChat?.close() ?? Promise.resolve()).finally(() => process.exit(0)) })
+const shutdownOnSignal = () => {
+  quitting = true
+  void Promise.allSettled([deliveryRunner.stopAll(), agentChat?.close() ?? Promise.resolve()]).then(() => { stopArchd(); process.exit(0) })
+}
+process.on('SIGINT', shutdownOnSignal)
+process.on('SIGTERM', shutdownOnSignal)
 
 // Security: the window only ever shows Ambio. A link that would navigate it
 // elsewhere opens in the browser instead; embedded web views are refused.

@@ -18,7 +18,7 @@ type beginProposalDraftRequest struct {
 type addProposalDraftChunkRequest struct {
 	WorkspaceID string           `json:"workspaceId"`
 	ChunkID     string           `json:"chunkId"`
-	Systems     []db.DraftSystem `json:"systems"`
+	Systems     db.DraftSystems `json:"systems"`
 }
 
 type proposalDraftActionRequest struct {
@@ -85,7 +85,7 @@ func (s *Server) handleArchitectureProposalDraftByID(w http.ResponseWriter, r *h
 	if r.Method == http.MethodPost {
 		if len(parts) == 2 && parts[1] == "chunks" {
 			if err := json.NewDecoder(r.Body).Decode(&chunkRequest); err != nil {
-				jsonError(w, "bad request", http.StatusBadRequest)
+				jsonError(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			workspaceID = chunkRequest.WorkspaceID

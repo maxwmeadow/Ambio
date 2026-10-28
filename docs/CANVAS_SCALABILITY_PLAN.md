@@ -2,8 +2,18 @@
 
 Date: 2026-10-20
 Status: approved for staged execution by Max on 2026-10-20; first phase-1 baseline
-complete. Scene/worker/renderer implementation and wider acceptance remain open.
+complete, phase-2 component-budget, canonical-scene and numeric-worker slices implemented after consolidation.
+Canonical Flow materialization and automatic Floor/sheet worker geometry are implemented.
+Progressive scene/data adoption, cold input acceptance and wider density/memory acceptance remain open.
 Starting point: `23963eb` on `codex/canvas-frame-budget`.
+
+Handoff update, 2026-10-26: the remaining review-pan, staged cold-loading/
+retention and final-adoption slices are consolidated for main. The
+[main/device handoff](testing/CANVAS_PERFORMANCE_HANDOFF.md) records the source
+commits, fresh verification, historical measurements, known failures and ordered
+remaining work. Phases 2–5 are not declared complete. The
+[checkpoint recheck](testing/CANVAS_QA_CHECKLIST.md#checkpoint-recheck--2026-10-23)
+records the manual real-project checks still needed.
 
 Max requested a plan after reviewing the five-part performance audit. The goal
 is a reliably smooth Kohler experience with demonstrated headroom for much
@@ -68,6 +78,12 @@ per-entity components/subscriptions despite tiny DOM counts. This is the first
 scene/materialization bottleneck to address, alongside synchronous geometry.
 The stricter 50-cycle memory gate also failed; memory plateau is not established.
 
+Post-consolidation implementation and evidence:
+[CANVAS_COMPONENT_BUDGET.md](testing/CANVAS_COMPONENT_BUDGET.md). Native component
+culling and a single-subscriber minimap address the hidden wrapper tree while
+retaining canonical geometry in React Flow. The remaining full-scene lookup and
+projection costs require the scene-controller boundary below.
+
 Extend `tests/e2e/canvas-performance.spec.ts` and the existing local metrics;
 keep the existing interaction/visual suite. Add a shared deterministic fixture
 builder rather than multiplying independent ad hoc performance scripts.
@@ -97,9 +113,20 @@ content and interaction correctness. Larger levels that cannot finish are
 reported as failures with their limiting stage. The device/tolerance and
 absolute memory budget are recorded before using them as release gates.
 
+Canonical scene/worker implementation and Oct 22–23 acceptance evidence:
+[CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md). Warm navigation
+and selection improve at 100k; cold input and the 50-cycle heap gate still fail.
+
 ## Phase 2 - Background, incremental scene preparation
 
 WORK item: `canvas-cold-layout-worker`. Depends on phase 1 tracing.
+
+Oct 24 follow-up: completed Floor projections now prepare canonical records,
+ID order and absolute rectangles cooperatively, reuse their indexes on adoption
+and avoid idle-overlay/persistence rebuilds. This is a partial phase-2 slice;
+the 100k cold-input gate remains inconsistent. Integrity checks, other full-model
+consumers and semantic threshold crossings still need measurement and bounded
+work. See [final adoption evidence](testing/CANVAS_FINAL_ADOPTION.md).
 
 Extract deterministic numeric layout/packing from `AmbioCanvas.tsx`, initially
 `runAlternateAxisLayout` and `buildFloorFrameLayout`. Proposed files under
@@ -263,3 +290,25 @@ flowchart LR
 The arrows through progressive reads and the renderer adapter are proposed;
 these systems have not all been implemented. Existing camera/authoring semantics
 and canonical persistence remain authoritative throughout the migration.
+
+## Execution detail — 2026-10-22
+
+Continue the approved phase-2 scope on `codex/canvas-scene-scale`:
+
+- Keep the canonical scene/absolute geometry in a per-canvas registry outside
+  React Flow. Materialize buffered visible IDs, required ancestors, selected/live
+  nodes and relationship endpoints; preserve the outgoing subset during glides.
+  Fit/drop/initial framing use canonical geometry when an entity is not adopted.
+- Extract numeric Floor preparation from React projection. Evolve the existing
+  worker with a versioned preparation protocol/controller, cancellable chunks,
+  stale-result rejection and bounded fallback. Preserve authored layout and the
+  existing mutation/persistence paths.
+- Validate fixed-camera repeated navigation, dense relationships and long-run
+  memory, then benchmark the real daemon loading path using isolated data.
+  Report any remaining limit, including whole-model decode/projection, rather
+  than treating a successful replay as live-project acceptance.
+
+The live Ambio connector is unavailable. This records the already-authorized
+boundaries locally; no live sheet or work session was created.
+
+Implementation and current acceptance limits: [canonical scene/worker audit](testing/CANVAS_CANONICAL_WORKER.md). The parent phase remains open until cold input and broader acceptance meet its targets.

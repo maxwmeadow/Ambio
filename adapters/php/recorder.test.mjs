@@ -3,7 +3,7 @@ import test from 'node:test'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, realpathSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, delimiter } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ADAPTER = dirname(fileURLToPath(import.meta.url))
@@ -14,7 +14,8 @@ const skip = VERSION < 70100 && 'no PHP 7.1+'
 
 /** A workspace of `files`; `run` executes `script`, with or without the recorder. */
 function workspace(files) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'ambio-phprec-')))
+  // native: on Windows it also expands 8.3 short names (RUNNER~1), as PHP does.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'ambio-phprec-')))
   for (const [rel, code] of Object.entries(files)) {
     mkdirSync(dirname(join(root, rel)), { recursive: true })
     writeFileSync(join(root, rel), code)
@@ -27,7 +28,7 @@ function workspace(files) {
     const env = { ...process.env }
     if (record) {
       Object.assign(env, {
-        PHP_INI_SCAN_DIR: (process.platform === 'win32' ? ';' : ':') + ini,
+        PHP_INI_SCAN_DIR: delimiter + ini,
         AMBIO_WORKSPACE_ROOT: root,
         AMBIO_EVIDENCE_DIR: evidence,
         AMBIO_WATCHES: JSON.stringify(watches.map(([file, symbol]) => ({ absPath: join(root, file), symbol }))),
@@ -138,7 +139,7 @@ test('a PHP run records arguments by name, object mutations and the crash, and p
   assert.ok(r.doc.edges.some(e => e.from.name === 'price' && e.to.name === 'lookup' && e.calls === 2))
   assert.equal(r.doc.uncaught.length, 1)
   assert.equal(r.doc.uncaught[0].what, 'InvalidArgumentException: not enough widget')
-  assert.deepEqual(r.doc.uncaught[0].stack.split('\n').map(l => l.replace(ws.root, '')), ['    at reserve (/src/Stock.php:21:1)', '    at {main} (/repro.php:16:1)'])
+  assert.deepEqual(r.doc.uncaught[0].stack.split('\n').map(l => l.replace(ws.root, '').replaceAll('\\', '/')), ['    at reserve (/src/Stock.php:21:1)', '    at {main} (/repro.php:16:1)'])
 })
 
 // Everything a token-level rewrite can trip on, and every kind of file
@@ -327,6 +328,6 @@ test('the recorded program behaves like the ordinary one across the language and
 
 test('without AMBIO_EVIDENCE_DIR the recorder is inert', { skip }, () => {
   const ws = workspace({ 'a.php': '<?php function f() { return 1; } echo f(), count(get_included_files());' })
-  const r = spawnSync(php, ['a.php'], { cwd: ws.root, encoding: 'utf8', env: { ...process.env, PHP_INI_SCAN_DIR: `:${join(ws.root, '.ini')}`, AMBIO_EVIDENCE_DIR: '' } })
+  const r = spawnSync(php, ['a.php'], { cwd: ws.root, encoding: 'utf8', env: { ...process.env, PHP_INI_SCAN_DIR: delimiter + join(ws.root, '.ini'), AMBIO_EVIDENCE_DIR: '' } })
   assert.equal(r.stdout, '12', 'the script and the prepended file; nothing rewritten')
 })

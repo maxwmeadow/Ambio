@@ -3,10 +3,63 @@ import test from 'node:test'
 import {
   HIDDEN_NODE_CLASS,
   REVEAL_CONTAINER_PX,
+  REVEAL_MOTION,
   applyZoomVisibility,
+  revealCrossfade,
+  revealEntranceElapsed,
   makeFullyVisible,
   revealNodePath,
+  zoomVisibilitySteps,
 } from './semanticZoom.ts'
+import { stampSelection } from './selectionController.ts'
+import { stampRuntimeOverlay } from './nodeOverlays.ts'
+
+test('selection and activity retain semantic indexes without retaining stale geometry edits', () => {
+  const original = applyZoomVisibility([
+    node('root', 480, 480), node('child', 20, 20, { depth: 1, parentId: 'root' }),
+  ], .5)
+  const selected = stampSelection(original, new Set(['root']))
+  const active = stampRuntimeOverlay(selected, { root: { status: 'running' } })
+  let reads = 0
+  for (const subject of active) {
+    const style = subject.style
+    Object.defineProperty(subject, 'style', { get() { reads++; return style } })
+  }
+  assert.equal(applyZoomVisibility(active, .51), active)
+  assert.equal(reads, 0)
+  const revealed = applyZoomVisibility(active, 1)
+  assert.equal(revealed[1].hidden, false)
+  assert.equal(revealed[0].selected, true)
+  assert.deepEqual(revealed[0].data.runtime, { status: 'running' })
+  const resized = revealed.map(n => n.id === 'root' ? { ...n, style: { width: 20, height: 20 } } : n)
+  assert.equal(applyZoomVisibility(resized, 1)[1].hidden, true)
+})
+
+test('semantic indexing checkpoints its sort and preserves stable depth order', () => {
+  const nodes = Array.from({ length: 2000 }, (_, i) => node(String(i), 480 + i, 480, {
+    depth: 2000 - i, parentId: i < 1999 ? String(i + 1) : undefined,
+  }))
+  const steps = zoomVisibilitySteps(nodes, 2)
+  let checkpoints = 0, result
+  do { result = steps.next(); if (!result.done) checkpoints++ } while (!result.done)
+  assert.ok(checkpoints > 30, `index/sort/visibility checkpoints: ${checkpoints}`)
+  assert.deepEqual(result.value.map(n => n.id), nodes.map(n => n.id))
+  assert.equal(result.value.every(n => !n.hidden), true)
+
+  // Interrupt after the geometry scan, during the cooperative sorting stage.
+  // An incomplete index must not be published onto the input array.
+  let reads = 0
+  const pending = nodes.map(n => {
+    const data = n.data
+    return { ...n, get data() { reads++; return data } }
+  })
+  const abandoned = zoomVisibilitySteps(pending, 2)
+  for (let i = 0; i < 10; i++) assert.equal(abandoned.next().done, false)
+  abandoned.return()
+  reads = 0
+  assert.equal(applyZoomVisibility(pending, 2).every(n => !n.hidden), true)
+  assert.ok(reads >= pending.length)
+})
 
 const node = (id, width, height, options = {}) => ({
   id,
@@ -80,6 +133,40 @@ test('makeFullyVisible overrides temporary semantic-zoom hiding', () => {
   assert.equal(visible.data.selfBlur, 0)
   assert.equal(visible.data.childrenVisible, 1)
   assert.equal(makeFullyVisible(visible), visible)
+})
+
+test('only a node a pass brings out of hiding is stamped for an entrance', () => {
+  const parent = node('parent', REVEAL_CONTAINER_PX, REVEAL_CONTAINER_PX)
+  const child = node('child', 20, 20, { depth: 1, parentId: 'parent' })
+  const first = applyZoomVisibility([parent, child], 1, 100)
+  // A first projection has no previous state: nothing plays an entrance.
+  assert.equal(first[1].data.revealedAt, undefined)
+  const folded = applyZoomVisibility(first, 0.5, 200)
+  assert.equal(folded[1].hidden, true)
+  const opened = applyZoomVisibility(folded, 1, 300)
+  assert.equal(opened[1].data.revealedAt, 300)
+  assert.equal(opened[0].data.revealedAt, undefined)
+})
+
+test('an entrance stays anchored to its reveal and ends with it', () => {
+  const end = REVEAL_MOTION.contentDelayMs + REVEAL_MOTION.contentInMs
+  assert.equal(revealEntranceElapsed(undefined, 1000), null)
+  assert.equal(revealEntranceElapsed(1000, 1040), 40)
+  assert.equal(revealEntranceElapsed(1000, 1000 + end), null)
+  // The children wait for the name to clear before they appear.
+  assert.ok(REVEAL_MOTION.contentDelayMs >= REVEAL_MOTION.titleOutMs)
+  assert.match(revealCrossfade(true).contents, new RegExp(`${REVEAL_MOTION.contentDelayMs}ms$`))
+})
+
+test('a drag-locked node stays undraggable through every visibility pass', () => {
+  const locked = { ...node('approved', 480, 480), data: { depth: 0, dragLocked: true } }
+  const shown = applyZoomVisibility([locked], 1)[0]
+  assert.equal(shown.hidden, false)
+  assert.equal(shown.selectable, true)
+  assert.equal(shown.draggable, false)
+  assert.equal(makeFullyVisible(shown).draggable, false)
+  assert.equal(makeFullyVisible(shown), shown)
+  assert.equal(applyZoomVisibility([node('pending', 480, 480)], 1)[0].draggable, true)
 })
 
 test('a zoom change that alters nothing reuses the exact same node objects', () => {

@@ -24,8 +24,8 @@ contextBridge.exposeInMainWorld('ambio', {
   testChatProvider: (input: ChatProviderInput): Promise<ChatConnectionTest> => ipcRenderer.invoke('chat:provider-test', input),
   removeChatProvider: (id: string): Promise<void> => ipcRenderer.invoke('chat:provider-remove', id),
   deleteChat: (id: string): Promise<void> => ipcRenderer.invoke('chat:delete', id),
-  chatConversations: (workspaceId: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId),
-  createChat: (workspaceId: string, providerId: string, model?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model),
+  chatConversations: (workspaceId: string, mappingAttemptId?: string): Promise<ChatConversation[]> => ipcRenderer.invoke('chat:list', workspaceId, mappingAttemptId),
+  createChat: (workspaceId: string, providerId: string, model?: string, mappingAttemptId?: string): Promise<ChatConversation> => ipcRenderer.invoke('chat:create', workspaceId, providerId, model, mappingAttemptId),
   chatSnapshot: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:snapshot', id),
   cachedChat: (id: string): Promise<ChatSnapshot> => ipcRenderer.invoke('chat:cached', id),
   sendChat: (input: ChatSendInput): Promise<void> => ipcRenderer.invoke('chat:send', input),
@@ -111,6 +111,8 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('agent:hosts', projectRoot),
 
   listDeliveryHosts: (): Promise<DeliveryHost[]> => ipcRenderer.invoke('agent:delivery-hosts'),
+  locateAgentExecutable: (hostId: string): Promise<AgentOverrideResult> => ipcRenderer.invoke('agent:locate-executable', hostId),
+  clearAgentExecutableOverride: (hostId: string): Promise<AgentOverrideResult> => ipcRenderer.invoke('agent:clear-executable', hostId),
   mappingBrief: (): Promise<string> => ipcRenderer.invoke('agent:mapping-brief'),
   agentModels: (hostId: string): Promise<ModelOption[]> => ipcRenderer.invoke('agent:models', hostId),
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
@@ -261,6 +263,10 @@ export interface AgentHostInfo {
   sharedSurfaces: { id: string; label: string }[]
   /** Whether this agent looks installed on this machine. */
   detected: boolean
+  /** Shared app routes use the installer's existing configuration and host identity. */
+  connectionHostId?: string
+  detectionEvidence?: string[]
+  detectionError?: string
   /** Whether any user or project configuration contains an Ambio MCP entry. */
   configured: boolean
   configuredPaths: string[]
@@ -338,8 +344,8 @@ declare global {
       testChatProvider: (input: ChatProviderInput) => Promise<ChatConnectionTest>
       removeChatProvider: (id: string) => Promise<void>
       deleteChat: (id: string) => Promise<void>
-      chatConversations: (workspaceId: string) => Promise<ChatConversation[]>
-      createChat: (workspaceId: string, providerId: string, model?: string) => Promise<ChatConversation>
+      chatConversations: (workspaceId: string, mappingAttemptId?: string) => Promise<ChatConversation[]>
+      createChat: (workspaceId: string, providerId: string, model?: string, mappingAttemptId?: string) => Promise<ChatConversation>
       chatSnapshot: (id: string) => Promise<ChatSnapshot>
       cachedChat: (id: string) => Promise<ChatSnapshot>
       sendChat: (input: ChatSendInput) => Promise<void>
@@ -377,6 +383,8 @@ declare global {
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>
       listDeliveryHosts: () => Promise<DeliveryHost[]>
+      locateAgentExecutable: (hostId: string) => Promise<AgentOverrideResult>
+      clearAgentExecutableOverride: (hostId: string) => Promise<AgentOverrideResult>
       mappingBrief: () => Promise<string>
       agentModels: (hostId: string) => Promise<ModelOption[]>
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>

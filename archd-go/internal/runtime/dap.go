@@ -84,10 +84,13 @@ func (c *dapClient) nextSeq() int {
 }
 
 // requestTimeout bounds the wait for one response. initialize is the
-// debugger's first answer, after its own startup: a cold gdb on a busy Windows
-// machine (a freshly built program is also virus-scanned) can take over 15s.
+// debugger's first answer, after its own startup, and launching or setting a
+// breakpoint makes it load the program and read its symbols: on a busy
+// Windows machine a cold gdb (with a freshly built program also being
+// virus-scanned) can take over 15s for any of them.
 func requestTimeout(command string) time.Duration {
-	if command == "initialize" {
+	switch command {
+	case "initialize", "launch", "attach", "setBreakpoints", "setFunctionBreakpoints", "configurationDone":
 		return 60 * time.Second
 	}
 	return 15 * time.Second

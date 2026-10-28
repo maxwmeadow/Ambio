@@ -56,7 +56,18 @@ export function inspectFloorScene(
   nodes: readonly Node[],
   canonicalNodeCount: number,
   canonicalNodeIds?: ReadonlySet<string>,
+  sceneNodeIds?: Set<string>,
 ): SceneIntegrity {
+  const steps = inspectFloorSceneSteps(nodes, canonicalNodeCount, canonicalNodeIds, sceneNodeIds)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+
+function* inspectFloorSceneSteps(
+  nodes: readonly Node[],
+  canonicalNodeCount: number,
+  canonicalNodeIds?: ReadonlySet<string>,
+  sceneNodeIds?: Set<string>,
+): Generator<void, SceneIntegrity> {
   if (canonicalNodeCount <= 0) {
     return {
       valid: true,
@@ -78,11 +89,18 @@ export function inspectFloorScene(
     }
   }
 
-  const nodeIds = new Set(nodes.map(node => node.id))
-  if (canonicalNodeIds && (
-    nodeIds.size !== canonicalNodeIds.size ||
-    [...canonicalNodeIds].some(id => !nodeIds.has(id))
-  )) {
+  let work = 0
+  const nodeIds = sceneNodeIds ?? new Set<string>()
+  if (!sceneNodeIds) for (const node of nodes) {
+    nodeIds.add(node.id)
+    if ((++work & 255) === 0) yield
+  }
+  let mismatch = Boolean(canonicalNodeIds && nodeIds.size !== canonicalNodeIds.size)
+  if (canonicalNodeIds && !mismatch) for (const id of canonicalNodeIds) {
+    if (!nodeIds.has(id)) { mismatch = true; break }
+    if ((++work & 255) === 0) yield
+  }
+  if (mismatch) {
     return {
       valid: false,
       reason: 'canonical-mismatch',
@@ -92,20 +110,25 @@ export function inspectFloorScene(
       invalidNodeIds: [],
     }
   }
-  const roots = nodes.filter(node => !node.parentId || !nodeIds.has(node.parentId))
-  const visibleRoots = roots.filter(visiblyProjected)
-  const invalidNodeIds = nodes
-    .filter(node =>
+  let roots = 0, visibleRoots = 0
+  const invalidNodeIds: string[] = []
+  for (const node of nodes) {
+    if ((++work & 255) === 0) yield
+    if (!node.parentId || !nodeIds.has(node.parentId)) {
+      roots++
+      if (visiblyProjected(node)) visibleRoots++
+    }
+    if (
       !Number.isFinite(node.position?.x) ||
       !Number.isFinite(node.position?.y) ||
       !finiteDimension(node, 'width') ||
-      !finiteDimension(node, 'height'),
-    )
-    .map(node => node.id)
+      !finiteDimension(node, 'height')
+    ) invalidNodeIds.push(node.id)
+  }
 
-  const reason = roots.length === 0
+  const reason = roots === 0
     ? 'no-root'
-    : visibleRoots.length === 0
+    : visibleRoots === 0
       ? 'no-visible-root'
       : invalidNodeIds.length > 0
         ? 'invalid-geometry'
@@ -114,8 +137,83 @@ export function inspectFloorScene(
     valid: reason === null,
     reason,
     nodeCount: nodes.length,
-    rootCount: roots.length,
-    visibleRootCount: visibleRoots.length,
+    rootCount: roots,
+    visibleRootCount: visibleRoots,
     invalidNodeIds,
+  }
+}
+
+interface PreparedIntegrity {
+  count: number
+  ids?: ReadonlySet<string>
+  nodeIds: Set<string>
+  result: SceneIntegrity
+}
+const preparedIntegrity = new WeakMap<readonly Node[], PreparedIntegrity>()
+
+/** The authoritative audit runs before publication, with the independent
+ * model membership. Cache only a completed audit for this exact immutable array. */
+export function* prepareFloorSceneIntegritySteps(nodes: readonly Node[], count: number, ids?: ReadonlySet<string>): Generator<void, SceneIntegrity> {
+  const nodeIds = new Set<string>()
+  let work = 0
+  for (const node of nodes) {
+    nodeIds.add(node.id)
+    if ((++work & 255) === 0) yield
+  }
+  const result = yield* inspectFloorSceneSteps(nodes, count, ids, nodeIds)
+  preparedIntegrity.set(nodes, { count, ids, nodeIds, result })
+  return result
+}
+
+/** Presentation stamps preserve membership, geometry and visibility. A new
+ * model membership or an ordinary edit must not inherit this validation. */
+export function rememberPresentationIntegrity(source: Node[], nodes: Node[]): void {
+  const prepared = preparedIntegrity.get(source)
+  if (prepared && source !== nodes) preparedIntegrity.set(nodes, prepared)
+}
+
+/** Validate changed immutable nodes, retaining the complete ID/geometry audit
+ * for structural revisions. Selection/chrome updates must not allocate a new
+ * project-wide ID set or re-read every unchanged box. */
+export function createFloorSceneInspector() {
+  let previous: { nodes: readonly Node[]; count: number; ids?: ReadonlySet<string>; nodeIds: Set<string>; result: SceneIntegrity } | undefined
+  return (nodes: readonly Node[], count: number, ids?: ReadonlySet<string>): SceneIntegrity => {
+    const prepared = preparedIntegrity.get(nodes)
+    if (prepared && prepared.count === count && prepared.ids === ids) {
+      previous = { ...prepared, nodes }
+      return prepared.result
+    }
+    if (previous && count > 0 && nodes.length > 0 && previous.result.reason !== 'canonical-mismatch' && previous.nodeIds.size === nodes.length && count === previous.count && ids === previous.ids && nodes.length === previous.nodes.length) {
+      let roots = previous.result.rootCount, visible = previous.result.visibleRootCount
+      const invalid = new Set(previous.result.invalidNodeIds)
+      let structural = false
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i], before = previous.nodes[i]
+        if (node === before) continue
+        if (node.id !== before.id) { structural = true; break }
+        const wasRoot = !before.parentId || !previous.nodeIds.has(before.parentId)
+        const isRoot = !node.parentId || !previous.nodeIds.has(node.parentId)
+        roots += Number(isRoot) - Number(wasRoot)
+        visible += Number(isRoot && visiblyProjected(node)) - Number(wasRoot && visiblyProjected(before))
+        const valid = Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y) && finiteDimension(node, 'width') && finiteDimension(node, 'height')
+        if (valid) invalid.delete(node.id); else invalid.add(node.id)
+      }
+      if (!structural) {
+        const old = previous.result
+        const reason: SceneIntegrity['reason'] = old.reason === 'canonical-mismatch' ? old.reason
+          : roots === 0 ? 'no-root' : visible === 0 ? 'no-visible-root' : invalid.size ? 'invalid-geometry' : null
+        const result: SceneIntegrity = roots === old.rootCount && visible === old.visibleRootCount && reason === old.reason &&
+          invalid.size === old.invalidNodeIds.length && old.invalidNodeIds.every(id => invalid.has(id)) ? old : {
+            valid: reason === null, reason, nodeCount: nodes.length, rootCount: roots, visibleRootCount: visible,
+            invalidNodeIds: invalid.size ? nodes.filter(node => invalid.has(node.id)).map(node => node.id) : [],
+          }
+        previous = { ...previous, nodes, result }
+        return result
+      }
+    }
+    const nodeIds = new Set(nodes.map(node => node.id))
+    const result = inspectFloorScene(nodes, count, ids, nodeIds)
+    previous = { nodes, count, ids, nodeIds, result }
+    return result
   }
 }

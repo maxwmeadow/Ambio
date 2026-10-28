@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"log"
 	"math"
-	"os/exec"
+
 	"path/filepath"
 	"strings"
 
 	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
 )
 
 // CochangePair is a canonical (lexicographically sorted) pair of file IDs.
@@ -30,7 +31,7 @@ func BuildCochange(rootPath string, files []db.File) map[CochangePair]float64 {
 
 	// --relative: paths relative to (and limited to) rootPath, which may be a
 	// subfolder of the repository, so they match the files' RelPath.
-	cmd := exec.Command("git", "-C", rootPath, "log", "--relative",
+	cmd := gitworktree.Command(rootPath, "log", "--relative",
 		"--name-only", "--pretty=format:---COMMIT---", "--diff-filter=AM")
 	out, err := cmd.Output()
 	if err != nil {

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { skipAgentGuides } from './agentGuides'
+import { canvasViewportSettled } from './canvasComponentCounts'
 
 // The branch chip, its Checkouts popover and collision marks on systems
 // (docs/GIT_AND_PROJECT_SHAPES.md "The experience"), against the fixture
@@ -113,6 +114,8 @@ async function launch(checkouts: unknown) {
   })
   await page.reload()
   await skipAgentGuides(page)
+  await expect(page.locator('.ambio-canvas-preparation')).toHaveCount(0)
+  await expect(page.locator('.react-flow__node').first()).toBeAttached()
 }
 
 test.afterEach(async () => {
@@ -193,7 +196,12 @@ test('another branch’s work is drawn on the Floor until the lens turns it off'
   const modified = page.locator('.react-flow__node[data-id="file_canvas"] .ambio-branch-overlay-mark[data-change="modified"]')
   await expect(modified).toBeVisible()
   await expect(modified).toHaveAttribute('title', 'Changed on codex/retry-checkout')
-  await expect(page.locator('.react-flow__node[data-id="file_store"] .ambio-branch-overlay-mark[data-change="deleted"]')).toBeAttached()
+  // Each search really fits its target now. Inspect the other file explicitly;
+  // an offscreen sibling need not remain mounted just to expose its badge.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/store/graphStore.ts')
+  await page.getByRole('option').first().click()
+  await expect(page.locator('.react-flow__node[data-id="file_store"] .ambio-branch-overlay-mark[data-change="deleted"]')).toBeVisible()
   await page.waitForTimeout(900)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'overlay-files.png') })
   await page.keyboard.press('Escape')
@@ -230,6 +238,81 @@ test('a branch is reviewed as architecture, from the branch menu', async () => {
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ambioGraphStore: { getState: () => { selectedNodeId: string | null } } }).__ambioGraphStore.getState().selectedNodeId)).toBe('sys_canvas')
   await popover.getByRole('button', { name: '← Back' }).click()
   await expect(popover.locator('.ambio-checkout')).toHaveCount(2)
+})
+
+test('branch marks survive compact file presentation on a larger Floor', async () => {
+  await launch(PARALLEL)
+  await page.evaluate(() => {
+    const graph = (window as any).__ambioGraphStore
+    const state = graph.getState()
+    const systems = Array.from({ length: 60 }, (_, i) => ({ ...state.systems[0],
+      id: `background-${i}`, name: `Background ${i}`, parentId: null, depth: 0 }))
+    graph.setState({ systems: [...state.systems, ...systems], floorLayouts: [...state.floorLayouts,
+      ...systems.map((system, i) => ({ workspaceId: 'demo', nodeId: system.id, nodeType: 'system',
+        parentNodeId: null, parentNodeType: null, containmentKind: 'root', positionX: 100000 + i * 1000,
+        positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1, updatedAt: 1 }))] })
+    if (!graph.getState().expandedSystemIds.has('sys_canvas')) graph.getState().toggleSystemExpanded('sys_canvas')
+  })
+  // The injected systems make the app fit the whole Floor first; a camera set
+  // before that animation finishes is overridden.
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  // Frame Canvas Renderer at a zoom where its files show but their detail
+  // never reveals (below DETAIL_REVEAL_EFFECTIVE_ZOOM), so file_store is a
+  // compact card for as long as the camera stays here. Arriving by a search
+  // flight would pass through rich detail, and a card is never demoted while
+  // on screen, so whether it was compact depended on timing.
+  await page.evaluate(() => {
+    const element = document.querySelector('.react-flow') as any
+    const key = Object.keys(element).find(key => key.startsWith('__reactFiber$'))!
+    let root = element[key]
+    while (root.return) root = root.return
+    const pending = [root.stateNode?.current ?? root]
+    while (pending.length) {
+      const fiber = pending.pop()
+      const store = fiber.memoizedProps?.value
+      if (typeof store?.getState === 'function' && store.getState().domNode === element) {
+        const state = store.getState()
+        const system = state.nodeLookup.get('sys_canvas')
+        const zoom = 0.95
+        const cx = system.internals.positionAbsolute.x + (system.measured?.width ?? 0) / 2
+        const cy = system.internals.positionAbsolute.y + (system.measured?.height ?? 0) / 2
+        void state.panZoom.setViewport({ x: state.width / 2 - cx * zoom, y: state.height / 2 - cy * zoom, zoom }, { duration: 0 })
+        return
+      }
+      if (fiber.child) pending.push(fiber.child)
+      if (fiber.sibling) pending.push(fiber.sibling)
+    }
+    throw new Error('no React Flow store')
+  })
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  expect(await page.evaluate(() => (document.querySelector('.react-flow__viewport') as HTMLElement).style.transform)).toContain('scale(0.95)')
+  const sibling = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(sibling.locator('[data-render-tier]')).toBeAttached()
+  await expect(sibling.locator('.ambio-branch-overlay-mark')).toHaveAttribute('title', 'Deleted on codex/retry-checkout')
+  // Wheel navigation preserves focus. Culling an editor must finish its usual
+  // blur commit before removing the input, rather than silently losing a draft.
+  const sent: unknown[] = []
+  page.on('request', request => {
+    if (request.url().includes('/api/architecture/edits') && request.method() === 'POST') {
+      sent.push(...(request.postDataJSON().edits ?? []))
+    }
+  })
+  const node = page.locator('.react-flow__node[data-id="sys_canvas"]')
+  await node.locator('[data-node-editable="true"]:visible').first().dblclick()
+  const input = node.locator('input').first()
+  await input.fill('Cancelled draft')
+  await input.press('Escape')
+  await expect(input).toHaveCount(0)
+  expect(sent).toEqual([])
+  await node.locator('[data-node-editable="true"]:visible').first().dblclick()
+  await input.fill('Rendering draft')
+  await expect(input).toBeFocused()
+  const canvas = (await page.locator('.react-flow').first().boundingBox())!
+  await page.mouse.move(canvas.x + canvas.width - 30, canvas.y + canvas.height - 30)
+  for (let i = 0; i < 18; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(35) }
+  await expect(node).toHaveCount(0)
+  await expect.poll(() => sent).toContainEqual({ op: 'rename', systemId: 'sys_canvas', name: 'Rendering draft' })
+  expect(sent.filter((edit: any) => edit.op === 'rename')).toHaveLength(1)
 })
 
 test('an Ambio run is applied or discarded, and the Floor switches branch, from the branch menu', async () => {

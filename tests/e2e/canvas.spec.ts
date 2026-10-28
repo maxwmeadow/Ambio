@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { skipAgentGuides } from './agentGuides'
+import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeGeometry'
+import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
@@ -263,7 +265,7 @@ test.beforeEach(async () => {
   // Initial sheet chrome and fitView animations run for 500ms and 400ms.
   // Measure interactions only after both have reached their authored frame.
   await expect(page.locator('.layout-transition')).toHaveCount(0)
-  await page.waitForTimeout(600)
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
 })
 
 test.afterEach(async () => {
@@ -277,6 +279,85 @@ const canvasZoom = () => page.locator('.react-flow__viewport')
 
 test('renders the deterministic Floor baseline', async () => {
   await expect(page.locator('.react-flow')).toHaveScreenshot('floor-baseline.png')
+})
+
+test('WASD follows pointer ownership through stationary overlays and ignores text editing', async () => {
+  const canvas = page.locator('[data-ambio-canvas]').first()
+  const viewport = canvas.locator('.react-flow__viewport')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+  await page.mouse.move(point.x, point.y)
+  const before = await viewport.getAttribute('style')
+  await page.keyboard.down('d')
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(before)
+  // A nested surface appearing beneath a stationary pointer takes ownership.
+  await page.evaluate(point => {
+    const overlay = document.createElement('div')
+    overlay.id = 'wasd-scope-probe'
+    overlay.setAttribute('data-ambio-canvas', 'test-overlay')
+    Object.assign(overlay.style, { position: 'fixed', left: `${point.x - 50}px`, top: `${point.y - 50}px`,
+      width: '100px', height: '100px', background: '#fff', zIndex: '2147483647' })
+    document.body.append(overlay)
+  }, point)
+  await page.waitForTimeout(100)
+  const occluded = await viewport.getAttribute('style')
+  await page.waitForTimeout(100)
+  expect(await viewport.getAttribute('style')).toBe(occluded)
+  await page.evaluate(() => document.getElementById('wasd-scope-probe')!.remove())
+  await expect.poll(() => viewport.getAttribute('style')).not.toBe(occluded)
+  await page.keyboard.up('d')
+  await page.evaluate(() => {
+    const input = document.createElement('input')
+    input.id = 'wasd-editor-probe'
+    document.body.append(input)
+    input.focus()
+  })
+  const editing = await viewport.getAttribute('style')
+  await page.keyboard.down('d'); await page.waitForTimeout(100); await page.keyboard.up('d')
+  expect(await viewport.getAttribute('style')).toBe(editing)
+  await page.evaluate(() => document.getElementById('wasd-editor-probe')!.remove())
+})
+
+test('clipped dashed routes preserve browser rasterization at ordinary and extreme zoom', async () => {
+  const cases = [0.02, 0.5, 1, 2, 100].flatMap(zoom => [true, false].map(nonScaling => {
+    const points = [{ x: -157, y: 50 }, { x: 100, y: 50 }, { x: 100, y: 400 },
+      { x: 200, y: 400 }, { x: 200, y: 50 }, { x: 220, y: 50 }].map(p => ({ x: p.x / zoom, y: p.y / zoom }))
+    const path = points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join('')
+    const parts = clipOrthogonalEdge(points, { x: -64 / zoom, y: -64 / zoom, width: 384 / zoom, height: 256 / zoom })
+    return { zoom, nonScaling, path, parts }
+  }))
+  for (const c of cases) {
+    await page.evaluate(c => {
+      const common = `fill="none" stroke="black" stroke-width="${c.nonScaling ? 2 : 2 / c.zoom}" stroke-dasharray="${c.nonScaling ? '6 4' : `${6 / c.zoom} ${4 / c.zoom}`}" ${c.nonScaling ? 'vector-effect="non-scaling-stroke"' : ''}`
+      // Match React Flow's HTML camera transform and overflow-visible SVG,
+      // rather than testing only an SVG-internal transform.
+      const wrap = (content: string) => `<div style="width:100%;height:100%;transform:scale(${c.zoom});transform-origin:0 0"><svg width="256" height="128" style="overflow:visible">${content}</svg></div>`
+      const host = document.createElement('div'); host.dataset.edgeParityHost = 'true'
+      const base = 'position:fixed;top:20px;width:256px;height:128px;overflow:hidden;background:white;z-index:2147483000;pointer-events:none'
+      host.innerHTML = `<div data-edge-raster="original" style="${base};left:20px">${wrap(`<path d="${c.path}" ${common}/>` )}</div>` +
+        `<div data-edge-raster="clipped" style="${base};left:300px">${wrap(c.parts.map(p => `<path d="${p.path}" ${common} stroke-dashoffset="${p.startLength}"/>`).join(''))}</div>`
+      document.body.append(host)
+    }, c)
+    try {
+      const original = await page.locator('[data-edge-raster="original"]').screenshot()
+      const clipped = await page.locator('[data-edge-raster="clipped"]').screenshot()
+      const difference = await app.evaluate(({ nativeImage }, images) => {
+        const a = nativeImage.createFromBuffer(Buffer.from(images.original, 'base64')).toBitmap()
+        const b = nativeImage.createFromBuffer(Buffer.from(images.clipped, 'base64')).toBitmap()
+        if (a.length !== b.length) return { maximum: 255, changed: -1 }
+        let maximum = 0, changed = 0
+        for (let i = 0; i < a.length; i++) {
+          const difference = Math.abs(a[i] - b[i])
+          maximum = Math.max(maximum, difference); changed += Number(difference > 1)
+        }
+        return { maximum, changed }
+      }, { original: original.toString('base64'), clipped: clipped.toString('base64') })
+      expect(difference.changed, JSON.stringify({ zoom: c.zoom, nonScaling: c.nonScaling, ...difference })).toBe(0)
+    } finally {
+      await page.evaluate(() => document.querySelector('[data-edge-parity-host]')?.remove())
+    }
+  }
 })
 
 test('autofits complete system names while their contents are covered', async () => {
@@ -839,7 +920,7 @@ test('chooses project sources in a folder-first file browser', async () => {
   setupUrl.searchParams.set('setup', '1')
   await page.goto(setupUrl.toString())
 
-  await expect(page.getByRole('heading', { name: 'Set up Ambio Canvas Fixture' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Set up your project' })).toBeVisible()
   await expect(page.getByText(/Ambio reads what is checked below/)).toBeVisible()
   const sourceTree = page.getByRole('tree', { name: 'Project files and folders' })
   await expect(sourceTree).toBeVisible()
@@ -849,6 +930,12 @@ test('chooses project sources in a folder-first file browser', async () => {
   await expect(sourceTree.getByText('package.json', { exact: true })).toBeVisible()
 
   const startIndexing = page.getByRole('button', { name: /Index this project/ })
+  await expect(startIndexing).toBeEnabled()
+  const projectName = page.getByRole('textbox', { name: 'Project name' })
+  await expect(projectName).toHaveValue('Ambio Canvas Fixture')
+  await projectName.fill('   ')
+  await expect(startIndexing).toBeDisabled()
+  await projectName.fill('  My architecture  ')
   await expect(startIndexing).toBeEnabled()
 
   const rootKinds = await sourceTree.locator(':scope > .ambio-setup-tree__branch').evaluateAll(branches =>
@@ -892,6 +979,19 @@ test('chooses project sources in a folder-first file browser', async () => {
   expect(setupScale.checkboxSize).toBeGreaterThanOrEqual(18)
   expect(setupScale.primaryHeight).toBeGreaterThanOrEqual(58)
   await expect(page.locator('button button')).toHaveCount(0)
+
+  const rootPath = await page.locator('.ambio-source-setup__path').textContent()
+  await startIndexing.click()
+  await expect.poll(() => page.evaluate(async () => {
+    const projects = await window.ambio.listRecentProjects()
+    return projects.find(project => project.id === 'demo')?.name
+  })).toBe('My architecture')
+  // Opening the folder again must keep its display name and directory.
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path!] })
+  }, rootPath)
+  const reopened = await page.evaluate(() => window.ambio.openProjectDialog())
+  expect(reopened).toMatchObject({ id: 'demo', name: 'My architecture', rootPath })
 })
 
 test('keeps documentation in its library and off the architecture canvas', async () => {
@@ -961,15 +1061,15 @@ test('uses two-step agent setup for blank projects without changing codebase set
   await expect(steps).toHaveCount(2)
   await expect(steps.nth(0)).toHaveAttribute('aria-selected', 'true')
 
-  // One list of agents and one action for the chosen one. Agents Ambio runs
-  // come first; Ambio chat is offered even before a model service exists.
+  // Three connection types share one selection; details open over the mascot.
   const agents = page.getByRole('radiogroup', { name: 'Agents' })
-  await expect(agents.getByRole('heading', { name: /Ambio runs it/ })).toBeVisible()
-  await expect(agents.getByRole('heading', { name: /In another app/ })).toBeVisible()
+  await expect(agents.getByRole('heading')).toHaveText(['Ambio chat', 'Ambio runs it', 'In another app'])
   await expect(agents.getByRole('radio', { name: /Ambio chat/ })).toBeVisible()
   const showNotFound = agents.getByRole('button', { name: /not found on this computer/ })
   if (await showNotFound.count()) await showNotFound.click()
   await expect(agents.getByRole('radio', { checked: true })).toHaveCount(1)
+  await expect(page.locator('.ambio-choose__sidebar')).toHaveCount(0)
+  await agents.getByRole('radio', { checked: true }).click()
   await expect(page.locator('.ambio-choose__footer .ambio-connect__primary, .ambio-choose__footer .ambio-connect__secondary')).toHaveCount(1)
   const mascot = page.locator('.ambio-connect__mascot .ambio-final-gemini')
   await expect(mascot).toHaveAttribute('data-state', 'connected')
@@ -1018,7 +1118,7 @@ test('uses two-step agent setup for blank projects without changing codebase set
   codebaseUrl.searchParams.delete('blank')
   await page.goto(codebaseUrl.toString())
   const codebaseSteps = page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')
-  await expect(codebaseSteps).toHaveCount(4)
+  await expect(codebaseSteps).toHaveCount(3)
   await expect(codebaseSteps.getByText('Map project')).toBeVisible()
   await expect(codebaseSteps.getByText('Review')).toBeVisible()
 })
@@ -1196,7 +1296,10 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await expect(proposalPanel).toBeVisible()
   await expect(proposalPanel.getByText('Living Canvas', { exact: true })).toBeVisible()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
-  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
+  // Review uses the Floor's semantic zoom: the overview shows the proposed
+  // system closed with its name, and its files stay unmounted until zoomed in.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node-system').filter({ hasText: 'Living Canvas' })).toBeVisible()
+  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Done Reviewing' })).toBeVisible()
   await expect(page.locator('.ambio-review__canvas .react-flow')).toBeVisible()
   await expect(page.locator('.ambio-review__canvas .react-flow__background')).toHaveCount(1)
@@ -1207,6 +1310,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   // live Floor freezes. No gesture may be the first sparse layout write.
   await expect.poll(() => proposalLayoutSaves).toBe(1)
   await expect(page.locator('.ambio-review__canvas .ambio-canvas-review-ready')).toHaveCount(1)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
   expect(new Set(proposalLayoutWriteKeys[0]))
     .toEqual(new Set(['system:canvas', 'system:zoom', 'file:member-a', 'file:member-b']))
 
@@ -1235,11 +1339,21 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await proposalPanel.getByRole('button', { name: 'Expand Living Canvas' }).click()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
 
+  // A row in the list opens its nested system and flies to it, as search does.
+  await proposalPanel.getByText('Semantic Zoom', { exact: true }).click()
+  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  // A candidate card has its own node id but shows the indexed file's symbols.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-a"]')
+    .getByText('renderCanvas')).toBeVisible()
+
   await page.locator('.ambio-review__canvas .react-flow__node-system')
     .filter({ hasText: 'Semantic Zoom' }).click({ position: { x: 10, y: 10 } })
   await expect(proposalPanel.locator('.ambio-proposal__item').filter({ hasText: 'Semantic Zoom' }))
     .toHaveAttribute('data-active', 'true')
-  await expect(page.locator('.ambio-review__canvas .react-flow__node')).toHaveCount(4)
+  // Search's framing leaves Semantic Zoom closed: its one file stays unmounted.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node')).toHaveCount(3)
+  await expect(page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-b"]')).toHaveCount(0)
 
   // Review uses AmbioCanvas itself. Persisting a node drag must update only the
   // proposal geometry; it must not refit the camera or relayout its siblings.
@@ -1511,13 +1625,15 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
     const westStep = westResizeFrames[index].width - westResizeFrames[index - 1].width
     const westBodyLag = Math.abs(westResizeFrames[index].bodyRight - westResizeFrames[index].right)
     expect(westBodyLag).toBeLessThanOrEqual(westStep + 0.5)
-    // ...and never on two frames in a row, which is what accumulation looks like.
-    const westPreviousLag = Math.abs(
-      westResizeFrames[index - 1].bodyRight - westResizeFrames[index - 1].right,
-    )
-    expect(Math.min(westBodyLag, westPreviousLag)).toBeLessThan(0.5)
   }
   expect(westResizeFrames.at(-1)!.width).toBeGreaterThan(westResizeFrames[0].width + 30)
+  // ...and catches up exactly once the pointer stops. A lag that persists or
+  // accumulates never closes; a slow frame on a loaded machine does.
+  await expect.poll(() => resizedSystem.evaluate(element => {
+    const right = element.getBoundingClientRect().right
+    const body = element.querySelector<SVGElement>('.ambio-system-node__shell > svg')?.getBoundingClientRect()
+    return Math.abs((body?.right ?? Number.NaN) - right)
+  }), { timeout: 1000 }).toBeLessThan(0.5)
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(4)
   await expect.poll(() => viewport.getAttribute('style')).toBe(cameraBefore)
@@ -1578,6 +1694,7 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   }
   await page.mouse.up()
   await expect.poll(() => proposalLayoutSaves).toBe(5)
+  await expect(page.locator('.ambio-review__canvas .react-flow__handle')).toHaveCount(0)
 
   const beforePan = await viewport.getAttribute('style')
   await page.keyboard.down('d')
@@ -1897,22 +2014,20 @@ test('uses the shared workbench dialog system without dropping form behavior', a
   // shared system through the product search path, then create a deliberate
   // multi-file selection without depending on overview DOM materialization.
   const canvasFile = await revealFileNode('file_canvas')
-  const storeFile = await revealFileNode('file_store')
-  await canvasFile.click()
-  const storeBox = await storeFile.boundingBox()
-  expect(storeBox).not.toBeNull()
-  if (!storeBox) return
-  const viewport = page.viewportSize()!
-  const storePoint = {
-    x: Math.max(1, Math.min(viewport.width - 1, storeBox.x + Math.min(20, storeBox.width / 2))),
-    y: Math.max(1, Math.min(viewport.height - 1, storeBox.y + Math.min(20, storeBox.height / 2))),
-  }
+  // Fit their common system so both files are actually in the camera. Fitting
+  // each file in turn leaves the first one offscreen once navigation is correct.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Canvas Renderer')
+  await page.getByRole('option').first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const storeFile = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(storeFile).toBeVisible()
+  await canvasFile.click({ position: { x: 10, y: 10 } })
   // macOS routes Ctrl+click to the context menu, so the additive modifier has
   // to follow the host. The canvas accepts Meta, Control and Shift alike.
   const additiveModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-  await page.keyboard.down(additiveModifier)
-  await page.mouse.click(storePoint.x, storePoint.y)
-  await page.keyboard.up(additiveModifier)
+  // Stay on the card background: its disabled language badge consumes clicks.
+  await storeFile.click({ position: { x: 10, y: 10 }, modifiers: [additiveModifier] })
 
   const selectionActions = page.locator('.ambio-selection-actions')
   await expect(selectionActions).toBeVisible()
@@ -2379,6 +2494,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await relationships.uncheck()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const sheetBox = await page.locator(`.react-flow__node[data-id="${systemId}"]`).boundingBox()
   expect(floorBox && sheetBox).toBeTruthy()
   for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(sheetBox![key] - floorBox![key])).toBeLessThan(2)
@@ -2598,10 +2714,17 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
 })
 
 test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
+  // Put the first endpoint in the actual viewport. A path whose entire bounding
+  // box is offscreen is correctly culled; it cannot prove visible edge parity.
+  const placement = await page.locator('.react-flow').first().evaluate(root => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(root.querySelector('.react-flow__viewport')!).transform)
+    return { x: (root.clientWidth * .45 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
+  })
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
     kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
-    positionX: 1500 + i * 800, positionY: 1200, width: 620, height: 420, scale: 1,
+    positionX: i === 0 ? placement.x : 1500 + i * 800, positionY: i === 0 ? placement.y : 1200,
+    width: 620, height: 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
@@ -2623,6 +2746,9 @@ test('culls a large planned sheet over a small Floor and retains measurements du
   await expect(compactFile.locator('[data-render-tier]')).toBeAttached()
   await expect(compactFile.locator('.ambio-sheet-change-badge')).toHaveText('Added')
   await page.waitForTimeout(650)
+  await expect(canvas.locator('.react-flow__node[data-id="planned:large-planned-179"]')).toHaveCount(0)
+  await expect(relationship).toBeAttached()
+  expect(await relationship.getAttribute('d')).not.toContain('NaN')
   await canvas.evaluate(root => {
     ;(window as any).__sheetMountCount = 0
     ;(window as any).__sheetMountObserver = new MutationObserver(records => {
@@ -2823,19 +2949,42 @@ test('an old architecture draft explains recovery and can be discarded', async (
   await expect(title).toHaveCount(0)
 })
 
+/** Where a node sits on the canvas, in flow coordinates: unlike its screen
+ * box, it does not change when the camera settles or pans. */
+async function flowPosition(node: Locator) {
+  return node.evaluate(element => {
+    const match = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec((element as HTMLElement).style.transform)
+    return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: NaN, y: NaN }
+  })
+}
+
+/** Drags a system by its header once the camera has stopped, so the gesture
+ * lands where it was aimed. */
+async function dragSystem(system: Locator) {
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const box = (await system.boundingBox())!
+  await page.mouse.move(box.x + 24, box.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 54, box.y + 40, { steps: 12 })
+  await page.mouse.up()
+}
+
 test('Edit → Undo puts a moved system back, and Redo moves it again', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
-  const moved = (await system.boundingBox())!
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
+  const moved = await flowPosition(system)
+  // The move is undoable once saved, which can trail the drop on a slow runner.
+  await page.waitForFunction(() => (window as unknown as { __ambioCanUndo: () => boolean }).__ambioCanUndo())
   await page.keyboard.press('ControlOrMeta+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - start.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - start.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - start.y)).toBeLessThan(1)
+  await page.waitForFunction(() => (window as unknown as { __ambioCanRedo: () => boolean }).__ambioCanRedo())
   await page.keyboard.press('ControlOrMeta+Shift+Z')
-  await expect.poll(async () => Math.abs((await system.boundingBox())!.x - moved.x)).toBeLessThan(3)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).x - moved.x)).toBeLessThan(1)
+  await expect.poll(async () => Math.abs((await flowPosition(system)).y - moved.y)).toBeLessThan(1)
 })
 
 test('Split System… draws the split on a new sheet', async () => {
@@ -2857,14 +3006,12 @@ test('Split System… draws the split on a new sheet', async () => {
 
 test('a placed system stays put when files arrive and other systems are renamed', async () => {
   const system = page.locator('.react-flow__node[data-id="sys_mcp"]')
-  const start = (await system.boundingBox())!
-  await page.mouse.move(start.x + 24, start.y + 12)
-  await page.mouse.down()
-  await page.mouse.move(start.x + 54, start.y + 40, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.round((await system.boundingBox())!.x - start.x)).toBeGreaterThan(15)
+  await expect(system).toBeVisible()
+  const start = await flowPosition(system)
+  await dragSystem(system)
+  await expect.poll(async () => (await flowPosition(system)).x - start.x).toBeGreaterThan(15)
   await page.waitForTimeout(400)
-  const placed = (await system.boundingBox())!
+  const placed = await flowPosition(system)
 
   // What indexing does: a new file appears in another system, a system is
   // renamed, and the snapshot arrives again with fresh objects.
@@ -2879,7 +3026,7 @@ test('a placed system stays put when files arrive and other systems are renamed'
     })
   })
   await page.waitForTimeout(600)
-  const after = (await system.boundingBox())!
+  const after = await flowPosition(system)
   expect(Math.abs(after.x - placed.x)).toBeLessThan(1)
   expect(Math.abs(after.y - placed.y)).toBeLessThan(1)
 })
@@ -2894,8 +3041,15 @@ test('Delete on a sheet proposes removing live code, listed and restorable', asy
   await expect(page.locator('.react-flow__node[data-id^="planned:"]').first()).toBeVisible()
   await page.keyboard.press('Escape')
   await page.locator('.react-flow__pane').click({ position: { x: 420, y: 420 } })
+  // New System Here fits its new card. Reach the other system through the
+  // normal navigation path before testing its removal, rather than clicking
+  // a node that is correctly outside the camera after that fit.
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Shared Types')
+  await page.getByRole('option').filter({ hasText: 'Shared Types' }).first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const system = page.locator('.react-flow__node[data-id="sys_shared"]')
-  await system.click()
+  await system.click({ position: { x: 10, y: 10 } })
   await page.keyboard.press('Delete')
   await expect(page.getByText(/proposed for removal/).first()).toBeVisible()
   await expect(system).toBeHidden()
@@ -3124,7 +3278,7 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     state.delivered = []
     ipcMain.removeHandler('agent:delivery-hosts')
     ipcMain.handle('agent:delivery-hosts', () => [
-      { id: 'claude-code', label: 'Claude Code (CLI)', route: 'run', available: true, detail: '' },
+      { id: 'claude-code', label: 'Claude Code CLI', route: 'run', available: true, detail: '' },
       { id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, detail: '' },
     ])
     ipcMain.removeHandler('agent:models')
@@ -3139,50 +3293,111 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     const events = [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }, { at: 6, kind: 'tool', text: 'Read · src/app.ts' }]
     ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => events.slice(0, Date.now() - started > 2500 ? 2 : 1).slice(after))
   })
+  const mappingAttempt = { id: 'mapping-ui', workspaceId: 'demo', rootId: 'root_demo', state: 'mapping', proposalId: '', startedAt: Date.now(), endedAt: 0, systemCount: 0 }
+  await page.route(/\/api\/mapping-attempts(?:\?|$)/, route => route.fulfill({ json: route.request().method() === 'POST' ? { attempt: mappingAttempt, token: 'fixture' } : [mappingAttempt] }))
+  await page.route(/\/api\/mapping-attempts\/mapping-ui\?/, route => route.fulfill({ json: mappingAttempt }))
+  // A historical proposal must never complete this new mapping attempt.
+  await page.route(/\/api\/architecture-proposals\?/, route => route.fulfill({ json: [{ id: 'unrelated-proposal' }] }))
   const setupUrl = new URL(page.url())
   setupUrl.searchParams.set('connect', '1')
   setupUrl.searchParams.delete('blank')
   await page.goto(setupUrl.toString())
   await expect(page.getByRole('heading', { name: 'Choose who maps this project' })).toBeVisible()
   const agents = page.getByRole('radiogroup', { name: 'Agents' })
-  const footer = page.locator('.ambio-choose__footer')
-  const claude = agents.getByRole('radio', { name: /Claude Code \(CLI\)/ })
+  const sidebar = page.locator('.ambio-choose__sidebar')
+  const claude = agents.getByRole('radio', { name: /Claude Code CLI/ })
   await expect(claude).toHaveAttribute('aria-checked', 'true')
   // Antigravity's CLI only reaches Ambio through Antigravity's own settings:
   // adding Ambio there is part of mapping, said plainly, not an option.
   await agents.getByRole('radio', { name: /Antigravity CLI/ }).click()
-  await expect(footer.locator('.ambio-choose__required')).toContainText('Ambio adds itself to Antigravity first')
-  await expect(footer.locator('.ambio-choose__required')).toContainText('mcp_config.json')
-  await expect(footer.getByRole('checkbox')).toHaveCount(0)
-  await expect(footer.getByRole('button', { name: 'Add Ambio and map with Antigravity CLI →' })).toBeVisible()
+  await expect(sidebar.locator('.ambio-choose__required')).toContainText('Ambio adds itself to Antigravity first')
+  await expect(sidebar.locator('.ambio-choose__required')).toContainText('mcp_config.json')
+  await expect(sidebar.getByRole('checkbox')).toHaveCount(0)
+  await expect(sidebar.getByRole('button', { name: 'Add Ambio and map with Antigravity CLI' })).toBeVisible()
+  await expect.poll(() => sidebar.evaluate(panel => getComputedStyle(panel).transform)).toBe('none')
   await page.screenshot({ path: 'test-results/setup-antigravity-required.png' })
   await claude.click()
   // Ambio chat is offered even before a model service exists, and leads to setting one up.
   await agents.getByRole('radio', { name: /Ambio chat/ }).click()
-  await expect(footer.getByRole('button', { name: 'Set up a model service' })).toBeVisible()
+  await expect(sidebar.getByRole('button', { name: 'Connect Ambio chat' })).toBeVisible()
   await claude.click()
   // Adding Ambio for the user's own sessions starts on, and can be turned off.
-  const sessions = footer.getByRole('checkbox', { name: /Also add Ambio to your own/ })
-  if (await sessions.count()) { await expect(sessions).toBeChecked(); await sessions.uncheck() }
+  const sessions = sidebar.getByRole('checkbox', { name: /Also add Ambio to your own/ })
+  if (await sessions.count()) {
+    await expect(sessions).toBeChecked()
+    const info = sidebar.getByRole('button', { name: /About adding Ambio to your own/ })
+    const controlsBefore = await sidebar.locator('.ambio-choose__run-settings').boundingBox()
+    await info.click()
+    const help = sidebar.getByRole('region', { name: 'About your own CLI sessions' })
+    await expect(help).toBeVisible()
+    await expect(help).toContainText('Runs started here work without this option.')
+    expect(await sidebar.locator('.ambio-choose__run-settings').boundingBox()).toEqual(controlsBefore)
+    expect((await help.boundingBox())!.y + (await help.boundingBox())!.height).toBeLessThan((await info.boundingBox())!.y)
+    await page.screenshot({ path: 'test-results/setup-cli-info.png' })
+    await expect(sessions).toBeChecked()
+    await info.click()
+    await expect(help).toBeHidden()
+    await info.click()
+    await page.keyboard.press('Escape')
+    await expect(help).toBeHidden()
+    await expect(sidebar).toBeVisible()
+    await expect(info).toBeFocused()
+    await info.click()
+    await sidebar.getByRole('heading').click()
+    await expect(help).toBeHidden()
+    await sessions.uncheck()
+  }
   // The mascot follows the chosen agent: one Ambio runs is ready without connecting.
   const caption = page.locator('.ambio-connect__mascot p[aria-live]')
-  await expect(caption).toHaveText('Ready - Claude Code (CLI) is ready. Press Map to start.')
+  await expect(caption).toHaveText('Found - Claude Code CLI. Sign in to this CLI before mapping.')
   await page.screenshot({ path: 'test-results/setup-choose-agent.png' })
   // The model is chosen right beside the button that starts the run.
-  await footer.getByRole('combobox', { name: 'Model' }).selectOption('opus')
-  await footer.getByRole('button', { name: 'Map with Claude Code (CLI) →' }).click()
+  await sidebar.getByRole('combobox', { name: 'Model' }).selectOption('opus')
+  await sidebar.getByRole('button', { name: 'Map with Claude Code CLI' }).click()
   const activity = page.getByRole('region', { name: 'Mapping activity' })
-  await expect(activity).toContainText('Claude Code (CLI) is mapping the project')
+  await expect(activity).toContainText('Claude Code CLI is mapping the project')
   await expect(activity).toContainText('get_architecture')
   // A later event shows up without leaving the step.
   await expect(activity).toContainText('Read · src/app.ts', { timeout: 10_000 })
-  await expect(page.getByRole('heading', { name: 'Claude Code (CLI) is mapping this project' })).toBeVisible()
-  await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).toContainText('No restart needed')
+  await expect(page.getByRole('heading', { name: 'Claude Code CLI is mapping this project' })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')).toHaveCount(3)
+  await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).not.toContainText('restart', { ignoreCase: true })
   await expect(page.locator('.ambio-connect__mascot .ambio-final-gemini')).toHaveAttribute('data-state', 'connected')
-  await expect(caption).toHaveText('Working - Claude Code (CLI) is mapping the project.')
+  await expect(caption).toHaveText('Working - Claude Code CLI is mapping the project.')
   const delivered = await app.evaluate(() => (globalThis as unknown as { delivered: Array<{ hostId: string; model?: string }> }).delivered)
   expect(delivered.map(request => [request.hostId, request.model])).toEqual([['claude-code', 'opus']])
   await page.screenshot({ path: 'test-results/setup-map-with-agent.png' })
+  await expect(page.getByRole('tab', { name: 'Map project' })).toHaveAttribute('aria-selected', 'true')
+  mappingAttempt.state = 'submitted'
+  mappingAttempt.proposalId = 'mapping-ui'
+  mappingAttempt.systemCount = 7
+  await expect(activity).toContainText('Map submitted — closing the agent session')
+  await expect(activity).toContainText('7 systems')
+  await expect(page.getByRole('tab', { name: 'Map project' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('button', { name: 'Review architecture' })).toHaveCount(0)
+  mappingAttempt.endedAt = Date.now()
+  await expect(page.getByRole('tab', { name: /Review$/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('heading', { name: 'Your architecture is ready' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review architecture' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/setup-mapping-settled.png' })
+  await page.getByRole('tab', { name: /Map project/ }).click()
+  await expect(page.getByRole('heading', { name: 'Project mapping is complete' })).toBeVisible()
+  await expect(activity).toContainText('finished its run')
+  await page.getByRole('tab', { name: /Review$/ }).click()
+  const mappedProposal = {
+    id: 'mapping-ui', workspaceId: 'demo', currentRevision: 1,
+    round: { rationale: 'This exact mapping attempt.', systems: [{ systemKey: 'mapping', name: 'Mapped Responsibility', description: 'Owns the canvas.', parentRefType: 'scope', parentRefId: null, depth: 0, decision: 'pending', fileCount: 1, affectedFileCount: 1 }], memberships: [{ id: 'mapped-file', fileId: 'file_canvas', rootId: 'root_demo', filePath: 'src/renderer/canvas/AmbioCanvas.tsx', targetSystemKey: 'mapping', disposition: 'assign' }], layouts: [] },
+  }
+  await page.route(/\/api\/architecture-proposals\/mapping-ui\?/, route => route.fulfill({ json: mappedProposal }))
+  await page.getByRole('button', { name: 'Review architecture' }).click()
+  // Reopen Review to prove that its pin survives a renderer restart even
+  // when another proposal is now first in the workspace list.
+  setupUrl.searchParams.delete('connect')
+  setupUrl.searchParams.set('review', '1')
+  await page.goto(setupUrl.toString())
+  await expect(page.getByRole('heading', { name: 'Review the architecture your agent found' })).toBeVisible()
+  await expect(page.locator('.ambio-review__panel')).toContainText('Mapped Responsibility')
+  await expect(page.locator('.ambio-review__panel')).toContainText('This exact mapping attempt.')
   await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('ambio:setup-mapping:')) localStorage.removeItem(key) })
 })
 

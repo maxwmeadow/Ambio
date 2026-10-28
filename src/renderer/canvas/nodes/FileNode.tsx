@@ -1,6 +1,7 @@
 import { SheetChangeBadge } from './SheetChangeBadge'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import React from 'react'
+import { useCommitOnUnmount } from './useCommitOnUnmount'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FileNodeData, NodeFx } from '../sceneTypes'
 import type { RuntimeNodeState } from '../../store/graphStore'
@@ -87,18 +88,19 @@ function useRetainedLivingFileSignal(fx: NodeFx | null | undefined): {
 }
 
 function EditableSymbolName({ value, editable, onCommit }: { value: string; editable: boolean; onCommit: (value: string) => void }) {
+  const inputRef = useCommitOnUnmount(commit)
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(value)
   React.useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
   if (!editable || !editing) return <span data-node-editable={editable ? 'true' : undefined} title={editable ? 'Double-click to edit' : value} onDoubleClick={editable ? event => {
     event.stopPropagation(); setEditing(true)
   } : undefined} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: editable ? 'text' : undefined, userSelect: 'none' }}>{value}</span>
-  const commit = () => {
+  function commit() {
     const next = draft.trim()
     setEditing(false)
     if (next && next !== value) onCommit(next)
   }
-  return <input autoFocus className="nodrag nopan" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit}
+  return <input ref={inputRef} autoFocus className="nodrag nopan" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit}
     onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
     onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') commit(); if (event.key === 'Escape') setEditing(false) }}
     style={{ width: '100%', minWidth: 0, border: 0, borderBottom: '1px solid var(--accent)', outline: 0, background: 'transparent', color: 'var(--text-primary)', font: 'inherit', padding: 0, userSelect: 'text' }} />
@@ -171,10 +173,13 @@ function RuntimeTooltip({ runtime, color }: { runtime: RuntimeNodeState; color: 
   )
 }
 
-export const FileNode = React.memo(function FileNode({ id, data, selected, width, height, isConnectable }: NodeProps) {
+export const FileNode = React.memo(function FileNode({ data, selected, width, height, isConnectable }: NodeProps) {
   const d = data as unknown as FileNodeData
+  // The indexed file behind this card. A review candidate has its own node id,
+  // and its symbols and source are the indexed file's.
+  const fileId = d.sourceFileId ?? d.id
   // Other checkouts changing or deleting this file (GIT_AND_PROJECT_SHAPES).
-  const overlayMarks = useCheckoutStore(state => (id ? state.overlayByFile.get(id) : undefined))
+  const overlayMarks = useCheckoutStore(state => (fileId ? state.overlayByFile.get(fileId) : undefined))
   const livingSignal = useRetainedLivingFileSignal(d.fx)
   const { onResizeStart, onResizeEnd } = d as any
   const [hovered, setHovered] = React.useState(false)
@@ -269,45 +274,45 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
   const perturbedSymbols = React.useMemo(() => {
     const set = new Set<string>()
     for (const inj of Object.values(runtimeInjections)) {
-      if (inj.fileId === d.id && (inj.status === 'pending_confirm' || inj.status === 'armed')) {
+      if (inj.fileId === fileId && (inj.status === 'pending_confirm' || inj.status === 'armed')) {
         set.add(inj.symbol)
       }
     }
     return set
-  }, [runtimeInjections, d.id])
+  }, [runtimeInjections, fileId])
 
   // Lazy-load symbols from archd when zoom crosses 1.2
   const currentProject = useGraphStore(s => s.currentProject)
   const workspaceId = currentProject?.id ?? 'demo'
   const suppliedSymbols = d.symbols
-  const cachedSymbols = suppliedSymbols ?? getCachedSymbols(workspaceId, d.id)
+  const cachedSymbols = suppliedSymbols ?? getCachedSymbols(workspaceId, fileId)
   const [symbols, setSymbols] = React.useState<any[] | null>(cachedSymbols ?? null)
   const [symbolsLoading, setSymbolsLoading] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<SymbolTab>('functions')
   const [previewSymbol, setPreviewSymbol] = React.useState<any | null>(null)
   const symbolRequestRef = React.useRef(0)
-  const symbolNodeIdRef = React.useRef(d.id)
+  const symbolNodeIdRef = React.useRef(fileId)
   // A re-indexed file (including unchanged line counts) shows its symbols afresh.
   const indexRevision = String(d.indexedAt ?? 0) + ':' + d.lineCount
   const indexRevisionRef = React.useRef(indexRevision)
   React.useEffect(() => {
     if (indexRevisionRef.current === indexRevision) return
     indexRevisionRef.current = indexRevision
-    if (!suppliedSymbols) setSymbols(getCachedSymbols(workspaceId, d.id))
-  }, [indexRevision, suppliedSymbols, workspaceId, d.id])
+    if (!suppliedSymbols) setSymbols(getCachedSymbols(workspaceId, fileId))
+  }, [indexRevision, suppliedSymbols, workspaceId, fileId])
 
   React.useEffect(() => {
     const request = ++symbolRequestRef.current
-    if (symbolNodeIdRef.current !== d.id) {
-      symbolNodeIdRef.current = d.id
-      const initial = suppliedSymbols ?? getCachedSymbols(workspaceId, d.id)
+    if (symbolNodeIdRef.current !== fileId) {
+      symbolNodeIdRef.current = fileId
+      const initial = suppliedSymbols ?? getCachedSymbols(workspaceId, fileId)
       setSymbols(initial ?? null)
       setSymbolsLoading(false)
       return
     }
     if (suppliedSymbols) {
       setSymbols(suppliedSymbols)
-      setCachedSymbols(workspaceId, d.id, suppliedSymbols)
+      setCachedSymbols(workspaceId, fileId, suppliedSymbols)
       setSymbolsLoading(false)
       const first = (['functions', 'variables', 'classes'] as const).find(
         tab => suppliedSymbols.some(sym => tabForKind(sym.kind) === tab)
@@ -318,7 +323,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       return
     }
     if (detailRevealed && !symbols) {
-      const cached = getCachedSymbols(workspaceId, d.id)
+      const cached = getCachedSymbols(workspaceId, fileId)
       if (cached) {
         setSymbols(cached)
         setSymbolsLoading(false)
@@ -333,7 +338,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
 
       const controller = new AbortController()
       setSymbolsLoading(true)
-      fetchFileSymbols(workspaceId, d.id, controller.signal, undefined, Boolean(selected))
+      fetchFileSymbols(workspaceId, fileId, controller.signal, undefined, Boolean(selected))
         .then(syms => {
           if (symbolRequestRef.current !== request) return
           setSymbols(syms)
@@ -359,7 +364,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       return () => controller.abort()
     }
     setSymbolsLoading(false)
-  }, [detailRevealed, d.id, workspaceId, suppliedSymbols, symbols, selected])
+  }, [detailRevealed, fileId, workspaceId, suppliedSymbols, symbols, selected])
 
   const handleSymbolClick = (sym: any) => {
     if (!editableSymbols && sym.lineStart > 0) setPreviewSymbol(sym)
@@ -374,7 +379,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
   const editableSymbols = Boolean(d.onSymbolsChange)
   const updateSymbols = (next: any[]) => {
     setSymbols(next)
-    setCachedSymbols(workspaceId, d.id, next)
+    setCachedSymbols(workspaceId, fileId, next)
     d.onSymbolsChange?.(next)
   }
   const addSymbolForActiveTab = () => {
@@ -912,12 +917,13 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       )}
 
       {previewSymbol && <SourcePreviewDialog
-        fileId={d.id}
+        fileId={fileId}
         workspaceId={workspaceId}
         symbol={previewSymbol}
         onClose={() => setPreviewSymbol(null)}
       />}
 
+      {!d.omitConnectionHandles && <>
       <Handle id="source-top" type="source" position={Position.Top} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="source-bottom" type="source" position={Position.Bottom} {...connectionHandleProps(isConnectable, s)} />
@@ -926,6 +932,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       <Handle id="target-right" type="target" position={Position.Right} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="target-bottom" type="target" position={Position.Bottom} {...connectionHandleProps(isConnectable, s)} />
       <Handle id="target-left" type="target" position={Position.Left} {...connectionHandleProps(isConnectable, s)} />
+      </>}
     </div>
   )
 })

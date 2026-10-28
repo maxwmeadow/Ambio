@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { partitionCanvasFiles, sortForBin } from './binModel.ts'
+import { createLooseFileLookup, partitionCanvasFiles, sortForBin } from './binModel.ts'
 
 const file = (relPath, overrides = {}) => ({
   id: relPath,
@@ -16,6 +16,47 @@ const file = (relPath, overrides = {}) => ({
 })
 
 const liveHome = { hasHome: f => !!f.systemId }
+
+test('placed files do not scan layouts; loose-file queries share one exact root-file index', () => {
+  let reads = 0
+  const layouts = [
+    { nodeId: 'root', nodeType: 'file', containmentKind: 'root' },
+    { nodeId: 'nested', nodeType: 'file', containmentKind: 'part_of' },
+    { nodeId: 'frame', nodeType: 'system', containmentKind: 'root' },
+  ].map(layout => ({ ...layout, get nodeType() { reads++; return layout.nodeType } }))
+  const loose = createLooseFileLookup(layouts)
+  const hasHome = f => f.systemId === 'shown' || loose.has(f.id)
+  const placed = file('placed.ts', { systemId: 'shown' })
+  assert.deepEqual(partitionCanvasFiles([placed], { hasHome }).placed, [placed])
+  assert.equal(reads, 0)
+  const root = file('root.ts', { id: 'root', systemId: 'withheld' })
+  const nested = file('nested.ts', { id: 'nested' })
+  assert.deepEqual(partitionCanvasFiles([root, nested], { hasHome }).placed, [root])
+  assert.equal(loose.has('frame'), false)
+  assert.equal(reads, layouts.length)
+  // Replacing the layout population invalidates both positive and negative
+  // membership; a removed root may not remain on the Floor via an old cache.
+  const replacement = createLooseFileLookup([{ nodeId: 'nested', nodeType: 'file', containmentKind: 'root' }])
+  assert.equal(replacement.has('root'), false)
+  assert.equal(replacement.has('nested'), true)
+})
+
+test('partition keeps the complete source order and classifies each filename only once', () => {
+  let reads = 0
+  const paths = ['loose.ts', 'README.md', 'placed.go', 'asset.png', 'other.py']
+  const files = paths.map((path, i) => ({
+    ...file(path, { systemId: i === 2 ? 'system' : null }),
+    get relPath() { reads++; return path },
+  }))
+  const result = partitionCanvasFiles(files, liveHome)
+  assert.equal(reads, paths.length)
+  assert.deepEqual(result.source, [files[0], files[2], files[4]])
+  assert.deepEqual(result.placed, [files[2]])
+  assert.deepEqual(result.unclassified, [files[0], files[4]])
+  assert.deepEqual(result.documents, [files[1]])
+  const documentOverride = file('source.ts', { language: 'markdown', systemId: 'system' })
+  assert.deepEqual(partitionCanvasFiles([documentOverride], liveHome).source, [])
+})
 
 test('a source file with a system is drawn, not binned', () => {
   const { placed, unclassified, documents } = partitionCanvasFiles(

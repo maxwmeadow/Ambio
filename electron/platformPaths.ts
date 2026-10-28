@@ -2,6 +2,29 @@ import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
 import { execSync } from 'child_process'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+
+/** Creation identity for recovering an owned process without blocking Electron.
+ * Empty means gone, null means unverifiable; never kill on PID alone. */
+export async function processStartIdentity(pid: number): Promise<string | null> {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return null
+  try { process.kill(pid, 0) } catch (error) { return (error as NodeJS.ErrnoException).code === 'ESRCH' ? '' : null }
+  try {
+    if (process.platform === 'linux') {
+      const stat = await readFile(`/proc/${pid}/stat`, 'utf8')
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)
+      if (fields[0] === 'Z') return ''
+      return `${(await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim()}:${fields[19]}`
+    }
+    const command = process.platform === 'win32' ? 'powershell.exe' : '/bin/ps'
+    const args = process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`] : ['-p', String(pid), '-o', 'lstart=']
+    return await new Promise<string | null>(resolve => execFile(command, args, { encoding: 'utf8', windowsHide: true, timeout: 3000 }, (error, output) => resolve(error ? null : output.trim() || null)))
+  } catch {
+    try { process.kill(pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return '' }
+    return null
+  }
+}
 
 export interface PlatformPaths {
   homeDir: string

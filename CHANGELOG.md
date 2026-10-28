@@ -25,9 +25,116 @@ in the app as "What's New" after updating, so write it for users.
 - Invalid MCP server-map shapes are flagged for repair with a specific error.
   Grok configuration discovery follows parent folders to the Git root, and
   shared setup inherited from other clients is shown separately.
+- Files on the review canvas show their functions, variables and classes again, instead of "No symbols" for every file in the proposed map.
+- During review, systems you have already approved can no longer be dragged around the canvas.
+- An agent's reasoning keeps its sections: each Codex summary heading shows as its own reasoning line instead of being run together with the next one.
+- Project mapping now ends at submission: notes are saved first, the agent session closes before Review opens, and late calls cannot change the submitted map or start work. Review stays on that exact map after reload.
+- An error in a setup or review screen no longer takes over the whole window: that screen shows the error with a way back to your projects or canvas.
+- A mapping agent that sends a system's files under the wrong name is told so immediately instead of failing at submission, and can clear its draft and redraw the map.
+- The setup mapping replay fills its activity panel instead of leaving a blank strip at the bottom of taller windows.
+- Showing another checkout on the Floor no longer flashes its files as
+  deleted, and Review Changes no longer counts hundreds of changes "by you"
+  while the map moves between checkouts.
+- The map shows while a project is being indexed for the first time, instead of
+  an empty canvas that stays "Updating your map" until the end.
+- Infrastructure changes that arrive with a branch switch are no longer listed
+  as your changes; after a pull they are Git's.
+- Opening a project whose repository has linked worktrees (as agents create)
+  no longer indexes it over and over: Ambio's own `git status` polling kept
+  waking its Git watcher, and each wake restarted the first index.
+- Switching branches, pulling or rebasing is brought into the map in one pass
+  instead of one whole-project rebuild per file, without replaying every file
+  on the canvas and without counting as your editing activity.
+- A branch switch no longer journals relationship changes between files it did
+  not touch, and calls no longer resolve to another language's or another
+  repository's function of the same name.
+- In a folder of several repositories, each repository's frame shows again,
+  with its files inside it; a branch switch no longer leaves the new files
+  scattered beside the frame while the map catches up.
+- A merge, rebase or stash pop that stops on a conflict no longer shows the
+  conflicted file's relationships as deleted by you; the file keeps its place
+  on the map until you resolve it.
+- Renaming the branch you are on keeps its unreviewed changes in Review
+  Changes, and is no longer recorded as a branch switch.
+- Systems are no longer left stale after a switch when a removed system had a
+  sub-system named like another top-level system.
+- Dense architecture review omits inactive connection components, reducing
+  mouse-pan stalls. Keyboard camera ownership follows pointer events without
+  forcing a hit test every frame; selection, resizing and artwork stay intact.
+- Opening a large saved map skips unused layout and setup bookkeeping,
+  reducing cold-loading input stalls while preserving hand-placed files and
+  scene validation.
+- Large saved maps avoid repeated source-file classification and project-wide
+  lookup work in the closed Review Changes panel, reducing cold-loading input
+  stalls. File placement, documentation handling and review actions are preserved.
+- Large-map preparation splits scene validation and semantic-index sorting into
+  smaller steps. Selection and activity updates reuse unchanged visibility and
+  validation work while geometry and membership edits remain fully checked.
+- Investigating C or C++ code with lldb (the debugger macOS ships) starts
+  instead of timing out waiting for the debugger.
+- On a busy Windows machine Ambio chat can stop or recover its previous
+  agent process instead of saying it "could not be verified".
+- Switching branches no longer sometimes records the new branch's files as
+  your edits; this happened most on slower disks, often on Windows.
+- Investigating a Rust program on Windows records it even when it was already
+  built the ordinary way, and a program that ends with `std::process::exit`
+  keeps what it recorded.
+- Opening a large saved map prepares its navigation geometry in smaller steps
+  and avoids rebuilding it for inactive overlays. Review layout checks no longer
+  compare every editable node against every saved row.
+- Large maps prepare and transfer their scene in smaller background steps,
+  reducing loading hitches. Repeated navigation releases old complete scenes
+  instead of retaining them in memory.
+- Mouse-drag panning on the first-mapping review page avoids repeated hits on
+  every card and unnecessary connection/shadow work. Card shadows return when
+  panning stops; approval, selection, dragging and resizing keep their behavior.
+- Agent setup mapping activity stream provides technical blueprint styling without emojis, balanced titles, robust retry and agent re-selection, reliable live progress stats, and moved the back control to the screen footer.
+- Development canvases, including proposal review, no longer stay blank at
+  "Preparing map" after React replays their initial preparation effects.
+- For Ambio chat and clients Ambio runs, codebase setup uses a streamlined 3-step
+  flow (Choose agent, Map project, Review) without the redundant restart step;
+  external apps continue to show the 4-step flow including Restart.
+- CLI setup controls and the model dropdown use readable text sizes. The
+  session option's help opens in an anchored popup without moving the layout.
+- CLI connector details explain direct local runs and native subscription/API
+  settings. Executable details and the compact recommended session option sit
+  at the bottom, with its explanation available from an info button.
+- Settings → Agents separates Ambio chat, clients Ambio runs, and external
+  apps. ChatGPT has a clear connection card; API connections use an on-demand
+  editor, and client pills open one client's settings at a time.
+- Ambio chat setup explains its native workspace experience, API key providers,
+  and leads with ChatGPT sign-in using eligible plan limits. Provider links open
+  the corresponding connection setup directly.
+- Selecting an agent connector opens its details and setup actions in a
+  closable sidebar over Field Agent 04, leaving more room for connector pills.
+- Agent setup presents supported connectors as compact name-and-logo pills
+  grouped into Ambio chat, clients Ambio runs, and external apps, with
+  availability-colored outlines and keyboard selection.
+- Agent setup and Settings list every supported client, including missing CLIs
+  and separate Codex IDE/desktop routes. Locate and remember CLI executables,
+  inspect discovered paths, and refresh installation results with Rescan.
+- The agent setup card fills the window vertically with matching top and
+  bottom spacing, giving the agent list more room.
+- Large maps keep their complete geometry outside the interactive canvas and
+  prepare Floor and sheet layouts in the background. Search follows current
+  geometry through updates, while worker failures retain the map and offer Retry.
+- Layout save failures no longer cause repeated saves and repacking. Unchanged
+  save echoes and ordinary selections avoid unnecessary geometry and activity work.
+- Large maps no longer create hidden canvas and minimap components for every
+  project entity. Selection avoids unnecessary scene serialization, compact
+  file cards retain other branches' change marks, and focused inline drafts
+  save normally when their node leaves the viewport.
+- Search keeps its intended destination and smooth camera flight through live
+  updates. Long dashed relationships no longer draw millions of invisible dash
+  segments outside the viewport. Full geometry debugging no longer runs during
+  ordinary canvas interaction.
 - Mapping with Antigravity's CLI adds Ambio to Antigravity first, and says
   exactly what it writes; Ambio no longer starts Antigravity's or Cursor's CLI
   without Ambio's tools, where the agent could only work around them.
+- Setup's language list includes Kotlin, Swift, PHP, Scala, Groovy, Lua,
+  Shell/Bash and Elixir, plus the supported stylesheet formats.
+- The setup page lets you choose a project name independently of its folder.
+  Opening the same folder again keeps the name you chose.
 - On Windows, investigation runs whose command quotes a path (such as
   `"C:\Program Files\...\javac"`) run instead of failing as an unknown command,
   and a run against a server no longer hangs when it ends.
@@ -115,6 +222,8 @@ in the app as "What's New" after updating, so write it for users.
   breaks the connection to the map.
 
 ### Changed
+- Opening a system as you zoom in is smoother: its name fades away first, and only then do the systems and files inside fade in, instead of popping in over the name.
+- Reviewing a mapped project is much lighter on large maps: systems start closed with their name in the middle, just like the canvas, and open as you zoom in. Clicking a system in the review list opens it and brings it into view.
 - The "parallel branches" panel no longer pops up over the map when a
   worktree appears; that information lives in the branch chip and on the
   systems themselves.
@@ -159,7 +268,9 @@ in the app as "What's New" after updating, so write it for users.
   map with the links between their files.
 - A project folder holding several repositories shows each one's branch in
   the toolbar menu, and switching branches inside one of them no longer shows
-  up as code changes.
+  up as code changes. On the map, each repository is a frame of its own
+  labelled with its branch, and the systems Ambio finds stay inside one
+  repository.
 - Agents Ambio starts can work in a worktree of their own (choose "Own
   worktree" when sending), so several can work at once. When one is done,
   apply its work to your branch as uncommitted changes to review and commit,

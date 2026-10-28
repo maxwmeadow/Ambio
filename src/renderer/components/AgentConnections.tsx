@@ -1,26 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentHostInfo, ConnectionTestResult } from '../../../electron/preload'
-import { canStartAgent, type DeliveryHost } from '../../shared/agentDelivery'
+import { APP_CLIENTS, CLI_CLIENTS, type DeliveryHost } from '../../shared/agentDelivery'
+import { discoveryRequest } from './agentDiscovery'
+import { ConnectorLogo } from './ConnectorLogo'
+import type { ModelServiceSetupRequest } from '../modelServiceNavigation'
 import { archdApi } from '../archdEndpoint.ts'
 import { agentConnectionState, sortAgentConnections, type AgentConnectionState, type AgentPresenceEntry } from './agentConnectionsModel.ts'
 import '../styles/agentConnections.css'
 
-/** For a CLI Ambio can start, installing only matters to the user's own sessions. */
-const CLI_STATE_LABEL: Record<AgentConnectionState, string> = {
-  live: 'Your own session is connected now',
-  installed: 'Ambio can start it · your own sessions have Ambio too',
-  repair: 'Ambio can start it · your own sessions\u2019 setup needs repair',
-  available: 'Ambio can start it · not added to your own sessions',
-  missing: 'Not found on this computer',
-}
-
 const STATE_LABEL: Record<AgentConnectionState, string> = {
   live: 'Connected now',
-  installed: 'Installed · not connected right now',
+  installed: 'Ambio added · not connected right now',
   repair: 'Needs repair',
-  available: 'Not installed',
+  available: 'Ambio not added yet',
   missing: 'Not found on this computer',
 }
+const CONNECTION_TYPES = [
+  { id: 'chat', label: 'Ambio chat' },
+  { id: 'run', label: 'Ambio runs it' },
+  { id: 'apps', label: 'In another app' },
+] as const
 
 /**
  * Settings → Agents: the three ways an agent works with Ambio, each with what
@@ -30,31 +29,41 @@ const STATE_LABEL: Record<AgentConnectionState, string> = {
  * It works with or without a project open; with one open it also covers that
  * project's own files and shows live connections.
  */
-export function AgentConnections({ workspaceId, projectRoot, projectName, onGuidedSetup, chat }: {
+export function AgentConnections({ workspaceId, projectRoot, projectName, onGuidedSetup, chat, setupRequest }: {
   workspaceId?: string
   projectRoot?: string
   projectName?: string
   onGuidedSetup?: () => void
   /** Ambio chat's model services. */
   chat?: ReactNode
+  setupRequest?: ModelServiceSetupRequest
 }) {
+  const [category, setCategory] = useState<'chat' | 'run' | 'apps'>(chat ? 'chat' : 'run')
+  const [selected, setSelected] = useState<Record<string, string>>({})
+  useEffect(() => { if (setupRequest) setCategory('chat') }, [setupRequest])
   const [hosts, setHosts] = useState<AgentHostInfo[] | null>(null)
-  const [started, setStarted] = useState<DeliveryHost[]>([])
+  const [started, setStarted] = useState<DeliveryHost[]>(() => CLI_CLIENTS.map(client => ({ ...client, route: 'run', available: false, detail: 'Not checked yet.' })))
   const [presence, setPresence] = useState<AgentPresenceEntry[]>([])
   const [busy, setBusy] = useState('')
   const [notes, setNotes] = useState<Record<string, { ok: boolean; text: string }>>({})
   const [tests, setTests] = useState<Record<string, ConnectionTestResult>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [armed, setArmed] = useState('')
-  const [showMissing, setShowMissing] = useState(false)
+  const [scanError, setScanError] = useState('')
   const active = useRef(true)
+  const generation = useRef(0)
 
   const refresh = useCallback(async () => {
+    const request = ++generation.current
     try {
-      const [items, targets] = await Promise.all([window.ambio.listAgentHosts(projectRoot), window.ambio.listDeliveryHosts().catch(() => [] as DeliveryHost[])])
-      if (active.current) { setHosts(items); setStarted(targets.filter(target => target.route === 'run')) }
+      const [items, targets] = await Promise.all([discoveryRequest(() => window.ambio.listAgentHosts(projectRoot)), discoveryRequest(() => window.ambio.listDeliveryHosts())])
+      if (active.current && generation.current === request) {
+        setHosts(items)
+        setStarted(CLI_CLIENTS.map(client => targets.find(target => target.id === client.id && target.route === 'run') ?? { ...client, route: 'run', available: false, detail: 'CLI not found.' }))
+        setScanError('')
+      }
     } catch {
-      if (active.current) setHosts(current => current ?? [])
+      if (active.current && generation.current === request) { setHosts(current => current ?? []); setScanError('Could not refresh agent installations. Retry the scan. Previous results may be out of date.') }
     }
     if (!workspaceId) { if (active.current) setPresence([]); return }
     try {
@@ -74,8 +83,21 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
   }, [refresh])
 
   const sorted = useMemo(() => sortAgentConnections(hosts ?? [], presence), [hosts, presence])
-  const shown = sorted.filter(host => agentConnectionState(host, presence) !== 'missing')
-  const missing = sorted.filter(host => agentConnectionState(host, presence) === 'missing')
+
+  const executableAction = async (hostId: string, clear = false) => {
+    setBusy(`executable:${hostId}`)
+    try {
+      const result = await (clear ? window.ambio.clearAgentExecutableOverride(hostId) : window.ambio.locateAgentExecutable(hostId))
+      if (result.detail !== 'Cancelled.') setNotes(current => ({ ...current, [hostId]: { ok: result.ok, text: result.detail } }))
+    } catch (error) { setNotes(current => ({ ...current, [hostId]: { ok: false, text: String(error) } })) }
+    finally { setBusy(''); void refresh() }
+  }
+  const executableDetails = (target: DeliveryHost | undefined, id: string) => <div className="ambio-agent-connections__hint">
+    {(target?.executablePath || target?.executableOverride) && <p>{target.executableOverride ? 'Your CLI location: ' : 'Found CLI: '}<code>{target.executablePath ?? target.executableOverride}</code></p>}
+    {target?.discoveryError && <p role="alert">{target.discoveryError}</p>}
+    <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id)}>{target?.available ? 'Change executable…' : 'Locate executable…'}</button>
+    {target?.executableOverride && <> · <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id, true)}>Use automatic detection</button></>}
+  </div>
 
   const act = async (host: AgentHostInfo, key: string, run: () => Promise<{ ok: boolean; detail: string }>, after?: string) => {
     setBusy(`${key}:${host.id}`); setArmed('')
@@ -107,8 +129,8 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
   const row = (host: AgentHostInfo) => {
     const state = agentConnectionState(host, presence)
-    const canStart = canStartAgent(host.id)
-    const name = host.modalityLabel || host.label
+    const target = started.find(target => target.id === host.id)
+    const name = host.modality === 'cli' ? CLI_CLIENTS.find(client => client.id === host.id)?.label ?? host.label : APP_CLIENTS.find(client => client.id === host.id)?.label ?? host.label
     const live = presence.filter(item => item.hostId === host.id)
     const verified = Math.max(0, ...live.map(item => item.lastToolAt ?? 0))
     const note = notes[host.id]
@@ -126,11 +148,13 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     return (
       <li key={host.id} className="ambio-agent-connections__host" data-state={state} data-agent-host={host.id}>
         <div className="ambio-agent-connections__summary">
-          <span className="ambio-agent-connections__signal" aria-hidden="true" />
+          <ConnectorLogo clientId={host.id} />
           <div className="ambio-agent-connections__identity">
             <strong>{name}</strong>
             <small>
-              {(canStart ? CLI_STATE_LABEL : STATE_LABEL)[state]}
+              {host.modality === 'cli'
+                ? scanError || !target ? 'Could not check CLI availability' : target.available ? 'CLI found · sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'CLI not found'
+                : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added · app not found' : 'Not found on this computer' : STATE_LABEL[state]}
               {state === 'live' && live.length > 1 ? ` · ${live.length} sessions` : ''}
               {state === 'live' && (verified > 0
                 ? ` · last tool call ${new Date(verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -151,11 +175,11 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
                   {working('install') ? 'Repairing…' : 'Repair'}
                 </button>
               </>
-            ) : canStart && state === 'missing' ? null : (
+            ) : host.modality === 'cli' && state === 'missing' ? null : (
               <button type="button" className="ambio-settings__button ambio-agent-connections__primary" disabled={!!busy}
-                title={canStart ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
+                title={host.modality === 'cli' ? `Lets your own ${name} sessions, outside Ambio, see your map and draw on it` : undefined}
                 onClick={() => void act(host, 'install', () => window.ambio.installAgent(host.id, projectRoot), `${host.restartAction}: ${host.restartDetail}`)}>
-                {working('install') ? 'Adding…' : canStart ? 'Add to my sessions' : 'Add Ambio'}
+                {working('install') ? 'Adding…' : host.modality === 'cli' ? 'Add to my sessions' : 'Add Ambio'}
               </button>
             )}
             <button type="button" className="ambio-agent-connections__disclose" aria-expanded={expanded}
@@ -167,6 +191,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
         </div>
 
         {note && <p className={`ambio-agent-connections__note${note.ok ? '' : ' ambio-agent-connections__note--failed'}`} role="status">{note.text}</p>}
+        {host.modality === 'cli' && executableDetails(target, host.id)}
 
         {expanded && (
           <div className="ambio-agent-connections__details">
@@ -195,6 +220,9 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
             <section aria-label={`Files for ${name}`}>
               <h4>Files</h4>
+              {!!host.detectionEvidence?.length && <p className="ambio-agent-connections__hint">Found: <code>{host.detectionEvidence.join(', ')}</code></p>}
+              {host.detectionError && <p role="alert">{host.detectionError}</p>}
+              {host.connectionHostId && <p className="ambio-agent-connections__hint">Shares Ambio connection settings with {host.familyLabel}; its standalone CLI is a separate installation.</p>}
               <ul className="ambio-agent-connections__files">
                 {files.map(file => (
                   <li key={`${file.label}:${file.path}`}>
@@ -236,65 +264,80 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     )
   }
 
-  if (hosts === null) return <p className="ambio-settings__text">Looking for agents…</p>
-
-  // MCP support alone does not mean Ambio has a conversation driver for a CLI.
-  const ownSessions = sorted.filter(host => canStartAgent(host.id))
-  const inApps = shown.filter(host => !canStartAgent(host.id))
-  const appsMissing = missing.filter(host => !canStartAgent(host.id))
+  // A CLI belongs with the agents Ambio runs whether or not it is installed.
+  const ownSessions = sorted.filter(host => host.modality === 'cli')
+  const inApps = sorted.filter(host => host.modality !== 'cli')
   // Terminal agents that ride on an editor's Ambio setup, started by Ambio.
   const companions = started.filter(target => !(hosts ?? []).some(host => host.id === target.id))
+  const clientPill = (group: 'run' | 'apps', id: string, label: string, status: string, tone: 'ready' | 'attention' | 'off', disabled = false) =>
+    <button key={id} type="button" className="ambio-agent-connections__pill" data-tone={tone}
+      aria-label={`${label} — ${status}`} title={status} aria-pressed={selected[group] === id} disabled={disabled}
+      onClick={() => setSelected(current => ({ ...current, [group]: id }))}>
+      <ConnectorLogo clientId={id} /><span>{label}</span>
+    </button>
+  const hostPill = (host: AgentHostInfo) => {
+    const state = agentConnectionState(host, presence)
+    const target = started.find(target => target.id === host.id)
+    const label = host.modality === 'cli' ? CLI_CLIENTS.find(client => client.id === host.id)?.label ?? host.label : APP_CLIENTS.find(client => client.id === host.id)?.label ?? host.label
+    const status = host.modality === 'cli' ? scanError || !target ? 'Could not check CLI availability' : target.discoveryError ? 'Could not use selected CLI' : target.available ? 'CLI found' : 'CLI not found'
+      : host.detectionError ? 'Could not fully check installation' : !host.detected && state !== 'live' ? host.configured ? 'Ambio added · app not found' : 'Not found on this computer' : STATE_LABEL[state]
+    const tone = host.modality === 'cli' ? target?.available ? 'ready' : target?.discoveryError || scanError ? 'attention' : 'off'
+      : state === 'live' || state === 'installed' ? 'ready' : state === 'missing' ? 'off' : 'attention'
+    return clientPill(host.modality === 'cli' ? 'run' : 'apps', host.id, label, status, tone)
+  }
 
   return (
     <div className="ambio-agent-connections">
-      {chat && <section id="ambio-agents-chat" className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-chat-title">
-        <h3 id="ambio-agents-chat-title">Ambio chat</h3>
-        <p className="ambio-settings__text">Ambio&rsquo;s own agent. Connect your ChatGPT plan or add a model service with an API key; there is nothing else to install or open.</p>
+      <header className="ambio-agent-connections__page-heading">
+        <div><h2>Agents</h2><p>Choose where your agent works. Manage its connection here.</p></div>
+        {onGuidedSetup && <button type="button" className="ambio-agent-connections__link" onClick={onGuidedSetup}>Guided setup</button>}
+      </header>
+      <nav className="ambio-agent-connections__nav" aria-label="Agent connection types">
+        {CONNECTION_TYPES.filter(item => chat || item.id !== 'chat').map(({ id, label }) =>
+          <button key={id} type="button" aria-current={category === id ? 'page' : undefined} onClick={() => setCategory(id)}>{label}</button>)}
+      </nav>
+      {category !== 'chat' && <div className="ambio-agent-connections__toolbar">
+        <span>{projectName ? `Project: ${projectName}` : 'Computer-wide connections'}</span>
+        <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void refresh()}>Rescan installations</button>
+      </div>}
+      {category !== 'chat' && scanError && <p role="alert">{scanError}</p>}
+      {chat && <section id="ambio-agents-chat" className="ambio-agent-connections__kind" hidden={category !== 'chat'} aria-label="Ambio chat settings">
         {chat}
       </section>}
 
-      <section className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-run-title">
+      <section className="ambio-agent-connections__kind" hidden={category !== 'run'} aria-labelledby="ambio-agents-run-title">
         <h3 id="ambio-agents-run-title">Agents Ambio runs</h3>
-        <p className="ambio-settings__text">Ambio starts these in your project when you send them a message. They only need to be installed and signed in. Adding Ambio to them as well lets your own sessions, outside Ambio, see your map and draw on it.</p>
-        {ownSessions.length + companions.length > 0
-          ? <ul className="ambio-agent-connections__list">
-            {ownSessions.map(row)}
-            {companions.map(target => <li key={target.id} className="ambio-agent-connections__host" data-state={target.available ? 'installed' : 'missing'} data-agent-host={target.id}>
+        <p className="ambio-settings__text">Ambio launches these CLIs in your project. Install one and sign in, then select it to check its location or connect your own terminal sessions.</p>
+        {hosts === null && <p role="status">Checking installations…</p>}
+        <div className="ambio-agent-connections__gallery" role="group" aria-label="CLI clients">
+          {ownSessions.map(hostPill)}
+          {companions.map(target => clientPill('run', target.id, target.label, target.available ? 'CLI found' : target.discoveryError ? 'Could not use selected CLI' : 'CLI not found', target.available ? 'ready' : target.discoveryError ? 'attention' : 'off'))}
+        </div>
+        {!selected.run && <p className="ambio-agent-connections__prompt">Select a client to manage its connection.</p>}
+        <ul className="ambio-agent-connections__list">
+            {ownSessions.filter(host => host.id === selected.run).map(row)}
+            {companions.filter(target => target.id === selected.run).map(target => <li key={target.id} className="ambio-agent-connections__host" data-state={target.available ? 'installed' : 'missing'} data-agent-host={target.id}>
               <div className="ambio-agent-connections__summary">
-                <span className="ambio-agent-connections__signal" aria-hidden="true" />
-                <div className="ambio-agent-connections__identity"><strong>{target.label}</strong><small>{target.available ? 'Ambio can start it' : 'Not found on this computer'}</small></div>
+                <ConnectorLogo clientId={target.id} />
+                <div className="ambio-agent-connections__identity"><strong>{target.label}</strong><small>{target.available ? 'CLI found · sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'Not found on this computer'}</small></div>
               </div>
+              {executableDetails(target, target.id)}
+              {notes[target.id] && <p className="ambio-agent-connections__note" role="status">{notes[target.id].text}</p>}
             </li>)}
           </ul>
-          : <p className="ambio-agent-connections__empty">No agent Ambio can start was found on this computer. Install Claude Code, Codex or GitHub Copilot CLI and sign in, then come back.</p>}
       </section>
 
-      <section className="ambio-agent-connections__kind" aria-labelledby="ambio-agents-apps-title">
+      <section className="ambio-agent-connections__kind" hidden={category !== 'apps'} aria-labelledby="ambio-agents-apps-title">
         <h3 id="ambio-agents-apps-title">Agents in other apps</h3>
-        <p className="ambio-settings__text">These work in their own app or terminal. Add Ambio once and start a fresh session; its chat can then use your map and take messages from Ambio{workspaceId ? '' : '. Open a project to see which are connected now'}.</p>
-        {inApps.length > 0
-          ? <ul className="ambio-agent-connections__list">{inApps.map(row)}</ul>
-          : <p className="ambio-agent-connections__empty">No supported app was found on this computer. If one is installed, find it under the list below and point Ambio at its configuration file.</p>}
-
-        {appsMissing.length > 0 && (
-          <>
-            <button type="button" className="ambio-agent-connections__more" aria-expanded={showMissing} onClick={() => setShowMissing(value => !value)}>
-              {showMissing ? 'Hide' : 'Show'} {appsMissing.length} app{appsMissing.length === 1 ? '' : 's'} not found on this computer
-            </button>
-            {showMissing && <ul className="ambio-agent-connections__list">{appsMissing.map(row)}</ul>}
-          </>
-        )}
-      </section>
-
-      {onGuidedSetup && (
-        <div className="ambio-settings__row">
-          <div>
-            <strong>Guided setup</strong>
-            <small>Walks through installing, restarting the agent and asking it to map {projectName ?? 'this project'}.</small>
-          </div>
-          <button type="button" className="ambio-settings__button" onClick={onGuidedSetup}>Open…</button>
+        <p className="ambio-settings__text">Connect Ambio to an editor or desktop app, then restart it. Its agent can use your map from that app.{!workspaceId && ' Open a project to check live connections.'}</p>
+        {hosts === null && <p role="status">Checking installations…</p>}
+        <div className="ambio-agent-connections__gallery" role="group" aria-label="External clients">
+          {inApps.map(hostPill)}
+          {APP_CLIENTS.filter(client => !inApps.some(host => host.id === client.id)).map(client => clientPill('apps', client.id, client.label, 'Could not check · rescan', 'attention', true))}
         </div>
-      )}
+        {!selected.apps && <p className="ambio-agent-connections__prompt">Select an app to manage its connection.</p>}
+        <ul className="ambio-agent-connections__list">{inApps.filter(host => host.id === selected.apps).map(row)}</ul>
+      </section>
     </div>
   )
 }

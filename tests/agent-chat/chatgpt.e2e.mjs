@@ -63,7 +63,7 @@ test('real native OpenCode chat uses ChatGPT OAuth through the public Responses 
     return omitContentType ? new Response(response.body) : response
   })
   const manager = new AgentChat({ directory: path.join(directory, 'chat'), binary, providers, proxy, project: workspaceId => ({ id: workspaceId, rootPath: root }), mcp: () => ({ command: process.execPath, args: [path.join(ROOT, 'tests/agent-chat/mcp-fixture.mjs')] }), assertExternalIdle: () => {}, workOrder: async () => 'Build fixture' })
-  t.after(async () => { await manager.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true }) })
+  t.after(async () => { await manager.close(); await sleep(100); fs.rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }) })
   const until = async (id, predicate) => {
     let snapshot
     for (let index = 0; index < 200; index++) {

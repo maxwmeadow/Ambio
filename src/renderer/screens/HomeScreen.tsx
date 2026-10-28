@@ -508,7 +508,8 @@ export function HomeScreen({ request, onEditProject, onOpenProject, onOpenDialog
                               )
                               : <ProjectDeckSignals status={deckStatus[project.id]} setupUnfinished={projectSetupInProgress(project)} />}
                           </span>
-                          <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>
+                          {/* A hand-edited or damaged projects.json can lack the time; the rest of the list still draws. */}
+                          {Number.isFinite(project.openedAt) && <time dateTime={new Date(project.openedAt).toISOString()}>{timeAgo(project.openedAt)}</time>}
                         </button>
                         <div className="ambio-launcher__row-menu">
                           <button

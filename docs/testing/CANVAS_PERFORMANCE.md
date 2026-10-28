@@ -1,5 +1,9 @@
 # Canvas performance audits
 
+For the current consolidated delivery, remaining work and device-switch
+instructions, start with the [Oct 26 main handoff](CANVAS_PERFORMANCE_HANDOFF.md).
+The dated audits below preserve their original baselines.
+
 The subsequent five-part implementation and current limits are documented in
 [CANVAS_FRAME_BUDGET.md](CANVAS_FRAME_BUDGET.md). Historical measurements below
 remain unchanged.

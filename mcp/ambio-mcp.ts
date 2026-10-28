@@ -51,6 +51,40 @@ interface ActiveWorkSession extends WorktreeContext {
 
 const activeWorkSessions = new Map<string, ActiveWorkSession>()
 
+const mappingAttemptId = process.env.AMBIO_MAPPING_ATTEMPT ?? ''
+let mappingCommitted = false
+const MAPPING_TOOLS = new Set(['get_architecture', 'search_symbols', 'get_symbols', 'trace_calls', 'get_data_flow', 'edit_systems', 'update_work'])
+const MAPPING_OPS = new Set(['begin_session', 'begin', 'add_chunk', 'chunk', 'commit_session', 'commit', 'abort_session', 'abort', 'session_status', 'status', 'propose'])
+
+const DRAFT_SYSTEM_KEYS = ['systemKey', 'name', 'description', 'parentKey', 'rootId', 'files']
+const DRAFT_SYSTEM_SHAPE = `Each system takes ${DRAFT_SYSTEM_KEYS.join(', ')} (files are repository-relative paths).`
+
+// The systems of propose and add_chunk. An unknown key is refused by name, not
+// dropped: a system whose files arrived under another key owns nothing, and
+// that surfaced only at commit, after its chunk could no longer be corrected.
+function draftSystemsArg(systems: unknown): any[] {
+  if (systems === undefined) return []
+  if (!Array.isArray(systems)) throw new Error(`systems must be an array. ${DRAFT_SYSTEM_SHAPE}`)
+  for (const system of systems) {
+    if (!system || typeof system !== 'object' || Array.isArray(system)) throw new Error(`Each entry in systems must be an object. ${DRAFT_SYSTEM_SHAPE}`)
+    const unknown = Object.keys(system).filter(key => !DRAFT_SYSTEM_KEYS.includes(key))
+    if (unknown.length) {
+      throw new Error(`System "${system.systemKey ?? system.name ?? '?'}" has unknown ${unknown.length === 1 ? 'key' : 'keys'} ${unknown.map(key => `"${key}"`).join(', ')}. ${DRAFT_SYSTEM_SHAPE}`)
+    }
+  }
+  return systems
+}
+
+async function mappingRequest(op: string, body?: Record<string, unknown>): Promise<any> {
+  const project = await getActiveProject()
+  const base = `${API_BASE}/api/mapping-attempts/${encodeURIComponent(mappingAttemptId)}`
+  const response = await fetch(body ? `${base}/${op}` : `${base}${op ? `/${op}` : ''}?workspace=${encodeURIComponent(project.workspaceId)}`, body ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, workspaceId: project.workspaceId }),
+  } : undefined)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
 function workSessionFor(workspaceId: string, sessionId?: string): ActiveWorkSession {
   if (sessionId) {
     const session = activeWorkSessions.get(sessionId)
@@ -388,13 +422,13 @@ The map also records what the code depends on - databases, caches, queues, exter
 
 const server = new Server(
   { name: 'ambio', version: '0.3.0' },
-  { capabilities: { tools: {}, prompts: {} }, instructions: SERVER_INSTRUCTIONS }
+  { capabilities: { tools: {}, prompts: {} }, instructions: mappingAttemptId ? 'This is a finite onboarding mapping session. Inspect this project and build its complete architecture tree. Do not modify source or the live map, create sheets, start work sessions, claim requests or reply to canvas. Save notes before submission. edit_systems commit_session or propose is the FINAL action: it atomically completes the mapping request, permanently locks all tools and stops the agent. Do nothing afterward. Ordinary work begins on the canvas after human review.' : SERVER_INSTRUCTIONS }
 )
 
 // ─── MCP Prompts: /ambio:review-canvas ──────────────────────────────────────
 
 server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-  prompts: [
+  prompts: mappingAttemptId ? [{ name: 'name-architecture', description: 'Map this project, save notes and commit as the final action.', arguments: [] }] : [
     {
       name: 'review-canvas',
       description: 'Pull the latest canvas messages and staged UML changes from Ambio and act on them.',
@@ -436,6 +470,10 @@ A system is NOT a folder. Folders are for navigation; use them to find your way 
 Write the result with edit_systems: begin_session, add_chunk for small groups, then commit_session. Use stable chunkId values so retries are safe; session_status resumes a session after a restart. Set rootId on a system when file paths are ambiguous across roots. A small map may use op: propose. The human confirms, renames or rejects the committed proposal before it becomes canonical.`
 
 server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  if (mappingAttemptId) {
+    if (request.params.name !== 'name-architecture') throw new Error('Only architecture mapping is available during onboarding.')
+    await mappingRequest('')
+  }
   if (request.params.name === 'name-architecture') {
     return { messages: [{ role: 'user', content: { type: 'text', text: NAME_ARCHITECTURE_PROMPT } }] }
   }
@@ -638,7 +676,7 @@ const CORE_TOOLS = [
         systems: {
           type: 'array',
           items: { type: 'object' },
-          description: 'propose: whole tree; add_chunk: one batch. Each: {systemKey, name, description, parentKey?, rootId?, files?[]}',
+          description: 'propose: whole tree; add_chunk: one batch. Each: {systemKey, name, description, parentKey?, rootId?, files?[]}, no other keys',
         },
         rationale: { type: 'string', description: 'propose: one paragraph on how you read this codebase' },
         systemId: { type: 'string' },
@@ -646,7 +684,7 @@ const CORE_TOOLS = [
         description: { type: 'string' },
         parentId: { type: 'string' },
         fileIds: { type: 'array', items: { type: 'string' }, description: 'assign: files to move into systemId' },
-        filePaths: { type: 'array', items: { type: 'string' } },
+        filePaths: { type: 'array', items: { type: 'string' }, description: 'assign' },
         sourceSystemId: { type: 'string', description: 'merge: system to absorb' },
         targetSystemId: { type: 'string', description: 'merge: system to keep' },
         updates: { type: 'array', items: { type: 'object' }, description: 'bulk: several system updates at once' },
@@ -779,7 +817,7 @@ const CORE_TOOLS = [
         focus: { type: 'array', items: { type: 'string' }, description: 'System or file ids you expect to touch' },
         messageHandle: { type: 'string', description: 'Claimed request handle from get_inbox' },
       },
-      required: ['goal'],
+      required: [],
     },
   },
   {
@@ -900,7 +938,11 @@ async function approveAction(args: Record<string, any>) {
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [...(DEBUG_PROFILE_ENABLED ? [...CORE_TOOLS, ...DEBUG_PROFILE_TOOLS] : CORE_TOOLS), ...(RUN_MESSAGE_ID ? [APPROVE_ACTION_TOOL] : [])],
+  tools: mappingAttemptId ? CORE_TOOLS.filter(tool => MAPPING_TOOLS.has(tool.name)).map(tool => ({
+    ...tool,
+    ...(tool.name === 'edit_systems' ? { description: 'Map this project only: begin_session, add_chunk, session_status, abort_session (clears every drafted chunk to start the map over); then commit_session as your FINAL action. Save notes before committing. Submission permanently closes this mapping session and automatically completes the request. No further tools or work sessions.' } : {}),
+    ...(tool.name === 'update_work' ? { description: 'Save a mapping note before submitting: pass note. Do not start a work session or pass done. Mapping commit is the final action.' } : {}),
+  })) : [...(DEBUG_PROFILE_ENABLED ? [...CORE_TOOLS, ...DEBUG_PROFILE_TOOLS] : CORE_TOOLS), ...(RUN_MESSAGE_ID ? [APPROVE_ACTION_TOOL] : [])],
 }))
 
 // ─── Tool execution ────────────────────────────────────────────────────────
@@ -910,7 +952,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   let args = rawArgs as Record<string, any> ?? {}
   // The host reads this answer as JSON, so it takes none of the notes other
   // tool results carry, and it is not an agent action to log.
-  if (name === APPROVE_ACTION_TOOL.name && RUN_MESSAGE_ID) return approveAction(args)
+  if (name === APPROVE_ACTION_TOOL.name && RUN_MESSAGE_ID && !mappingAttemptId) return approveAction(args)
   // Preserved for the log: what the AGENT actually called, before routing.
   const callerArgs = args
 
@@ -919,6 +961,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   let loggedWorkSession: ActiveWorkSession | undefined
 
   try {
+    if (mappingAttemptId) {
+      if (mappingCommitted) throw new Error('Mapping is committed and this session is permanently closed. Do not start work or call more tools.')
+      if (!MAPPING_TOOLS.has(name) || name === 'edit_systems' && !MAPPING_OPS.has(args.op) || name === 'update_work' && (args.done || !args.note)) {
+        throw new Error('Mapping only: inspect this project, save notes with update_work(note), then submit once with edit_systems. Work sessions and other actions are unavailable.')
+      }
+      await mappingRequest('')
+    }
     const project = await getActiveProject()
     loggedWorkspaceId = project.workspaceId
     loggedWorkSession = soleWorkSession(project.workspaceId)
@@ -1118,6 +1167,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Durable draft sessions let an agent submit one responsibility group
       // at a time without exposing incomplete maps as reviewable proposals.
       case 'begin_architecture_proposal_draft': {
+        if (mappingAttemptId) { const draft = await mappingRequest('begin', { rationale: args.rationale ?? '' }); result = { status: 'open', sessionId: draft.sessionId, next: 'Add chunks, check the full architecture, save any notes, then commit_session as the final action.' }; break }
         const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workspaceId: project.workspaceId, rationale: args.rationale ?? '' }),
@@ -1129,10 +1179,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'add_architecture_proposal_draft_chunk': {
+        const systems = draftSystemsArg(args.systems)
+        if (mappingAttemptId) { const draft = await mappingRequest('chunks', { sessionId: args.sessionId, chunkId: args.chunkId, systems }); result = { status: draft.status, sessionId: draft.sessionId, chunks: draft.chunkCount, systems: draft.systems.length, skipped: draft.skipped }; break }
         if (!args.sessionId || !args.chunkId) throw new Error('add_chunk requires sessionId and a stable chunkId for safe retries.')
         const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/chunks`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: project.workspaceId, chunkId: args.chunkId, systems: args.systems ?? [] }),
+          body: JSON.stringify({ workspaceId: project.workspaceId, chunkId: args.chunkId, systems }),
         })
         if (!response.ok) throw new Error(`Could not add proposal chunk: ${await response.text()}`)
         const draft = await response.json() as { sessionId: string; status: string; chunkCount: number; systems: unknown[]; skipped?: Array<{ systemKey: string; path: string; reason: string }> }
@@ -1150,6 +1202,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_architecture_proposal_draft': {
+        if (mappingAttemptId) { if (args.sessionId !== mappingAttemptId) throw new Error('This draft belongs to another mapping attempt.'); result = await mappingRequest('draft'); break }
         if (!args.sessionId) throw new Error('session_status requires sessionId.')
         const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}?workspace=${encodeURIComponent(project.workspaceId)}`)
         if (!response.ok) throw new Error(`Could not read proposal session: ${await response.text()}`)
@@ -1159,6 +1212,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'commit_architecture_proposal_draft': {
+        if (mappingAttemptId) {
+          if (args.sessionId !== mappingAttemptId) throw new Error('This draft belongs to another mapping attempt.')
+          const proposal = await mappingRequest('submit', {})
+          mappingCommitted = true
+          result = { status: 'submitted', proposalId: proposal.id, systems: proposal.round?.systems?.length ?? 0, final: true, instruction: 'Mapping is complete. This session is locked and will stop automatically. Do not call any more tools or start work.' }
+          break
+        }
         if (!args.sessionId) throw new Error('commit_session requires sessionId.')
         const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/commit`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1177,6 +1237,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'abort_architecture_proposal_draft': {
+        if (mappingAttemptId) {
+          if (args.sessionId !== mappingAttemptId) throw new Error('This draft belongs to another mapping attempt.')
+          await mappingRequest('reset', {})
+          result = { status: 'open', sessionId: mappingAttemptId, chunks: 0, next: 'Every drafted chunk was cleared; notes are kept. Add the map again with add_chunk (earlier chunkIds and systemKeys are free), then commit_session as the final action.' }
+          break
+        }
         if (!args.sessionId) throw new Error('abort_session requires sessionId.')
         const response = await fetch(`${API_BASE}/api/architecture-proposal-drafts/${encodeURIComponent(args.sessionId)}/abort`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1199,7 +1265,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // agent proposes, you decide" structurally true rather than a convention
       // some later code path forgets.
       case 'propose_architecture': {
-        const proposed = Array.isArray(args.systems) ? args.systems : []
+        const systems = draftSystemsArg(args.systems)
+        if (mappingAttemptId) {
+          await mappingRequest('begin', { rationale: args.rationale ?? '' })
+          await mappingRequest('chunks', { sessionId: mappingAttemptId, chunkId: 'whole-map', systems })
+          const proposal = await mappingRequest('submit', {})
+          mappingCommitted = true
+          result = { status: 'submitted', proposalId: proposal.id, systems: proposal.round?.systems?.length ?? 0, final: true, instruction: 'Mapping is complete. This session is locked and will stop automatically. Do not call any more tools or start work.' }
+          break
+        }
+        const proposed = systems
         if (proposed.length === 0) {
           throw new Error(
             'propose needs `systems`: the tree you are proposing. Each entry takes a systemKey, a ' +
@@ -1930,7 +2005,7 @@ Steps to execute:
       }
 
       case 'start_work': {
-        const goal = args.goal as string
+        const goal = (typeof args.goal === 'string' && args.goal.trim()) ? args.goal.trim() : (args.messageHandle ? 'Work on request' : 'Work session')
         const agent = (args.agent as string) ?? ''
         const focus = (args.focus as string[] | undefined) ?? []
         const focusSystemIds: string[] = []
@@ -1981,6 +2056,7 @@ Steps to execute:
       }
 
       case 'note_work': {
+        if (mappingAttemptId) { await mappingRequest('note', { note: args.text }); result = { status: 'saved', instruction: 'Finish checking the architecture, then commit as the final action.' }; break }
         const text = args.text as string
         const session = workSessionFor(project.workspaceId, args.sessionId as string | undefined)
         loggedWorkSession = session
@@ -2918,10 +2994,14 @@ Steps to execute:
     // Every tool lands here, so a tool added later is visible on the canvas
     // and in the log without anyone remembering to instrument it.
     // Logged under the name the AGENT used, not the legacy name it routed to.
-    void postAgentAction(
+    if (!mappingCommitted) void postAgentAction(
       project.workspaceId, name, callerArgs, result, startedAt, undefined, loggedWorkSession,
     )
 
+    if (mappingAttemptId) return {
+      ...(result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result as Record<string, unknown> } : {}),
+      content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
+    }
     await markToolPresence(project.workspaceId)
     const connectionCheck = (call === 'await_canvas' || call === 'get_canvas_updates') && args.verifyOnly === true
     const human = connectionCheck ? [] : [...(pendingFromResult ?? []), ...(await takeHumanMessages(project.workspaceId))]
@@ -2937,7 +3017,7 @@ Steps to execute:
     const msg = err instanceof Error ? err.message : String(err)
     // A failed attempt is still something the agent did, and seeing it fail is
     // often the most useful entry in the log.
-    if (loggedWorkspaceId) {
+    if (loggedWorkspaceId && !mappingAttemptId) {
       void postAgentAction(
         loggedWorkspaceId, name, callerArgs, undefined, startedAt, msg, loggedWorkSession,
       )

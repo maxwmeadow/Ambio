@@ -1,14 +1,16 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import { delimiter, dirname, isAbsolute, join } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { detectEditors } from './fileAccess.ts'
-import { resolveNodeCommand } from './platformPaths.ts'
-import type { DeliveryEvent, DeliveryHost, DeliveryRun } from '../src/shared/agentDelivery.ts'
+import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
+import { CLI_CLIENTS, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
+import { mappingAttemptState } from './daemonAuth.ts'
+import type { MappingBinding } from '../src/shared/agentDelivery.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
 export interface DeliveryTarget extends DeliveryHost { launcher?: DeliveryLauncher }
@@ -50,7 +52,7 @@ function npmNative(hostId: string, packageDir: string, platform: NodeJS.Platform
 }
 
 /** The script an installed npm package runs for its command, if it is there. */
-function npmEntry(packageDir: string, pkg: { bin: string; entry: string }): string | undefined {
+function npmEntry(packageDir: string, pkg: { bin: string; entry: string }, unreadable: string[] = []): string | undefined {
   try {
     const manifest = JSON.parse(fs.readFileSync(join(packageDir, 'package.json'), 'utf8')) as { bin?: string | Record<string, string> }
     const declared = typeof manifest.bin === 'string' ? manifest.bin : manifest.bin?.[pkg.bin]
@@ -58,9 +60,15 @@ function npmEntry(packageDir: string, pkg: { bin: string; entry: string }): stri
       const script = join(packageDir, declared)
       if (fs.existsSync(script) && fs.statSync(script).isFile()) return script
     }
-  } catch { /* no manifest: try the entry it used to have */ }
+  } catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(packageDir)
+  }
   const legacy = join(packageDir, pkg.entry)
-  return fs.existsSync(legacy) && fs.statSync(legacy).isFile() ? legacy : undefined
+  try { return fs.statSync(legacy).isFile() ? legacy : undefined }
+  catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(packageDir)
+    return undefined
+  }
 }
 
 function environmentPath(env: NodeJS.ProcessEnv): string {
@@ -68,13 +76,17 @@ function environmentPath(env: NodeJS.ProcessEnv): string {
   return key ? env[key] ?? '' : ''
 }
 
-function executable(file: string): boolean {
-  try { fs.accessSync(file, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK); return fs.statSync(file).isFile() } catch { return false }
+function executable(file: string, unreadable: string[] = []): boolean {
+  try { fs.accessSync(file, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK); return fs.statSync(file).isFile() }
+  catch (error) {
+    if (['EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) unreadable.push(file)
+    return false
+  }
 }
 
 /** Resolve known CLIs, including native installs and npm's Windows JS entrypoints.
  * Never invoke a .cmd shim through a shell with a human-authored prompt. */
-export function findDeliveryCli(hostId: string, env = process.env, platform = process.platform, home = os.homedir(), node = process.execPath): DeliveryLauncher | undefined {
+export function findDeliveryCli(hostId: string, env = process.env, platform = process.platform, home = os.homedir(), node = process.execPath, unreadable: string[] = []): DeliveryLauncher | undefined {
   const names = CLI_NAMES[hostId]
   if (!names) return undefined
   const dirs = [...environmentPath(env).split(delimiter).filter(Boolean), join(home, '.local', 'bin'), join(home, '.volta', 'bin'), join(home, '.asdf', 'shims'), '/opt/homebrew/bin', '/usr/local/bin']
@@ -84,17 +96,20 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
   }
   if (platform === 'win32') dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'Microsoft', 'WinGet', 'Links'))
   for (const dir of dirs) {
+    // Editor/desktop apps inject their private Codex into agent sessions' PATH.
+    // Its presence does not establish a standalone CLI installation.
+    if (hostId === 'codex' && /(?:[\\/]\.vscode(?:-insiders)?[\\/]extensions[\\/]openai\.chatgpt-|[\\/]OpenAI[\\/]Codex[\\/]bin[\\/])/i.test(`${dir}/`)) continue
     for (const name of names) {
       // A name that carries its own extension is that file on every platform.
       const command = join(dir, platform === 'win32' && !name.includes('.') ? `${name}.exe` : name)
-      if (executable(command)) return { command, args: [] }
+      if (executable(command, unreadable)) return { command, args: [] }
     }
   }
   const pkg = NPM_PACKAGES[hostId]
   if (!pkg) return undefined
   const npmDirs = [...dirs.map(dir => join(dir, 'node_modules')), join(env.APPDATA ?? join(home, 'AppData', 'Roaming'), 'npm', 'node_modules'), '/usr/local/lib/node_modules', '/opt/homebrew/lib/node_modules']
   for (const dir of npmDirs) {
-    const script = npmEntry(join(dir, pkg.name), pkg)
+    const script = npmEntry(join(dir, pkg.name), pkg, unreadable)
     if (!script) continue
     const native = npmNative(hostId, join(dir, pkg.name), platform as NodeJS.Platform)
     if (native) return { command: native, args: [] }
@@ -107,36 +122,38 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
 }
 
 /** All installed modalities remain visible, even when a host has no public chat API. */
-export function deliveryTargets(hosts: { id: string; label: string }[], env = process.env, platform = process.platform, home = os.homedir()): DeliveryTarget[] {
+export function deliveryTargets(hosts: { id: string; label: string }[], env = process.env, platform = process.platform, home = os.homedir(), overrides: Record<string, string> = {}): DeliveryTarget[] {
   const editors = detectEditors(env, platform, home)
   const editorId: Record<string, string[]> = { copilot: ['vscode'], cursor: ['cursor'], windsurf: ['windsurf'], jetbrains: ['intellij', 'webstorm', 'pycharm', 'goland'], zed: ['zed'] }
   // An editor's own terminal agent is a second way to reach the same host: it
   // can be started for a turn, where the editor's chat can only be pasted into.
-  const companions: DeliveryTarget[] = []
-  if (hosts.some(host => host.id === 'cursor')) {
-    const launcher = findDeliveryCli('cursor-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'cursor-cli', label: 'Cursor CLI', route: 'run', available: true, launcher, detail: 'Cursor\u2019s terminal agent, started by Ambio in this project.' })
-  }
-  for (const [editor, id, label] of [['windsurf', 'devin-cli', 'Devin CLI'], ['antigravity', 'antigravity-acp', 'Antigravity agent']] as const) {
-    if (!hosts.some(host => host.id === editor)) continue
-    const launcher = findDeliveryCli(id, env, platform, home)
-    if (launcher) companions.push({ id, label, route: 'run', available: true, launcher, detail: `${label}, started by Ambio in this project.` })
-  }
-  if (hosts.some(host => host.id === 'antigravity')) {
-    const launcher = findDeliveryCli('antigravity-cli', env, platform, home)
-    if (launcher) companions.push({ id: 'antigravity-cli', label: 'Antigravity CLI', route: 'run', available: true, launcher, detail: 'Antigravity\u2019s terminal agent, started by Ambio in this project.' })
-  }
-  return [...hosts.map(({ id, label }) => {
+  const catalog = [...hosts, ...CLI_CLIENTS.filter(client => !hosts.some(host => host.id === client.id))]
+  return catalog.map(({ id, label }) => {
     const host = { id, label }
     if (CLI_NAMES[host.id]) {
-      const launcher = findDeliveryCli(host.id, env, platform, home)
-      return { ...host, route: 'run', available: !!launcher, launcher, detail: launcher ? 'Start a new run in this project. Host permissions still apply.' : 'CLI executable not found. Install it or use copy handoff.' } as DeliveryTarget
+      const selected = overrides[id]
+      let launcher: DeliveryLauncher | undefined
+      let discoveryError: string | undefined
+      if (selected) {
+        try { launcher = selectedDeliveryCli(id, selected, platform) }
+        catch (error) { discoveryError = error instanceof Error ? error.message : String(error) }
+      } else {
+        const unreadable: string[] = []
+        launcher = findDeliveryCli(host.id, env, platform, home, process.execPath, unreadable)
+        if (!launcher && unreadable.length) discoveryError = `Some CLI locations could not be checked: ${[...new Set(unreadable)].slice(0, 3).join(', ')}. Locate the executable or correct access and rescan.`
+      }
+      return { ...host, route: 'run', available: !!launcher, launcher,
+        ...(selected ? { executableOverride: selected } : {}),
+        ...(launcher ? { executablePath: launcher.args[0] ?? launcher.command } : {}),
+        ...(discoveryError ? { discoveryError } : {}),
+        detail: discoveryError ?? (launcher ? 'CLI found, started by Ambio for each request. Sign in to this CLI before starting a run.' : 'CLI not found. Install it or locate its executable.'),
+      } as DeliveryTarget
     }
     let launcher: DeliveryLauncher | undefined
     const editor = editors.find(item => editorId[host.id]?.includes(item.id))
     if (editor) launcher = { command: editor.command, args: [] }
     if (host.id === 'antigravity' && platform !== 'win32') {
-      const command = [...(env.PATH ?? '').split(delimiter).filter(Boolean), '/usr/local/bin'].map(dir => join(dir, 'antigravity')).find(executable)
+      const command = [...(env.PATH ?? '').split(delimiter).filter(Boolean), '/usr/local/bin'].map(dir => join(dir, 'antigravity')).find(file => executable(file))
       if (command) launcher = { command, args: [] }
     }
     if (host.id === 'claude-desktop' && platform === 'darwin') {
@@ -144,7 +161,29 @@ export function deliveryTargets(hosts: { id: string; label: string }[], env = pr
       if (app) launcher = { command: '/usr/bin/open', args: ['-a', app] }
     }
     return { ...host, route: launcher ? 'open' : 'copy', available: true, launcher, detail: launcher ? 'Copy the handoff and open this host. Paste it into the chat you choose.' : 'Copy the handoff, then paste it into this host’s chat. No supported launcher was found.' } as DeliveryTarget
-  }), ...companions]
+  })
+}
+
+/** Resolve a human-selected file without passing prompts through a shell. */
+export function selectedDeliveryCli(hostId: string, file: string, platform = process.platform, node = process.execPath): DeliveryLauncher {
+  if (!CLI_NAMES[hostId]) throw new Error('This client has no runnable CLI.')
+  try {
+    if (!isAbsolute(file) || !fs.statSync(file).isFile()) throw new Error()
+    fs.accessSync(file, /\.(?:[cm]?js|cmd|bat|ps1)$/i.test(file) ? fs.constants.R_OK : process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+  } catch { throw new Error('The selected CLI file is missing, inaccessible, or not executable. Locate it again.') }
+  if (/\.(?:cmd|bat|ps1)$/i.test(file)) {
+    const pkg = NPM_PACKAGES[hostId]
+    const packageDir = pkg && join(dirname(file), 'node_modules', pkg.name)
+    const script = pkg && packageDir && npmEntry(packageDir, pkg)
+    if (script && packageDir) {
+      const native = npmNative(hostId, packageDir, platform)
+      return native ? { command: native, args: [] } : { command: node, args: [script], bundledNode: true }
+    }
+    throw new Error('This is a shell or installer shortcut. Choose the CLI executable or its installed npm entry script instead.')
+  }
+  if (/\.(?:[cm]?js)$/i.test(file)) return { command: node, args: [file], bundledNode: true }
+  if (platform === 'win32' && !/\.exe$/i.test(file) && !CLI_NAMES[hostId].includes(basename(file))) throw new Error('Choose a Windows .exe or an installed npm CLI entry script.')
+  return { command: file, args: [] }
 }
 
 /**
@@ -166,13 +205,13 @@ export function chatDeepLink(hostId: string, prompt: string, mode: TurnMode = 'b
 }
 
 /** How one turn is started in a host: its arguments, stdin and session. */
-export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string } = {}): DriverPlan {
+export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding } = {}): DriverPlan {
   const driver = agentDriver(hostId)
   if (!driver) throw new Error('This host has no direct delivery route.')
-  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model })
+  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, mapping: turn.mapping })
 }
 
-export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string } = {}): string[] {
+export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding } = {}): string[] {
   return deliveryPlan(hostId, mcp, workspaceId, prompt, turn).args
 }
 
@@ -191,6 +230,7 @@ export interface RunInput {
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
   acp?: { mcpServers: AcpMcpServer[]; resume?: string }
   muse?: Pick<MuseTurn, 'mcpServers' | 'resume' | 'model' | 'approvalMode'>
+  mapping?: MappingBinding
 }
 
 /** How many events a run keeps for the inbox to show. */
@@ -209,6 +249,9 @@ export class DeliveryRunner {
   private acp = new Map<string, AcpClient | MuseClient>()
   private directory: string
   private spawnProcess: typeof spawn
+  private finished = new Map<string, Promise<void>>()
+  private terminating = new Map<string, Promise<void>>()
+  private recovering = new Map<string, Promise<void>>()
   constructor(directory: string, spawnProcess: typeof spawn = spawn) {
     this.directory = directory
     this.spawnProcess = spawnProcess
@@ -226,7 +269,7 @@ export class DeliveryRunner {
     return threadId ? this.sessions()[this.sessionKey(workspaceId, threadId, hostId)] : undefined
   }
   private rememberSession(run: DeliveryRun): void {
-    if (!run.threadId || !run.sessionId) return
+    if (!run.threadId || !run.sessionId || run.mappingAttemptId) return
     const sessions = this.sessions()
     sessions[this.sessionKey(run.workspaceId, run.threadId, run.hostId)] = run.sessionId
     fs.writeFileSync(`${this.sessionsFile()}.tmp`, JSON.stringify(sessions), { mode: 0o600 })
@@ -263,6 +306,38 @@ export class DeliveryRunner {
       } catch { return [] }
     })
   }
+  async recoverMappings(workspaceId: string): Promise<void> {
+    await Promise.all(this.list(workspaceId).filter(run => run.mappingAttemptId && run.state === 'interrupted' && !this.live.has(run.key)).map(run => {
+      const prior = this.recovering.get(run.key)
+      if (prior) return prior
+      const recover = (async () => {
+        await mappingAttemptState(workspaceId, run.mappingAttemptId!, 'cancel')
+        const identity = run.pid ? await processStartIdentity(run.pid) : ''
+        if (identity === null || identity && (!run.processIdentity || identity !== run.processIdentity)) {
+          // A changed identity proves the old process is gone. An unknown
+          // identity cannot justify terminating this PID or opening Review.
+          if (identity === null || !run.processIdentity) {
+            run.detail = 'The previous mapping process could not be verified. Stop it before reviewing.'
+            this.save(run); return
+          }
+        } else if (identity && run.pid) {
+          await this.terminate(run.pid, true)
+          for (let i = 0; i < 30; i++) {
+            const current = await processStartIdentity(run.pid)
+            if (current === '' || current && current !== identity) break
+            if (i === 29) throw new Error('The previous mapping process has not stopped yet.')
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        const attempt = await mappingAttemptState(workspaceId, run.mappingAttemptId!, 'settle')
+        run.state = attempt.state === 'submitted' ? 'completed' : 'stopped'
+        run.detail = attempt.state === 'submitted' ? 'Mapping submitted. The previous agent session is closed.' : 'The interrupted mapping session is closed. Retry mapping.'
+        this.save(run)
+      })().finally(() => this.recovering.delete(run.key))
+      this.recovering.set(run.key, recover)
+      return recover
+    }))
+  }
   assertRootAvailable(rootPath: string): void {
     const root = fs.realpathSync(rootPath)
     if ([...this.live.values()].some(({ run }) => fs.realpathSync(run.rootPath) === root)) throw new Error('An external agent is working in this project. Stop it or wait before starting integrated chat.')
@@ -291,6 +366,7 @@ export class DeliveryRunner {
       key, workspaceId: input.workspaceId, messageId: input.messageId, revision: input.revision, hostId: input.hostId, rootPath, state: 'starting', detail: 'Starting agent…', logPath: join(this.directory, `${key}.log`), startedAt: Date.now(),
       ...(input.threadId ? { threadId: input.threadId } : {}), ...(input.mode ? { mode: input.mode } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}), ...(input.resumed ? { resumed: true } : {}),
+      ...(input.mapping ? { mappingAttemptId: input.mapping.attempt.id } : {}),
     }
     // Exclusive receipt also protects a second Electron process.
     if (!prior) {
@@ -320,7 +396,10 @@ export class DeliveryRunner {
       let child: ChildProcess
       try {
         const env: NodeJS.ProcessEnv = { ...process.env, AMBIO_WORKSPACE_ID: input.workspaceId, AMBIO_AGENT_HOST: input.hostId }
+        // The run message id is Claude Code's permission hook (mcpEnvironment);
+        // a mapping turn carries it as its request binding on every host.
         if (input.hostId !== 'claude-code') delete env.AMBIO_RUN_MESSAGE_ID
+        if (input.mapping) Object.assign(env, { AMBIO_MAPPING_ATTEMPT: input.mapping.attempt.id, AMBIO_API_TOKEN: input.mapping.token, AMBIO_RUN_MESSAGE_ID: input.messageId })
         // A GUI app's PATH may omit the directory of its resolved CLI or Node.
         const node = resolveNodeCommand()
         const pathKey = Object.keys(env).find(name => name.toLowerCase() === 'path') ?? 'PATH'
@@ -329,8 +408,25 @@ export class DeliveryRunner {
         else delete env.ELECTRON_RUN_AS_NODE
         input.driver?.preflight?.(input.mode ?? 'build', env, process.platform)
         child = this.spawnProcess(input.launcher.command, [...input.launcher.args, ...attempt.args], { cwd: rootPath, env, shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
-      } catch (error) { fail(error as Error); return }
+      } catch (error) {
+        if (input.mapping) void mappingAttemptState(input.workspaceId, input.mapping.attempt.id, 'cancel')
+          .then(() => mappingAttemptState(input.workspaceId, input.mapping!.attempt.id, 'settle'))
+          .then(() => fail(error as Error), cleanupError => fail(new Error(`${String(error)}; ${String(cleanupError)}`)))
+        else fail(error as Error)
+        return
+      }
       this.live.set(key, { child, run })
+      let resolveFinished!: () => void
+      const finished = new Promise<void>(resolve => { resolveFinished = resolve })
+      this.finished.set(key, finished)
+      let mappingPollBusy = false
+      const mappingTimer = input.mapping ? setInterval(() => {
+        if (mappingPollBusy || !this.live.has(key) || run.state === 'stopping') return
+        mappingPollBusy = true
+        void mappingAttemptState(run.workspaceId, input.mapping!.attempt.id).then(attempt => {
+          if (attempt.state !== 'mapping' && this.live.has(key)) return this.stop(run.workspaceId, key)
+        }).catch(() => { /* closed credentials still fence writes; retry shutdown */ }).finally(() => { mappingPollBusy = false })
+      }, 250) : undefined
       let logged = 0
       const output = (chunk: Buffer) => {
         const part = chunk.subarray(0, Math.max(0, 1024 * 1024 - logged))
@@ -398,8 +494,13 @@ export class DeliveryRunner {
         if (run.state === 'starting') fail(error)
         else { run.state = 'failed'; run.detail = `Agent process failed: ${error.message}`; this.save(run) }
       })
-      child.once('spawn', () => {
+      child.once('spawn', async () => {
         run.pid = child.pid; run.state = 'running'; run.detail = 'Agent launched. Waiting for its claim and reply.'; this.save(run)
+        if (input.mapping && child.pid) {
+          run.processIdentity = await processStartIdentity(child.pid)
+          if (!this.live.has(key)) { settle(); return }
+          this.save(run)
+        }
         if (acp) {
           this.acp.set(key, acp)
           // The agent stays up between turns; its part in this one is over
@@ -417,13 +518,25 @@ export class DeliveryRunner {
         } else child.stdin?.end(attempt.stdin)
         settle()
       })
-      child.once('close', (code, signal) => {
+      child.once('close', async (code, signal) => {
+        try {
+        if (mappingTimer) clearInterval(mappingTimer)
         // A last line with no newline is still something the agent said.
         if (pending) understand(Buffer.from('\n'))
         if (pendingError) understandError(Buffer.from('\n'))
         acp?.close()
         this.acp.delete(key)
         this.live.delete(key)
+        if (input.mapping) {
+          try {
+            await this.terminating.get(key)
+            const attempt = await mappingAttemptState(run.workspaceId, input.mapping.attempt.id, 'settle')
+            run.state = attempt.state === 'submitted' ? 'completed' : 'stopped'
+            run.detail = attempt.state === 'submitted' ? 'Mapping submitted. The agent session is closed.' : 'Mapping stopped before submission.'
+          } catch { run.state = 'interrupted'; run.detail = 'The agent exited, but its mapping session could not be settled. Reconnect before reviewing.' }
+          this.save(run)
+          return
+        }
         if (run.state === 'launch-failed') return
         if (run.state === 'stopping') {
           run.state = 'stopped'; run.detail = 'Agent process stopped. Edits already made are kept; this does not cancel the work order.'
@@ -469,21 +582,43 @@ export class DeliveryRunner {
             : code === 0 ? 'Agent process finished. Its canvas reply determines whether the result is ready for review.' : `Agent exited ${signal ?? code}. Check its output; the work order remains in the inbox.`
         }
         this.save(run)
+        } finally {
+          resolveFinished()
+          if (this.finished.get(key) === finished) this.finished.delete(key)
+        }
       })
     }
   }
-  stop(workspaceId: string, key: string): void {
+  async stop(workspaceId: string, key: string): Promise<void> {
     const entry = this.live.get(key)
     if (!entry || entry.run.workspaceId !== workspaceId) throw new Error('This run is no longer controlled by Ambio. Check the agent separately.')
+    let revokeError: unknown
+    if (entry.run.mappingAttemptId) {
+      try { await mappingAttemptState(workspaceId, entry.run.mappingAttemptId, 'cancel') } catch (error) { revokeError = error }
+      if (!this.live.has(key)) { await this.finished.get(key); return }
+    }
     // An ACP agent is asked to stop the turn before its process is stopped.
     this.acp.get(key)?.cancel()
-    if (entry.child.pid) {
-      if (process.platform === 'win32') {
-        const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(entry.child.pid), '/T', '/F'], { shell: false, windowsHide: true })
-        killer.on('error', () => entry.child.kill())
-      } else process.kill(-entry.child.pid, 'SIGTERM')
-    }
     entry.run.state = 'stopping'; entry.run.detail = 'Stop requested. Waiting for the agent process to exit.'; this.save(entry.run)
+    if (entry.child.pid) {
+      const termination = this.terminate(entry.child.pid, !!entry.run.mappingAttemptId)
+      this.terminating.set(key, termination)
+      try { await termination } finally { this.terminating.delete(key) }
+    }
+    const finished = this.finished.get(key)
+    if (finished) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try { await Promise.race([finished, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('The agent has not stopped yet. Review remains locked.')), 10000) })]) }
+      finally { if (timer) clearTimeout(timer) }
+    }
+    if (revokeError) throw revokeError
   }
-  stopAll(): void { for (const [key, { run }] of this.live) { try { this.stop(run.workspaceId, key) } catch { /* already exited */ } } }
+  private async terminate(pid: number, force: boolean): Promise<void> {
+    if (process.platform === 'win32') await new Promise<void>((resolve, reject) => {
+      const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(pid), '/T', '/F'], { shell: false, windowsHide: true })
+      killer.once('close', () => resolve()); killer.once('error', reject)
+    })
+    else { try { process.kill(-pid, force ? 'SIGKILL' : 'SIGTERM') } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error } }
+  }
+  async stopAll(): Promise<void> { await Promise.allSettled([...this.live].map(([key, { run }]) => this.stop(run.workspaceId, key))) }
 }

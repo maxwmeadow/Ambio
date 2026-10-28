@@ -1,12 +1,38 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildSceneIndex, queryScene, cameraRect, contains, initialRootVisible } from './renderBudgetGeometry.ts'
+import { buildSceneIndex, buildRelationshipIndex, queryScene, cameraRect, contains, initialRootVisible, sceneRecords } from './renderBudgetGeometry.ts'
 import { createRenderBudgetStore } from './renderBudgetStore.ts'
 import { virtualRowRange } from './virtualRows.ts'
 import { createFrameWorkQueue } from './frameWorkQueue.ts'
 
 const camera = { x: 0, y: 0, zoom: 1, width: 800, height: 600, moving: false }
 const record = (id, x, y, extra = {}) => ({ id, x, y, width: 220, height: 110, hidden: false, detail: true, kind: 'file', ...extra })
+
+test('relationship admission preserves crossing paths without adopting disconnected offscreen endpoints', () => {
+  const nodes = buildSceneIndex([record('left', -1e6, 0), record('right', 1e6, 0),
+    record('far-a', 2e6, 2e6), record('far-b', 3e6, 2e6), record('hidden', 0, 0, { hidden: true })])
+  const edges = buildRelationshipIndex(nodes, [{ id: 'crossing', source: 'left', target: 'right' },
+    { id: 'offscreen', source: 'far-a', target: 'far-b' }, { id: 'hidden-path', source: 'hidden', target: 'right' }])
+  assert.equal(queryScene(nodes, camera).visible.length, 0)
+  assert.deepEqual(queryScene(edges, camera).visible.map(edge => edge.id), ['crossing'])
+})
+
+test('spatial revisions ignore selection and live chrome but invalidate every geometry input', () => {
+  const nodes = [{ id: 'root', type: 'system', position: { x: 4, y: 5 }, style: { width: 400, height: 300 }, data: { childrenVisible: true } },
+    { id: 'file', parentId: 'root', type: 'file', position: { x: 10, y: 20 }, measured: { width: 220, height: 110 }, data: { detailRevealed: false } }]
+  const before = sceneRecords(nodes)
+  assert.equal(sceneRecords(nodes.map(node => ({ ...node, selected: true, data: { ...node.data, fx: 'changed' } })), before), before)
+  for (const change of [{ position: { x: 11, y: 20 } }, { parentId: undefined }, { hidden: true },
+    { type: 'infra' }, { measured: { width: 221, height: 110 } }, { measured: { width: 220, height: 111 } },
+    { data: { detailRevealed: true } }]) {
+    const next = sceneRecords([nodes[0], { ...nodes[1], ...change }], before)
+    assert.notEqual(next, before)
+    assert.equal(next[0], before[0])
+    assert.notEqual(next[1], before[1])
+  }
+  assert.notEqual(sceneRecords([...nodes].reverse(), before), before)
+  assert.notEqual(sceneRecords(nodes.slice(0, 1), before), before)
+})
 
 test('initial worker latency cannot admit distant roots or semantic descendants', () => {
   assert.equal(initialRootVisible(record('near', 0, 0), camera), true)

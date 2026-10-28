@@ -4,6 +4,8 @@ import { arch, cpus, platform, release, tmpdir, totalmem } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { canvasScaleFixture } from '../fixtures/canvasScale'
 import { createHash } from 'node:crypto'
+import { canvasComponentCounts, installCanvasCameraTrace } from './canvasComponentCounts'
+import { isCanvasSourceFile } from '../../src/shared/fileKinds'
 
 // Large tiers are explicit opt-in. Failed tiers remain failures with artifacts.
 const enabled = process.env.AMBIO_SCALE === '1'
@@ -41,13 +43,16 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
   const appData=join(home,'AppData','Roaming'),localData=join(home,'AppData','Local')
   mkdirSync(appData,{recursive:true});mkdirSync(localData,{recursive:true})
   const report:any={schemaVersion:1,status:'running',entities,shape,cycles,mockedEndpoints:true,events:[],memory:[],
+    cameraIntentTrace:process.env.AMBIO_SCALE_CAMERA_TRACE==='1',
     buildFingerprint:createHash('sha256').update(readFileSync('out/renderer/index.html')).digest('hex'),
     reference:{platform:platform(),release:release(),arch:arch(),cpu:cpus()[0]?.model,
       logicalCpus:cpus().length,hostRamBytes:totalmem(),viewport:{width:1400,height:900}},
+    forcedCollection:process.env.AMBIO_SCALE_GC==='1',
     memoryUnit:'Sampled Electron process metrics: KiB; page JavaScript heap: bytes. Worker heap is included in process memory, not separately measured.',
     budgets:{frameP95Ms:16.7,frameP99Ms:33.3,frameToleranceMs:0.25,inputP95Ms:50,memoryGrowthRatio:1.1}}
   let app:ElectronApplication|undefined,memoryTimer:ReturnType<typeof setTimeout>|undefined
   let stopProfile:(()=>Promise<void>)|undefined
+  let stopTimeline:(()=>Promise<void>)|undefined
   let collecting=true,samplingMemory=false,peakPrivateKiB=0,latestPrivateKiB:number|null=null
   const {ELECTRON_RUN_AS_NODE:_node,ELECTRON_RENDERER_URL:_url,...env}=process.env
   try {
@@ -95,6 +100,10 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     await page.waitForFunction(()=>Boolean((window as any).__ambioGraphStore&&(window as any).__ambioPerfTrace))
     await expect.poll(()=>apiOrigin).not.toBe('')
     const canvas=page.locator('[data-ambio-canvas]').first();await expect(canvas).toBeVisible()
+    if(process.env.AMBIO_SCALE_SOLID_EDGES==='1'){
+      report.diagnosticSolidEdges=true
+      await page.addStyleTag({content:'.react-flow__edge-path { stroke-dasharray: none !important; }'})
+    }
     report.reference.browser=await page.evaluate(()=>({userAgent:navigator.userAgent,pixelRatio:devicePixelRatio,
       hardwareConcurrency:navigator.hardwareConcurrency,visibility:document.visibilityState,focused:document.hasFocus()}))
     report.reference.refreshIntervalMs=await page.evaluate(async()=>{
@@ -104,9 +113,27 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       return values.sort((a,b)=>a-b)[Math.floor(values.length/2)]
     })
     const cdp=await page.context().newCDPSession(page);await cdp.send('Performance.enable')
+    if(process.env.AMBIO_SCALE_TIMELINE==='1'){
+      report.instrumented=true
+      await cdp.send('Tracing.start',{categories:'devtools.timeline,blink.user_timing,disabled-by-default-devtools.timeline',transferMode:'ReturnAsStream'})
+      report.timelineClock=await page.evaluate(()=>{
+        performance.mark('ambio-scale-trace-zero')
+        return performance.getEntriesByName('ambio-scale-trace-zero').at(-1)!.startTime
+      })
+      stopTimeline=async()=>{
+        const completed=new Promise<any>(resolve=>cdp.once('Tracing.tracingComplete',resolve))
+        await cdp.send('Tracing.end');const {stream}=await completed
+        let text='',chunk
+        do{chunk=await cdp.send('IO.read',{handle:stream});text+=chunk.data}while(!chunk.eof)
+        await cdp.send('IO.close',{handle:stream});mkdirSync(outputDir,{recursive:true})
+        writeFileSync(join(outputDir,`${shape}-${entities}-${info.repeatEachIndex}.timeline.json`),text)
+      }
+    }
+    if(process.env.AMBIO_SCALE_CAMERA_TRACE==='1')await page.evaluate(installCanvasCameraTrace)
     if(process.env.AMBIO_SCALE_PROFILE==='1'){
       report.instrumented=true
       await cdp.send('Profiler.enable');await cdp.send('Profiler.start')
+      report.profileStartedAt=await page.evaluate(()=>performance.now())
       stopProfile=async()=>{
         const result=await deadline(cdp.send('Profiler.stop'),3000,'CPU profile unavailable')
         mkdirSync(outputDir,{recursive:true})
@@ -150,7 +177,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
           s.peakNodes=Math.max(s.peakNodes,document.querySelectorAll('.react-flow__node').length)}
         requestAnimationFrame(frame)};requestAnimationFrame(frame)
       window.addEventListener('pointerdown',event=>{
-        const dispatched=event.timeStamp,received=performance.now()
+        const dispatched=event.timeStamp,received=performance.now(),phase=w.__scale.phase
         const node=(event.target as Element)?.closest('.react-flow__node')
         if(node&&!node.classList.contains('selected')){
           const observer=new MutationObserver(()=>{
@@ -163,7 +190,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
           setTimeout(()=>observer.disconnect(),2000)
         }
         requestAnimationFrame(()=>requestAnimationFrame(()=>{if(w.__scale?.running&&w.__scale.inputs.length<1000)
-          w.__scale.inputs.push({queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
+          w.__scale.inputs.push({phase,dispatched,received,finished:performance.now(),queueMs:received-dispatched,paintOpportunityMs:performance.now()-dispatched})}))
       },true)
     })
     const started=Date.now(),box=(await canvas.boundingBox())!
@@ -171,8 +198,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       const w=window as any,trace=w.__ambioPerfTrace,start=performance.now()
       let at=performance.now();trace.begin('snapshot.fetch')
       const response=await fetch(url);trace.record('snapshot.fetch',performance.now()-at)
-      at=performance.now();trace.begin('snapshot.decode')
-      const snapshot=await response.json();trace.record('snapshot.decode',performance.now()-at,snapshot.files.length+snapshot.systems.length)
+      const snapshot=await w.__ambioDecodeSnapshot(response)
       w.__ambioGraphStore.getState().applySnapshot(snapshot)
       return{applyReturnedMs:performance.now()-start}
     },`${apiOrigin}/api/snapshot/scale-fixture`)
@@ -181,10 +207,11 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     try{report.cold=await deadline(opening,coldTimeout,'cold preparation exceeded deadline')}
     catch(error){probing=false;report.failureStage=report.events.at(-1);throw error}
     try{
-      await deadline(page.waitForFunction(()=>{
-        const w=window as any
-        return Boolean(w.__ambioPerfTrace.summary().stages['scene.geometry'])
-      }),coldTimeout,'scene materialization exceeded deadline')
+      const expectedNodes=snapshot.files.filter((file:any)=>file.systemId&&isCanvasSourceFile(file)).length+snapshot.systems.length+snapshot.infraNodes.length
+      await deadline(page.waitForFunction(expected=>{
+        const canvas=document.querySelector<HTMLElement>('[data-ambio-canvas]')
+        return Number(canvas?.dataset.canonicalNodeCount)===expected&&canvas?.dataset.scenePreparing!=='true'
+      },expectedNodes,{timeout:coldTimeout}),coldTimeout,'scene materialization exceeded deadline')
       // A valid camera can be between distant roots. Prove two frame opportunities
       // here; require a visible, centered, selectable destination after search.
       await deadline(page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))),
@@ -199,14 +226,6 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     if(edgeSheet){
       await page.getByRole('button',{name:'Scale Relationships STR',exact:true}).click()
       await page.getByLabel('Show All Sheet Relationships',{exact:true}).check()
-      await expect(canvas.locator('.react-flow__edge-path')).toHaveCount(edgeSheet.plannedEdges.length)
-      expect(edgeSheet.plannedEdges.length).toBeGreaterThan(0)
-      for(const edge of [edgeSheet.plannedEdges[0],edgeSheet.plannedEdges.at(-1)!]){
-        const path=canvas.locator(`.react-flow__edge[data-id="pedge:${edge.id}"] .react-flow__edge-path`)
-        expect(await path.getAttribute('d')).toMatch(/^M/)
-        expect(await path.getAttribute('d')).not.toContain('NaN')
-      }
-      report.fixture.renderedRelationships=edgeSheet.plannedEdges.length
     }
     await page.evaluate(()=>(window as any).__scale.phase='navigation')
     const target=snapshot.systems.find((s:any)=>!s.parentId)!
@@ -217,6 +236,19 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     await expect(targetNode).toBeVisible();await page.waitForTimeout(1200)
     await expect.poll(()=>targetNode.evaluate(el=>{const r=el.getBoundingClientRect(),map=el.closest('.react-flow')!.getBoundingClientRect();
       return r.width>20&&Math.abs((r.left+r.right-map.left-map.right)/2)<12})).toBe(true)
+    if(edgeSheet){
+      // Frame the common hub before asserting actual paths. Fully offscreen
+      // chain edges are correctly culled; a hub has every path in this view.
+      const paths=canvas.locator('.react-flow__edge-path')
+      if(shape==='hub')await expect(paths).toHaveCount(edgeSheet.plannedEdges.length)
+      else await expect.poll(()=>paths.count()).toBeGreaterThan(0)
+      for(const edge of shape==='hub'?[edgeSheet.plannedEdges[0],edgeSheet.plannedEdges.at(-1)!]:[edgeSheet.plannedEdges[0]]){
+        const path=canvas.locator(`.react-flow__edge[data-id="pedge:${edge.id}"] .react-flow__edge-path`)
+        expect(await path.getAttribute('d')).toMatch(/^M/)
+        expect(await path.getAttribute('d')).not.toContain('NaN')
+      }
+      report.fixture.renderedRelationships=await paths.count()
+    }
     report.cold.usableMs=Date.now()-started
     await page.evaluate(()=>(window as any).__scale.phase='warm')
     for(let cycle=0;cycle<cycles;cycle++){
@@ -234,6 +266,17 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
       // A container's center can correctly be covered by a nested child.
       await targetNode.click({position:{x:10,y:10}})
       await expect.poll(()=>page.evaluate(()=>(window as any).__ambioGraphStore.getState().selectedNodeId)).toBe(target.id)
+      if(report.forcedCollection)await cdp.send('HeapProfiler.collectGarbage')
+      if(process.env.AMBIO_SCALE_HEAP_PROFILE==='1'&&[9,49].includes(cycle)) {
+        report.heapInstrumented=true
+        const chunks:string[]=[]
+        const collect=({chunk}:{chunk:string})=>chunks.push(chunk)
+        cdp.on('HeapProfiler.addHeapSnapshotChunk',collect)
+        try { await cdp.send('HeapProfiler.takeHeapSnapshot') }
+        finally { cdp.off('HeapProfiler.addHeapSnapshotChunk',collect) }
+        mkdirSync(outputDir,{recursive:true})
+        writeFileSync(join(outputDir,`heap-${cycle+1}.heapsnapshot`),chunks.join(''))
+      }
       report.pageHeap??=[];report.pageHeap.push((await cdp.send('Runtime.getHeapUsage')).usedSize)
       report.processPrivateKiB??=[];report.processPrivateKiB.push(latestPrivateKiB)
       if(peakPrivateKiB>2*1024*1024)throw Error('isolated fixture exceeded 2 GiB private-memory guard')
@@ -242,14 +285,24 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     report.observed=await page.evaluate(()=>{
       const w=window as any,s=w.__scale;s.running=false;s.stopObserving()
       return{frames:s.frames,phaseFrames:s.phaseFrames,inputs:s.inputs,selection:s.selection,peakDom:s.peakDom,peakNodes:s.peakNodes,
-        longTasks:s.longTasks,finalEdges:document.querySelectorAll('.react-flow__edge-path').length,
+        longTasks:s.longTasks,cameraTrace:w.__canvasCameraTrace,finalEdges:document.querySelectorAll('.react-flow__edge-path').length,
         finalNodes:document.querySelectorAll('.react-flow__node').length,metrics:{...w.__ambioPerfMetrics},trace:w.__ambioPerfTrace.summary()}
     })
+    report.components=await page.evaluate(canvasComponentCounts)
+    expect(report.components.canonicalNodes).toBe(snapshot.files.filter((file:any)=>file.systemId&&isCanvasSourceFile(file)).length+
+      snapshot.systems.length+snapshot.infraNodes.length)
+    expect(report.components.wrappers).toBeGreaterThan(0)
+    expect(report.components.wrappers).toBeLessThanOrEqual(Math.max(64,report.components.domNodes*2))
+    expect(report.components.minimapWrappers).toBe(0)
+    expect(report.components.flowNodes).toBeLessThanOrEqual(Math.max(128,report.components.domNodes*4+report.observed.finalEdges*2))
     report.frames=quantiles(report.observed.frames);delete report.observed.frames
     report.phaseFrames=Object.fromEntries(Object.entries(report.observed.phaseFrames).map(([phase,values])=>[phase,quantiles(values as number[])]))
     delete report.observed.phaseFrames
     report.selectionFeedback=quantiles(report.observed.selection);delete report.observed.selection
+    report.phaseInputToPaintOpportunity=Object.fromEntries(['cold','navigation','warm'].map(phase=>
+      [phase,quantiles(report.observed.inputs.filter((i:any)=>i.phase===phase).map((i:any)=>i.paintOpportunityMs))]))
     report.inputQueue=quantiles(report.observed.inputs.map((i:any)=>i.queueMs))
+    report.slowestInputs=[...report.observed.inputs].sort((a:any,b:any)=>b.paintOpportunityMs-a.paintOpportunityMs).slice(0,20)
     report.inputToPaintOpportunity=quantiles(report.observed.inputs.map((i:any)=>i.paintOpportunityMs));delete report.observed.inputs
     const after=await cdp.send('Performance.getMetrics')
     report.browserWork=Object.fromEntries(after.metrics.filter(m=>['ScriptDuration','TaskDuration','LayoutDuration','RecalcStyleDuration','LayoutCount'].includes(m.name))
@@ -259,11 +312,13 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     report.processMemoryGrowthRatio=growthRatio(report.processPrivateKiB)
     expect(report.observed.finalNodes).toBeGreaterThan(0)
     expect(report.observed.metrics.maxBudgetBatch).toBeLessThanOrEqual(6)
+    expect(report.observed.metrics.workerQueries).toBeGreaterThan(0)
     expect(report.pageErrors??[]).toEqual([])
     report.status='measured'
     report.targets={frameP95:report.phaseFrames.warm.count>=60?report.phaseFrames.warm.p95<=16.7+report.budgets.frameToleranceMs:null,
       frameP99:report.phaseFrames.warm.count>=60?report.phaseFrames.warm.p99<=33.3+report.budgets.frameToleranceMs:null,
       selection:report.selectionFeedback.count>=20?report.selectionFeedback.p95<=50:null,
+      coldInputPaint:report.phaseInputToPaintOpportunity.cold.count?report.phaseInputToPaintOpportunity.cold.p95<=50:null,
       inputPaint:report.inputToPaintOpportunity.count?report.inputToPaintOpportunity.p95<=50:null,
       memory:cycles>=50&&report.memoryGrowthRatio!==null&&report.processMemoryGrowthRatio!==null
         ?report.memoryGrowthRatio<=1.1&&report.processMemoryGrowthRatio<=1.1:null}
@@ -278,6 +333,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
         transform:document.querySelector('.react-flow__viewport')?.getAttribute('style'),
         longTasks:(window as any).__scale?.longTasks,
         trace:(window as any).__ambioPerfTrace?.summary(),metrics:(window as any).__ambioPerfMetrics,
+        cameraTrace:(window as any).__canvasCameraTrace,
       })),1500,'renderer did not respond to diagnostic probe')
     }catch(probe){report.failureDiagnostics={error:String(probe)}}
     throw error
@@ -285,6 +341,7 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
   finally{
     collecting=false;clearTimeout(memoryTimer)
     if(stopProfile)try{await stopProfile()}catch(error){report.profileError=String(error)}
+    if(stopTimeline)try{await stopTimeline()}catch(error){report.timelineError=String(error)}
     const path=info.outputPath('canvas-scale.json');writeFileSync(path,JSON.stringify(report,null,2))
     mkdirSync(outputDir,{recursive:true})
     const persistentPath=join(outputDir,`${shape}-${entities}-${info.repeatEachIndex}.json`)

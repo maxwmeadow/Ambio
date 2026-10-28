@@ -101,7 +101,7 @@ export function workOrderNote(mode: WorkOrderMode, note: string): string {
  * asks for a sheet; a mapping writes a proposed map with edit_systems, which
  * the user reviews, so it says that instead.
  */
-export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Follow the brief below and propose the architecture with edit_systems; the human reviews the proposal before it becomes the map. Do not draw a sheet for this.'
+export const MAPPING_CONTRACT = 'This is a mapping request. Do not change any code. Your only task is to map this project thoroughly. Inspect source, group every indexed file by responsibility, and check the complete hierarchy before submitting with edit_systems. Do not create sheets, work orders, work sessions, investigations or live-map edits. Save any mapping notes with update_work(note) BEFORE submission. commit_session (or propose for a small map) is your FINAL action: it permanently locks this session, automatically completes the mapping request and stops the agent before the human enters Review. Do not call start_work, reply_to_canvas, finish work, read more tools or perform any other action after submission. The human starts ordinary work only after reviewing this map.'
 
 /** How a mapping turn reads in the conversation, instead of its whole brief. */
 export const MAPPING_TITLE = 'Map this project\u2019s architecture'

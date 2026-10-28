@@ -38,8 +38,12 @@ for (const platform of ['linux', 'darwin', 'win32']) {
     }
     const env = { PATH: museBin, GROK_HOME: path.dirname(grokBin) }
     assert.equal(findDeliveryCli('grok', env, platform, root).command, path.join(grokBin, platform === 'win32' ? 'grok.exe' : 'grok'))
+    // Targets also list every supported CLI that is not installed here.
     const targets = deliveryTargets(['grok', 'muse'].map(id => ({ id, label: id })), env, platform, root)
-    assert.ok(targets.every(target => target.available && target.route === 'run'))
+    for (const id of ['grok', 'muse']) {
+      const target = targets.find(candidate => candidate.id === id)
+      assert.ok(target?.available && target.route === 'run', id)
+    }
   })
 }
 

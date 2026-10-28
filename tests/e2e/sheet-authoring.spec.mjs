@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
+import { canvasViewportSettled } from './canvasComponentCounts'
 import { startHarness, harnessFetch } from '../../mcp/e2e/mcpHarness.mjs'
 
 for (const creation of ['drag', 'click']) {
@@ -66,6 +67,7 @@ for (const creation of ['drag', 'click']) {
       const systemNode = page.locator(`.react-flow__node[data-id="planned:${system.id}"]`)
       await expect(systemNode).toBeVisible()
       const centerSystem = async () => {
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
         const box = await systemNode.boundingBox()
         const canvas = await page.locator('.react-flow').boundingBox()
         const shift = { x: canvas.x + canvas.width / 2 - box.x - box.width / 2, y: canvas.y + canvas.height / 2 - box.y - box.height / 2 }
@@ -73,11 +75,28 @@ for (const creation of ['drag', 'click']) {
         await page.mouse.down({ button: 'middle' })
         await page.mouse.move(canvas.x + canvas.width / 2 + shift.x, canvas.y + canvas.height * 0.8 + shift.y, { steps: 15 })
         await page.mouse.up({ button: 'middle' })
+        // Measure where the pan left the frame, not where it was heading.
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       }
+      // A point inside the new system with no other node under it. The new
+      // system is drawn where the click put it and may overlap a live one; a
+      // drop there is aimed at the smaller (the live) system, which this
+      // harness's daemon, holding only the sheet, refuses as a parent.
+      const clearPointIn = id => page.evaluate(id => {
+        const box = document.querySelector(`.react-flow__node[data-id="${id}"]`).getBoundingClientRect()
+        for (const fy of [0.5, 0.65, 0.8, 0.35]) {
+          for (const fx of [0.5, 0.3, 0.7, 0.2, 0.8]) {
+            const x = box.x + box.width * fx, y = box.y + box.height * fy
+            const under = new Set(document.elementsFromPoint(x, y).map(el => el.closest('.react-flow__node')?.getAttribute('data-id')).filter(Boolean))
+            if (under.size === 1 && under.has(id)) return { x, y }
+          }
+        }
+        throw new Error(`No clear point inside ${id}`)
+      }, id)
       if (creation === 'click') await page.waitForTimeout(500)
       await centerSystem()
       const systemBox = await systemNode.boundingBox()
-      await dropStencil('File', { x: systemBox.x + systemBox.width * 0.35, y: systemBox.y + systemBox.height * 0.45 })
+      await dropStencil('File', await clearPointIn(`planned:${system.id}`))
       await expect.poll(async () => ((await readSheet()).planned ?? []).length).toBe(2)
       const nestedFile = (await readSheet()).planned.find(node => node.kind === 'file')
       expect(nestedFile.parentSystemId).toBe(`planned:${system.id}`)
@@ -97,6 +116,10 @@ for (const creation of ['drag', 'click']) {
       expect(rootFile).toBeTruthy()
       const fileNode = page.locator(`.react-flow__node[data-id="planned:${rootFile.id}"]`)
       await expect(fileNode).toBeVisible()
+      // Frame both participants after the new file's intentional focus flight.
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       // A new node animates into place; drag from where it settles, not from
       // where it was mid-flight.
       const settled = async locator => {
@@ -126,10 +149,11 @@ for (const creation of ['drag', 'click']) {
       }, [box, id])
       await settled(fileNode)
       const from = await grabPoint(await settled(fileNode), `planned:${rootFile.id}`)
-      const to = await settled(systemNode)
+      await settled(systemNode)
+      const to = await clearPointIn(`planned:${system.id}`)
       await page.mouse.move(from.x, from.y)
       await page.mouse.down()
-      await page.mouse.move(to.x + to.width * 0.6, to.y + to.height * 0.7, { steps: 20 })
+      await page.mouse.move(to.x, to.y, { steps: 20 })
       await page.mouse.up()
       await expect.poll(async () => (await readSheet()).layouts.find(layout => layout.nodeId === `planned:${rootFile.id}`)?.parentNodeId).toBe(`planned:${system.id}`)
       const saved = (await readSheet()).layouts
@@ -137,14 +161,9 @@ for (const creation of ['drag', 'click']) {
       await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
       await expect(systemNode).toBeAttached()
       await centerSystem()
-      const reopenedBox = await systemNode.boundingBox()
-      await page.mouse.move(reopenedBox.x + reopenedBox.width / 2, reopenedBox.y + reopenedBox.height / 2)
-      for (let index = 0; index < 12; index++) {
-        if (await page.locator(`.react-flow__node[data-id="planned:${nestedFile.id}"]`).count()) break
-        await page.mouse.wheel(0, -100)
-        await page.waitForTimeout(100)
-      }
-      await page.waitForTimeout(900)
+      await systemNode.click({ position: { x: 10, y: 10 } })
+      await page.keyboard.press('ControlOrMeta+Shift+0')
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       for (const file of [nestedFile, clickFile, rootFile]) {
         const node = page.locator(`.react-flow__node[data-id="planned:${file.id}"]`)
         await expect(node).toBeAttached()

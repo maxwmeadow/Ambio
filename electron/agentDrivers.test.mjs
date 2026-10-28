@@ -188,7 +188,7 @@ test('Antigravity\'s own CLI runs in print mode with every permission granted, a
   const driver = agentDriver('antigravity-cli')
   const first = driver.plan({ hostId: 'antigravity-cli', mode: 'build', mcp, workspaceId: 'ws', prompt: 'Claim work order x' })
   // Its print mode cannot ask, so every permission is granted up front.
-  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--output-format', 'stream-json', '--dangerously-skip-permissions'])
+  assert.deepEqual(first.args, ['-p', 'Claim work order x', '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions'])
   assert.equal(driver.resumable, true)
   assert.equal(first.stdin, undefined)
   const next = driver.plan({ hostId: 'antigravity-cli', mode: 'ask', mcp, workspaceId: 'ws', prompt: 'p', resume: 'conv-1' })
@@ -252,7 +252,7 @@ test('a host that exits cleanly after being stopped from using Ambio is a failed
   // Any other refusal ends the run too, and says which permission it was.
   assert.match(driver.readError('a tool required the "command" permission that headless mode cannot prompt for').events[0].text, /"command" permission/)
   // The project folder is named as the workspace, or its MCP config is never loaded.
-  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--output-format', 'stream-json', '--dangerously-skip-permissions', '--add-dir', '/proj'])
+  assert.deepEqual(deliveryPlan('antigravity-cli', mcp, 'ws', 'p', { cwd: '/proj' }).args, ['-p', 'p', '--output-format', 'stream-json', '--print-timeout', '24h', '--dangerously-skip-permissions', '--add-dir', '/proj'])
 })
 
 test('an npm-installed CLI is found by the entry its package declares, or the one it used to have', t => {
@@ -272,18 +272,18 @@ test('an npm-installed CLI is found by the entry its package declares, or the on
   assert.deepEqual(findDeliveryCli('codex', env, 'win32', root, 'node.exe').args, [path.join(codex, 'codex.js')])
 })
 
-test('Cursor\'s terminal agent is offered only when Cursor is set up and the agent is installed', t => {
+test('Cursor CLI stays listed when missing and becomes available when installed independently of the editor', t => {
   const root = fixture(t)
   const bin = path.join(root, 'bin')
   fs.mkdirSync(bin)
   const env = { PATH: bin }
   const hosts = [{ id: 'cursor', label: 'Cursor' }, { id: 'codex', label: 'Codex' }]
-  assert.ok(!deliveryTargets(hosts, env, process.platform, root).some(target => target.id === 'cursor-cli'))
+  assert.equal(deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli').available, false)
   fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'cursor-agent.exe' : 'cursor-agent'), '', { mode: 0o755 })
   const offered = deliveryTargets(hosts, env, process.platform, root).find(target => target.id === 'cursor-cli')
   assert.equal(offered?.route, 'run')
   assert.match(offered.detail, /started by Ambio/); assert.doesNotMatch(offered.detail, /Experimental/)
-  assert.ok(!deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).some(target => target.id === 'cursor-cli'))
+  assert.equal(deliveryTargets([{ id: 'codex', label: 'Codex' }], env, process.platform, root).find(target => target.id === 'cursor-cli').available, true)
 })
 
 // A stand-in for a host CLI: prints the lines it is given, one a line, and
@@ -372,7 +372,10 @@ test('Codex is asked for reasoning summaries and they reach the turn as thinking
   const codex = agentDriver('codex')
   assert.ok(deliveryPlan('codex', mcp, 'ws', 'p', { mode: 'ask' }).args.includes('model_reasoning_summary="auto"'))
   const line = JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '**Checking the map**\n\nSkill Execution already has both runtimes.' } })
-  assert.deepEqual(codex.read(line).events, [{ kind: 'thinking', text: 'Checking the map Skill Execution already has both runtimes.' }])
+  assert.deepEqual(codex.read(line).events, [{ kind: 'thinking', text: 'Checking the map — Skill Execution already has both runtimes.' }])
+  // One item can carry several summary sections, some only a heading; each is its own thought.
+  const several = JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '**Splitting large leaves**\n\n**Grouping indexer files**\n**Grouping state files**\n\nThe store and\nits migrations.' } })
+  assert.deepEqual(codex.read(several).events.map(event => event.text), ['Splitting large leaves', 'Grouping indexer files', 'Grouping state files — The store and its migrations.'])
 })
 
 test('each agent\'s reasoning reaches the turn as thinking, where the agent shows it', () => {
@@ -394,4 +397,17 @@ test('each agent\'s reasoning reaches the turn as thinking, where the agent show
   // agy 1.4 reports only a count of thinking tokens: nothing to show.
   assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', state: 'DONE', usage: { thinking_tokens: 771 } } })).events, [])
   assert.deepEqual(antigravity.read(JSON.stringify({ event: 'step_update', step_update: { conversation_id: 'a', step_type: 'agent_response', thinking: 'Planning the reply.' } })).events, [{ kind: 'thinking', text: 'Planning the reply.' }])
+})
+
+
+test('direct driver plans retain the finite mapping credential and request binding', () => {
+  const mapping = { attempt: { id: 'map-only' }, token: 'scoped-token' }
+  for (const host of ['claude-code', 'codex', 'copilot-cli']) {
+    const plan = deliveryPlan(host, mcp, 'ws', 'Map only', { mode: 'propose', messageId: 'request', mapping })
+    const serialized = plan.args.join(' ')
+    assert.match(serialized, /AMBIO_MAPPING_ATTEMPT/)
+    assert.match(serialized, /map-only/)
+    assert.match(serialized, /scoped-token/)
+    assert.match(serialized, /AMBIO_RUN_MESSAGE_ID/)
+  }
 })

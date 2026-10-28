@@ -4,7 +4,6 @@ package gitworktree
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -29,7 +28,7 @@ type Worktree struct {
 // worktree's Path is that same folder in that checkout: Ambio indexes the
 // folder that was opened, never the whole repository around it.
 func Discover(path string) ([]Worktree, error) {
-	command := exec.Command("git", "-C", path, "worktree", "list", "--porcelain", "-z")
+	command := Command(path, "worktree", "list", "--porcelain", "-z")
 	output, err := command.Output()
 	if err != nil {
 		return nil, fmt.Errorf("git worktree list for %s: %w", path, err)

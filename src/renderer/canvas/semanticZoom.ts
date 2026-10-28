@@ -1,4 +1,5 @@
 import type { Node } from '@xyflow/react'
+import { sortSceneSteps } from './scene/sceneSteps.ts'
 
 // A node reveals its contents once its on-screen geometric mean reaches this
 // size. Keeping this size-relative makes semantic zoom independent of depth and
@@ -7,6 +8,51 @@ export const REVEAL_CONTAINER_PX = 480
 
 /** Marks a node that semantic zoom has hidden; see global.css. */
 export const HIDDEN_NODE_CLASS = 'ambio-node-hidden'
+
+/**
+ * Opening a system is sequenced: its centred name clears first, and only then
+ * does what it holds fade in (its tab title, count and child nodes), so the two
+ * are never on screen together. Closing runs the other way at once: the
+ * children unmount immediately, so the name comes straight back.
+ */
+export const REVEAL_MOTION = {
+  titleOutMs: 200,
+  contentDelayMs: 200,
+  contentInMs: 300,
+  titleInMs: 240,
+  contentOutMs: 120,
+  easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+  easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
+} as const
+
+/** CSS transitions for a system's two title layers, by the state it is entering. */
+export function revealCrossfade(open: boolean): { title: string; contents: string } {
+  const m = REVEAL_MOTION
+  return open
+    ? { title: `opacity ${m.titleOutMs}ms ${m.easeIn}`, contents: `opacity ${m.contentInMs}ms ${m.easeOut} ${m.contentDelayMs}ms` }
+    : { title: `opacity ${m.titleInMs}ms ${m.easeOut}`, contents: `opacity ${m.contentOutMs}ms ${m.easeIn}` }
+}
+
+/**
+ * Where a node revealed at `revealedAt` is in its entrance, or null when it has
+ * none to play (it was never revealed by zoom, or the entrance is over). A node
+ * mounts some frames after the pass that revealed it; the entrance stays
+ * anchored to the reveal, so siblings that mount late still arrive together.
+ */
+export function revealEntranceElapsed(revealedAt: unknown, now: number): number | null {
+  if (typeof revealedAt !== 'number') return null
+  const elapsed = now - revealedAt
+  return elapsed >= 0 && elapsed < REVEAL_MOTION.contentDelayMs + REVEAL_MOTION.contentInMs ? elapsed : null
+}
+
+/**
+ * Semantic zoom decides whether a node can be touched at all; it must not
+ * grant a drag the scene withheld. A scene that locks a visible node (review's
+ * approved and live nodes) sets `data.dragLocked`, and every visibility pass
+ * keeps it undraggable.
+ */
+const canDrag = (node: Node, interactive: boolean) =>
+  interactive && (node.data as Record<string, unknown>).dragLocked !== true
 
 // A leaf reveals its detail once its effective zoom (viewport zoom times the
 // node's world scale) reaches this value. Nodes consume the resolved boolean
@@ -24,6 +70,13 @@ interface VisibilityIndex {
 // its result so easing frames between thresholds do no per-node work. A new
 // scene array from editing/measurement invalidates it automatically.
 const visibilityIndices = new WeakMap<Node[], VisibilityIndex>()
+
+/** Only for immutable presentation stamps which preserve geometry, order,
+ * hidden state and semantic detail. Ordinary edits must invalidate the index. */
+export function rememberPresentationVisibility(source: Node[], nodes: Node[]): void {
+  const index = visibilityIndices.get(source)
+  if (index && source !== nodes) visibilityIndices.set(nodes, index)
+}
 
 function visibilityTier(thresholds: number[], zoom: number): number {
   let lo = 0, hi = thresholds.length
@@ -51,7 +104,7 @@ function sameVisibility(node: Node, next: {
     style.opacity === next.opacity &&
     style.pointerEvents === next.pointerEvents &&
     style.transition === undefined &&
-    node.draggable === interactive &&
+    node.draggable === canDrag(node, interactive) &&
     node.selectable === interactive &&
     (node.className ?? '') === (interactive ? '' : HIDDEN_NODE_CLASS) &&
     data.childrenVisible === next.childrenVisible &&
@@ -60,11 +113,22 @@ function sameVisibility(node: Node, next: {
     data.detailRevealed === next.detailRevealed
 }
 
-export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
+export function applyZoomVisibility(nodes: Node[], zoom: number, now = performance.now()): Node[] {
+  const steps = zoomVisibilitySteps(nodes, zoom, now)
+  for (;;) { const result = steps.next(); if (result.done) return result.value }
+}
+export function* zoomVisibilitySteps(nodes: Node[], zoom: number, now = performance.now()): Generator<void, Node[]> {
+  let work = 0
   let index = visibilityIndices.get(nodes)
   if (!index) {
     const thresholds = new Set<number>()
-    for (const node of nodes) {
+    const order: number[] = [], depths: number[] = []
+    let depthOrdered = true
+    for (let i = 0; i < nodes.length; i++) {
+      if ((++work & 255) === 0) yield
+      const node = nodes[i], depth = Number(node.data.depth ?? 0)
+      order.push(i); depths.push(depth)
+      if (i > 0 && depths[i - 1] > depth) depthOrdered = false
       const w = Number(node.style?.width ?? node.measured?.width ?? 0)
       const h = Number(node.style?.height ?? node.measured?.height ?? 0)
       if (w > 0 && h > 0) thresholds.add(REVEAL_CONTAINER_PX / Math.sqrt(w * h))
@@ -72,8 +136,8 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
       if (scale > 0) thresholds.add(DETAIL_REVEAL_EFFECTIVE_ZOOM / scale)
     }
     index = {
-      order: nodes.map((_, i) => i).sort((a, b) => Number(nodes[a].data.depth ?? 0) - Number(nodes[b].data.depth ?? 0)),
-      thresholds: [...thresholds].sort((a, b) => a - b),
+      order: depthOrdered ? order : yield* sortSceneSteps(order, (a, b) => depths[a] - depths[b]),
+      thresholds: yield* sortSceneSteps([...thresholds], (a, b) => a - b),
     }
     visibilityIndices.set(nodes, index)
   }
@@ -84,6 +148,7 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
   let changed = false
   const updatedNodes = [...nodes]
   for (const position of index.order) {
+    if ((++work & 255) === 0) yield
     const node = nodes[position]
     const selfVisibility = node.parentId
       ? (childrenVisibleByNode.get(node.parentId) ?? 0)
@@ -127,7 +192,7 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
       // file nodes do for their editable chrome. So an invisible child stayed
       // grabbable and stole drags aimed at the container around it. React
       // Flow's own flags settle it above the DOM.
-      draggable: next.pointerEvents === 'all',
+      draggable: canDrag(node, next.pointerEvents === 'all'),
       selectable: next.pointerEvents === 'all',
       // Descendants can re-enable pointer events on themselves, so the class
       // below kills them for the whole subtree. Without it a hidden node still
@@ -151,6 +216,9 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
         selfScale: next.selfScale,
         selfBlur: next.selfBlur,
         detailRevealed: next.detailRevealed,
+        // Only a node this pass brings out of hiding plays an entrance; a
+        // scene's first projection has no previous state and appears as is.
+        ...(node.hidden === true && !next.hidden ? { revealedAt: now } : {}),
       },
     }
   }
@@ -165,12 +233,11 @@ export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
 export function makeFullyVisible(node: Node): Node {
   const style = node.style ?? {}
   const data = node.data as Record<string, unknown>
-  // Review deliberately keeps every node visible. Returning a fresh object for
-  // an already-visible node defeated React Flow's per-node identity boundary,
-  // so unrelated proposal responses could restamp the node component during a
-  // resize even though none of its visible state changed.
+  const draggable = canDrag(node, true)
+  // Returning a fresh object for an already-visible node defeats React Flow's
+  // per-node identity boundary and restamps the node component for nothing.
   if (node.hidden === false &&
-      node.draggable === true &&
+      node.draggable === draggable &&
       node.selectable === true &&
       (node.className ?? '') === '' &&
       style.opacity === 1 &&
@@ -183,7 +250,7 @@ export function makeFullyVisible(node: Node): Node {
   return {
     ...node,
     hidden: false,
-    draggable: true,
+    draggable,
     selectable: true,
     className: '',
     style: { ...node.style, opacity: 1, pointerEvents: 'all' as const },
@@ -199,6 +266,10 @@ export function makeFullyVisible(node: Node): Node {
  */
 export function revealNodePath(nodes: Node[], nodeId: string | null): Node[] {
   if (!nodeId) return nodes
+  const target = nodes.find(node => node.id === nodeId)
+  // A visible root has no hidden ancestry to resolve. Ordinary root selection
+  // must not allocate a complete project index for this no-op.
+  if (!target || (!target.parentId && !target.hidden)) return nodes
   const byId = new Map(nodes.map(node => [node.id, node]))
   if (!byId.has(nodeId)) return nodes
 

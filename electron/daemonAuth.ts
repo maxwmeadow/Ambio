@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
+import type { MappingAttempt } from '../src/shared/agentDelivery.ts'
 
 export function daemonDataDir(): string {
   return process.env.AMBIO_ACTIVE_PROJECT ? dirname(process.env.AMBIO_ACTIVE_PROJECT) : join(homedir(), '.ambio', 'data')
@@ -37,6 +38,9 @@ export function resolveDaemonUrl(input: string | URL): URL {
 const NOT_RUNNING = 'Ambio is not running. Open the Ambio app, then try again.'
 
 export function readDaemonToken(): string {
+  if (process.env.AMBIO_MAPPING_ATTEMPT && !process.env.AMBIO_API_TOKEN?.startsWith('ambio-map.')) {
+    throw new DaemonUnavailableError('Mapping requires its scoped credential. It cannot use the desktop connection.')
+  }
   let raw: string
   try {
     raw = process.env.AMBIO_API_TOKEN ?? fs.readFileSync(daemonTokenPath(), 'utf8')
@@ -114,4 +118,14 @@ export async function daemonFetch(input: string | URL, init: RequestInit = {}): 
     await ensureDaemon(url.origin)
     return attempt()
   }
+}
+
+/** Trusted launcher side of mapping, kept independent of any mounted screen. */
+export async function mappingAttemptState(workspaceId: string, id: string, action?: 'cancel' | 'settle'): Promise<MappingAttempt> {
+  const base = `${process.env.AMBIO_API_URL ?? 'http://127.0.0.1:7743'}/api/mapping-attempts/${encodeURIComponent(id)}`
+  const response = await daemonFetch(action ? `${base}/${action}` : `${base}?workspace=${encodeURIComponent(workspaceId)}`, action ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId }),
+  } : {})
+  if (!response.ok) throw new Error(`Could not ${action ?? 'read'} the mapping session: ${await response.text()}`)
+  return response.json()
 }

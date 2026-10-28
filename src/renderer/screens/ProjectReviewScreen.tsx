@@ -9,6 +9,9 @@ import { ProposalDraftProgress } from '../components/ProposalDraftProgress'
 import { WorkbenchTitleBar } from '../components/ui/WorkbenchTitleBar'
 import { useProposalStore } from '../store/architectureProposalStore'
 import { useGraphStore } from '../store/graphStore'
+import { rememberedMappingRun } from './MapWithAgent'
+import { archdApi } from '../archdEndpoint'
+import type { MappingAttempt } from '../../shared/agentDelivery'
 
 interface ProjectReviewScreenProps {
   project: ProjectConfig
@@ -37,7 +40,24 @@ export function ProjectReviewScreen({ project, onFinishReview, onBack }: Project
     floorLayouts: state.floorLayouts,
   })))
 
-  useEffect(() => { void load(project.id) }, [project.id, load])
+  useEffect(() => {
+    let active = true
+    const restore = async () => {
+      const run = rememberedMappingRun(project.id)
+      if (run?.attemptId) {
+        useProposalStore.setState({ proposal: null, loading: true, error: null })
+        const response = await fetch(`${archdApi()}/api/mapping-attempts/${encodeURIComponent(run.attemptId)}?workspace=${encodeURIComponent(project.id)}`)
+        if (!response.ok) throw new Error('The mapping receipt could not be loaded. Return to agent connection to recover it.')
+        const attempt = await response.json() as MappingAttempt
+        if (attempt.state !== 'submitted' || !attempt.endedAt || !attempt.proposalId) throw new Error('Mapping must be submitted and its agent session stopped before review.')
+        if (!active) return
+        useProposalStore.setState({ pinned: { workspaceId: project.id, id: attempt.proposalId } })
+      }
+      if (active) await load(project.id)
+    }
+    void restore().catch(error => { if (active) useProposalStore.setState({ loading: false, error: error instanceof Error ? error.message : String(error) }) })
+    return () => { active = false }
+  }, [project.id, load])
 
   const progress = useMemo(
     () => readProgress(proposal?.systems ?? []),

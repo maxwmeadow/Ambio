@@ -71,6 +71,15 @@ func isQuietRoot(rootID string) bool {
 	return quietRoots[rootID] != nil
 }
 
+// isQuietAll reports the whole root quiet: the Floor moving to another
+// checkout.
+func isQuietAll(rootID string) bool {
+	quietMu.Lock()
+	defer quietMu.Unlock()
+	scope := quietRoots[rootID]
+	return scope != nil && scope.all > 0
+}
+
 func beginQuietAll(rootID string) func() {
 	done := beginQuiet(rootID, nil)
 	quietMu.Lock()

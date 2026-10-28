@@ -1,0 +1,30 @@
+.ambio-info-popover {
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  visibility: hidden;
+  border: 1px solid #a9baac;
+  border-radius: 8px;
+  color: #314b3e;
+  background: #f6f8f1;
+  box-shadow: 0 6px 24px #15251c30;
+  font: 13px/1.55 var(--font-ui);
+}
+.ambio-info-popover::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--info-arrow-x) - 5px);
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid #a9baac;
+  border-bottom: 1px solid #a9baac;
+  background: #f6f8f1;
+  transform: rotate(45deg);
+}
+.ambio-info-popover[data-side=bottom]::before { top: -6px; bottom: auto; transform: rotate(225deg); }
+.ambio-info-popover__content { box-sizing: border-box; max-height: inherit; overflow-y: auto; padding: 14px 16px; }
+.ambio-info-popover .ambio-info-popover__content p { margin: 0; font: inherit; color: inherit; }

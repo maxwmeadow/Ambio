@@ -9,6 +9,11 @@ data flow or a limit named here, update it in the same change.
 
 ## Project workbench chrome
 
+`ProjectSetupScreen` edits the display name in both initial setup and Project
+Settings. Confirmation trims the name and saves it with the source boundaries;
+blank names cannot be submitted. Electron's folder registration reuses a known
+project's saved name, so Open Codebase does not reset it to the folder name.
+
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
 Fit and Message Agent visible. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no
@@ -57,6 +62,14 @@ loopback OpenCode server per project, persistent harness sessions, streamed text
 tool activity, questions, approvals and cancellation. The pinned platform binary
 is copied to `out/agent` by `scripts/build-agent.mjs` and packaged as a resource.
 Provider setup is in Settings → Agents; the picker opens it when none is set up.
+The Agents page has three connection categories (`AgentConnections`): Ambio chat,
+CLIs Ambio runs, and agents in other apps. Each client category keeps its selected
+connector independently and shows a compact logo gallery above that connector's
+management controls. Missing clients remain listed. The chat category stays
+mounted while browsing clients so in-progress connection input is preserved.
+`ChatProviderSettings` presents the ChatGPT account card and saved API connections;
+an API editor opens only for an explicit provider or saved connection. Advanced
+endpoint/context settings and ChatGPT account/model controls are disclosures.
 
 Models: `electron/agentModels.ts` lists what each agent Ambio runs can use, read
 the way that agent publishes it (Claude Code's aliases, Codex's
@@ -72,6 +85,9 @@ through `acpClient.ts`. Its advertised authentication method uses the CLI's
 existing account (bounded handshake); each session receives explicit Ambio
 host and workspace identity. Only Claude Code’s permission-hook MCP receives
 `AMBIO_RUN_MESSAGE_ID`; ordinary protocols carry their request in the handoff.
+A mapping turn is the exception on every host: it carries the id as its request
+binding, with the attempt's scoped credential, and gets no permission hook
+(`mcpEnvironment` in `agentDrivers.ts`).
 Ask/Propose use the read-only sandbox and
 refuse ACP file-edit permissions. Build uses the unrestricted profile.
 Muse Code runs `muse serve` through `museClient.ts`, implementing Meta's
@@ -92,12 +108,50 @@ Both drivers reuse DeliveryRunner's receipts, session storage and Stop;
 neither copies vendor credentials into Ambio chat. Native account validation
 is tracked in [testing/GROK_MUSE_CLIENTS.md](testing/GROK_MUSE_CLIENTS.md).
 
-Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) sends the
-mapping brief (`agent:mapping-brief`, the same text the installed workflow
-carries) as a Propose turn: a work order delivered to a CLI Ambio runs, or an
-Ambio chat conversation, whose Propose agent may call `edit_systems`. Progress
-comes from the run's events or the chat snapshot; the proposal itself arrives
-through the usual draft and proposal endpoints.
+Setup's "Map with <agent>" (`src/renderer/screens/MapWithAgent.tsx`) creates
+one durable **mapping attempt**, then starts a managed CLI or a dedicated native
+chat runtime. This is a finite mapping task, distinct from ordinary Propose
+conversations. External apps remain available on the canvas; onboarding only
+uses agents Ambio can stop. The mapping brief requires complete source coverage
+and notes before the final submission.
+
+`internal/db/mapping_attempts.go` owns the attempt lifecycle (schema v11): one
+unfinished attempt per workspace, bound to one draft and optional addressed
+request. Draft commit runs in one immediate transaction with proposal creation,
+notes, the submitted receipt and automatic request completion. Chunk arrival,
+notes, cancellation and submission serialize on that transaction boundary.
+Submitted proposals cannot receive new revisions. Cancellation preserves an
+already submitted proposal; retries create new identities. A mapping draft is
+never aborted, but `ResetMappingDraft` clears its chunks (keeping the attempt
+and notes) so an agent can redraw before submitting. Draft systems decode
+strictly (`db.DraftSystems`): an unknown key is refused with the chunk, not
+dropped into a system that owns nothing.
+
+`internal/api/mapping_attempts.go` issues a random task credential whose hash is
+persisted. Every mapped MCP/HTTP call is scoped to the attempt and workspace;
+only code/map inspection, mapping draft operations, notes and activity are
+available. Work sessions, canvas replies, live-map edits, sheets and other work
+are rejected. Submission permanently revokes all calls, with only an identical
+HTTP submit replay allowed to recover a lost acknowledgement. The mapping MCP
+surface and instructions describe this same terminal contract; it never receives
+the desktop's general API credential.
+
+`DeliveryRunner` observes the durable attempt independently of the renderer and
+terminates the managed process tree after submission. Native chat does the same
+through its main-process monitor and disposes its dedicated runtime. Only the
+trusted launcher settles the attempt after process shutdown. Setup says the map
+is submitted while the session is closing; it opens Review only after settlement.
+Review also checks this condition in daemon write transactions and pins the
+exact attempt's proposal, including after renderer reload. Other workspace
+proposals cannot complete setup or replace the reviewed map.
+
+Launch receipts and verified process creation times support crash recovery;
+recovery revokes before killing and never resends inference. Unverified processes
+leave Review locked. An interrupted bootstrap with no process receipt is cancelled
+on the next startup recovery. A failed launch is cancelled and settled. Ordinary
+Ask/Propose/Build permissions and resumable canvas conversations retain their
+existing behavior. Progress comes from CLI events or cached native history;
+submitted counts and timing come from the durable mapping attempt.
 
 `electron/chatProviders.ts` keeps provider metadata and OS-encrypted keys under
 `~/.ambio/chat`; without a secure keychain it keeps keys only in process memory.
@@ -325,7 +379,14 @@ to API-key billing or another account. Setup and live-account validation:
   The Review Changes watermark is per root and branch (`delta_watermarks`);
   a branch never reviewed falls back to the root's older watermark. The
   worktree monitor also runs for a plain folder and starts watching Git
-  metadata when `.git` appears. Model and plan:
+  metadata when `.git` appears. It follows refs, `HEAD`, `packed-refs` and
+  which linked worktrees exist (`worktrees/<name>` and its `HEAD`, `gitdir`,
+  `locked`), not a worktree's index or logs, which any `git status` there
+  rewrites. Every git command Ambio runs goes through `gitworktree.Command`
+  with `GIT_OPTIONAL_LOCKS=0`, so its own reads write nothing; before both,
+  polling the other checkouts re-synced every checkout every 2 s, and an
+  unindexed root was cleared and queued for a full index on each sync. A
+  root's first full index is queued once while it runs. Model and plan:
   [GIT_AND_PROJECT_SHAPES.md](GIT_AND_PROJECT_SHAPES.md).
 - **Checkouts** (`api/checkouts.go`, `GET /api/checkouts`): every active root
   as a checkout - branch, head state (`commit`, `detached`, `unborn`, `none`
@@ -384,14 +445,24 @@ to API-key billing or another account. Setup and live-account validation:
   (`indexer.SeedRepositories`), so a switch inside one is quiet and leaves a
   `checkout.switched` row naming it on the root's branch. `GET
   /api/checkouts` reports them as `repositories` (`vcs: "repos"` for a plain
-  folder of repositories); the chip reads "N repos". The map is still one
-  projection of the parent folder: per-repository frames, clustering inside
-  one repository, overlays and reviews per nested repository, and adding
-  unrelated folders are WORK follow-ups.
+  folder of repositories); the chip reads "N repos". The map is one
+  projection of the parent folder, with a top-level frame per repository: a
+  system of kind `repository` (`systems.kind`, schema 10) with an ID stable
+  per folder (`repositoryFrameID`). The classifier clusters each
+  repository's files on their own, under its frame, with that repository's
+  co-change (`indexer.clusterRepositories`), so no inferred system spans two
+  repositories; files outside every repository cluster at the top level. A
+  map indexed before frames existed reclusters once on its next sync
+  (`NeedsRepositoryFrames`). Imports resolve against the whole project, so an
+  edge between repositories is drawn wherever an import resolves across them
+  (DECISIONS 2026-10-21). Overlays and reviews per nested repository, and
+  adding unrelated folders, are WORK follow-ups.
 - **Git moves files too** (`internal/indexer/checkout.go`): before a file
   change is journaled, its checkout's HEAD is read from the administration
-  files, once any running Git command releases `index.lock` (a lock older
-  than 10 s is taken as left over from a crash).
+  files, once any running Git command releases `index.lock` and `HEAD.lock`
+  (a lock older than 10 s is taken as left over from a crash). Checkout
+  releases `index.lock` before it moves HEAD, so for a second after the
+  index is written the journal also waits for HEAD to move.
   A HEAD move since the journal last looked is classified from the reflog: a
   commit changes nothing; a branch switch makes the files Git wrote quiet and
   leaves one `checkout.switched` row; a pull, merge, reset or rebase is
@@ -408,8 +479,33 @@ to API-key billing or another account. Setup and live-account validation:
 walk the root with ignore rules and the 1 MB / `*.min.*` limits → parse with
 tree-sitter → symbols, imports, calls, variable references, package imports
 and environment reads → call graph → clustering → infra detection. fsnotify
-watches with a 150 ms file debounce and a 1.5 s re-cluster debounce; hitting
-the OS watch limit degrades loudly. Re-scoping (changing which folders are
+changes are gathered into bursts (150 ms quiet, at most 2 s) and a 1.5 s
+re-cluster debounce; hitting the OS watch limit degrades loudly. A burst of
+fewer than 8 files is indexed file by file and animates; a larger one, or any
+holding a file Git wrote (`indexer.GitWroteAny`; a save in the minute after
+a cherry-pick still animates), and a reconcile
+of 8 or more files, go through `indexer.ReindexBatch`: each file read once,
+imports and calls rebuilt from one parallel parse of the project (the
+changed files' parses reused, and a file's imports rewritten only when they
+differ), one relationship diff, no per-file canvas patches (the settle sends
+`classification:updated`). Per file, a switch had cost a whole-project
+reparse and an animation each. Changes to one root's map are serialized
+(`lockRoot`), and live classification (`ClusterLive`, `ClusterOnly`) waits
+on the same lock, so it never sees a batch half read in. Relationships a switch shifts between files it did not touch
+are not journaled; after a pull they are Git's. The Floor moving to another
+checkout (a quiet-all reconcile) always takes the batch path, so it replays
+nothing on the canvas, and Review Changes neither diffs nor saves an
+architecture snapshot while any root of the project is syncing
+(`workspaceSyncing`); the sync's `delta:ready` re-reads it. Calls resolve by name only to
+code in the caller's language family (JS dialects, C/C++, JVM) and, in a
+folder of several repositories, its own repository unless it imports the
+file (`internal/indexer/call_scope.go`). A file Git holds as unmerged with
+conflict markers in it (a merge, rebase, cherry-pick or stash pop stopped on
+a conflict) is not reindexed until it is resolved: parsed, the markers lost
+its relationships (`internal/indexer/conflict.go`). Renaming the branch a
+checkout is on (`git branch -m`, read from HEAD's reflog) is not a move: the
+branch's journal, watermark, snapshots and agent history are carried to the
+new name (`db.RenameBranchHistory`). Re-scoping (changing which folders are
 read) is journaled quietly so it never shows up as code change. Content hashes
 make reconcile after a closed period exact. A file moved on disk arrives as a
 delete and a create in either order; the new path takes over the vanished
@@ -434,15 +530,19 @@ app's decision.
 | PHP | ✅ | `require`/`include`, PSR-4 `use` | - | - | - | recorded (prepended recorder) |
 | Swift, Lua, shell, Elixir | ✅ | `import`, `require`, `source`, `alias`/`use` | - | - | - | exit code and output |
 
+CSS, Sass/SCSS and Less are mapped with stylesheet imports and symbols.
 `.h` is read as C. Main's readers (`parser/imports_more.go`) cover Java, Rust,
 Ruby and C/C++; `parser/imports_text.go` covers the rest and C/C++ project
 headers, resolved by `indexer/imports_other.go`. What a run can see per
 language, and the toolchain each needs: [INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
+The [README language table](../README.md#file-policy) lists supported file
+extensions and investigation run capabilities.
 
 **Clustering** (`internal/cluster`): Louvain over a weighted graph of import
 edges (3.0), TF-IDF similarity of symbol and file-name tokens (3.0) and git
 co-change (1.5, from `git log`), recursive into nested systems with stable IDs
-and TF-IDF names. Agents are asked to author the real tree (`name-architecture`
+and TF-IDF names; in a folder of repositories, per repository under its
+frame. Agents are asked to author the real tree (`name-architecture`
 prompt) rather than repair clusters.
 
 **Review Changes** (`internal/delta`): aggregate the journal to net effect,
@@ -468,6 +568,45 @@ Launch status is distinct from MCP claim and reply status. Runs edit the existin
 graph root unless Send's *Own worktree* is chosen (see the checkouts section
 above), can be stopped in the inbox, and are asked to stop when Ambio quits.
 See INBOX_PROTOCOL's host table and recovery limits.
+
+**Client discovery and executable selection** (`src/shared/agentDelivery.ts`,
+`electron/agentClientDiscovery.ts`, `agentExecutableOverrides.ts`): a stable
+catalog lists every supported terminal and app route, independently of local
+availability. Setup groups wrapping name-and-logo pills (`ConnectorLogo.tsx`)
+into Ambio chat, Ambio runs it, and In another app sections, using bundled assets whose sources
+are recorded in `assets/connectors/SOURCES.md`. Each pill keeps its availability
+in its colored outline, accessible label and tooltip; keyboard selection uses arrows/Home/End across sections.
+Selecting a pill opens a nonmodal sidebar over the field agent. `ChooseAgent`
+owns selection, discovery and setup state and portals the details into a stable
+slot in `ConnectAgentScreen`'s mascot area; closing returns focus to the pill.
+Details scroll independently above pinned actions, with a reduced-motion
+alternative and narrow-screen scrolling into the stacked agent area. The
+field-agent character/title-bar transition is a separately staged UI change.
+Session-option help uses the shared `InfoPopover` in the browser's top layer,
+anchored to its trigger with scroll/resize tracking and native outside-click
+dismissal. It does not participate in the sidebar layout; Escape dismisses the
+help before the sidebar.
+Ambio chat's connection links use `modelServiceNavigation.ts` to carry a typed
+provider destination through Settings into `ChatProviderSettings`, which selects
+and focuses the requested setup after mounting. Existing untargeted model-service
+events still open the connection section. Navigation never initiates OAuth or
+mutates a saved service.
+Codex/Claude IDE and desktop surfaces keep separate installation
+evidence while sharing their existing canonical installer's MCP configuration;
+app-specific actions resolve to that installer rather than writing competing
+connections. Installation/configuration evidence is shown separately from CLI
+availability, and does not establish sign-in or a live connection from a
+particular surface. Private Codex binaries injected into PATH by its extension
+or desktop app are not automatically classified as a standalone CLI.
+The file picker can remember a native executable or npm entrypoint under
+`~/.ambio/agent-executable-overrides.json`. Known npm shell shortcuts resolve
+to their entrypoints; prompts never pass through a shell. Explicit selections
+receive a bounded version/identity check where supported; ACP server selection
+does not start a protocol session merely to inspect it. Discovery and actual
+delivery use the same resolver, recheck saved paths, and expose broken overrides
+instead of silently substituting another executable. Setup refreshes app, CLI
+and model-service sources; bounded requests and generation guards retain the
+catalog and expose errors without letting late results overwrite newer scans.
 
 **Conversations** (`db/inbox.go`, `SendToAgentDialog.tsx`, `inboxModel.ts`):
 a request is a turn in a thread (`canvas_outbox.thread_id`, `mode`).
@@ -587,22 +726,129 @@ target and cancels wheel easing/pending growth fits on its own canvas before
 flying. Cursor and bin drag diagnostics require `window.__ambioCursorDebug = true`
 or `window.__ambioBinDragDebug = true`.
 
-`canvas/useCanvasRenderBudget.tsx` projects viewport visibility separately from
-canonical scene nodes. `renderBudget.worker.ts` owns a spatial index and coalesces
-camera queries; scene/request versions reject stale replies. Buffered culling and
-short retention replace React Flow's exact-edge culler above 40 composed nodes.
-Before the first worker reply, root shells already intersect that same viewport
-buffer instead of all mounting at once; active/selected/relationship priorities
-remain in force.
-Visible relationship endpoints retain their handle shells outside the viewport.
-`useCanvasFitView.ts` keeps canonical, semantically visible bounds in every Fit
-consumer, including nodes hidden only by this projection. `renderBudgetStore.ts`
-has per-node subscriptions and bounded detail admission; `nodes/BudgetedNodes.tsx`
-chooses silhouette, compact identity or the original editable node. Selected and
-active nodes bypass background admission. Navigation prewarms one destination
-and shared symbol data while intermediate cards stay compact during motion.
-Compact cards retain sheet change badges; focused relationship endpoints retain
-their full presentation along with the existing selection/activity exceptions.
+`canvas/scene/canonicalScene.ts` keeps the complete scene, stable ID order and
+absolute geometry outside React Flow. `useCanvasRenderBudget.tsx` materializes
+buffered visibility, required ancestors, selected/live nodes and endpoints of
+admitted relationships. It iterates admitted IDs on camera replies instead of
+mapping the project array. Flow owns a disposable interaction subset; its own
+component culler can release DOM within that subset. During layout glides the
+outgoing subset is retained, rather than adopting the entire project.
+For a Floor projection whose initial semantic visibility is already prepared,
+the preparation hook also constructs records, ID order and absolute boxes in
+cooperative tasks before publication. An exact-array weak cache lets adoption
+reuse those completed indexes. Selection and the runtime/slice/focus/trace
+overlays carry them forward only because they preserve geometry, order, hidden
+state and semantic detail; ordinary geometry/visibility edits miss that cache
+and use the normal reconciliation path. Equivalent model echoes reuse record
+and geometry identity. Idle overlays return the original array without stamping
+unset booleans to false. Saved scenes build persistence lookups only when rows
+need writing; review saved-row membership uses a set instead of nested scans.
+The integrity audit remains authoritative. Floor preparation now runs that audit
+cooperatively before publication, against the independent model membership. Its
+completed result is cached for the exact immutable node array and membership
+identity; selection/activity stamps retain it alongside the semantic visibility
+index. Adoption can consume that result without repeating a project-sized audit.
+Geometry, visibility, ordering or membership edits invalidate reuse and still
+take the ordinary audit path. Review/sheet transforms retain their own validation.
+Semantic index preparation uses bounded stable sorts (256 entries per native
+sort and cooperative merges), with a linear path for already depth-ordered nodes.
+No reveal threshold or camera/authoring contract changes.
+
+Floor file projection reuses `binModel.ts`'s single-pass partition when the
+canvas and bins share an indexed population and placement rules; the partition
+retains all source files in input order as well as placed/unclassified/docs.
+Review-specific populations keep their own filter. `DeltaPanel` leaves file and
+system subscriptions inactive without a delta and builds filter lookups only
+when review opens. These avoid synchronous cold-store consumer work; measured
+controls and limits are in [the cold-input follow-up](testing/CANVAS_COLD_INPUT_WIN.md).
+Loose-file layout membership is built only when a placement query needs it,
+once per immutable layout revision. Canonical membership remains independent
+of candidate geometry and is populated without temporary ID arrays. App's
+authored-system decision reads system sources only; source counts are computed
+when the setup screen is displayed. The [budget confirmation](testing/CANVAS_COLD_INPUT_BUDGET.md)
+records repeated native cold-input results and remaining limits.
+Initial-mapping Review stamps `omitConnectionHandles` in presentation data,
+so full and compact nodes omit inactive React Flow endpoint components and
+their store subscriptions. Disabled Floor/sheet endpoints still mount for
+relationship geometry; the flag is independent of connection permissions.
+WASD ownership follows browser pointer-move/boundary events, including surfaces
+appearing under a stationary pointer, instead of a forced hit test every frame.
+[Dense Review measurements](testing/DENSE_REVIEW_FRAME_COST.md) retain native
+controls, rejected prototypes and the remaining keyboard frame-budget miss.
+See the [final adoption follow-up](testing/CANVAS_FINAL_ADOPTION.md).
+`useCanvasFitView.ts` fits canonical bounds when nodes are not adopted; search
+waits for accepted preparation before using a target's current measurement.
+Drop/initial-fit controllers have canonical geometry fallbacks. Resize snapshots
+include unadopted children and apply their compensation through the normal
+controlled-node callback. Only active resize owners need remain adopted.
+
+Initial-mapping review still shows every child rather than applying Floor
+semantic hiding. Its empty-pane mouse pan captures the pointer on that surface
+without replacing Flow's camera math. Node drags, Shift/lasso and touch remain
+native Flow gestures. Review has no edges/connection gestures: its disabled
+connection handles use `display: none`, while Floor/sheet anchors stay measured.
+During a review pane drag, CSS suspends the card/folder backdrop shadow filters;
+resting artwork returns when Flow clears its pane-drag state. No per-move React
+state or model mutation is introduced. See [review pan measurements](testing/REVIEW_POINTER_PAN.md).
+
+Large HTTP resync snapshots use `store/snapshotLoader.ts` and its temporary
+worker: transfer bytes, parse off-thread, receive acknowledged row batches and
+apply only a complete snapshot. Connection changes abort the fetch/reader;
+ordered WebSocket buffering remains authoritative. Small replies decode inline.
+Full WebSocket snapshots/classification events remain atomic. Numeric input,
+input equivalence, React-node projection and initial Floor semantic visibility
+prepare cooperatively through `scene/sceneSteps.ts`. Large numeric, prepared and
+spatial payloads use `scene/sceneTransfer.ts` batches on the existing scene
+worker, with tokens, backpressure and monotonic spatial revisions. Generator
+checkpoints and bounded entry counts do not guarantee a frame deadline for an
+individual large row or primitive. Complete model storage still scales with
+project size. Current lookup objects do not capture earlier canonical scenes;
+this avoids retaining the complete scene history through closure contexts.
+Evidence: [cold adoption and memory](testing/CANVAS_COLD_ADOPTION.md). The
+[main/device handoff](testing/CANVAS_PERFORMANCE_HANDOFF.md) indexes the delivered
+canvas changes, remaining scalability work and reproducible checks.
+
+`scene/sceneGeometry.ts` contains numeric alternate-axis initialization and Floor
+frame preparation, separate from `floorSceneProjection.ts` (React node data).
+`scene/sceneController.ts` shares one `renderBudget.worker.ts` between Floor/sheet
+preparation and spatial queries. Numeric jobs yield between loop chunks, coalesce
+by channel and reject superseded tokens. Workspace/sheet scopes and immutable
+input identity gate adoption and generated-placement persistence. An equivalent
+metadata/save echo reuses an accepted or pending preparation. Preparation caches
+are cleared when their controller/channel lifecycle is cancelled, so development
+effect replay starts a fresh job rather than reusing a rejected promise.
+Unchanged layout and semantic-parent echoes preserve identities in
+`store/floorLayoutUpdates.ts`.
+Timestamp-only layout echoes do not invalidate renderer geometry; authoritative
+save timestamps remain in SQLite. Failed initial saves latch the attempt and
+surface Retry instead of repeatedly rebuilding and issuing network writes.
+
+The worker indexes conservative endpoint bounds for relationships, matching
+Flow's visibility rule, including paths crossing the viewport with both endpoints
+offscreen. Disconnected offscreen relationships no longer pull all their endpoints
+into Flow. Endpoint shells retain their ordinary measured handles and routing;
+this is not the planned batched relationship renderer. Visible high-degree hubs
+still cost one edge and its required endpoint geometry per relationship.
+
+`sceneRecords` preserves spatial revisions without JSON signatures. Admission
+retention membership is prepared once per spatial revision. Initial shells
+already respect the viewport buffer while the worker answer is pending. Rich
+detail remains per-node subscribed and admitted in small batches. Small worker
+fallbacks prepare cooperatively; scenes/relationships above 2,000 refuse a large
+synchronous fallback. A worker error retains coherent content and exposes Retry.
+Cancelled work that cannot acknowledge within one second is terminated, covering
+an atomic packing primitive that fails to yield; current jobs then surface a
+recoverable error. No such failure silently triggers a huge UI-thread rebuild.
+`sceneIntegrity.ts` validates changed immutable nodes incrementally and repeats
+its full canonical audit for structural revisions. Empty activity avoids full
+activity indexes; scene ID signatures do not sort again on selection.
+
+`renderBudgetStore.ts` and `nodes/BudgetedNodes.tsx` retain silhouette, compact
+identity and editable detail tiers. Navigation prewarms its destination and
+shared symbols while intermediate cards stay compact. Compact cards retain sheet
+and checkout badges; focused relationships keep their full presentation.
+See [testing/CANVAS_CANONICAL_WORKER.md](testing/CANVAS_CANONICAL_WORKER.md) for
+measurements, validation and remaining cold-loading/density limits.
 
 `nodes/VirtualSymbolRows.tsx` bounds symbol DOM work. `symbolCache.ts` owns shared
 cancellable requests (four concurrent), revision invalidation and bounded LRU
@@ -611,7 +857,10 @@ WebSocket dispatch yields between messages through `canvas/frameWorkQueue.ts`
 (3 ms / 24 messages per batch); queue overflow uses snapshot resync. Individual
 messages remain atomic. `useCanvasFrameTiming.ts` samples active camera windows
 and shares one renderer long-frame observer; all diagnostics are local and
-bounded. See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
+bounded. Full geometry snapshots/diffs in `sceneDiagnostics.ts` require
+`window.__ambioSceneDebug = true`; this investigative tracer does not run in
+ordinary frames. Scene-integrity checks and recovery remain active independently.
+See [testing/CANVAS_FRAME_BUDGET.md](testing/CANVAS_FRAME_BUDGET.md) for the
 five-part implementation, measured results and remaining scaling limits.
 
 `canvas/perfTrace.ts` adds opt-in stage timings for snapshot resync fetch/decode/application,
@@ -622,9 +871,26 @@ Electron input/frame/process-memory measurements live in
 `tests/fixtures/canvasScale.ts` and `tests/e2e/canvas-scale.spec.ts`; the real
 SQLite query/JSON benchmark is `internal/db/canvas_scale_bench_test.go`.
 See [testing/CANVAS_SCALE_BASELINES.md](testing/CANVAS_SCALE_BASELINES.md).
-DOM culling does not yet bound React components: React Flow and its minimap
-still create per-ID wrappers/subscriptions for hidden nodes. This is a measured
-scaling limit, not a completed progressive scene boundary.
+`CanvasMiniMap.tsx` has one React Flow store subscription and renders only admitted
+marks from `minimapGeometry.ts`; camera updates reuse their geometry. It preserves
+the existing passive minimap presentation without per-hidden-ID wrappers. Native
+E2E checks count actual React wrapper components as well as DOM nodes so hidden
+subscriptions cannot regress unnoticed. Complete canonical geometry lives outside
+React Flow; Flow owns only the admitted interaction subset described above.
+Snapshot decoding, canonical React-node projection, worker copying and total
+model storage still scale with project size, though large HTTP decoding is now
+off-thread and projection/transfer are staged. This is not a completed progressive
+data/adoption boundary.
+Inline node fields share `nodes/useCommitOnUnmount.ts`, which invokes the latest
+normal commit if a focused field is culled. React suppresses synthetic blur during
+deletion; relying on browser focus loss would discard an unfinished edit.
+`edges/ClippedDashedEdge.tsx` clips very long static dashed paths to the buffered
+camera before SVG stroking; `clippedEdgeGeometry.ts` preserves their canonical
+arc distance and real target markers. This avoids millions of offscreen dashes
+without changing relationship geometry or editing. Raster parity includes the
+HTML camera at ordinary/extreme zoom. React Flow defaults and connection/selection
+callbacks retain stable identities: changing the default fit options during a
+queued manual fit can otherwise replace its destination and duration.
 
 React + React Flow (`@xyflow/react` 12) with zustand stores. The canvas is
 `src/renderer/canvas/` (~21k lines; `AmbioCanvas.tsx` alone is ~5k and is

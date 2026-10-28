@@ -1,19 +1,40 @@
 export type DeliveryRoute = 'run' | 'open' | 'copy'
 
-/** Launch capability is static; discovery only decides whether it is installed. */
-export const DRIVEN_CLI_NAMES: Record<string, string[]> = {
-  'claude-code': ['claude'],
-  codex: ['codex'],
-  grok: ['grok'],
-  muse: ['muse'],
-  'copilot-cli': ['copilot'],
-  'cursor-cli': ['cursor-agent'],
-  'devin-cli': ['devin'],
-  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
-  'antigravity-cli': ['agy'],
+/** Supported terminal routes, independent of what happens to be installed. */
+export const CLI_CLIENTS = [
+  { id: 'claude-code', label: 'Claude Code CLI' },
+  { id: 'copilot-cli', label: 'GitHub Copilot CLI' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'grok', label: 'Grok Build CLI' },
+  { id: 'muse', label: 'Muse Code CLI' },
+  { id: 'cursor-cli', label: 'Cursor CLI' },
+  { id: 'devin-cli', label: 'Devin CLI' },
+  { id: 'antigravity-acp', label: 'Antigravity ACP agent' },
+  { id: 'antigravity-cli', label: 'Antigravity CLI' },
+] as const
+
+/** External clients sharing an existing installer's connection files. */
+export const SHARED_APP_CLIENTS = [
+  { id: 'claude-code-vscode', installer: 'claude-code', label: 'Claude Code in VS Code', modality: 'vscode' },
+  { id: 'claude-code-jetbrains', installer: 'claude-code', label: 'Claude Code in JetBrains', modality: 'editor' },
+  { id: 'codex-ide', installer: 'codex', label: 'Codex IDE extension', modality: 'vscode' },
+  { id: 'codex-app', installer: 'codex', label: 'Codex desktop app', modality: 'desktop' },
+] as const
+
+export function installerHostId(id: string): string {
+  return SHARED_APP_CLIENTS.find(client => client.id === id)?.installer ?? id
 }
 
-export const canStartAgent = (hostId: string): boolean => Object.hasOwn(DRIVEN_CLI_NAMES, hostId)
+export const APP_CLIENTS = [
+  { id: 'claude-desktop', label: 'Claude Desktop' },
+  { id: 'copilot', label: 'GitHub Copilot in VS Code' },
+  { id: 'antigravity', label: 'Antigravity (App & IDE)' },
+  { id: 'cursor', label: 'Cursor IDE' },
+  { id: 'windsurf', label: 'Windsurf IDE' },
+  { id: 'jetbrains', label: 'JetBrains AI Assistant' },
+  { id: 'zed', label: 'Zed Editor' },
+  ...SHARED_APP_CLIENTS,
+] as const
 
 export interface DeliveryHost {
   id: string
@@ -21,6 +42,10 @@ export interface DeliveryHost {
   route: DeliveryRoute
   available: boolean
   detail: string
+  /** The CLI entry file (the script when using bundled Node), never credentials. */
+  executablePath?: string
+  executableOverride?: string
+  discoveryError?: string
 }
 
 export interface DeliveryRun {
@@ -35,6 +60,7 @@ export interface DeliveryRun {
   logPath: string
   startedAt: number
   pid?: number
+  processIdentity?: string | null
   /** The conversation and the kind of turn this run answers. */
   threadId?: string
   mode?: 'ask' | 'propose' | 'build'
@@ -42,6 +68,8 @@ export interface DeliveryRun {
   sessionId?: string
   /** This run continued the session an earlier turn left behind. */
   resumed?: boolean
+  /** Finite setup mapping; never resumed as ordinary work. */
+  mappingAttemptId?: string
 }
 
 /** One thing a running agent said or did, as the host reported it. */
@@ -56,6 +84,7 @@ export interface DeliveryRequest {
   workspaceId: string
   messageId: string
   hostId: string
+  mappingAttemptId?: string
   /** The model to run the agent with; unset uses the agent's own default. */
   model?: string
   /** Where an agent Ambio starts works: the project's own checkout (the
@@ -72,6 +101,23 @@ export interface DeliveryResult {
   detail: string
   run?: DeliveryRun
 }
+
+export interface MappingAttempt {
+  id: string
+  workspaceId: string
+  rootId: string
+  messageId?: string
+  state: 'mapping' | 'submitted' | 'cancelled'
+  proposalId?: string
+  notes: string[]
+  systemCount?: number
+  startedAt: number
+  submittedAt?: number
+  endedAt?: number
+}
+
+/** Launcher memory only; never stored in browser state or launch receipts. */
+export interface MappingBinding { attempt: MappingAttempt; token: string }
 
 /** The dropdown value for "save the request and copy the handoff myself". */
 export const MANUAL_DELIVERY = ''

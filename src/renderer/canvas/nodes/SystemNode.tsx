@@ -10,6 +10,7 @@ import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
 import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
+import { revealCrossfade } from '../semanticZoom'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
@@ -125,6 +126,14 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   // array per snapshot, so a poll that finds nothing new does not re-render.
   const collision = useCheckoutStore(state => (id ? state.bySystem.get(id) : undefined))
   const arrivals = useCheckoutStore(state => (id ? state.arrivals.get(id) : undefined))
+  // A repository's frame says which branch that repository is on.
+  const isRepository = d.kind === 'repository'
+  const repositoryBranch = useCheckoutStore(state => {
+    if (!isRepository) return undefined
+    const folder = d.name.replace(/ \(repository\)$/, '')
+    const repository = state.snapshot?.repositories?.find(candidate => candidate.folder === folder)
+    return repository ? (repository.headState === 'detached' ? `${repository.headCommit.slice(0, 7)} (detached)` : repository.branch) : undefined
+  })
   const otherBranches = collision?.filter(branch => !branch.focused) ?? []
   const infraCategory = d.umlMetadata?.category ?? 'platform'
   const isDeploymentBoundary = d.umlKind === 'infra'
@@ -189,6 +198,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   // big centered title while contents are hidden ↔ small tab-band title once
   // they reveal. The folder silhouette itself renders at all zooms.
   const containerAlpha = typeof childrenVisible === 'number' ? childrenVisible : (childrenVisible ? 1 : 0)
+  const crossfade = revealCrossfade(containerAlpha >= 0.5)
   const scale = typeof selfScale === 'number' ? selfScale : 1
   const blur  = typeof selfBlur === 'number' ? selfBlur : 0
   const totalCount = directChildCount
@@ -288,7 +298,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           : props.style} />
     )
   }
-  const handles = (
+  const handles = d.omitConnectionHandles ? null : (
     <>
       {topHandle('source')}
       <Handle id="source-right" type="source" position={Position.Right} {...connectionHandleProps(isConnectable, presentationScale, { right: -6 })} />
@@ -350,9 +360,14 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       // A window into the system marks where a hidden file changed; the
       // system keeps its name while it does.
       opacity: 1 - containerAlpha,
-      transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
+      transition: crossfade.title,
       padding: `0 ${padX}px`,
     }}>
+      {isRepository && (
+        <span className="ambio-repository-kicker" style={{ fontSize: Math.max(9, bigTitleFont * 0.26) }}>
+          Repository{repositoryBranch ? ` · ${repositoryBranch}` : ''}
+        </span>
+      )}
       <EditableNodeTitle value={name} onRename={onRename} style={{
         fontSize: bigTitleFont,
         fontWeight: 700,
@@ -416,7 +431,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       overflow: 'hidden',
       // crossfade partner of the big centered title
       opacity: containerAlpha,
-      transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
+      transition: crossfade.contents,
     }}>
       {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
       <EditableNodeTitle value={name} onRename={onRename} style={{
@@ -444,6 +459,15 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           pointerEvents: 'none',
         }}>
           AI
+        </span>
+      )}
+      {isRepository && (
+        <span
+          className="ambio-repository-tag"
+          title={repositoryBranch ? `A repository, on ${repositoryBranch}` : 'A repository in this project'}
+          style={{ fontSize: badgeFont * 0.85, padding: `${badgeFont * 0.12}px ${badgeFont * 0.5}px` }}
+        >
+          REPO{repositoryBranch ? ` · ${repositoryBranch}` : ''}
         </span>
       )}
       {collisionBadge(badgeFont * 0.85)}
@@ -518,6 +542,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       }}>
       {/* Semantic systems use a package outline; hosting uses a compute chassis. */}
       <svg
+        className="ambio-system-backdrop"
         width={shellSize.w} height={shellSize.h}
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
           overflow: 'visible',
@@ -567,7 +592,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           const xBottomRight = chipXBottomRight
           const x0 = chipX0
           return (
-            <g opacity={containerAlpha} style={{ transition: 'opacity 0.25s ease' }}>
+            <g opacity={containerAlpha} style={{ transition: crossfade.contents }}>
               <path
                 d={`M ${x0} ${yB} L ${x0} ${yT} L ${xTopRight} ${yT} L ${xBottomRight} ${yB} Z`}
                 fill="var(--bg-raised)"
