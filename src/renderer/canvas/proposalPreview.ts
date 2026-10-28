@@ -86,6 +86,9 @@ export function buildProposalPreviewModel(
         ?? indexedByPath.get(membership.filePath.replaceAll('\\', '/').toLowerCase())
       return [{
         id: `proposal-file:${proposal.id}:${membership.id}`,
+        // The candidate keeps its own node id, but shows the indexed file's
+        // symbols and source.
+        sourceFileId: indexed?.id,
         rootId: indexed?.rootId ?? membership.rootId,
         path: indexed?.path ?? membership.filePath,
         relPath: indexed?.relPath ?? membership.filePath,

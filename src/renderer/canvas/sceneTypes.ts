@@ -116,6 +116,8 @@ export interface FileNodeData {
   sheetChange?: SheetChange
   relationshipFocus?: boolean
   id: string
+  /** The indexed file whose symbols and source this card shows; its own id when absent. */
+  sourceFileId?: string
   label: string
   relPath: string
   language: string

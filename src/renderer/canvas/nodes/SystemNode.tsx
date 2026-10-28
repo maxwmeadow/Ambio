@@ -10,6 +10,7 @@ import { folderTabFromChrome, folderTopAnchorX } from '../folderAnchors'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
 import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
+import { revealCrossfade } from '../semanticZoom'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
@@ -189,6 +190,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
   // big centered title while contents are hidden ↔ small tab-band title once
   // they reveal. The folder silhouette itself renders at all zooms.
   const containerAlpha = typeof childrenVisible === 'number' ? childrenVisible : (childrenVisible ? 1 : 0)
+  const crossfade = revealCrossfade(containerAlpha >= 0.5)
   const scale = typeof selfScale === 'number' ? selfScale : 1
   const blur  = typeof selfBlur === 'number' ? selfBlur : 0
   const totalCount = directChildCount
@@ -350,7 +352,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       // A window into the system marks where a hidden file changed; the
       // system keeps its name while it does.
       opacity: 1 - containerAlpha,
-      transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
+      transition: crossfade.title,
       padding: `0 ${padX}px`,
     }}>
       <EditableNodeTitle value={name} onRename={onRename} style={{
@@ -416,7 +418,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       overflow: 'hidden',
       // crossfade partner of the big centered title
       opacity: containerAlpha,
-      transition: 'opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
+      transition: crossfade.contents,
     }}>
       {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
       <EditableNodeTitle value={name} onRename={onRename} style={{
@@ -568,7 +570,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           const xBottomRight = chipXBottomRight
           const x0 = chipX0
           return (
-            <g opacity={containerAlpha} style={{ transition: 'opacity 0.25s ease' }}>
+            <g opacity={containerAlpha} style={{ transition: crossfade.contents }}>
               <path
                 d={`M ${x0} ${yB} L ${x0} ${yT} L ${xTopRight} ${yT} L ${xBottomRight} ${yB} Z`}
                 fill="var(--bg-raised)"

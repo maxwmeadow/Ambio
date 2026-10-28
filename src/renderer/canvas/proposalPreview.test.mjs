@@ -55,6 +55,11 @@ test('proposal preview clones indexed metadata without reusing canonical identit
   assert.notEqual(preview.files[0].id, indexed.id)
   assert.equal(preview.files[0].lineCount, 42)
   assert.equal(preview.files[0].path, indexed.path)
+  // Its symbols and source are read through the indexed file, matched by id
+  // or by path; a file the index does not know has none to read.
+  assert.equal(preview.files[0].sourceFileId, indexed.id)
+  assert.equal(buildProposalPreviewModel(proposal, [], [indexed]).files[0].sourceFileId, indexed.id)
+  assert.equal(buildProposalPreviewModel(proposal, [], []).files[0].sourceFileId, undefined)
 })
 
 test('a system-scoped proposal keeps scope roots inside the live coordinate frame', () => {

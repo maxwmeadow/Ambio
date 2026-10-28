@@ -242,6 +242,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `duplicate-file-node-data` **`FileNodeData` is declared twice.** `src/renderer/canvas/AmbioCanvas.tsx` exports its own copy; every consumer uses `sceneTypes.ts`. Remove the stale one so fields like `sourceFileId` cannot drift. (2026-10-27)
+
 - ⬜ `floor-pan-e2e-flake` **Floor camera-pan e2e intermittently finds no node.** `canvas-pan.spec.ts` floor mouse/wasd fail at "first .react-flow__node visible" (3 of 4 runs on the unchanged 2026-10-27 baseline; empty viewport after applySnapshot of the dense fixture). Review variants pass. (2026-10-27)
 - ⬜ `sheet-drag-visibility` **Sheet nodes' draggable can be overwritten by semantic zoom.** The sheet projection sets `draggable` for non-member nodes, but `applyZoomVisibility` on the sheet base resets it on tier changes. Use the `dragLocked` data flag review now uses. (2026-10-27)
 
@@ -334,6 +336,10 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `canvas-undo-screen-position-flake` **Explain one broad-suite Undo mismatch before calling editing acceptance clean.** The Oct 24 final-adoption UI run had a 435 px Undo screen-position error; three isolated repetitions pass unchanged. Exact pre-follow-up runtime `08a9d18` reproduces the same error (4 pass/1 fail); underlying cause unresolved. Inspect initial camera settling, drop/save/Undo timing and canonical placement. [Evidence](docs/testing/CANVAS_FINAL_ADOPTION.md).
 
 ## Done log
+
+- 2026-10-27 `review-file-symbols` Review file cards showed "No symbols" for every file: candidate cards have their own node id (`proposal-file:…`) and `FileNode` fetched symbols by node id. A file entry now carries `sourceFileId` (the indexed file it shows); the projection passes it on and `FileNode` reads symbols, source preview, injections and branch marks through it, keeping the node id for node identity. Unit tests and the review e2e (fails without the fix, passes with it) pass. (`claude/mapping-completion-safety`, local changes)
+
+- 2026-10-27 `system-reveal-timing` Opening a system is sequenced through one `REVEAL_MOTION` timing in `semanticZoom.ts`: the centred name fades out (200ms), then the tab title, count and revealed child nodes fade in (300ms). Revealed nodes used to mount at full opacity (a CSS transition never runs on mount); semantic zoom now stamps `revealedAt` and the shared `BudgetedNode` wrapper plays an anchored entrance. Measured frame by frame in the built app: children stay at 0 until the name reaches 0. Types, 765 unit tests and the review/performance e2e pass; Floor pan e2e is the known baseline flake. (`claude/mapping-completion-safety`, local changes)
 
 - 2026-10-27 `review-semantic-zoom` The mapping review canvas now uses the Floor's semantic zoom instead of revealing every node (systems start closed with their centred name and open on zoom). Review list rows fly through the same measured flight as search (`useFlyToNode`). Semantic zoom respects a `dragLocked` node flag, so approved/live review nodes stay undraggable (before, full visibility made them all draggable). The initial fit now drops a stale overview-tier pass queued by its last frame. Types, 763 unit tests, the review workflow, review pan and proposal performance e2e pass; Floor pan e2e flakes on the unchanged baseline too (Inbox). (`claude/mapping-completion-safety`, local changes)
 

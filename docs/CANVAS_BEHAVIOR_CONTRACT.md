@@ -175,6 +175,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Hidden descendants fade to opacity `0`, become non-interactive at opacity
   `<= 0.1`, scale toward `0.92`, and blur toward `3px`.
 - Opacity transitions over `0.25s ease-out`.
+- Opening a system is sequenced (`REVEAL_MOTION`, changed 2026-10-27): its
+  centred name fades out over `200ms`, and only then do its tab title, count
+  and the nodes it reveals fade in over `300ms`. Revealed nodes mount already
+  visible, so their entrance is played on mount, anchored to the moment of the
+  reveal; a node scrolled into view or remounted later has none. Closing is
+  immediate: the contents unmount, the tab title fades out over `120ms` and the
+  name returns over `240ms`. Reduced motion skips the node entrance.
 - A node being dragged or directly interacted with is forced fully visible.
 - The mapping review canvas has the same semantic zoom as the Floor (changed
   2026-10-27; it used to reveal every system and file at once): systems start

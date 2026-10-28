@@ -173,10 +173,13 @@ function RuntimeTooltip({ runtime, color }: { runtime: RuntimeNodeState; color: 
   )
 }
 
-export const FileNode = React.memo(function FileNode({ id, data, selected, width, height, isConnectable }: NodeProps) {
+export const FileNode = React.memo(function FileNode({ data, selected, width, height, isConnectable }: NodeProps) {
   const d = data as unknown as FileNodeData
+  // The indexed file behind this card. A review candidate has its own node id,
+  // and its symbols and source are the indexed file's.
+  const fileId = d.sourceFileId ?? d.id
   // Other checkouts changing or deleting this file (GIT_AND_PROJECT_SHAPES).
-  const overlayMarks = useCheckoutStore(state => (id ? state.overlayByFile.get(id) : undefined))
+  const overlayMarks = useCheckoutStore(state => (fileId ? state.overlayByFile.get(fileId) : undefined))
   const livingSignal = useRetainedLivingFileSignal(d.fx)
   const { onResizeStart, onResizeEnd } = d as any
   const [hovered, setHovered] = React.useState(false)
@@ -271,45 +274,45 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
   const perturbedSymbols = React.useMemo(() => {
     const set = new Set<string>()
     for (const inj of Object.values(runtimeInjections)) {
-      if (inj.fileId === d.id && (inj.status === 'pending_confirm' || inj.status === 'armed')) {
+      if (inj.fileId === fileId && (inj.status === 'pending_confirm' || inj.status === 'armed')) {
         set.add(inj.symbol)
       }
     }
     return set
-  }, [runtimeInjections, d.id])
+  }, [runtimeInjections, fileId])
 
   // Lazy-load symbols from archd when zoom crosses 1.2
   const currentProject = useGraphStore(s => s.currentProject)
   const workspaceId = currentProject?.id ?? 'demo'
   const suppliedSymbols = d.symbols
-  const cachedSymbols = suppliedSymbols ?? getCachedSymbols(workspaceId, d.id)
+  const cachedSymbols = suppliedSymbols ?? getCachedSymbols(workspaceId, fileId)
   const [symbols, setSymbols] = React.useState<any[] | null>(cachedSymbols ?? null)
   const [symbolsLoading, setSymbolsLoading] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<SymbolTab>('functions')
   const [previewSymbol, setPreviewSymbol] = React.useState<any | null>(null)
   const symbolRequestRef = React.useRef(0)
-  const symbolNodeIdRef = React.useRef(d.id)
+  const symbolNodeIdRef = React.useRef(fileId)
   // A re-indexed file (including unchanged line counts) shows its symbols afresh.
   const indexRevision = String(d.indexedAt ?? 0) + ':' + d.lineCount
   const indexRevisionRef = React.useRef(indexRevision)
   React.useEffect(() => {
     if (indexRevisionRef.current === indexRevision) return
     indexRevisionRef.current = indexRevision
-    if (!suppliedSymbols) setSymbols(getCachedSymbols(workspaceId, d.id))
-  }, [indexRevision, suppliedSymbols, workspaceId, d.id])
+    if (!suppliedSymbols) setSymbols(getCachedSymbols(workspaceId, fileId))
+  }, [indexRevision, suppliedSymbols, workspaceId, fileId])
 
   React.useEffect(() => {
     const request = ++symbolRequestRef.current
-    if (symbolNodeIdRef.current !== d.id) {
-      symbolNodeIdRef.current = d.id
-      const initial = suppliedSymbols ?? getCachedSymbols(workspaceId, d.id)
+    if (symbolNodeIdRef.current !== fileId) {
+      symbolNodeIdRef.current = fileId
+      const initial = suppliedSymbols ?? getCachedSymbols(workspaceId, fileId)
       setSymbols(initial ?? null)
       setSymbolsLoading(false)
       return
     }
     if (suppliedSymbols) {
       setSymbols(suppliedSymbols)
-      setCachedSymbols(workspaceId, d.id, suppliedSymbols)
+      setCachedSymbols(workspaceId, fileId, suppliedSymbols)
       setSymbolsLoading(false)
       const first = (['functions', 'variables', 'classes'] as const).find(
         tab => suppliedSymbols.some(sym => tabForKind(sym.kind) === tab)
@@ -320,7 +323,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       return
     }
     if (detailRevealed && !symbols) {
-      const cached = getCachedSymbols(workspaceId, d.id)
+      const cached = getCachedSymbols(workspaceId, fileId)
       if (cached) {
         setSymbols(cached)
         setSymbolsLoading(false)
@@ -335,7 +338,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
 
       const controller = new AbortController()
       setSymbolsLoading(true)
-      fetchFileSymbols(workspaceId, d.id, controller.signal, undefined, Boolean(selected))
+      fetchFileSymbols(workspaceId, fileId, controller.signal, undefined, Boolean(selected))
         .then(syms => {
           if (symbolRequestRef.current !== request) return
           setSymbols(syms)
@@ -361,7 +364,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       return () => controller.abort()
     }
     setSymbolsLoading(false)
-  }, [detailRevealed, d.id, workspaceId, suppliedSymbols, symbols, selected])
+  }, [detailRevealed, fileId, workspaceId, suppliedSymbols, symbols, selected])
 
   const handleSymbolClick = (sym: any) => {
     if (!editableSymbols && sym.lineStart > 0) setPreviewSymbol(sym)
@@ -376,7 +379,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
   const editableSymbols = Boolean(d.onSymbolsChange)
   const updateSymbols = (next: any[]) => {
     setSymbols(next)
-    setCachedSymbols(workspaceId, d.id, next)
+    setCachedSymbols(workspaceId, fileId, next)
     d.onSymbolsChange?.(next)
   }
   const addSymbolForActiveTab = () => {
@@ -914,7 +917,7 @@ export const FileNode = React.memo(function FileNode({ id, data, selected, width
       )}
 
       {previewSymbol && <SourcePreviewDialog
-        fileId={d.id}
+        fileId={fileId}
         workspaceId={workspaceId}
         symbol={previewSymbol}
         onClose={() => setPreviewSymbol(null)}

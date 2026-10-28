@@ -9,6 +9,42 @@ export const REVEAL_CONTAINER_PX = 480
 export const HIDDEN_NODE_CLASS = 'ambio-node-hidden'
 
 /**
+ * Opening a system is sequenced: its centred name clears first, and only then
+ * does what it holds fade in (its tab title, count and child nodes), so the two
+ * are never on screen together. Closing runs the other way at once: the
+ * children unmount immediately, so the name comes straight back.
+ */
+export const REVEAL_MOTION = {
+  titleOutMs: 200,
+  contentDelayMs: 200,
+  contentInMs: 300,
+  titleInMs: 240,
+  contentOutMs: 120,
+  easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+  easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
+} as const
+
+/** CSS transitions for a system's two title layers, by the state it is entering. */
+export function revealCrossfade(open: boolean): { title: string; contents: string } {
+  const m = REVEAL_MOTION
+  return open
+    ? { title: `opacity ${m.titleOutMs}ms ${m.easeIn}`, contents: `opacity ${m.contentInMs}ms ${m.easeOut} ${m.contentDelayMs}ms` }
+    : { title: `opacity ${m.titleInMs}ms ${m.easeOut}`, contents: `opacity ${m.contentOutMs}ms ${m.easeIn}` }
+}
+
+/**
+ * Where a node revealed at `revealedAt` is in its entrance, or null when it has
+ * none to play (it was never revealed by zoom, or the entrance is over). A node
+ * mounts some frames after the pass that revealed it; the entrance stays
+ * anchored to the reveal, so siblings that mount late still arrive together.
+ */
+export function revealEntranceElapsed(revealedAt: unknown, now: number): number | null {
+  if (typeof revealedAt !== 'number') return null
+  const elapsed = now - revealedAt
+  return elapsed >= 0 && elapsed < REVEAL_MOTION.contentDelayMs + REVEAL_MOTION.contentInMs ? elapsed : null
+}
+
+/**
  * Semantic zoom decides whether a node can be touched at all; it must not
  * grant a drag the scene withheld. A scene that locks a visible node (review's
  * approved and live nodes) sets `data.dragLocked`, and every visibility pass
@@ -69,11 +105,11 @@ function sameVisibility(node: Node, next: {
     data.detailRevealed === next.detailRevealed
 }
 
-export function applyZoomVisibility(nodes: Node[], zoom: number): Node[] {
-  const steps = zoomVisibilitySteps(nodes, zoom)
+export function applyZoomVisibility(nodes: Node[], zoom: number, now = performance.now()): Node[] {
+  const steps = zoomVisibilitySteps(nodes, zoom, now)
   for (;;) { const result = steps.next(); if (result.done) return result.value }
 }
-export function* zoomVisibilitySteps(nodes: Node[], zoom: number): Generator<void, Node[]> {
+export function* zoomVisibilitySteps(nodes: Node[], zoom: number, now = performance.now()): Generator<void, Node[]> {
   let work = 0
   let index = visibilityIndices.get(nodes)
   if (!index) {
@@ -167,6 +203,9 @@ export function* zoomVisibilitySteps(nodes: Node[], zoom: number): Generator<voi
         selfScale: next.selfScale,
         selfBlur: next.selfBlur,
         detailRevealed: next.detailRevealed,
+        // Only a node this pass brings out of hiding plays an entrance; a
+        // scene's first projection has no previous state and appears as is.
+        ...(node.hidden === true && !next.hidden ? { revealedAt: now } : {}),
       },
     }
   }

@@ -3,7 +3,10 @@ import test from 'node:test'
 import {
   HIDDEN_NODE_CLASS,
   REVEAL_CONTAINER_PX,
+  REVEAL_MOTION,
   applyZoomVisibility,
+  revealCrossfade,
+  revealEntranceElapsed,
   makeFullyVisible,
   revealNodePath,
 } from './semanticZoom.ts'
@@ -80,6 +83,29 @@ test('makeFullyVisible overrides temporary semantic-zoom hiding', () => {
   assert.equal(visible.data.selfBlur, 0)
   assert.equal(visible.data.childrenVisible, 1)
   assert.equal(makeFullyVisible(visible), visible)
+})
+
+test('only a node a pass brings out of hiding is stamped for an entrance', () => {
+  const parent = node('parent', REVEAL_CONTAINER_PX, REVEAL_CONTAINER_PX)
+  const child = node('child', 20, 20, { depth: 1, parentId: 'parent' })
+  const first = applyZoomVisibility([parent, child], 1, 100)
+  // A first projection has no previous state: nothing plays an entrance.
+  assert.equal(first[1].data.revealedAt, undefined)
+  const folded = applyZoomVisibility(first, 0.5, 200)
+  assert.equal(folded[1].hidden, true)
+  const opened = applyZoomVisibility(folded, 1, 300)
+  assert.equal(opened[1].data.revealedAt, 300)
+  assert.equal(opened[0].data.revealedAt, undefined)
+})
+
+test('an entrance stays anchored to its reveal and ends with it', () => {
+  const end = REVEAL_MOTION.contentDelayMs + REVEAL_MOTION.contentInMs
+  assert.equal(revealEntranceElapsed(undefined, 1000), null)
+  assert.equal(revealEntranceElapsed(1000, 1040), 40)
+  assert.equal(revealEntranceElapsed(1000, 1000 + end), null)
+  // The children wait for the name to clear before they appear.
+  assert.ok(REVEAL_MOTION.contentDelayMs >= REVEAL_MOTION.titleOutMs)
+  assert.match(revealCrossfade(true).contents, new RegExp(`${REVEAL_MOTION.contentDelayMs}ms$`))
 })
 
 test('a drag-locked node stays undraggable through every visibility pass', () => {

@@ -174,7 +174,7 @@ export function* projectFloorNodeSteps({
         id, type: 'file', parentId: parentId ?? undefined, position, style,
         initialWidth: style.width, initialHeight: style.height,
         data: {
-          id, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
+          id, sourceFileId: file.sourceFileId, label: file.relPath.split('/').pop() ?? file.relPath, relPath: file.relPath,
           language: file.language, lineCount: file.lineCount, indexedAt: file.indexedAt, churnScore: file.churnScore,
           shape: (file.shapeOverride || file.shape || '') as FileNodeData['shape'],
           displayName: file.displayName ?? '', depth,

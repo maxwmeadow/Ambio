@@ -1,6 +1,7 @@
 import React from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Handle, Position, useStoreApi, type NodeProps } from '@xyflow/react'
 import { useNodeRenderTier } from '../useCanvasRenderBudget'
+import { REVEAL_MOTION, revealEntranceElapsed } from '../semanticZoom'
 import { ShapeBackdrop } from './NodeShell'
 import { LanguageIcon } from '../languages'
 import { fitPresentationScale } from '../resizeGeometry'
@@ -34,7 +35,7 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
     onPointerEnter={props.promote} style={{ position: 'relative', width: '100%', height: '100%',
       opacity: d.dimmed ? (system ? .3 : .22) : 1 }}>
     <SheetChangeBadge change={d.sheetChange} width={width} />
-    {file && <CompactBranchMark id={props.id} />}
+    {file && <CompactBranchMark id={String(d.sourceFileId ?? props.id)} />}
     <div style={{ position: 'absolute', inset: 0, width: `${100 / scale}%`, height: `${100 / scale}%`,
       transform: `scale(${scale})`, transformOrigin: 'top left', isolation: 'isolate' }}>
       <ShapeBackdrop shape={shape} fill="var(--bg-surface)" stroke={color} width={width / scale} height={height / scale} />
@@ -56,8 +57,34 @@ function CompactNode(props: NodeProps & { silhouette: boolean; promote: () => vo
   </div>
 }
 
+/**
+ * A node that semantic zoom just brought out of hiding fades in once its parent
+ * system's name has cleared (REVEAL_MOTION). It mounts already visible, so a
+ * CSS transition never runs; the entrance is played on React Flow's wrapper on
+ * mount, from where the reveal is now. A node merely scrolled into view, or
+ * remounted later, has no entrance left to play.
+ */
+function useRevealEntrance(id: string, revealedAt: unknown) {
+  const flow = useStoreApi()
+  React.useLayoutEffect(() => {
+    const elapsed = revealEntranceElapsed(revealedAt, performance.now())
+    if (elapsed === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const wrapper = flow.getState().domNode?.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+    const entrance = wrapper?.animate([{ opacity: 0 }, { opacity: 1 }], {
+      delay: REVEAL_MOTION.contentDelayMs,
+      duration: REVEAL_MOTION.contentInMs,
+      easing: REVEAL_MOTION.easeOut,
+      fill: 'backwards',
+    })
+    if (entrance) entrance.currentTime = elapsed
+    return () => entrance?.cancel()
+    // Mount only: an entrance belongs to the reveal that mounted this node.
+  }, [])
+}
+
 function budgeted(Component: React.ComponentType<NodeProps>) {
   return React.memo(function BudgetedNode(props: NodeProps) {
+    useRevealEntrance(props.id, props.data.revealedAt)
     const { tier, promote } = useNodeRenderTier(props.id)
     const d = props.data
     // Active visual signals and gesture chrome retain their full fidelity.

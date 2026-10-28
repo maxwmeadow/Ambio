@@ -1304,6 +1304,9 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await proposalPanel.getByText('Semantic Zoom', { exact: true }).click()
   await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  // A candidate card has its own node id but shows the indexed file's symbols.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-a"]')
+    .getByText('renderCanvas')).toBeVisible()
 
   await page.locator('.ambio-review__canvas .react-flow__node-system')
     .filter({ hasText: 'Semantic Zoom' }).click({ position: { x: 10, y: 10 } })

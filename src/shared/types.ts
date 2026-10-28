@@ -253,6 +253,9 @@ export interface DbSystem {
 
 export interface DbFile {
   id: string
+  /** The indexed file this entry shows when `id` is a preview node's own id (a
+   * proposal's file during review). Symbols and source are read through it. */
+  sourceFileId?: string
   rootId: string
   path: string
   relPath: string
