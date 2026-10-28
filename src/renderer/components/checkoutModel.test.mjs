@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, buildSync, collisionsBySystem, conversationWorkplace, overlaySummary, timeAgo } from './checkoutModel.ts'
+import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, buildSync, collisionsBySystem, conversationWorkplace, homePath, overlaySummary, timeAgo } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -158,42 +158,58 @@ test('the Floor\'s branch says where it stands against its remote and offers the
   const tracked = overrides => buildSync(checkout({ upstream: 'origin/main', fetchedAt: now - 2 * 60000, publishRemote: 'origin', ...overrides }), now)
 
   const behind = tracked({ behind: 3 })
-  assert.equal(behind.sentence, '3 commits to pull from origin/main')
+  assert.equal(behind.state, 'behind')
+  assert.equal(behind.headline, '3 commits to pull')
+  assert.equal(behind.remote, 'origin/main')
   assert.deepEqual(behind.action, { kind: 'pull', label: 'Pull 3 commits' })
   assert.equal(behind.checked, 'Checked 2 min ago')
+  assert.equal(behind.canCheck, true)
 
-  assert.deepEqual(tracked({ ahead: 1 }).action, { kind: 'push', label: 'Push 1 commit' })
-  assert.equal(tracked({ ahead: 1 }).sentence, '1 commit to push to origin/main')
+  const ahead = tracked({ ahead: 1 })
+  assert.equal(ahead.state, 'ahead')
+  assert.deepEqual(ahead.action, { kind: 'push', label: 'Push 1 commit' })
 
   const current = tracked({})
-  assert.equal(current.sentence, 'Up to date with origin/main')
-  assert.deepEqual(current.action, { kind: 'fetch', label: 'Check for updates', quiet: true })
+  assert.equal(current.state, 'current')
+  assert.equal(current.headline, 'Up to date')
+  assert.equal(current.detail, 'Nothing to pull from or push to origin/main.')
+  assert.equal(current.action, undefined)
 
-  // Both sides moved: a merge, not a pull, so no button.
+  // Both sides moved: a merge, not a pull, so no action.
   const diverged = tracked({ ahead: 2, behind: 1 })
-  assert.match(diverged.sentence, /^1 commit to pull and 2 commits to push: .* both moved on/)
+  assert.equal(diverged.state, 'diverged')
+  assert.match(diverged.detail, /^1 commit to pull and 2 commits to push, so this needs a merge/)
   assert.equal(diverged.action, undefined)
 
   // No upstream: publish where there is an obvious remote, else say it is local.
   const unpublished = buildSync(checkout({ branch: 'idea', publishRemote: 'origin' }), now)
-  assert.equal(unpublished.sentence, 'Not on origin yet')
+  assert.equal(unpublished.state, 'unpublished')
+  assert.equal(unpublished.remote, 'origin')
+  assert.equal(unpublished.detail, 'idea is only on this computer.')
   assert.deepEqual(unpublished.action, { kind: 'publish', label: 'Publish to origin' })
   assert.equal(unpublished.checked, 'Not checked yet')
   const local = buildSync(checkout({}), now)
-  assert.equal(local.remote, false)
+  assert.equal(local.state, 'local')
+  assert.equal(local.canCheck, false)
   assert.equal(local.checked, '')
-  assert.match(local.sentence, /no remote/)
   assert.equal(local.action, undefined)
 
-  assert.equal(tracked({ changedFiles: 1 }).uncommitted, '1 uncommitted file')
-  assert.equal(tracked({ changedFiles: 4 }).uncommitted, '4 uncommitted files')
-  assert.equal(tracked({}).uncommitted, '')
+  assert.equal(tracked({ changedFiles: 4 }).uncommitted, 4)
 
-  // Without a branch to sync, the checkout's own state is the sentence.
+  // Without a branch to sync, the checkout's own state is the headline.
   const detached = buildSync(checkout({ headState: 'detached', branch: '(detached)', headCommit: 'abcdef1234' }), now)
-  assert.match(detached.sentence, /^Detached at/)
+  assert.equal(detached.state, 'other')
+  assert.match(detached.headline, /^Detached at/)
   assert.equal(detached.action, undefined)
-  assert.equal(buildSync(undefined).sentence, '')
+  assert.equal(buildSync(undefined).headline, '')
+})
+
+test('a home folder is written as ~', () => {
+  assert.equal(homePath('/Users/maximmeadow/dev/CSE498/Magna'), '~/dev/CSE498/Magna')
+  assert.equal(homePath('/home/dev/.codex/worktrees/a1b2/ambio'), '~/.codex/worktrees/a1b2/ambio')
+  assert.equal(homePath('C:\\Users\\Max\\code\\shop'), '~\\code\\shop')
+  assert.equal(homePath('/code/ambio'), '/code/ambio')
+  assert.equal(homePath('/Users/maxim-other'), '~')
 })
 
 test('time since is said in a few words', () => {

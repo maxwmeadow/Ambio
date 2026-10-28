@@ -44,23 +44,28 @@ pull makes Api depend on Storage".
 
 ## The branch popover
 
-Top to bottom:
+Git's usual symbols carry the meaning (`GitIcon.tsx`, drawn like the rest of
+Ambio's icons): ↓ pull, ↑ push, a cloud for the remote, a fork for a branch.
 
-1. **The Floor's branch and where it stands** against its upstream, as a
-   sentence, with how long ago Ambio last heard from the remote.
-2. **The next action**, chosen by that state:
-   - behind, can fast-forward → **Pull N commits**
-   - ahead → **Push N commits**
-   - no upstream, a remote exists → **Publish branch** (push and set upstream)
-   - diverged → no button; says so and (stage 3) offers *Merge…*
-   - up to date → **Check for updates**, quiet
-3. **Uncommitted changes**: how many files (stage 2: list them by system,
-   commit from here).
-4. **Agents working in this checkout.**
-5. **Secondary actions**: Switch branch…, Reveal folder, Open in editor.
-6. **Other checkouts**, only when there are any: one compact row each
-   (branch, what it changes, its agent, an overlay swatch); its actions -
-   Show on the Floor, Review this branch, Apply, Discard - stay on that row.
+1. **Header: the branch is the switcher.** The branch name with a ▾ opens
+   Switch branch; under it the folder (home written as `~`), and "on the
+   Floor" when other checkouts are open. Reveal folder and Open in editor
+   are icon buttons on the right.
+2. **The remote line:** the upstream (`origin/main`), ↓/↑ counters (lit when
+   non-zero), when it was last checked, and a ↻ Check for updates button that
+   spins while fetching.
+3. **The one action**, full width with its symbol: **↓ Pull N commits**,
+   **↑ Push N commits** or **Publish to origin**. When there is an action,
+   the button is the status; a glyph tile and headline appear only when
+   there is nothing to press or it needs explaining: ✓ Up to date,
+   ⚠ Diverged (needs a merge, so no button), Not published yet, No remote.
+4. **The working tree:** ✎ N uncommitted files, or ✓ No uncommitted changes
+   (stage 2 makes this the way into committing).
+5. **Agents working in this checkout.**
+6. **Other worktrees**, only when there are any: name, what it changes,
+   its agent, and a row of icon buttons (show on the Floor, review, apply,
+   discard, folder, editor), each named in its tooltip. Discard asks inline
+   before anything is removed.
 
 Labels that mean nothing with one checkout (a count badge, "on the Floor",
 "primary", a subtitle) are not shown. "Review this branch" is not offered for

@@ -598,12 +598,60 @@
   cursor: help;
 }
 
-/* The Floor's branch against its remote (docs/GIT_WORKFLOW.md "The branch
-   popover"): where it stands in words, then the one action that calls for. */
+/* The branch menu (docs/GIT_WORKFLOW.md "The branch popover"). The header is
+   the branch and its switcher; the panel under it says where the branch
+   stands against its remote, with Git's usual symbols, and leads with the one
+   action that calls for. */
+.ambio-checkouts__header--branch { min-height: 58px; padding: 10px 10px 10px 16px; }
+
+.ambio-checkouts__heading { flex: 1 1 auto; min-width: 0; }
+
+.ambio-checkouts__where { display: flex; min-width: 0; align-items: center; gap: 8px; margin-top: 3px; }
+
+.ambio-checkouts__floor-tag {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid #7fb3a8;
+  color: #b8ddd4;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ambio-checkouts__header h2 { display: flex; min-width: 0; }
+
+.ambio-checkouts__branch {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 0 -6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #fffdf5;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #14201c;
+}
+
+.ambio-checkouts__branch > span { overflow: hidden; min-width: 0; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-checkouts__branch svg { flex: 0 0 auto; color: #9fc9bf; }
+button.ambio-checkouts__branch { cursor: pointer; }
+button.ambio-checkouts__branch:hover:not(:disabled),
+button.ambio-checkouts__branch:focus-visible { border-color: #5e726c; background: rgba(255, 255, 255, 0.07); outline: none; }
+
 .ambio-checkouts__header .ambio-checkouts__path {
   overflow: hidden;
-  max-width: 400px;
+  max-width: 340px;
+  margin: 0;
+  color: #a9b7b1;
   direction: rtl;
+  font-size: 11px;
   letter-spacing: 0;
   text-align: left;
   text-overflow: ellipsis;
@@ -611,92 +659,218 @@
   white-space: nowrap;
 }
 
-.ambio-sync__state {
-  margin: 2px 0 0;
-  color: #26342f;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.35;
+.ambio-checkouts__head-tools { display: flex; flex: 0 0 auto; gap: 4px; align-self: flex-start; }
+
+/* Square icon buttons; on the dark header they are light. */
+.ambio-tool {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #b9bfba;
+  border-radius: 2px;
+  background: #f7f6f0;
+  color: #3d4b46;
+  cursor: pointer;
 }
 
-.ambio-sync__checked {
-  margin: 2px 0 0;
-  color: #737d78;
+.ambio-tool:hover:not(:disabled),
+.ambio-tool:focus-visible { border-color: #3c7d76; background: #dfeae6; color: #1d4a43; outline: none; }
+.ambio-tool:disabled { cursor: default; opacity: 0.45; }
+.ambio-tool[data-danger]:hover:not(:disabled),
+.ambio-tool[data-danger]:focus-visible { border-color: #9b554c; background: #f3dfd8; color: #8a2f27; }
+
+.ambio-checkouts__head-tools .ambio-tool { border-color: #5e726c; background: rgba(255, 255, 255, 0.06); color: #d7e3df; }
+.ambio-checkouts__head-tools .ambio-tool:hover:not(:disabled),
+.ambio-checkouts__head-tools .ambio-tool:focus-visible { border-color: #9fc9bf; background: rgba(255, 255, 255, 0.14); color: #fffdf5; }
+
+.ambio-tool__spin { animation: ambio-tool-spin 0.9s linear infinite; }
+.ambio-tool__pulse { animation: ambio-tool-pulse 1s ease-in-out infinite; }
+@keyframes ambio-tool-spin { to { transform: rotate(360deg); } }
+@keyframes ambio-tool-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .ambio-tool__spin, .ambio-tool__pulse { animation: none; } }
+
+.ambio-checkout.ambio-sync { padding: 14px 16px 15px; }
+
+/* origin/main · ↓3 ↑0 · Checked just now · ↻ */
+.ambio-sync__remote {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ccd6d2;
+  color: #5d6964;
   font-size: 12px;
 }
 
-.ambio-sync__checked[data-error] { color: #8a4320; }
+.ambio-sync__remote > svg { flex: 0 0 auto; color: #3c7d76; }
 
+.ambio-sync__upstream {
+  overflow: hidden;
+  min-width: 0;
+  color: #26342f;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-sync__counts { display: inline-flex; flex: 0 0 auto; gap: 3px; }
+
+.ambio-sync__counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px 1px 3px;
+  border: 1px solid #c3cbc7;
+  border-radius: 2px;
+  color: #8a948f;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ambio-sync__counts > span[data-some] { border-color: #3c7d76; background: #dfeae6; color: #1d4a43; font-weight: 700; }
+
+.ambio-sync__checked { margin-left: auto; flex: 0 0 auto; color: #7a8580; font-size: 11.5px; white-space: nowrap; }
+
+/* The situation: a tinted glyph tile and a headline. */
+.ambio-sync__status { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; }
+
+.ambio-sync__glyph {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #9fc0b8;
+  border-radius: 2px;
+  background: #d6e7e2;
+  color: #2a6a5f;
+}
+
+.ambio-sync[data-state='current'] .ambio-sync__glyph { border-color: #a9c9a8; background: #dcecd9; color: #2f7044; }
+.ambio-sync[data-state='diverged'] .ambio-sync__glyph { border-color: #d6b27e; background: #f4e6cf; color: #93560f; }
+.ambio-sync[data-state='local'] .ambio-sync__glyph { border-color: #c3c6c2; background: #ebeae4; color: #737d78; }
+
+.ambio-sync__headline { margin: 0; padding-top: 1px; color: #1f2c28; font-size: 16px; font-weight: 700; line-height: 1.25; }
+.ambio-sync__detail { margin: 3px 0 0; color: #5d6964; font-size: 12.5px; line-height: 1.45; }
+
+.ambio-sync__error {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-left: 3px solid #b8743a;
+  background: #f6ead8;
+  color: #6f3d12;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The one action: the app's teal primary, full width, symbol first. */
 .ambio-sync__action {
-  margin-top: 12px;
-  padding: 7px 16px;
-  border: 1px solid #17211e;
-  border-radius: 1px;
-  background: #2c3935;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
-  color: #fffdf5;
-  font-size: 13px;
+  display: flex;
+  width: 100%;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 14px;
+  border: 1px solid #285e53;
+  border-radius: 2px;
+  background: #3c7d76;
+  box-shadow: inset 1px 1px #6caaa0, inset -1px -1px #23473f;
+  color: #fff;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .ambio-sync__action:hover:not(:disabled),
-.ambio-sync__action:focus-visible { background: #3c4b46; outline: none; }
+.ambio-sync__action:focus-visible { background: #2b655a; outline: none; }
+.ambio-sync__action:focus-visible { outline: 2px solid #9fc9bf; outline-offset: 2px; }
+.ambio-sync__action:disabled { border-color: #a0ada1; background: #d8dfd5; box-shadow: inset 1px 1px #eef0e8; color: #6f7f76; cursor: default; }
 
-.ambio-sync__action[data-quiet] {
-  border-color: #a3aaa6;
-  background: #f7f6f0;
-  box-shadow: none;
-  color: #26342f;
-  font-weight: 400;
+/* The working tree, under a rule. */
+.ambio-sync__tree {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid #ccd6d2;
+  color: #5d6964;
+  font-size: 13px;
 }
 
-.ambio-sync__action[data-quiet]:hover:not(:disabled),
-.ambio-sync__action[data-quiet]:focus-visible { border-color: #3c7d76; background: #dfeae6; }
+.ambio-sync__tree svg { flex: 0 0 auto; color: #2f7044; }
+.ambio-sync__tree[data-dirty] { color: #26342f; }
+.ambio-sync__tree[data-dirty] svg { color: #a86a1d; }
 
-.ambio-sync__action:disabled { cursor: default; opacity: 0.6; }
+.ambio-checkout__agents li { display: flex; align-items: center; gap: 6px; }
+.ambio-checkout__agents li svg { flex: 0 0 auto; color: var(--agent-color, #2e675f); }
 
-.ambio-sync__uncommitted {
-  margin: 7px 0 0;
+/* Other worktrees: a row each, its actions as a toolbar. */
+.ambio-checkouts__others { margin-top: 6px; }
+
+.ambio-checkouts__others .ambio-checkouts__lens h3 { display: flex; align-items: center; gap: 6px; margin: 0; font: inherit; }
+.ambio-checkouts__others .ambio-checkouts__lens h3 span { padding: 0 5px; border: 1px solid #b3b8b4; color: #5d6964; }
+
+.ambio-checkout.ambio-worktree { padding: 12px 12px 12px 16px; }
+
+.ambio-worktree__head { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.ambio-worktree__icon { flex: 0 0 auto; color: #5d6964; }
+
+.ambio-worktree__head strong {
+  overflow: hidden;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ambio-worktree__tools { display: flex; flex-wrap: wrap; gap: 4px; margin: 9px 0 0 21px; }
+.ambio-worktree__tools .ambio-tool { width: 28px; height: 28px; }
+
+.ambio-worktree__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0 0 21px;
   color: #5d6964;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.ambio-worktree__meta .ambio-checkout__overlay { margin: 0; font-size: 12px; }
+.ambio-worktree__meta span[data-colliding] { color: #8a4320; font-weight: 600; }
+.ambio-worktree .ambio-checkout__agents { margin-left: 21px; }
+
+.ambio-worktree__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0 21px;
+  padding: 8px 10px;
+  border-left: 3px solid #9b554c;
+  background: #f3dfd8;
+  color: #6e2723;
   font-size: 12.5px;
 }
 
-/* Secondary actions read as links, so the one real action stands out. */
-.ambio-sync__more { margin-top: 9px; gap: 10px; }
-
-.ambio-checkout__actions.ambio-sync__more button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #2e675f;
-  text-decoration: underline;
-  text-decoration-color: #9fbdb6;
-  text-underline-offset: 2px;
-}
-
-.ambio-checkout__actions.ambio-sync__more button:hover,
-.ambio-checkout__actions.ambio-sync__more button:focus-visible { background: transparent; color: #1d4a43; text-decoration-color: currentColor; }
-
-.ambio-checkouts__others { margin-top: 4px; }
-
-.ambio-checkouts__others .ambio-checkouts__lens h3 {
-  margin: 0;
-  font: inherit;
-}
-
-.ambio-checkout__expand {
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-  color: #2e675f;
+.ambio-worktree__confirm button {
+  padding: 4px 10px;
+  border: 1px solid #a3aaa6;
+  border-radius: 1px;
+  background: #f7f6f0;
+  color: #26342f;
   font-size: 12px;
-  text-decoration: underline;
-  text-decoration-color: #9fbdb6;
-  text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.ambio-checkout[data-expanded] { background: #ebe9e1; }
+.ambio-worktree__confirm button[data-danger] { border-color: #8a2f27; background: #9b3d33; color: #fff; }

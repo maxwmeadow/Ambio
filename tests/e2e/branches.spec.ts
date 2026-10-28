@@ -144,9 +144,12 @@ test('the branch chip shows the Floor’s branch and opens every checkout', asyn
   await expect(popover).toBeVisible()
   const rows = popover.locator('.ambio-checkout')
   await expect(rows).toHaveCount(2)
-  await expect(rows.first()).toContainText('on the Floor')
+  // With other checkouts open, the menu's header says which one the Floor shows.
+  await expect(popover.locator('.ambio-checkouts__header')).toContainText('on the Floor')
   // The Floor's branch says where it stands and leads with what that calls for.
-  await expect(rows.first()).toContainText('1 commit to push to origin/main')
+  await expect(rows.first()).toContainText('origin/main')
+  await expect(rows.first().getByLabel('0 to pull, 1 to push')).toBeVisible()
+  await expect(rows.first().getByRole('button', { name: 'Push 1 commit' })).toBeVisible()
   await expect(rows.first()).toContainText('2 uncommitted files')
   // Opening asked the remote what is new; nothing else ran.
   await expect.poll(() => syncRequests).toEqual([{ workspaceId: 'demo', action: 'fetch' }])
@@ -225,7 +228,6 @@ test('another branch’s work is drawn on the Floor until the lens turns it off'
   await expect(rail).toHaveCount(0)
   await expect(page.locator('.ambio-branch-overlay-mark')).toHaveCount(0)
 
-  await popover.getByRole('button', { name: 'Show actions for codex/retry-checkout' }).click()
   await popover.getByRole('button', { name: 'Show on the Floor' }).click()
   await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
 })
@@ -234,7 +236,6 @@ test('a branch is reviewed as architecture, from the branch menu', async () => {
   await launch(PARALLEL)
   await page.keyboard.press('ControlOrMeta+Shift+B')
   const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
-  await popover.getByRole('button', { name: 'Show actions for codex/retry-checkout' }).click()
   await popover.locator('.ambio-checkout').nth(1).getByRole('button', { name: 'Review this branch' }).click()
   await expect(popover).toContainText('Review codex/retry-checkout')
   await expect(popover).toContainText('Against main · 3 files')
@@ -334,9 +335,6 @@ test('an Ambio run is applied or discarded, and the Floor switches branch, from 
   const popover = page.getByRole('dialog', { name: 'Branches and worktrees' })
   const run = popover.locator('.ambio-checkout').nth(1)
   await expect(run).toContainText('Ambio run')
-  // A run's actions are a click away, so the Floor's own branch leads.
-  await expect(run.getByRole('button', { name: 'Apply to main' })).toHaveCount(0)
-  await run.getByRole('button', { name: 'Show actions for codex/retry-checkout' }).click()
   await run.getByRole('button', { name: 'Apply to main' }).click()
   await expect(popover).toContainText('as uncommitted changes. Review and commit it there.')
   await expect.poll(() => runRequests).toEqual([{ path: '/api/checkouts/finish', body: { workspaceId: 'demo', rootId: 'root_agent', action: 'apply' } }])
@@ -348,12 +346,13 @@ test('an Ambio run is applied or discarded, and the Floor switches branch, from 
   await expect.poll(() => runRequests.length).toBe(2)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'run-actions.png') })
 
-  await popover.locator('.ambio-checkout').first().getByRole('button', { name: 'Switch branch…' }).click()
+  // The branch name in the menu's header is the switcher.
+  await popover.getByRole('button', { name: 'Switch branch…' }).click()
   await expect(popover).toContainText('The Floor is on main')
   await popover.getByRole('button', { name: /release\/1\.2/ }).click()
   await expect.poll(() => runRequests.at(-1)).toEqual({ path: '/api/checkouts/switch', body: { workspaceId: 'demo', branch: 'release/1.2' } })
   // A branch open in another worktree is shown, not switched to.
-  await popover.locator('.ambio-checkout').first().getByRole('button', { name: 'Switch branch…' }).click()
+  await popover.getByRole('button', { name: 'Switch branch…' }).click()
   await popover.getByRole('button', { name: /codex\/retry-checkout/ }).click()
   await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
 })

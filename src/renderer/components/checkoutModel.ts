@@ -300,17 +300,27 @@ export function conversationWorkplace(runs: Array<{ rootPath: string; startedAt:
   return `in ${checkout?.branch || trim(away.rootPath).split(/[\\/]/).pop()}`
 }
 
+export type SyncState = 'behind' | 'ahead' | 'current' | 'diverged' | 'unpublished' | 'local' | 'other'
+
 export interface SyncModel {
-  /** Where the branch stands against its remote, as a sentence. */
-  sentence: string
-  /** The one action the state calls for; quiet when it is only a check. */
-  action?: { kind: 'pull' | 'push' | 'publish' | 'fetch'; label: string; quiet?: boolean }
-  /** Whether there is a remote to check at all. */
-  remote: boolean
+  /** Which of the branch's situations this is; each has its own symbol. */
+  state: SyncState
+  /** The situation in a few words: "3 commits to pull", "Up to date". */
+  headline: string
+  /** What it means, when the headline is not enough on its own. */
+  detail?: string
+  /** The remote branch it tracks, or where it would be published. */
+  remote?: string
+  ahead: number
+  behind: number
+  /** The one action the state calls for. */
+  action?: { kind: 'pull' | 'push' | 'publish'; label: string }
+  /** Whether the remote can be checked at all (Check for updates). */
+  canCheck: boolean
   /** "Checked 2 min ago", "Not checked yet"; empty with no remote. */
   checked: string
-  /** "1 uncommitted file", or empty when there are none. */
-  uncommitted: string
+  /** Files changed and not committed. */
+  uncommitted: number
 }
 
 const commits = (count: number) => `${count} commit${count === 1 ? '' : 's'}`
@@ -327,27 +337,37 @@ export function timeAgo(at: number, now = Date.now()): string {
 }
 
 /**
- * The Floor's branch against its remote, for the top of the branch popover
- * (docs/GIT_WORKFLOW.md "The branch popover"): a sentence and the action it
- * calls for. Diverged branches get no button: that is a merge, not a pull.
+ * The Floor's branch against its remote, for the top of the branch menu
+ * (docs/GIT_WORKFLOW.md "The branch popover"): the situation and the action it
+ * calls for. Diverged branches get no action: that is a merge, not a pull.
  */
 export function buildSync(checkout: CheckoutStatus | undefined, now = Date.now()): SyncModel {
-  const none: SyncModel = { sentence: '', remote: false, checked: '', uncommitted: '' }
-  if (!checkout) return none
-  const uncommitted = checkout.changedFiles > 0 ? `${checkout.changedFiles} uncommitted file${checkout.changedFiles === 1 ? '' : 's'}` : ''
-  if (checkout.headState !== 'commit' || checkout.error) return { ...none, sentence: checkoutState(checkout), uncommitted }
+  const blank: SyncModel = { state: 'other', headline: '', ahead: 0, behind: 0, canCheck: false, checked: '', uncommitted: 0 }
+  if (!checkout) return blank
+  const uncommitted = checkout.changedFiles
+  if (checkout.headState !== 'commit' || checkout.error) return { ...blank, headline: checkoutState(checkout), uncommitted }
   const upstream = checkout.upstream
-  const remote = !!upstream || !!checkout.publishRemote
-  const checked = !remote ? '' : checkout.fetchedAt ? `Checked ${timeAgo(checkout.fetchedAt, now)}` : 'Not checked yet'
-  const base = { remote, checked, uncommitted }
+  const canCheck = !!upstream || !!checkout.publishRemote
+  const checked = !canCheck ? '' : checkout.fetchedAt ? `Checked ${timeAgo(checkout.fetchedAt, now)}` : 'Not checked yet'
+  const { ahead, behind } = checkout
+  const base = { ahead, behind, canCheck, checked, uncommitted }
   if (!upstream) {
     return checkout.publishRemote
-      ? { ...base, sentence: `Not on ${checkout.publishRemote} yet`, action: { kind: 'publish', label: `Publish to ${checkout.publishRemote}` } }
-      : { ...base, sentence: 'Only on this computer: the repository has no remote' }
+      ? { ...base, state: 'unpublished', headline: 'Not published yet', remote: checkout.publishRemote,
+          detail: `${checkout.branch} is only on this computer.`,
+          action: { kind: 'publish', label: `Publish to ${checkout.publishRemote}` } }
+      : { ...base, state: 'local', headline: 'No remote', detail: 'This repository has no remote to sync with.' }
   }
-  const { ahead, behind } = checkout
-  if (ahead > 0 && behind > 0) return { ...base, sentence: `${commits(behind)} to pull and ${commits(ahead)} to push: this branch and ${upstream} have both moved on, so they need a merge` }
-  if (behind > 0) return { ...base, sentence: `${commits(behind)} to pull from ${upstream}`, action: { kind: 'pull', label: `Pull ${commits(behind)}` } }
-  if (ahead > 0) return { ...base, sentence: `${commits(ahead)} to push to ${upstream}`, action: { kind: 'push', label: `Push ${commits(ahead)}` } }
-  return { ...base, sentence: `Up to date with ${upstream}`, action: { kind: 'fetch', label: 'Check for updates', quiet: true } }
+  if (ahead > 0 && behind > 0) {
+    return { ...base, state: 'diverged', headline: 'Diverged from the remote', remote: upstream,
+      detail: `${commits(behind)} to pull and ${commits(ahead)} to push, so this needs a merge. Merge in your editor or terminal for now; merging in Ambio is coming.` }
+  }
+  if (behind > 0) return { ...base, state: 'behind', headline: `${commits(behind)} to pull`, remote: upstream, action: { kind: 'pull', label: `Pull ${commits(behind)}` } }
+  if (ahead > 0) return { ...base, state: 'ahead', headline: `${commits(ahead)} to push`, remote: upstream, action: { kind: 'push', label: `Push ${commits(ahead)}` } }
+  return { ...base, state: 'current', headline: 'Up to date', detail: `Nothing to pull from or push to ${upstream}.`, remote: upstream }
+}
+
+/** A path with the home folder written as ~, as terminals show it. */
+export function homePath(path: string): string {
+  return path.replace(/^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)(?=$|[\\/])/, '~')
 }
