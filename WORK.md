@@ -332,6 +332,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 
 ## Done log
 
+- 2026-10-27 `reasoning-sections` Agent reasoning is split into sections at bold-only heading lines (Codex summaries) instead of flattened into one line, for every CLI driver and ACP; a heading and its paragraph read "Heading — text". Types and 774 renderer/Electron tests pass; not yet checked against a live Codex mapping run. (`claude/mapping-completion-safety`, local changes)
+
 - 2026-10-26 `mapping-completion-boundary` Mapping is now a finite attempt: scoped credentials allow inspection/drafts/notes only; atomic commit answers and locks the request; managed CLI/native shutdown must be confirmed before pinned Review. Covered cancellation/commit races, failed launches, orphan recovery, late calls, old replay isolation and review reload. 762 unit tests, four native-chat tests, focused Go/API/upgrade tests, two setup/review UI checks, types and build pass; broad-suite Windows/debugger blockers tracked above. [Evidence](docs/testing/MAPPING_COMPLETION_AUDIT.md). (`main`, local changes)
 
 - 2026-10-26 `mapping-replay-fill` Removed the mapping activity feed's fixed height cap so the replay fills its panel in taller windows while keeping its own scrolling. Types, build and the live setup mapping UI test pass; checked the rendered screen. (`main`, local changes)

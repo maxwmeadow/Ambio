@@ -151,7 +151,7 @@ const claudeCode: AgentDriver = {
         events: message.message.content.flatMap((block: any) => {
           if (block?.type === 'text' && block.text?.trim()) return [{ kind: 'text' as const, text: clip(block.text, 1200) }]
           // A thinking block carries its text when the model shows it; some leave it empty.
-          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return [{ kind: 'thinking' as const, text: thought(block.thinking) }]
+          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return thinkingEvents(block.thinking)
           if (block?.type === 'tool_use') return [{ kind: 'tool' as const, text: [String(block.name ?? 'tool').replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ') }]
           return []
         }),
@@ -162,9 +162,32 @@ const claudeCode: AgentDriver = {
   },
 }
 
-/** An agent's reasoning as one quiet line: markdown emphasis and line breaks dropped. */
-export function thought(text: unknown): string {
-  return clip(String(text).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(), 400)
+/**
+ * An agent's reasoning as quiet lines, one per section: markdown emphasis and
+ * line breaks dropped. A line that is only bold text starts a section (Codex's
+ * summaries are a run of such headings, each with or without a paragraph), and
+ * the heading is set apart from what follows it rather than run into it.
+ */
+export function thoughts(text: unknown): string[] {
+  const sections: { heading: string, body: string[] }[] = []
+  for (const line of String(text).split(/\r?\n/)) {
+    const heading = /^\s*\*\*(.+?)\*\*\s*$/.exec(line)?.[1]
+    if (heading !== undefined) sections.push({ heading, body: [] })
+    else if (line.trim()) {
+      if (!sections.length) sections.push({ heading: '', body: [] })
+      sections[sections.length - 1].body.push(line)
+    }
+  }
+  const flat = (part: string) => part.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim()
+  return sections
+    .map(({ heading, body }) => [flat(heading), flat(body.join(' '))].filter(Boolean).join(' — '))
+    .filter(Boolean)
+    .map(line => clip(line, 400))
+}
+
+/** Reasoning as thinking events, one per section. */
+export function thinkingEvents(text: unknown): DriverOutput['events'] {
+  return thoughts(text).map(line => ({ kind: 'thinking' as const, text: line }))
 }
 
 /** Cursor streams thinking in pieces; each session's is said whole when it completes. */
@@ -212,7 +235,7 @@ const codex: AgentDriver = {
     if (!item) return NOTHING
     const finished = message.type === 'item.completed'
     if (item.type === 'agent_message' && finished && item.text?.trim()) return { events: [{ kind: 'text', text: clip(item.text, 1200) }] }
-    if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: [{ kind: 'thinking', text: thought(item.text) }] }
+    if (item.type === 'reasoning' && finished && item.text?.trim()) return { events: thinkingEvents(item.text) }
     if (item.type === 'command_execution' && !finished) return { events: [{ kind: 'tool', text: `Shell · ${clip(String(item.command ?? ''), 120)}` }] }
     if (item.type === 'mcp_tool_call' && !finished) return { events: [{ kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server ?? 'MCP'} · ${item.tool ?? 'tool'}` }] }
     if (item.type === 'file_change' && finished && Array.isArray(item.changes)) return { events: [{ kind: 'tool', text: `Edit · ${clip(item.changes.map((change: any) => change?.path).filter(Boolean).join(', '), 160)}` }] }
@@ -286,7 +309,7 @@ const cursorCli: AgentDriver = {
       if (message.subtype !== 'completed') return { sessionId, events: [] }
       const text = cursorThinking.get(key) ?? ''
       cursorThinking.delete(key)
-      return { sessionId, events: text.trim() ? [{ kind: 'thinking', text: thought(text) }] : [] }
+      return { sessionId, events: thinkingEvents(text) }
     }
     if (message.type === 'tool_call' && message.subtype === 'started') {
       const call = message.tool_call ?? {}
@@ -383,7 +406,7 @@ const antigravityCli: AgentDriver = {
     // agy 1.4 reports only how many thinking tokens a step used; a build that
     // sends the thinking itself is shown like the other agents'.
     const thinking = typeof payload.thinking === 'string' ? payload.thinking : typeof payload.thinking_text === 'string' ? payload.thinking_text : ''
-    if (thinking.trim()) return { sessionId, events: [{ kind: 'thinking', text: thought(thinking) }] }
+    if (thinking.trim()) return { sessionId, events: thinkingEvents(thinking) }
     if (kind === 'agent_response') {
       const key = `${sessionId}:${payload.step_index}`
       if (typeof payload.text_delta === 'string') antigravityText.set(key, (antigravityText.get(key) ?? '') + payload.text_delta)

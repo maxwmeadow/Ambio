@@ -368,7 +368,10 @@ test('Codex is asked for reasoning summaries and they reach the turn as thinking
   const codex = agentDriver('codex')
   assert.ok(deliveryPlan('codex', mcp, 'ws', 'p', { mode: 'ask' }).args.includes('model_reasoning_summary="auto"'))
   const line = JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '**Checking the map**\n\nSkill Execution already has both runtimes.' } })
-  assert.deepEqual(codex.read(line).events, [{ kind: 'thinking', text: 'Checking the map Skill Execution already has both runtimes.' }])
+  assert.deepEqual(codex.read(line).events, [{ kind: 'thinking', text: 'Checking the map — Skill Execution already has both runtimes.' }])
+  // One item can carry several summary sections, some only a heading; each is its own thought.
+  const several = JSON.stringify({ type: 'item.completed', item: { type: 'reasoning', text: '**Splitting large leaves**\n\n**Grouping indexer files**\n**Grouping state files**\n\nThe store and\nits migrations.' } })
+  assert.deepEqual(codex.read(several).events.map(event => event.text), ['Splitting large leaves', 'Grouping indexer files', 'Grouping state files — The store and its migrations.'])
 })
 
 test('each agent\'s reasoning reaches the turn as thinking, where the agent shows it', () => {

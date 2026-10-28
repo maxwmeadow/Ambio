@@ -1,5 +1,5 @@
 import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
-import { thought, type TurnMode } from './agentDrivers.ts'
+import { thinkingEvents, type TurnMode } from './agentDrivers.ts'
 
 /**
  * One turn of a conversation with an agent that speaks the Agent Client
@@ -143,7 +143,7 @@ export class AcpClient {
   }
 
   private flushThought(): void {
-    if (this.thoughtText.trim()) this.turn.onEvent({ kind: 'thinking', text: thought(this.thoughtText) })
+    for (const event of thinkingEvents(this.thoughtText)) this.turn.onEvent(event)
     this.thoughtText = ''
   }
 
@@ -154,7 +154,7 @@ export class AcpClient {
       return
     }
     if (update.sessionUpdate === 'agent_message_chunk') {
-      // What it thought before it spoke is said first, as one line.
+      // What it thought before it spoke is said first.
       this.flushThought()
       if (update.content?.type === 'text' && typeof update.content.text === 'string') this.text += update.content.text
       return
