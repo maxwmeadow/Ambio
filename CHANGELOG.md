@@ -8,6 +8,7 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Fixed
+- During review, systems you have already approved can no longer be dragged around the canvas.
 - An agent's reasoning keeps its sections: each Codex summary heading shows as its own reasoning line instead of being run together with the next one.
 - Project mapping now ends at submission: notes are saved first, the agent session closes before Review opens, and late calls cannot change the submitted map or start work. Review stays on that exact map after reload.
 - An error in a setup or review screen no longer takes over the whole window: that screen shows the error with a way back to your projects or canvas.
@@ -156,6 +157,7 @@ in the app as "What's New" after updating, so write it for users.
   breaks the connection to the map.
 
 ### Changed
+- Reviewing a mapped project is much lighter on large maps: systems start closed with their name in the middle, just like the canvas, and open as you zoom in. Clicking a system in the review list opens it and brings it into view.
 - The "parallel branches" panel no longer pops up over the map when a
   worktree appears; that information lives in the branch chip and on the
   systems themselves.

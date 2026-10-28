@@ -8,6 +8,15 @@ export const REVEAL_CONTAINER_PX = 480
 /** Marks a node that semantic zoom has hidden; see global.css. */
 export const HIDDEN_NODE_CLASS = 'ambio-node-hidden'
 
+/**
+ * Semantic zoom decides whether a node can be touched at all; it must not
+ * grant a drag the scene withheld. A scene that locks a visible node (review's
+ * approved and live nodes) sets `data.dragLocked`, and every visibility pass
+ * keeps it undraggable.
+ */
+const canDrag = (node: Node, interactive: boolean) =>
+  interactive && (node.data as Record<string, unknown>).dragLocked !== true
+
 // A leaf reveals its detail once its effective zoom (viewport zoom times the
 // node's world scale) reaches this value. Nodes consume the resolved boolean
 // rather than the raw zoom: stamping a continuously changing number onto every
@@ -51,7 +60,7 @@ function sameVisibility(node: Node, next: {
     style.opacity === next.opacity &&
     style.pointerEvents === next.pointerEvents &&
     style.transition === undefined &&
-    node.draggable === interactive &&
+    node.draggable === canDrag(node, interactive) &&
     node.selectable === interactive &&
     (node.className ?? '') === (interactive ? '' : HIDDEN_NODE_CLASS) &&
     data.childrenVisible === next.childrenVisible &&
@@ -134,7 +143,7 @@ export function* zoomVisibilitySteps(nodes: Node[], zoom: number): Generator<voi
       // file nodes do for their editable chrome. So an invisible child stayed
       // grabbable and stole drags aimed at the container around it. React
       // Flow's own flags settle it above the DOM.
-      draggable: next.pointerEvents === 'all',
+      draggable: canDrag(node, next.pointerEvents === 'all'),
       selectable: next.pointerEvents === 'all',
       // Descendants can re-enable pointer events on themselves, so the class
       // below kills them for the whole subtree. Without it a hidden node still
@@ -172,12 +181,11 @@ export function* zoomVisibilitySteps(nodes: Node[], zoom: number): Generator<voi
 export function makeFullyVisible(node: Node): Node {
   const style = node.style ?? {}
   const data = node.data as Record<string, unknown>
-  // Review deliberately keeps every node visible. Returning a fresh object for
-  // an already-visible node defeated React Flow's per-node identity boundary,
-  // so unrelated proposal responses could restamp the node component during a
-  // resize even though none of its visible state changed.
+  const draggable = canDrag(node, true)
+  // Returning a fresh object for an already-visible node defeats React Flow's
+  // per-node identity boundary and restamps the node component for nothing.
   if (node.hidden === false &&
-      node.draggable === true &&
+      node.draggable === draggable &&
       node.selectable === true &&
       (node.className ?? '') === '' &&
       style.opacity === 1 &&
@@ -190,7 +198,7 @@ export function makeFullyVisible(node: Node): Node {
   return {
     ...node,
     hidden: false,
-    draggable: true,
+    draggable,
     selectable: true,
     className: '',
     style: { ...node.style, opacity: 1, pointerEvents: 'all' as const },

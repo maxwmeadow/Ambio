@@ -1258,7 +1258,10 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await expect(proposalPanel).toBeVisible()
   await expect(proposalPanel.getByText('Living Canvas', { exact: true })).toBeVisible()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
-  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
+  // Review uses the Floor's semantic zoom: the overview shows the proposed
+  // system closed with its name, and its files stay unmounted until zoomed in.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node-system').filter({ hasText: 'Living Canvas' })).toBeVisible()
+  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Done Reviewing' })).toBeVisible()
   await expect(page.locator('.ambio-review__canvas .react-flow')).toBeVisible()
   await expect(page.locator('.ambio-review__canvas .react-flow__background')).toHaveCount(1)
@@ -1297,11 +1300,18 @@ test('reviews the proposed system hierarchy in the unified workbench workflow', 
   await proposalPanel.getByRole('button', { name: 'Expand Living Canvas' }).click()
   await expect(proposalPanel.getByText('Semantic Zoom', { exact: true })).toBeVisible()
 
+  // A row in the list opens its nested system and flies to it, as search does.
+  await proposalPanel.getByText('Semantic Zoom', { exact: true }).click()
+  await expect(page.locator('.ambio-review__canvas').getByText('AmbioCanvas.tsx', { exact: true }).first()).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+
   await page.locator('.ambio-review__canvas .react-flow__node-system')
     .filter({ hasText: 'Semantic Zoom' }).click({ position: { x: 10, y: 10 } })
   await expect(proposalPanel.locator('.ambio-proposal__item').filter({ hasText: 'Semantic Zoom' }))
     .toHaveAttribute('data-active', 'true')
-  await expect(page.locator('.ambio-review__canvas .react-flow__node')).toHaveCount(4)
+  // Search's framing leaves Semantic Zoom closed: its one file stays unmounted.
+  await expect(page.locator('.ambio-review__canvas .react-flow__node')).toHaveCount(3)
+  await expect(page.locator('.ambio-review__canvas .react-flow__node[data-id="proposal-file:proposal-e2e:member-b"]')).toHaveCount(0)
 
   // Review uses AmbioCanvas itself. Persisting a node drag must update only the
   // proposal geometry; it must not refit the camera or relayout its siblings.

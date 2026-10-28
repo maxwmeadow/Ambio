@@ -40,8 +40,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   every fit, search result, selection and chip centres there, not under the
   panel.
 - Navigation from outside the canvas (a file chip in a reply, a row under To
-  review) brings the node into view the way search does: it opens a collapsed
-  system, selects the node and fits once the node has been measured.
+  review, a system in the mapping review list) brings the node into view the
+  way search does: it opens a collapsed system, selects the node and fits once
+  the node has been measured. All of them share one flight and its framing.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and
@@ -109,8 +110,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   Selection and activity overlays reuse these only while geometry, ordering,
   hidden state and semantic detail remain unchanged. An inactive overlay does
   not replace the scene. Geometry/visibility edits still reconcile and all
-  candidates still pass the existing integrity audit. Review keeps its full
-  visibility policy; sheet-specific composition remains authoritative.
+  candidates still pass the existing integrity audit. Sheet-specific
+  composition remains authoritative.
 - The detail budget has a 240-screen-pixel buffer and retains recent admissions
   for 450 ms, capped at about two buffered screenfuls, to absorb quick reversals.
   React Flow additionally culls offscreen components; retention no longer requires
@@ -175,6 +176,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   `<= 0.1`, scale toward `0.92`, and blur toward `3px`.
 - Opacity transitions over `0.25s ease-out`.
 - A node being dragged or directly interacted with is forced fully visible.
+- The mapping review canvas has the same semantic zoom as the Floor (changed
+  2026-10-27; it used to reveal every system and file at once): systems start
+  closed with their name, and open as you zoom in.
+- Revealing a node never makes it draggable when its scene locked it: review's
+  approved and live nodes stay in place at every zoom.
+- The initial fit settles the zoom tier once it lands; a visibility pass queued
+  by its last animation frame is dropped rather than folding the scene back.
 - File detail reveals when effective zoom reaches `1.075`, where effective
   zoom is viewport zoom multiplied by the node world scale.
 - File details crossfade over `0.25s`; hidden details do not receive pointer

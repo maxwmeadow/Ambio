@@ -93,6 +93,7 @@ import { planCanvasDrop } from './dropPersistence'
 import { planStencilPlacement, stencilStartInFrame, stencilTargetAt } from './stencilPlacement'
 import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore'
 import { applyZoomVisibility, makeFullyVisible, revealNodePath } from './semanticZoom'
+import { useFlyToNode } from './useShowOnMap'
 import { compactSheetSystems } from './compactSheetSystems'
 import { useSheetView } from './sheetView'
 import { createSheetPresentation } from './sheetPresentation'
@@ -1503,17 +1504,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     })
   }, [deltaReviewing, deltaFocusKey, fitView])
 
+  // A row in the review list selects its system, which reveals it if semantic
+  // zoom has it folded inside a parent, then flies to it exactly as search
+  // does. No zoom cap: the flight has to get close enough to open the system.
+  const flyToReviewNode = useFlyToNode()
   useEffect(() => {
     if (!reviewMode || !reviewScene?.focusToken || !reviewScene?.focusNodeId) return
-    const targetNodeId = reviewScene.focusNodeId
-    void fitView({
-      nodes: [{ id: targetNodeId }],
-      padding: DELTA_REVIEW_PADDING,
-      duration: 620,
-      minZoom: DELTA_REVIEW_MIN_ZOOM,
-      maxZoom: DELTA_REVIEW_MAX_ZOOM,
-    })
-  }, [reviewMode, reviewScene?.focusToken, reviewScene?.focusNodeId, fitView])
+    flyToReviewNode(reviewScene.focusNodeId)
+  }, [reviewMode, reviewScene?.focusToken, reviewScene?.focusNodeId, flyToReviewNode])
   const updateInteractiveNodes = useCallback((updater: (nodes: Node[]) => Node[]) => {
     if (useSheetStore.getState().activeSheetId) {
       setSheetInteractionNodes(current => updater(current ?? displayNodesRef.current))
@@ -2434,7 +2432,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     systems, files, infraNodes, dependencies, layouts: floorLayouts, scope: `${sceneProjectId}:floor`,
   }, [systems, files, infraNodes, dependencies, floorLayouts, sceneProjectId, deferCanvasMaterialization])
   const floorPreparation = usePreparedFloorGeometry(sceneWorker, 'floor', floorModel, floorPlacementsRef.current, preparationRetry, () => currentZoomRef.current,
-    reviewMode ? undefined : () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current)
+    () => layoutBuiltRef.current !== sceneProjectId && systems.length + files.length + infraNodes.length > LARGE_SCENE_NODE_COUNT ? MIN_CANVAS_ZOOM : currentZoomRef.current)
   const [adoptedFloorModel, setAdoptedFloorModel] = useState<FloorModel | null>(null)
   const floorPending = Boolean(floorModel && adoptedFloorModel !== floorModel && !floorPreparation.error)
 
@@ -2607,15 +2605,12 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       }
     }
 
-    const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => {
-      return {
-        ...n,
-        draggable: reviewMode
-          ? reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)
-          : n.draggable,
-        selectable: true,
-      }
-    })
+    // Review may move only its pending proposal nodes. The lock rides on the
+    // node so semantic zoom, which owns draggable, keeps the rest in place.
+    const layoutWithCallbacks = !reviewMode ? layout : layout.map(n => ({
+      ...n,
+      data: { ...n.data, dragLocked: !(reviewLayoutReady && (reviewEditableNodeIds?.has(n.id) ?? false)) },
+    }))
     // A large first projection is about to be fitted to an overview. Starting
     // its semantic tier at the default 0.5x would briefly mount every child of
     // a large root before fitView reaches the real overview zoom - exactly the
@@ -2630,9 +2625,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           resizeInteractionNodeIdsRef.current,
         )
       : layoutWithCallbacks
-    const withZoom = reviewMode
-      ? gestureSafeLayout.map(makeFullyVisible)
-      : applyZoomVisibility(gestureSafeLayout, visibilityZoom)
+    const withZoom = applyZoomVisibility(gestureSafeLayout, visibilityZoom)
     const fixed = stampSelection(withZoom, selectedIdsRef.current)
     sceneSourceRef.current = isFirstLayout ? 'layout-build' : 'layout-rebuild'
     setRfNodes(fixed)
@@ -2700,19 +2693,21 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         }
         if (pendingInitialFitProjectRef.current !== sceneProjectId) return
         pendingInitialFitProjectRef.current = null
+        // The fit's last frame may have queued a pass at the overview tier;
+        // run after this one, it would fold the scene back until the next move.
+        if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current)
+        zoomRafRef.current = null
         const settledZoom = getViewport().zoom
         currentZoomRef.current = settledZoom
         lastVisibilityZoomRef.current = settledZoom
         sceneSourceRef.current = 'initial-fit-visibility'
-        setRfNodes(current => reviewMode
-          ? current.map(makeFullyVisible)
-          : applyZoomVisibility(current, settledZoom))
+        setRfNodes(current => applyZoomVisibility(current, settledZoom))
       })
     }
 
     frame = requestAnimationFrame(sampleMeasuredScene)
     return () => cancelAnimationFrame(frame)
-  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId, reviewMode])
+  }, [fitView, getInternalNode, getViewport, nodesInitialized, rfNodes, sceneProjectId])
 
   // Live reframing - as files stream in from the watcher, gently fit the growing
   // graph so new nodes come into view at a sensible zoom, instead of leaving the
@@ -3072,11 +3067,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
 
     if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current)
-    zoomRafRef.current = null
-    // Review has no zoom-dependent visibility. Its layout projection already
-    // reveals every node; restamping a new array here reruns the entire scene
-    // projection, React Flow node adoption and diagnostics on every frame.
-    if (reviewMode) return
     zoomRafRef.current = requestAnimationFrame(() => {
       zoomRafRef.current = null
       const draggingId = draggingNodeIdRef.current
@@ -3103,7 +3093,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         return updated
       })
     })
-  }, [reviewMode])
+  }, [])
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {

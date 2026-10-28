@@ -242,6 +242,9 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `floor-pan-e2e-flake` **Floor camera-pan e2e intermittently finds no node.** `canvas-pan.spec.ts` floor mouse/wasd fail at "first .react-flow__node visible" (3 of 4 runs on the unchanged 2026-10-27 baseline; empty viewport after applySnapshot of the dense fixture). Review variants pass. (2026-10-27)
+- ⬜ `sheet-drag-visibility` **Sheet nodes' draggable can be overwritten by semantic zoom.** The sheet projection sets `draggable` for non-member nodes, but `applyZoomVisibility` on the sheet base resets it on tier changes. Use the `dragLocked` data flag review now uses. (2026-10-27)
+
 - ⬜ `mapping-sheet-reconcile` **Reconcile the Mapping completion and review safety sheet after the newly accepted project map.** Implementation is complete, but the sheet still contains pending proposal approvals and references to older auto-cluster parents; compare is intentionally unresolved. Reconcile against the accepted semantic map without moving the Floor to satisfy obsolete context. [Sheet](ambio://sheet/d000aa1b-1795-4562-b5be-376eb4e3648d). (2026-10-26)
 - ⬜ `windows-test-environment` **Repair existing local full-suite blockers.** MCP branches and investigation-run assertions pass but teardown fails deleting temporary Windows directories with EPERM, including serial rerun; two Go C++ live debugger tests fail because the installed debugger lacks the DAP interpreter. The existing integrated-chat UI check also expects a provider form that is now behind the service setup flow, and times out before starting a chat. A broad Go rerun also hit the existing run-worktree ownership guard in `TestAWorktreeRunIsAppliedAsUncommittedWorkOrDiscarded`; its isolated rerun passed. Mapping lifecycle, proposal and upgrade tests pass; fix test-process cleanup and debugger readiness independently. (2026-10-26)
 
@@ -331,6 +334,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `canvas-undo-screen-position-flake` **Explain one broad-suite Undo mismatch before calling editing acceptance clean.** The Oct 24 final-adoption UI run had a 435 px Undo screen-position error; three isolated repetitions pass unchanged. Exact pre-follow-up runtime `08a9d18` reproduces the same error (4 pass/1 fail); underlying cause unresolved. Inspect initial camera settling, drop/save/Undo timing and canonical placement. [Evidence](docs/testing/CANVAS_FINAL_ADOPTION.md).
 
 ## Done log
+
+- 2026-10-27 `review-semantic-zoom` The mapping review canvas now uses the Floor's semantic zoom instead of revealing every node (systems start closed with their centred name and open on zoom). Review list rows fly through the same measured flight as search (`useFlyToNode`). Semantic zoom respects a `dragLocked` node flag, so approved/live review nodes stay undraggable (before, full visibility made them all draggable). The initial fit now drops a stale overview-tier pass queued by its last frame. Types, 763 unit tests, the review workflow, review pan and proposal performance e2e pass; Floor pan e2e flakes on the unchanged baseline too (Inbox). (`claude/mapping-completion-safety`, local changes)
 
 - 2026-10-27 `reasoning-sections` Agent reasoning is split into sections at bold-only heading lines (Codex summaries) instead of flattened into one line, for every CLI driver and ACP; a heading and its paragraph read "Heading — text". Types and 774 renderer/Electron tests pass; not yet checked against a live Codex mapping run. (`claude/mapping-completion-safety`, local changes)
 

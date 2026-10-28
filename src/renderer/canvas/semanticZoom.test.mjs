@@ -82,6 +82,17 @@ test('makeFullyVisible overrides temporary semantic-zoom hiding', () => {
   assert.equal(makeFullyVisible(visible), visible)
 })
 
+test('a drag-locked node stays undraggable through every visibility pass', () => {
+  const locked = { ...node('approved', 480, 480), data: { depth: 0, dragLocked: true } }
+  const shown = applyZoomVisibility([locked], 1)[0]
+  assert.equal(shown.hidden, false)
+  assert.equal(shown.selectable, true)
+  assert.equal(shown.draggable, false)
+  assert.equal(makeFullyVisible(shown).draggable, false)
+  assert.equal(makeFullyVisible(shown), shown)
+  assert.equal(applyZoomVisibility([node('pending', 480, 480)], 1)[0].draggable, true)
+})
+
 test('a zoom change that alters nothing reuses the exact same node objects', () => {
   // React Flow re-renders a node only when its object identity changes. During
   // smooth-zoom easing this runs every animation frame, so a node whose

@@ -165,7 +165,6 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
         const observer = new MutationObserver(records => { (window as any).__perfRootWrites += records.length })
         observer.observe(root, { attributes: true, attributeFilter: ['style'] })
         ;(window as any).__perfStyleObserver = observer
-        ;(window as any).__perfZoomPasses = (window as any).__ambioPerfMetrics.zoomVisibilityPasses
         ;(window as any).__perfSheetLayouts = (window as any).__ambioPerfMetrics.sheetLayoutBuilds
       })
       const box = (await canvas.boundingBox())!
@@ -184,7 +183,8 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
         expect(await page.evaluate(() => (window as any).__ambioPerfMetrics.sheetLayoutBuilds)).toBe(await page.evaluate(() => (window as any).__perfSheetLayouts))
       }
       if (mode === 'proposal') {
-        expect(await page.evaluate(() => (window as any).__ambioPerfMetrics.zoomVisibilityPasses - (window as any).__perfZoomPasses)).toBe(0)
+        // Review has the Floor's semantic zoom, so zooming does visibility
+        // passes there too; overlay churn still must not re-render it.
         const renders = await page.evaluate(() => (window as any).__ambioPerfMetrics.canvasRenderCount)
         await page.evaluate(() => {
           const store = (window as any).__ambioGraphStore
