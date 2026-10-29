@@ -2449,6 +2449,7 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
 })
 
 test('compact sheet review groups the replay capability and expands all eight exact details', async () => {
+  test.setTimeout(90_000)
   const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
   const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({
     id, sheetId: sheet.id, workspaceId: 'demo', kind: index === 0 ? 'system' : 'file', name: index === 0 ? 'Replay Tool' : id === 'cli' ? 'Scene Replay CLI' : id === 'tests' ? 'Scene Replay Verification' : 'Synthetic Replay Scenes',
@@ -2461,6 +2462,7 @@ test('compact sheet review groups the replay capability and expands all eight ex
   ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
   let reviewed: any
   const edits: any[] = []
+  await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
   await page.route(/\/api\/planned\/cli$/, async route => {
     const edit = route.request().postDataJSON()
     edits.push(edit)
@@ -2470,18 +2472,21 @@ test('compact sheet review groups the replay capability and expands all eight ex
   await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: [], annotations: [], layouts: [], removals: [] }) }))
   await page.route(/\/api\/sheets\/sheet_replay\/review$/, async route => {
     reviewed = route.request().postDataJSON()
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet: { ...sheet, revision: 17 }, planned: planned.map(node => ({ ...node, approvalStatus: 'approved' })), plannedEdges: plannedEdges.map(edge => ({ ...edge, approvalStatus: 'approved' })) }) })
+    sheet.revision = 17
+    for (const node of planned) node.approvalStatus = 'approved'
+    for (const edge of plannedEdges) edge.approvalStatus = 'approved'
+    await route.fulfill({ json: { sheet, planned, plannedEdges } })
   })
   await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review.getByLabel('1 change to review')).toBeVisible()
   await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
-  await expect(review.getByRole('button', { name: 'Confirm Scene Replay CLI', exact: true })).not.toBeVisible()
+  await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).not.toBeVisible()
   expect((await review.boundingBox())!.height).toBeLessThan(210)
   await review.locator('summary').click()
   await expect(review.locator('li[data-kind]')).toHaveCount(8)
-  await expect(review.getByRole('button', { name: 'Confirm Scene Replay CLI', exact: true })).toBeVisible()
+  await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).toBeVisible()
   await review.locator('summary').click()
   await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
@@ -2498,6 +2503,9 @@ test('compact sheet review groups the replay capability and expands all eight ex
       expect(child!.y).toBeGreaterThan(title!.y + title!.height)
       expect(child!.x + child!.width).toBeLessThan(parent!.x + parent!.width + 1)
       expect(child!.y + child!.height).toBeLessThan(parent!.y + parent!.height + 1)
+      const controls = page.locator(`.react-flow__node[data-id="planned:${id}"]`).getByRole('button', { name: 'Show classes', exact: true })
+      const control = await controls.boundingBox()
+      expect(control!.y + control!.height).toBeLessThan(child!.y + child!.height + 1)
     }
   }
   await assertContained()
@@ -2507,7 +2515,8 @@ test('compact sheet review groups the replay capability and expands all eight ex
   const fixtures = page.locator('.react-flow__node[data-id="planned:fixtures"]')
   await expect(fixtures.locator('[data-node-editable]').first()).toHaveText('replay_scenes.json')
   await expect(fixtures.getByLabel('JSON', { exact: true }).first()).toBeVisible()
-  await expect(cli.locator('.symbol-scroll')).toContainText('Scene Replay CLI')
+  await expect(cli.locator('.symbol-scroll')).not.toContainText('Scene Replay CLI')
+  await expect(cli.locator('.symbol-scroll')).not.toContainText('backend/replay_scene.py')
   await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
   const routedEdge = page.locator('.react-flow__edge[data-id="pedge:test-cli"]')
   await expect(routedEdge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
@@ -2563,28 +2572,82 @@ test('compact sheet review groups the replay capability and expands all eight ex
       await assertInk()
     }
   }
-  // File editing changes the path, keeping both its directory and purpose.
+  // Description and member authoring are both available without losing either.
   await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
-  await description.evaluate(element => { element.scrollTop = 0 })
-  await cli.locator('.symbol-scroll [data-node-editable]').dblclick()
-  await cli.getByRole('textbox').fill('Offline Replay CLI')
-  await cli.getByRole('textbox').press('Enter')
-  await expect.poll(() => edits.at(-1)?.name).toBe('Offline Replay CLI')
-  expect(edits.at(-1)?.declaredPath).toBe('backend/replay_scene.py')
+  for (const [tab, kind] of [['functions', 'function'], ['variables', 'variable'], ['classes', 'class']]) {
+    await cli.getByRole('button', { name: `Show ${tab}`, exact: true }).click()
+    await cli.getByRole('button', { name: `Add ${kind}`, exact: true }).click()
+    await expect.poll(() => edits.at(-1)?.metadata?.symbols?.some((symbol: any) => symbol.kind === kind)).toBe(true)
+  }
+  await cli.getByRole('button', { name: 'Show description', exact: true }).click()
+  await expect(description).toContainText('Replay synthetic input offline.')
+
+  await cli.dblclick({ position: { x: 12, y: 12 } })
+  const inspector = page.getByRole('complementary', { name: /planned file properties/i })
+  await expect(inspector.getByLabel('FILE NAME', { exact: true })).toHaveValue('replay_scene.py')
+  await expect(inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replay synthetic input offline. '.repeat(30))
+  await expect(inspector.getByRole('button', { name: 'Language: Python' })).toBeVisible()
+  await expect(inspector.getByLabel('FUNCTION NAME', { exact: true })).toHaveValue('newFunction')
+  await expect(inspector.getByLabel('VARIABLE NAME', { exact: true })).toHaveValue('newVariable')
+  await expect(inspector.getByLabel('CLASS NAME', { exact: true })).toHaveValue('NewClass')
+  await inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).fill('Evaluate scenes without a phone.')
+  await inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).press('Tab')
+  await expect(description).toHaveText('Evaluate scenes without a phone.')
+  await inspector.getByLabel('FUNCTION NAME', { exact: true }).fill('evaluate_scene')
+  await inspector.getByLabel('FUNCTION NAME', { exact: true }).press('Tab')
+  await cli.getByRole('button', { name: 'Show functions', exact: true }).click()
+  await expect(cli.locator('.symbol-row')).toContainText('evaluate_scene')
+  await inspector.getByLabel('FILE NAME', { exact: true }).fill('inspected_replay.py')
+  await inspector.getByLabel('FILE NAME', { exact: true }).press('Tab')
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('inspected_replay.py')
+  await inspector.getByRole('button', { name: 'Close properties' }).click()
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  // Filename edits keep the directory and use a single real name.
   await cli.locator('[data-node-editable]').first().dblclick()
   await cli.getByRole('textbox').fill('renamed_replay.py')
   await cli.getByRole('textbox').press('Enter')
   await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.py')
-  expect(edits.at(-1)?.name).toBe('Offline Replay CLI')
+  expect(edits.at(-1)?.name).toBe('renamed_replay.py')
   await cli.locator('button[title="Choose implementation language"]').first().click()
-  await cli.getByRole('button', { name: /^TypeScript/ }).click()
+  const menu = page.getByRole('listbox', { name: 'Implementation language' })
+  await expect(menu).toBeVisible()
+  expect(await menu.evaluate(element => element.matches(':popover-open'))).toBe(true)
+  const json = menu.getByRole('option', { name: /^JSON/ })
+  await json.scrollIntoViewIfNeeded()
+  const aboveNodes = await json.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+  })
+  expect(aboveNodes).toBe(true)
+  await json.click()
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.json')
+  await cli.locator('button[title="Choose implementation language"]').first().click()
+  await menu.getByRole('option', { name: /^TypeScript/ }).click()
   await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.ts')
-  expect(edits.at(-1)?.name).toBe('Offline Replay CLI')
+  expect(edits.at(-1)?.name).toBe('renamed_replay.ts')
   await review.getByRole('button', { name: 'Approve Add Replay Tool', exact: true }).click()
   await expect.poll(() => reviewed?.choices.length).toBe(8)
   expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })
   await expect(review).toHaveCount(0)
+  const contents = page.getByLabel('Sheet contents', { exact: true })
+  await expect(contents).toBeVisible()
+  await contents.locator('summary').first().click()
+  await expect(contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true })).toBeVisible()
+  await expect(contents).toContainText('Approved')
+  await expect(contents.getByRole('button', { name: 'Discuss or implement', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await page.getByRole('button', { name: /^Offline Replay STR/ }).click()
+  await contents.locator('summary').first().click()
+  await contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true }).click()
+  await expect(cli).toBeInViewport()
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('renamed_replay.ts')
+  await cli.getByRole('button', { name: 'Show description', exact: true }).click()
+  await expect(cli.locator('.symbol-scroll')).toContainText('Evaluate scenes without a phone.')
+  await cli.getByRole('button', { name: 'Show functions', exact: true }).click()
+  await expect(cli.locator('.symbol-row')).toContainText('evaluate_scene')
+  await page.screenshot({ path: 'test-results/approved-sheet-contents.png' })
 })
 
 test('a system an agent names stays where the Floor has it, and a proposed move draws the file inside the new system', async () => {

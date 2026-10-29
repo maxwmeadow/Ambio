@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Sheet Contents keeps proposed files, systems and relationships easy to find
+  after approval, with direct navigation back into nested systems.
 - Sheet proposals use compact change cards in the sidebar. Expand a card for
   every addition and connection, approve its exact scope together, or request
   changes with a reason. Planned file cards show paths and responsibilities,
@@ -29,6 +31,11 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Planned files use the same filename, language and description in their cards
+  and Properties. Removed duplicate semantic names and paths from cards; the
+  function, variable and class controls stay available beside descriptions.
+- Language menus stay above neighboring nodes and within the window, with
+  keyboard navigation, Escape and outside-click dismissal.
 - Scrolling a planned file's description scrolls its text, including at either
   end, without moving the camera. Invisible compact titles no longer intercept
   detailed file controls.

@@ -529,3 +529,18 @@
 /* The worktree choice sits under the request types, set apart as an option of Build. */
 .ambio-inbox .ambio-inbox__mode-menu .ambio-inbox__mode-option { margin-top: 4px; border-top: 1px solid #c9cbbf; }
 .ambio-inbox .ambio-inbox__mode-menu .ambio-inbox__mode-option[aria-checked='true'] { background: transparent; }
+.ambio-sheet-contents { --rail-border: color-mix(in srgb, var(--rail-muted) 35%, transparent); flex-shrink: 0; margin: 4px 6px; border-top: 1px solid var(--rail-border); font: 10px var(--font-mono); color: var(--rail-ink); }
+.ambio-sheet-contents summary { cursor: pointer; padding: 6px 2px; }
+.ambio-sheet-contents > summary { text-transform: uppercase; letter-spacing: .05em; }
+.ambio-sheet-contents__body { max-height: 240px; overflow-y: auto; }
+.ambio-sheet-contents ul { list-style: none; padding: 0; margin: 0; }
+.ambio-sheet-contents li { display: flex; align-items: baseline; gap: 4px; padding: 3px 0; }
+.ambio-sheet-contents li button { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--rail-ink); padding: 0; text-align: left; overflow-wrap: anywhere; font: inherit; cursor: pointer; }
+.ambio-sheet-contents li button:hover { color: var(--rail-accent-dark); text-decoration: underline; }
+.ambio-sheet-contents li small { font-size: 8px; flex-shrink: 0; color: var(--rail-muted); }
+.ambio-sheet-contents__next { border-top: 1px solid var(--rail-border); padding: 5px 0; }
+.ambio-sheet-contents__next p { margin: 0 0 5px; font: 9px/1.4 var(--font-mono); }
+.ambio-sheet-contents__next button { border: 1px solid var(--rail-border); background: transparent; color: var(--rail-accent-dark); padding: 3px; font: 9px var(--font-mono); cursor: pointer; }
+.ambio-planned-file-members { margin: 10px 0; }
+.ambio-planned-file-members h4 { font: 11px var(--font-mono); color: var(--inspector-ink); margin: 5px 0; }
+.ambio-planned-file-members .ambio-inspector-field { flex: 1; min-width: 0; }

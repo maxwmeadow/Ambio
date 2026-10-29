@@ -11,6 +11,56 @@ import { useSheetView } from '../canvas/sheetView'
 import { COMMANDS } from '../../shared/appMenu'
 import { SheetChangeDetails } from './SheetChangeDetails'
 import { SheetProposalReview } from './SheetProposalReview'
+import { plannedFilename } from '../canvas/plannedFileIdentity'
+import { useShowOnMap } from '../canvas/useShowOnMap'
+
+function SheetContents() {
+  const layer = useSheetStore(state => state.activeSheetId ? state.layersById[state.activeSheetId] : undefined)
+  const { files, systems } = useGraphStore(useShallow(state => ({ files: state.files, systems: state.systems })))
+  const showOnMap = useShowOnMap(false)
+  if (!layer) return null
+  const planned = layer.planned.filter(node => node.status !== 'flattened' && node.approvalStatus !== 'rejected')
+  const edges = layer.plannedEdges.filter(edge => edge.approvalStatus !== 'rejected')
+  const removed = new Set(layer.removals?.map(item => item.nodeId))
+  const live = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? '' })).filter(item => item.id && !removed.has(item.id))
+  if (!planned.length && !edges.length && !live.length) return null
+  const label = (id: string) => {
+    const node = planned.find(node => `planned:${node.id}` === id)
+    return node ? node.kind === 'file' ? plannedFilename(node) : node.name
+      : files.find(file => file.id === id)?.relPath.split(/[\\/]/).pop() ?? systems.find(system => system.id === id)?.name ?? 'Unavailable item'
+  }
+  const visited = new Set<string>()
+  const entries: Array<{ node: typeof planned[number]; depth: number }> = []
+  const append = (node: typeof planned[number], depth: number) => {
+    if (visited.has(node.id)) return
+    visited.add(node.id); entries.push({ node, depth })
+    for (const child of planned) if (child.parentSystemId === `planned:${node.id}`) append(child, depth + 1)
+  }
+  for (const node of planned) if (!planned.some(parent => `planned:${parent.id}` === node.parentSystemId)) append(node, 0)
+  for (const node of planned) append(node, 0)
+  const focus = (id: string) => { useSheetView.getState().focusRelationship(null); showOnMap(id) }
+  return <details className="ambio-sheet-contents" aria-label="Sheet contents">
+    <summary>Contents <span>{planned.length + live.length}</span></summary>
+    <div className="ambio-sheet-contents__body">
+      <ul>
+        {entries.map(({ node, depth }) => <li key={node.id} style={{ paddingLeft: Math.min(depth, 4) * 10 }}>
+          <button type="button" title={node.declaredPath || node.name} aria-label={`Show ${label(`planned:${node.id}`)} on sheet`} onClick={() => focus(`planned:${node.id}`)}>{label(`planned:${node.id}`)}</button>
+          <small>{node.approvalStatus === 'approved' ? 'Approved' : 'To review'}</small>
+        </li>)}
+        {live.map(({ element, id }) => <li key={element.id}><button type="button" aria-label={`Show ${label(id)} on sheet`} onClick={() => focus(id)}>{label(id)}</button><small>Existing</small></li>)}
+      </ul>
+      {edges.length > 0 && <details><summary>Relationships ({edges.length})</summary><ul>{edges.map(edge => {
+        const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
+        const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''
+        return <li key={edge.id}><button type="button" onClick={() => { useGraphStore.getState().setSelectedNode(source); useGraphStore.getState().setInspectedNode(null); useSheetView.getState().focusRelationship(edge.id) }}>{label(source)} → {label(target)}</button><small>{edge.approvalStatus === 'approved' ? 'Approved' : 'To review'}</small></li>
+      })}</ul></details>}
+      {planned.some(node => node.approvalStatus === 'approved') && <div className="ambio-sheet-contents__next">
+        <p>Approval confirms the plan. Implementation is separate.</p>
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: layer.sheet.id } }))}>Discuss or implement</button>
+      </div>}
+    </div>
+  </details>
+}
 
 const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
   structure: 'STR',
@@ -269,6 +319,7 @@ export function SheetRail() {
         })}
       </div>
       <SheetProposalReview workspaceId={workspaceId} />
+      <SheetContents key={activeSheetId ?? 'floor'} />
       {activeSheetId && <label className="ambio-sheet-rail__relationships"><input type="checkbox" checked={allRelationships} onChange={toggleRelationships} />{COMMANDS['view.sheetRelationships'].label}</label>}
       <SheetChangeDetails />
       <SheetRemovedList workspaceId={workspaceId} />

@@ -118,8 +118,6 @@ export interface SystemNodeData {
 
 export interface FileNodeData {
   proposedDescription?: string
-  proposedName?: string
-  onProposedNameChange?: (name: string) => void
   omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean

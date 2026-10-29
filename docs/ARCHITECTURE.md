@@ -330,10 +330,17 @@ to API-key billing or another account. Setup and live-account validation:
   layout dimensions. After placement compresses an automatic frame, a cancellable
   fitting pass reserves its final rendered tab clearance by fitting the interior
   within its allocated rectangle. Authored sheet and Floor geometry remain authoritative.
-  Planned file headers use the declared basename and infer language from its
-  path; `plannedFileIdentity.ts` preserves directories and descriptive names
-  during filename/language edits. Empty cards show path, editable purpose and
-  notes, with symbol editing on demand. Hidden compact title editors do not
+  `SheetRail` retains an expandable Contents navigator after decisions, with
+  additions/references/relationships and the existing discuss/implement action.
+  Planned file cards and `DetailPanel` use `plannedFileIdentity.ts` for the
+  declared filename, path-derived language and description (including legacy
+  notes). Human writes normalize the file name to its basename while preserving
+  its directory. Cards omit redundant paths/semantic names and keep description
+  and member controls available; Properties edits the same metadata symbols.
+  An explicitly empty symbol list wins over legacy exports/members. Pure
+  language definitions live in `languageDefinitions.ts`; `LanguagePicker` uses
+  a viewport-anchored native popover top layer independent of node transforms.
+  Hidden compact title editors do not
   intercept detailed content. `wheelRouting.ts` keeps overflowing content in
   control at either boundary while short content still allows camera zoom.
   Proposed relationships use `edges/sheetRelationshipGeometry.ts`: choose

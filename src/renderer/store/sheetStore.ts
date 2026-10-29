@@ -3,6 +3,7 @@
 // activeSheetId === null.
 import { handlePermissionPatch } from './agentPermissionStore.ts'
 import { create } from 'zustand'
+import { plannedFilename } from '../canvas/plannedFileIdentity.ts'
 import type { SheetMember } from '../canvas/sheetFromSelection'
 import { conversationKey, useConversationPreferences } from './conversationPreferences.ts'
 import { workOrderNotice } from './workOrderNotice.ts'
@@ -583,6 +584,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 
   updatePlanned: async (workspaceId, n) => {
+    if (n.kind === 'file') n = { ...n, name: plannedFilename(n) }
     const previous = get().layersById[n.sheetId]?.planned.find(planned => planned.id === n.id)
     // optimistic - the node is the editor, edits must feel instant
     set(s => {

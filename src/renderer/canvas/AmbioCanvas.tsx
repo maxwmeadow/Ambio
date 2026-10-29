@@ -99,7 +99,7 @@ import { useSheetView } from './sheetView'
 import { createSheetPresentation } from './sheetPresentation'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
-import { plannedFilename, renamePlannedFile } from './plannedFileIdentity'
+import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols } from './plannedFileIdentity'
 import { createSheetRelationshipRouter } from './edges/sheetRelationshipGeometry'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
@@ -1135,7 +1135,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           rootId: '',
           path: p.declaredPath || p.name,
           relPath: p.declaredPath || p.name,
-          language: metadata.language || inferredLanguage,
+          language: p.kind === 'file' ? plannedFileProperties(p, metadata).language : metadata.language || inferredLanguage,
           systemId: p.parentSystemId,
           lineCount: 0,
           churnScore: 0,
@@ -1204,6 +1204,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       const liveDesignMetadata = sheetElement ? sheetElementMetadata(sheetElement) : undefined
       const suppliedSymbols = planned && planned.kind !== 'system' && planned.kind !== 'infra'
         ? (() => {
+            if (planned.kind === 'file') return plannedFileSymbols(metadata!, plannedMembers(planned))
             const rows: Array<{ name: string; kind: string; lineStart: number; lineEnd: number }> = []
             if (planned.kind === 'class') {
               metadata?.attributes?.forEach(item => rows.push({ name: `${item.name}${item.dataType ? `: ${item.dataType}` : ''}`, kind: 'variable', lineStart: 0, lineEnd: 0 }))
@@ -1243,22 +1244,17 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           sheetChange: planned ? 'addition' : sheetChangeOf(isMoved, sheetRenames.has(sheetNode.id)),
           ...(planned && planned.kind !== 'system' ? {
             label: planned.kind === 'file' ? plannedFilename(planned) : planned.name,
-            displayName: planned.name,
+            displayName: planned.kind === 'file' ? plannedFilename(planned) : planned.name,
             relPath: planned.declaredPath || planned.name,
           } : {}),
           ...(planned ? {
             umlKind: planned.kind,
             umlMetadata: plannedMetadata(planned),
-            proposedDescription: plannedMetadata(planned).description || planned.notes,
-            proposedName: planned.kind === 'file' && planned.name !== plannedFilename(planned) ? planned.name : undefined,
+            proposedDescription: planned.kind === 'file' ? plannedFileProperties(planned, plannedMetadata(planned)).description : plannedMetadata(planned).description || planned.notes,
           } : {}),
           ...(suppliedSymbols ? { symbols: suppliedSymbols } : {}),
           ...(editablePlanned ? {
             onChooseInfra: editablePlanned.kind === 'infra' ? () => setInfraPickerNode(editablePlanned.id) : undefined,
-            onProposedNameChange: editablePlanned.kind === 'file' ? (name: string) => {
-              const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)
-              if (current) void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, { ...current, name })
-            } : undefined,
             onRename: (name: string) => {
               const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)
               if (!current) return
@@ -1296,7 +1292,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
                   ...(meta.endpoints?.[index] ?? { visibility: 'public' as const, parameters: [], returnType: '' }), name: symbol.name,
                 })) }
               } else next = { ...meta, symbols: symbols.map(({ name, kind }) => ({ name, kind })) }
-              void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, { ...current, metadata: next })
+              void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, { ...current, metadata: next, ...(current.kind === 'file' ? { members: '[]' } : {}) })
             },
             onUmlMetadataChange: (metadata: PlannedNodeMetadata) => {
               const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)

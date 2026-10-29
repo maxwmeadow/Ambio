@@ -5,6 +5,7 @@ import { useGraphStore } from '../store/graphStore'
 import { relationshipVerb, useSheetView } from '../canvas/sheetView'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { sheetReviewGroups } from './sheetReviewGroups'
+import { plannedFilename } from '../canvas/plannedFileIdentity'
 
 /** One thing an agent proposed on the sheet, waiting for the human. */
 interface ReviewItem {
@@ -44,7 +45,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   const [reason, setReason] = useState('')
   if (!sheetId || !layer) return null
 
-  const plannedName = new Map(layer.planned.map(node => [`planned:${node.id}`, node.name]))
+  const plannedName = new Map(layer.planned.map(node => [`planned:${node.id}`, node.kind === 'file' ? plannedFilename(node) : node.name]))
   const nameOf = (id: string | null | undefined): string => {
     if (!id) return 'the top level'
     return plannedName.get(id)
@@ -54,7 +55,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   }
   const items: ReviewItem[] = [
     ...layer.planned.filter(node => node.approvalStatus === 'pending').map(node => ({
-      key: `planned:${node.id}`, kind: 'addition', name: `Add ${node.name}`, label: node.name,
+      key: `planned:${node.id}`, kind: 'addition', name: `Add ${nameOf(`planned:${node.id}`)}`, label: nameOf(`planned:${node.id}`),
       detail: node.parentSystemId ? `in ${nameOf(node.parentSystemId)}` : undefined,
       focus: `planned:${node.id}`, asksWhy: true,
       decide: (decision: 'approved' | 'rejected', why?: string) => decidePlanned(workspaceId, node.id, decision, why),

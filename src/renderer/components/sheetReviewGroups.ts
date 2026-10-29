@@ -1,4 +1,5 @@
 import type { PlannedNode } from '../store/sheetStore'
+import { plannedFilename } from '../canvas/plannedFileIdentity.ts'
 
 export interface SheetReviewDetail {
   key: string
@@ -28,7 +29,7 @@ export function sheetReviewGroups<T extends SheetReviewDetail>(items: T[], plann
   for (const item of items.filter(item => item.kind !== 'relationship')) {
     const key = item.kind === 'addition' ? rootOf(item.focus) : item.key
     const root = nodes.get(key)
-    const group = groups.get(key) ?? { key, name: root ? `Add ${root.name}` : item.name, focus: root ? key : item.focus, items: [], connections: 0, external: 0 }
+    const group = groups.get(key) ?? { key, name: root ? `Add ${root.kind === 'file' ? plannedFilename(root) : root.name}` : item.name, focus: root ? key : item.focus, items: [], connections: 0, external: 0 }
     group.items.push(item)
     groups.set(key, group)
   }

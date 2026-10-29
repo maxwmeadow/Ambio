@@ -470,12 +470,24 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   revision-checked transaction. A stale plan refreshes for review without
   retrying approval; approved children/connections cannot have unapproved parents
   or endpoints. Request changes records the reason against each selected part.
+- Approval removes pending decisions, not navigation. A compact, expandable
+  Contents section keeps additions, existing references and relationships
+  available before and after approval and when reopening a sheet. Selecting an
+  entry reveals nested/off-screen content. Approval confirms a plan; the human
+  separately chooses to discuss or implement it using the existing sheet action.
 - Planned file headers use their declared filename and the normal language
-  icon, inferring language from the declared path when none is supplied. JSON
-  fixtures have the same language identity on sheets and the Floor. The body
-  retains the path, editable descriptive name and responsibility. Renaming a
-  filename or choosing its language preserves its directory and descriptive
-  intent. Edit symbols exposes existing authoring controls on demand.
+  icon. Cards and Properties share a single filename, language and description
+  model, including path-derived languages and legacy descriptions stored in
+  notes. Recognized file extensions override stale language metadata. There is
+  no separate semantic filename in the file UI, and no repeated full path in
+  the body; paths remain in the proposal data and hover context. Filename edits
+  preserve directories. Description and function/variable/class controls remain
+  available together, with the same members editable in Properties. Explicitly
+  clearing descriptions/members cannot resurrect legacy notes/member lists.
+- Language menus use the browser top layer at screen size, outside node
+  stacking/clipping. They stay within the window, follow their anchor, support
+  keyboard selection and outside-click dismissal; Escape restores focus to the
+  language button. Closed menus do not mount their option lists.
 
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
