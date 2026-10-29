@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `planned-system-description` **Show the description of a proposed system and synchronize Properties.** Reuse legacy notes when metadata has no description, provide access while children are expanded without covering them, preserve description clearing, and verify edits against the card. (🚧 Codex, codex/sheet-review-polish, 2026-10-29; Max)
+
 - ⬜ `mcp-work-session-reconnect` A work session started before an Ambio/MCP reconnect cannot be completed afterward: update_work rejects its saved session ID as unknown in the new connection. Preserve or recover session ownership safely across reconnects. Found while closing the prior sheet-review work; its case is already interrupted/replayable. (2026-10-29)
 
 - ⬜ `investigation-electron-callback-instrumentation` An instrumented Playwright/Electron run injects recorder calls into serialized browser callbacks without a browser recorder (`skipAgentGuides`: undefined `enter`); the same ordinary Electron test passes. Reproduced in the saved planned-file scrolling investigation, R1. Keep renderer/browser callbacks isolated from Node instrumentation. (2026-10-29)
