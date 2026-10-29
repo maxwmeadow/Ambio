@@ -304,7 +304,7 @@ func ReindexFile(sqlDB *sql.DB, h *hub.Hub, root db.Root, absPath string) error 
 	defer lockRoot(root.ID)()
 	// A file that grew past the size limit (a regenerated bundle) keeps its
 	// last parse rather than stalling the watcher on it.
-	if fileTooLarge(absPath) || strings.Contains(strings.ToLower(filepath.Base(absPath)), ".min.") {
+	if skipsFile(absPath) {
 		return nil
 	}
 	if awaitingResolution(absPath) {

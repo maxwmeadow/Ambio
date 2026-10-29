@@ -14,6 +14,11 @@ export interface TreeNode {
   children?: TreeNode[]
   excluded: boolean
   expanded: boolean
+  /**
+   * Why a new project leaves this out by default, from what it holds ("Python
+   * virtualenv", "In .gitignore", "Worktree of api (feature/x)").
+   */
+  reason?: string
 }
 
 export const COMMON_NOISE = DEFAULT_SKIPPED_DIRS
@@ -21,16 +26,16 @@ export const COMMON_NOISE = DEFAULT_SKIPPED_DIRS
 export const shouldAutoExclude = isDefaultSkippedDir
 
 /**
- * Every folder shown checked in the tree. What the person sees checked is
- * read; below that, setup also leaves out folders tools generated (a
- * virtualenv, a coverage report) that were never opened here.
+ * Every folder shown checked in the tree, and every file shown checked that
+ * setup would otherwise leave out. What the person sees checked is read;
+ * below that, setup's defaults apply (electron/scopeDefaults.ts).
  */
-export function collectCheckedFolders(nodes: TreeNode[]): string[] {
+export function collectCheckedPaths(nodes: TreeNode[]): string[] {
   const result: string[] = []
   const visit = (branch: TreeNode[]) => {
     for (const node of branch) {
-      if (!node.isDirectory || node.excluded) continue
-      result.push(node.path)
+      if (node.excluded) continue
+      if (node.isDirectory || node.reason) result.push(node.path)
       if (node.children) visit(node.children)
     }
   }
@@ -40,18 +45,20 @@ export function collectCheckedFolders(nodes: TreeNode[]): string[] {
 
 /**
  * A tree row. With `existing` (a project's saved exclusions), the row shows
- * what the user chose before; without it, first-run defaults apply.
+ * what the user chose before; without it, first-run defaults apply: the
+ * folder's name, or the `reason` setup found in what it holds.
  */
-export function makeTreeNode(entry: DirEntry, existing?: ReadonlySet<string>): TreeNode {
+export function makeTreeNode(entry: DirEntry, existing?: ReadonlySet<string>, reason?: string): TreeNode {
   const kind = classifyProjectFile(entry.name, entry.isDirectory)
   const chosen = existing
     ? existing.has(`${entry.path}/**`) || existing.has(entry.path)
-    : shouldAutoExclude(entry.name)
+    : shouldAutoExclude(entry.name) || Boolean(reason)
   return {
     name: entry.name,
     path: entry.path,
     isDirectory: entry.isDirectory,
     kind,
+    ...(reason && !existing ? { reason } : {}),
     excluded: chosen || kind === 'unsupported',
     expanded: false,
   }
@@ -136,14 +143,14 @@ export function isNeverRead(node: TreeNode): boolean {
 
 /**
  * Rows worth a decision, and the rest. Tucked away are the rows that can
- * never be read and the noise folders still skipped by default; including a
- * noise folder moves it up among the choices.
+ * never be read and the rows still skipped by default (by name or for a
+ * reason); including one moves it up among the choices.
  */
 export function splitSetupRows(nodes: TreeNode[]): { shown: TreeNode[]; tucked: TreeNode[] } {
   const shown: TreeNode[] = []
   const tucked: TreeNode[] = []
   for (const node of nodes) {
-    const noise = node.isDirectory && node.excluded && shouldAutoExclude(node.name)
+    const noise = node.excluded && ((node.isDirectory && shouldAutoExclude(node.name)) || Boolean(node.reason))
     if (isNeverRead(node) || noise) tucked.push(node)
     else shown.push(node)
   }
@@ -167,25 +174,24 @@ export function scopeHeadline(estimate: { sourceFiles: number; truncated: boolea
 
 const NOISE_KINDS: Record<string, string> = {
   venv: 'a Python virtual environment: installed packages, not your code',
-  coverage: 'test coverage reports',
-  bin: 'build output',
-  obj: 'build output',
-  Library: 'files Unity generates',
+  htmlcov: 'test coverage reports',
   Temp: 'temporary files',
   Logs: 'log files',
   UserSettings: 'editor settings',
 }
 
 /**
- * A warning for a folder that is skipped by default and has been checked. It
- * is the user's call, but they should make it knowing what the folder usually
+ * A warning for a row that is skipped by default and has been checked. It is
+ * the user's call, but they should make it knowing what the row usually
  * holds and how much it adds.
  */
 export function noiseFolderWarning(node: TreeNode, sourceFiles?: number): string | null {
-  if (!node.isDirectory || node.excluded || isNeverRead(node) || !shouldAutoExclude(node.name)) return null
-  const what = NOISE_KINDS[node.name] ?? 'generated or third-party files'
+  if (node.excluded || isNeverRead(node)) return null
   const size = sourceFiles === undefined ? ''
     : sourceFiles === 0 ? ' It holds no source files Ambio reads.'
       : ` It adds ${sourceFiles.toLocaleString('en-US')} source ${sourceFiles === 1 ? 'file' : 'files'} to the map.`
+  if (node.reason) return `Left out by default: ${node.reason}.${size} Uncheck it unless you want it on the map.`
+  if (!node.isDirectory || !shouldAutoExclude(node.name)) return null
+  const what = NOISE_KINDS[node.name] ?? 'generated or third-party files'
   return `${node.name} is usually ${what}.${size} Uncheck it unless you wrote what is inside.`
 }

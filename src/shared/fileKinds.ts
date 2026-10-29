@@ -25,19 +25,20 @@ export function isAlwaysSkippedDir(name: string): boolean {
 
 /**
  * Folders a new project's setup tree leaves unchecked by name: the
- * always-skipped ones, plus virtualenvs, build output, caches and editor or
- * engine folders. Below what the tree shows, setup skips generated folders by
- * what they hold instead (electron/scopeEstimate.ts).
+ * always-skipped ones, plus names that are tool output wherever they appear.
+ * Names that are sometimes code (coverage, bin, obj, Library) are judged by
+ * what the folder holds instead (electron/scopeDefaults.ts), as is everything
+ * below what the tree shows.
  */
 export const DEFAULT_SKIPPED_DIRS = new Set([
   'node_modules', '.git', '.svn', '.hg',
   'dist', 'build', 'out', '.next', '.nuxt',
   '__pycache__', '.venv', 'venv', '.env',
-  'coverage', '.nyc_output',
+  'htmlcov', '.nyc_output',
   'vendor', 'target',
   '.idea', '.vscode', '.vs',
-  'Library', 'Temp', 'Logs', 'UserSettings', 'obj',
-  '.gradle', '.mvn', 'bin', '.cache',
+  'Temp', 'Logs', 'UserSettings',
+  '.gradle', '.mvn', '.cache',
 ])
 
 export function isDefaultSkippedDir(name: string): boolean {

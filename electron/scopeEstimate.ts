@@ -1,11 +1,13 @@
 import fs from 'fs'
-import { basename, join, relative } from 'path'
+import { join, relative } from 'path'
 import { classifyProjectFile, isAlwaysSkippedDir } from '../src/shared/fileKinds.ts'
+import { folderSkipReason, hasGeneratedHeader, isGitIgnored, projectContext } from './scopeDefaults.ts'
 
 // A quick count of what indexing a folder would read, so a project that is
 // far bigger than intended is caught on the setup screen instead of after ten
 // minutes of indexing. It mirrors archd's own skips (skipDirs, dot folders,
-// the user's exclusions) and stops early on truly huge trees.
+// generated-file headers, the user's exclusions) and stops early on truly
+// huge trees.
 
 /** Folder counts are kept this many levels below the project root. */
 const FOLDER_COUNT_DEPTH = 4
@@ -21,29 +23,14 @@ export interface ScopeEstimate {
   /** Top-level folders holding the most source files. */
   largest: Array<{ path: string; name: string; sourceFiles: number }>
   /**
-   * Default-skipped folders (venv, bin, coverage, ...) found at any depth and
-   * left out, when the estimate was asked to apply those defaults. A new
-   * project saves them as exclusions.
+   * Folders and files left out by setup's defaults below what the tree shows
+   * (a virtualenv, a .gitignore entry, a copy of a repository), when the
+   * estimate was asked to apply them. A new project saves them as exclusions.
    */
   skippedFolders: string[]
-}
-
-/**
- * What a generated folder holds, by its usual name. A name alone is not
- * enough below the top level: src/components/coverage is often a feature.
- */
-const GENERATED_MARKERS: Record<string, string[]> = {
-  coverage: ['lcov.info', 'coverage-final.json', 'clover.xml', 'lcov-report'],
-  obj: ['project.assets.json'],
-  bin: ['Debug', 'Release'],
-  Library: ['PackageCache', 'ArtifactDB'],
-}
-
-/** A folder tools made: a Python virtualenv by any name, or a marked one. */
-function isGeneratedFolder(name: string, entries: fs.Dirent[]): boolean {
-  const names = new Set(entries.map(entry => entry.name))
-  if (names.has('pyvenv.cfg')) return true
-  return (GENERATED_MARKERS[name] ?? []).some(marker => names.has(marker))
+  skippedFiles: string[]
+  /** Source files archd skips for their generator's header. */
+  generatedFiles: number
 }
 
 function excludedSet(ignored: readonly string[]): Set<string> {
@@ -51,9 +38,9 @@ function excludedSet(ignored: readonly string[]): Set<string> {
 }
 
 /**
- * With `included` (a new project's setup), default-skipped folders are left
- * out wherever they are, except the ones listed; without it, only `ignored`
- * and archd's own skips apply, as for a project already set up.
+ * With `included` (a new project's setup: every path shown checked), setup's
+ * defaults apply to everything else (scopeDefaults.ts); without it, only
+ * `ignored` and archd's own skips apply, as for a project already set up.
  */
 export function estimateScope(
   rootPath: string,
@@ -62,14 +49,19 @@ export function estimateScope(
   included?: readonly string[],
 ): ScopeEstimate {
   const maxEntries = limits.maxEntries ?? 250_000
-  const deadline = Date.now() + (limits.maxMillis ?? 3000)
   const excluded = excludedSet(ignored)
   const kept = new Set(included ?? [])
+  // Reading the repositories (a few git calls each) is cached between
+  // recounts, so it does not come out of the walk's time.
+  const context = included ? projectContext(rootPath) : null
+  const deadline = Date.now() + (limits.maxMillis ?? 3000)
   const skippedFolders: string[] = []
+  const skippedFiles: string[] = []
   const perTop = new Map<string, number>()
   const folders: Record<string, number> = {}
   let sourceFiles = 0
   let documents = 0
+  let generatedFiles = 0
   let visited = 0
   let truncated = false
   const stack: string[] = [rootPath]
@@ -79,7 +71,7 @@ export function estimateScope(
     const dir = stack.pop()!
     let entries: fs.Dirent[]
     try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { continue }
-    if (included && dir !== rootPath && !kept.has(dir) && isGeneratedFolder(basename(dir), entries)) {
+    if (context && dir !== rootPath && !kept.has(dir) && folderSkipReason(context, dir, entries)) {
       skippedFolders.push(dir)
       continue
     }
@@ -95,6 +87,14 @@ export function estimateScope(
       const kind = classifyProjectFile(entry.name)
       if (kind === 'document') documents++
       if (kind !== 'source' || entry.name.toLowerCase().includes('.min.')) continue
+      if (context && !kept.has(path) && isGitIgnored(context, path)) {
+        skippedFiles.push(path)
+        continue
+      }
+      if (hasGeneratedHeader(path)) {
+        generatedFiles++
+        continue
+      }
       sourceFiles++
       const parts = relative(rootPath, path).split(/[\\/]/)
       const top = parts[0]
@@ -111,5 +111,8 @@ export function estimateScope(
     .sort((left, right) => right[1] - left[1])
     .slice(0, 5)
     .map(([name, count]) => ({ name, path: join(rootPath, name), sourceFiles: count }))
-  return { sourceFiles, documents, folders, truncated, largest, skippedFolders: skippedFolders.sort() }
+  return {
+    sourceFiles, documents, folders, truncated, largest, generatedFiles,
+    skippedFolders: skippedFolders.sort(), skippedFiles: skippedFiles.sort(),
+  }
 }

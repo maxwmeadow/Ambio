@@ -7,7 +7,7 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
-  collectCheckedFolders,
+  collectCheckedPaths,
   isNeverRead,
   noiseFolderWarning,
   scopeHeadline,
@@ -16,17 +16,32 @@ import {
   shouldAutoExclude,
 } from './projectSetupModel.ts'
 
-test('collectCheckedFolders lists the folders shown checked, at any depth', () => {
+test('collectCheckedPaths lists the folders shown checked, and files checked against a reason', () => {
   const backend = makeTreeNode({ name: 'backend', isDirectory: true, path: '/p/backend' })
   const venv = makeTreeNode({ name: 'venv', isDirectory: true, path: '/p/backend/venv' })
-  const bin = makeTreeNode({ name: 'bin', isDirectory: true, path: '/p/backend/bin' })
+  const env = makeTreeNode({ name: 'env', isDirectory: true, path: '/p/backend/env' }, undefined, 'Python virtualenv')
   const src = makeTreeNode({ name: 'src', isDirectory: true, path: '/p/backend/src' })
-  let tree = setChildren([backend], '/p/backend', [venv, bin, src])
-  assert.deepEqual(collectCheckedFolders(tree), ['/p/backend', '/p/backend/src'], 'venv and bin start unchecked')
-  tree = toggleNode(tree, '/p/backend/bin', 'excluded')
-  assert.deepEqual(collectCheckedFolders(tree), ['/p/backend', '/p/backend/bin', '/p/backend/src'])
+  const local = makeTreeNode({ name: 'settings_local.py', isDirectory: false, path: '/p/backend/settings_local.py' }, undefined, 'In .gitignore')
+  const app = makeTreeNode({ name: 'app.py', isDirectory: false, path: '/p/backend/app.py' })
+  let tree = setChildren([backend], '/p/backend', [venv, env, src, local, app])
+  assert.equal(env.reason, 'Python virtualenv')
+  assert.deepEqual(collectCheckedPaths(tree), ['/p/backend', '/p/backend/src'], 'venv by name and env for its reason start unchecked')
+  tree = toggleNode(tree, '/p/backend/env', 'excluded')
+  tree = toggleNode(tree, '/p/backend/settings_local.py', 'excluded')
+  assert.deepEqual(collectCheckedPaths(tree), ['/p/backend', '/p/backend/env', '/p/backend/src', '/p/backend/settings_local.py'])
   tree = toggleNode(tree, '/p/backend', 'excluded')
-  assert.deepEqual(collectCheckedFolders(tree), [], 'nothing under an unchecked folder is read')
+  assert.deepEqual(collectCheckedPaths(tree), [], 'nothing under an unchecked folder is read')
+  const saved = makeTreeNode({ name: 'env', isDirectory: true, path: '/p/env' }, new Set(), 'Python virtualenv')
+  assert.equal(saved.excluded, false, 'Project Settings shows the saved choice, not a default')
+})
+
+test('a reasoned row is tucked while skipped and named in its warning once checked', () => {
+  const copy = makeTreeNode({ name: 'api', isDirectory: true, path: '/p/old/api' }, undefined, 'Worktree of api (feature/x)')
+  assert.deepEqual(splitSetupRows([copy]).tucked, [copy])
+  const checked = { ...copy, excluded: false }
+  assert.deepEqual(splitSetupRows([checked]).shown, [checked])
+  assert.equal(noiseFolderWarning(checked, 120),
+    'Left out by default: Worktree of api (feature/x). It adds 120 source files to the map. Uncheck it unless you want it on the map.')
 })
 
 test('foldersFirst places folders before files and demotes noise folders', () => {
@@ -188,7 +203,9 @@ test('checking a folder that is skipped by default earns a warning', () => {
   assert.equal(noiseFolderWarning(folder('.venv', false)), null)
   assert.equal(noiseFolderWarning(folder('venv', false), 4210),
     'venv is usually a Python virtual environment: installed packages, not your code. It adds 4,210 source files to the map. Uncheck it unless you wrote what is inside.')
-  assert.equal(noiseFolderWarning(folder('coverage', false), 0),
-    'coverage is usually test coverage reports. It holds no source files Ambio reads. Uncheck it unless you wrote what is inside.')
-  assert.match(noiseFolderWarning(folder('bin', false)), /^bin is usually build output\. Uncheck it/)
+  assert.equal(noiseFolderWarning(folder('htmlcov', false), 0),
+    'htmlcov is usually test coverage reports. It holds no source files Ambio reads. Uncheck it unless you wrote what is inside.')
+  // Sometimes code (src/components/coverage), so judged by what it holds, not its name.
+  assert.equal(noiseFolderWarning(folder('coverage', false)), null)
+  assert.equal(noiseFolderWarning(folder('bin', false)), null)
 })

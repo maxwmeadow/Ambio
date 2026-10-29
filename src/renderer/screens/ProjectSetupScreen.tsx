@@ -12,7 +12,7 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
-  collectCheckedFolders,
+  collectCheckedPaths,
   isNeverRead,
   mergeExclusions,
   noiseFolderWarning,
@@ -47,6 +47,16 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // One folder's rows. A new project's rows also say why setup leaves some
+  // out by default (a virtualenv, .gitignore, another checkout).
+  const loadLevel = useCallback(async (dirPath: string) => {
+    const [entries, reasons] = await Promise.all([
+      window.ambio.listDir(dirPath),
+      editing || !window.ambio.skipReasons ? {} : window.ambio.skipReasons(rootPath, dirPath).catch(() => ({})),
+    ])
+    return foldersFirst(entries).map(entry => makeTreeNode(entry, existing, (reasons as Record<string, string>)[entry.path]))
+  }, [editing, existing, rootPath])
+
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -57,9 +67,9 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
       return () => { active = false }
     }
 
-    void window.ambio.listDir(rootPath)
-      .then(entries => {
-        if (active) setTree(foldersFirst(entries).map(entry => makeTreeNode(entry, existing)))
+    void loadLevel(rootPath)
+      .then(nodes => {
+        if (active) setTree(nodes)
       })
       .catch(() => {
         if (active) setLoadError('Ambio could not read this project directory.')
@@ -69,7 +79,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
       })
 
     return () => { active = false }
-  }, [rootPath, existing])
+  }, [rootPath, loadLevel])
 
   const toggleExclude = useCallback((nodePath: string) => {
     setTree(previous => toggleNode(previous, nodePath, 'excluded'))
@@ -81,8 +91,8 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
 
     if (!node.children && window.ambio) {
       try {
-        const entries = await window.ambio.listDir(nodePath)
-        setTree(previous => setChildren(previous, nodePath, foldersFirst(entries).map(entry => makeTreeNode(entry, existing))))
+        const children = await loadLevel(nodePath)
+        setTree(previous => setChildren(previous, nodePath, children))
       } catch {
         setLoadError(`Ambio could not read ${node.name}.`)
         return
@@ -90,7 +100,7 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     }
 
     setTree(previous => toggleNode(previous, nodePath, 'expanded'))
-  }, [tree, existing])
+  }, [tree, loadLevel])
 
   const excludedPaths = useMemo(() => collectExcluded(tree), [tree])
 
@@ -101,9 +111,9 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     [editing, tree, baseConfig.ignoredPaths, excludedPaths],
   )
   // What is shown checked is read. Below it, a new project also leaves out
-  // folders tools generated (a virtualenv, a coverage report) that were
-  // never opened here.
-  const checkedFolders = useMemo(() => (editing ? undefined : collectCheckedFolders(tree)), [editing, tree])
+  // what setup's defaults would uncheck (a virtualenv, a .gitignore entry,
+  // another checkout) in folders never opened here.
+  const checkedPaths = useMemo(() => (editing ? undefined : collectCheckedPaths(tree)), [editing, tree])
   const [estimate, setEstimate] = useState<ScopeEstimate | null>(null)
   // A folder's size is only counted while it is checked; remember it so an
   // unchecked folder still says what it would add.
@@ -113,14 +123,14 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     if (!window.ambio?.estimateScope || loading) return
     let active = true
     const timer = setTimeout(() => {
-      void window.ambio.estimateScope(rootPath, effectiveExclusions, checkedFolders).then(result => {
+      void window.ambio.estimateScope(rootPath, effectiveExclusions, checkedPaths).then(result => {
         if (!active) return
         setEstimate(result)
         if (result) setSizes(previous => ({ ...previous, ...result.folders }))
       })
     }, 400)
     return () => { active = false; clearTimeout(timer) }
-  }, [rootPath, effectiveExclusions, checkedFolders, loading])
+  }, [rootPath, effectiveExclusions, checkedPaths, loading])
   const largeScope = estimate && (estimate.truncated || estimate.sourceFiles > LARGE_SCOPE_FILES)
 
   const trimmedName = name.trim()
@@ -138,10 +148,10 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     // it stands rather than a count from before the last click.
     setConfirming(true)
     const latest = window.ambio?.estimateScope
-      ? await window.ambio.estimateScope(rootPath, excludedPaths, checkedFolders).catch(() => null)
+      ? await window.ambio.estimateScope(rootPath, excludedPaths, checkedPaths).catch(() => null)
       : null
     setConfirming(false)
-    const skipped = (latest?.skippedFolders ?? []).map(folder => `${folder}/**`)
+    const skipped = [...(latest?.skippedFolders ?? []).map(folder => `${folder}/**`), ...(latest?.skippedFiles ?? [])]
     onConfirm({
       ...completeSourceBoundaries({ ...baseConfig, name: trimmedName }, [...new Set([...excludedPaths, ...skipped])]),
       openedAt: Date.now(),
@@ -320,7 +330,9 @@ function TreeRow({ node, depth, sizes, onToggleExclude, onToggleExpand }: TreeLe
   // What the row adds to the map, or why it adds nothing.
   const detail = neverRead
     ? 'Never read'
-    : node.isDirectory
+    : node.excluded && node.reason
+      ? `${node.reason} · not read`
+      : node.isDirectory
       ? size !== undefined
         ? `${size.toLocaleString()} source ${size === 1 ? 'file' : 'files'}${node.excluded ? ' · not read' : ''}`
         : node.excluded ? 'Not read' : ''

@@ -32,7 +32,7 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 	isIgnored := func(absPath string) bool {
 		hit := ignoredAbsDirs[strings.ToLower(absPath)]
 		if hit {
-			log.Printf("[indexer] skipping dir: %s", absPath)
+			log.Printf("[indexer] skipping: %s", absPath)
 		}
 		return hit
 	}
@@ -49,7 +49,8 @@ func collectSourcePaths(root db.Root, ignoredPaths []string) ([]string, error) {
 			}
 			return nil
 		}
-		if IsSupportedSourceFile(path) {
+		// An excluded file is a boundary too: setup saves gitignored files.
+		if IsSupportedSourceFile(path) && !isIgnored(path) {
 			if tooLargeOrGenerated(path, d) {
 				skipped++
 				return nil

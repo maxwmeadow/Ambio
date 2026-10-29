@@ -29,6 +29,14 @@ in the app as "What's New" after updating, so write it for users.
   Package.swift, mix.exs and build.sbt. A library that only says what it is
   for, such as faiss or an ORM, is shown as a general “Vector Database” or
   “SQL Database”, or joins the named database your project already uses.
+- Project setup reads your .gitignore and recognises other checkouts and
+  copies of your repositories: a worktree on another branch or a backup copy
+  inside the project folder starts unchecked, so your map does not show every
+  system twice. Each row Ambio leaves out says why (“In .gitignore”,
+  “Worktree of api (feature/x)”, “Python virtualenv”), and you can check it
+  back in.
+- Files a code generator wrote (“Code generated … DO NOT EDIT”, protobuf and
+  Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
 - Setting up a project no longer counts, or indexes, a Python virtualenv or

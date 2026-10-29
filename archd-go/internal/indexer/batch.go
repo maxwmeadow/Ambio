@@ -96,7 +96,7 @@ func ReindexBatch(sqlDB *sql.DB, h *hub.Hub, root db.Root, changed, removed []st
 	}
 
 	for _, absPath := range changed {
-		if fileTooLarge(absPath) || strings.Contains(strings.ToLower(filepath.Base(absPath)), ".min.") {
+		if skipsFile(absPath) {
 			continue
 		}
 		relPath := relativeTo(root, absPath)

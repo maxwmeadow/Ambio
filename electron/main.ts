@@ -12,6 +12,7 @@ import { readWindowState, restorableBounds, writeWindowState } from './windowSta
 import { initUpdates } from './updates'
 import { chooseEditor, detectEditors, isInside, safeForSystemOpen } from './fileAccess'
 import { estimateScope } from './scopeEstimate'
+import { skipReasons } from './scopeDefaults'
 import { parseAmbioUrl, parseLaunchArgs, type LaunchRequest } from './launchRequests'
 import { installCliLauncher } from './cliLauncher'
 import { changelogSection, shouldShowWhatsNew } from './whatsNew'
@@ -1416,6 +1417,12 @@ function setupIPC(): void {
     if (typeof rootPath !== 'string' || !isInside(rootPath, projectRoots())) return null
     const strings = (list: unknown) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : [])
     return estimateScope(rootPath, strings(ignored), {}, Array.isArray(included) ? strings(included) : undefined)
+  })
+
+  // Why setup leaves each entry of a folder out by default (scopeDefaults.ts).
+  ipcMain.handle('fs:skip-reasons', (_event, rootPath: string, dirPath: string) => {
+    if (typeof rootPath !== 'string' || typeof dirPath !== 'string' || !isInside(dirPath, projectRoots())) return {}
+    return skipReasons(rootPath, dirPath)
   })
 
   ipcMain.handle('shell:show-item', (_event, filePath: string) => {
