@@ -1,4 +1,4 @@
-import { classifyProjectFile, isAlwaysSkippedDir, type ProjectFileKind } from '../../shared/fileKinds.ts'
+import { classifyProjectFile, DEFAULT_SKIPPED_DIRS, isAlwaysSkippedDir, isDefaultSkippedDir, type ProjectFileKind } from '../../shared/fileKinds.ts'
 
 export interface DirEntry {
   name: string
@@ -16,19 +16,26 @@ export interface TreeNode {
   expanded: boolean
 }
 
-export const COMMON_NOISE = new Set([
-  'node_modules', '.git', '.svn', '.hg',
-  'dist', 'build', 'out', '.next', '.nuxt',
-  '__pycache__', '.venv', 'venv', '.env',
-  'coverage', '.nyc_output',
-  'vendor', 'target',
-  '.idea', '.vscode', '.vs',
-  'Library', 'Temp', 'Logs', 'UserSettings', 'obj',
-  '.gradle', '.mvn', 'bin', '.cache',
-])
+export const COMMON_NOISE = DEFAULT_SKIPPED_DIRS
 
-export function shouldAutoExclude(name: string): boolean {
-  return COMMON_NOISE.has(name) || name.startsWith('.')
+export const shouldAutoExclude = isDefaultSkippedDir
+
+/**
+ * Every folder shown checked in the tree. What the person sees checked is
+ * read; below that, setup also leaves out folders tools generated (a
+ * virtualenv, a coverage report) that were never opened here.
+ */
+export function collectCheckedFolders(nodes: TreeNode[]): string[] {
+  const result: string[] = []
+  const visit = (branch: TreeNode[]) => {
+    for (const node of branch) {
+      if (!node.isDirectory || node.excluded) continue
+      result.push(node.path)
+      if (node.children) visit(node.children)
+    }
+  }
+  visit(nodes)
+  return result
 }
 
 /**

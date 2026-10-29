@@ -31,6 +31,11 @@ in the app as "What's New" after updating, so write it for users.
   “SQL Database”, or joins the named database your project already uses.
 
 ### Fixed
+- Setting up a project no longer counts, or indexes, a Python virtualenv or
+  coverage report tucked inside a folder you never opened. Before, a backend's
+  venv was only left out once you expanded its parent; now setup recognises
+  generated folders by what they hold, wherever they are, and leaves your own
+  code alone even when it is named “coverage”.
 - The agent panel's “Here” button is gone. Starting a Build in its own
   worktree is now an option in the Build menu, offered only when a new
   conversation starts, and the panel header shows which branch a conversation

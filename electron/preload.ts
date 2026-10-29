@@ -90,8 +90,8 @@ contextBridge.exposeInMainWorld('ambio', {
     ipcRenderer.invoke('shell:show-item', filePath),
 
   listEditors: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke('editors:list'),
-  estimateScope: (rootPath: string, ignored: string[]): Promise<ScopeEstimate | null> =>
-    ipcRenderer.invoke('fs:estimate-scope', rootPath, ignored),
+  estimateScope: (rootPath: string, ignored: string[], included?: string[]): Promise<ScopeEstimate | null> =>
+    ipcRenderer.invoke('fs:estimate-scope', rootPath, ignored, included),
 
   openFile: (filePath: string): Promise<{ ok: boolean; detail: string }> =>
     ipcRenderer.invoke('shell:open-file', filePath),
@@ -313,6 +313,8 @@ export interface ScopeEstimate {
   folders: Record<string, number>
   truncated: boolean
   largest: Array<{ path: string; name: string; sourceFiles: number }>
+  /** Default-skipped folders found at any depth, when asked to apply them. */
+  skippedFolders: string[]
 }
 
 export type UpdateCheckResult = 'up-to-date' | 'available' | 'unavailable' | 'failed'
@@ -378,7 +380,7 @@ declare global {
       openFile: (filePath: string) => Promise<{ ok: boolean; detail: string }>
       openCheckout: (projectId: string, rootId: string, how: 'reveal' | 'editor') => Promise<{ ok: boolean; detail: string }>
       listEditors: () => Promise<Array<{ id: string; label: string }>>
-      estimateScope: (rootPath: string, ignored: string[]) => Promise<ScopeEstimate | null>
+      estimateScope: (rootPath: string, ignored: string[], included?: string[]) => Promise<ScopeEstimate | null>
       getAppInfo: () => Promise<{ version: string; dataDir: string; platform: string; mcpPath: string; archdApiUrl: string; archdWsUrl: string; isPackaged: boolean }>
       getAgentConnection: () => Promise<AgentConnection>
       listAgentHosts: (projectRoot?: string) => Promise<AgentHostInfo[]>

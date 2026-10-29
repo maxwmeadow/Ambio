@@ -14,6 +14,14 @@ Settings. Confirmation trims the name and saves it with the source boundaries;
 blank names cannot be submitted. Electron's folder registration reuses a known
 project's saved name, so Open Codebase does not reset it to the folder name.
 
+The setup tree unchecks noise folders by name (`DEFAULT_SKIPPED_DIRS`) where it
+is opened. Below that, a new project's count (`electron/scopeEstimate.ts`) also
+leaves out folders tools generated, judged by what they hold: a virtualenv by
+any name (`pyvenv.cfg`), a coverage report, .NET `bin`/`obj` output, Unity's
+`Library`. Confirming saves those folders as exclusions, so what is indexed is
+what was counted. Folders shown checked are always read; Project Settings
+keeps the saved choices and adds nothing.
+
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
 Fit and Message Agent visible. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no

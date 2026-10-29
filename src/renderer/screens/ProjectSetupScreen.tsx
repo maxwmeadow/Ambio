@@ -12,6 +12,7 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
+  collectCheckedFolders,
   isNeverRead,
   mergeExclusions,
   noiseFolderWarning,
@@ -99,6 +100,10 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     () => (editing ? mergeExclusions(tree, baseConfig.ignoredPaths) : excludedPaths),
     [editing, tree, baseConfig.ignoredPaths, excludedPaths],
   )
+  // What is shown checked is read. Below it, a new project also leaves out
+  // folders tools generated (a virtualenv, a coverage report) that were
+  // never opened here.
+  const checkedFolders = useMemo(() => (editing ? undefined : collectCheckedFolders(tree)), [editing, tree])
   const [estimate, setEstimate] = useState<ScopeEstimate | null>(null)
   // A folder's size is only counted while it is checked; remember it so an
   // unchecked folder still says what it would add.
@@ -108,19 +113,20 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
     if (!window.ambio?.estimateScope || loading) return
     let active = true
     const timer = setTimeout(() => {
-      void window.ambio.estimateScope(rootPath, effectiveExclusions).then(result => {
+      void window.ambio.estimateScope(rootPath, effectiveExclusions, checkedFolders).then(result => {
         if (!active) return
         setEstimate(result)
         if (result) setSizes(previous => ({ ...previous, ...result.folders }))
       })
     }, 400)
     return () => { active = false; clearTimeout(timer) }
-  }, [rootPath, effectiveExclusions, loading])
+  }, [rootPath, effectiveExclusions, checkedFolders, loading])
   const largeScope = estimate && (estimate.truncated || estimate.sourceFiles > LARGE_SCOPE_FILES)
 
   const trimmedName = name.trim()
-  const handleConfirm = () => {
-    if (!trimmedName) return
+  const [confirming, setConfirming] = useState(false)
+  const handleConfirm = async () => {
+    if (!trimmedName || confirming) return
     if (editing) {
       onConfirm(completeSourceBoundaries(
         { ...baseConfig, name: trimmedName },
@@ -128,8 +134,16 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
       ))
       return
     }
+    // Recounted now, so the default-skipped folders saved match the tree as
+    // it stands rather than a count from before the last click.
+    setConfirming(true)
+    const latest = window.ambio?.estimateScope
+      ? await window.ambio.estimateScope(rootPath, excludedPaths, checkedFolders).catch(() => null)
+      : null
+    setConfirming(false)
+    const skipped = (latest?.skippedFolders ?? []).map(folder => `${folder}/**`)
     onConfirm({
-      ...completeSourceBoundaries({ ...baseConfig, name: trimmedName }, excludedPaths),
+      ...completeSourceBoundaries({ ...baseConfig, name: trimmedName }, [...new Set([...excludedPaths, ...skipped])]),
       openedAt: Date.now(),
     })
   }
@@ -241,8 +255,8 @@ export function ProjectSetupScreen({ baseConfig, mode = 'setup', onConfirm, onCa
             </div>
             <button
               className="ambio-source-setup__submit"
-              onClick={handleConfirm}
-              disabled={loading || Boolean(loadError && tree.length === 0) || !trimmedName}
+              onClick={() => { void handleConfirm() }}
+              disabled={loading || confirming || Boolean(loadError && tree.length === 0) || !trimmedName}
             >
               <span>
                 <strong>{editing ? 'Save changes' : 'Index this project'}</strong>

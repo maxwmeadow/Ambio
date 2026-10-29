@@ -1412,9 +1412,10 @@ function setupIPC(): void {
   })
 
   // Show item in Finder/Explorer
-  ipcMain.handle('fs:estimate-scope', (_event, rootPath: string, ignored: string[]) => {
+  ipcMain.handle('fs:estimate-scope', (_event, rootPath: string, ignored: string[], included?: string[]) => {
     if (typeof rootPath !== 'string' || !isInside(rootPath, projectRoots())) return null
-    return estimateScope(rootPath, Array.isArray(ignored) ? ignored.filter(item => typeof item === 'string') : [])
+    const strings = (list: unknown) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : [])
+    return estimateScope(rootPath, strings(ignored), {}, Array.isArray(included) ? strings(included) : undefined)
   })
 
   ipcMain.handle('shell:show-item', (_event, filePath: string) => {

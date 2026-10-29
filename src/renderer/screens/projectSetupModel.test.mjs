@@ -7,6 +7,7 @@ import {
   toggleNode,
   setChildren,
   collectExcluded,
+  collectCheckedFolders,
   isNeverRead,
   noiseFolderWarning,
   scopeHeadline,
@@ -14,6 +15,19 @@ import {
   tuckedSummary,
   shouldAutoExclude,
 } from './projectSetupModel.ts'
+
+test('collectCheckedFolders lists the folders shown checked, at any depth', () => {
+  const backend = makeTreeNode({ name: 'backend', isDirectory: true, path: '/p/backend' })
+  const venv = makeTreeNode({ name: 'venv', isDirectory: true, path: '/p/backend/venv' })
+  const bin = makeTreeNode({ name: 'bin', isDirectory: true, path: '/p/backend/bin' })
+  const src = makeTreeNode({ name: 'src', isDirectory: true, path: '/p/backend/src' })
+  let tree = setChildren([backend], '/p/backend', [venv, bin, src])
+  assert.deepEqual(collectCheckedFolders(tree), ['/p/backend', '/p/backend/src'], 'venv and bin start unchecked')
+  tree = toggleNode(tree, '/p/backend/bin', 'excluded')
+  assert.deepEqual(collectCheckedFolders(tree), ['/p/backend', '/p/backend/bin', '/p/backend/src'])
+  tree = toggleNode(tree, '/p/backend', 'excluded')
+  assert.deepEqual(collectCheckedFolders(tree), [], 'nothing under an unchecked folder is read')
+})
 
 test('foldersFirst places folders before files and demotes noise folders', () => {
   const entries = [
