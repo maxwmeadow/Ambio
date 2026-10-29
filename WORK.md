@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-file-interactions-and-edges` **Restore sheet file consistency and usable relationships.** Scroll overflowing descriptions without moving the camera; show filenames and infer language from declared paths while preserving descriptive intent; route relationships around unrelated cards with bounded stroke/dashes/arrowheads across zoom. Verify using the Helios replay layout and meaningful wheel/geometry tests. (🚧 Codex, codex/sheet-review-polish, 2026-10-29; Max)
+
 - ⬜ `sheet-authored-child-layout` Audit explicit child layouts under an unplaced planned parent: automatic compaction currently excludes authored parent frames, but can repack individually authored descendants. Preserve those child opinions and cover drag/reopen. Found while tracing sheet containment (2026-10-29).
 - ⬜ `system-header-agent-badge-fit` Reserve the AI badge in the folder-tab text budget: the replay fixture truncates Replay Tool despite spare frame width. Keep the count chip and full title legible where room permits. (2026-10-29)
 - ⬜ `sheet-review-investigation-close` Ambio disconnected before final verdicts/case closure and work-session completion could be saved for the sheet review fixes. When connected, record the confirmed delta-window and scaled-compaction causes, final compression fix and passing checks; close the existing case/session. Do not create a duplicate case. (2026-10-29)
