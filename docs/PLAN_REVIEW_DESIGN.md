@@ -1,7 +1,9 @@
 # Review a meaningful change
 
-Proposal, 2026-10-29, from Max's first Helios Propose baseline. This document
-does not approve the Helios plan or change application behavior. Open tasks:
+Design, 2026-10-29, from Max's first Helios Propose baseline. Compact sidebar
+cards, atomic node/connection decisions, planned file summaries and scaled
+containment are implemented on `codex/sheet-review-polish`. Moves and renames
+retain separate decisions. This document does not approve the Helios plan. Open tasks:
 [WORK.md](../WORK.md). Observed baseline: [HELIOS_AGENT_BASELINE.md](testing/HELIOS_AGENT_BASELINE.md).
 
 ## Problem observed

@@ -8,6 +8,10 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Sheet proposals use compact change cards in the sidebar. Expand a card for
+  every addition and connection, approve its exact scope together, or request
+  changes with a reason. Planned file cards show paths and responsibilities,
+  with symbol editing available on demand.
 - Pull, push and publish your branch from the branch chip. The branch menu
   now says where your branch stands (“3 commits to pull from origin/main”),
   checks the remote when you open it, and leads with the one action that
@@ -25,6 +29,10 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Review Changes no longer interrupts coding with recurring review popups.
+  Pending changes remain available from the toolbar whenever you want them.
+- Automatically arranged sheet systems keep their children below the header
+  and inside the frame, including nested and scaled proposals.
 - The agent panel's “Here” button is gone. Starting a Build in its own
   worktree is now an option in the Build menu, offered only when a new
   conversation starts, and the panel header shows which branch a conversation

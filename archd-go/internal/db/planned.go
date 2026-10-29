@@ -120,7 +120,14 @@ func UpsertPlannedNode(db *sql.DB, n *PlannedNode) error {
 		n.CreatedAt = time.Now().UnixMilli()
 	}
 	n.Scale = normalizedScale(n.Scale)
-	_, err := db.Exec(`
+	// Keep the reviewed content and its revision indivisible. A group decision
+	// must never see changed content while TouchSheet still waits for the lock.
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(`
 		INSERT INTO planned_nodes (`+plannedCols+`)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
@@ -134,10 +141,13 @@ func UpsertPlannedNode(db *sql.DB, n *PlannedNode) error {
 			parent_system_id=excluded.parent_system_id`,
 		n.ID, n.SheetID, n.WorkspaceID, n.Kind, n.Name, n.DeclaredPath, string(n.Members), string(n.Metadata),
 		n.Status, n.ApprovalStatus, n.RealizedFileID, n.Notes, n.Shape, n.Color, n.PositionX, n.PositionY, n.Width, n.Height, n.Scale, n.ParentSystemID, n.CreatedBy, n.CreatedAt)
-	if err == nil {
-		_ = TouchSheet(db, n.SheetID)
+	if err != nil {
+		return err
 	}
-	return err
+	if _, err := tx.Exec(`UPDATE sheets SET revision=revision+1, updated_at=? WHERE id=?`, time.Now().UnixMilli(), n.SheetID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func scanPlanned(rows *sql.Rows) ([]PlannedNode, error) {

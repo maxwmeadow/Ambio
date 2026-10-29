@@ -10,10 +10,12 @@ import type { Node } from '@xyflow/react'
 import { sameGeometryInputSteps } from './sceneInputs'
 import { prepareCanonicalSceneSteps, type CanonicalScene } from './canonicalScene'
 import { prepareFloorSceneIntegritySteps } from '../sceneIntegrity'
+import { fitAutomaticSheetContentsSteps } from '../compactSheetSystems'
 
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
   dependencies: DbDependency[]; layouts: FloorLayout[]; scope: string
+  automaticSheetSystems?: ReadonlySet<string>
 }
 export function usePreparedFloorGeometry(controller: SceneController, channel: string, input: FloorModel | null, placements: Map<string, GeneratedPlacement>, retry: number, currentZoom: () => number = () => 0.5, visibilityZoom?: () => number, canonicalNodeIds?: ReadonlySet<string>) {
   const [state, setState] = useState<{ input: FloorModel; geometry: PreparedFloorGeometry; nodes: Node[] } | null>(null)
@@ -48,7 +50,8 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
         entry = { controller, scope: input.scope, input: numeric, promise: controller.prepare(channel, numeric) }
         cached.current = entry
       }
-      const geometry = await entry.promise
+      const placedGeometry = await entry.promise
+      const geometry = input.automaticSheetSystems?.size ? await runSceneSteps(fitAutomaticSheetContentsSteps(placedGeometry, input.automaticSheetSystems), abort.signal) : placedGeometry
       if (abort.signal.aborted) return
       const finishProjection = beginPerfStage('scene.floor-projection', geometry.descriptors.length)
       let nodes: Node[]

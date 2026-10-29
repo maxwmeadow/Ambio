@@ -1176,7 +1176,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     ].filter(id => !authored.has(id)))
     const compact = compactSheetSystems(virtualSystems, virtualFiles, sheetEffectiveLayouts, automatic)
     return { systems: compact.systems, files: virtualFiles, infraNodes: virtualInfra, dependencies,
-      layouts: compact.layouts, scope: `${sceneProjectId}:sheets:${visibleSheetIds.join('|')}` }
+      layouts: compact.layouts, automaticSheetSystems: automatic, scope: `${sceneProjectId}:sheets:${visibleSheetIds.join('|')}` }
   }, [visibleLayers, systems, files, infraNodes, dependencies, overlayPlanned, sheetEffectiveLayouts, sheetMoves, sceneProjectId, visibleSheetIds])
   const sheetPreparation = usePreparedFloorGeometry(sceneWorker, 'sheet', sheetModel, sheetPlacementsRef.current, preparationRetry, () => currentZoomRef.current)
   const sheetBaseNodes = useMemo(() => {
@@ -1247,6 +1247,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           ...(planned ? {
             umlKind: planned.kind,
             umlMetadata: plannedMetadata(planned),
+            proposedDescription: plannedMetadata(planned).description || planned.notes,
           } : {}),
           ...(suppliedSymbols ? { symbols: suppliedSymbols } : {}),
           ...(editablePlanned ? {

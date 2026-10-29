@@ -1,6 +1,69 @@
 import type { DbSystem, DbFile, FloorLayout } from '../../shared/types'
 import { packFrame } from './packing.ts'
 import { FRAME_ITEM_GAP, frameContentInsets } from './frameGeometry.ts'
+import type { PreparedFloorGeometry } from './scene/sceneGeometry'
+
+/** Placement can compress an unplaced frame after packing it. Fit its contents
+ * against the final tab band, preserving the frame's allocated outer rectangle. */
+export function fitAutomaticSheetContents(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>): PreparedFloorGeometry {
+  const steps = fitAutomaticSheetContentsSteps(prepared, automatic)
+  for (;;) { const next = steps.next(); if (next.done) return next.value }
+}
+
+export function* fitAutomaticSheetContentsSteps(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>): Generator<void, PreparedFloorGeometry> {
+  const descriptors: PreparedFloorGeometry['descriptors'] = []
+  const byId = new Map<string, typeof descriptors[number]>()
+  const children = new Map<string, typeof descriptors>()
+  let work = 0
+  for (const original of prepared.descriptors) {
+    const descriptor = { ...original, geometry: { ...original.geometry } }
+    descriptors.push(descriptor)
+    byId.set(descriptor.id, descriptor)
+    if (descriptor.parentId) {
+      const siblings = children.get(descriptor.parentId) ?? []
+      siblings.push(descriptor)
+      children.set(descriptor.parentId, siblings)
+    }
+    if ((++work & 255) === 0) yield
+  }
+  const geometryById = new Map(prepared.geometryById)
+  const worldScaleById = new Map(prepared.worldScaleById)
+  const contentScaleById = new Map(prepared.contentScaleById)
+  // Prepared descriptors are in parent-before-child order.
+  for (const descriptor of descriptors) {
+    const frame = descriptor.geometry
+    descriptor.worldScale = (byId.get(descriptor.parentId ?? '')?.contentScale ?? 1) * frame.scale
+    const members = children.get(descriptor.id) ?? []
+    if (automatic.has(descriptor.id) && members.length > 0) {
+      let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity
+      for (const { geometry: child } of members) {
+        left = Math.min(left, child.x); top = Math.min(top, child.y)
+        right = Math.max(right, child.x + child.width * child.scale)
+        bottom = Math.max(bottom, child.y + child.height * child.scale)
+        if ((++work & 255) === 0) yield
+      }
+      const width = right - left, height = bottom - top
+      const insets = frameContentInsets(frame.height, descriptor.depth, descriptor.worldScale)
+      const scale = Math.min(frame.interiorScale, (frame.width - insets.left - insets.right) / width, (frame.height - insets.top - insets.bottom) / height)
+      // A frame too small even for its chrome cannot expose usable content.
+      // Keep its existing geometry rather than producing a negative transform.
+      if (Number.isFinite(scale) && scale > 0) {
+        frame.interiorScale = scale
+        for (const member of members) {
+          member.geometry.x = insets.left / scale + member.geometry.x - left
+          member.geometry.y = insets.top / scale + member.geometry.y - top
+          if ((++work & 255) === 0) yield
+        }
+      }
+    }
+    descriptor.contentScale = descriptor.worldScale * frame.interiorScale
+    geometryById.set(descriptor.id, frame)
+    worldScaleById.set(descriptor.id, descriptor.worldScale)
+    contentScaleById.set(descriptor.id, descriptor.contentScale)
+    if ((++work & 255) === 0) yield
+  }
+  return { ...prepared, descriptors, geometryById, worldScaleById, contentScaleById }
+}
 
 /** Reuse the normal packer for automatic proposals. Authored sheet frames
  * are excluded by the caller; no Floor geometry is mutated or saved. */
@@ -14,11 +77,26 @@ export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layout
     if (parent) children.set(parent, [...children.get(parent) ?? [], node.id])
   }
   const done = new Set<string>()
+  const parentOf = (id: string): string | null => byId.has(id)
+    ? byId.get(id)!.parentNodeId
+    : systemById.get(id)?.parentId ?? null
   const depthOf = (id: string) => {
     const seen = new Set<string>()
-    let parent = systemById.get(id)?.parentId
-    while (parent && !seen.has(parent)) { seen.add(parent); parent = systemById.get(parent)?.parentId }
+    let parent = parentOf(id)
+    while (parent && !seen.has(parent)) { seen.add(parent); parent = parentOf(parent) }
     return seen.size
+  }
+  const worldScaleOf = (id: string) => {
+    let scale = byId.get(id)?.scale ?? 1
+    const seen = new Set([id])
+    let parent = parentOf(id)
+    while (parent && !seen.has(parent)) {
+      seen.add(parent)
+      const row = byId.get(parent)
+      scale *= (row?.scale ?? 1) * (row?.interiorScale ?? 1)
+      parent = parentOf(parent)
+    }
+    return Math.max(0.0001, scale)
   }
   const compact = (id: string) => {
     if (done.has(id)) return
@@ -34,11 +112,22 @@ export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layout
     })
     const packed = packFrame(sizes, { baseGap: FRAME_ITEM_GAP })
     const depth = depthOf(id)
-    let insets = frameContentInsets(packed.height, depth)
-    for (let round = 0; round < 4; round++) insets = frameContentInsets(Math.max(160, packed.height + insets.top + insets.bottom), depth)
+    const interiorScale = Math.max(0.0001, byId.get(id)?.interiorScale ?? 1)
+    const worldScale = worldScaleOf(id)
+    // Child coordinates ride the interior transform; the frame's tab does not.
+    // Reserve its actual rendered band before converting back to child space.
+    let insets = frameContentInsets(packed.height * interiorScale, depth, worldScale)
+    for (let round = 0; round < 24; round++) {
+      const next = frameContentInsets(Math.max(160, packed.height * interiorScale + insets.top + insets.bottom), depth, worldScale)
+      const settled = Math.abs(next.top - insets.top) < 1e-9
+      insets = next
+      if (settled) break
+    }
     const system = systemById.get(id)!
-    system.width = Math.max(260, packed.width + insets.left + insets.right)
-    system.height = Math.max(160, packed.height + insets.top + insets.bottom)
+    system.width = Math.max(260, packed.width * interiorScale + insets.left + insets.right)
+    system.height = Math.max(160, packed.height * interiorScale + insets.top + insets.bottom)
+    const ownLayout = byId.get(id)
+    if (ownLayout) byId.set(id, { ...ownLayout, width: system.width, height: system.height })
     for (const child of members) {
       const position = packed.positions.get(child)!
       const node = systemById.get(child) ?? fileById.get(child)
@@ -46,7 +135,7 @@ export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layout
       byId.set(child, {
         workspaceId: system.workspaceId, nodeId: child, nodeType: systemById.has(child) ? 'system' : 'file',
         parentNodeId: id, parentNodeType: 'system', containmentKind: 'part_of',
-        positionX: insets.left + position.x, positionY: insets.top + position.y,
+        positionX: insets.left / interiorScale + position.x, positionY: insets.top / interiorScale + position.y,
         width: previous?.width ?? node?.width ?? 220, height: previous?.height ?? node?.height ?? 110,
         scale: previous?.scale ?? 1, interiorScale: previous?.interiorScale ?? 1, updatedAt: previous?.updatedAt ?? 0,
       })

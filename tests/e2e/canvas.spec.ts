@@ -2414,9 +2414,9 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
     contentType: 'application/json',
     body: JSON.stringify({ sheet: agentSheet, elements: [], annotations: [], planned: [proposal], plannedEdges: [], layouts: [], removals: [] }),
   }))
-  await page.route(/\/api\/planned\/plan_queue\/approval$/, async route => {
+  await page.route(/\/api\/sheets\/sheet_agent\/review$/, async route => {
     decided = route.request().postDataJSON()
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...proposal, approvalStatus: decided?.decision }) })
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet: { ...agentSheet, revision: 2 }, planned: [{ ...proposal, approvalStatus: decided?.decision }], plannedEdges: [] }) })
   })
   await page.evaluate(sheet => {
     (window as unknown as { __ambioGraphStore: { getState: () => { applyDbPatch: (patch: unknown) => void } } })
@@ -2441,10 +2441,79 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   // A proposal's name takes you to it on the sheet.
   await review.getByRole('button', { name: /Job Queue/ }).first().click()
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('planned:plan_queue')
-  await review.getByRole('button', { name: 'Reject Job Queue' }).click()
-  await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
-  await review.getByRole('button', { name: 'Reject', exact: true }).click()
-  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', decision: 'rejected', reason: 'we already queue through SQS' })
+  await review.getByRole('button', { name: 'Request changes', exact: true }).click()
+  await review.getByLabel('What should change?').fill('we already queue through SQS')
+  await review.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', revision: 1, choices: [{ kind: 'addition', id: 'plan_queue' }], decision: 'rejected', reason: 'we already queue through SQS' })
+  await expect(review).toHaveCount(0)
+})
+
+test('compact sheet review groups the replay capability and expands all eight exact details', async () => {
+  const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
+  const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({
+    id, sheetId: sheet.id, workspaceId: 'demo', kind: index === 0 ? 'system' : 'file', name: index === 0 ? 'Replay Tool' : id,
+    declaredPath: index === 0 ? '' : `backend/${id}.py`, members: '[]', metadata: '{}', notes: 'Replay synthetic input offline.', status: 'planned', approvalStatus: 'pending',
+    positionX: 0, positionY: 0, width: null, height: null, scale: 1, parentSystemId: index === 0 ? 'sys_shared' : 'planned:tool', createdBy: 'agent',
+  }))
+  const plannedEdges = [
+    ['call', 'cli', null, 'file_canvas'], ['test-cli', 'tests', 'cli', null],
+    ['test-evaluator', 'tests', null, 'file_canvas'], ['test-fixtures', 'tests', 'fixtures', null],
+  ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
+  let reviewed: any
+  await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: [], annotations: [], layouts: [], removals: [] }) }))
+  await page.route(/\/api\/sheets\/sheet_replay\/review$/, async route => {
+    reviewed = route.request().postDataJSON()
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet: { ...sheet, revision: 17 }, planned: planned.map(node => ({ ...node, approvalStatus: 'approved' })), plannedEdges: plannedEdges.map(edge => ({ ...edge, approvalStatus: 'approved' })) }) })
+  })
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
+  await page.getByRole('button', { name: 'Open Sheet' }).click()
+  const review = page.getByLabel('Agent proposals to review')
+  await expect(review.getByLabel('1 change to review')).toBeVisible()
+  await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
+  await expect(review.getByRole('button', { name: 'Confirm cli', exact: true })).not.toBeVisible()
+  expect((await review.boundingBox())!.height).toBeLessThan(210)
+  await review.locator('summary').click()
+  await expect(review.locator('li[data-kind]')).toHaveCount(8)
+  await expect(review.getByRole('button', { name: 'Confirm cli', exact: true })).toBeVisible()
+  await review.locator('summary').click()
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const assertContained = async () => {
+    const tool = page.locator('.react-flow__node[data-id="planned:tool"]')
+    const parent = await tool.boundingBox()
+    const title = await tool.getByText('Replay Tool', { exact: true }).first().boundingBox()
+    expect(parent).not.toBeNull()
+    expect(title).not.toBeNull()
+    for (const id of ['cli', 'tests', 'fixtures']) {
+      const child = await page.locator(`.react-flow__node[data-id="planned:${id}"]`).boundingBox()
+      expect(child).not.toBeNull()
+      expect(child!.x).toBeGreaterThan(parent!.x)
+      expect(child!.y).toBeGreaterThan(title!.y + title!.height)
+      expect(child!.x + child!.width).toBeLessThan(parent!.x + parent!.width + 1)
+      expect(child!.y + child!.height).toBeLessThan(parent!.y + parent!.height + 1)
+    }
+  }
+  await assertContained()
+  await page.screenshot({ path: 'test-results/compact-sheet-review.png' })
+  const zoom = () => page.locator('.react-flow__viewport').evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
+  const initialZoom = await zoom()
+  for (const [key, presses] of [['-', 6], ['=', 12]] as const) {
+    for (let index = 0; index < presses; index++) {
+      await page.keyboard.press(`ControlOrMeta+${key}`)
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    }
+    if (key === '-') {
+      await expect.poll(zoom).toBeLessThan(initialZoom / 2)
+      // At overview zoom semantic detail is hidden instead of spilling over titles.
+      await expect(page.locator('.react-flow__node[data-id="planned:cli"]')).toHaveCount(0)
+    } else {
+      await expect.poll(zoom).toBeGreaterThan(initialZoom)
+      await assertContained()
+    }
+  }
+  await review.getByRole('button', { name: 'Approve Add Replay Tool', exact: true }).click()
+  await expect.poll(() => reviewed?.choices.length).toBe(8)
+  expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })
   await expect(review).toHaveCount(0)
 })
 
@@ -2483,10 +2552,11 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Payments Split')
   // The move and the relationship are reviewed with the new system.
-  await expect(review.locator('li')).toHaveCount(4)
+  await expect(review.locator('li[data-kind]')).toHaveCount(4)
   await expect(review.locator('li[data-kind="rename"]')).toContainText('to Canvas Platform')
   await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
   await expect(review.locator('li[data-kind="relationship"]')).toContainText('Payments Split')
+  for (const summary of await review.locator('summary').all()) await summary.click()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   const relationships = page.getByLabel('Show All Sheet Relationships', { exact: true })
   await relationships.check()
@@ -2623,7 +2693,13 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
     const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
     store.setState({ delta: summary })
   }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
-  await page.getByRole('button', { name: 'Set aside — stays unreviewed, reopen with Review Changes' }).click()
+  await expect(page.locator('.ambio-lane')).toHaveCount(0)
+  // Further code updates must stay quiet too; review remains explicitly available.
+  await page.evaluate(() => {
+    const store = (window as any).__ambioGraphStore
+    store.setState({ delta: { ...store.getState().delta, until: 4 } })
+  })
+  await expect(page.locator('.ambio-lane')).toHaveCount(0)
   await page.getByRole('button', { name: 'Review Changes', exact: true }).click()
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })

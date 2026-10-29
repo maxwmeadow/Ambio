@@ -455,6 +455,18 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Unplaced new systems and automatically moved systems fit their contents using
   the shared packer. Explicit sheet positions/sizes stay authoritative; neither
   compacting nor reviewing a proposal rewrites Floor geometry.
+- Automatic sheet compaction accounts for nesting, world scale and interior
+  scale when reserving header clearance. A system's dimensions and its layout
+  row agree, so projection cannot reuse an oversized Floor frame.
+- To review stays compact in the sidebar. A nested addition and its connections
+  form one change card; independent additions and connections between them
+  remain separate. Expand a card to inspect and decide every underlying part.
+  Group approval/rejection applies exactly the displayed pending parts in one
+  revision-checked transaction. A stale plan refreshes for review without
+  retrying approval; approved children/connections cannot have unapproved parents
+  or endpoints. Request changes records the reason against each selected part.
+- Planned file cards without symbols lead with their path and responsibility.
+  Edit symbols exposes their existing authoring controls on demand.
 
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
@@ -698,8 +710,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Workbench architecture drafts use that same lane, become unfinished after
   five minutes without an update, and remain recoverable from Agent →
   Architecture Draft after dismissal. Progress yields to decisions and failures.
-- Review Changes remains reachable from the toolbar, View and command palette
-  after a review invitation is dismissed. No permanent footer is required.
+- Routine code changes do not raise Review Changes invitations. Pending review
+  remains reachable from the toolbar, View and command palette, including while
+  new changes arrive. Opening or dismissing an invitation never acknowledges
+  the underlying changes. No permanent footer is required.
 
 ### First-run payoff
 

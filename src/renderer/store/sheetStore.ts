@@ -393,6 +393,7 @@ interface SheetState {
   createPlanned: (workspaceId: string, sheetId: string, n: Partial<PlannedNode>) => Promise<PlannedNode | null>
   updatePlanned: (workspaceId: string, n: PlannedNode) => Promise<void>
   setPlannedApproval: (workspaceId: string, id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
+  reviewSheetProposals: (workspaceId: string, sheetId: string, revision: number, choices: Array<{ kind: string; id: string }>, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
   /** Confirm or reject an agent's proposed move; rejecting puts it back where the Floor has it. */
   decideSheetMove: (workspaceId: string, sheetId: string, elementId: string, decision: 'approved' | 'rejected') => Promise<void>
   /** Confirm or reject a proposed rename; the map keeps the old name until the work is done. */
@@ -623,6 +624,25 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         )
       }
     }
+  },
+
+  reviewSheetProposals: async (workspaceId, sheetId, revision, choices, decision, reason) => {
+    const res = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheetId)}/review`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, revision, choices, decision, reason }),
+    })
+    if (!res.ok) {
+      const error = await res.text()
+      const layer = await fetchSheetLayer(workspaceId, sheetId)
+      if (layer) set(state => state.workspaceId === workspaceId ? commitSheetLayer(state, sheetId, layer) : state)
+      throw new Error(error)
+    }
+    const result = await res.json() as Pick<SheetLayerData, 'sheet' | 'planned' | 'plannedEdges'>
+    set(state => {
+      const layer = state.layersById[sheetId]
+      if (!layer || state.workspaceId !== workspaceId) return state
+      return commitSheetLayer(state, sheetId, { ...layer, sheet: result.sheet, planned: (result.planned ?? []).map(withValidScale), plannedEdges: result.plannedEdges ?? [] })
+    })
   },
 
   setPlannedApproval: async (workspaceId, id, decision, reason) => {

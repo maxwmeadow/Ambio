@@ -318,7 +318,19 @@ to API-key billing or another account. Setup and live-account validation:
   `db/sheet_layouts.go`, `isUnplaced` in the canvas): it is drawn where the
   Floor has it, or inside its proposed parent, and a planned node without a
   position is placed in free space. The sheet rail's To review section
-  (`SheetProposalReview.tsx`) lists every pending part with confirm/reject.
+  (`SheetProposalReview.tsx`, `sheetReviewGroups.ts`) groups a nested addition
+  and its connections into a compact card, with every pending part available
+  in expanded details. Cross-group connections, moves and renames stay separate.
+  `POST /api/sheets/:id/review` (`db/sheet_review.go`) validates the exact pending
+  node/edge selection and sheet revision, rejects orphan approvals, and records
+  every decision and optional change-request reason in one transaction. Its
+  response carries the committed sheet/nodes/edges snapshot. A stale decision
+  refreshes the client without retrying approval. Automatic sheet compaction
+  uses canonical nesting/world/interior scales and updates both system and
+  layout dimensions. After placement compresses an automatic frame, a cancellable
+  fitting pass reserves its final rendered tab clearance by fitting the interior
+  within its allocated rectangle. Authored sheet and Floor geometry remain authoritative.
+  Empty planned file cards display path/notes, with symbol editing on demand.
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or
@@ -571,6 +583,8 @@ prompt) rather than repair clusters.
 compact call sites and imports into claims with evidence, rank them, attribute
 them, and classify realisation against sent work orders (MATCHED / FLEXED /
 DRIFTED / MISSING / UNKNOWN).
+Routine deltas remain discoverable through the toolbar without automatically
+raising review invitations; explicit review and acknowledgement are unchanged.
 
 **Work orders** (`internal/api/inbox.go`, `sheet_work.go`): send freezes the
 sheet, build spec and comparison in one transaction → an agent claims by ID

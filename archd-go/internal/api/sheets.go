@@ -56,6 +56,12 @@ func (s *Server) broadcastSheetLayoutState(sqlDB *sql.DB, sheetID string) ([]db.
 	return elements, planned, sheet
 }
 
+func (s *Server) broadcastSheetRevision(sqlDB *sql.DB, sheetID string) {
+	if sheet, err := db.GetSheet(sqlDB, sheetID); err == nil && sheet != nil {
+		s.broadcastPatch("sheet:upserted", sheet)
+	}
+}
+
 func (s *Server) registerSheetRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/sheets", s.handleSheets)
 	mux.HandleFunc("/api/sheets/", s.handleSheetByID)
@@ -216,6 +222,39 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workspaceID := r.URL.Query().Get("workspace")
+	if len(parts) == 2 && parts[1] == "review" && r.Method == http.MethodPost {
+		var body struct {
+			WorkspaceID string                   `json:"workspaceId"`
+			Revision    int                      `json:"revision"`
+			Choices     []db.SheetProposalChoice `json:"choices"`
+			Decision    string                   `json:"decision"`
+			Reason      string                   `json:"reason"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.WorkspaceID == "" {
+			jsonError(w, "workspace and reviewed proposal details required", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		result, err := db.DecideSheetProposals(sqlDB, body.WorkspaceID, id, body.Revision, body.Choices, body.Decision, body.Reason)
+		if err != nil {
+			jsonError(w, err.Error(), 409)
+			return
+		}
+		for _, node := range result.Planned {
+			s.broadcastPatch("planned:upserted", node)
+		}
+		for _, edge := range result.PlannedEdges {
+			s.broadcastPatch("planned:edge", edge)
+		}
+		s.broadcastPatch("sheet:upserted", result.Sheet)
+		jsonOK(w, result)
+		return
+	}
 
 	if len(parts) == 2 && (parts[1] == "compare" || parts[1] == "resolve" || parts[1] == "bind" || parts[1] == "reopen" || parts[1] == "apply_nesting" || parts[1] == "context") {
 		s.handleSheetWork(w, r, id, parts[1])
@@ -261,6 +300,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:upserted", n)
+		s.broadcastSheetRevision(sqlDB, n.SheetID)
 		jsonOK(w, n)
 		return
 	}
@@ -285,6 +325,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:edge", edge)
+		s.broadcastSheetRevision(sqlDB, edge.SheetID)
 		jsonOK(w, edge)
 		return
 	}
@@ -305,6 +346,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:edge", e)
+		s.broadcastSheetRevision(sqlDB, e.SheetID)
 		jsonOK(w, e)
 		return
 	}
@@ -814,6 +856,7 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			s.recordProposalDecision(sqlDB, planned, body.Decision, body.Reason)
 		}
 		s.broadcastPatch("planned:upserted", planned)
+		s.broadcastSheetRevision(sqlDB, planned.SheetID)
 		jsonOK(w, planned)
 
 	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "position":
@@ -919,6 +962,7 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:upserted", n)
+		s.broadcastSheetRevision(sqlDB, n.SheetID)
 		jsonOK(w, n)
 
 	case r.Method == http.MethodDelete && len(parts) == 1:

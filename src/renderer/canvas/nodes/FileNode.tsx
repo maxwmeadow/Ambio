@@ -377,6 +377,9 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     return symbols.filter(sym => tabForKind(sym.kind) === activeTab)
   }, [symbols, activeTab])
   const editableSymbols = Boolean(d.onSymbolsChange)
+  const [editingPlannedSymbols, setEditingPlannedSymbols] = React.useState(false)
+  const plannedFile = d.id.startsWith('planned:') && d.umlKind === 'file'
+  const plannedSummary = plannedFile && !symbols?.length && !editingPlannedSymbols
   const updateSymbols = (next: any[]) => {
     setSymbols(next)
     setCachedSymbols(workspaceId, fileId, next)
@@ -444,7 +447,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             : undefined,
       } as React.CSSProperties}
     >
-      <SheetChangeBadge change={d.sheetChange} width={Number(width) || 220} />
+      <SheetChangeBadge change={plannedFile ? undefined : d.sheetChange} width={Number(width) || 220} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.1, s))} />
       <BranchOverlayMark marks={overlayMarks} />
       {/* Preview plane: node visuals ride the predicted post-drop offset.
@@ -606,6 +609,11 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           transition: 'opacity 0.25s ease',
           pointerEvents: detailAlpha > 0.8 ? 'auto' : 'none',
         }} className="nodrag nopan">
+          {plannedSummary ? <div className="symbol-scroll nodrag" style={{ flex: 1, minWidth: 0, overflowY: 'auto', font: '8px/1.4 var(--font-mono)', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+            <div>{d.relPath}</div>
+            {d.proposedDescription && <p style={{ margin: '4px 0' }}>{d.proposedDescription}</p>}
+            {editableSymbols && <button className="nodrag nopan" type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setEditingPlannedSymbols(true)} style={{ padding: '2px 4px', font: 'inherit', border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>Edit symbols</button>}
+          </div> : <>
           {/* Scrollable symbols list viewport */}
           {symbols && filteredSymbols.length > 0 ? <VirtualSymbolRows rows={filteredSymbols} render={(sym, idx) => {
             const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
@@ -681,6 +689,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
                 </span>
               ))}
           </div>
+          </>}
         </div>
       )}
 

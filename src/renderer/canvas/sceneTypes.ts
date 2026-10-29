@@ -117,6 +117,7 @@ export interface SystemNodeData {
 }
 
 export interface FileNodeData {
+  proposedDescription?: string
   omitConnectionHandles?: boolean
   sheetChange?: SheetChange
   relationshipFocus?: boolean
