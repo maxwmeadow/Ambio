@@ -75,7 +75,7 @@ export async function apiGetBranchReview(workspaceId: string, rootId?: string, b
   return res.json() as Promise<BranchReview>
 }
 
-async function postCheckout<T>(path: string, body: Record<string, string>, failure: string): Promise<T> {
+async function postCheckout<T>(path: string, body: Record<string, unknown>, failure: string): Promise<T> {
   const res = await fetch(`${archdWsHttp()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -95,9 +95,15 @@ export function apiFinishRunWorktree(workspaceId: string, rootId: string, action
     '/api/checkouts/finish', { workspaceId, rootId, action }, 'Unable to finish that run')
 }
 
-/** Switch the Floor's checkout to another branch; refused with uncommitted changes. */
-export function apiSwitchBranch(workspaceId: string, branch: string) {
-  return postCheckout<{ branch: string }>('/api/checkouts/switch', { workspaceId, branch }, 'Unable to switch branch')
+/** Switch the Floor's checkout to another branch, or to a new one started
+ *  where it is; refused with uncommitted changes. */
+export function apiSwitchBranch(workspaceId: string, branch: string, create = false) {
+  return postCheckout<{ branch: string }>('/api/checkouts/switch', { workspaceId, branch, ...(create ? { create } : {}) }, 'Unable to switch branch')
+}
+
+/** Delete a local branch whose commits are safe elsewhere; Git refuses otherwise. */
+export function apiDeleteBranch(workspaceId: string, branch: string) {
+  return postCheckout<{ branch: string }>('/api/checkouts/branches/delete', { workspaceId, branch }, 'Unable to delete that branch')
 }
 
 export type CheckoutSyncAction = 'fetch' | 'pull' | 'push' | 'publish'
@@ -107,7 +113,21 @@ export function apiSyncCheckout(workspaceId: string, action: CheckoutSyncAction)
   return postCheckout<{ action: CheckoutSyncAction; branch: string }>('/api/checkouts/sync', { workspaceId, action }, 'Unable to reach the remote')
 }
 
-export async function apiListBranches(workspaceId: string): Promise<{ current: string; branches: Array<{ name: string; rootId?: string }> }> {
+/** A local branch as the branch menu lists it. */
+export interface BranchListing {
+  name: string
+  /** The checkout it is open in, if any. */
+  rootId?: string
+  upstream?: string
+  /** Its upstream was deleted on the remote. */
+  gone?: boolean
+  ahead?: number
+  behind?: number
+  committedAt?: number
+  subject?: string
+}
+
+export async function apiListBranches(workspaceId: string): Promise<{ current: string; branches: BranchListing[] }> {
   const res = await fetch(`${archdWsHttp()}/api/checkouts/branches?workspace=${encodeURIComponent(workspaceId)}`)
   if (!res.ok) throw new Error(await res.text() || `Unable to list branches (${res.status})`)
   return res.json()

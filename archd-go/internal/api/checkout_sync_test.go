@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,10 +160,10 @@ func TestSignInAndNetworkFailuresAreExplained(t *testing.T) {
 		return &gitworktree.SyncError{Args: []string{"fetch"}, Output: output, Err: errors.New("exit status 128")}
 	}
 	for output, want := range map[string]string{
-		"fatal: could not read Username for 'https://github.com': terminal prompts disabled": "could not sign in",
+		"fatal: could not read Username for 'https://github.com': terminal prompts disabled":            "could not sign in",
 		"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.": "could not sign in",
-		"fatal: unable to access 'https://example.invalid/': Could not resolve host: example.invalid":  "Could not reach origin/main",
-		"remote: error: GH006: Protected branch update failed for refs/heads/main.":                    "refused the push",
+		"fatal: unable to access 'https://example.invalid/': Could not resolve host: example.invalid":   "Could not reach origin/main",
+		"remote: error: GH006: Protected branch update failed for refs/heads/main.":                     "refused the push",
 	} {
 		if got := syncRefusal("push", "main", "origin/main", refusal(output)); !strings.Contains(got, want) {
 			t.Errorf("%q -> %q, want it to contain %q", output, got, want)
@@ -176,4 +178,65 @@ func TestSignInAndNetworkFailuresAreExplained(t *testing.T) {
 	if got := gitworktree.PublishRemote([]string{"a", "b"}); got != "" {
 		t.Errorf("PublishRemote with no obvious choice = %q", got)
 	}
+}
+
+func TestBranchesAreListedCreatedAndDeletedOnlyWhenSafe(t *testing.T) {
+	_, repo, _ := newSyncedCheckout(t)
+	server := openCheckoutServer(t, t.TempDir(), repo)
+	t.Cleanup(func() { server.closeDB("ws") })
+	settleCheckout(server)
+	commitFile(t, repo, "storage.go", "package sample\n\nfunc Store() {}\n", "add storage")
+
+	listed := getJSON(t, server.handleBranches, "/api/checkouts/branches?workspace=ws")
+	first := listed["branches"].([]any)[0].(map[string]any)
+	if first["name"] != "main" || first["upstream"] != "origin/main" || first["ahead"] != float64(1) || first["subject"] != "add storage" || first["committedAt"] == nil || first["rootId"] == nil {
+		t.Fatalf("main as listed = %#v", first)
+	}
+
+	// A new branch starts where the Floor is.
+	postRun(t, server.handleSwitchBranch, "/api/checkouts/switch", map[string]any{"workspaceId": "ws", "branch": "idea", "create": true}, http.StatusOK)
+	if head := runWorktreeGit(t, repo, "branch", "--show-current"); head != "idea" {
+		t.Fatalf("created and switched to %q", head)
+	}
+	postRun(t, server.handleSwitchBranch, "/api/checkouts/switch", map[string]any{"workspaceId": "ws", "branch": "bad..name", "create": true}, http.StatusBadRequest)
+	exists := postRun(t, server.handleSwitchBranch, "/api/checkouts/switch", map[string]any{"workspaceId": "ws", "branch": "main", "create": true}, http.StatusConflict)
+	if !strings.Contains(exists["error"].(string), "already exists") {
+		t.Fatalf("creating an existing branch = %v", exists)
+	}
+
+	// The Floor's own branch is never deleted; one with commits found
+	// nowhere else is refused; a merged one goes.
+	server.resyncWorktrees("ws")
+	settleCheckout(server)
+	current := postRun(t, server.handleDeleteBranch, "/api/checkouts/branches/delete", map[string]string{"workspaceId": "ws", "branch": "idea"}, http.StatusConflict)
+	if !strings.Contains(current["error"].(string), "checked out") {
+		t.Fatalf("deleting the Floor's branch = %v", current)
+	}
+	commitFile(t, repo, "spike.go", "package sample\n", "spike")
+	runWorktreeGit(t, repo, "switch", "main")
+	server.resyncWorktrees("ws")
+	settleCheckout(server)
+	unmerged := postRun(t, server.handleDeleteBranch, "/api/checkouts/branches/delete", map[string]string{"workspaceId": "ws", "branch": "idea"}, http.StatusConflict)
+	if !strings.Contains(unmerged["error"].(string), "would lose them") {
+		t.Fatalf("deleting an unmerged branch = %v", unmerged)
+	}
+	runWorktreeGit(t, repo, "branch", "done")
+	postRun(t, server.handleDeleteBranch, "/api/checkouts/branches/delete", map[string]string{"workspaceId": "ws", "branch": "done"}, http.StatusOK)
+	if branches := runWorktreeGit(t, repo, "branch", "--list", "done", "idea"); strings.Contains(branches, "done") || !strings.Contains(branches, "idea") {
+		t.Fatalf("branches after delete:\n%s", branches)
+	}
+}
+
+func getJSON(t *testing.T, handler http.HandlerFunc, path string) map[string]any {
+	t.Helper()
+	response := httptest.NewRecorder()
+	handler(response, httptest.NewRequest(http.MethodGet, path, nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s status = %d, body = %s", path, response.Code, response.Body.String())
+	}
+	result := map[string]any{}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
 }

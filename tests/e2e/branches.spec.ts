@@ -102,14 +102,19 @@ async function launch(checkouts: unknown) {
     const url = route.request().url()
     if (url.includes('/api/checkouts/focus')) focusRequests.push(route.request().postDataJSON())
     if (url.includes('/api/checkouts/sync')) syncRequests.push(route.request().postDataJSON())
-    for (const path of ['/api/checkouts/finish', '/api/checkouts/switch']) {
+    for (const path of ['/api/checkouts/finish', '/api/checkouts/switch', '/api/checkouts/branches/delete']) {
       if (url.includes(path)) runRequests.push({ path, body: route.request().postDataJSON() })
     }
     const body = url.includes('/api/checkouts/focus') ? { ok: true }
       : url.includes('/api/checkouts/sync') ? { action: route.request().postDataJSON().action, branch: 'main' }
       : url.includes('/api/checkouts/finish') ? { action: route.request().postDataJSON().action, into: 'main', files: 3 }
       : url.includes('/api/checkouts/switch') ? { branch: route.request().postDataJSON().branch }
-      : url.includes('/api/checkouts/branches?') ? { current: 'main', branches: [{ name: 'main', rootId: 'root_demo' }, { name: 'release/1.2' }, { name: 'codex/retry-checkout', rootId: 'root_agent' }] }
+      : url.includes('/api/checkouts/branches/delete') ? { branch: route.request().postDataJSON().branch }
+      : url.includes('/api/checkouts/branches?') ? { current: 'main', branches: [
+        { name: 'main', rootId: 'root_demo', upstream: 'origin/main', ahead: 1, committedAt: Date.now() - 3_600_000, subject: 'Retry the checkout call' },
+        { name: 'release/1.2', upstream: 'origin/release/1.2', behind: 2, committedAt: Date.now() - 3 * 86_400_000, subject: 'Cut 1.2' },
+        { name: 'codex/retry-checkout', rootId: 'root_agent' },
+      ] }
       : url.includes('/api/checkouts/review?') ? REVIEW
       : url.includes('/api/checkouts?') ? checkouts
       : url.includes('/api/canvas/history') ? { messages: [], nextCursor: '', availableCount: 0 }
@@ -346,14 +351,42 @@ test('an Ambio run is applied or discarded, and the Floor switches branch, from 
   await expect.poll(() => runRequests.length).toBe(2)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'run-actions.png') })
 
-  // The branch name in the menu's header is the switcher.
-  await popover.getByRole('button', { name: 'Switch branch…' }).click()
-  await expect(popover).toContainText('The Floor is on main')
-  await popover.getByRole('button', { name: /release\/1\.2/ }).click()
+  // Icon buttons say what they are when hovered.
+  await popover.getByRole('button', { name: 'Reveal folder' }).first().hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Reveal folder')
+
+  // The branch name in the menu's header is the switcher: the list opens in
+  // place under it, and the same button closes it again.
+  const switcher = popover.getByRole('button', { name: 'Switch branch…' })
+  await switcher.click()
+  await expect(switcher).toHaveAttribute('aria-expanded', 'true')
+  const list = popover.getByRole('group', { name: 'Branches' })
+  const release = list.locator('li', { hasText: 'release/1.2' })
+  await expect(release).toContainText('3 days ago · Cut 1.2')
+  await expect(release.getByLabel('2 to pull, 0 to push from origin/release/1.2')).toBeVisible()
+  await expect(list.locator('li').first()).toContainText('on the Floor')
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, 'branch-list.png') })
+  await switcher.click()
+  await expect(list).toHaveCount(0)
+
+  // Each branch has its own actions; deleting asks first.
+  await switcher.click()
+  await release.getByRole('button', { name: 'Delete branch…' }).click()
+  await release.getByRole('button', { name: 'Delete branch', exact: true }).click()
+  await expect.poll(() => runRequests.at(-1)).toEqual({ path: '/api/checkouts/branches/delete', body: { workspaceId: 'demo', branch: 'release/1.2' } })
+  await release.getByRole('button', { name: /release\/1\.2/ }).click()
   await expect.poll(() => runRequests.at(-1)).toEqual({ path: '/api/checkouts/switch', body: { workspaceId: 'demo', branch: 'release/1.2' } })
+
+  // What is typed finds a branch, or is offered as a new one.
+  await switcher.click()
+  await list.getByLabel('Find or create a branch').fill('fix retry')
+  await expect(list.locator('li')).toHaveCount(0)
+  await list.getByRole('button', { name: /Create branch fix-retry from main/ }).click()
+  await expect.poll(() => runRequests.at(-1)).toEqual({ path: '/api/checkouts/switch', body: { workspaceId: 'demo', branch: 'fix-retry', create: true } })
+
   // A branch open in another worktree is shown, not switched to.
-  await popover.getByRole('button', { name: 'Switch branch…' }).click()
-  await popover.getByRole('button', { name: /codex\/retry-checkout/ }).click()
+  await switcher.click()
+  await list.getByRole('button', { name: /codex\/retry-checkout/ }).click()
   await expect.poll(() => focusRequests).toEqual([{ workspaceId: 'demo', rootId: 'root_agent' }])
 })
 

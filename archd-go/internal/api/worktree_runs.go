@@ -290,14 +290,16 @@ func (s *Server) handleFinishRunWorktree(w http.ResponseWriter, r *http.Request)
 	jsonOK(w, result)
 }
 
-// POST /api/checkouts/switch {workspaceId, branch}
+// POST /api/checkouts/switch {workspaceId, branch, create?}
 //
-// Switches the Floor's checkout to another branch. Refused with uncommitted
-// changes, which Git would otherwise carry across or refuse halfway.
+// Switches the Floor's checkout to another branch, or with create to a new
+// branch started where the Floor is. Refused with uncommitted changes, which
+// Git would otherwise carry across or refuse halfway.
 func (s *Server) handleSwitchBranch(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		WorkspaceID string `json:"workspaceId"`
 		Branch      string `json:"branch"`
+		Create      bool   `json:"create"`
 	}
 	if !decodeJSON(w, r, &body) {
 		return
@@ -325,8 +327,19 @@ func (s *Server) handleSwitchBranch(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, fmt.Sprintf("%s has %d uncommitted change%s. Commit or set them aside before switching.", focused.Branch, status.ChangedFiles, plural(status.ChangedFiles)), http.StatusConflict)
 		return
 	}
-	if err := gitworktree.Switch(focused.Path, body.Branch); err != nil {
+	switchTo := gitworktree.Switch
+	if body.Create {
+		if !gitworktree.ValidBranchName(focused.Path, body.Branch) {
+			jsonError(w, fmt.Sprintf("%q is not a name Git allows for a branch.", body.Branch), http.StatusBadRequest)
+			return
+		}
+		switchTo = gitworktree.CreateBranch
+	}
+	if err := switchTo(focused.Path, body.Branch); err != nil {
 		message := err.Error()
+		if strings.Contains(message, "already exists") {
+			message = "A branch called " + body.Branch + " already exists."
+		}
 		if strings.Contains(message, "already checked out") || strings.Contains(message, "already used by worktree") {
 			message = body.Branch + " is checked out in another worktree. Use Show on the Floor for that checkout instead."
 		}
@@ -339,7 +352,8 @@ func (s *Server) handleSwitchBranch(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/checkouts/branches?workspace=
 //
-// Local branches for Switch branch…, with the checkout each is open in.
+// Local branches for the branch menu, with where each stands against its
+// upstream, its last commit and the checkout it is open in.
 func (s *Server) handleBranches(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -356,7 +370,7 @@ func (s *Server) handleBranches(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusConflict)
 		return
 	}
-	names, err := gitworktree.LocalBranches(focused.Path)
+	listed, err := gitworktree.LocalBranches(focused.Path)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -366,12 +380,59 @@ func (s *Server) handleBranches(w http.ResponseWriter, r *http.Request) {
 		openIn[root.Branch] = root.ID
 	}
 	type branch struct {
-		Name   string `json:"name"`
+		gitworktree.Branch
 		RootID string `json:"rootId,omitempty"`
 	}
-	branches := make([]branch, 0, len(names))
-	for _, name := range names {
-		branches = append(branches, branch{Name: name, RootID: openIn[name]})
+	branches := make([]branch, 0, len(listed))
+	for _, listedBranch := range listed {
+		branches = append(branches, branch{Branch: listedBranch, RootID: openIn[listedBranch.Name]})
 	}
 	jsonOK(w, map[string]any{"current": focused.Branch, "branches": branches})
+}
+
+// POST /api/checkouts/branches/delete {workspaceId, branch}
+//
+// Deletes a local branch whose commits are safe elsewhere. Git refuses a
+// branch with commits found nowhere else, and Ambio says so rather than
+// forcing (DECISIONS 2026-10-28).
+func (s *Server) handleDeleteBranch(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		Branch      string `json:"branch"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Branch) == "" || strings.HasPrefix(body.Branch, "-") {
+		jsonError(w, "branch is required", http.StatusBadRequest)
+		return
+	}
+	sqlDB, err := s.dbFor(body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	focused, roots, err := s.focusedRoot(sqlDB, body.WorkspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusConflict)
+		return
+	}
+	for _, root := range roots {
+		if root.Branch == body.Branch {
+			jsonError(w, fmt.Sprintf("%s is checked out in %s. Switch that checkout to another branch first.", body.Branch, root.Path), http.StatusConflict)
+			return
+		}
+	}
+	if err := gitworktree.DeleteBranch(focused.Path, body.Branch); err != nil {
+		message := err.Error()
+		switch {
+		case strings.Contains(message, "not fully merged"):
+			message = body.Branch + " has commits that are on no other branch, so deleting it would lose them. Merge or push it first."
+		case strings.Contains(message, "not found"):
+			message = "There is no branch called " + body.Branch + "."
+		}
+		jsonError(w, message, http.StatusConflict)
+		return
+	}
+	jsonOK(w, map[string]any{"branch": body.Branch})
 }

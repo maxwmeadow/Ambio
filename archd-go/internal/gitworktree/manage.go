@@ -10,8 +10,9 @@ import (
 // 2026-10-20 "Git: one map, many checkouts"): it adds and removes worktrees
 // for the agents it runs, switches the Floor's checkout to another branch
 // when asked, and applies an Ambio run's changes to a checkout as uncommitted
-// changes. It never commits, merges, pushes or deletes a branch it did not
-// create.
+// changes. Since 2026-10-28 (Ambio handles Git natively) it also syncs with
+// the remote (sync.go), creates branches and deletes a branch whose commits
+// are safe elsewhere, each only when the person asks.
 
 // AddWorktree creates a worktree at path on a new branch started from base.
 func AddWorktree(repoPath, path, branch, base string) error {
@@ -39,19 +40,72 @@ func Switch(path, branch string) error {
 	return err
 }
 
-// LocalBranches lists local branch names, most recently committed first.
-func LocalBranches(path string) ([]string, error) {
-	output, err := gitOutput(path, "for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads")
+// Branch is a local branch as the branch menu lists it.
+type Branch struct {
+	Name string `json:"name"`
+	// Upstream is the remote-tracking branch it follows, if any; Gone is set
+	// when that branch was deleted on the remote.
+	Upstream string `json:"upstream,omitempty"`
+	Gone     bool   `json:"gone,omitempty"`
+	Ahead    int    `json:"ahead,omitempty"`
+	Behind   int    `json:"behind,omitempty"`
+	// CommittedAt (Unix milliseconds) and Subject describe its last commit.
+	CommittedAt int64  `json:"committedAt,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+}
+
+// LocalBranches lists local branches, most recently committed first.
+func LocalBranches(path string) ([]Branch, error) {
+	output, err := gitOutput(path, "for-each-ref", "--sort=-committerdate",
+		"--format=%(refname:short)%1f%(upstream:short)%1f%(upstream:track)%1f%(committerdate:unix)%1f%(contents:subject)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
-	branches := []string{}
+	branches := []Branch{}
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		if line != "" {
-			branches = append(branches, line)
+		fields := strings.Split(line, "\x1f")
+		if len(fields) < 5 || fields[0] == "" {
+			continue
 		}
+		branch := Branch{Name: fields[0], Upstream: fields[1], Subject: fields[4]}
+		track := strings.Trim(fields[2], "[]")
+		branch.Gone = track == "gone"
+		for _, part := range strings.Split(track, ", ") {
+			if count, ok := strings.CutPrefix(part, "ahead "); ok {
+				fmt.Sscan(count, &branch.Ahead)
+			} else if count, ok := strings.CutPrefix(part, "behind "); ok {
+				fmt.Sscan(count, &branch.Behind)
+			}
+		}
+		var seconds int64
+		if _, err := fmt.Sscan(fields[3], &seconds); err == nil {
+			branch.CommittedAt = seconds * 1000
+		}
+		branches = append(branches, branch)
 	}
 	return branches, nil
+}
+
+// ValidBranchName reports whether Git accepts name for a new branch.
+func ValidBranchName(path, name string) bool {
+	if name == "" || strings.HasPrefix(name, "-") {
+		return false
+	}
+	_, err := gitOutput(path, "check-ref-format", "--branch", name)
+	return err == nil
+}
+
+// CreateBranch starts a branch at the checkout's HEAD and switches to it.
+func CreateBranch(path, name string) error {
+	_, err := gitOutput(path, "switch", "-c", name)
+	return err
+}
+
+// DeleteBranch deletes a local branch only when its commits are safe
+// elsewhere (git branch -d); Git refuses otherwise, and Ambio never forces.
+func DeleteBranch(path, name string) error {
+	_, err := gitOutput(path, "branch", "-d", name)
+	return err
 }
 
 // ChangesAsPatch is everything a worktree changes since base - commits and

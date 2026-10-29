@@ -514,6 +514,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/checkouts/switch", s.handleSwitchBranch)
 	mux.HandleFunc("/api/checkouts/sync", s.handleCheckoutSync)
 	mux.HandleFunc("/api/checkouts/branches", s.handleBranches)
+	mux.HandleFunc("/api/checkouts/branches/delete", s.handleDeleteBranch)
 	mux.HandleFunc("/api/work/", s.handleWork)
 	mux.HandleFunc("/api/command-deck", s.handleCommandDeck)
 	mux.HandleFunc("/api/query", s.handleQuery)

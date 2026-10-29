@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func postRun(t *testing.T, handler http.HandlerFunc, path string, body map[string]string, want int) map[string]any {
+func postRun(t *testing.T, handler http.HandlerFunc, path string, body any, want int) map[string]any {
 	t.Helper()
 	payload, _ := json.Marshal(body)
 	response := httptest.NewRecorder()

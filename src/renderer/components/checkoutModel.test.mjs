@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBranchChip, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, buildSync, collisionsBySystem, conversationWorkplace, homePath, overlaySummary, timeAgo } from './checkoutModel.ts'
+import { buildBranchChip, buildBranchRows, buildCanvasOverlay, buildCheckoutRows, buildRepositoryRows, checkoutName, checkoutState, buildSync, collisionsBySystem, conversationWorkplace, homePath, overlaySummary, timeAgo } from './checkoutModel.ts'
 
 function checkout(overrides = {}) {
   return {
@@ -219,4 +219,26 @@ test('time since is said in a few words', () => {
   assert.equal(timeAgo(now - 3 * 3600000, now), '3 h ago')
   assert.equal(timeAgo(now - 26 * 3600000, now), '1 day ago')
   assert.equal(timeAgo(now + 60000, now), 'just now')
+})
+
+test('the branch list puts the Floor first, narrows by what was typed and offers a new branch', () => {
+  const now = Date.UTC(2026, 9, 29)
+  const listing = { current: 'main', branches: [
+    { name: 'fix/retry', upstream: 'origin/fix/retry', behind: 2, committedAt: now - 3 * 86_400_000, subject: 'Retry' },
+    { name: 'main', rootId: 'root_main', upstream: 'origin/main' },
+    { name: 'spike', rootId: 'root_spike', gone: true },
+  ] }
+  const all = buildBranchRows(listing, '', now)
+  assert.deepEqual(all.rows.map(row => row.name), ['main', 'fix/retry', 'spike'])
+  assert.equal(all.create, null)
+  assert.equal(all.rows[0].rootId, undefined, "the Floor's own checkout is not another worktree")
+  assert.equal(all.rows[1].last, '3 days ago · Retry')
+  assert.equal(all.rows[2].rootId, 'root_spike')
+  assert.equal(all.rows[2].gone, true)
+  const typed = buildBranchRows(listing, 'RETRY', now)
+  assert.deepEqual(typed.rows.map(row => row.name), ['fix/retry'])
+  assert.equal(typed.create, 'RETRY')
+  assert.equal(buildBranchRows(listing, ' new idea ', now).create, 'new-idea')
+  assert.equal(buildBranchRows(listing, 'main', now).create, null)
+  assert.deepEqual(buildBranchRows(null, 'x', now), { rows: [], create: null })
 })

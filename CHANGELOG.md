@@ -14,6 +14,11 @@ in the app as "What's New" after updating, so write it for users.
   calls for. Pull only fast-forwards and push is never forced; when Git
   refuses, Ambio says why and what to do. Other worktrees sit below, with
   their actions a click away.
+- Switch, find, create and delete branches from the branch menu. Click the
+  branch name and the list opens right under it: type to find a branch or name
+  a new one, see how each stands against its remote and when it last changed,
+  and copy, review or delete a branch from its own row. Every icon button now
+  says what it does when you hover it.
 - Add Ambio to Grok Build and Meta Muse Code from Settings → Agents or guided
   setup, with mapping, inbox and draw-first workflows. Ambio can start both
   signed-in CLIs, select a model, continue conversations, show activity and

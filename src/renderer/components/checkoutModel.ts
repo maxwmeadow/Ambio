@@ -1,4 +1,5 @@
 import type { BranchCollision, CheckoutStatus, CheckoutsSnapshot, RepositoryStatus } from '../../shared/types'
+import type { BranchListing } from '../canvas/arcdApi'
 
 /**
  * The branch chip, the Checkouts popover and the collision marks on systems
@@ -370,4 +371,47 @@ export function buildSync(checkout: CheckoutStatus | undefined, now = Date.now()
 /** A path with the home folder written as ~, as terminals show it. */
 export function homePath(path: string): string {
   return path.replace(/^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)(?=$|[\\/])/, '~')
+}
+
+export interface BranchRow {
+  name: string
+  /** The Floor is on it. */
+  current: boolean
+  /** Open in another worktree: choosing it shows that checkout instead. */
+  rootId?: string
+  upstream?: string
+  gone: boolean
+  ahead: number
+  behind: number
+  /** "3 days ago · Fix the retry loop" */
+  last: string
+}
+
+/**
+ * The branch menu's list (docs/GIT_WORKFLOW.md "Switching branches"): the
+ * Floor's branch first, then the rest most recently committed first, narrowed
+ * by what was typed. What was typed is offered as a new branch unless a branch
+ * already has that name; spaces become dashes, as Git allows none.
+ */
+export function buildBranchRows(
+  listing: { current: string; branches: BranchListing[] } | null,
+  query: string,
+  now = Date.now(),
+): { rows: BranchRow[]; create: string | null } {
+  if (!listing) return { rows: [], create: null }
+  const wanted = query.trim().toLowerCase()
+  const rows = listing.branches
+    .filter(branch => !wanted || branch.name.toLowerCase().includes(wanted))
+    .map((branch): BranchRow => {
+      const current = branch.name === listing.current
+      return {
+        name: branch.name, current, rootId: current ? undefined : branch.rootId,
+        upstream: branch.upstream, gone: !!branch.gone, ahead: branch.ahead ?? 0, behind: branch.behind ?? 0,
+        last: [branch.committedAt ? timeAgo(branch.committedAt, now) : '', branch.subject ?? ''].filter(Boolean).join(' · '),
+      }
+    })
+    .sort((left, right) => Number(right.current) - Number(left.current))
+  const name = query.trim().replace(/\s+/g, '-')
+  const create = name && !listing.branches.some(branch => branch.name === name) ? name : null
+  return { rows, create }
 }

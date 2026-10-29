@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { CHECKOUTS_CHANGED, REVIEW_BRANCH, useCheckoutStore } from '../store/checkoutStore'
 import { useCommandHandlers } from '../app/commands'
-import { buildBranchChip, buildCheckoutRows, buildRepositoryRows, buildSync, focusedCheckout, homePath, type OverlayLens, type SyncState } from './checkoutModel'
+import { buildBranchChip, buildBranchRows, buildCheckoutRows, buildRepositoryRows, buildSync, focusedCheckout, homePath, type OverlayLens, type SyncState } from './checkoutModel'
 import { GitIcon } from './GitIcon'
-import { apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch, apiSyncCheckout, type CheckoutSyncAction } from '../canvas/arcdApi'
+import { apiDeleteBranch, apiFinishRunWorktree, apiFocusCheckout, apiGetBranchReview, apiListBranches, apiSwitchBranch, apiSyncCheckout, type BranchListing, type CheckoutSyncAction } from '../canvas/arcdApi'
 import { useGraphStore } from '../store/graphStore'
 import type { BranchReview } from '../../shared/types'
 
@@ -19,16 +19,48 @@ const STATE_ICON: Record<SyncState, React.ComponentProps<typeof GitIcon>['name']
   behind: 'pull', ahead: 'push', current: 'upToDate', diverged: 'diverged', unpublished: 'publish', local: 'cloudOff', other: null,
 }
 
-/** A square icon button, named for screen readers and in its tooltip. */
+/** How long the pointer rests on an icon button before its label shows. */
+const TIP_DELAY_MS = 350
+
+/**
+ * A square icon button, named for screen readers and in a label that shows
+ * while it is hovered or focused, so no icon is a guess. The label is drawn
+ * over everything, outside the popover's scrolling body, so it is never
+ * clipped.
+ */
 function ToolButton({ icon, label, hint, onClick, disabled, danger, spinning }: {
   icon: React.ComponentProps<typeof GitIcon>['name']; label: string; hint?: string; onClick: () => void
   disabled?: boolean; danger?: boolean; spinning?: boolean
 }) {
+  const [tip, setTip] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const show = (target: HTMLElement, delay: number) => {
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      const bounds = target.getBoundingClientRect()
+      const above = bounds.bottom + 60 > window.innerHeight
+      setTip({ x: bounds.left + bounds.width / 2, y: above ? bounds.top - 6 : bounds.bottom + 6, above })
+    }, delay)
+  }
+  const hide = () => { window.clearTimeout(timer.current); setTip(null) }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
   return (
-    <button type="button" className="ambio-tool" aria-label={label} title={hint ? `${label}: ${hint}` : label}
-      data-danger={danger || undefined} disabled={disabled} onClick={onClick}>
-      <GitIcon name={icon} size={16} className={spinning ? 'ambio-tool__spin' : undefined} />
-    </button>
+    <>
+      <button type="button" className="ambio-tool" aria-label={label}
+        data-danger={danger || undefined} disabled={disabled}
+        onPointerEnter={event => show(event.currentTarget, TIP_DELAY_MS)} onPointerLeave={hide}
+        onFocus={event => { if (event.currentTarget.matches(':focus-visible')) show(event.currentTarget, 0) }} onBlur={hide}
+        onClick={() => { hide(); onClick() }}>
+        <GitIcon name={icon} size={16} className={spinning ? 'ambio-tool__spin' : undefined} />
+      </button>
+      {tip && createPortal(
+        <div className="ambio-tool-tip" role="tooltip" data-above={tip.above || undefined}
+          style={{ '--ambio-tip-x': `${tip.x}px`, '--ambio-tip-y': `${tip.y}px` } as React.CSSProperties}>
+          <strong>{label}</strong>{hint && <span>{hint}</span>}
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -84,8 +116,11 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const setLens = useCheckoutStore(state => state.setLens)
   const unplaced = useCheckoutStore(state => state.unplaced)
   const [showing, setShowing] = useState<string | null>(null)
-  // "Switch branch…" swaps the list for the repository's local branches.
-  const [branches, setBranches] = useState<{ current: string; branches: Array<{ name: string; rootId?: string }> } | null>(null)
+  // The branch name in the header opens the repository's local branches in
+  // place, under it; what is typed finds a branch or names a new one.
+  const [branches, setBranches] = useState<{ current: string; branches: BranchListing[] } | null>(null)
+  const [query, setQuery] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null)
   // "Review this branch" swaps the popover's list for that branch's claims.
@@ -98,10 +133,13 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
   const focused = useMemo(() => focusedCheckout(snapshot), [snapshot])
   const sync = useMemo(() => buildSync(focused), [focused])
   const floorRow = rows.find(row => row.focused)
+  const branchList = useMemo(() => buildBranchRows(branches, query), [branches, query])
   const others = rows.filter(row => !row.focused)
-  // The branch menu proper, as opposed to Switch branch, a review, a folder of
-  // repositories or a folder without Git.
-  const mainView = !chip.repositories && !chip.plain && !reviewing && !branches
+  // The branch menu proper, as opposed to a review, a folder of repositories
+  // or a folder without Git. Its header stays put while the branch list is
+  // open under it.
+  const mainView = !chip.repositories && !chip.plain && !reviewing
+  const picking = mainView && branches !== null
   const setSelectedNode = useGraphStore(state => state.setSelectedNode)
   const setInspectedNode = useGraphStore(state => state.setInspectedNode)
 
@@ -190,7 +228,7 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     window.addEventListener(REVIEW_BRANCH, reviewBranch)
     return () => window.removeEventListener(REVIEW_BRANCH, reviewBranch)
   }, [updatePosition])
-  useEffect(() => { if (!open) { setReviewing(null); setBranches(null); setConfirmDiscard(null); setCheckError(null) } }, [open])
+  useEffect(() => { if (!open) { setReviewing(null); closeBranches(); setConfirmDiscard(null); setCheckError(null) } }, [open])
 
   const showOnFloor = async (rootId: string) => {
     setShowing(rootId)
@@ -231,10 +269,19 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
       : `The run's work is in ${result.into} as uncommitted changes. Review and commit it there.`
   })
 
-  const openBranches = () => act('branches', async () => {
-    setBranches(await apiListBranches(workspaceId))
-    return null
-  })
+  function closeBranches() {
+    setBranches(null)
+    setQuery('')
+    setConfirmDelete(null)
+  }
+
+  const toggleBranches = () => {
+    if (branches) { closeBranches(); setNotice(null); return }
+    void act('branches', async () => {
+      setBranches(await apiListBranches(workspaceId))
+      return null
+    })
+  }
 
   const switchTo = (branch: { name: string; rootId?: string }) => act(`switch:${branch.name}`, async () => {
     if (branch.rootId) {
@@ -243,9 +290,42 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
     } else {
       await apiSwitchBranch(workspaceId, branch.name)
     }
-    setBranches(null)
+    closeBranches()
     return null
   })
+
+  const createBranch = (name: string) => act(`create:${name}`, async () => {
+    const from = branches?.current
+    await apiSwitchBranch(workspaceId, name, true)
+    closeBranches()
+    return from ? `Created ${name} from ${from}. The Floor is on it now.` : `Created ${name}.`
+  })
+
+  const deleteBranch = (name: string) => act(`delete:${name}`, async () => {
+    setConfirmDelete(null)
+    await apiDeleteBranch(workspaceId, name)
+    setBranches(await apiListBranches(workspaceId))
+    return `Deleted ${name}.`
+  })
+
+  const copyName = (name: string) => {
+    void navigator.clipboard?.writeText(name)
+    setNoticeDone(true)
+    setNotice(`Copied ${name}.`)
+  }
+
+  const onFindKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      // Escape clears what was typed, then closes the list, before it closes the menu.
+      event.stopPropagation()
+      if (query) setQuery('')
+      else closeBranches()
+    } else if (event.key === 'Enter' && busy === null) {
+      const only = branchList.rows.length === 1 ? branchList.rows[0] : null
+      if (only && !only.current) void switchTo(only)
+      else if (branchList.create && branchList.rows.length === 0) void createBranch(branchList.create)
+    }
+  }
 
   const SYNCING: Record<CheckoutSyncAction, string> = { fetch: 'Checking…', pull: 'Pulling…', push: 'Pushing…', publish: 'Publishing…' }
   const runSync = (kind: CheckoutSyncAction) => act(`sync:${kind}`, async () => {
@@ -314,7 +394,8 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                   <h2>
                     {floorRow.canSwitch ? (
                       <button type="button" className="ambio-checkouts__branch" aria-label="Switch branch…" title={`On ${floorRow.name}. Switch branch…`}
-                        disabled={busy !== null} onClick={() => void openBranches()}>
+                        aria-expanded={picking} data-open={picking || undefined}
+                        disabled={busy === 'branches'} onClick={toggleBranches}>
                         <GitIcon name="branch" size={16} /><span>{floorRow.name}</span><GitIcon name="chevronDown" size={14} />
                       </button>
                     ) : <span className="ambio-checkouts__branch"><GitIcon name="branch" size={16} /><span>{floorRow.name}</span></span>}
@@ -334,32 +415,76 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
             ) : (
               <header className="ambio-checkouts__header">
                 <div>
-                  <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : branches ? 'Switch branch' : 'Branches and worktrees'}</h2>
+                  <h2>{chip.repositories ? 'Repositories' : chip.plain ? 'No Git' : reviewing ? `Review ${reviewing.name}` : 'Branches and worktrees'}</h2>
                   {chip.repositories ? <p>Each repository in this folder</p> : chip.plain ? <p>This folder is not a Git repository</p>
-                    : reviewing ? <p>{review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p>
-                    : branches ? <p>The Floor is on {branches.current}</p> : null}
+                    : reviewing ? <p>{review ? `Against ${review.base || 'its base'} · ${review.files} file${review.files === 1 ? '' : 's'}` : 'Reading the branch…'}</p> : null}
                 </div>
                 {chip.repositories > 0 && <output>{chip.repositories}</output>}
-                {(reviewing || branches) && <button type="button" className="ambio-checkouts__back" onClick={() => { setReviewing(null); setBranches(null) }}>← Back</button>}
+                {reviewing && <button type="button" className="ambio-checkouts__back" onClick={() => setReviewing(null)}>← Back</button>}
               </header>
             )}
-            {branches && !reviewing ? (
-              <div className="ambio-checkouts__body">
-                <ul className="ambio-checkouts__branches">
-                  {branches.branches.map(branch => (
-                    <li key={branch.name}>
+            {picking && branches ? (
+              <div className="ambio-checkouts__body ambio-branches" role="group" aria-label="Branches">
+                <label className="ambio-branches__find">
+                  <GitIcon name="search" size={15} />
+                  <input autoFocus value={query} placeholder="Find or create a branch" aria-label="Find or create a branch"
+                    spellCheck={false} onChange={event => { setQuery(event.target.value); setConfirmDelete(null) }} onKeyDown={onFindKey} />
+                </label>
+                {branchList.create && (
+                  <button type="button" className="ambio-branches__create" disabled={busy !== null} onClick={() => void createBranch(branchList.create!)}>
+                    <GitIcon name="plus" size={15} />
+                    <span>Create branch <code>{branchList.create}</code> from <code>{branches.current}</code></span>
+                  </button>
+                )}
+                <ul className="ambio-branches__list">
+                  {branchList.rows.map(row => (
+                    <li key={row.name} className="ambio-branches__row" data-current={row.current || undefined}>
                       <button
                         type="button"
-                        disabled={busy !== null || branch.name === branches.current}
-                        aria-current={branch.name === branches.current || undefined}
-                        onClick={() => void switchTo(branch)}
+                        className="ambio-branches__pick"
+                        disabled={busy !== null || row.current}
+                        aria-current={row.current || undefined}
+                        title={row.current ? `The Floor is on ${row.name}` : row.rootId ? `Show ${row.name}'s worktree on the Floor` : `Switch the Floor to ${row.name}`}
+                        onClick={() => void switchTo(row)}
                       >
-                        <strong>{branch.name}</strong>
-                        {branch.name === branches.current ? <span>on the Floor</span> : branch.rootId ? <span>open in a worktree · show it</span> : null}
+                        <GitIcon name={row.current ? 'clean' : 'branch'} size={15} className="ambio-branches__icon" />
+                        <span className="ambio-branches__text">
+                          <span className="ambio-branches__name">{row.name}</span>
+                          <span className="ambio-branches__meta">
+                            {row.current ? <span className="ambio-branches__where">on the Floor</span>
+                              : row.rootId ? <span className="ambio-branches__where">in a worktree</span> : null}
+                            {row.gone ? <span>gone from the remote</span>
+                              : row.upstream ? (row.behind > 0 || row.ahead > 0) && (
+                                <span className="ambio-branches__counts" aria-label={`${row.behind} to pull, ${row.ahead} to push from ${row.upstream}`}>
+                                  {row.behind > 0 && <span><GitIcon name="pull" size={11} />{row.behind}</span>}
+                                  {row.ahead > 0 && <span><GitIcon name="push" size={11} />{row.ahead}</span>}
+                                </span>
+                              ) : <span>not published</span>}
+                            {row.last && <span className="ambio-branches__last">{row.last}</span>}
+                          </span>
+                        </span>
                       </button>
+                      <div className="ambio-branches__tools" role="toolbar" aria-label={`${row.name} actions`}>
+                        {row.rootId && <ToolButton icon="review" label="Review this branch" hint="what it changes in the architecture"
+                          onClick={() => { closeBranches(); setReviewing({ rootId: row.rootId!, name: row.name }) }} />}
+                        {row.rootId && <ToolButton icon="folder" label="Reveal folder" hint="its worktree" onClick={() => void openCheckout(row.rootId!, 'reveal')} />}
+                        <ToolButton icon="copy" label="Copy name" onClick={() => copyName(row.name)} />
+                        {!row.current && !row.rootId && (
+                          <ToolButton icon="trash" label="Delete branch…" hint="asks first; Git keeps a branch whose commits are nowhere else" danger
+                            disabled={busy !== null} onClick={() => setConfirmDelete(confirmDelete === row.name ? null : row.name)} />
+                        )}
+                      </div>
+                      {confirmDelete === row.name && (
+                        <div className="ambio-worktree__confirm ambio-branches__confirm" role="group" aria-label="Confirm delete">
+                          <span>Delete {row.name}? Only this computer's copy goes{row.upstream && !row.gone ? `; ${row.upstream} stays` : ''}.</span>
+                          <button type="button" data-danger disabled={busy !== null} onClick={() => void deleteBranch(row.name)}>Delete branch</button>
+                          <button type="button" onClick={() => setConfirmDelete(null)}>Keep it</button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
+                {branchList.rows.length === 0 && !branchList.create && <p className="ambio-checkouts__unplaced">No branches yet.</p>}
                 {notice && <p className="ambio-checkouts__notice" data-done={noticeDone || undefined} role="status">{notice}</p>}
               </div>
             ) : reviewing ? (
@@ -424,21 +549,22 @@ export function BranchChip({ workspaceId }: { workspaceId: string }) {
                     </div>
                   </div>}
                   {checkError && !checking && <p className="ambio-sync__error" role="alert">{checkError}</p>}
-                  {sync.action && (
-                    <button
-                      type="button"
-                      className="ambio-sync__action"
-                      disabled={busy !== null || checking}
-                      onClick={() => void runSync(sync.action!.kind)}
-                    >
-                      <GitIcon name={sync.action.kind} size={17} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
-                      <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
-                    </button>
-                  )}
-                  <p className="ambio-sync__tree" data-dirty={sync.uncommitted > 0 || undefined}>
+                  {/* The working tree and the one action share a row. */}
+                  <div className="ambio-sync__tree" data-dirty={sync.uncommitted > 0 || undefined}>
                     <GitIcon name={sync.uncommitted > 0 ? 'edit' : 'clean'} size={15} />
-                    {sync.uncommitted > 0 ? `${sync.uncommitted} uncommitted file${sync.uncommitted === 1 ? '' : 's'}` : 'No uncommitted changes'}
-                  </p>
+                    <span>{sync.uncommitted > 0 ? `${sync.uncommitted} uncommitted file${sync.uncommitted === 1 ? '' : 's'}` : 'No uncommitted changes'}</span>
+                    {sync.action && (
+                      <button
+                        type="button"
+                        className="ambio-sync__action"
+                        disabled={busy !== null || checking}
+                        onClick={() => void runSync(sync.action!.kind)}
+                      >
+                        <GitIcon name={sync.action.kind} size={16} className={busy === `sync:${sync.action.kind}` ? 'ambio-tool__pulse' : undefined} />
+                        <span>{busy === `sync:${sync.action.kind}` ? SYNCING[sync.action.kind] : sync.action.label}</span>
+                      </button>
+                    )}
+                  </div>
                   {floorRow.agents.length > 0 && (
                     <ul className="ambio-checkout__agents">
                       {floorRow.agents.map(agent => (

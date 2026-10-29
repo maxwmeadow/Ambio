@@ -48,13 +48,14 @@ Git's usual symbols carry the meaning (`GitIcon.tsx`, drawn like the rest of
 Ambio's icons): ↓ pull, ↑ push, a cloud for the remote, a fork for a branch.
 
 1. **Header: the branch is the switcher.** The branch name with a ▾ opens
-   Switch branch; under it the folder (home written as `~`), and "on the
-   Floor" when other checkouts are open. Reveal folder and Open in editor
-   are icon buttons on the right.
+   the branch list in place under it (see *Switching branches*); the header
+   does not change and the same button closes the list. Under the name, the
+   folder (home written as `~`), and "on the Floor" when other checkouts are
+   open. Reveal folder and Open in editor are icon buttons on the right.
 2. **The remote line:** the upstream (`origin/main`), ↓/↑ counters (lit when
    non-zero), when it was last checked, and a ↻ Check for updates button that
    spins while fetching.
-3. **The one action**, full width with its symbol: **↓ Pull N commits**,
+3. **The one action**, a normal-sized primary button with its symbol, on the working tree's row: **↓ Pull N commits**,
    **↑ Push N commits** or **Publish to origin**. When there is an action,
    the button is the status; a glyph tile and headline appear only when
    there is nothing to press or it needs explaining: ✓ Up to date,
@@ -67,9 +68,35 @@ Ambio's icons): ↓ pull, ↑ push, a cloud for the remote, a fork for a branch.
    discard, folder, editor), each named in its tooltip. Discard asks inline
    before anything is removed.
 
+Every icon button names itself in a label shown on hover and on keyboard
+focus, with a short hint where the name alone is not enough.
+
 Labels that mean nothing with one checkout (a count badge, "on the Floor",
 "primary", a subtitle) are not shown. "Review this branch" is not offered for
 the Floor's own branch, where it would compare the branch with itself.
+
+## Switching branches
+
+The list opens under the header, where the branch name was clicked, and
+replaces the panel until it is closed by the same button, Escape, or a choice.
+
+- **Find or create.** A field at the top narrows the list as you type. A name
+  no branch has is offered as *Create branch `name` from `current`* (spaces
+  become dashes); it is started where the Floor is and the Floor switches to
+  it. Enter picks the only match, or creates when nothing matches.
+- **One row per local branch**, the Floor's first and the rest most recently
+  committed first: the name, where it is (on the Floor, in a worktree), how it
+  stands against its upstream (↓/↑ counts, not published, gone from the
+  remote), and when it was last committed with the commit's subject.
+- **The row is the switch.** Clicking it switches the Floor to that branch, or
+  for a branch open in another worktree shows that checkout instead (Git keeps
+  a branch in one worktree at a time). Switching and creating are refused with
+  uncommitted changes (DECISIONS 2026-10-20).
+- **Each row's own actions**, quiet until the row is hovered or focused: Copy
+  name; for a worktree's branch, Review this branch and Reveal folder; for any
+  other branch, Delete branch…, which asks inline and uses `git branch -d`, so
+  Git refuses a branch whose commits are on no other branch and Ambio says so
+  rather than forcing.
 
 ## Stages
 
@@ -89,6 +116,10 @@ the Floor's own branch, where it would compare the branch with itself.
   `remotes`, so the popover can say when Ambio last heard from the remote and
   whether Publish is possible.
 - The popover is rebuilt as above.
+- Branches: `GET /api/checkouts/branches` lists each local branch with its
+  upstream, ahead/behind, last commit and the checkout it is open in;
+  `POST /api/checkouts/switch {create}` creates one at the Floor's HEAD;
+  `POST /api/checkouts/branches/delete` deletes one safely.
 
 ### Stage 2 - commit
 

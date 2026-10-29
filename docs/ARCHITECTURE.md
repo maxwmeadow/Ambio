@@ -436,9 +436,15 @@ to API-key billing or another account. Setup and live-account validation:
   commits and uncommitted work to the Floor's checkout as uncommitted changes
   (`gitworktree.ChangesAsPatch`/`ApplyPatch`, refused over uncommitted edits
   to the same files, conflicts kept with the worktree) or discards it; either
-  removes the worktree and its branch. *Switch branch…* (`POST
-  /api/checkouts/switch`) is refused with uncommitted changes, and a branch
-  open in another worktree is shown on the Floor instead.
+  removes the worktree and its branch. The branch list
+  (`GET /api/checkouts/branches`, `gitworktree.LocalBranches`: upstream,
+  ahead/behind and last commit per branch from one `for-each-ref`) opens in
+  place under the popover's header. Switching (`POST /api/checkouts/switch`,
+  or with `create` a new branch at HEAD via `git switch -c`) is refused with
+  uncommitted changes, and a branch open in another worktree is shown on the
+  Floor instead. `POST /api/checkouts/branches/delete` runs `git branch -d`,
+  refused for a branch checked out anywhere and, by Git, for one whose
+  commits are on no other branch.
 - **Talking to the remote** (docs/GIT_WORKFLOW.md stage 1,
   `api/checkout_sync.go`, `gitworktree/sync.go`): `POST
   /api/checkouts/sync` fetches, pulls (`--ff-only`), pushes (never forced)
