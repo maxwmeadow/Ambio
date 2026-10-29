@@ -679,8 +679,9 @@ fit and selection centres in what is visible.
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
 files (compose, `.env`, Dockerfile, Procfile, fly/vercel/netlify/render/railway,
-GitHub workflows) against an 87-service registry; results are proposals until
-confirmed.
+GitHub workflows) against a 93-service registry; results are proposals until
+confirmed. A generic role's entry matches only packages no named service
+claims, and folds into the one named service of its role when there is one.
 
 **Investigations and runtime** (`internal/runtime`, `adapters/`): hypothesis
 runs record watched functions in-process with each language's own toolchain:

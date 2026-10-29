@@ -196,6 +196,20 @@ var envPatterns = map[string][]*regexp.Regexp{
 	"java": {
 		regexp.MustCompile(`System\.getenv\(\s*"([A-Z_][A-Z0-9_]*)"`),
 		regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)(?::[^}]*)?\}`),
+		// Scala: sys.env("X") / sys.env.get("X") / sys.env.getOrElse("X", ...)
+		regexp.MustCompile(`sys\.env(?:\.get|\.getOrElse)?\(\s*"([A-Z_][A-Z0-9_]*)"`),
+	},
+	"php": {
+		regexp.MustCompile(`\bgetenv\(\s*['"]([A-Z_][A-Z0-9_]*)['"]`),
+		regexp.MustCompile(`\$_(?:ENV|SERVER)\[\s*['"]([A-Z_][A-Z0-9_]*)['"]\s*\]`),
+		// Laravel's env('X')
+		regexp.MustCompile(`\benv\(\s*['"]([A-Z_][A-Z0-9_]*)['"]`),
+	},
+	"swift": {
+		regexp.MustCompile(`environment\[\s*"([A-Z_][A-Z0-9_]*)"\s*\]`),
+	},
+	"elixir": {
+		regexp.MustCompile(`System\.(?:get_env|fetch_env!?)\(\s*"([A-Z_][A-Z0-9_]*)"`),
 	},
 	"csharp": {
 		regexp.MustCompile(`Environment\.GetEnvironmentVariable\(\s*"([A-Z_][A-Z0-9_]*)"`),
@@ -210,42 +224,81 @@ var envPatterns = map[string][]*regexp.Regexp{
 	},
 }
 
+// jvmImport reads Java, Kotlin, Scala and Groovy imports alike: they all name
+// JVM packages, so the registry's java names serve all four.
+// import com.stripe.Stripe; / import static io.sentry.Sentry.captureException;
+// import com.stripe.{Stripe, Charge} (Scala) reads as "com.stripe".
+var jvmImport = regexp.MustCompile(`(?m)^\s*import\s+(?:static\s+)?([a-zA-Z_][\w.]*)`)
+
 // Imports in languages detection reads as text: the package the line names.
 var textImports = map[string]*regexp.Regexp{
-	// import com.stripe.Stripe; / import static io.sentry.Sentry.captureException;
-	"java": regexp.MustCompile(`(?m)^\s*import\s+(?:static\s+)?([a-zA-Z_][\w.]*)`),
+	"java":   jvmImport,
+	"kotlin": jvmImport,
+	"scala":  jvmImport,
+	"groovy": jvmImport,
 	// using StackExchange.Redis; (not using var = ...; or using (...))
 	"csharp": regexp.MustCompile(`(?m)^\s*(?:global\s+)?using\s+(?:static\s+)?([A-Z][\w.]*)\s*;`),
 	// require "aws-sdk-s3" / require 'stripe'
 	"ruby": regexp.MustCompile(`(?m)^\s*require\s*\(?\s*['"]([\w/.-]+)['"]`),
 	// use redis::Commands; / extern crate diesel;
 	"rust": regexp.MustCompile(`(?m)^\s*(?:pub\s+)?(?:use|extern\s+crate)\s+(?:::)?([a-z_][a-z0-9_]*)`),
+	// use Stripe\StripeClient; (grouped uses are read by phpGroupedUse)
+	"php": phpUse,
+	// import FirebaseAuth / @testable import Supabase
+	"swift": swiftImport,
+	// alias Ecto.Changeset / use Phoenix.Controller
+	"elixir": elixirUse,
 }
 
 var rustLocal = map[string]bool{"crate": true, "self": true, "super": true, "std": true, "core": true, "alloc": true}
 
-// extractTextPackages records the packages a Java, C#, Ruby or Rust file
-// names, for the languages without a tree-sitter import walk here.
+// jvmStandard are the platform's own packages in each JVM language.
+var jvmStandard = []string{"java.", "javax.", "kotlin.", "kotlinx.", "scala.", "groovy."}
+
+// extractTextPackages records the packages a JVM, C#, Ruby, Rust, PHP, Swift
+// or Elixir file names, for the languages without a tree-sitter import walk
+// here.
 func extractTextPackages(src []byte, lang string) []PackageRef {
 	pattern, ok := textImports[lang]
 	if !ok {
 		return nil
 	}
+	line := func(offset int) int { return bytes.Count(src[:offset], []byte("\n")) + 1 }
 	var out []PackageRef
 	for _, m := range pattern.FindAllSubmatchIndex(src, -1) {
-		name := string(src[m[2]:m[3]])
+		name := strings.TrimSuffix(string(src[m[2]:m[3]]), ".")
 		if lang == "rust" && rustLocal[name] {
 			continue
 		}
-		if lang == "java" && (strings.HasPrefix(name, "java.") || strings.HasPrefix(name, "javax.")) {
+		if pattern == jvmImport && hasAnyPrefix(name+".", jvmStandard) {
 			continue
 		}
 		if lang == "csharp" && strings.HasPrefix(name, "System") && !strings.HasPrefix(name, "System.Data.SQLite") {
 			continue
 		}
-		out = append(out, PackageRef{Package: name, Line: bytes.Count(src[:m[0]], []byte("\n")) + 1})
+		out = append(out, PackageRef{Package: name, Line: line(m[0])})
+	}
+	if lang == "php" {
+		// use Aws\{S3\S3Client, Sqs\SqsClient};
+		for _, m := range phpGroupedUse.FindAllSubmatchIndex(src, -1) {
+			prefix := string(src[m[2]:m[3]])
+			for _, part := range strings.Split(string(src[m[4]:m[5]]), ",") {
+				if name := strings.TrimSpace(strings.SplitN(strings.TrimSpace(part), " as ", 2)[0]); name != "" {
+					out = append(out, PackageRef{Package: prefix + `\` + name, Line: line(m[0])})
+				}
+			}
+		}
 	}
 	return out
+}
+
+func hasAnyPrefix(name string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // extractEnvReads finds environment variables read by name. It is a text
@@ -256,6 +309,8 @@ func extractEnvReads(src []byte, lang string) []EnvRef {
 	switch lang {
 	case "typescript", "tsx", "javascript", "jsx":
 		family = "js"
+	case "kotlin", "scala", "groovy":
+		family = "java"
 	}
 	patterns := envPatterns[family]
 	if len(patterns) == 0 {

@@ -142,6 +142,36 @@ func TestJavaCSharpRubyRustPackagesAndEnv(t *testing.T) {
 	}
 }
 
+func TestJVMPHPSwiftElixirPackagesAndEnv(t *testing.T) {
+	cases := []struct {
+		name, source string
+		packages     []string
+		env          string
+	}{
+		{"app/Billing.kt", "package app\nimport kotlin.math.max\nimport com.stripe.Stripe\nval key = System.getenv(\"STRIPE_SECRET_KEY\")\n",
+			[]string{"com.stripe.Stripe"}, "STRIPE_SECRET_KEY"},
+		{"src/Cache.scala", "import scala.util.Try\nimport redis.clients.jedis.{Jedis, JedisPool}\nobject Cache { val url = sys.env(\"REDIS_URL\") }\n",
+			[]string{"redis.clients.jedis"}, "REDIS_URL"},
+		{"src/Jobs.groovy", "import org.apache.kafka.clients.producer.KafkaProducer\nclass Jobs { def b = System.getenv(\"KAFKA_BROKERS\") }\n",
+			[]string{"org.apache.kafka.clients.producer.KafkaProducer"}, "KAFKA_BROKERS"},
+		{"src/Upload.php", "<?php\nuse Aws\\{S3\\S3Client, Sqs\\SqsClient as Queue};\nuse Stripe\\StripeClient;\n$bucket = getenv('S3_BUCKET');\n",
+			[]string{`Aws\S3\S3Client`, `Aws\Sqs\SqsClient`, `Stripe\StripeClient`}, "S3_BUCKET"},
+		{"App/Auth.swift", "import Foundation\n@preconcurrency import FirebaseAuth\nlet key = ProcessInfo.processInfo.environment[\"FIREBASE_KEY\"]\n",
+			[]string{"FirebaseAuth", "Foundation"}, "FIREBASE_KEY"},
+		{"lib/app/notes.ex", "defmodule App.Notes do\n  alias Postgrex.Result\n  def url, do: System.fetch_env!(\"DATABASE_URL\")\nend\n",
+			[]string{"Postgrex.Result"}, "DATABASE_URL"},
+	}
+	for _, c := range cases {
+		result := parseSource(t, c.name, c.source)
+		if got := packages(result); !reflect.DeepEqual(got, c.packages) {
+			t.Errorf("%s packages: %v, want %v", c.name, got, c.packages)
+		}
+		if len(result.EnvReads) != 1 || result.EnvReads[0].Name != c.env {
+			t.Errorf("%s env: %+v, want %s", c.name, result.EnvReads, c.env)
+		}
+	}
+}
+
 func TestTextImportsPerLanguage(t *testing.T) {
 	cases := map[string]struct {
 		source string

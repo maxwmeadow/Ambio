@@ -145,7 +145,7 @@ func languageFamily(language string) string {
 		return "py"
 	case "go":
 		return "go"
-	case "java", "kotlin":
+	case "java", "kotlin", "scala", "groovy":
 		return "java"
 	case "csharp":
 		return "cs"
@@ -153,6 +153,12 @@ func languageFamily(language string) string {
 		return "rb"
 	case "rust":
 		return "rs"
+	case "php":
+		return "php"
+	case "swift":
+		return "swift"
+	case "elixir":
+		return "ex"
 	}
 	return ""
 }
@@ -164,6 +170,7 @@ func Analyze(in Inputs) Result {
 	d.dropInfraJobs()
 	d.readManifests()
 	d.readConfig()
+	d.foldGenerics()
 	d.collectRequirements()
 	d.linkEnvReaders()
 	d.extractSchedules()
@@ -239,23 +246,103 @@ func (d *detection) proposal(service registry.Service) *Proposal {
 }
 
 // servicesForPackage lists registry services whose detection signatures name
-// the package for this language family. Go matches by module prefix.
+// the package for this language family. Go matches by module prefix, PHP by
+// namespace (Aws\S3\S3Client is Aws\S3's). A generic role ("Vector
+// Database") answers only when no named service claims the package: faiss
+// says what the role is, not who provides it.
 func (d *detection) servicesForPackage(family, pkg string) []registry.Service {
-	var out []registry.Service
+	var named, generic []registry.Service
 	for _, s := range d.in.Registry.All() {
 		if s.Detect == nil {
 			continue
 		}
 		for _, candidate := range s.Detect.Packages[family] {
-			if candidate == pkg || (family == "go" && strings.HasPrefix(pkg, candidate+"/")) ||
-				((family == "py" || family == "java" || family == "cs") && strings.HasPrefix(pkg, candidate+".")) ||
-				(family == "rb" && strings.HasPrefix(pkg, candidate+"/")) {
-				out = append(out, s)
+			if candidate == pkg || ((family == "go" || family == "rb") && strings.HasPrefix(pkg, candidate+"/")) ||
+				((family == "py" || family == "java" || family == "cs" || family == "swift" || family == "ex") && strings.HasPrefix(pkg, candidate+".")) ||
+				(family == "php" && strings.HasPrefix(pkg, candidate+`\`)) {
+				if s.Provider == "generic" {
+					generic = append(generic, s)
+				} else {
+					named = append(named, s)
+				}
 				break
 			}
 		}
 	}
-	return out
+	if len(named) > 0 {
+		return named
+	}
+	return generic
+}
+
+// foldGenerics: a library that only names its role (knex is "some SQL
+// database") joins the named service the project uses for that role when
+// there is exactly one. Beside several, which one it reaches is the agent's
+// call. Alone, it stays the role's generic node.
+func (d *detection) foldGenerics() {
+	ids := make([]string, 0, len(d.proposals))
+	for id := range d.proposals {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		g := d.proposals[id]
+		if g == nil || g.Provider != "generic" || g.Instance != "" {
+			continue
+		}
+		var named []*Proposal
+		for _, other := range ids {
+			p := d.proposals[other]
+			if p == nil || p.Provider == "generic" || p.Instance != "" || p.Category != g.Category ||
+				(g.Subtype != "" && p.Subtype != g.Subtype) {
+				continue
+			}
+			named = append(named, p)
+		}
+		switch len(named) {
+		case 0:
+			continue
+		case 1:
+			mergeProposal(named[0], g)
+		default:
+			candidates := make([]string, 0, len(named))
+			for _, p := range named {
+				candidates = append(candidates, p.Service)
+			}
+			for _, e := range g.Evidence {
+				if e.Signal == "import" {
+					d.unresolved = append(d.unresolved, Unresolved{Package: e.Detail, Candidates: candidates, Evidence: e.Ref})
+				}
+			}
+		}
+		delete(d.proposals, id)
+	}
+}
+
+// mergeProposal moves what detection found for from into into. A file already
+// related to into keeps its relationship.
+func mergeProposal(into, from *Proposal) {
+	related := map[string]bool{}
+	for _, e := range into.Edges {
+		related[e.FileID] = true
+	}
+	for _, e := range from.Edges {
+		if !related[e.FileID] {
+			into.Edges = append(into.Edges, e)
+		}
+	}
+	refs := map[string]bool{}
+	for _, impl := range into.Implementations {
+		refs[impl.Ref] = true
+	}
+	for _, impl := range from.Implementations {
+		if !refs[impl.Ref] {
+			into.Implementations = append(into.Implementations, impl)
+		}
+	}
+	into.Evidence = append(into.Evidence, from.Evidence...)
+	into.DeclaredOnly = into.DeclaredOnly && from.DeclaredOnly
+	sortProposal(into)
 }
 
 // envNames is every variable read in code or declared in env files.

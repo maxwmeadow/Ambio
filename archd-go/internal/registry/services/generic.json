@@ -1,10 +1,12 @@
 [
   { "id": "generic/database", "name": "SQL Database", "category": "database", "subtype": "sql", "provider": "generic",
-    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host"] },
+    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host"],
+    "detect": { "packages": { "js": ["knex", "sequelize", "typeorm", "kysely", "drizzle-orm", "@mikro-orm/core"], "py": ["peewee", "sqlmodel", "tortoise", "tortoise-orm", "pony"], "go": ["gorm.io/gorm", "github.com/jmoiron/sqlx", "entgo.io/ent", "github.com/uptrace/bun"], "java": ["org.hibernate", "jakarta.persistence", "org.jooq", "org.mybatis", "org.springframework.data.jpa"], "cs": ["Microsoft.EntityFrameworkCore", "Dapper"], "rb": ["activerecord", "sequel"], "rs": ["diesel", "sea_orm"], "php": ["Doctrine", "doctrine/orm", "doctrine/dbal", "Illuminate\\Database", "illuminate/database"], "ex": ["Ecto", "ecto", "ecto_sql"] } } },
   { "id": "generic/document-database", "name": "Document / NoSQL Database", "category": "database", "subtype": "document", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host"] },
   { "id": "generic/vector-database", "name": "Vector Database", "category": "database", "subtype": "vector", "provider": "generic",
-    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host", "index"] },
+    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host", "index"],
+    "detect": { "packages": { "js": ["faiss-node", "hnswlib-node", "usearch"], "py": ["faiss", "faiss-cpu", "faiss-gpu", "hnswlib", "annoy", "usearch"], "rs": ["hnsw_rs", "usearch"] } } },
   { "id": "generic/timeseries-database", "name": "Time-Series Database", "category": "database", "subtype": "timeseries", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["engine", "host"] },
   { "id": "generic/cache", "name": "Cache", "category": "cache", "provider": "generic",
@@ -16,7 +18,8 @@
   { "id": "generic/search", "name": "Search Index", "category": "search", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["host", "index"] },
   { "id": "generic/llm", "name": "LLM API", "category": "llm", "provider": "generic",
-    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["model", "endpoint"] },
+    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["model", "endpoint"],
+    "detect": { "packages": { "js": ["ai", "langchain", "@langchain/core", "llamaindex"], "py": ["langchain", "langchain_core", "langchain-core", "llama_index", "llama-index", "litellm"], "go": ["github.com/tmc/langchaingo"], "java": ["dev.langchain4j"], "cs": ["Microsoft.SemanticKernel"], "rb": ["langchain", "langchainrb"], "php": ["LLPhant", "theodo-group/llphant"], "ex": ["LangChain", "langchain"] } } },
   { "id": "generic/http-api", "name": "External API", "category": "api", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["baseUrl"] },
   { "id": "generic/auth", "name": "Auth Provider", "category": "auth", "provider": "generic",
@@ -26,7 +29,9 @@
   { "id": "generic/cdn", "name": "CDN", "category": "platform", "subtype": "cdn", "provider": "generic",
     "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["domain"] },
   { "id": "generic/observability", "name": "Monitoring", "category": "observability", "provider": "generic",
-    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["endpoint"] },
+    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["endpoint"],
+    "detect": { "packages": { "js": ["@opentelemetry/api", "@opentelemetry/sdk-node", "prom-client"], "py": ["opentelemetry", "opentelemetry-api", "opentelemetry-sdk", "prometheus_client", "prometheus-client"], "go": ["go.opentelemetry.io/otel", "github.com/prometheus/client_golang"], "java": ["io.opentelemetry", "io.prometheus", "io.micrometer"], "cs": ["OpenTelemetry", "Prometheus"], "rb": ["opentelemetry", "opentelemetry-sdk", "prometheus-client"], "rs": ["opentelemetry", "prometheus"], "php": ["OpenTelemetry", "open-telemetry/sdk"], "ex": ["OpenTelemetry", "opentelemetry", "PromEx", "prom_ex"] } } },
   { "id": "generic/email", "name": "Email Service", "category": "email", "provider": "generic",
-    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["domain"] }
+    "brand": { "icon": "", "color": "#8A94A6" }, "configFields": ["domain"],
+    "detect": { "packages": { "js": ["nodemailer"], "py": ["smtplib", "aiosmtplib"], "go": ["github.com/wneessen/go-mail", "gopkg.in/gomail.v2"], "java": ["jakarta.mail"], "cs": ["MailKit"], "rb": ["mail"], "rs": ["lettre"], "php": ["PHPMailer", "phpmailer/phpmailer", "Symfony\\Component\\Mailer", "symfony/mailer"], "ex": ["Swoosh", "swoosh", "Bamboo", "bamboo"] } } }
 ]

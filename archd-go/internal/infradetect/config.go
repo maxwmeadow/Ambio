@@ -20,6 +20,7 @@ var ConfigNames = map[string]bool{
 	"vercel.json": true, "fly.toml": true, "netlify.toml": true, "render.yaml": true, "railway.json": true, "railway.toml": true,
 	"Dockerfile": true, "Procfile": true,
 	"pom.xml": true, "build.gradle": true, "build.gradle.kts": true, "Gemfile": true, "Cargo.toml": true,
+	"build.sbt": true, "composer.json": true, "Package.swift": true, "mix.exs": true,
 	"database.yml": true, "application.properties": true, "application.yml": true, "application.yaml": true,
 	"appsettings.json": true, "appsettings.Development.json": true,
 }
@@ -136,6 +137,31 @@ func (d *detection) readManifests() {
 			declared["java"] = append(declared["java"], declaration{string(m[1]), file})
 		}
 	}
+	for _, file := range d.configFiles("build.sbt") {
+		for _, m := range sbtDependency.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["java"] = append(declared["java"], declaration{string(m[1]), file})
+		}
+	}
+	for _, file := range d.configFiles("composer.json") {
+		var manifest struct {
+			Require map[string]string `json:"require"`
+		}
+		if json.Unmarshal(d.in.Config[file], &manifest) == nil {
+			for name := range manifest.Require {
+				declared["php"] = append(declared["php"], declaration{name, file})
+			}
+		}
+	}
+	for _, file := range d.configFiles("Package.swift") {
+		for _, m := range swiftProduct.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["swift"] = append(declared["swift"], declaration{string(m[1]), file})
+		}
+	}
+	for _, file := range d.configFiles("mix.exs") {
+		for _, m := range mixDependency.FindAllSubmatch(d.in.Config[file], -1) {
+			declared["ex"] = append(declared["ex"], declaration{string(m[1]), file})
+		}
+	}
 	for file := range d.in.Config {
 		if strings.HasSuffix(file, ".csproj") {
 			for _, m := range nugetReference.FindAllSubmatch(d.in.Config[file], -1) {
@@ -187,6 +213,12 @@ var (
 	nugetReference   = regexp.MustCompile(`<PackageReference\s+Include="([^"]+)"`)
 	gemLine          = regexp.MustCompile(`(?m)^\s*gem\s+['"]([\w.-]+)['"]`)
 	cargoDependency  = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=`)
+	// "com.stripe" % "stripe-java" % "26.0.0" / "org.typelevel" %% "cats-core" % ...
+	sbtDependency = regexp.MustCompile(`"([\w.-]+)"\s*%%?%?\s*"`)
+	// .product(name: "Supabase", package: "supabase-swift")
+	swiftProduct = regexp.MustCompile(`\.product\(\s*name:\s*"([\w.-]+)"`)
+	// {:stripity_stripe, "~> 3.0"}
+	mixDependency = regexp.MustCompile(`\{\s*:([a-z][\w]*)\s*,`)
 )
 
 var requirementName = regexp.MustCompile(`[<>=!~\[; ].*$`)
@@ -199,7 +231,7 @@ var composeImages = []struct {
 	category string
 	kind     string
 }{
-	{regexp.MustCompile(`(^|/)(postgres|postgis|postgresql)$`), "postgresql/postgres", "", "local-service"},
+	{regexp.MustCompile(`(^|/)(postgres|postgis|postgresql|pgvector)$`), "postgresql/postgres", "", "local-service"},
 	{regexp.MustCompile(`(^|/)(mysql|mariadb)$`), "mysql/mysql", "", "local-service"},
 	{regexp.MustCompile(`(^|/)mongo(db)?$`), "mongodb/mongodb", "", "local-service"},
 	{regexp.MustCompile(`(^|/)(redis|valkey|redis-stack)$`), "redis/redis", "", "local-service"},
@@ -212,6 +244,10 @@ var composeImages = []struct {
 	{regexp.MustCompile(`(^|/)rabbitmq$`), "rabbitmq/rabbitmq", "", "local-service"},
 	{regexp.MustCompile(`(^|/)(cp-kafka|kafka)$`), "apache/kafka", "", "local-service"},
 	{regexp.MustCompile(`(^|/)clickhouse(-server)?$`), "clickhouse/clickhouse", "", "local-service"},
+	{regexp.MustCompile(`(^|/)chroma$`), "chroma/chroma", "", "local-service"},
+	{regexp.MustCompile(`(^|/)qdrant$`), "qdrant/qdrant", "", "local-service"},
+	{regexp.MustCompile(`(^|/)weaviate$`), "weaviate/weaviate", "", "local-service"},
+	{regexp.MustCompile(`(^|/)milvus$`), "milvus/milvus", "", "local-service"},
 }
 
 type composeService struct {

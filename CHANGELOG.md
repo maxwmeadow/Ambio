@@ -23,6 +23,12 @@ in the app as "What's New" after updating, so write it for users.
   setup, with mapping, inbox and draw-first workflows. Ambio can start both
   signed-in CLIs, select a model, continue conversations, show activity and
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
+- Infrastructure found in your code now includes vector databases (Chroma,
+  Pinecone, Qdrant, Weaviate, Milvus, LanceDB) and reads Kotlin, Scala,
+  Groovy, PHP, Swift and Elixir projects, including composer.json,
+  Package.swift, mix.exs and build.sbt. A library that only says what it is
+  for, such as faiss or an ORM, is shown as a general “Vector Database” or
+  “SQL Database”, or joins the named database your project already uses.
 
 ### Fixed
 - The agent panel's “Here” button is gone. Starting a Build in its own

@@ -277,15 +277,28 @@ server instructions that tell the agent when infra matters.
 > proposals.
 >
 > **Coverage.** Imports and env reads: TypeScript/JavaScript, Python and Go
-> (tree-sitter), Java, C#, Ruby and Rust (text). Manifests: package.json,
-> requirements.txt, go.mod, pom.xml, build.gradle, .csproj, Gemfile,
-> Cargo.toml. Config: docker-compose, Dockerfiles, fly.toml, railway, render,
+> (tree-sitter); Java, Kotlin, Scala and Groovy (one JVM reading, matched
+> against the registry's `java` names), C#, Ruby, Rust, PHP (namespaces),
+> Swift (modules) and Elixir (modules), as text. Manifests: package.json,
+> requirements.txt, go.mod, pom.xml, build.gradle, build.sbt, .csproj, Gemfile,
+> Cargo.toml, composer.json, Package.swift products, mix.exs. C and C++ have
+> no package evidence. Vector databases: Chroma, Pinecone, Qdrant, Weaviate,
+> Milvus, LanceDB; pgvector is Postgres.
+>
+> **Generic roles from evidence (2026-10-29).** A library that names a role
+> but not a provider - faiss, knex, Ecto, LangChain, OpenTelemetry,
+> nodemailer - proposes the role's generic node ("Vector Database") when no
+> named service claims the package. Beside exactly one named service of that
+> role it folds into it (knex next to pg is Postgres); beside several, the
+> package is left unresolved for the agent.
+>
+> Config: docker-compose, Dockerfiles, fly.toml, railway, render,
 > netlify, vercel.json, GitHub workflows, Rails database.yml, Spring
 > application properties, .NET appsettings. Contracts: SQL and Prisma tables
 > with reads/writes (SQL text, Prisma calls); topics from .publish/.consume,
 > kafkajs, kafka-go, amqplib, kombu, BullMQ and adapter wrappers; cache keys
 > (get/set/del on a cache-named receiver); Mongo collections; flag keys; LLM
-> model names. Not yet: PHP, Kotlin-specific, Terraform, Kubernetes manifests,
+> model names. Not yet: Terraform, Kubernetes manifests,
 > ORMs beyond Prisma (SQLAlchemy models, ActiveRecord, GORM), SQS/SNS/Pub/Sub
 > topic names.
 
