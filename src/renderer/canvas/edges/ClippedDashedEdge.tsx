@@ -3,10 +3,10 @@ import { useStore } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { clipOrthogonalEdge, orthogonalLength, orthogonalPoints } from './clippedEdgeGeometry'
 
-interface Props { id: string; path: string; markerEnd?: string; style: React.CSSProperties }
+interface Props { id: string; path: string; markerEnd?: string; style: React.CSSProperties; interactionWidth?: number }
 /** Only very long dashed paths react to camera movement. Short paths retain
  * their existing SVG and have a stable null viewport selector. */
-export function ClippedDashedEdge({ id, path, markerEnd, style }: Props) {
+export function ClippedDashedEdge({ id, path, markerEnd, style, interactionWidth = 12 }: Props) {
   const points = useMemo(() => orthogonalPoints(path), [path])
   const length = useMemo(() => points ? orthogonalLength(points) : 0, [points])
   const viewport = useStore(useShallow(useCallback(state => length * state.transform[2] > 8192
@@ -27,6 +27,6 @@ export function ClippedDashedEdge({ id, path, markerEnd, style }: Props) {
       // coordinates, including for its non-scaling-stroke styles.
       style={{ ...style, strokeDashoffset: offset + part.startLength }} />
     <path d={part.path} className="react-flow__edge-interaction" fill="none" stroke="transparent"
-      strokeWidth={12} style={{ cursor: 'pointer' }} />
+      strokeWidth={interactionWidth} style={{ cursor: 'pointer' }} />
   </React.Fragment>)}</>
 }

@@ -1,6 +1,20 @@
 import React from 'react'
-import { EdgeText, type EdgeProps, getSmoothStepPath } from '@xyflow/react'
+import { EdgeText, type EdgeProps, getSmoothStepPath, useStore } from '@xyflow/react'
 import { ClippedDashedEdge } from './ClippedDashedEdge'
+import { sheetRelationshipInk, type SheetRelationshipRoute } from './sheetRelationshipGeometry'
+
+function SheetRelationship({ id, route, style }: { id: string; route: SheetRelationshipRoute | null; style?: React.CSSProperties }) {
+  // Subscribe only to zoom; panning leaves the route and its ink untouched.
+  const zoom = useStore(state => state.transform[2])
+  if (!route || route.points.length < 2) return null
+  const ink = sheetRelationshipInk(route, zoom)
+  const stroke = String(style?.stroke ?? 'var(--accent)')
+  return <>
+    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth}
+      style={{ ...style, vectorEffect: undefined, stroke, strokeWidth: ink.strokeWidth, strokeDasharray: ink.dash }} />
+    <path className="ambio-sheet-relationship-arrow" d={ink.arrow} fill={stroke} pointerEvents="none" />
+  </>
+}
 
 /**
  * Hard-corner stepped edge that respects the actual source and target faces.
@@ -25,6 +39,7 @@ export function OrthogonalEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps) {
+  if (data?.sheetRelationship) return <SheetRelationship id={id} route={data.sheetRoute as SheetRelationshipRoute | null} style={style} />
   const [pathD, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,

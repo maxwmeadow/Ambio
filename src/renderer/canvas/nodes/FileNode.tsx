@@ -520,7 +520,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           } : {}),
         }}>
         <LanguagePicker value={d.language ?? ''} onChange={d.onLanguageChange} />
-        <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={d.onRename} title={d.relPath} style={{
+        <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={detailAlpha > 0.8 ? d.onRename : undefined} title={d.relPath} style={{
           fontSize: 12,
           color: 'var(--text-primary)',
           fontWeight: 600,
@@ -572,7 +572,10 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           pointerEvents: detailAlpha < 0.2 ? 'auto' : 'none',
         }}>
           <LanguagePicker value={d.language ?? ''} onChange={d.onLanguageChange} iconSize={30} />
-          <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={d.onRename} title={d.relPath} style={{
+          {/* An editable title opts into pointer events itself. The invisible
+              compact copy must not cover the revealed scroll region. */}
+          <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={detailAlpha < 0.2 ? d.onRename : undefined} title={d.relPath} style={{
+            pointerEvents: detailAlpha < 0.2 ? 'auto' : 'none',
             width: '100%',
             minWidth: 0,
             fontSize: 19,
@@ -609,8 +612,9 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           transition: 'opacity 0.25s ease',
           pointerEvents: detailAlpha > 0.8 ? 'auto' : 'none',
         }} className="nodrag nopan">
-          {plannedSummary ? <div className="symbol-scroll nodrag" style={{ flex: 1, minWidth: 0, overflowY: 'auto', font: '8px/1.4 var(--font-mono)', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+          {plannedSummary ? <div className="symbol-scroll nodrag" aria-label={`Description of ${d.label}`} style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', font: '8px/1.4 var(--font-mono)', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
             <div>{d.relPath}</div>
+            {d.proposedName && <p style={{ margin: '4px 0', fontWeight: 600 }}><EditableNodeTitle value={d.proposedName} onRename={detailAlpha > 0.8 ? d.onProposedNameChange : undefined} /></p>}
             {d.proposedDescription && <p style={{ margin: '4px 0' }}>{d.proposedDescription}</p>}
             {editableSymbols && <button className="nodrag nopan" type="button" onPointerDown={event => event.stopPropagation()} onClick={() => setEditingPlannedSymbols(true)} style={{ padding: '2px 4px', font: 'inherit', border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>Edit symbols</button>}
           </div> : <>

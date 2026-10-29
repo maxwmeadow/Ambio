@@ -330,7 +330,17 @@ to API-key billing or another account. Setup and live-account validation:
   layout dimensions. After placement compresses an automatic frame, a cancellable
   fitting pass reserves its final rendered tab clearance by fitting the interior
   within its allocated rectangle. Authored sheet and Floor geometry remain authoritative.
-  Empty planned file cards display path/notes, with symbol editing on demand.
+  Planned file headers use the declared basename and infer language from its
+  path; `plannedFileIdentity.ts` preserves directories and descriptive names
+  during filename/language edits. Empty cards show path, editable purpose and
+  notes, with symbol editing on demand. Hidden compact title editors do not
+  intercept detailed content. `wheelRouting.ts` keeps overflowing content in
+  control at either boundary while short content still allows camera zoom.
+  Proposed relationships use `edges/sheetRelationshipGeometry.ts`: choose
+  perimeter ports and clear orthogonal gutters, avoiding unrelated cards/tabs
+  while allowing ancestor context. A bounded visibility search handles staggered
+  obstacles. Geometry-keyed routes survive camera changes; `OrthogonalEdge`
+  draws proposal strokes/dashes/hit targets and arrowheads in screen pixels.
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or

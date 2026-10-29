@@ -55,11 +55,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   zooming.
 - Wheel zoom works over revealed file-node content. An explicit `nowheel`
   ancestor opts a surface out of canvas zoom entirely.
-- A scrollable region inside a node (file symbol list, class member list)
-  consumes the wheel only while it can still scroll in that direction. At its
-  boundary, and whenever its content is too short to scroll, the wheel returns
-  to canvas zoom. A scroll region is never a permanent zoom dead-zone, and the
-  canvas root itself never counts as node content.
+- An overflowing region inside a node (file descriptions, symbol lists, class
+  members) owns the wheel even at either end. Reaching the end of text never
+  becomes camera zoom. Content without overflow leaves the wheel to the canvas;
+  the canvas root itself never counts as node content. Invisible compact/detail
+  title copies cannot intercept the active layer's scroll or editing controls.
 - Normal mode pans with the primary, middle, or secondary drag accepted by
   React Flow. Selection mode reserves primary drag for partial-box selection
   and limits panning to middle/secondary drag.
@@ -450,6 +450,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   active sheet changes. Hidden lines never remove items from proposal review.
   Visible proposed relationships retain a readable screen-space line weight
   when zoomed out, with an arrow showing which system uses the other.
+- Proposed relationships choose endpoint faces and orthogonal gutters together,
+  avoiding unrelated cards and folder tabs. Ancestor frames are traversable
+  context. Routes attach to actual perimeters, retain selection, and cache by
+  scene geometry rather than camera position. Stroke, dashes, hit targets and
+  arrowheads have bounded screen sizes at wide and close zoom.
 - Moves and additions have small screen-size markers, without a second dashed
   perimeter. Selecting a move explains its original and proposed parent.
 - Unplaced new systems and automatically moved systems fit their contents using
@@ -465,8 +470,12 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   revision-checked transaction. A stale plan refreshes for review without
   retrying approval; approved children/connections cannot have unapproved parents
   or endpoints. Request changes records the reason against each selected part.
-- Planned file cards without symbols lead with their path and responsibility.
-  Edit symbols exposes their existing authoring controls on demand.
+- Planned file headers use their declared filename and the normal language
+  icon, inferring language from the declared path when none is supplied. JSON
+  fixtures have the same language identity on sheets and the Floor. The body
+  retains the path, editable descriptive name and responsibility. Renaming a
+  filename or choosing its language preserves its directory and descriptive
+  intent. Edit symbols exposes existing authoring controls on demand.
 
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of

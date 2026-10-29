@@ -2451,8 +2451,8 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
 test('compact sheet review groups the replay capability and expands all eight exact details', async () => {
   const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
   const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({
-    id, sheetId: sheet.id, workspaceId: 'demo', kind: index === 0 ? 'system' : 'file', name: index === 0 ? 'Replay Tool' : id,
-    declaredPath: index === 0 ? '' : `backend/${id}.py`, members: '[]', metadata: '{}', notes: 'Replay synthetic input offline.', status: 'planned', approvalStatus: 'pending',
+    id, sheetId: sheet.id, workspaceId: 'demo', kind: index === 0 ? 'system' : 'file', name: index === 0 ? 'Replay Tool' : id === 'cli' ? 'Scene Replay CLI' : id === 'tests' ? 'Scene Replay Verification' : 'Synthetic Replay Scenes',
+    declaredPath: index === 0 ? '' : id === 'fixtures' ? 'backend/fixtures/replay_scenes.json' : id === 'cli' ? 'backend/replay_scene.py' : 'backend/tests/test_replay_scene.py', members: '[]', metadata: '{}', notes: 'Replay synthetic input offline. '.repeat(30), status: 'planned', approvalStatus: 'pending',
     positionX: 0, positionY: 0, width: null, height: null, scale: 1, parentSystemId: index === 0 ? 'sys_shared' : 'planned:tool', createdBy: 'agent',
   }))
   const plannedEdges = [
@@ -2460,6 +2460,13 @@ test('compact sheet review groups the replay capability and expands all eight ex
     ['test-evaluator', 'tests', null, 'file_canvas'], ['test-fixtures', 'tests', 'fixtures', null],
   ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
   let reviewed: any
+  const edits: any[] = []
+  await page.route(/\/api\/planned\/cli$/, async route => {
+    const edit = route.request().postDataJSON()
+    edits.push(edit)
+    Object.assign(planned.find(node => node.id === 'cli')!, edit)
+    await route.fulfill({ json: edit })
+  })
   await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: [], annotations: [], layouts: [], removals: [] }) }))
   await page.route(/\/api\/sheets\/sheet_replay\/review$/, async route => {
     reviewed = route.request().postDataJSON()
@@ -2470,11 +2477,11 @@ test('compact sheet review groups the replay capability and expands all eight ex
   const review = page.getByLabel('Agent proposals to review')
   await expect(review.getByLabel('1 change to review')).toBeVisible()
   await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
-  await expect(review.getByRole('button', { name: 'Confirm cli', exact: true })).not.toBeVisible()
+  await expect(review.getByRole('button', { name: 'Confirm Scene Replay CLI', exact: true })).not.toBeVisible()
   expect((await review.boundingBox())!.height).toBeLessThan(210)
   await review.locator('summary').click()
   await expect(review.locator('li[data-kind]')).toHaveCount(8)
-  await expect(review.getByRole('button', { name: 'Confirm cli', exact: true })).toBeVisible()
+  await expect(review.getByRole('button', { name: 'Confirm Scene Replay CLI', exact: true })).toBeVisible()
   await review.locator('summary').click()
   await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
@@ -2494,12 +2501,56 @@ test('compact sheet review groups the replay capability and expands all eight ex
     }
   }
   await assertContained()
+  const cli = page.locator('.react-flow__node[data-id="planned:cli"]')
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('replay_scene.py')
+  await expect(cli.getByLabel('Python', { exact: true }).first()).toBeVisible()
+  const fixtures = page.locator('.react-flow__node[data-id="planned:fixtures"]')
+  await expect(fixtures.locator('[data-node-editable]').first()).toHaveText('replay_scenes.json')
+  await expect(fixtures.getByLabel('JSON', { exact: true }).first()).toBeVisible()
+  await expect(cli.locator('.symbol-scroll')).toContainText('Scene Replay CLI')
+  await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
+  const routedEdge = page.locator('.react-flow__edge[data-id="pedge:test-cli"]')
+  await expect(routedEdge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
+  const obstacle = (await fixtures.boundingBox())!
+  const crossesFixture = await routedEdge.locator('.react-flow__edge-path').evaluate((element, rect) => {
+    const path = element as SVGPathElement
+    const matrix = path.getScreenCTM()!
+    for (let sample = 0; sample <= 100; sample++) {
+      const point = path.getPointAtLength(path.getTotalLength() * sample / 100)
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix)
+      if (screen.x > rect.x + 1 && screen.x < rect.x + rect.width - 1 && screen.y > rect.y + 1 && screen.y < rect.y + rect.height - 1) return true
+    }
+    return false
+  }, obstacle)
+  expect(crossesFixture).toBe(false)
+  const assertInk = async () => {
+    const arrow = (await routedEdge.locator('.ambio-sheet-relationship-arrow').boundingBox())!
+    expect(Math.max(arrow.width, arrow.height)).toBeCloseTo(8, 0)
+    const width = await routedEdge.locator('.react-flow__edge-path').evaluate(element => parseFloat(getComputedStyle(element).strokeWidth) * (element as SVGPathElement).getScreenCTM()!.a)
+    expect(width).toBeCloseTo(1.25, 2)
+  }
+  await assertInk()
+  const description = page.locator('.react-flow__node[data-id="planned:cli"] .symbol-scroll')
+  await expect.poll(() => description.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(10)
+  const camera = () => page.locator('.react-flow__viewport').getAttribute('style')
+  const beforeScroll = await camera()
+  await description.hover()
+  await page.mouse.wheel(0, 100)
+  await expect.poll(() => description.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await description.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await page.waitForTimeout(300)
+  await page.mouse.wheel(0, 100)
+  await page.waitForTimeout(350)
+  expect(await camera()).toBe(beforeScroll)
   await page.screenshot({ path: 'test-results/compact-sheet-review.png' })
   const zoom = () => page.locator('.react-flow__viewport').evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
   const initialZoom = await zoom()
   for (const [key, presses] of [['-', 6], ['=', 12]] as const) {
     for (let index = 0; index < presses; index++) {
+      const previousZoom = await zoom()
       await page.keyboard.press(`ControlOrMeta+${key}`)
+      if (key === '-') await expect.poll(zoom).toBeLessThan(previousZoom)
+      else await expect.poll(zoom).toBeGreaterThan(previousZoom)
       await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
     }
     if (key === '-') {
@@ -2509,8 +2560,27 @@ test('compact sheet review groups the replay capability and expands all eight ex
     } else {
       await expect.poll(zoom).toBeGreaterThan(initialZoom)
       await assertContained()
+      await assertInk()
     }
   }
+  // File editing changes the path, keeping both its directory and purpose.
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await description.evaluate(element => { element.scrollTop = 0 })
+  await cli.locator('.symbol-scroll [data-node-editable]').dblclick()
+  await cli.getByRole('textbox').fill('Offline Replay CLI')
+  await cli.getByRole('textbox').press('Enter')
+  await expect.poll(() => edits.at(-1)?.name).toBe('Offline Replay CLI')
+  expect(edits.at(-1)?.declaredPath).toBe('backend/replay_scene.py')
+  await cli.locator('[data-node-editable]').first().dblclick()
+  await cli.getByRole('textbox').fill('renamed_replay.py')
+  await cli.getByRole('textbox').press('Enter')
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.py')
+  expect(edits.at(-1)?.name).toBe('Offline Replay CLI')
+  await cli.locator('button[title="Choose implementation language"]').first().click()
+  await cli.getByRole('button', { name: /^TypeScript/ }).click()
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.ts')
+  expect(edits.at(-1)?.name).toBe('Offline Replay CLI')
   await review.getByRole('button', { name: 'Approve Add Replay Tool', exact: true }).click()
   await expect.poll(() => reviewed?.choices.length).toBe(8)
   expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })

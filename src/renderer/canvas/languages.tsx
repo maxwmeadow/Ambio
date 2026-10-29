@@ -38,6 +38,7 @@ export const LANGUAGES: LanguageDefinition[] = [
   { id: 'sass', label: 'Sass', extensions: ['.sass'], preferredExtension: '.sass', short: 'SASS', color: '#cc6699', textColor: '#fff', icon: 'sass' },
   { id: 'less', label: 'Less', extensions: ['.less'], preferredExtension: '.less', short: 'LESS', color: '#1d365d', textColor: '#fff', icon: 'less' },
   { id: 'markdown', label: 'Markdown', extensions: ['.md', '.mdx'], preferredExtension: '.md', short: 'MD', color: '#5f6f78', textColor: '#fff', icon: 'markdown' },
+  { id: 'json', label: 'JSON', extensions: ['.json', '.jsonc'], preferredExtension: '.json', short: 'JSON', color: '#5f6f78', textColor: '#fff', icon: 'json' },
 ]
 
 const byExtension = new Map(LANGUAGES.flatMap(language => language.extensions.map(ext => [ext, language] as const)))
@@ -72,7 +73,7 @@ export function LanguageIcon({ language, size = 14 }: { language: string; size?:
   if (icon) return <svg viewBox="0 0 24 24" width={size} height={size} aria-label={icon.title}>
     <path d={icon.path} fill={definition.color} />
   </svg>
-  return <svg viewBox="0 0 24 24" width={size} height={size}>
+  return <svg viewBox="0 0 24 24" width={size} height={size} aria-label={definition.label}>
     <rect width="24" height="24" rx="2" fill={definition.color} />
     <text x="12" y="15.5" fill={definition.textColor ?? '#fff'} fontSize={definition.short.length > 2 ? 7 : 9} fontWeight="900" fontFamily="var(--font-mono)" textAnchor="middle">{definition.short}</text>
   </svg>

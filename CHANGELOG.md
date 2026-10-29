@@ -29,6 +29,14 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Scrolling a planned file's description scrolls its text, including at either
+  end, without moving the camera. Invisible compact titles no longer intercept
+  detailed file controls.
+- Planned file headers show filenames and language icons, including JSON
+  fixtures. Filename and language edits preserve directories and the editable
+  descriptive name shown in the body.
+- Sheet relationships route through gaps around cards and folder titles.
+  Lines, dashes and arrowheads keep a consistent size as you zoom.
 - Review Changes no longer interrupts coding with recurring review popups.
   Pending changes remain available from the toolbar whenever you want them.
 - Automatically arranged sheet systems keep their children below the header

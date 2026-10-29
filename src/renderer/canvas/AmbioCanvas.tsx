@@ -99,6 +99,8 @@ import { useSheetView } from './sheetView'
 import { createSheetPresentation } from './sheetPresentation'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
+import { plannedFilename, renamePlannedFile } from './plannedFileIdentity'
+import { createSheetRelationshipRouter } from './edges/sheetRelationshipGeometry'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
@@ -1127,13 +1129,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       .filter(p => p.kind !== 'system' && p.kind !== 'infra')
       .map(p => {
         const metadata = plannedMetadata(p)
-        const inferredLanguage = languageFromFilename(p.name)?.id ?? ''
+        const inferredLanguage = languageFromFilename(p.declaredPath || p.name)?.id ?? ''
         return {
           id: `planned:${p.id}`,
           rootId: '',
           path: p.declaredPath || p.name,
           relPath: p.declaredPath || p.name,
-          language: metadata.language ?? inferredLanguage,
+          language: metadata.language || inferredLanguage,
           systemId: p.parentSystemId,
           lineCount: 0,
           churnScore: 0,
@@ -1240,7 +1242,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           sheetPlaced: isSheetPlaced,
           sheetChange: planned ? 'addition' : sheetChangeOf(isMoved, sheetRenames.has(sheetNode.id)),
           ...(planned && planned.kind !== 'system' ? {
-            label: planned.name,
+            label: planned.kind === 'file' ? plannedFilename(planned) : planned.name,
             displayName: planned.name,
             relPath: planned.declaredPath || planned.name,
           } : {}),
@@ -1248,25 +1250,30 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
             umlKind: planned.kind,
             umlMetadata: plannedMetadata(planned),
             proposedDescription: plannedMetadata(planned).description || planned.notes,
+            proposedName: planned.kind === 'file' && planned.name !== plannedFilename(planned) ? planned.name : undefined,
           } : {}),
           ...(suppliedSymbols ? { symbols: suppliedSymbols } : {}),
           ...(editablePlanned ? {
             onChooseInfra: editablePlanned.kind === 'infra' ? () => setInfraPickerNode(editablePlanned.id) : undefined,
+            onProposedNameChange: editablePlanned.kind === 'file' ? (name: string) => {
+              const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)
+              if (current) void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, { ...current, name })
+            } : undefined,
             onRename: (name: string) => {
               const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)
               if (!current) return
               const inferred = current.kind === 'file' ? languageFromFilename(name) : undefined
               const nextMetadata = inferred ? { ...plannedMetadata(current), language: inferred.id } : current.metadata
               void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, {
-                ...current, name, declaredPath: current.kind === 'file' ? name : '', metadata: nextMetadata,
+                ...current, ...(current.kind === 'file' ? renamePlannedFile(current, name) : { name, declaredPath: '' }), metadata: nextMetadata,
               })
             },
             onLanguageChange: editablePlanned.kind === 'class' || editablePlanned.kind === 'file' ? (language: string) => {
               const current = useSheetStore.getState().planned.find(p => p.id === editablePlanned.id)
               if (!current) return
-              const name = current.kind === 'file' ? filenameForLanguage(current.name, language) : current.name
+              const path = filenameForLanguage(current.declaredPath || current.name, language)
               void useSheetStore.getState().updatePlanned(workspaceIdForOverlay, {
-                ...current, name, declaredPath: current.kind === 'file' ? name : '',
+                ...current, ...(current.kind === 'file' ? renamePlannedFile(current, path) : {}),
                 metadata: { ...plannedMetadata(current), language },
               })
             } : undefined,
@@ -1524,14 +1531,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
   }, [])
 
+  const routeSheetRelationships = useMemo(() => createSheetRelationshipRouter(), [])
   const displayEdges = useMemo(() => {
     const surfacedRfEdges = withFacingHandles(rfEdges, displayNodes)
     if (visibleLayers.length === 0) return surfacedRfEdges
     const visibleIds = new Set(displayNodes.filter(n => n.style?.opacity !== 0).map(n => n.id))
-    // A sheet's relationships route like the map's own edges (facing sides,
-    // right angles) rather than as curves through the boxes between. One an
-    // agent proposed is dashed amber until confirmed; a rejected one is gone.
-    const plannedRf: Edge[] = withFacingHandles(overlayPlannedEdges
+    // Proposed relationships use free gutters between cards. Endpoint faces
+    // are chosen with the route; pending proposals are amber, rejected hidden.
+    const plannedRf: Edge[] = routeSheetRelationships(overlayPlannedEdges
       .filter(e => e.approvalStatus !== 'rejected')
       .filter(edge => {
         if (allSheetRelationships) return true
@@ -1546,7 +1553,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
         target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
         animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: e.approvalStatus === 'pending' ? '#8b6429' : 'var(--accent)' },
         style: e.approvalStatus === 'pending'
           ? { strokeDasharray: '5 4', stroke: '#8b6429', strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' as const }
           : { strokeDasharray: '6 4', stroke: 'var(--accent)', strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' as const },
@@ -1559,7 +1565,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         : { ...e, style: { ...e.style, opacity: 0 }, selectable: false }),
       ...plannedRf,
     ]
-  }, [rfEdges, visibleLayers, overlayPlannedEdges, displayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision])
+  }, [rfEdges, visibleLayers, overlayPlannedEdges, displayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision, routeSheetRelationships])
 
   /**
    * Was this gesture released over the unclassified bin?
@@ -2928,7 +2934,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     // here means the surface under the cursor is the only one that answers.
     e.stopPropagation()
     // Scrollable node content (symbol lists, class members) gets the wheel
-    // while it can still scroll; the canvas takes over at the boundary.
+    // including at either end. Reaching the end of text must not zoom the map.
     const route = routeWheelEvent(
       e.target as Element | null,
       e.deltaY,
