@@ -255,6 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-connection-style-parity` Use the same charcoal/ivory dashed ink for individual connection navigation and the all-connections view, including width and outline. Retain navigation and endpoint focus. Done when the replay journey confirms matching rendered ink and types/build pass. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
