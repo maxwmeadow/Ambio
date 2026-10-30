@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { useSheetStore } from './sheetStore.ts'
+import { sheetElementHasChange, useSheetStore } from './sheetStore.ts'
 
 test('a decision response normalizes empty daemon collections', async () => {
   const originalFetch = globalThis.fetch
@@ -111,4 +111,19 @@ test('a refused deletion reaches the contextual action without removing the shee
     console.error = originalError
     useSheetStore.setState({ workspaceId: '', sheets: [] })
   }
+})
+
+
+test('sheet contents distinguish meaningful live edits from context and geometry', () => {
+  const context = { fileId: 'heuristics.py', parentSystemId: 'heuristics', positionX: 12, positionY: 40, label: 'heuristics.py' }
+  assert.equal(sheetElementHasChange(context, 'heuristics', 'heuristics'), false)
+  assert.equal(sheetElementHasChange({ ...context, positionX: 900, positionY: 800, width: 200 }, 'heuristics', 'heuristics'), false, 'layout-only changes stay out of contents')
+  assert.equal(sheetElementHasChange({ ...context, approvalStatus: 'approved' }, 'heuristics', 'heuristics'), false, 'an approved context reference is not a move')
+  assert.equal(sheetElementHasChange(context, 'heuristics', 'planned:replay'), true, 'human responsibility moves remain discoverable')
+  assert.equal(sheetElementHasChange({ ...context, approvalStatus: 'pending' }, 'heuristics', 'planned:replay'), true)
+  assert.equal(sheetElementHasChange({ ...context, approvalStatus: 'rejected' }, 'heuristics', 'planned:replay'), false)
+  assert.equal(sheetElementHasChange({ ...context, proposedName: 'New boundary', renameStatus: 'approved' }, 'heuristics', 'heuristics'), true)
+  assert.equal(sheetElementHasChange({ ...context, proposedName: 'New boundary', renameStatus: 'rejected' }, 'heuristics', 'heuristics'), false)
+  assert.equal(sheetElementHasChange({ ...context, designMetadata: { version: 1, symbols: [] } }, 'heuristics', 'heuristics'), true, 'authored symbol edits remain discoverable')
+  assert.equal(sheetElementHasChange({ ...context, designMetadata: '{"version":1}' }, 'heuristics', 'heuristics'), false)
 })

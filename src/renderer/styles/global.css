@@ -3119,16 +3119,18 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #fff;
 }
 
-/* Top-left, clear of the Infrastructure tab on the left edge (18px), and
-   beside the Infrastructure sidebar while it is open rather than over it. */
+/* Equal top/left insets; reserve room below for the Infrastructure tab on
+   short windows and sit beside its sidebar while that panel is open. */
 .ambio-sheet-palette {
   position: absolute;
   top: 12px;
-  left: 30px;
+  left: 12px;
   z-index: 1000;
   transition: left 0.18s ease;
   width: 92px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100% - var(--sheet-infra-tab-height, 160px) - 36px);
   padding: 0;
   border: 1px solid #65706b;
   border-radius: 2px;
@@ -3138,6 +3140,11 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-infra-sidebar:not([data-closing]) ~ .ambio-sheet-palette { left: calc(min(300px, 80%) + 12px); }
+
+.ambio-sheet-mode:has(> .ambio-sheet-palette) > .ambio-infra-sidebar-tab {
+  top: max(calc(50% - var(--sheet-infra-tab-height, 0px) / 2), calc(var(--sheet-stencils-bottom, 0px) + 12px));
+  transform: none;
+}
 
 .ambio-sheet-palette__title {
   height: 25px;

@@ -32,6 +32,9 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Sheet contents omit unchanged context and layout-only shifts; connection
+  endpoints remain available under Connections. Stencils now have equal top
+  and left spacing, with the Infrastructure tab kept clear.
 - Empty editable symbol lists use one compact “+ Add first function” row
   (or variable/class), replacing the separate label and large plus box.
 - Sheet proposals keep existing files clear of system titles when fitting new

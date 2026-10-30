@@ -1,10 +1,10 @@
 // SheetRail - the drafting-cabinet drawer labels: The Floor pinned on top,
 // sheets beneath (docs/history/UML_UX_PLAN.md "Navigation: the sheet rail").
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { untakenSheetName } from '../../shared/sheetNames'
 import { useGraphStore } from '../store/graphStore'
-import { handleSheetPatch, useSheetStore, type Sheet } from '../store/sheetStore'
+import { handleSheetPatch, sheetElementHasChange, useSheetStore, type Sheet } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
 import { SheetRemovedList } from './SheetRemovedList'
 import { useSheetView } from '../canvas/sheetView'
@@ -18,7 +18,12 @@ import { useShowOnMap } from '../canvas/useShowOnMap'
  * not change the active editing target or the visible overlay layers. */
 function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId: string }) {
   const layer = useSheetStore(state => state.layersById[sheetId])
-  const { files, systems, infraNodes } = useGraphStore(useShallow(state => ({ files: state.files, systems: state.systems, infraNodes: state.infraNodes })))
+  const { files, systems, infraNodes, floorLayouts } = useGraphStore(useShallow(state => ({ files: state.files, systems: state.systems, infraNodes: state.infraNodes, floorLayouts: state.floorLayouts })))
+  const floorParents = useMemo(() => new Map<string, string | null>([
+    ...systems.map(node => [node.id, node.parentId] as const),
+    ...files.map(node => [node.id, node.systemId] as const),
+    ...floorLayouts.map(row => [row.nodeId, row.parentNodeId] as const),
+  ]), [systems, files, floorLayouts])
   const showOnMap = useShowOnMap(false)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -34,12 +39,21 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
   const planned = layer.planned.filter(node => node.status !== 'flattened' && node.approvalStatus !== 'rejected')
   const edges = layer.plannedEdges.filter(edge => edge.approvalStatus !== 'rejected')
   const removed = new Set(layer.removals?.map(item => item.nodeId))
-  const live = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? element.infraId ?? element.symbolRef ?? '' })).filter(item => item.id && !removed.has(item.id))
+  const references = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? element.infraId ?? element.symbolRef ?? '' })).filter(item => item.id && !removed.has(item.id))
+  const sheetParents = new Map(layer.layouts.map(row => [row.nodeId, row.parentNodeId]))
+  // Being named as context, receiving a connection, or shifting on the canvas
+  // does not make a live node a proposed change. Keep actual responsibility
+  // moves, reviewed renames and authored file design here; edges have their
+  // own navigator below, including their unchanged live endpoints.
+  const live = references.filter(({ element, id }) => {
+    const parent = sheetParents.has(id) ? sheetParents.get(id) : element.parentSystemId
+    return sheetElementHasChange(element, floorParents.get(id) ?? null, parent ?? null)
+  })
   const label = (id: string) => {
     const node = planned.find(node => `planned:${node.id}` === id)
     return node ? node.kind === 'file' ? plannedFilename(node) : node.name
       : files.find(file => file.id === id)?.relPath.split(/[\\/]/).pop() ?? systems.find(system => system.id === id)?.name
-        ?? infraNodes.find(node => node.id === id)?.name ?? live.find(item => item.id === id)?.element.label ?? 'Unavailable item'
+        ?? infraNodes.find(node => node.id === id)?.name ?? references.find(item => item.id === id)?.element.label ?? 'Unavailable item'
   }
   const focus = async (id: string, relationship?: string) => {
     await useSheetStore.getState().openSheet(workspaceId, sheetId)
@@ -84,7 +98,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
       </li>)}
       {live.map(({ element, id }) => <li key={element.id}><span className="ambio-sheet-tree__mark" /><button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{label(id)}</button></li>)}
     </ul>
-    {!entries.length && !live.length && <p className="ambio-sheet-tree__empty">No contents yet. Draw on this sheet to start.</p>}
+    {!entries.length && !live.length && !edges.length && <p className="ambio-sheet-tree__empty">No proposed changes yet.</p>}
     {edges.length > 0 && <div className="ambio-sheet-tree__connections">
       <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} onClick={() => setConnectionsOpen(value => !value)}><Chevron expanded={connectionsOpen} />Connections <span>{edges.length}</span></button>
       {connectionsOpen && <ul>{edges.map(edge => {

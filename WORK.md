@@ -255,7 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-tree-change-scope` Remove context-only live references and layout-only shifts from sheet contents; retain explicit semantic moves/renames/design edits and connection navigation. Align stencil palette top/left margins while keeping Infrastructure accessible. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max's sidebar screenshot.)
+- ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
+
 
 
 - ⬜ `sheet-review-journey-selectors` Update the older “a system an agent names…” Electron journey to inspect decisions through the new panel and use the expanded sheet’s connections button; it still expects removed native details/checkbox controls. Found while checking context-clearance coverage (2026-10-29).
@@ -409,6 +410,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-29 `sheet-tree-change-scope` Sheet contents now show additions and meaningful live edits (responsibility moves, reviewed renames, authored file design), excluding context-only references, connection endpoints and layout-only shifts. Connections still navigate all endpoints; sheet membership/build context is unchanged. Stencils use equal 12px top/left insets, with measured Infrastructure clearance and scrolling only when a short window needs it. Types/build, 882 unit tests (7 skipped) and three focused Electron journeys pass; palette verification includes short viewport and Infrastructure open/close. A real-clock expiry-test flake was logged and the full suite passed on rerun. (`codex/sheet-review-polish`)
 
 - 2026-10-29 `symbol-empty-add-row` Replaced the separate empty-symbol label and large + box with one thin, inset Add first function/variable/class row using the card's existing ink, borders and hover/focus treatment. Read-only/loading status and populated-list authoring remain intact. Types/build and the replay Electron journey pass, including Enter to add the first function and mouse additions in the other categories; visually inspected the rendered card. (`codex/sheet-review-polish`)
 

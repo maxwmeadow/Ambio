@@ -476,10 +476,17 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   retrying approval; approved children/connections cannot have unapproved parents
   or endpoints. Request changes records the reason against each selected part.
 - Approval removes pending decisions, not navigation. Each sheet row has a
-  chevron that expands its additions, existing references and connections before
+  chevron that expands its additions, meaningful live edits and connections before
   and after approval. Expanding a sheet does not activate or display its layer;
   selecting a content entry opens that sheet and reveals nested/off-screen
   content. There is no separate bottom Contents section.
+- The sheet tree omits unchanged live context, connection-only endpoints and
+  layout-only repositioning. Explicit reparenting, reviewed renames and authored
+  file design remain discoverable; Connections retains all of its endpoints.
+  The underlying sheet membership and build context are unchanged by this filter.
+- Stencils use equal top and left canvas insets. On short windows the palette
+  scrolls within the available space, keeping the Infrastructure tab below it
+  and reachable; when Infrastructure opens, the palette sits beside that panel.
 - A normal sheet-title click makes it the only visible overlay and primary
   editing target. Ctrl/Cmd-click toggles additional layers without changing the
   primary target; hiding that primary promotes the last remaining visible layer,

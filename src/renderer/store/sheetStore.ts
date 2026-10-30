@@ -275,6 +275,15 @@ export function plannedMetadata(n: PlannedNode): PlannedNodeMetadata {
   return metadata
 }
 
+/** Context membership and canvas position are not architectural changes. */
+export function sheetElementHasChange(element: SheetElement, floorParent: string | null, sheetParent: string | null): boolean {
+  const moved = element.approvalStatus !== 'rejected' && sheetParent !== floorParent
+  const renamed = Boolean(element.proposedName && (element.renameStatus === 'pending' || element.renameStatus === 'approved'))
+  const metadata = sheetElementMetadata(element)
+  const designed = metadata && Object.keys(metadata).some(key => key !== 'version')
+  return Boolean(moved || renamed || designed)
+}
+
 export function sheetElementMetadata(element: SheetElement): PlannedNodeMetadata | undefined {
   const raw = element.designMetadata
   if (typeof raw === 'object' && raw !== null) return { ...raw, version: 1 }

@@ -341,6 +341,11 @@ to API-key billing or another account. Setup and live-account validation:
   Ctrl/Cmd-click toggles additional layers. Hover/focus and right-click share a
   native top-layer contextual menu for rename, discuss/implement and deletion.
   Menu wording comes from `appMenu.ts`; connection visibility sits in the tree.
+  `sheetElementHasChange` excludes context/position-only live references from
+  tree rows, retaining responsibility moves, reviewed renames and design edits.
+  Connections still resolve every endpoint against the full sheet/live data.
+  `SheetPalette` measures its chrome and the Infrastructure tab to keep equal
+  canvas insets and avoid overlap at short window heights.
   Planned file cards and `DetailPanel` use `plannedFileIdentity.ts` for the
   declared filename, path-derived language and description (including legacy
   notes). Human writes normalize the file name to its basename while preserving

@@ -2499,6 +2499,26 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   const infraTab = await page.locator('.ambio-infra-sidebar-tab').boundingBox()
   expect(palette && infraTab).toBeTruthy()
   expect(palette!.x >= infraTab!.x + infraTab!.width || palette!.y + palette!.height <= infraTab!.y).toBe(true)
+  const checkPalette = async () => {
+    const canvas = (await page.locator('[data-ambio-canvas]').first().boundingBox())!
+    const stencil = (await page.locator('.ambio-sheet-palette').boundingBox())!
+    const tab = (await page.locator('.ambio-infra-sidebar-tab').boundingBox())!
+    expect(Math.abs((stencil.x - canvas.x) - (stencil.y - canvas.y))).toBeLessThan(1)
+    expect(tab.y).toBeGreaterThanOrEqual(stencil.y + stencil.height)
+    expect(tab.y + tab.height).toBeLessThanOrEqual(canvas.y + canvas.height)
+  }
+  await checkPalette()
+  await page.setViewportSize({ width: 900, height: 600 })
+  await expect.poll(async () => {
+    const stencil = (await page.locator('.ambio-sheet-palette').boundingBox())!
+    const tab = (await page.locator('.ambio-infra-sidebar-tab').boundingBox())!
+    return tab.y >= stencil.y + stencil.height
+  }).toBe(true)
+  await checkPalette()
+  await page.getByRole('button', { name: 'Open infrastructure', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: 'Infrastructure', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Close infrastructure', exact: true }).click()
+  await page.setViewportSize({ width: 1400, height: 900 })
   await page.screenshot({ path: 'test-results/sheet-proposal-review.png' })
   // A proposal's name takes you to it on the sheet.
   await review.getByRole('button', { name: /Job Queue/ }).first().click()
@@ -2524,11 +2544,13 @@ test('a nested proposal keeps compressed live context below its title and leaves
   })
   const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({ id, sheetId: sheet.id, workspaceId: 'demo', name: index === 0 ? 'Offline Replay Tool' : `${id}.py`, kind: index === 0 ? 'system' : 'file', parentSystemId: index === 0 ? 'sys_heuristics' : 'planned:tool', declaredPath: index === 0 ? '' : `${id}.py`, members: '[]', metadata: '{}', notes: 'Reuse the evaluator offline.', status: 'planned', approvalStatus: 'pending', positionX: 0, positionY: 0, width: index === 0 ? null : 440, height: index === 0 ? null : 220, scale: 1, createdBy: 'agent' }))
   await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
-  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges: [], elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
+  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges: [{ id: 'use_evaluator', sheetId: sheet.id, workspaceId: 'demo', srcPlanned: 'cli', dstLive: 'file_heuristics', kind: 'IMPORTS', approvalStatus: 'pending', createdBy: 'agent' }], elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
   await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
   await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
   await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
-  await page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Connections 1', exact: true }).click()
+  await page.getByRole('button', { name: 'cli.py → heuristics.py', exact: true }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const parent = page.locator('.react-flow__node[data-id="sys_heuristics"]')
   const file = page.locator('.react-flow__node[data-id="file_heuristics"]')
@@ -2568,6 +2590,8 @@ test('compact sheet review retains exact decisions and navigates approved conten
     ['call', 'cli', null, 'file_canvas'], ['test-cli', 'tests', 'cli', null],
     ['test-evaluator', 'tests', null, 'file_canvas'], ['test-fixtures', 'tests', 'fixtures', null],
   ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
+  const context = [{ id: 'context_system', systemId: 'sys_shared', parentSystemId: null, positionX: 0, positionY: 0, width: null, height: null }, { id: 'context_file', fileId: 'file_canvas', parentSystemId: 'sys_canvas', positionX: 0, positionY: 0, width: null, height: null }]
+  const layouts = [{ workspaceId: 'demo', nodeId: 'file_canvas', nodeType: 'file', parentNodeId: 'sys_canvas', parentNodeType: 'system', containmentKind: 'part_of', positionX: 120, positionY: 150, width: 220, height: 110, scale: 1, interiorScale: 1, updatedAt: 0 }]
   let reviewed: any
   const edits: any[] = []
   const systemEdits: any[] = []
@@ -2579,7 +2603,7 @@ test('compact sheet review retains exact decisions and navigates approved conten
     Object.assign(planned.find(node => node.id === edit.id)!, edit)
     await route.fulfill({ json: edit })
   })
-  await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: [], annotations: [], layouts: [], removals: [] }) }))
+  await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: context, annotations: [], layouts, removals: [] }) }))
   await page.route(/\/api\/sheets\/sheet_replay\/review$/, async route => {
     reviewed = route.request().postDataJSON()
     sheet.revision = 17
@@ -2778,6 +2802,11 @@ test('compact sheet review retains exact decisions and navigates approved conten
   expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })
   await expect(review).toHaveCount(0)
   const contents = page.getByRole('group', { name: 'Contents of Offline Replay', exact: true })
+  await expect(contents.getByRole('button', { name: 'Show Shared Types on sheet', exact: true })).toHaveCount(0)
+  await expect(contents.getByRole('button', { name: 'Show AmbioCanvas.tsx on sheet', exact: true })).toHaveCount(0)
+  await contents.getByRole('button', { name: 'Connections 4', exact: true }).click()
+  await expect(contents).toContainText('AmbioCanvas.tsx')
+  await contents.getByRole('button', { name: 'Connections 4', exact: true }).click()
   await expect(contents).toBeVisible()
   await expect(contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true })).toBeVisible()
   await expect(contents).not.toContainText('To review')
