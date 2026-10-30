@@ -1960,32 +1960,93 @@ test('keeps canvas utility chrome screen-sized, legible, and interactive', async
   await expect(infraTab).toBeVisible()
 })
 
+test('sheet rows expand independently, toggle extra layers and expose contextual actions', async () => {
+  const draft = { id: 'sheet_second', workspaceId: 'demo', name: 'Offline Scene Replay with a readable two line title', purpose: '', kind: 'structure', folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 }
+  let deleted = false
+  await page.route(/\/api\/sheets\/sheet_second(?:\?|$)/, async route => {
+    const method = route.request().method()
+    if (method === 'PUT') {
+      draft.name = route.request().postDataJSON().name; draft.revision++
+      await route.fulfill({ json: draft }); return
+    }
+    if (method === 'DELETE') { deleted = true; await route.fulfill({ json: { ok: true } }); return }
+    await route.fulfill({ json: { sheet: draft, planned: [], plannedEdges: [], elements: [], annotations: [], layouts: [], removals: [] } })
+  })
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), draft)
+  const rail = page.getByRole('complementary', { name: 'Drawings' })
+  const runtime = rail.getByRole('button', { name: 'Runtime Draft', exact: true })
+  const second = rail.getByRole('button', { name: draft.name, exact: true })
+  await rail.getByRole('button', { name: `Expand ${draft.name}`, exact: true }).click()
+  await expect(rail.getByRole('button', { name: /^The Floor/ })).toHaveAttribute('aria-current', 'page')
+  await expect(rail.getByRole('group', { name: `Contents of ${draft.name}`, exact: true })).toBeVisible()
+  await runtime.click()
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await expect(second.locator('..')).toHaveClass(/row--visible/)
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(second.locator('..')).not.toHaveClass(/row--visible/)
+  await second.click()
+  await expect(second).toHaveAttribute('aria-current', 'page')
+  await expect(runtime.locator('..')).not.toHaveClass(/row--visible/)
+  await runtime.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime.locator('..')).toHaveClass(/row--visible/)
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  // Context menus work by mouse and keyboard without activating the sheet.
+  await second.click({ button: 'right' })
+  let menu = page.getByRole('menu', { name: `Actions for ${draft.name}`, exact: true })
+  await expect(menu.getByRole('menuitem', { name: 'Rename…' })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(menu.getByRole('menuitem', { name: 'Delete sheet…' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).not.toBeVisible()
+  await rail.getByRole('button', { name: `Actions for ${draft.name}`, exact: true }).focus()
+  await page.keyboard.press('Shift+F10')
+  await menu.getByRole('menuitem', { name: 'Rename…' }).click()
+  await rail.getByRole('textbox', { name: 'Sheet name', exact: true }).fill('Offline Replay')
+  await rail.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(rail.getByRole('button', { name: 'Offline Replay', exact: true })).toBeVisible()
+  await expect(rail.getByRole('group', { name: 'Contents of Offline Replay', exact: true })).toBeVisible()
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await rail.getByRole('button', { name: 'Actions for Offline Replay', exact: true }).click()
+  menu = page.getByRole('menu', { name: 'Actions for Offline Replay', exact: true })
+  page.once('dialog', dialog => dialog.accept())
+  await menu.getByRole('menuitem', { name: 'Delete sheet…' }).click()
+  await expect.poll(() => deleted).toBe(true)
+  await expect(rail.getByRole('button', { name: 'Offline Replay', exact: true })).toHaveCount(0)
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+})
+
 test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', async () => {
   const rail = page.getByRole('complementary', { name: 'Drawings' })
   const floor = rail.getByRole('button', { name: /The Floor/ })
-  const runtime = rail.getByRole('button', { name: 'Runtime Draft STR', exact: true })
-  const visibility = rail.getByRole('button', { name: 'Show Runtime Draft' })
+  const runtime = rail.getByRole('button', { name: 'Runtime Draft', exact: true })
+  const expand = rail.getByRole('button', { name: 'Expand Runtime Draft' })
 
   await expect(rail.getByText('Live model', { exact: true })).toBeVisible()
   await expect(rail.getByText('Overlay sheets', { exact: true })).toBeVisible()
-  await expect(rail.getByText('STR', { exact: true })).toBeVisible()
+  await expect(rail.getByText('STR', { exact: true })).toHaveCount(0)
   await expect(floor).toHaveAttribute('aria-current', 'page')
-  await expect(visibility).toHaveAttribute('aria-pressed', 'false')
+  await expect(expand).toHaveAttribute('aria-expanded', 'false')
+  await expand.click()
+  await expect(floor).toHaveAttribute('aria-current', 'page')
+  await expect(rail.getByRole('group', { name: 'Contents of Runtime Draft' })).toBeVisible()
 
   await runtime.click()
   await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await expect.poll(() => runtime.evaluate(element => parseFloat(getComputedStyle(element).paddingRight))).toBeLessThan(10)
   await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
-  await expect(rail.getByRole('button', { name: 'Hide Runtime Draft' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(runtime.locator('..')).toHaveClass(/row--visible/)
   await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
   await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)
 
   await floor.click()
   await expect(floor).toHaveAttribute('aria-current', 'page')
-  await expect(rail.getByRole('button', { name: 'Show Runtime Draft' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(runtime.locator('..')).not.toHaveClass(/row--visible/)
   await expect(page.locator('.ambio-sheet-palette')).toHaveCount(0)
   await expect.poll(() => runtime.evaluate(element => {
     const style = getComputedStyle(element)
-    return { color: style.color, background: style.backgroundColor }
+    return { color: style.color, background: getComputedStyle(element.parentElement!).backgroundColor }
   })).toEqual({ color: 'rgb(38, 51, 47)', background: 'rgb(231, 229, 223)' })
 
   const addSheet = rail.getByRole('button', { name: 'Create new overlay sheet' })
@@ -2424,7 +2485,8 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   }, agentSheet)
 
   await expect(page.getByText('An agent drew a sheet: Agent Plan')).toBeVisible()
-  await expect(page.locator('.ambio-sheet-rail__new')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Agent Plan', exact: true })).toBeVisible()
+  await expect(page.locator('.ambio-sheet-rail__new')).toHaveCount(0)
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Job Queue')
@@ -2448,7 +2510,7 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   await expect(review).toHaveCount(0)
 })
 
-test('compact sheet review groups the replay capability and expands all eight exact details', async () => {
+test('compact sheet review retains exact decisions and navigates approved contents from the sheet row', async () => {
   test.setTimeout(90_000)
   const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
   const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({
@@ -2486,10 +2548,22 @@ test('compact sheet review groups the replay capability and expands all eight ex
   await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
   await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).not.toBeVisible()
   expect((await review.boundingBox())!.height).toBeLessThan(210)
-  await review.locator('summary').click()
-  await expect(review.locator('li[data-kind]')).toHaveCount(8)
-  await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).toBeVisible()
-  await review.locator('summary').click()
+  await expect(review).toContainText('1 system · 3 files · 4 connections')
+  await expect(review.locator('details')).toHaveCount(0)
+  await review.getByRole('button', { name: 'Inspect changes for Add Replay Tool', exact: true }).click()
+  const reviewPanel = page.getByRole('dialog', { name: 'Review Add Replay Tool' })
+  await expect(reviewPanel.locator('li[data-kind]')).toHaveCount(8)
+  await expect(reviewPanel.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await page.screenshot({ path: 'test-results/sheet-review-inspector.png' })
+  await reviewPanel.getByRole('button', { name: 'Request changes', exact: true }).click()
+  await expect(reviewPanel.getByRole('textbox', { name: 'What should change?' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(reviewPanel.getByRole('textbox', { name: 'What should change?' })).toHaveCount(0)
+  await expect(reviewPanel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(reviewPanel).toHaveCount(0)
+  await expect(review.getByRole('button', { name: 'Inspect changes for Add Replay Tool', exact: true })).toBeFocused()
   await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const assertContained = async () => {
@@ -2533,7 +2607,8 @@ test('compact sheet review groups the replay capability and expands all eight ex
   await expect(fixtures.getByLabel('JSON', { exact: true }).first()).toBeVisible()
   await expect(cli.locator('.symbol-scroll')).not.toContainText('Scene Replay CLI')
   await expect(cli.locator('.symbol-scroll')).not.toContainText('backend/replay_scene.py')
-  await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
+  await page.getByRole('button', { name: 'Expand Offline Replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
   const routedEdge = page.locator('.react-flow__edge[data-id="pedge:test-cli"]')
   await expect(routedEdge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
   const obstacle = (await fixtures.boundingBox())!
@@ -2647,16 +2722,17 @@ test('compact sheet review groups the replay capability and expands all eight ex
   await expect.poll(() => reviewed?.choices.length).toBe(8)
   expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })
   await expect(review).toHaveCount(0)
-  const contents = page.getByLabel('Sheet contents', { exact: true })
+  const contents = page.getByRole('group', { name: 'Contents of Offline Replay', exact: true })
   await expect(contents).toBeVisible()
-  await contents.locator('summary').first().click()
   await expect(contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true })).toBeVisible()
-  await expect(contents).toContainText('Approved')
-  await expect(contents.getByRole('button', { name: 'Discuss or implement', exact: true })).toBeVisible()
+  await expect(contents).not.toContainText('To review')
+  await expect(contents.getByText('Approved', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Actions for Offline Replay', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Discuss or implement…', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /^The Floor/ }).click()
-  await page.getByRole('button', { name: /^Offline Replay STR/ }).click()
-  await contents.locator('summary').first().click()
   await contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Offline Replay', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(cli).toBeInViewport()
   await expect(cli.locator('[data-node-editable]').first()).toHaveText('renamed_replay.ts')
   await cli.getByRole('button', { name: 'Show description', exact: true }).click()
@@ -2939,17 +3015,18 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
 })
 
 test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
-  // Put the first endpoint in the actual viewport. A path whose entire bounding
-  // box is offscreen is correctly culled; it cannot prove visible edge parity.
+  // Keep the compact file and its facing port in clear viewport space. An
+  // oversized source that overlaps the Floor is automatically displaced, and
+  // a visible sliver of its card does not guarantee a visible clipped line.
   const placement = await page.locator('.react-flow').first().evaluate(root => {
     const matrix = new DOMMatrixReadOnly(getComputedStyle(root.querySelector('.react-flow__viewport')!).transform)
-    return { x: (root.clientWidth * .45 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
+    return { x: (root.clientWidth * .12 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
   })
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
     kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
     positionX: i === 0 ? placement.x : 1500 + i * 800, positionY: i === 0 ? placement.y : 1200,
-    width: 620, height: 420, scale: 1,
+    width: i === 0 ? 220 : 620, height: i === 0 ? 110 : 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
@@ -2959,11 +3036,12 @@ test('culls a large planned sheet over a small Floor and retains measurements du
       id: 'offscreen-link', sheetId: 'sheet_runtime', srcPlanned: 'large-planned-0', dstPlanned: 'large-planned-179', approvalStatus: 'approved',
     }], layouts: [], removals: [],
   } }))
-  await page.getByRole('button', { name: 'Runtime Draft STR', exact: true }).click()
+  await page.getByRole('button', { name: 'Runtime Draft', exact: true }).click()
   const canvas = page.locator('[data-ambio-canvas]').first()
   await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
   // A line into off-screen space must retain its endpoint handle geometry.
-  await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
+  await page.getByRole('button', { name: 'Expand Runtime Draft', exact: true }).click()
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
   const relationship = canvas.locator('.react-flow__edge[data-id="pedge:offscreen-link"] .react-flow__edge-path')
   await expect(relationship).toBeAttached()
   expect(await relationship.getAttribute('d')).not.toContain('NaN')

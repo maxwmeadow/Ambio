@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { useSheetStore } from '../store/sheetStore'
+import { plannedMetadata, useSheetStore } from '../store/sheetStore'
 import { useGraphStore } from '../store/graphStore'
 import { relationshipVerb, useSheetView } from '../canvas/sheetView'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { sheetReviewGroups } from './sheetReviewGroups'
-import { plannedFilename } from '../canvas/plannedFileIdentity'
+import { plannedDescription, plannedFilename } from '../canvas/plannedFileIdentity'
 
 /** One thing an agent proposed on the sheet, waiting for the human. */
 interface ReviewItem {
@@ -43,6 +44,8 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   // Keep the exact selected scope and revision while the person explains why.
   const [rejecting, setRejecting] = useState<{ key: string; items: ReviewItem[]; revision: number } | null>(null)
   const [reason, setReason] = useState('')
+  const [inspecting, setInspecting] = useState<string | null>(null)
+  const inspectButton = useRef<HTMLButtonElement | null>(null)
   if (!sheetId || !layer) return null
 
   const plannedName = new Map(layer.planned.map(node => [`planned:${node.id}`, node.kind === 'file' ? plannedFilename(node) : node.name]))
@@ -107,7 +110,22 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       setBusy(false)
     }
   }
-  return (
+  const requestChanges = (key: string, chosen: ReviewItem[]) => {
+    if (!chosen.some(item => item.asksWhy)) { void run(chosen, 'rejected'); return }
+    if (inspecting) setInspecting(key)
+    setRejecting({ key, items: chosen, revision: layer.sheet.revision }); setReason('')
+  }
+  const reasonForm = (key: string) => rejecting?.key === key && <form className="ambio-sheet-rail__review-reason" onSubmit={event => { event.preventDefault(); void run(rejecting.items, 'rejected', reason, rejecting.revision) }}>
+    <input autoFocus aria-label="What should change?" placeholder="What should change?" value={reason} maxLength={300} onChange={event => setReason(event.target.value)} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); setRejecting(null) } }} />
+    <button type="submit" disabled={busy || !reason.trim()}>Send</button>
+    <button type="button" disabled={busy} onClick={() => setRejecting(null)}>Cancel</button>
+  </form>
+  const actions = (group: typeof groups[number]) => <div className="ambio-sheet-review-actions">
+    <button type="button" disabled={busy} aria-label={`Approve ${group.name}`} onClick={() => void run(group.items, 'approved')}>Approve</button>
+    <button type="button" disabled={busy} onClick={() => requestChanges(group.key, group.items)}>{group.items.some(item => item.asksWhy) ? 'Request changes' : 'Reject'}</button>
+  </div>
+  const inspected = groups.find(group => group.key === inspecting)
+  return <>
     <section className="ambio-sheet-rail__review" aria-label="Agent proposals to review">
       <div className="ambio-sheet-rail__section-label ambio-sheet-rail__review-heading">
         <span>To review</span>
@@ -115,39 +133,68 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
         <span className="ambio-sheet-rail__section-rule" />
       </div>
       <ul>
-        {groups.map(group => <li className="ambio-sheet-review-group" key={group.key}>
-          <button type="button" className="ambio-sheet-rail__review-label" onClick={() => showOnMap(group.focus)} title="Show proposed change">
-            <span>{group.name}</span>
-            {layer.planned.find(node => `planned:${node.id}` === group.focus)?.parentSystemId && <em>in {nameOf(layer.planned.find(node => `planned:${node.id}` === group.focus)?.parentSystemId)}</em>}
-          </button>
-          <details className="ambio-sheet-review-details">
-            <summary>{group.items.length} {group.items.length === 1 ? 'detail' : 'details'}{group.external > 0 ? ` · ${group.external} outside ${group.external === 1 ? 'connection' : 'connections'}` : ''}</summary>
-            <ul aria-label={`Details of ${group.name}`}>
-        {group.items.map(item => (
-          <li key={item.key} data-kind={item.kind}>
-            <button type="button" className="ambio-sheet-rail__review-label" title={`Show ${item.label ?? item.name} on the sheet`} onClick={() => { if (item.relationship) { useGraphStore.getState().setSelectedNode(item.focus); useGraphStore.getState().setInspectedNode(null) } else showOnMap(item.focus); useSheetView.getState().focusRelationship(item.relationship ?? null) }}>
-              <span>{item.name}</span>
-              {item.detail && <em>{item.detail}</em>}
-            </button>
-            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="confirm" disabled={busy} aria-label={`Confirm ${item.label ?? item.name}`} title="Confirm: part of the plan" onClick={() => void run([item], 'approved')}>✓</button>
-            <button type="button" className="ambio-sheet-rail__review-decide" data-decision="reject" disabled={busy} aria-label={`Reject ${item.label ?? item.name}`} title="Reject: not part of the plan"
-              onClick={() => { if (!item.asksWhy) { void run([item], 'rejected'); return }; setRejecting({ key: group.key, items: [item], revision: layer.sheet.revision }); setReason('') }}>✕</button>
+        {groups.map(group => {
+          const additions = group.items.filter(item => item.kind === 'addition')
+          const kinds = new Map<string, number>()
+          for (const item of additions) {
+            const kind = layer.planned.find(node => `planned:${node.id}` === item.focus)?.kind ?? 'element'
+            kinds.set(kind, (kinds.get(kind) ?? 0) + 1)
+          }
+          const counts = [...kinds].map(([kind, count]) => `${count} ${kind}${count === 1 ? '' : kind === 'class' ? 'es' : 's'}`)
+          if (group.connections) counts.push(`${group.connections} ${group.connections === 1 ? 'connection' : 'connections'}`)
+          const root = layer.planned.find(node => `planned:${node.id}` === group.focus)
+          const description = root ? plannedDescription(root, plannedMetadata(root)) : ''
+          return <li className="ambio-sheet-review-group" key={group.key}>
+            <button type="button" className="ambio-sheet-rail__review-label" onClick={() => showOnMap(group.focus)} title="Show proposed change"><span>{group.name}</span></button>
+            {counts.length > 0 && <p className="ambio-sheet-review-summary">{counts.join(' · ')}</p>}
+            {description && <p className="ambio-sheet-review-intent" title={description}>{description}</p>}
+            <button type="button" className="ambio-sheet-review-inspect" aria-label={`Inspect changes for ${group.name}`} onClick={event => { inspectButton.current = event.currentTarget; setInspecting(group.key); showOnMap(group.focus) }}>Inspect changes <span aria-hidden="true">→</span></button>
+            {actions(group)}
+            {!inspected && reasonForm(group.key)}
           </li>
-        ))}
-            </ul>
-          </details>
-          <div className="ambio-sheet-review-actions">
-            <button type="button" disabled={busy} aria-label={`Approve ${group.name}`} onClick={() => void run(group.items, 'approved')}>Approve</button>
-            <button type="button" disabled={busy} onClick={() => { if (!group.items.some(item => item.asksWhy)) { void run(group.items, 'rejected'); return }; setRejecting({ key: group.key, items: group.items, revision: layer.sheet.revision }); setReason('') }}>{group.items.some(item => item.asksWhy) ? 'Request changes' : 'Reject'}</button>
-          </div>
-          {rejecting?.key === group.key && <form className="ambio-sheet-rail__review-reason" onSubmit={event => { event.preventDefault(); void run(rejecting.items, 'rejected', reason, rejecting.revision) }}>
-            <input autoFocus aria-label="What should change?" placeholder="What should change?" value={reason} maxLength={300} onChange={event => setReason(event.target.value)} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') setRejecting(null) }} />
-            <button type="submit" disabled={busy || !reason.trim()}>Send</button>
-            <button type="button" disabled={busy} onClick={() => setRejecting(null)}>Cancel</button>
-          </form>}
-        </li>)}
+        })}
       </ul>
       {error && <p className="ambio-sheet-review-error" role="alert">{error}</p>}
     </section>
-  )
+    {inspected && <ReviewInspector title={inspected.name} onClose={() => { setInspecting(null); inspectButton.current?.focus() }}>
+      <p className="ambio-sheet-review-panel__context">{layer.sheet.name}</p>
+      {(['addition', 'relationship', 'move', 'rename'] as const).map(kind => {
+        const chosen = inspected.items.filter(item => item.kind === kind)
+        if (!chosen.length) return null
+        return <section key={kind} aria-label={kind === 'addition' ? 'Additions' : kind === 'relationship' ? 'Connections' : kind === 'move' ? 'Moves' : 'Renames'}>
+          <h3>{kind === 'addition' ? 'Additions' : kind === 'relationship' ? 'Connections' : kind === 'move' ? 'Moves' : 'Renames'} <span>{chosen.length}</span></h3>
+          <ul aria-label={`${kind} details of ${inspected.name}`}>
+            {chosen.map(item => <li key={item.key} data-kind={item.kind}>
+              <button type="button" className="ambio-sheet-rail__review-label" title={`Show ${item.label ?? item.name} on the sheet`} onClick={() => { if (item.relationship) { useGraphStore.getState().setSelectedNode(item.focus); useGraphStore.getState().setInspectedNode(null) } else showOnMap(item.focus); useSheetView.getState().focusRelationship(item.relationship ?? null) }}>
+                <span>{item.name}</span>{item.detail && <em>{item.detail}</em>}
+              </button>
+              <button type="button" className="ambio-sheet-rail__review-decide" disabled={busy} aria-label={`Confirm ${item.label ?? item.name}`} title="Confirm: part of the plan" onClick={() => void run([item], 'approved')}>✓</button>
+              <button type="button" className="ambio-sheet-rail__review-decide" disabled={busy} aria-label={`Reject ${item.label ?? item.name}`} title="Reject: not part of the plan" onClick={() => requestChanges(inspected.key, [item])}>✕</button>
+            </li>)}
+          </ul>
+        </section>
+      })}
+      <footer>{actions(inspected)}{reasonForm(inspected.key)}{error && <p className="ambio-sheet-review-error" role="alert">{error}</p>}</footer>
+    </ReviewInspector>}
+  </>
+}
+
+/** A nonmodal inspector leaves the map available while examining a proposal. */
+function ReviewInspector({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const close = useRef<HTMLButtonElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    close.current?.focus()
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); onCloseRef.current() }
+    }
+    // Inputs handle Escape locally before the inspector closes.
+    document.addEventListener('keydown', escape)
+    return () => document.removeEventListener('keydown', escape)
+  }, [])
+  return createPortal(<aside className="ambio-sheet-review-panel" role="dialog" aria-label={`Review ${title}`}>
+    <header><div><small>Review changes</small><h2>{title}</h2></div><button ref={close} type="button" aria-label="Close change review" onClick={onClose}>×</button></header>
+    <div className="ambio-sheet-review-panel__body">{children}</div>
+  </aside>, document.body)
 }

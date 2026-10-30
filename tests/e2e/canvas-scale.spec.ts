@@ -224,8 +224,9 @@ for (const entities of sizes) test(`scale ${shape} ${entities} entities`, async 
     }
     report.cold.wallMs=Date.now()-started
     if(edgeSheet){
-      await page.getByRole('button',{name:'Scale Relationships STR',exact:true}).click()
-      await page.getByLabel('Show All Sheet Relationships',{exact:true}).check()
+      await page.getByRole('button',{name:'Scale Relationships',exact:true}).click()
+      await page.getByRole('button',{name:'Expand Scale Relationships',exact:true}).click()
+      await page.getByRole('button',{name:'Show All Sheet Relationships',exact:true}).click()
     }
     await page.evaluate(()=>(window as any).__scale.phase='navigation')
     const target=snapshot.systems.find((s:any)=>!s.parentId)!

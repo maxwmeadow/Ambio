@@ -2422,10 +2422,6 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 700;
 }
 
-.ambio-sheet-rail__row .ambio-sheet-rail__button--sheet {
-  padding-left: 31px;
-}
-
 .ambio-sheet-rail__visibility {
   position: absolute;
   left: 9px;
@@ -2465,10 +2461,6 @@ a { color: var(--accent); text-decoration: none; }
 .ambio-sheet-rail__row--active .ambio-sheet-rail__visibility {
   border-color: #d1ebe3;
   background: #f7f7f1;
-}
-
-.ambio-sheet-rail__row--active .ambio-sheet-rail__button {
-  padding-right: 26px;
 }
 
 .ambio-sheet-rail__delete {

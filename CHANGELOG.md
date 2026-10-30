@@ -8,12 +8,13 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
-- Sheet Contents keeps proposed files, systems and relationships easy to find
-  after approval, with direct navigation back into nested systems.
-- Sheet proposals use compact change cards in the sidebar. Expand a card for
-  every addition and connection, approve its exact scope together, or request
-  changes with a reason. Planned file cards show paths and responsibilities,
-  with symbol editing available on demand.
+- Expand a sheet in the sidebar to find its systems, files and connections,
+  including after approval. Sheet rows have readable titles and contextual
+  Rename, Discuss or implement, and Delete actions; Ctrl/Cmd-click adds layers.
+- To review stays compact at the bottom-left. Inspect changes opens grouped
+  additions and connections for individual decisions, or approve the exact
+  change together and request changes with a reason. Planned file cards show
+  filenames and responsibilities, with symbol editing available on demand.
 - Pull, push and publish your branch from the branch chip. The branch menu
   now says where your branch stands (“3 commits to pull from origin/main”),
   checks the remote when you open it, and leads with the one action that

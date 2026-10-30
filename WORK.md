@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-sidebar-tree` **Expandable sheet navigation and quiet review.** Replace row checkboxes/badges/dispatch/delete clutter with a title, chevron and contextual menu; Ctrl/Cmd-click layers. Keep contents beneath each sheet after approval. Keep To review compact with grouped inspectable decisions. **Done when:** navigation, multi-layer selection, menu actions and exact-scope approval work in the Electron journey. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max approved the sidebar design.)
 
 - ⬜ `mcp-work-session-reconnect` A work session started before an Ambio/MCP reconnect cannot be completed afterward: update_work rejects its saved session ID as unknown in the new connection. Preserve or recover session ownership safely across reconnects. Found while closing the prior sheet-review work; its case is already interrupted/replayable. (2026-10-29)
 
@@ -402,6 +401,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-29 `sheet-sidebar-tree` Sheet rows now expand persistent contents without activating layers; readable titles replace checkboxes/type/author badges and inline dispatch/delete controls. Ctrl/Cmd-click toggles layers; hover/focus and right-click share Rename / Discuss or implement / Delete actions. Bottom-left review cards show counts/intent, with a styled nonmodal inspector for every underlying decision. Types/build, 879 unit tests (7 skipped) and six focused Electron journeys pass, covering selection, menus, approval/rejection, approved navigation, attachment/restore and large-sheet culling. The culling fixture now keeps a normal compact source and its facing port visibly clear of the Floor; route tests pass under observation. (`codex/sheet-review-polish`)
 
 - 2026-10-29 `planned-system-description` Proposed systems now show a collapsed description summary and a header-band control for full text with an edit link to Properties. Shared plannedDescription resolves metadata/legacy notes for all planned kinds and preserves explicit clearing; inactive title layers cannot intercept children. Child geometry is unchanged. Types/build, 876 unit tests and the replay Electron regression pass, including system description editing and reading it back from the card. Investigation saved. (`codex/sheet-review-polish`)
 

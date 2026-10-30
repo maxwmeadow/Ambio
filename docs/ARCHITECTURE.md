@@ -320,7 +320,9 @@ to API-key billing or another account. Setup and live-account validation:
   position is placed in free space. The sheet rail's To review section
   (`SheetProposalReview.tsx`, `sheetReviewGroups.ts`) groups a nested addition
   and its connections into a compact card, with every pending part available
-  in expanded details. Cross-group connections, moves and renames stay separate.
+  in a nonmodal review inspector grouped by additions, connections, moves and
+  renames. The bottom-left card shows actual part counts and intent rather than
+  raw record counts. Cross-group connections, moves and renames stay separate.
   `POST /api/sheets/:id/review` (`db/sheet_review.go`) validates the exact pending
   node/edge selection and sheet revision, rejects orphan approvals, and records
   every decision and optional change-request reason in one transaction. Its
@@ -330,8 +332,12 @@ to API-key billing or another account. Setup and live-account validation:
   layout dimensions. After placement compresses an automatic frame, a cancellable
   fitting pass reserves its final rendered tab clearance by fitting the interior
   within its allocated rectangle. Authored sheet and Floor geometry remain authoritative.
-  `SheetRail` retains an expandable Contents navigator after decisions, with
-  additions/references/relationships and the existing discuss/implement action.
+  `SheetRail` places persistent contents beneath each expandable sheet row.
+  `loadSheetContents` caches a layer without changing visibility or editing
+  target; content navigation opens its sheet. Normal row clicks open exclusively;
+  Ctrl/Cmd-click toggles additional layers. Hover/focus and right-click share a
+  native top-layer contextual menu for rename, discuss/implement and deletion.
+  Menu wording comes from `appMenu.ts`; connection visibility sits in the tree.
   Planned file cards and `DetailPanel` use `plannedFileIdentity.ts` for the
   declared filename, path-derived language and description (including legacy
   notes). Human writes normalize the file name to its basename while preserving

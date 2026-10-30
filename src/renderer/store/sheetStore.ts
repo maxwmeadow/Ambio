@@ -380,7 +380,8 @@ interface SheetState {
   selectedCanvasIds: string[]
 
   fetchSheets: (workspaceId: string) => Promise<void>
-  openSheet: (workspaceId: string, sheetId: string | null) => Promise<void>
+  openSheet: (workspaceId: string, sheetId: string | null, options?: { exclusive?: boolean }) => Promise<void>
+  loadSheetContents: (workspaceId: string, sheetId: string) => Promise<void>
   toggleSheetVisibility: (workspaceId: string, sheetId: string) => Promise<void>
   /** Members are file ids or typed members (sheetFromSelection.ts). */
   createSheet: (workspaceId: string, name: string, purpose: string, members: Array<string | SheetMember>) => Promise<Sheet>
@@ -490,7 +491,16 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     }
   },
 
-  openSheet: async (workspaceId, sheetId) => {
+  loadSheetContents: async (workspaceId, sheetId) => {
+    if (get().workspaceId !== workspaceId || get().layersById[sheetId]) return
+    const layer = await fetchSheetLayer(workspaceId, sheetId)
+    if (!layer || layer.sheet.resolvedAt) throw new Error('This sheet is no longer available.')
+    set(state => state.workspaceId !== workspaceId || state.layersById[sheetId]
+      || !state.sheets.some(sheet => sheet.id === sheetId && !sheet.resolvedAt)
+      ? state : commitSheetLayer(state, sheetId, layer))
+  },
+
+  openSheet: async (workspaceId, sheetId, options) => {
     const request = ++openSheetRequest
     if (sheetId === null) {
       set({ workspaceId, activeSheetId: null, visibleSheetIds: [], elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
@@ -509,7 +519,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         const nextLayers = { ...layersById, [sheetId]: data }
         return {
           workspaceId, activeSheetId: sheetId,
-          visibleSheetIds: [...visibleSheetIds.filter(id => id !== sheetId), sheetId],
+          visibleSheetIds: options?.exclusive ? [sheetId] : [...visibleSheetIds.filter(id => id !== sheetId), sheetId],
           layersById: nextLayers,
           ...activeLayerProjection(sheetId, nextLayers),
         }
@@ -934,6 +944,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       await get().fetchSheets(workspaceId)
     } catch (err) {
       console.error('[sheets] delete failed:', err)
+      throw err
     }
   },
 

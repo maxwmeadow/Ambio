@@ -1,72 +1,191 @@
 // SheetRail - the drafting-cabinet drawer labels: The Floor pinned on top,
 // sheets beneath (docs/history/UML_UX_PLAN.md "Navigation: the sheet rail").
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { untakenSheetName } from '../../shared/sheetNames'
 import { useGraphStore } from '../store/graphStore'
-import { useSheetStore, type Sheet } from '../store/sheetStore'
+import { handleSheetPatch, useSheetStore, type Sheet } from '../store/sheetStore'
 import { archdApi } from '../archdEndpoint.ts'
 import { SheetRemovedList } from './SheetRemovedList'
 import { useSheetView } from '../canvas/sheetView'
-import { COMMANDS } from '../../shared/appMenu'
+import { COMMANDS, SHEET_ACTIONS } from '../../shared/appMenu'
 import { SheetChangeDetails } from './SheetChangeDetails'
 import { SheetProposalReview } from './SheetProposalReview'
 import { plannedFilename } from '../canvas/plannedFileIdentity'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 
-function SheetContents() {
-  const layer = useSheetStore(state => state.activeSheetId ? state.layersById[state.activeSheetId] : undefined)
-  const { files, systems } = useGraphStore(useShallow(state => ({ files: state.files, systems: state.systems })))
+/** Each sheet owns its navigation, including approved content. Expanding does
+ * not change the active editing target or the visible overlay layers. */
+function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId: string }) {
+  const layer = useSheetStore(state => state.layersById[sheetId])
+  const { files, systems, infraNodes } = useGraphStore(useShallow(state => ({ files: state.files, systems: state.systems, infraNodes: state.infraNodes })))
   const showOnMap = useShowOnMap(false)
-  if (!layer) return null
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let current = true
+    void useSheetStore.getState().loadSheetContents(workspaceId, sheetId).catch(error => {
+      if (current) setError(error instanceof Error ? error.message : String(error))
+    })
+    return () => { current = false }
+  }, [workspaceId, sheetId])
+  if (!layer) return <p className="ambio-sheet-tree__empty" role={error ? 'alert' : 'status'}>{error || 'Loading contents…'}</p>
   const planned = layer.planned.filter(node => node.status !== 'flattened' && node.approvalStatus !== 'rejected')
   const edges = layer.plannedEdges.filter(edge => edge.approvalStatus !== 'rejected')
   const removed = new Set(layer.removals?.map(item => item.nodeId))
-  const live = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? '' })).filter(item => item.id && !removed.has(item.id))
-  if (!planned.length && !edges.length && !live.length) return null
+  const live = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? element.infraId ?? element.symbolRef ?? '' })).filter(item => item.id && !removed.has(item.id))
   const label = (id: string) => {
     const node = planned.find(node => `planned:${node.id}` === id)
     return node ? node.kind === 'file' ? plannedFilename(node) : node.name
-      : files.find(file => file.id === id)?.relPath.split(/[\\/]/).pop() ?? systems.find(system => system.id === id)?.name ?? 'Unavailable item'
+      : files.find(file => file.id === id)?.relPath.split(/[\\/]/).pop() ?? systems.find(system => system.id === id)?.name
+        ?? infraNodes.find(node => node.id === id)?.name ?? live.find(item => item.id === id)?.element.label ?? 'Unavailable item'
+  }
+  const focus = async (id: string, relationship?: string) => {
+    await useSheetStore.getState().openSheet(workspaceId, sheetId)
+    if (useSheetStore.getState().activeSheetId !== sheetId) return
+    useSheetView.getState().focusRelationship(null)
+    if (relationship) {
+      useGraphStore.getState().setSelectedNode(id)
+      useGraphStore.getState().setInspectedNode(null)
+      // The canvas resets relationship focus when its active sheet changes.
+      requestAnimationFrame(() => {
+        if (useSheetStore.getState().activeSheetId === sheetId) useSheetView.getState().focusRelationship(relationship)
+      })
+    } else showOnMap(id)
   }
   const visited = new Set<string>()
-  const entries: Array<{ node: typeof planned[number]; depth: number }> = []
+  const entries: Array<{ id: string; depth: number; pending: boolean; children: boolean; path?: string }> = []
   const append = (node: typeof planned[number], depth: number) => {
     if (visited.has(node.id)) return
-    visited.add(node.id); entries.push({ node, depth })
-    for (const child of planned) if (child.parentSystemId === `planned:${node.id}`) append(child, depth + 1)
+    visited.add(node.id)
+    const id = `planned:${node.id}`
+    const children = planned.filter(child => child.parentSystemId === id)
+    entries.push({ id, depth, pending: node.approvalStatus === 'pending', children: children.length > 0, path: node.declaredPath })
+    if (!collapsed.has(id)) for (const child of children) append(child, depth + 1)
+    else {
+      const mark = (id: string) => {
+        for (const child of planned.filter(child => child.parentSystemId === id)) {
+          if (visited.has(child.id)) continue
+          visited.add(child.id); mark(`planned:${child.id}`)
+        }
+      }
+      mark(id)
+    }
   }
   for (const node of planned) if (!planned.some(parent => `planned:${parent.id}` === node.parentSystemId)) append(node, 0)
   for (const node of planned) append(node, 0)
-  const focus = (id: string) => { useSheetView.getState().focusRelationship(null); showOnMap(id) }
-  return <details className="ambio-sheet-contents" aria-label="Sheet contents">
-    <summary>Contents <span>{planned.length + live.length}</span></summary>
-    <div className="ambio-sheet-contents__body">
-      <ul>
-        {entries.map(({ node, depth }) => <li key={node.id} style={{ paddingLeft: Math.min(depth, 4) * 10 }}>
-          <button type="button" title={node.declaredPath || node.name} aria-label={`Show ${label(`planned:${node.id}`)} on sheet`} onClick={() => focus(`planned:${node.id}`)}>{label(`planned:${node.id}`)}</button>
-          <small>{node.approvalStatus === 'approved' ? 'Approved' : 'To review'}</small>
-        </li>)}
-        {live.map(({ element, id }) => <li key={element.id}><button type="button" aria-label={`Show ${label(id)} on sheet`} onClick={() => focus(id)}>{label(id)}</button><small>Existing</small></li>)}
-      </ul>
-      {edges.length > 0 && <details><summary>Relationships ({edges.length})</summary><ul>{edges.map(edge => {
+  return <div className="ambio-sheet-tree" role="group" aria-label={`Contents of ${layer.sheet.name}`}>
+    <ul>
+      {entries.map(entry => <li key={entry.id} style={{ paddingLeft: Math.min(entry.depth, 5) * 12 }}>
+        {entry.children ? <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>
+          : <span className="ambio-sheet-tree__mark" data-pending={entry.pending || undefined} title={entry.pending ? 'Needs review' : undefined} aria-label={entry.pending ? 'Needs review' : undefined} />}
+        <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>{label(entry.id)}</button>
+      </li>)}
+      {live.map(({ element, id }) => <li key={element.id}><span className="ambio-sheet-tree__mark" /><button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{label(id)}</button></li>)}
+    </ul>
+    {!entries.length && !live.length && <p className="ambio-sheet-tree__empty">No contents yet. Draw on this sheet to start.</p>}
+    {edges.length > 0 && <div className="ambio-sheet-tree__connections">
+      <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} onClick={() => setConnectionsOpen(value => !value)}><Chevron expanded={connectionsOpen} />Connections <span>{edges.length}</span></button>
+      {connectionsOpen && <ul>{edges.map(edge => {
         const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
         const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''
-        return <li key={edge.id}><button type="button" onClick={() => { useGraphStore.getState().setSelectedNode(source); useGraphStore.getState().setInspectedNode(null); useSheetView.getState().focusRelationship(edge.id) }}>{label(source)} → {label(target)}</button><small>{edge.approvalStatus === 'approved' ? 'Approved' : 'To review'}</small></li>
-      })}</ul></details>}
-      {planned.some(node => node.approvalStatus === 'approved') && <div className="ambio-sheet-contents__next">
-        <p>Approval confirms the plan. Implementation is separate.</p>
-        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: layer.sheet.id } }))}>Discuss or implement</button>
-      </div>}
-    </div>
-  </details>
+        return <li key={edge.id}><button type="button" className="ambio-sheet-tree__item" onClick={() => void focus(source, edge.id)}>{label(source)} → {label(target)}</button></li>
+      })}</ul>}
+    </div>}
+    {edges.length > 0 && <SheetConnectionsControl sheetId={sheetId} />}
+  </div>
 }
 
-const SHEET_KIND_LABELS: Record<Sheet['kind'], string> = {
-  structure: 'STR',
-  class: 'CLS',
-  sequence: 'SEQ',
-  intent: 'INT',
+function SheetConnectionsControl({ sheetId }: { sheetId: string }) {
+  const active = useSheetStore(state => state.activeSheetId === sheetId)
+  const allRelationships = useSheetView(state => state.allRelationships)
+  if (!active) return null
+  return <button type="button" className="ambio-sheet-tree__show-connections" aria-label={COMMANDS['view.sheetRelationships'].label} aria-pressed={allRelationships} onClick={() => useSheetView.getState().toggleRelationships()}>{allRelationships ? 'Hide connections on map' : 'Show connections on map'}</button>
+}
+
+function Chevron({ expanded }: { expanded: boolean }) {
+  return <svg className="ambio-sheet-chevron" viewBox="0 0 12 12" aria-hidden="true" data-expanded={expanded}><path d="m4 2 4 4-4 4" /></svg>
+}
+
+function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string }) {
+  const active = useSheetStore(state => state.activeSheetId === sheet.id)
+  const visible = useSheetStore(state => state.visibleSheetIds.includes(sheet.id))
+  const [expanded, setExpanded] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState(sheet.name)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menu = useRef<HTMLDivElement>(null)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  const titleButton = useRef<HTMLButtonElement>(null)
+  const menuId = useId(), contentsId = useId()
+  useEffect(() => {
+    const panel = menu.current
+    if (!panel) return
+    panel.popover = 'auto'
+    const toggle = () => setMenuOpen(panel.matches(':popover-open'))
+    panel.addEventListener('toggle', toggle)
+    // Scroll/resize closes a context menu rather than leaving it detached.
+    const close = () => { if (panel.matches(':popover-open')) panel.hidePopover() }
+    window.addEventListener('resize', close)
+    const rail = titleButton.current?.closest('.ambio-sheet-rail__list')
+    rail?.addEventListener('scroll', close)
+    return () => { panel.removeEventListener('toggle', toggle); window.removeEventListener('resize', close); rail?.removeEventListener('scroll', close) }
+  }, [])
+  const closeMenu = () => { menu.current?.hidePopover(); menuButton.current?.focus() }
+  const showMenu = (x?: number, y?: number) => {
+    const panel = menu.current, anchor = menuButton.current
+    if (!panel || !anchor) return
+    if (panel.matches(':popover-open')) { closeMenu(); return }
+    panel.showPopover()
+    const rect = anchor.getBoundingClientRect()
+    panel.style.left = `${Math.max(8, Math.min(x ?? rect.left, window.innerWidth - panel.offsetWidth - 8))}px`
+    panel.style.top = `${Math.max(8, Math.min(y ?? rect.bottom + 4, window.innerHeight - panel.offsetHeight - 8))}px`
+    panel.querySelector<HTMLButtonElement>('button')?.focus()
+  }
+  const rename = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!name.trim() || saving) return
+    setSaving(true); setError('')
+    try {
+      const response = await fetch(`${archdApi()}/api/sheets/${encodeURIComponent(sheet.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId, name: name.trim() }), signal: AbortSignal.timeout(15000) })
+      if (!response.ok) { const text = await response.text(); let message = text; try { message = JSON.parse(text).error ?? text } catch { /* plain text error */ }; throw new Error(message) }
+      const updated = await response.json()
+      handleSheetPatch({ type: 'sheet:upserted', payload: updated })
+      setRenaming(false); titleButton.current?.focus()
+    } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
+    finally { setSaving(false) }
+  }
+  return <div className="ambio-sheet-entry">
+    <div className={`ambio-sheet-rail__row${active ? ' ambio-sheet-rail__row--active' : ''}${visible ? ' ambio-sheet-rail__row--visible' : ''}`} onContextMenu={event => { event.preventDefault(); showMenu(event.clientX, event.clientY) }} onKeyDown={event => { if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') { event.preventDefault(); showMenu() } }}>
+      <button type="button" className="ambio-sheet-rail__expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${sheet.name}`} aria-expanded={expanded} aria-controls={contentsId} onClick={() => setExpanded(value => !value)}><Chevron expanded={expanded} /></button>
+      <button ref={titleButton} type="button" className={`ambio-sheet-rail__button ambio-sheet-rail__button--sheet${active ? ' ambio-sheet-rail__button--active' : ''}`} aria-current={active ? 'page' : undefined} title={`${sheet.name} · Ctrl/Cmd-click to toggle layer`} onClick={event => {
+        const store = useSheetStore.getState()
+        if ((event.ctrlKey || event.metaKey) && store.activeSheetId) void store.toggleSheetVisibility(workspaceId, sheet.id)
+        else void store.openSheet(workspaceId, sheet.id, { exclusive: true })
+      }}><span className="ambio-sheet-rail__name">{sheet.name}</span></button>
+      <button ref={menuButton} type="button" className="ambio-sheet-rail__more" aria-label={`Actions for ${sheet.name}`} aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={menuId} onClick={() => showMenu()}>⋯</button>
+    </div>
+    <div ref={menu} id={menuId} className="ambio-sheet-menu" role="menu" aria-label={`Actions for ${sheet.name}`} onKeyDown={event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMenu() }
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault(); const options = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')]; const index = options.indexOf(document.activeElement as HTMLButtonElement)
+        options[event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + options.length) % options.length]?.focus()
+      }
+    }}>
+      <button type="button" role="menuitem" onClick={() => { closeMenu(); setName(sheet.name); setError(''); setRenaming(true) }}>{SHEET_ACTIONS.rename}</button>
+      <button type="button" role="menuitem" onClick={() => { closeMenu(); window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: sheet.id } })) }}>{SHEET_ACTIONS.discuss}</button>
+      <button type="button" role="menuitem" className="ambio-sheet-menu__delete" onClick={() => { closeMenu(); if (confirm(`Delete sheet "${sheet.name}"?`)) void useSheetStore.getState().deleteSheet(workspaceId, sheet.id).catch(error => setError(String(error))) }}>{SHEET_ACTIONS.delete}</button>
+    </div>
+    {renaming && <form className="ambio-sheet-rail__rename" onSubmit={event => void rename(event)}>
+      <input autoFocus aria-label="Sheet name" value={name} disabled={saving} onChange={event => setName(event.target.value)} onFocus={event => event.target.select()} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape' && !saving) { setRenaming(false); titleButton.current?.focus() } }} />
+      <button type="submit" disabled={saving || !name.trim()}>Save</button><button type="button" disabled={saving} onClick={() => { setRenaming(false); titleButton.current?.focus() }}>Cancel</button>
+    </form>}
+    {error && <p className="ambio-sheet-rail__create-error" role="alert">{error}</p>}
+    <div id={contentsId} hidden={!expanded}>{expanded && <SheetContents sheetId={sheet.id} workspaceId={workspaceId} />}</div>
+  </div>
 }
 
 function FloorIcon() {
@@ -88,19 +207,14 @@ function SheetIcon() {
 }
 
 export function SheetRail() {
-  const allRelationships = useSheetView(s => s.allRelationships)
-  const toggleRelationships = useSheetView(s => s.toggleRelationships)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
-  const { sheets, activeSheetId, visibleSheetIds, fetchSheets, openSheet, toggleSheetVisibility, createSheet, deleteSheet } =
+  const { sheets, activeSheetId, fetchSheets, openSheet, createSheet } =
     useSheetStore(useShallow(s => ({
       sheets: s.sheets,
       activeSheetId: s.activeSheetId,
-      visibleSheetIds: s.visibleSheetIds,
       fetchSheets: s.fetchSheets,
       openSheet: s.openSheet,
-      toggleSheetVisibility: s.toggleSheetVisibility,
       createSheet: s.createSheet,
-      deleteSheet: s.deleteSheet,
     })))
   const [creating, setCreating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -108,19 +222,6 @@ export function SheetRail() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [showResolved, setShowResolved] = useState(false)
   const [restoreError, setRestoreError] = useState('')
-  // Agent-drawn sheets you have not opened yet are marked NEW. Remembered per
-  // viewer only; losing it just shows the mark again.
-  const seenKey = `ambio:seen-agent-sheets:${workspaceId}`
-  const [seenAgentSheets, setSeenAgentSheets] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(seenKey) ?? '[]') as string[] } catch { return [] }
-  })
-  useEffect(() => {
-    if (!activeSheetId || seenAgentSheets.includes(activeSheetId)) return
-    if (!sheets.some(sheet => sheet.id === activeSheetId && sheet.createdBy === 'agent')) return
-    const next = [...seenAgentSheets, activeSheetId]
-    setSeenAgentSheets(next)
-    try { localStorage.setItem(seenKey, JSON.stringify(next)) } catch { /* the mark just returns */ }
-  }, [activeSheetId, sheets, seenAgentSheets, seenKey])
   const activeSheets = sheets.filter(sheet => !sheet.resolvedAt)
   const resolvedSheets = sheets.filter(sheet => sheet.resolvedAt)
   const restore = async (sheet: Sheet) => {
@@ -258,69 +359,9 @@ export function SheetRail() {
           <p className="ambio-sheet-rail__create-error" role="alert">{createError}</p>
         )}
 
-        {activeSheets.map(sheet => {
-          const active = activeSheetId === sheet.id
-          const visible = visibleSheetIds.includes(sheet.id)
-          return (
-            <div
-              key={sheet.id}
-              className={[
-                'ambio-sheet-rail__row',
-                active ? 'ambio-sheet-rail__row--active' : '',
-              ].filter(Boolean).join(' ')}
-            >
-              <button
-                type="button"
-                className={[
-                  'ambio-sheet-rail__visibility',
-                  visible ? 'ambio-sheet-rail__visibility--visible' : '',
-                ].filter(Boolean).join(' ')}
-                title={visible ? 'Hide layer' : 'Show layer'}
-                aria-label={visible ? `Hide ${sheet.name}` : `Show ${sheet.name}`}
-                aria-pressed={visible}
-                onClick={() => void toggleSheetVisibility(workspaceId, sheet.id)}
-              >
-                {visible && (
-                  <svg viewBox="0 0 12 12" aria-hidden="true">
-                    <path d="m2.1 6.2 2.3 2.2 5.5-5.2" />
-                  </svg>
-                )}
-              </button>
-
-              <button
-                type="button"
-                className={`${railButtonClass(active)} ambio-sheet-rail__button--sheet`}
-                aria-current={active ? 'page' : undefined}
-                onClick={() => void openSheet(workspaceId, sheet.id)}
-              >
-                <span className="ambio-sheet-rail__document-icon"><SheetIcon /></span>
-                <span className="ambio-sheet-rail__name" title={sheet.name}>{sheet.name}</span>
-                <span className="ambio-sheet-rail__kind">{SHEET_KIND_LABELS[sheet.kind]}</span>
-                {sheet.createdBy === 'agent' && <span className="ambio-sheet-rail__agent" title="Created by agent">AI</span>}
-                {sheet.createdBy === 'agent' && !active && !seenAgentSheets.includes(sheet.id) && <span className="ambio-sheet-rail__new" title="Drawn by an agent; not opened yet">NEW</span>}
-              </button>
-
-              {active && <button type="button" className="ambio-sheet-rail__attach" aria-label={`Attach ${sheet.name} to agent message`} title="Discuss or implement this sheet" onClick={() => window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { sheetId: sheet.id } }))}>↗</button>}
-              {active && (
-                <button
-                  type="button"
-                  className="ambio-sheet-rail__delete"
-                  aria-label={`Delete ${sheet.name}`}
-                  title="Delete sheet"
-                  onClick={() => {
-                    if (confirm(`Delete sheet "${sheet.name}"?`)) void deleteSheet(workspaceId, sheet.id)
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          )
-        })}
+        {activeSheets.map(sheet => <SheetEntry key={`${workspaceId}:${sheet.id}`} sheet={sheet} workspaceId={workspaceId} />)}
       </div>
-      <SheetProposalReview workspaceId={workspaceId} />
-      <SheetContents key={activeSheetId ?? 'floor'} />
-      {activeSheetId && <label className="ambio-sheet-rail__relationships"><input type="checkbox" checked={allRelationships} onChange={toggleRelationships} />{COMMANDS['view.sheetRelationships'].label}</label>}
+      <SheetProposalReview key={activeSheetId ?? 'floor'} workspaceId={workspaceId} />
       <SheetChangeDetails />
       <SheetRemovedList workspaceId={workspaceId} />
       {resolvedSheets.length > 0 && <div className="ambio-sheet-rail__archive">

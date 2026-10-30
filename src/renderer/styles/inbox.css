@@ -207,8 +207,6 @@
 @media (max-width: 700px) { .ambio-inbox { top: var(--chrome-toolbar-height, 82px); bottom: 0; width: 100vw; } }
 @media (max-height: 620px) { .ambio-inbox__header { height: 40px; } .ambio-inbox__history { padding-top: 12px; gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { .ambio-inbox__comparison-summary > svg:last-child { transition: none; } }
-.ambio-sheet-rail__attach { position: absolute; right: 27px; top: 50%; transform: translateY(-50%); z-index: 3; width: 18px; height: 20px; border: 0; background: transparent; color: #d9ece7; cursor: pointer; padding: 0; }
-.ambio-sheet-rail .ambio-sheet-rail__row--active .ambio-sheet-rail__button { padding-right: 48px; }
 .ambio-sheet-rail__archive { padding: 10px; border-top: 1px solid #dce0d6; font-size: 11px; }
 .ambio-sheet-rail__archive button { background: transparent; color: inherit; border: 1px solid #c7cec3; border-radius: 4px; padding: 5px; cursor: pointer; }
 .ambio-sheet-rail__archive > div { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
@@ -253,7 +251,6 @@
 .react-flow__node[data-proposal="pending"] { outline: none; }
 .react-flow__node[data-proposal="rejected"] { opacity: .35; }
 .ambio-renamed-from { font-family: var(--font-mono); color: var(--text-secondary); text-decoration: line-through; text-decoration-color: #c98a1b; }
-.ambio-sheet-rail__new { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #c98a1b; color: #fff; font: 700 8px var(--font-mono, monospace); letter-spacing: .05em; }
 /* The destination and mode sit inside the compose box, so they carry its
    gutter; the textarea below is ruled off as the place to type. */
 .ambio-inbox__delivery { display: grid; gap: 6px; padding: 10px 12px 0; }
@@ -510,10 +507,6 @@
 .ambio-sheet-rail__relationships input { accent-color: #3b7466; }
 .ambio-sheet-rail__review li.ambio-sheet-review-group { display: block; padding: 8px; }
 .ambio-sheet-review-group > .ambio-sheet-rail__review-label { width: 100%; }
-.ambio-sheet-review-details { width: 100%; margin: 5px 0; }
-.ambio-sheet-review-details > summary { cursor: pointer; color: var(--rail-muted); font: 10px/1.4 var(--font-ui); overflow-wrap: anywhere; }
-.ambio-sheet-review-details > ul { padding: 5px 0 0; }
-.ambio-sheet-review-details li { border-left-width: 1px; }
 .ambio-sheet-review-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 .ambio-sheet-rail .ambio-sheet-review-actions button { width: auto; padding: 4px 5px; border: 1px solid var(--rail-accent-dark); background: transparent; color: var(--rail-ink); font: 10px/1.3 var(--font-ui); cursor: pointer; }
 .ambio-sheet-rail .ambio-sheet-review-actions button:first-child { background: var(--rail-accent-dark); color: #f4f5f2; }
@@ -529,18 +522,69 @@
 /* The worktree choice sits under the request types, set apart as an option of Build. */
 .ambio-inbox .ambio-inbox__mode-menu .ambio-inbox__mode-option { margin-top: 4px; border-top: 1px solid #c9cbbf; }
 .ambio-inbox .ambio-inbox__mode-menu .ambio-inbox__mode-option[aria-checked='true'] { background: transparent; }
-.ambio-sheet-contents { --rail-border: color-mix(in srgb, var(--rail-muted) 35%, transparent); flex-shrink: 0; margin: 4px 6px; border-top: 1px solid var(--rail-border); font: 10px var(--font-mono); color: var(--rail-ink); }
-.ambio-sheet-contents summary { cursor: pointer; padding: 6px 2px; }
-.ambio-sheet-contents > summary { text-transform: uppercase; letter-spacing: .05em; }
-.ambio-sheet-contents__body { max-height: 240px; overflow-y: auto; }
-.ambio-sheet-contents ul { list-style: none; padding: 0; margin: 0; }
-.ambio-sheet-contents li { display: flex; align-items: baseline; gap: 4px; padding: 3px 0; }
-.ambio-sheet-contents li button { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--rail-ink); padding: 0; text-align: left; overflow-wrap: anywhere; font: inherit; cursor: pointer; }
-.ambio-sheet-contents li button:hover { color: var(--rail-accent-dark); text-decoration: underline; }
-.ambio-sheet-contents li small { font-size: 8px; flex-shrink: 0; color: var(--rail-muted); }
-.ambio-sheet-contents__next { border-top: 1px solid var(--rail-border); padding: 5px 0; }
-.ambio-sheet-contents__next p { margin: 0 0 5px; font: 9px/1.4 var(--font-mono); }
-.ambio-sheet-contents__next button { border: 1px solid var(--rail-border); background: transparent; color: var(--rail-accent-dark); padding: 3px; font: 9px var(--font-mono); cursor: pointer; }
 .ambio-planned-file-members { margin: 10px 0; }
 .ambio-planned-file-members h4 { font: 11px var(--font-mono); color: var(--inspector-ink); margin: 5px 0; }
 .ambio-planned-file-members .ambio-inspector-field { flex: 1; min-width: 0; }
+
+/* Sheet navigation uses the cabinet's ink, thin rules and compact disclosure. */
+.ambio-sheet-entry .ambio-sheet-rail__row { min-height: 38px; align-items: center; border-bottom: 1px solid #c0c3bf; background: var(--rail-row); }
+.ambio-sheet-entry .ambio-sheet-rail__row--visible:not(.ambio-sheet-rail__row--active) { background: #d6e1da; box-shadow: inset 3px 0 #70a397; }
+.ambio-sheet-entry .ambio-sheet-rail__row--active { background: var(--rail-accent); color: #fff; box-shadow: inset 3px 0 #a9dbcb; }
+.ambio-sheet-entry .ambio-sheet-rail__row .ambio-sheet-rail__button--sheet { height: auto; min-height: 38px; align-self: stretch; flex: 1; width: auto; padding: 7px 3px; border: 0; background: transparent; color: inherit; box-shadow: none; }
+.ambio-sheet-entry .ambio-sheet-rail__name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+.ambio-sheet-rail__expand, .ambio-sheet-rail__more { flex: 0 0 24px; width: 24px; padding: 4px; align-self: stretch; display: grid; place-items: center; border: 0; color: inherit; background: transparent; cursor: pointer; }
+.ambio-sheet-rail__more { opacity: 0; font: 700 17px var(--font-ui); }
+.ambio-sheet-rail__row:hover .ambio-sheet-rail__more, .ambio-sheet-rail__row:focus-within .ambio-sheet-rail__more, .ambio-sheet-rail__more[aria-expanded='true'] { opacity: 1; }
+.ambio-sheet-rail__expand:hover, .ambio-sheet-rail__more:hover { background: #ffffff20; }
+.ambio-sheet-chevron { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; flex-shrink: 0; transition: transform 100ms; }
+.ambio-sheet-chevron[data-expanded='true'] { transform: rotate(90deg); }
+.ambio-sheet-rail button:focus-visible, .ambio-sheet-menu button:focus-visible, .ambio-sheet-review-panel button:focus-visible { outline: 1px solid currentColor; outline-offset: -2px; }
+.ambio-sheet-tree { padding: 5px 6px 8px 14px; border-bottom: 1px solid #b9bdb8; background: #e7e5df88; font: 10px/1.4 var(--font-mono); }
+.ambio-sheet-tree ul { list-style: none; padding: 0; margin: 0; }
+.ambio-sheet-tree li { display: flex; align-items: flex-start; min-width: 0; }
+.ambio-sheet-tree__item { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--rail-ink); text-align: left; padding: 4px 3px; font: inherit; overflow-wrap: anywhere; cursor: pointer; }
+.ambio-sheet-tree__item:hover { background: #f4f2eb; color: var(--rail-accent-dark); }
+.ambio-sheet-tree__branch { display: grid; place-items: center; flex: 0 0 14px; width: 14px; height: 22px; border: 0; padding: 0; background: transparent; color: var(--rail-muted); cursor: pointer; }
+.ambio-sheet-tree__mark { flex: 0 0 4px; width: 4px; height: 4px; margin: 9px 5px 0; background: #a2aca5; }
+.ambio-sheet-tree__mark[data-pending] { background: #b37d28; }
+.ambio-sheet-tree__empty { color: var(--rail-muted); font: 10px/1.4 var(--font-ui); padding: 5px 12px; margin: 0; }
+.ambio-sheet-tree__connections { margin: 4px 0 0; border-top: 1px solid #bdc3ba; }
+.ambio-sheet-tree__heading { display: flex; gap: 6px; align-items: center; width: 100%; padding: 6px 0; border: 0; background: transparent; color: var(--rail-muted); font: 9px var(--font-mono); cursor: pointer; }
+.ambio-sheet-tree__heading span { margin-left: auto; }
+.ambio-sheet-tree__show-connections { display: block; margin: 3px 0 0 14px; padding: 3px; border: 0; border-bottom: 1px solid #8da79c; color: var(--rail-accent-dark); background: transparent; font: 9px/1.4 var(--font-ui); cursor: pointer; }
+.ambio-sheet-tree__show-connections[aria-pressed='true'] { background: #d3e2d9; }
+.ambio-sheet-rail__rename { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; }
+.ambio-sheet-rail__rename input { width: 100%; min-width: 0; padding: 4px; border: 1px solid var(--rail-accent); background: #fffef8; color: var(--rail-ink); font: 11px var(--font-ui); }
+.ambio-sheet-rail__rename button { border: 1px solid #77827e; background: #f4f2eb; color: var(--rail-ink); font: 10px var(--font-ui); padding: 3px 6px; }
+.ambio-sheet-menu { position: fixed; margin: 0; padding: 4px; width: 200px; border: 1px solid #65746d; background: #f1efe7; color: #26332f; box-shadow: 3px 3px #26332f44; }
+.ambio-sheet-menu button { display: block; width: 100%; padding: 8px; border: 0; background: transparent; color: inherit; text-align: left; font: 11px var(--font-ui); cursor: pointer; }
+.ambio-sheet-menu button:hover, .ambio-sheet-menu button:focus-visible { background: #d5e1d8; }
+.ambio-sheet-menu .ambio-sheet-menu__delete { margin-top: 4px; border-top: 1px solid #bdc3ba; color: #853b2f; }
+.ambio-sheet-rail__review { flex: 0 1 auto; min-height: 0; max-height: 40%; overflow-y: auto; }
+.ambio-sheet-review-summary { color: var(--rail-muted); font: 9px/1.5 var(--font-mono); margin: 5px 0 0; }
+.ambio-sheet-review-intent { color: var(--rail-muted); font: 10px/1.4 var(--font-ui); margin: 4px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ambio-sheet-review-inspect { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; border: 0; border-top: 1px solid #c6c9bf; margin-top: 7px; padding: 6px 0 1px; background: transparent; color: var(--rail-accent-dark); font: 10px var(--font-ui); text-align: left; cursor: pointer; }
+.ambio-sheet-review-inspect:hover { text-decoration: underline; text-underline-offset: 2px; }
+.ambio-sheet-review-panel { --rail-ink: #26332f; --rail-muted: #46534f; --rail-accent-dark: #2d625c; position: fixed; z-index: 1100; right: 12px; top: calc(var(--chrome-toolbar-height) + 12px); bottom: calc(var(--chrome-status-height) + 12px); width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; border: 1px solid #65746d; box-shadow: 4px 4px #26332f44; background: #eeece4; color: var(--rail-ink); font: 12px/1.4 var(--font-ui); }
+.ambio-sheet-review-panel > header { display: flex; gap: 10px; padding: 12px; background: linear-gradient(#394746, #293433); color: #f4f5f2; }
+.ambio-sheet-review-panel > header small { font: 8px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: #c6d7ce; }
+.ambio-sheet-review-panel h2 { margin: 4px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.ambio-sheet-review-panel > header button { width: 24px; height: 24px; flex-shrink: 0; margin-left: auto; border: 1px solid #778a81; color: #fff; background: transparent; font-size: 18px; cursor: pointer; }
+.ambio-sheet-review-panel__body { flex: 1; overflow-y: auto; padding: 12px; }
+.ambio-sheet-review-panel__context { color: var(--rail-muted); margin: 0 0 12px; font: 10px var(--font-mono); }
+.ambio-sheet-review-panel h3 { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #bbc3b8; padding-bottom: 5px; margin: 14px 0 6px; font: 700 10px var(--font-mono); text-transform: uppercase; }
+.ambio-sheet-review-panel h3 span { margin-left: auto; color: var(--rail-muted); }
+.ambio-sheet-review-panel ul { list-style: none; margin: 0; padding: 0; }
+.ambio-sheet-review-panel li { display: flex; align-items: flex-start; gap: 4px; padding: 8px 0; border-bottom: 1px solid #d0d2c8; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; border: 0; padding: 0; background: transparent; cursor: pointer; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-label span { color: var(--rail-ink); font: 600 12px/1.4 var(--font-ui); overflow-wrap: anywhere; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-label em { color: var(--rail-muted); font: 10px/1.4 var(--font-ui); overflow-wrap: anywhere; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-label:hover span { color: var(--rail-accent-dark); text-decoration: underline; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-decide { width: 23px; height: 23px; flex-shrink: 0; border: 1px solid #77827e; background: #f4f2eb; color: var(--rail-muted); cursor: pointer; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-decide:hover { background: #d5e1d8; }
+.ambio-sheet-review-panel footer { position: sticky; bottom: -12px; padding: 8px 0; background: #eeece4; }
+.ambio-sheet-review-panel .ambio-sheet-review-actions button { border: 1px solid var(--rail-accent-dark); background: transparent; color: var(--rail-ink); font: 11px var(--font-ui); padding: 5px 8px; cursor: pointer; }
+.ambio-sheet-review-panel .ambio-sheet-review-actions button:first-child { background: var(--rail-accent-dark); color: #fff; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-reason { flex-wrap: wrap; margin-top: 10px; }
+.ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
+.ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }

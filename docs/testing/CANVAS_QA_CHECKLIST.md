@@ -268,7 +268,9 @@ Fixed during this pass:
 - [ ] **J7** `Delete`/`Backspace` deletes a selected planned node; on a selected **live** node it proposes removal instead: the node leaves this sheet's picture (with what is inside it), a notice offers Restore, and the rail lists it under "Removed on this sheet" (must not fire while typing)
 - [ ] **J7b** Leave the sheet → the removed node is on the Floor as before; once its code is really deleted, the Removed list marks it GONE instead of dropping it
 - [ ] **J8** Delete/Backspace on the **Floor**: a selected system is ungrouped (contents move up a level; notice with Undo); a selected file stays and a notice says files are code
-- [ ] **J8b** An agent creates a sheet (`edit_sheet create`) or proposes an element (`plan_element`) → an invitation with Open Sheet appears, the sheet is marked NEW until opened, the proposal is outlined PROPOSED, and "To review" in the rail confirms or rejects it in one click
+- [ ] **J8b** An agent creates a sheet (`edit_sheet create`) or proposes an element (`plan_element`) → an invitation with Open Sheet appears, its row stays uncluttered, the proposal is outlined PROPOSED, and "To review" in the rail confirms or rejects it in one click
+- [ ] **J8c** Sheet chevrons expand contents without changing the active layer; approved contents remain navigable. Normal title click shows only that sheet; Ctrl/Cmd-click toggles additional layers. Hover/focus or right-click opens Rename / Discuss or implement / Delete; Escape returns focus.
+- [ ] **J8d** To review stays compact bottom-left. Inspect changes frames the change and opens grouped additions/connections in a nonmodal inspector; each individual decision and revision-checked group approval remains available. Escape cancels a reason before closing the inspector.
 - [ ] **J9** Deactivate the sheet - live identity preserved, nothing orphaned
 - [ ] **J10** Sheet geometry persists across sheet layout mutations
 

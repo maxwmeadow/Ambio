@@ -465,16 +465,27 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   row agree, so projection cannot reuse an oversized Floor frame.
 - To review stays compact in the sidebar. A nested addition and its connections
   form one change card; independent additions and connections between them
-  remain separate. Expand a card to inspect and decide every underlying part.
+  remain separate. Inspect changes opens a nonmodal panel with additions,
+  connections, moves and renames grouped for individual decisions; the compact
+  card shows actual system/file/connection counts and descriptive intent.
   Group approval/rejection applies exactly the displayed pending parts in one
   revision-checked transaction. A stale plan refreshes for review without
   retrying approval; approved children/connections cannot have unapproved parents
   or endpoints. Request changes records the reason against each selected part.
-- Approval removes pending decisions, not navigation. A compact, expandable
-  Contents section keeps additions, existing references and relationships
-  available before and after approval and when reopening a sheet. Selecting an
-  entry reveals nested/off-screen content. Approval confirms a plan; the human
-  separately chooses to discuss or implement it using the existing sheet action.
+- Approval removes pending decisions, not navigation. Each sheet row has a
+  chevron that expands its additions, existing references and connections before
+  and after approval. Expanding a sheet does not activate or display its layer;
+  selecting a content entry opens that sheet and reveals nested/off-screen
+  content. There is no separate bottom Contents section.
+- A normal sheet-title click makes it the only visible overlay and primary
+  editing target. Ctrl/Cmd-click toggles additional layers without changing the
+  primary target; hiding that primary promotes the last remaining visible layer,
+  or returns to the Floor if none remain. The Floor stays the base. Active rows
+  are teal; other visible layers use a quieter tint. Titles allow two lines.
+- Sheet rows omit checkboxes, type abbreviations and author badges. A hover/
+  keyboard-focus menu and the same right-click/Shift-F10 menu provide Rename,
+  Discuss or implement, and Delete. Connections visibility lives inside the
+  expanded active sheet. Approval confirms a plan; implementation is separate.
 - Planned file headers use their declared filename and the normal language
   icon. Cards and Properties share a single filename, language and description
   model, including path-derived languages and legacy descriptions stored in

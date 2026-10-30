@@ -31,14 +31,16 @@ they do not certify the plan's complete structural correctness.
 
 ## Recommended review unit
 
-Present **a named, coherent change** with expandable exact details:
+Present **a named, coherent change** with exact details in an inspector:
 
 > Add Offline Scene Replay Tool
 >
 > Inside Reflex Collision Heuristics. Adds the CLI, synthetic scenes and
 > verification. Uses the existing evaluator; its behavior remains unchanged.
 >
-> Inspect 8 plan details
+> 1 system · 3 files · 4 connections
+>
+> Inspect changes
 >
 > Approve change · Request changes
 
@@ -65,6 +67,22 @@ Use these principles:
 - Request changes can address a group or a precise detail, with the reason
   delivered to the agent. Human and agent can inspect decisions and resulting
   scope; the agent cannot approve its own proposals.
+
+## Sidebar refinement (Max, 2026-10-29)
+
+Keep To review at the bottom-left, with compact counts and intent. Inspect
+changes opens a styled nonmodal panel grouped by additions and connections,
+with individual decisions and the existing revision-checked group actions.
+There is no native details dropdown or raw “8 details / 2 outside” label.
+
+Sheet navigation is a per-sheet expansion in the list above. A chevron expands
+contents without activating the sheet; the title activates it, using two lines
+when necessary. Ctrl/Cmd-click toggles extra visible layers with one primary
+editing target. Remove visibility checkboxes, abbreviated type/author badges,
+inline dispatch and persistent deletion. Hover/focus or right-click opens the
+same contextual Rename / Discuss or implement / Delete menu. Approved contents
+stay in the tree; the bottom Contents dropdown is removed. Connection controls
+live in the expanded active sheet.
 
 ## Approval semantics
 

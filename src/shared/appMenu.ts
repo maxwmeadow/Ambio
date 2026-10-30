@@ -5,6 +5,13 @@
 // shortcuts and the shortcut reference. A command added here appears in all
 // of them, with the same name and the same key.
 
+/** Contextual sheet actions share their wording across the rail's menus. */
+export const SHEET_ACTIONS = {
+  rename: 'Rename…',
+  discuss: 'Discuss or implement…',
+  delete: 'Delete sheet…',
+} as const
+
 export type CommandId =
   | 'app.about'
   | 'app.settings'
