@@ -1042,6 +1042,12 @@ reviewable even when their lines are hidden. Moves state their original and
 proposed parent in ordinary language. Added/moved markers use `canvasZoomChrome`
 to retain a small screen size without invalidating the whole scene during zoom.
 
+`SheetRail` presents connection navigation in a compact tinted toolbar with a
+connection icon, count and trailing disclosure, separate from the system tree's
+leading-chevron rows. Its eye-button toggles map visibility whether the
+connection list is expanded or collapsed; both controls retain their existing
+sheet-view actions.
+
 `sheetRelationshipGeometry` assigns distinct incident ports from the complete
 sheet topology and caches routes by geometry/topology, independent of semantic
 visibility. Previously solved routes reserve gutters; unrelated cards and

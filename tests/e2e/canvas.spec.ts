@@ -2551,6 +2551,9 @@ test('a nested proposal keeps compressed live context below its title and leaves
   await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
   await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Collapse Offline Replay Tool', exact: true }).click()
+  await page.screenshot({ path: 'test-results/sheet-connections-collapsed.png' })
+  await page.getByRole('button', { name: 'Expand Offline Replay Tool', exact: true }).click()
   await page.getByRole('button', { name: 'Connections 4', exact: true }).click()
   await page.getByRole('button', { name: 'cli.py → heuristics.py', exact: true }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
@@ -2755,7 +2758,8 @@ test('compact sheet review retains exact decisions and navigates approved conten
   expect(crossesFixture).toBe(false)
   const assertInk = async () => {
     const arrow = (await routedEdge.locator('.ambio-sheet-relationship-arrow').boundingBox())!
-    expect(Math.max(arrow.width, arrow.height)).toBeCloseTo(8, 0)
+    // The 8px arrowhead includes a 1.5px ivory stroke in its painted bounds.
+    expect(Math.max(arrow.width, arrow.height)).toBeCloseTo(9.5, 0)
     const width = await routedEdge.locator('.react-flow__edge-path').evaluate(element => parseFloat(getComputedStyle(element).strokeWidth) * (element as SVGPathElement).getScreenCTM()!.a)
     expect(width).toBeCloseTo(1.25, 2)
   }

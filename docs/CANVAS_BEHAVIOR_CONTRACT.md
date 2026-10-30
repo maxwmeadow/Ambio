@@ -497,6 +497,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   layout-only repositioning. Explicit reparenting, reviewed renames and authored
   file design remain discoverable; Connections retains all of its endpoints.
   The underlying sheet membership and build context are unchanged by this filter.
+- Connections use a compact tinted toolbar with a connection icon, count and
+  right-side disclosure, distinct from the system tree without a separator
+  rule. The map-visibility button belongs to this toolbar and includes an eye
+  icon; it is available on the active sheet whether the connections are
+  expanded or collapsed.
 - Stencils use equal top and left canvas insets. On short windows the palette
   scrolls within the available space, keeping the Infrastructure tab below it
   and reachable; when Infrastructure opens, the palette sits beside that panel.

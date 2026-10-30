@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-connections-toolbar` Differentiate the Connections disclosure from the sheet's system tree with a compact toolbar treatment, connection icon and count; remove the separator and underline-based map action. Done when collapsed/expanded views are visually checked and existing navigation still passes. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max's screenshot.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
@@ -412,6 +411,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-30 `sheet-connections-toolbar` Connections now uses a compact tinted toolbar with a connection icon, count badge and trailing disclosure, distinct from leading-chevron system rows without a separator. Its eye/map action sits inside the group without an underline. Types/build and replay-navigation plus complete review/authoring Electron journeys pass; collapsed/expanded views visually inspected. Updated the older painted-arrow assertion to include its intended 1.5px ivory outline. (`codex/sheet-review-polish`)
 
 - 2026-10-30 `sheet-connection-style-parity` Individual connection navigation now uses the same charcoal/ivory dashed styling as the all-connections view, removing the teal/solid/thicker-line variation. Navigation, endpoint focus and neighbor dimming remain. Types/build and replay Electron journey pass, including computed screen-space color/dash/width/outline/arrow parity across the two views at different zooms; visually inspected individual focus. (`codex/sheet-review-polish`)
 

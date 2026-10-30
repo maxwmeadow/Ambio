@@ -32,6 +32,8 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Connections in the sheet sidebar have a compact toolbar with a connection
+  icon, count and map-visibility action, distinct from the system tree.
 - Sheet connections use charcoal ink with a narrow ivory outline to stay
   visible across amber proposal borders. Individual navigation and showing all
   connections share the same color, dashes, width and outline.

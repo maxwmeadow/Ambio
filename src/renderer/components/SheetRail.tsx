@@ -26,6 +26,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
   ]), [systems, files, floorLayouts])
   const showOnMap = useShowOnMap(false)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const connectionsId = useId()
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   useEffect(() => {
@@ -100,14 +101,17 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
     </ul>
     {!entries.length && !live.length && !edges.length && <p className="ambio-sheet-tree__empty">No proposed changes yet.</p>}
     {edges.length > 0 && <div className="ambio-sheet-tree__connections">
-      <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} onClick={() => setConnectionsOpen(value => !value)}><Chevron expanded={connectionsOpen} />Connections <span>{edges.length}</span></button>
-      {connectionsOpen && <ul>{edges.map(edge => {
+      <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} aria-controls={connectionsId} onClick={() => setConnectionsOpen(value => !value)}>
+        <svg className="ambio-sheet-connections-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h3v10h3M8 8h3" /><rect x="1" y="1" width="4" height="4" /><rect x="11" y="6" width="4" height="4" /><rect x="11" y="11" width="4" height="4" /></svg>
+        <span className="ambio-sheet-tree__connections-label">Connections</span><span className="ambio-sheet-tree__connections-count">{edges.length}</span><Chevron expanded={connectionsOpen} />
+      </button>
+      {connectionsOpen && <ul id={connectionsId}>{edges.map(edge => {
         const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
         const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''
         return <li key={edge.id}><button type="button" className="ambio-sheet-tree__item" onClick={() => void focus(source, edge.id)}>{label(source)} → {label(target)}</button></li>
       })}</ul>}
+      <SheetConnectionsControl sheetId={sheetId} />
     </div>}
-    {edges.length > 0 && <SheetConnectionsControl sheetId={sheetId} />}
   </div>
 }
 
@@ -115,7 +119,10 @@ function SheetConnectionsControl({ sheetId }: { sheetId: string }) {
   const active = useSheetStore(state => state.activeSheetId === sheetId)
   const allRelationships = useSheetView(state => state.allRelationships)
   if (!active) return null
-  return <button type="button" className="ambio-sheet-tree__show-connections" aria-label={COMMANDS['view.sheetRelationships'].label} aria-pressed={allRelationships} onClick={() => useSheetView.getState().toggleRelationships()}>{allRelationships ? 'Hide connections on map' : 'Show connections on map'}</button>
+  return <button type="button" className="ambio-sheet-tree__show-connections" aria-label={COMMANDS['view.sheetRelationships'].label} aria-pressed={allRelationships} onClick={() => useSheetView.getState().toggleRelationships()}>
+    <svg className="ambio-sheet-connections-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" /><circle cx="8" cy="8" r="2" /></svg>
+    {allRelationships ? 'Hide connections on map' : 'Show connections on map'}
+  </button>
 }
 
 function Chevron({ expanded }: { expanded: boolean }) {
