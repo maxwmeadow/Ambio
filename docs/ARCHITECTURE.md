@@ -331,7 +331,10 @@ to API-key billing or another account. Setup and live-account validation:
   uses canonical nesting/world/interior scales and updates both system and
   layout dimensions. After placement compresses an automatic frame, a cancellable
   fitting pass reserves its final rendered tab clearance by fitting the interior
-  within its allocated rectangle. Authored sheet and Floor geometry remain authoritative.
+  within its allocated rectangle. The same pass includes live context whose
+  interior was compressed by incoming placement, and its descendants, so
+  inherited scaling cannot pull children beneath their fixed title bands.
+  Authored sheet and Floor geometry remain authoritative.
   `SheetRail` places persistent contents beneath each expandable sheet row.
   `loadSheetContents` caches a layer without changing visibility or editing
   target; content navigation opens its sheet. Normal row clicks open exclusively;
@@ -347,8 +350,9 @@ to API-key billing or another account. Setup and live-account validation:
   language definitions live in `languageDefinitions.ts`; `LanguagePicker` uses
   a viewport-anchored native popover top layer independent of node transforms.
   `plannedDescription` shares metadata/legacy-note resolution across all planned
-  kinds. Proposed systems show a collapsed summary and a tab-band InfoPopover
-  linked to Properties; description edits do not alter frame/child geometry.
+  kinds. Proposed systems show a collapsed summary; full descriptions use
+  normal double-click Properties inspection, without a separate header badge.
+  Description edits do not alter frame/child geometry.
   Hidden compact title editors do not
   intercept detailed content. `wheelRouting.ts` keeps overflowing content in
   control at either boundary while short content still allows camera zoom.

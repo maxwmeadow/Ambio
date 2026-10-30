@@ -5,16 +5,32 @@ import type { PreparedFloorGeometry } from './scene/sceneGeometry'
 
 /** Placement can compress an unplaced frame after packing it. Fit its contents
  * against the final tab band, preserving the frame's allocated outer rectangle. */
-export function fitAutomaticSheetContents(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>): PreparedFloorGeometry {
-  const steps = fitAutomaticSheetContentsSteps(prepared, automatic)
+export function fitAutomaticSheetContents(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>, sourceLayouts: readonly FloorLayout[] = []): PreparedFloorGeometry {
+  const steps = fitAutomaticSheetContentsSteps(prepared, automatic, sourceLayouts)
   for (;;) { const next = steps.next(); if (next.done) return next.value }
 }
 
-export function* fitAutomaticSheetContentsSteps(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>): Generator<void, PreparedFloorGeometry> {
+export function* fitAutomaticSheetContentsSteps(prepared: PreparedFloorGeometry, automatic: ReadonlySet<string>, sourceLayouts: readonly FloorLayout[] = []): Generator<void, PreparedFloorGeometry> {
   const descriptors: PreparedFloorGeometry['descriptors'] = []
   const byId = new Map<string, typeof descriptors[number]>()
   const children = new Map<string, typeof descriptors>()
   let work = 0
+  // A new proposal can compress a live context frame even though that frame
+  // is not itself an automatic proposal. Scaling its old child coordinates
+  // toward zero also scales away their title clearance. Fit that whole content
+  // subtree against the real body, without changing the live outer rectangle.
+  if (!automatic.size && !prepared.resizedContainerIds?.size) return prepared
+  const originalInteriors = new Map<string, number>()
+  for (const row of sourceLayouts) {
+    if (prepared.resizedContainerIds?.has(row.nodeId)) originalInteriors.set(row.nodeId, row.interiorScale ?? 1)
+    if ((++work & 255) === 0) yield
+  }
+  const compressed = new Set<string>()
+  for (const id of prepared.resizedContainerIds ?? []) {
+    if ((prepared.geometryById.get(id)?.interiorScale ?? 1) < (originalInteriors.get(id) ?? 1)) compressed.add(id)
+    if ((++work & 255) === 0) yield
+  }
+  if (!automatic.size && !compressed.size) return prepared
   for (const original of prepared.descriptors) {
     const descriptor = { ...original, geometry: { ...original.geometry } }
     descriptors.push(descriptor)
@@ -34,7 +50,8 @@ export function* fitAutomaticSheetContentsSteps(prepared: PreparedFloorGeometry,
     const frame = descriptor.geometry
     descriptor.worldScale = (byId.get(descriptor.parentId ?? '')?.contentScale ?? 1) * frame.scale
     const members = children.get(descriptor.id) ?? []
-    if (automatic.has(descriptor.id) && members.length > 0) {
+    if (compressed.has(descriptor.parentId ?? '')) compressed.add(descriptor.id)
+    if ((automatic.has(descriptor.id) || compressed.has(descriptor.id)) && members.length > 0) {
       let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity
       for (const { geometry: child } of members) {
         left = Math.min(left, child.x); top = Math.min(top, child.y)

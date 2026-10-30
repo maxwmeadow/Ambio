@@ -32,9 +32,11 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
-- Proposed systems show their description below the collapsed title and expose
-  the full text beside the expanded frame header. Properties uses the same
-  description, including older agent notes, with an edit link from the card.
+- Sheet proposals keep existing files clear of system titles when fitting new
+  contents. Nested frames use the same body clearance at every zoom.
+- Proposed system descriptions use the normal Properties inspector. Removed
+  the separate information badge from the header ledge; collapsed summaries
+  and older agent notes remain available.
 - Planned files use the same filename, language and description in their cards
   and Properties. Removed duplicate semantic names and paths from cards; the
   function, variable and class controls stay available beside descriptions.

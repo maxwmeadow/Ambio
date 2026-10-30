@@ -255,7 +255,10 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-compressed-header-clearance` **Compressed live context must keep its title clear.** Reproduce a live single-file system receiving an unplaced nested proposal; preserve canonical body insets under compression and remove the misplaced system information badge while retaining normal Properties descriptions. **Done when:** shared geometry and Electron sheet regression cover header clearance, nesting/zoom, and Floor isolation. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max's Helios screenshots.)
+- ⬜ `sheet-review-journey-selectors` Update the older “a system an agent names…” Electron journey to inspect decisions through the new panel and use the expanded sheet’s connections button; it still expects removed native details/checkbox controls. Found while checking context-clearance coverage (2026-10-29).
+
+- ⬜ `planned-node-context-menu` Planned canvas nodes lack the normal right-click menu because onNodeContextMenu only resolves live graph nodes. Add planned-node actions using existing Properties and sheet authoring behavior. Found checking normal description access (2026-10-29).
+
 
 
 - ⬜ `mcp-work-session-reconnect` A work session started before an Ambio/MCP reconnect cannot be completed afterward: update_work rejects its saved session ID as unknown in the new connection. Preserve or recover session ownership safely across reconnects. Found while closing the prior sheet-review work; its case is already interrupted/replayable. (2026-10-29)
@@ -403,6 +406,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-29 `sheet-compressed-header-clearance` Extended the sheet's canonical content fit to live context newly compressed by incoming placement and its descendants, using final inherited scales and body insets. Outer frame/neighbor geometry and Floor layouts stay unchanged; unchanged authored interiors stay intact. Removed the standalone planned-system header information badge; collapsed summaries and normal double-click Properties retain descriptions. Types/build, 881 unit tests (7 skipped), and the clearance/zoom/Floor-isolation plus complete replay Electron journeys pass. Saved investigation with observed incoming compression and verified fit. (`codex/sheet-review-polish`)
 
 - 2026-10-29 `sheet-sidebar-tree` Sheet rows now expand persistent contents without activating layers; readable titles replace checkboxes/type/author badges and inline dispatch/delete controls. Ctrl/Cmd-click toggles layers; hover/focus and right-click share Rename / Discuss or implement / Delete actions. Bottom-left review cards show counts/intent, with a styled nonmodal inspector for every underlying decision. Types/build, 879 unit tests (7 skipped) and six focused Electron journeys pass, covering selection, menus, approval/rejection, approved navigation, attachment/restore and large-sheet culling. The culling fixture now keeps a normal compact source and its facing port visibly clear of the Floor; route tests pass under observation. (`codex/sheet-review-polish`)
 

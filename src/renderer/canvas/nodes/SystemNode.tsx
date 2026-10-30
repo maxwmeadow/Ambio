@@ -13,7 +13,6 @@ import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { revealCrossfade } from '../semanticZoom'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
 import { LIVING_WINDOW_CLOSE_MS, useGraphStore } from '../../store/graphStore'
-import { InfoPopover } from '../../components/ui/InfoPopover'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { useFloorEdits } from '../floorEditContext'
@@ -622,19 +621,6 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       </svg>
       <GridOverlay d={d} />
       {header}
-      {d.id.startsWith('planned:') && <div className="nodrag nopan" onPointerDown={event => event.stopPropagation()} style={{
-        position: 'absolute', top: tabBandTop, right: 6, width: tabBandH, height: tabBandH,
-        zIndex: 25, font: `${Math.max(1, tabBandH * 0.75)}px/1 var(--font-mono)`,
-      }}>
-        <InfoPopover label={`Description of ${name}`} title={`${name} description`} className="ambio-system-description-trigger" panelClassName="nowheel nodrag nopan">
-          <p>{d.description || 'Describe this system’s responsibility in Properties.'}</p>
-          <button type="button" className="ambio-system-description-edit" onClick={event => {
-            event.stopPropagation()
-            event.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover()
-            useGraphStore.getState().setInspectedNode(d.id)
-          }}>Edit system description</button>
-        </InfoPopover>
-      </div>}
       {bigTitle}
       </div>
       {livingWindowActive && (() => {

@@ -15,6 +15,8 @@ import { fitAutomaticSheetContentsSteps } from '../compactSheetSystems'
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
   dependencies: DbDependency[]; layouts: FloorLayout[]; scope: string
+  /** Defined for sheets, even when empty: incoming authored proposals can
+   * compress live context that also needs its final body clearance restored. */
   automaticSheetSystems?: ReadonlySet<string>
 }
 export function usePreparedFloorGeometry(controller: SceneController, channel: string, input: FloorModel | null, placements: Map<string, GeneratedPlacement>, retry: number, currentZoom: () => number = () => 0.5, visibilityZoom?: () => number, canonicalNodeIds?: ReadonlySet<string>) {
@@ -51,7 +53,7 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
         cached.current = entry
       }
       const placedGeometry = await entry.promise
-      const geometry = input.automaticSheetSystems?.size ? await runSceneSteps(fitAutomaticSheetContentsSteps(placedGeometry, input.automaticSheetSystems), abort.signal) : placedGeometry
+      const geometry = input.automaticSheetSystems ? await runSceneSteps(fitAutomaticSheetContentsSteps(placedGeometry, input.automaticSheetSystems, input.layouts), abort.signal) : placedGeometry
       if (abort.signal.aborted) return
       const finishProjection = beginPerfStage('scene.floor-projection', geometry.descriptors.length)
       let nodes: Node[]

@@ -2510,6 +2510,52 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   await expect(review).toHaveCount(0)
 })
 
+test('a nested proposal keeps compressed live context below its title and leaves the Floor intact', async () => {
+  const sheet = { id: 'sheet_clearance', workspaceId: 'demo', name: 'Heuristics replay', kind: 'structure', purpose: '', folder: '', createdBy: 'agent', revision: 1, createdAt: 1, updatedAt: 1 }
+  const original = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    const system = { ...state.systems[0], id: 'sys_heuristics', name: 'Reflex Collision Heuristics', parentId: null, width: 480, height: 360 }
+    const neighbor = { ...system, id: 'sys_neighbor', name: 'Neighbor' }
+    const file = { ...state.files[0], id: 'file_heuristics', systemId: system.id, path: '/fixture/heuristics.py', relPath: 'heuristics.py', language: 'python', width: 220, height: 110 }
+    const row = (nodeId: string, nodeType: string, parentNodeId: string | null, x: number, y: number, width: number, height: number) => ({ workspaceId: 'demo', nodeId, nodeType, parentNodeId, parentNodeType: parentNodeId ? 'system' : null, containmentKind: parentNodeId ? 'part_of' : 'root', positionX: x, positionY: y, width, height, scale: 1, interiorScale: 1, updatedAt: 0 })
+    const snapshot = { systems: [system, neighbor], files: [file], dependencies: [], infraNodes: [], floorLayouts: [row(system.id, 'system', null, 100, 100, 480, 360), row(neighbor.id, 'system', null, 676, 100, 480, 360), row(file.id, 'file', system.id, 12, 34.8, 220, 110)] }
+    state.applySnapshot(snapshot)
+    return snapshot
+  })
+  const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({ id, sheetId: sheet.id, workspaceId: 'demo', name: index === 0 ? 'Offline Replay Tool' : `${id}.py`, kind: index === 0 ? 'system' : 'file', parentSystemId: index === 0 ? 'sys_heuristics' : 'planned:tool', declaredPath: index === 0 ? '' : `${id}.py`, members: '[]', metadata: '{}', notes: 'Reuse the evaluator offline.', status: 'planned', approvalStatus: 'pending', positionX: 0, positionY: 0, width: index === 0 ? null : 440, height: index === 0 ? null : 220, scale: 1, createdBy: 'agent' }))
+  await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
+  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges: [], elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
+  await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const parent = page.locator('.react-flow__node[data-id="sys_heuristics"]')
+  const file = page.locator('.react-flow__node[data-id="file_heuristics"]')
+  const checkClearance = async () => {
+    const header = await parent.getByText('Reflex Collision Heuristics', { exact: true }).first().boundingBox()
+    const child = await file.boundingBox()
+    expect(header && child).toBeTruthy()
+    expect(child!.y).toBeGreaterThan(header!.y + header!.height + 2)
+    const bounds = (await parent.boundingBox())!
+    expect(child!.x).toBeGreaterThan(bounds.x)
+    expect(child!.x + child!.width).toBeLessThan(bounds.x + bounds.width)
+    expect(child!.y + child!.height).toBeLessThan(bounds.y + bounds.height)
+  }
+  await checkClearance()
+  await expect(page.locator('.ambio-system-description-trigger')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/compressed-sheet-clearance.png' })
+  for (const key of ['-', '=', '=']) {
+    const before = await page.locator('.react-flow__viewport').getAttribute('style')
+    await page.keyboard.press(`ControlOrMeta+${key}`)
+    await expect.poll(() => page.locator('.react-flow__viewport').getAttribute('style')).not.toBe(before)
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    await checkClearance()
+  }
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(original.floorLayouts)
+})
+
 test('compact sheet review retains exact decisions and navigates approved contents from the sheet row', async () => {
   test.setTimeout(90_000)
   const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
@@ -2586,19 +2632,21 @@ test('compact sheet review retains exact decisions and navigates approved conten
   }
   await assertContained()
   const systemCard = page.locator('.react-flow__node[data-id="planned:tool"]')
-  await systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true }).click()
-  const systemDescription = page.getByRole('region', { name: 'Replay Tool description', exact: true })
-  await expect(systemDescription).toContainText('Replay synthetic input offline.')
-  await systemDescription.getByRole('button', { name: 'Edit system description', exact: true }).click()
+  await expect(systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true })).toHaveCount(0)
+  const inspectSystem = async () => {
+    const box = (await systemCard.boundingBox())!
+    await systemCard.dblclick({ position: { x: box.width - 12, y: 12 } })
+  }
+  await inspectSystem()
   const systemInspector = page.getByRole('complementary', { name: /planned system properties/i })
   await expect(systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replay synthetic input offline. '.repeat(30))
   await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).fill('Replays scene decisions offline using the existing evaluator.')
   await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).press('Tab')
   await expect.poll(() => systemEdits.at(-1)?.metadata?.description).toBe('Replays scene decisions offline using the existing evaluator.')
   await systemInspector.getByRole('button', { name: 'Close properties' }).click()
-  await systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true }).click()
-  await expect(systemDescription).toContainText('Replays scene decisions offline using the existing evaluator.')
-  await page.keyboard.press('Escape')
+  await inspectSystem()
+  await expect(systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('button', { name: 'Close properties' }).click()
   const cli = page.locator('.react-flow__node[data-id="planned:cli"]')
   await expect(cli.locator('[data-node-editable]').first()).toHaveText('replay_scene.py')
   await expect(cli.getByLabel('Python', { exact: true }).first()).toBeVisible()

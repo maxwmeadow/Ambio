@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { compactSheetSystems, fitAutomaticSheetContents } from './compactSheetSystems.ts'
 import { frameContentInsets } from './frameGeometry.ts'
+import { prepareFloorGeometry } from './scene/sceneGeometry.ts'
 
 test('final placement compression reserves real header clearance at every nested level', () => {
   const frame = (id, parentId, depth, x, y, width, height, scale = 1, interiorScale = 1) => ({ id, parentId, depth, nodeType: 'system', worldScale: 1, contentScale: 1, geometry: { x, y, width, height, scale, interiorScale } })
@@ -91,4 +92,58 @@ test('scaled sheet interiors clear the rendered tab and keep compacted layout di
     assert.deepEqual(result.layouts.find(node => node.nodeId === 'outer'), layouts[0])
     assert.deepEqual({ systems, files, layouts }, original)
   }
+})
+
+
+test('a proposal compressing live context keeps its file and nested contents below their titles', () => {
+  const frame = (id, parentId, depth, x, y, width, height, interiorScale = 1) => ({ id, parentId, depth, nodeType: 'system', worldScale: 1, contentScale: 1, geometry: { x, y, width, height, scale: 1, interiorScale } })
+  for (const scale of [0.4, 0.5, 0.75]) {
+    const descriptors = [
+      frame('heuristics', null, 0, 100, 100, 620, 420, scale),
+      frame('heuristics.py', 'heuristics', 1, 12, 34.8, 220, 110),
+      frame('tool', 'heuristics', 1, 12, 160, 476, 620),
+      frame('cli', 'tool', 2, 12, 25.3, 220, 110),
+    ]
+    const prepared = { descriptors, geometryById: new Map(descriptors.map(d => [d.id, d.geometry])), worldScaleById: new Map(), contentScaleById: new Map(), resizedContainerIds: new Set(['heuristics']) }
+    const original = structuredClone(prepared)
+    const sourceLayouts = [{ nodeId: 'heuristics', interiorScale: 1 }]
+    const result = fitAutomaticSheetContents(prepared, new Set(), sourceLayouts)
+    for (const parentId of ['heuristics', 'tool']) {
+      const parent = result.descriptors.find(d => d.id === parentId)
+      const insets = frameContentInsets(parent.geometry.height, parent.depth, parent.worldScale)
+      for (const child of result.descriptors.filter(d => d.parentId === parentId)) {
+        const g = child.geometry, interior = parent.geometry.interiorScale
+        assert.ok(g.y * interior >= insets.top - 1e-6, `${parentId}: child must clear the tab`)
+        assert.ok((g.y + g.height * g.scale) * interior <= parent.geometry.height - insets.bottom + 1e-6)
+        assert.ok((g.x + g.width * g.scale) * interior <= parent.geometry.width - insets.right + 1e-6)
+        assert.equal(child.worldScale, parent.contentScale * g.scale)
+      }
+    }
+    for (const field of ['x', 'y', 'width', 'height', 'scale']) assert.equal(result.geometryById.get('heuristics')[field], prepared.geometryById.get('heuristics')[field])
+    assert.deepEqual(prepared, original, 'Floor/source geometry must not be mutated')
+    assert.deepEqual(fitAutomaticSheetContents(prepared, new Set(), [{ nodeId: 'heuristics', interiorScale: scale }]).geometryById.get('heuristics.py'), prepared.geometryById.get('heuristics.py'), 'unchanged authored interiors must not be repacked')
+  }
+})
+
+
+test('real incoming placement marks compressed live context for the sheet body fit', () => {
+  const systems = [
+    { id: 'heuristics', workspaceId: 'ws', parentId: null, width: 620, height: 420 },
+    { id: 'neighbor', workspaceId: 'ws', parentId: null, width: 620, height: 420 },
+    { id: 'tool', workspaceId: 'ws', parentId: 'heuristics', width: 476, height: 620 },
+  ]
+  const files = [{ id: 'heuristics.py', systemId: 'heuristics', width: 220, height: 110 }]
+  const layouts = [
+    { nodeId: 'heuristics', nodeType: 'system', parentNodeId: null, positionX: 100, positionY: 100, width: 620, height: 420, scale: 1, interiorScale: 1 },
+    { nodeId: 'neighbor', nodeType: 'system', parentNodeId: null, positionX: 100, positionY: 650, width: 620, height: 420, scale: 1, interiorScale: 1 },
+    { nodeId: 'heuristics.py', nodeType: 'file', parentNodeId: 'heuristics', positionX: 12, positionY: 34.8, width: 220, height: 110, scale: 1, interiorScale: 1 },
+  ]
+  const placed = prepareFloorGeometry(systems, files, [], [], layouts, new Map())
+  assert.ok(placed.resizedContainerIds.has('heuristics'))
+  assert.ok(placed.geometryById.get('heuristics').interiorScale < 1)
+  assert.ok(placed.geometryById.get('heuristics.py').y * placed.geometryById.get('heuristics').interiorScale < frameContentInsets(420, 0).top, 'fixture reproduces clearance lost to origin-based compression')
+  const fitted = fitAutomaticSheetContents(placed, new Set(), layouts)
+  const parent = fitted.geometryById.get('heuristics'), child = fitted.geometryById.get('heuristics.py')
+  assert.ok(child.y * parent.interiorScale >= frameContentInsets(parent.height, 0).top - 1e-6)
+  assert.deepEqual(fitted.geometryById.get('neighbor'), placed.geometryById.get('neighbor'))
 })
