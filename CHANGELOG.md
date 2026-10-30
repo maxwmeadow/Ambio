@@ -32,6 +32,8 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Empty editable symbol lists use one compact “+ Add first function” row
+  (or variable/class), replacing the separate label and large plus box.
 - Sheet proposals keep existing files clear of system titles when fitting new
   contents. Nested frames use the same body clearance at every zoom.
 - Proposed system descriptions use the normal Properties inspector. Removed

@@ -2716,7 +2716,14 @@ test('compact sheet review retains exact decisions and navigates approved conten
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   for (const [tab, kind] of [['functions', 'function'], ['variables', 'variable'], ['classes', 'class']]) {
     await cli.getByRole('button', { name: `Show ${tab}`, exact: true }).click()
-    await cli.getByRole('button', { name: `Add ${kind}`, exact: true }).click()
+    const add = cli.getByRole('button', { name: `Add ${kind}`, exact: true })
+    await expect(add).toHaveText(`+Add first ${kind}`)
+    await expect(cli.locator('.symbol-scroll')).not.toContainText('No symbols')
+    if (kind === 'function') {
+      await page.screenshot({ path: 'test-results/symbol-empty-add.png' })
+      await add.focus()
+      await page.keyboard.press('Enter')
+    } else await add.click()
     await expect.poll(() => edits.at(-1)?.metadata?.symbols?.some((symbol: any) => symbol.kind === kind)).toBe(true)
   }
   await cli.getByRole('button', { name: 'Show description', exact: true }).click()

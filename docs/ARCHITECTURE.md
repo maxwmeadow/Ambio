@@ -345,7 +345,9 @@ to API-key billing or another account. Setup and live-account validation:
   declared filename, path-derived language and description (including legacy
   notes). Human writes normalize the file name to its basename while preserving
   its directory. Cards omit redundant paths/semantic names and keep description
-  and member controls available; Properties edits the same metadata symbols.
+  and member controls available; empty editable categories combine their state
+  and add action in one compact Add first member row. Properties edits the same
+  metadata symbols.
   An explicitly empty symbol list wins over legacy exports/members. Pure
   language definitions live in `languageDefinitions.ts`; `LanguagePicker` uses
   a viewport-anchored native popover top layer independent of node transforms.

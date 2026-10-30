@@ -160,6 +160,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Rich file detail unmounts after its 250 ms exit crossfade. Symbol lists render
   a visible window plus four rows of overscan, retaining a focused editor. Source
   actions, authoring, list scrolling and keyboard navigation remain available.
+- Empty editable symbol categories use one compact Add first function/variable/
+  class button that combines the empty state and add action. Read-only and
+  loading lists retain plain status text. The member tab determines what is added.
 - Shared symbol requests have independent consumer cancellation, a four-request
   concurrency limit, revision invalidation, short-lived empty replies and a
   bounded LRU. Large lists do not create one DOM row per indexed symbol.

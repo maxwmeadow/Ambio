@@ -637,12 +637,13 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
             style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button> : undefined} />
           : <div className="symbol-scroll nodrag" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+            {editableSymbols && !symbolsLoading ? <button type="button" className="ambio-symbol-empty-add nodrag nopan" title={`Add ${activeMemberKind}`} aria-label={`Add ${activeMemberKind}`}
+              onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}>
+              <span className="ambio-symbol-empty-add__plus" aria-hidden="true">+</span>
+              <span>Add first {activeMemberKind}</span>
+            </button> : <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
               {symbolsLoading ? 'Loading...' : !symbols?.length ? 'No symbols' : 'Empty'}
-            </span>
-            {editableSymbols && <button className="nodrag nopan" title={`Add ${activeMemberKind}`} aria-label={`Add ${activeMemberKind}`}
-              onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
-              style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button>}
+            </span>}
           </div>}
           </>}
 

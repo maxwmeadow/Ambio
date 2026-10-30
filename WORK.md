@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `symbol-empty-add-row` Combine the separate No symbols label and large + box into one compact, styled Add first function/variable/class control. Preserve read-only/loading states and existing member authoring. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max requested.)
 
 - ⬜ `sheet-review-journey-selectors` Update the older “a system an agent names…” Electron journey to inspect decisions through the new panel and use the expanded sheet’s connections button; it still expects removed native details/checkbox controls. Found while checking context-clearance coverage (2026-10-29).
 
@@ -408,6 +407,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-29 `symbol-empty-add-row` Replaced the separate empty-symbol label and large + box with one thin, inset Add first function/variable/class row using the card's existing ink, borders and hover/focus treatment. Read-only/loading status and populated-list authoring remain intact. Types/build and the replay Electron journey pass, including Enter to add the first function and mouse additions in the other categories; visually inspected the rendered card. (`codex/sheet-review-polish`)
 
 - 2026-10-29 `sheet-compressed-header-clearance` Extended the sheet's canonical content fit to live context newly compressed by incoming placement and its descendants, using final inherited scales and body insets. Outer frame/neighbor geometry and Floor layouts stay unchanged; unchanged authored interiors stay intact. Removed the standalone planned-system header information badge; collapsed summaries and normal double-click Properties retain descriptions. Types/build, 881 unit tests (7 skipped), and the clearance/zoom/Floor-isolation plus complete replay Electron journeys pass. Saved investigation with observed incoming compression and verified fit. (`codex/sheet-review-polish`)
 
