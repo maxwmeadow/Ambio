@@ -3,7 +3,7 @@ import { EdgeText, type EdgeProps, getSmoothStepPath, useStore } from '@xyflow/r
 import { ClippedDashedEdge } from './ClippedDashedEdge'
 import { sheetRelationshipInk, type SheetRelationshipRoute } from './sheetRelationshipGeometry'
 
-function SheetRelationship({ id, route, style, focused }: { id: string; route: SheetRelationshipRoute | null; style?: React.CSSProperties; focused?: boolean }) {
+function SheetRelationship({ id, route, style }: { id: string; route: SheetRelationshipRoute | null; style?: React.CSSProperties }) {
   // Subscribe only to zoom; panning leaves the route and its ink untouched.
   const zoom = useStore(state => state.transform[2])
   if (!route || route.points.length < 2) return null
@@ -11,8 +11,8 @@ function SheetRelationship({ id, route, style, focused }: { id: string; route: S
   const stroke = String(style?.stroke ?? 'var(--accent)')
   const first = route.points[0]
   return <>
-    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth} cornerRadius={Math.min(5 / zoom, route.cornerRadius ?? 5 / zoom)} terminalReserve={ink.arrowLength} haloWidth={(focused ? 5 : 3.5) / zoom}
-      style={{ ...style, vectorEffect: undefined, stroke, strokeWidth: focused ? 2 / zoom : ink.strokeWidth, strokeDasharray: focused ? undefined : ink.dash, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth} cornerRadius={Math.min(5 / zoom, route.cornerRadius ?? 5 / zoom)} terminalReserve={ink.arrowLength} haloWidth={3.5 / zoom}
+      style={{ ...style, vectorEffect: undefined, stroke, strokeWidth: ink.strokeWidth, strokeDasharray: ink.dash, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
     <circle className="ambio-sheet-relationship-source" cx={first.x} cy={first.y} r={2 / zoom} fill="var(--bg-surface)" stroke={stroke} strokeWidth={ink.strokeWidth} style={{ opacity: style?.opacity }} pointerEvents="none" />
     <path className="ambio-sheet-relationship-arrow" d={ink.arrow} fill={stroke} stroke="var(--bg-surface)" strokeWidth={1.5 / zoom} strokeLinejoin="round" style={{ opacity: style?.opacity, paintOrder: 'stroke fill' }} pointerEvents="none" />
   </>
@@ -41,7 +41,7 @@ export function OrthogonalEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps) {
-  if (data?.sheetRelationship) return <SheetRelationship id={id} route={data.sheetRoute as SheetRelationshipRoute | null} style={style} focused={Boolean(data.relationshipFocused)} />
+  if (data?.sheetRelationship) return <SheetRelationship id={id} route={data.sheetRoute as SheetRelationshipRoute | null} style={style} />
   const [pathD, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,

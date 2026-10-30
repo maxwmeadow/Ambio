@@ -1520,9 +1520,9 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         id: `pedge:${edge.id}`, type: 'orthogonal',
         source: edge.srcPlanned ? `planned:${edge.srcPlanned}` : (edge.srcLive ?? ''),
         target: edge.dstPlanned ? `planned:${edge.dstPlanned}` : (edge.dstLive ?? ''), animated: false,
-        style: { stroke: focused ? '#2e746b' : '#252b2c',
+        style: { stroke: '#252b2c',
           opacity: relationshipEndpoints.length && !focused ? .2 : 1 },
-        data: { relationshipFocused: focused }, zIndex: focused ? 10002 : 10000,
+        zIndex: focused ? 10002 : 10000,
       }
     })
     const requested = topology.filter(edge => {

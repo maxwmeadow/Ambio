@@ -33,10 +33,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ### Fixed
 - Sheet connections use charcoal ink with a narrow ivory outline to stay
-  visible across amber proposal borders; selected connections retain teal focus.
+  visible across amber proposal borders. Individual navigation and showing all
+  connections share the same color, dashes, width and outline.
 - Sheet connections use separate ports, wider gutters and clean arrowhead
   approaches. Selecting a connection reveals and frames its entire path,
-  including from a zoomed-out view, with solid teal focus and quieter neighbors.
+  including from a zoomed-out view, with quieter neighbors during focus.
 - Sheet contents omit unchanged context and layout-only shifts; connection
   endpoints remain available under Connections. Stencils now have equal top
   and left spacing, with the Infrastructure tab kept clear.

@@ -1050,8 +1050,9 @@ normally. `ClippedDashedEdge` rounds the painted corners within obstacle clearan
 after clipping, reserving straight terminal ink for the bounded screen-size
 arrowhead. Unfocused routes use charcoal ink with a narrow surface-colored halo
 to remain legible over amber proposal borders; arrowheads have the same pale
-outline. Halo dashes and opacity follow the foreground ink. Focused routes use
-solid teal ink and a wider halo; other proposed edges dim.
+outline. Halo dashes and opacity follow the foreground ink. Individual focus
+and the overview share the same ink, dashes, width and outline; other proposed
+edges dim during focus.
 `AmbioCanvas` filters/routes the same `revealNodePath` projection it paints, so
 revealing hidden endpoints cannot discard their edge. Revealed ancestor titles
 fold into their tabs, and connection camera bounds include route detours and

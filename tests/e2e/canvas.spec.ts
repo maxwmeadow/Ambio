@@ -2577,6 +2577,20 @@ test('a nested proposal keeps compressed live context below its title and leaves
     await checkClearance()
   }
   const links = [['use_evaluator', 'cli.py → heuristics.py'], ['test_cli', 'tests.py → cli.py'], ['test_evaluator', 'tests.py → heuristics.py'], ['test_fixtures', 'tests.py → fixtures.py']]
+  const renderedInk = () => page.locator('.react-flow__edge[data-id="pedge:use_evaluator"] .react-flow__edge-path').evaluate(element => {
+    const path = element as SVGPathElement, matrix = path.getScreenCTM()!
+    const scale = Math.hypot(matrix.a, matrix.b)
+    const screen = (value: string) => Number((parseFloat(value) * scale).toFixed(4))
+    const style = getComputedStyle(path)
+    const edge = path.closest('.react-flow__edge')!
+    const halo = getComputedStyle(edge.querySelector('.ambio-sheet-relationship-halo')!)
+    const arrow = getComputedStyle(edge.querySelector('.ambio-sheet-relationship-arrow')!)
+    return { stroke: style.stroke, width: screen(style.strokeWidth),
+      dashes: style.strokeDasharray.split(/[ ,]+/).map(screen),
+      outline: halo.stroke, outlineWidth: screen(halo.strokeWidth),
+      arrow: arrow.fill, arrowOutline: arrow.stroke }
+  })
+  let focusedInk: Awaited<ReturnType<typeof renderedInk>> | undefined
   for (const [id, label] of links) {
     await page.evaluate(() => (window as any).__ambioGraphStore.getState().setSelectedNode(null))
     await page.getByRole('button', { name: 'Fit view', exact: true }).click()
@@ -2603,7 +2617,10 @@ test('a nested proposal keeps compressed live context below its title and leaves
       return true
     })
     expect(visiblePath, `${label}: the entire selected route is visible`).toBe(true)
-    if (id === 'use_evaluator') await page.screenshot({ path: 'test-results/focused-replay-connection.png' })
+    if (id === 'use_evaluator') {
+      focusedInk = await renderedInk()
+      await page.screenshot({ path: 'test-results/focused-replay-connection.png' })
+    }
   }
   await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
   await page.keyboard.press('ControlOrMeta+K')
@@ -2613,6 +2630,7 @@ test('a nested proposal keeps compressed live context below its title and leaves
   const closeProperties = page.getByRole('button', { name: 'Close properties', exact: true })
   if (await closeProperties.isVisible()) await closeProperties.click()
   await expect(page.locator('.react-flow__edge[data-id^="pedge:"] .react-flow__edge-path')).toHaveCount(4)
+  expect(await renderedInk(), 'connection ink matches individual navigation at a different zoom').toEqual(focusedInk)
   await page.screenshot({ path: 'test-results/replay-connection-gutters.png' })
   await page.getByRole('button', { name: /^The Floor/ }).click()
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(original.floorLayouts)

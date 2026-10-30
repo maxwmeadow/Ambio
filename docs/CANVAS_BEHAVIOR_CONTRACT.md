@@ -370,9 +370,10 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   their complete route, including below the normal semantic zoom threshold.
   Revealed ancestors keep titles in their header tabs. The camera fits the
   endpoint cards and route detours clear of the stencil palette and open sheet
-  inspector. The selected route is solid teal with a subtle halo and source
-  dot; other proposed routes dim while focus is active. Unfocused routes remain
-  dashed. Camera and selection changes alone do not reroute the connection.
+  inspector. Individual navigation and the all-connections view share the same
+  dashed charcoal ink, width, ivory outline, arrowheads and source dots; other
+  proposed routes dim while focus is active. Camera and selection changes
+  alone do not reroute the connection.
 - The stencil palette sits at the top left of the canvas, clear of the
   Infrastructure tab, and moves beside the Infrastructure sidebar while it is
   open. The PROPOSAL band is the only mode badge.
