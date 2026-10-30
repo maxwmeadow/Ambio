@@ -32,6 +32,9 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Expanded sheet contents fill the sidebar width. Systems have warm headers
+  and folder icons; color replaces cumulative indentation, leaving more room
+  for names and connections.
 - Connections in the sheet sidebar have a compact toolbar with a connection
   icon, count and map-visibility action, distinct from the system tree.
 - Sheet connections use charcoal ink with a narrow ivory outline to stay

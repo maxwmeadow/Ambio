@@ -2606,7 +2606,7 @@ test('a nested proposal keeps compressed live context below its title and leaves
     await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
     await expect(edge.locator('.ambio-sheet-relationship-halo')).toBeAttached()
     await expect(edge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
-    const visiblePath = await edge.locator('.react-flow__edge-path').evaluate(element => {
+    const visiblePath = () => edge.locator('.react-flow__edge-path').evaluate(element => {
       const path = element as SVGPathElement, matrix = path.getScreenCTM()!
       const canvas = document.querySelector('[data-ambio-canvas]')!.getBoundingClientRect()
       const palette = document.querySelector('.ambio-sheet-palette')!.getBoundingClientRect()
@@ -2619,7 +2619,9 @@ test('a nested proposal keeps compressed live context below its title and leaves
       }
       return true
     })
-    expect(visiblePath, `${label}: the entire selected route is visible`).toBe(true)
+    // The relationship's deferred focus can start after the previous Fit has
+    // settled. Wait for the visible route itself, not that earlier camera state.
+    await expect.poll(visiblePath, { message: `${label}: the entire selected route is visible` }).toBe(true)
     if (id === 'use_evaluator') {
       focusedInk = await renderedInk()
       await page.screenshot({ path: 'test-results/focused-replay-connection.png' })

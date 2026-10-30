@@ -70,13 +70,13 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
     } else showOnMap(id)
   }
   const visited = new Set<string>()
-  const entries: Array<{ id: string; depth: number; pending: boolean; children: boolean; path?: string }> = []
+  const entries: Array<{ id: string; depth: number; pending: boolean; children: boolean; container: boolean; path?: string }> = []
   const append = (node: typeof planned[number], depth: number) => {
     if (visited.has(node.id)) return
     visited.add(node.id)
     const id = `planned:${node.id}`
     const children = planned.filter(child => child.parentSystemId === id)
-    entries.push({ id, depth, pending: node.approvalStatus === 'pending', children: children.length > 0, path: node.declaredPath })
+    entries.push({ id, depth, pending: node.approvalStatus === 'pending', children: children.length > 0, container: ['system', 'service', 'infra'].includes(node.kind), path: node.declaredPath })
     if (!collapsed.has(id)) for (const child of children) append(child, depth + 1)
     else {
       const mark = (id: string) => {
@@ -92,12 +92,16 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
   for (const node of planned) append(node, 0)
   return <div className="ambio-sheet-tree" role="group" aria-label={`Contents of ${layer.sheet.name}`}>
     <ul>
-      {entries.map(entry => <li key={entry.id} style={{ paddingLeft: Math.min(entry.depth, 5) * 12 }}>
-        {entry.children ? <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>
-          : <span className="ambio-sheet-tree__mark" data-pending={entry.pending || undefined} title={entry.pending ? 'Needs review' : undefined} aria-label={entry.pending ? 'Needs review' : undefined} />}
-        <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>{label(entry.id)}</button>
+      {entries.map(entry => <li key={entry.id} className={entry.container ? 'ambio-sheet-tree__system' : 'ambio-sheet-tree__file'} data-nested={entry.depth > 0 || undefined}>
+        {!entry.container && <span className="ambio-sheet-tree__mark" data-pending={entry.pending || undefined} title={entry.pending ? 'Needs review' : undefined} aria-label={entry.pending ? 'Needs review' : undefined} />}
+        <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>
+          {entry.container && <SystemIcon pending={entry.pending} />}<span>{label(entry.id)}</span>
+        </button>
+        {entry.children && <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>}
       </li>)}
-      {live.map(({ element, id }) => <li key={element.id}><span className="ambio-sheet-tree__mark" /><button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{label(id)}</button></li>)}
+      {live.map(({ element, id }) => <li key={element.id} className={element.fileId ? 'ambio-sheet-tree__file' : 'ambio-sheet-tree__system'}>
+        {element.fileId && <span className="ambio-sheet-tree__mark" />}<button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{!element.fileId && <SystemIcon />}<span>{label(id)}</span></button>
+      </li>)}
     </ul>
     {!entries.length && !live.length && !edges.length && <p className="ambio-sheet-tree__empty">No proposed changes yet.</p>}
     {edges.length > 0 && <div className="ambio-sheet-tree__connections">
@@ -113,6 +117,12 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
       <SheetConnectionsControl sheetId={sheetId} />
     </div>}
   </div>
+}
+
+function SystemIcon({ pending }: { pending?: boolean }) {
+  return <span className="ambio-sheet-tree__system-icon" data-pending={pending || undefined} title={pending ? 'Needs review' : undefined} aria-label={pending ? 'Needs review' : undefined}>
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 4h5l2 2h7v8H1Z" /></svg>
+  </span>
 }
 
 function SheetConnectionsControl({ sheetId }: { sheetId: string }) {
