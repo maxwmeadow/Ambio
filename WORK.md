@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-connection-readability` Fix terminal bends/arrowheads and shared routes with distinct ports and congestion-aware gutters. Connection focus must reveal its path, keep ancestor titles folded into their tabs, and frame route bounds as well as both endpoints. **Done when:** geometry regressions and a low-zoom nested replay journey prove a visible, readable selected line and distinguishable all-connections view. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max's screenshots.)
+
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
 
