@@ -2548,8 +2548,59 @@ test('a nested proposal keeps compressed live context below its title and leaves
   await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
   await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges, elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
   await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(() => {
+    ;(window as any).__pauseSheetMotion = true
+    const pause = (event: Event) => {
+      const target = event.target as HTMLElement
+      if (!(window as any).__pauseSheetMotion || !target.matches('.ambio-sheet-rail__review, .ambio-sheet-entry__contents')) return
+      for (const animation of target.getAnimations()) animation.pause()
+    }
+    document.addEventListener('animationstart', pause)
+    document.addEventListener('transitionrun', pause)
+  })
+  const sampleMotion = (locator: Locator) => locator.evaluate(async element => {
+    const animations = element.getAnimations().filter(animation => Number(animation.effect?.getComputedTiming().endTime) > 0)
+    if (!animations.length) return []
+    for (const animation of animations) animation.pause()
+    await Promise.all(animations.map(animation => animation.ready))
+    const duration = Math.max(...animations.map(animation => Number(animation.effect!.getComputedTiming().endTime)))
+    const samples = [0, .5, 1].map(progress => {
+      for (const animation of animations) animation.currentTime = duration * progress
+      const box = element.getBoundingClientRect()
+      const clip = getComputedStyle(element).clipPath.match(/^inset\(([\d.]+)%/)
+      return { height: box.height, visibleHeight: box.height * (1 - Number(clip?.[1] ?? 0) / 100), top: box.top }
+    })
+    for (const animation of animations) animation.finish()
+    return samples
+  })
   await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
+  const review = page.locator('.ambio-sheet-rail__review')
+  await expect.poll(() => review.evaluate(element => element.getAnimations().length)).toBeGreaterThan(0)
+  const reviewMotion = await sampleMotion(review)
+  expect(reviewMotion).toHaveLength(3)
+  expect(reviewMotion[0].visibleHeight).toBeLessThan(reviewMotion[1].visibleHeight)
+  expect(reviewMotion[1].visibleHeight).toBeLessThanOrEqual(reviewMotion[2].visibleHeight)
+  expect(reviewMotion[0].top).toBeGreaterThan(reviewMotion[2].top)
   await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  const foldId = await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).getAttribute('aria-controls')
+  const fold = page.locator(`[id="${foldId}"]`)
+  await expect.poll(() => fold.evaluate(element => element.getAnimations().length)).toBeGreaterThan(0)
+  const expansion = await sampleMotion(fold)
+  expect(expansion).toHaveLength(3)
+  expect(expansion[0].height).toBeLessThan(expansion[1].height)
+  expect(expansion[1].height).toBeLessThanOrEqual(expansion[2].height)
+  await page.evaluate(() => { (window as any).__pauseSheetMotion = false })
+  await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).click()
+  expect(await fold.evaluate(element => {
+    const button = element.querySelector('button')!
+    button.focus()
+    return (element as HTMLElement).inert && document.activeElement !== button
+  })).toBe(true)
+  // Reverse an in-flight close; it must settle at the same full height.
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  await fold.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))) })
+  expect((await fold.boundingBox())!.height).toBeCloseTo(expansion[2].height, 0)
   await expect(page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Collapse Offline Replay Tool', exact: true }).click()
   await page.screenshot({ path: 'test-results/sheet-connections-collapsed.png' })
@@ -2637,6 +2688,15 @@ test('a nested proposal keeps compressed live context below its title and leaves
   await expect(page.locator('.react-flow__edge[data-id^="pedge:"] .react-flow__edge-path')).toHaveCount(4)
   expect(await renderedInk(), 'connection ink matches individual navigation at a different zoom').toEqual(focusedInk)
   await page.screenshot({ path: 'test-results/replay-connection-gutters.png' })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).click()
+  expect((await fold.boundingBox())!.height).toBe(0)
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  expect(await fold.evaluate(element => element.getAnimations().length)).toBe(0)
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await expect(review).toBeVisible()
+  expect(await review.evaluate(element => element.getAnimations().length)).toBe(0)
   await page.getByRole('button', { name: /^The Floor/ }).click()
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(original.floorLayouts)
 })

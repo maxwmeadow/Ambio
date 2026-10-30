@@ -1051,6 +1051,14 @@ connection list is expanded or collapsed; both controls retain their existing
 sheet-view actions.
 Expanded sheet entries share a backing and continuous accent frame around the
 header and contents, preserving ownership without indenting the sections.
+The local `SheetDisclosure` in `SheetRail` animates a zero-to-one fractional
+grid track around clipped content. Sheet contents mount lazily on first opening
+and stay mounted for reversible closing and preserved local disclosure state.
+Planned descendants render in nested disclosure ranges while remaining visually
+full-width. Closed groups are immediately inert and aria-hidden. The ownership
+frame fades with the fold. To review has a CSS bottom-up entrance on mount,
+using intrinsic height interpolation where supported and a clipped upward
+reveal otherwise. Reduced-motion rules disable both forms of motion.
 
 `sheetRelationshipGeometry` assigns distinct incident ports from the complete
 sheet topology and caches routes by geometry/topology, independent of semantic

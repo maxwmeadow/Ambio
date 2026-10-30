@@ -488,11 +488,19 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   revision-checked transaction. A stale plan refreshes for review without
   retrying approval; approved children/connections cannot have unapproved parents
   or endpoints. Request changes records the reason against each selected part.
+  Opening a sheet reveals To review upward from the bottom over roughly 260ms,
+  without replaying the entrance on ordinary updates to an existing card.
 - Approval removes pending decisions, not navigation. Each sheet row has a
   chevron that expands its additions, meaningful live edits and connections before
   and after approval. Expanding a sheet does not activate or display its layer;
   selecting a content entry opens that sheet and reveals nested/off-screen
   content. There is no separate bottom Contents section.
+- Sheet, system and Connections disclosures expand/collapse their actual height
+  over roughly 240ms with a short fade. Reversing a toggle mid-transition starts
+  from its current position. Contents mount on first opening and retain local
+  state afterward; closed content is inert and hidden from assistive technology
+  immediately. Reduced-motion preferences disable these transitions and the
+  To review entrance.
 - The sheet tree omits unchanged live context, connection-only endpoints and
   layout-only repositioning. Explicit reparenting, reviewed renames and authored
   file design remain discoverable; Connections retains all of its endpoints.

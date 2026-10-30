@@ -8,6 +8,8 @@ in the app as "What's New" after updating, so write it for users.
 ## [Unreleased]
 
 ### Added
+- Smooth sheet, system and Connections expansion, plus a gentle upward reveal
+  for To review when opening a sheet. Reduced-motion preferences are respected.
 - Expand a sheet in the sidebar to find its systems, files and connections,
   including after approval. Sheet rows have readable titles and contextual
   Rename, Discuss or implement, and Delete actions; Ctrl/Cmd-click adds layers.

@@ -1,6 +1,6 @@
 // SheetRail - the drafting-cabinet drawer labels: The Floor pinned on top,
 // sheets beneath (docs/history/UML_UX_PLAN.md "Navigation: the sheet rail").
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { untakenSheetName } from '../../shared/sheetNames'
 import { useGraphStore } from '../store/graphStore'
@@ -70,35 +70,43 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
     } else showOnMap(id)
   }
   const visited = new Set<string>()
-  const entries: Array<{ id: string; depth: number; pending: boolean; children: boolean; container: boolean; path?: string }> = []
+  const entries: Array<{ id: string; depth: number; pending: boolean; container: boolean; path?: string }> = []
   const append = (node: typeof planned[number], depth: number) => {
     if (visited.has(node.id)) return
     visited.add(node.id)
     const id = `planned:${node.id}`
     const children = planned.filter(child => child.parentSystemId === id)
-    entries.push({ id, depth, pending: node.approvalStatus === 'pending', children: children.length > 0, container: ['system', 'service', 'infra'].includes(node.kind), path: node.declaredPath })
-    if (!collapsed.has(id)) for (const child of children) append(child, depth + 1)
-    else {
-      const mark = (id: string) => {
-        for (const child of planned.filter(child => child.parentSystemId === id)) {
-          if (visited.has(child.id)) continue
-          visited.add(child.id); mark(`planned:${child.id}`)
-        }
-      }
-      mark(id)
-    }
+    entries.push({ id, depth, pending: node.approvalStatus === 'pending', container: ['system', 'service', 'infra'].includes(node.kind), path: node.declaredPath })
+    for (const child of children) append(child, depth + 1)
   }
   for (const node of planned) if (!planned.some(parent => `planned:${parent.id}` === node.parentSystemId)) append(node, 0)
   for (const node of planned) append(node, 0)
+  // Keep each descendant range inside its disclosure so height can animate
+  // without adding indentation or exposing closed controls to the keyboard.
+  const renderEntries = (start = 0, end = entries.length): ReactNode[] => {
+    const rows: ReactNode[] = []
+    for (let index = start; index < end;) {
+      const entry = entries[index]
+      let next = index + 1
+      while (next < end && entries[next].depth > entry.depth) next++
+      const hasChildren = next > index + 1
+      rows.push(<li key={entry.id} className="ambio-sheet-tree__node">
+        <div className={`ambio-sheet-tree__node-row ${entry.container ? 'ambio-sheet-tree__system' : 'ambio-sheet-tree__file'}`} data-nested={entry.depth > 0 || undefined}>
+          {!entry.container && <span className="ambio-sheet-tree__mark" data-pending={entry.pending || undefined} title={entry.pending ? 'Needs review' : undefined} aria-label={entry.pending ? 'Needs review' : undefined} />}
+          <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>
+            {entry.container && <SystemIcon pending={entry.pending} />}<span>{label(entry.id)}</span>
+          </button>
+          {hasChildren && <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>}
+        </div>
+        {hasChildren && <SheetDisclosure open={!collapsed.has(entry.id)}><ul>{renderEntries(index + 1, next)}</ul></SheetDisclosure>}
+      </li>)
+      index = next
+    }
+    return rows
+  }
   return <div className="ambio-sheet-tree" role="group" aria-label={`Contents of ${layer.sheet.name}`}>
     <ul>
-      {entries.map(entry => <li key={entry.id} className={entry.container ? 'ambio-sheet-tree__system' : 'ambio-sheet-tree__file'} data-nested={entry.depth > 0 || undefined}>
-        {!entry.container && <span className="ambio-sheet-tree__mark" data-pending={entry.pending || undefined} title={entry.pending ? 'Needs review' : undefined} aria-label={entry.pending ? 'Needs review' : undefined} />}
-        <button type="button" className="ambio-sheet-tree__item" title={entry.path || label(entry.id)} aria-label={`Show ${label(entry.id)} on sheet`} onClick={() => void focus(entry.id)}>
-          {entry.container && <SystemIcon pending={entry.pending} />}<span>{label(entry.id)}</span>
-        </button>
-        {entry.children && <button type="button" className="ambio-sheet-tree__branch" aria-label={`${collapsed.has(entry.id) ? 'Expand' : 'Collapse'} ${label(entry.id)}`} aria-expanded={!collapsed.has(entry.id)} onClick={() => setCollapsed(old => { const next = new Set(old); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next })}><Chevron expanded={!collapsed.has(entry.id)} /></button>}
-      </li>)}
+      {renderEntries()}
       {live.map(({ element, id }) => <li key={element.id} className={element.fileId ? 'ambio-sheet-tree__file' : 'ambio-sheet-tree__system'}>
         {element.fileId && <span className="ambio-sheet-tree__mark" />}<button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{!element.fileId && <SystemIcon />}<span>{label(id)}</span></button>
       </li>)}
@@ -109,13 +117,22 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
         <svg className="ambio-sheet-connections-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h3v10h3M8 8h3" /><rect x="1" y="1" width="4" height="4" /><rect x="11" y="6" width="4" height="4" /><rect x="11" y="11" width="4" height="4" /></svg>
         <span className="ambio-sheet-tree__connections-label">Connections</span><span className="ambio-sheet-tree__connections-count">{edges.length}</span><Chevron expanded={connectionsOpen} />
       </button>
-      {connectionsOpen && <ul id={connectionsId}>{edges.map(edge => {
+      <SheetDisclosure open={connectionsOpen} id={connectionsId}><ul>{edges.map(edge => {
         const source = edge.srcPlanned ? `planned:${edge.srcPlanned}` : edge.srcLive ?? ''
         const target = edge.dstPlanned ? `planned:${edge.dstPlanned}` : edge.dstLive ?? ''
         return <li key={edge.id}><button type="button" className="ambio-sheet-tree__item" onClick={() => void focus(source, edge.id)}>{label(source)} → {label(target)}</button></li>
-      })}</ul>}
+      })}</ul></SheetDisclosure>
       <SheetConnectionsControl sheetId={sheetId} />
     </div>}
+  </div>
+}
+
+/** Mount on first opening, then retain state through reversible CSS folds. */
+function SheetDisclosure({ open, id, className = '', children }: { open: boolean; id?: string; className?: string; children: ReactNode }) {
+  const [opened, setOpened] = useState(open)
+  useEffect(() => { if (open) setOpened(true) }, [open])
+  return <div ref={node => { if (node) node.inert = !open }} id={id} className={`ambio-sheet-disclosure ${className}`} data-open={open || undefined} aria-hidden={!open}>
+    <div className="ambio-sheet-disclosure__clip">{(open || opened) && children}</div>
   </div>
 }
 
@@ -215,7 +232,9 @@ function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string 
       <button type="submit" disabled={saving || !name.trim()}>Save</button><button type="button" disabled={saving} onClick={() => { setRenaming(false); titleButton.current?.focus() }}>Cancel</button>
     </form>}
     {error && <p className="ambio-sheet-rail__create-error" role="alert">{error}</p>}
-    <div id={contentsId} className="ambio-sheet-entry__contents" hidden={!expanded}>{expanded && <SheetContents sheetId={sheet.id} workspaceId={workspaceId} />}</div>
+    <SheetDisclosure id={contentsId} className="ambio-sheet-entry__contents" open={expanded}>
+      <div className="ambio-sheet-entry__body"><SheetContents sheetId={sheet.id} workspaceId={workspaceId} /></div>
+    </SheetDisclosure>
   </div>
 }
 
