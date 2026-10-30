@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-review-exit-palette-cleanup` Remove the stencil footer and retain an inert review snapshot through its closing motion when leaving a sheet or clearing its last proposal. Explain current Service/Note support from code. Done when exit, cancellation/switching and reduced-motion checks pass with existing journeys. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max.)
+- ⬜ `sheet-note-rendering` Note stencil posts positioned annotations and the store receives them, but no renderer consumes sheet annotations to draw/edit notes. Complete human/agent-visible note rendering, editing and deletion; replace silent creation errors with visible feedback. (2026-10-30, Max's stencil audit.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
