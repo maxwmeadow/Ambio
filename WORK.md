@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `symbol-empty-add-row` Combine the separate No symbols label and large + box into one compact, styled Add first function/variable/class control. Preserve read-only/loading states and existing member authoring. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max requested.)
+
 - ⬜ `sheet-review-journey-selectors` Update the older “a system an agent names…” Electron journey to inspect decisions through the new panel and use the expanded sheet’s connections button; it still expects removed native details/checkbox controls. Found while checking context-clearance coverage (2026-10-29).
 
 - ⬜ `planned-node-context-menu` Planned canvas nodes lack the normal right-click menu because onNodeContextMenu only resolves live graph nodes. Add planned-node actions using existing Properties and sheet authoring behavior. Found checking normal description access (2026-10-29).
