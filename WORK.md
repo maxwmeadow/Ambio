@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-expanded-ownership` Visually join each expanded sheet header and its full-width system/connection sections with a continuous accent frame and shared backing, without restoring nested indentation. Done when expanded/collapsed navigation and visual checks pass. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
@@ -412,6 +411,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-30 `sheet-expanded-ownership` Expanded sheet headers and contents now share a continuous accent frame and tinted backing with a closing bottom edge, making ownership visible without restoring indentation. Inactive expanded sheets use a quieter frame; collapsing removes the group treatment. Types/build and both sheet navigation/review/authoring Electron journeys pass; visually inspected the grouped collapsed-sections view. (`codex/sheet-review-polish`)
 
 - 2026-10-30 `sheet-full-width-sections` Expanded sheets now fill the rail width without cumulative indentation. System/service/infra entries use warm headers, folder icons and trailing disclosures, files use flat rows, and Connections retains its green-gray section. Both planned and meaningfully edited live containers receive the header treatment. Types/build and two sheet navigation/review/authoring Electron journeys pass; collapsed/expanded screenshots visually inspected. The navigation journey now waits for actual route visibility instead of a prior Fit animation's settled state. (`codex/sheet-review-polish`)
 

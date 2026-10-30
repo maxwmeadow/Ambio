@@ -32,6 +32,8 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Expanded sheets visually contain their sections with a continuous accent
+  frame and shared backing, keeping full-width contents tied to their header.
 - Expanded sheet contents fill the sidebar width. Systems have warm headers
   and folder icons; color replaces cumulative indentation, leaving more room
   for names and connections.

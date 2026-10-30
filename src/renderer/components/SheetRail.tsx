@@ -189,7 +189,7 @@ function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string 
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setSaving(false) }
   }
-  return <div className="ambio-sheet-entry">
+  return <div className="ambio-sheet-entry" data-expanded={expanded || undefined} data-active={active || undefined}>
     <div className={`ambio-sheet-rail__row${active ? ' ambio-sheet-rail__row--active' : ''}${visible ? ' ambio-sheet-rail__row--visible' : ''}`} onContextMenu={event => { event.preventDefault(); showMenu(event.clientX, event.clientY) }} onKeyDown={event => { if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') { event.preventDefault(); showMenu() } }}>
       <button type="button" className="ambio-sheet-rail__expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${sheet.name}`} aria-expanded={expanded} aria-controls={contentsId} onClick={() => setExpanded(value => !value)}><Chevron expanded={expanded} /></button>
       <button ref={titleButton} type="button" className={`ambio-sheet-rail__button ambio-sheet-rail__button--sheet${active ? ' ambio-sheet-rail__button--active' : ''}`} aria-current={active ? 'page' : undefined} title={`${sheet.name} · Ctrl/Cmd-click to toggle layer`} onClick={event => {
@@ -215,7 +215,7 @@ function SheetEntry({ sheet, workspaceId }: { sheet: Sheet; workspaceId: string 
       <button type="submit" disabled={saving || !name.trim()}>Save</button><button type="button" disabled={saving} onClick={() => { setRenaming(false); titleButton.current?.focus() }}>Cancel</button>
     </form>}
     {error && <p className="ambio-sheet-rail__create-error" role="alert">{error}</p>}
-    <div id={contentsId} hidden={!expanded}>{expanded && <SheetContents sheetId={sheet.id} workspaceId={workspaceId} />}</div>
+    <div id={contentsId} className="ambio-sheet-entry__contents" hidden={!expanded}>{expanded && <SheetContents sheetId={sheet.id} workspaceId={workspaceId} />}</div>
   </div>
 }
 

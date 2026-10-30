@@ -1049,6 +1049,8 @@ a separate green-gray toolbar with a connection icon, count and trailing
 disclosure. Its eye-button toggles map visibility whether the
 connection list is expanded or collapsed; both controls retain their existing
 sheet-view actions.
+Expanded sheet entries share a backing and continuous accent frame around the
+header and contents, preserving ownership without indenting the sections.
 
 `sheetRelationshipGeometry` assigns distinct incident ports from the complete
 sheet topology and caches routes by geometry/topology, independent of semantic

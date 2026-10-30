@@ -527,6 +527,12 @@
 .ambio-planned-file-members .ambio-inspector-field { flex: 1; min-width: 0; }
 
 /* Sheet navigation uses the cabinet's ink, thin rules and compact disclosure. */
+.ambio-sheet-entry[data-expanded] { position: relative; --sheet-group-edge: #738c81; --sheet-group-stock: #e1e7de; }
+.ambio-sheet-entry[data-expanded][data-active] { --sheet-group-edge: var(--rail-accent-dark); --sheet-group-stock: #dce6df; }
+.ambio-sheet-entry[data-expanded]::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-left: 3px solid var(--sheet-group-edge); border-right: 1px solid var(--sheet-group-edge); border-bottom: 3px solid var(--sheet-group-edge); }
+.ambio-sheet-entry__contents { padding-bottom: 8px; background: var(--sheet-group-stock); }
+.ambio-sheet-entry__contents .ambio-sheet-tree { border-bottom: 0; background: transparent; }
+.ambio-sheet-entry[data-expanded] > .ambio-sheet-rail__row { border-bottom: 0; box-shadow: none; }
 .ambio-sheet-entry .ambio-sheet-rail__row { min-height: 38px; align-items: center; border-bottom: 1px solid #c0c3bf; background: var(--rail-row); }
 .ambio-sheet-entry .ambio-sheet-rail__row--visible:not(.ambio-sheet-rail__row--active) { background: #d6e1da; box-shadow: inset 3px 0 #70a397; }
 .ambio-sheet-entry .ambio-sheet-rail__row--active { background: var(--rail-accent); color: #fff; box-shadow: inset 3px 0 #a9dbcb; }

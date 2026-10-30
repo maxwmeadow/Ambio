@@ -500,6 +500,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Expanded sheet contents fill the rail width. Systems use warm tinted headers,
   folder icons and trailing disclosure controls; files use flat rows below.
   Nested systems use a quieter header tint rather than cumulative indentation.
+  A continuous accent frame joins the owning sheet header to its expanded
+  sections, with a shared backing and closing bottom edge. Collapsing the sheet
+  removes that frame; opening an inactive sheet's contents does not activate it.
 - Connections use a compact tinted toolbar with a connection icon, count and
   right-side disclosure, distinct from the system tree without a separator
   rule. The map-visibility button belongs to this toolbar and includes an eye
