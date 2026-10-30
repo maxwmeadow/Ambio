@@ -255,6 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-sidebar-motion` Add a bottom-up To review entrance and smooth sheet/system/connection disclosure expansion/collapse, preserving lazy loading, full-width ownership, keyboard hiding and reduced-motion preferences. Done when actual motion/reversal/reduced-motion checks and existing sidebar journeys pass. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
