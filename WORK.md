@@ -255,6 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-connection-contrast` Replace low-contrast blue with charcoal connection ink and a narrow ivory outline, including arrowheads, so routes remain legible over amber borders. Preserve teal focus and existing geometry. Done when the replay journey, types/build and visual check pass. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max's follow-up.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
