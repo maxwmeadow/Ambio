@@ -4,7 +4,7 @@ import type { DbDependency, DbFile, DbInfraNode, DbSystem } from '../../shared/t
 import { IMPLEMENTATION_LABEL, ITEM_ROLE, RELATIONSHIP_LABEL, RELATIONSHIP_ORDER, ROLE_LABEL, readDetectedBy } from '../canvas/infraRoles'
 import { apiUpdateSystem } from '../canvas/arcdApi'
 import { filenameForLanguage, languageDefinition, languageFromFilename, LanguagePicker } from '../canvas/languages'
-import { plannedFileProperties, plannedFileSymbols, renamePlannedFile, fileSymbolTab } from '../canvas/plannedFileIdentity'
+import { plannedFileProperties, plannedFileSymbols, renamePlannedFile, fileSymbolTab, plannedDescription } from '../canvas/plannedFileIdentity'
 import { UmlMetadataPanel } from '../canvas/nodes/UmlMetadataPanel'
 import { useGraphStore } from '../store/graphStore'
 import { usePresence } from './ui/usePresence'
@@ -348,7 +348,7 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
 
         <InspectorText
           label="DESCRIPTION (OPTIONAL)"
-          value={file?.description ?? metadata.description ?? ''}
+          value={plannedDescription(node, metadata)}
           multiline
           onCommit={description => update({}, { description })}
         />

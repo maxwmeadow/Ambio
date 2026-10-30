@@ -340,6 +340,9 @@ to API-key billing or another account. Setup and live-account validation:
   An explicitly empty symbol list wins over legacy exports/members. Pure
   language definitions live in `languageDefinitions.ts`; `LanguagePicker` uses
   a viewport-anchored native popover top layer independent of node transforms.
+  `plannedDescription` shares metadata/legacy-note resolution across all planned
+  kinds. Proposed systems show a collapsed summary and a tab-band InfoPopover
+  linked to Properties; description edits do not alter frame/child geometry.
   Hidden compact title editors do not
   intercept detailed content. `wheelRouting.ts` keeps overflowing content in
   control at either boundary while short content still allows camera zoom.

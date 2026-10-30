@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols, fileSymbolTab } from './plannedFileIdentity.ts'
+import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols, fileSymbolTab, plannedDescription } from './plannedFileIdentity.ts'
 
 test('a planned file has one real filename and preserves its directory', () => {
   const node = { name: 'Scene Replay CLI', declaredPath: 'backend/replay_scene.py' }
@@ -38,4 +38,12 @@ test('cards and Properties classify member kinds identically', () => {
   assert.equal(fileSymbolTab('type'), 'classes')
   assert.equal(fileSymbolTab('variable'), 'variables')
   assert.equal(fileSymbolTab('unknown'), 'variables')
+})
+
+test('proposed systems use legacy notes and preserve description edits and clearing', () => {
+  const system = { kind: 'system', notes: 'Offline tools reuse the existing evaluator.' }
+  assert.equal(plannedDescription(system, {}), system.notes)
+  assert.equal(plannedDescription(system, { description: 'Updated system responsibility.' }), 'Updated system responsibility.')
+  assert.equal(plannedDescription(system, { description: '' }), '')
+  assert.equal(plannedDescription({}, {}), '')
 })

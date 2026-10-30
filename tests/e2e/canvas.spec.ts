@@ -2462,11 +2462,13 @@ test('compact sheet review groups the replay capability and expands all eight ex
   ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
   let reviewed: any
   const edits: any[] = []
+  const systemEdits: any[] = []
   await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
-  await page.route(/\/api\/planned\/cli$/, async route => {
+  await page.route(/\/api\/planned\/(cli|tool)$/, async route => {
     const edit = route.request().postDataJSON()
-    edits.push(edit)
-    Object.assign(planned.find(node => node.id === 'cli')!, edit)
+    if (edit.id === 'tool') systemEdits.push(edit)
+    else edits.push(edit)
+    Object.assign(planned.find(node => node.id === edit.id)!, edit)
     await route.fulfill({ json: edit })
   })
   await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: [], annotations: [], layouts: [], removals: [] }) }))
@@ -2509,6 +2511,20 @@ test('compact sheet review groups the replay capability and expands all eight ex
     }
   }
   await assertContained()
+  const systemCard = page.locator('.react-flow__node[data-id="planned:tool"]')
+  await systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true }).click()
+  const systemDescription = page.getByRole('region', { name: 'Replay Tool description', exact: true })
+  await expect(systemDescription).toContainText('Replay synthetic input offline.')
+  await systemDescription.getByRole('button', { name: 'Edit system description', exact: true }).click()
+  const systemInspector = page.getByRole('complementary', { name: /planned system properties/i })
+  await expect(systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replay synthetic input offline. '.repeat(30))
+  await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).fill('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).press('Tab')
+  await expect.poll(() => systemEdits.at(-1)?.metadata?.description).toBe('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('button', { name: 'Close properties' }).click()
+  await systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true }).click()
+  await expect(systemDescription).toContainText('Replays scene decisions offline using the existing evaluator.')
+  await page.keyboard.press('Escape')
   const cli = page.locator('.react-flow__node[data-id="planned:cli"]')
   await expect(cli.locator('[data-node-editable]').first()).toHaveText('replay_scene.py')
   await expect(cli.getByLabel('Python', { exact: true }).first()).toBeVisible()

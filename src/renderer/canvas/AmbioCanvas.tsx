@@ -99,7 +99,7 @@ import { useSheetView } from './sheetView'
 import { createSheetPresentation } from './sheetPresentation'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
-import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols } from './plannedFileIdentity'
+import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols, plannedDescription } from './plannedFileIdentity'
 import { createSheetRelationshipRouter } from './edges/sheetRelationshipGeometry'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
@@ -1114,7 +1114,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         parentId: p.parentSystemId,
         source: p.createdBy === 'agent' ? 'agent' : 'user',
         color: p.color || null,
-        description: plannedMetadata(p).description || p.notes || null,
+        description: plannedDescription(p, plannedMetadata(p)) || null,
         agentNotes: null,
         depth: 0,
         positionX: p.positionX,
@@ -1250,7 +1250,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           ...(planned ? {
             umlKind: planned.kind,
             umlMetadata: plannedMetadata(planned),
-            proposedDescription: planned.kind === 'file' ? plannedFileProperties(planned, plannedMetadata(planned)).description : plannedMetadata(planned).description || planned.notes,
+            proposedDescription: plannedDescription(planned, plannedMetadata(planned)),
           } : {}),
           ...(suppliedSymbols ? { symbols: suppliedSymbols } : {}),
           ...(editablePlanned ? {

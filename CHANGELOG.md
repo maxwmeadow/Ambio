@@ -31,6 +31,9 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Proposed systems show their description below the collapsed title and expose
+  the full text beside the expanded frame header. Properties uses the same
+  description, including older agent notes, with an edit link from the card.
 - Planned files use the same filename, language and description in their cards
   and Properties. Removed duplicate semantic names and paths from cards; the
   function, variable and class controls stay available beside descriptions.

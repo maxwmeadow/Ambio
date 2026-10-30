@@ -12,7 +12,12 @@ export function plannedFilename(node: PlannedFileIdentity): string {
  * descriptive names are not a second filename; responsibility is description. */
 export function plannedFileProperties(node: PlannedFileIdentity, metadata: PlannedNodeMetadata) {
   return { filename: plannedFilename(node), language: languageFromFilename(node.declaredPath || node.name)?.id || metadata.language || '',
-    description: metadata.description ?? node.notes ?? '' }
+    description: plannedDescription(node, metadata) }
+}
+
+/** All planned kinds share the same description, including legacy agent notes. */
+export function plannedDescription(node: { notes?: string }, metadata: PlannedNodeMetadata): string {
+  return metadata.description ?? node.notes ?? ''
 }
 
 export function plannedFileSymbols(metadata: PlannedNodeMetadata, members: Array<{ signature: string }> = []) {

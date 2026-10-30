@@ -488,6 +488,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   stacking/clipping. They stay within the window, follow their anchor, support
   keyboard selection and outside-click dismissal; Escape restores focus to the
   language button. Closed menus do not mount their option lists.
+- Proposed systems show their responsibility below the collapsed title, and
+  provide an explicit description control in the expanded frame's tab band.
+  Full text opens in the top layer with an Edit action to Properties, without
+  covering children or changing their layout. Cards and Properties share the
+  same metadata/legacy-notes fallback, including explicit description clearing.
 
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of

@@ -28,3 +28,5 @@
 .ambio-info-popover[data-side=bottom]::before { top: -6px; bottom: auto; transform: rotate(225deg); }
 .ambio-info-popover__content { box-sizing: border-box; max-height: inherit; overflow-y: auto; padding: 14px 16px; }
 .ambio-info-popover .ambio-info-popover__content p { margin: 0; font: inherit; color: inherit; }
+.ambio-system-description-trigger { display: grid; place-items: center; width: 100%; height: 100%; padding: 0; border: 1px solid var(--border); border-radius: 50%; font: inherit; line-height: 1; color: var(--accent); background: var(--bg-raised); cursor: pointer; }
+.ambio-info-popover .ambio-system-description-edit { margin-top: 12px; padding: 5px 8px; border: 1px solid #a9baac; color: #2d625c; background: transparent; font: 11px var(--font-ui); cursor: pointer; }
