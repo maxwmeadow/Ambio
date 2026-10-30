@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-tree-change-scope` Remove context-only live references and layout-only shifts from sheet contents; retain explicit semantic moves/renames/design edits and connection navigation. Align stencil palette top/left margins while keeping Infrastructure accessible. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max's sidebar screenshot.)
+
 
 - ⬜ `sheet-review-journey-selectors` Update the older “a system an agent names…” Electron journey to inspect decisions through the new panel and use the expanded sheet’s connections button; it still expects removed native details/checkbox controls. Found while checking context-clearance coverage (2026-10-29).
 
