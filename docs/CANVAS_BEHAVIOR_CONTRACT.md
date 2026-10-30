@@ -360,7 +360,18 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   amber. Rejecting a move puts the node
   back where the Floor has it; a rejected relationship is not drawn.
 - A sheet's relationships route between the facing sides of the two nodes,
-  with right angles, and carry no text label over node titles.
+  with orthogonal gutters and small rounded corners, and carry no text label
+  over node titles. Incident connections use distinct ports; reserved gutters
+  discourage overlapping routes. The last segment approaches the target face
+  normally, with enough straight ink for its bounded screen-size arrowhead.
+  Rounded corners stay within the route's obstacle clearance.
+- Selecting a connection in the sheet sidebar reveals both endpoints and
+  their complete route, including below the normal semantic zoom threshold.
+  Revealed ancestors keep titles in their header tabs. The camera fits the
+  endpoint cards and route detours clear of the stencil palette and open sheet
+  inspector. The selected route is solid teal with a subtle halo and source
+  dot; other proposed routes dim while focus is active. Unfocused routes remain
+  dashed. Camera and selection changes alone do not reroute the connection.
 - The stencil palette sits at the top left of the canvas, clear of the
   Infrastructure tab, and moves beside the Infrastructure sidebar while it is
   open. The PROPOSAL band is the only mode badge.

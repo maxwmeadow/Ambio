@@ -2536,20 +2536,22 @@ test('a nested proposal keeps compressed live context below its title and leaves
     const state = (window as any).__ambioGraphStore.getState()
     const system = { ...state.systems[0], id: 'sys_heuristics', name: 'Reflex Collision Heuristics', parentId: null, width: 480, height: 360 }
     const neighbor = { ...system, id: 'sys_neighbor', name: 'Neighbor' }
+    const distant = { ...system, id: 'sys_distant', name: 'Distant context' }
     const file = { ...state.files[0], id: 'file_heuristics', systemId: system.id, path: '/fixture/heuristics.py', relPath: 'heuristics.py', language: 'python', width: 220, height: 110 }
     const row = (nodeId: string, nodeType: string, parentNodeId: string | null, x: number, y: number, width: number, height: number) => ({ workspaceId: 'demo', nodeId, nodeType, parentNodeId, parentNodeType: parentNodeId ? 'system' : null, containmentKind: parentNodeId ? 'part_of' : 'root', positionX: x, positionY: y, width, height, scale: 1, interiorScale: 1, updatedAt: 0 })
-    const snapshot = { systems: [system, neighbor], files: [file], dependencies: [], infraNodes: [], floorLayouts: [row(system.id, 'system', null, 100, 100, 480, 360), row(neighbor.id, 'system', null, 676, 100, 480, 360), row(file.id, 'file', system.id, 12, 34.8, 220, 110)] }
+    const snapshot = { systems: [system, neighbor, distant], files: [file], dependencies: [], infraNodes: [], floorLayouts: [row(system.id, 'system', null, 100, 100, 480, 360), row(neighbor.id, 'system', null, 676, 100, 480, 360), row(file.id, 'file', system.id, 12, 34.8, 220, 110), row(distant.id, 'system', null, 12000, 100, 480, 360)] }
     state.applySnapshot(snapshot)
     return snapshot
   })
   const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({ id, sheetId: sheet.id, workspaceId: 'demo', name: index === 0 ? 'Offline Replay Tool' : `${id}.py`, kind: index === 0 ? 'system' : 'file', parentSystemId: index === 0 ? 'sys_heuristics' : 'planned:tool', declaredPath: index === 0 ? '' : `${id}.py`, members: '[]', metadata: '{}', notes: 'Reuse the evaluator offline.', status: 'planned', approvalStatus: 'pending', positionX: 0, positionY: 0, width: index === 0 ? null : 440, height: index === 0 ? null : 220, scale: 1, createdBy: 'agent' }))
+  const plannedEdges = [['use_evaluator', 'cli', null, 'file_heuristics'], ['test_cli', 'tests', 'cli', null], ['test_evaluator', 'tests', null, 'file_heuristics'], ['test_fixtures', 'tests', 'fixtures', null]].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, srcPlanned, dstPlanned, dstLive, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', approvalStatus: 'pending', createdBy: 'agent' }))
   await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
-  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges: [{ id: 'use_evaluator', sheetId: sheet.id, workspaceId: 'demo', srcPlanned: 'cli', dstLive: 'file_heuristics', kind: 'IMPORTS', approvalStatus: 'pending', createdBy: 'agent' }], elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
+  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges, elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
   await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
   await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
   await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Connections 1', exact: true }).click()
+  await page.getByRole('button', { name: 'Connections 4', exact: true }).click()
   await page.getByRole('button', { name: 'cli.py → heuristics.py', exact: true }).click()
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
   const parent = page.locator('.react-flow__node[data-id="sys_heuristics"]')
@@ -2574,6 +2576,44 @@ test('a nested proposal keeps compressed live context below its title and leaves
     await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
     await checkClearance()
   }
+  const links = [['use_evaluator', 'cli.py → heuristics.py'], ['test_cli', 'tests.py → cli.py'], ['test_evaluator', 'tests.py → heuristics.py'], ['test_fixtures', 'tests.py → fixtures.py']]
+  for (const [id, label] of links) {
+    await page.evaluate(() => (window as any).__ambioGraphStore.getState().setSelectedNode(null))
+    await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    // At overview zoom both nested files begin below the semantic threshold.
+    await expect(page.locator('.react-flow__viewport')).toHaveAttribute('style', /scale\(0\./)
+    await page.getByRole('button', { name: label, exact: true }).click()
+    const edge = page.locator(`.react-flow__edge[data-id="pedge:${id}"]`)
+    await expect(edge.locator('.react-flow__edge-path')).toBeAttached()
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    await expect(edge.locator('.ambio-sheet-relationship-halo')).toBeAttached()
+    await expect(edge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
+    const visiblePath = await edge.locator('.react-flow__edge-path').evaluate(element => {
+      const path = element as SVGPathElement, matrix = path.getScreenCTM()!
+      const canvas = document.querySelector('[data-ambio-canvas]')!.getBoundingClientRect()
+      const palette = document.querySelector('.ambio-sheet-palette')!.getBoundingClientRect()
+      const style = getComputedStyle(path)
+      if (Number(style.opacity) === 0 || style.stroke === 'none' || path.getTotalLength() <= 0) return false
+      for (let sample = 0; sample <= 100; sample++) {
+        const p = path.getPointAtLength(path.getTotalLength() * sample / 100)
+        const screen = new DOMPoint(p.x, p.y).matrixTransform(matrix)
+        if (screen.x <= palette.right || screen.x >= canvas.right || screen.y <= canvas.top || screen.y >= canvas.bottom) return false
+      }
+      return true
+    })
+    expect(visiblePath, `${label}: the entire selected route is visible`).toBe(true)
+    if (id === 'use_evaluator') await page.screenshot({ path: 'test-results/focused-replay-connection.png' })
+  }
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Reflex Collision Heuristics')
+  await page.getByRole('option').first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const closeProperties = page.getByRole('button', { name: 'Close properties', exact: true })
+  if (await closeProperties.isVisible()) await closeProperties.click()
+  await expect(page.locator('.react-flow__edge[data-id^="pedge:"] .react-flow__edge-path')).toHaveCount(4)
+  await page.screenshot({ path: 'test-results/replay-connection-gutters.png' })
   await page.getByRole('button', { name: /^The Floor/ }).click()
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(original.floorLayouts)
 })

@@ -2,6 +2,24 @@ export interface Point { x: number; y: number }
 export interface ClipRect extends Point { width: number; height: number }
 export interface ClippedEdgePart { path: string; startLength: number; endsAtTarget: boolean }
 
+/** Round only the painted corners; clipping still uses the orthogonal spine. */
+export function roundedOrthogonalPath(points: readonly Point[], radius: number, terminalReserve = 0): string {
+  if (!points.length) return ''
+  let path = `M${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = points[i - 1], b = points[i], c = points[i + 1]
+    const incoming = Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+    const outgoing = Math.abs(c.x - b.x) + Math.abs(c.y - b.y)
+    const r = Math.max(0, Math.min(radius, incoming / 2, outgoing / 2, i === points.length - 2 ? outgoing - terminalReserve : Infinity))
+    if (!r || !incoming || !outgoing) { path += `L${b.x} ${b.y}`; continue }
+    const before = { x: b.x + (a.x - b.x) * r / incoming, y: b.y + (a.y - b.y) * r / incoming }
+    const after = { x: b.x + (c.x - b.x) * r / outgoing, y: b.y + (c.y - b.y) * r / outgoing }
+    path += `L${before.x} ${before.y}Q${b.x} ${b.y} ${after.x} ${after.y}`
+  }
+  const last = points.at(-1)!
+  return path + `L${last.x} ${last.y}`
+}
+
 /** SmoothStep with radius zero emits M/L and degenerate Q commands. Accept only
  * straight, axis-aligned geometry; an unsupported future route stays untouched. */
 export function orthogonalPoints(path: string): Point[] | null {

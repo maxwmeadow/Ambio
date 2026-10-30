@@ -32,6 +32,9 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- Sheet connections use separate ports, wider gutters and clean arrowhead
+  approaches. Selecting a connection reveals and frames its entire path,
+  including from a zoomed-out view, with solid teal focus and quieter neighbors.
 - Sheet contents omit unchanged context and layout-only shifts; connection
   endpoints remain available under Connections. Stencils now have equal top
   and left spacing, with the Infrastructure tab kept clear.

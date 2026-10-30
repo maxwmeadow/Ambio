@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getSmoothStepPath, Position } from '@xyflow/react'
-import { clipOrthogonalEdge, orthogonalLength, orthogonalPoints } from './clippedEdgeGeometry.ts'
+import { clipOrthogonalEdge, orthogonalLength, orthogonalPoints, roundedOrthogonalPath } from './clippedEdgeGeometry.ts'
 
 test('radius-zero SmoothStep routes remain straight and preserve their real arc length', () => {
   for (const sourcePosition of Object.values(Position)) for (const targetPosition of Object.values(Position)) {
@@ -37,4 +37,16 @@ test('routes that leave and re-enter retain distinct phases without drawing shor
     { path: 'M0 50L100 50L100 128', startLength: 100, endsAtTarget: false },
     { path: 'M200 128L200 50L220 50', startLength: 922, endsAtTarget: true },
   ])
+})
+
+
+test('rounded painting preserves endpoints and reserves a straight arrow terminal', () => {
+  const points = [{ x: 0, y: 0 }, { x: 0, y: 20 }, { x: 8, y: 20 }]
+  const path = roundedOrthogonalPath(points, 5, 6.4)
+  assert.ok(path.startsWith('M0 0'))
+  assert.ok(path.endsWith('L8 20'))
+  const terminal = path.match(/Q0 20 ([^ ]+) 20L8 20/)
+  assert.ok(terminal)
+  assert.ok(8 - Number(terminal[1]) >= 6.4)
+  assert.equal(roundedOrthogonalPath([{ x: 0, y: 0 }, { x: 8, y: 0 }], 5), 'M0 0L8 0')
 })

@@ -282,7 +282,7 @@ export function revealNodePath(nodes: Node[], nodeId: string | null): Node[] {
 
   let changed = false
   const revealed = nodes.map(node => {
-    if (!path.has(node.id) || !node.hidden) return node
+    if (!path.has(node.id) || (!node.hidden && (node.id === nodeId || node.data.childrenVisible === 1))) return node
     changed = true
     return makeFullyVisible(node)
   })

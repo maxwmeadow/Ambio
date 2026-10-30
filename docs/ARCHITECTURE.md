@@ -1034,13 +1034,25 @@ shows it, gated by the `workOrderNotifications` setting).
 ### Sheet presentation defaults
 
 A sheet starts with relationships hidden. Selecting a system reveals its
-connections; selecting a relationship review row reveals and frames both
-endpoints, accents their existing outlines and explains the relationship in
+connections; selecting a relationship in the rail reveals and frames both
+endpoint cards and the whole routed path, accents their existing outlines and explains the relationship in
 the rail. Show All Sheet Relationships is a presentation toggle shared with
 the View menu; it resets on sheet navigation. Proposed relationships remain
 reviewable even when their lines are hidden. Moves state their original and
 proposed parent in ordinary language. Added/moved markers use `canvasZoomChrome`
 to retain a small screen size without invalidating the whole scene during zoom.
+
+`sheetRelationshipGeometry` assigns distinct incident ports from the complete
+sheet topology and caches routes by geometry/topology, independent of semantic
+visibility. Previously solved routes reserve gutters; unrelated cards and
+ancestor header tabs remain obstacles. Terminal leads approach their faces
+normally. `ClippedDashedEdge` rounds the painted corners within obstacle clearance
+after clipping, reserving straight terminal ink for the bounded screen-size
+arrowhead. Focused routes use solid teal ink and a halo; other proposed edges dim.
+`AmbioCanvas` filters/routes the same `revealNodePath` projection it paints, so
+revealing hidden endpoints cannot discard their edge. Revealed ancestor titles
+fold into their tabs, and connection camera bounds include route detours and
+endpoint cards with space reserved for the palette and open sheet inspector.
 
 `compactSheetSystems` reuses `packFrame` and frame insets to size unplaced new
 systems and automatic system moves from their contents, recursively. It modifies

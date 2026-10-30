@@ -100,7 +100,7 @@ import { createSheetPresentation } from './sheetPresentation'
 import { surfaceLivingNodeFx } from './livingVisibility'
 import { absoluteRects, withFacingHandles } from './folderAnchors'
 import { plannedFilename, renamePlannedFile, plannedFileProperties, plannedFileSymbols, plannedDescription } from './plannedFileIdentity'
-import { createSheetRelationshipRouter } from './edges/sheetRelationshipGeometry'
+import { createSheetRelationshipRouter, sheetRelationshipBounds, type SheetRelationshipRoute } from './edges/sheetRelationshipGeometry'
 import { applyDeltaMarks, buildDeltaReview, claimFocusTargets, clampClaimCursor } from './deltaReview'
 import { applyAgentAttention, surfaceAgentAttention } from './agentAttentionProjection'
 import { useSheetPhase } from './sheetPhase'
@@ -1392,25 +1392,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     return relationshipEndpoints.length ? nodes.map(node => relationshipEndpoints.includes(node.id)
       ? { ...node, data: { ...node.data, relationshipFocus: true } } : node) : nodes
   }, [displayNodes, selectedNodeId, relationshipEndpoints])
-  useEffect(() => {
-    if (relationshipEndpoints.length !== 2) return
-    // Canonical bounds include off-screen nodes before DOM measurement. A
-    // source-only flight or waiting for both cards to mount can strand the
-    // destination outside the viewport indefinitely.
-    const frame = requestAnimationFrame(() => {
-      const rects = absoluteRects(displayNodesRef.current)
-      const pair = relationshipEndpoints.flatMap(id => rects.get(id) ? [rects.get(id)!] : [])
-      if (pair.length !== 2) return
-      const left = Math.min(...pair.map(rect => rect.x))
-      const top = Math.min(...pair.map(rect => rect.y))
-      const right = Math.max(...pair.map(rect => rect.x + rect.width))
-      const bottom = Math.max(...pair.map(rect => rect.y + rect.height))
-      const canvas = reactFlowStore.getState()
-      canvas.domNode?.dispatchEvent(new Event('ambio:camera-navigation', { bubbles: true }))
-      void setViewport(getViewportForBounds({ x: left, y: top, width: right - left, height: bottom - top }, canvas.width, canvas.height, MIN_CANVAS_ZOOM, 1.6, 0.35), { duration: 850 })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [relationshipEndpoints, reactFlowStore, setViewport])
+
 
   /**
    * Record a new selection and repaint the scene from it in one step.
@@ -1529,39 +1511,57 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   const routeSheetRelationships = useMemo(() => createSheetRelationshipRouter(), [])
   const displayEdges = useMemo(() => {
-    const surfacedRfEdges = withFacingHandles(rfEdges, displayNodes)
+    const surfacedRfEdges = withFacingHandles(rfEdges, navigableDisplayNodes)
     if (visibleLayers.length === 0) return surfacedRfEdges
-    const visibleIds = new Set(displayNodes.filter(n => n.style?.opacity !== 0).map(n => n.id))
-    // Proposed relationships use free gutters between cards. Endpoint faces
-    // are chosen with the route; pending proposals are amber, rejected hidden.
-    const plannedRf: Edge[] = routeSheetRelationships(overlayPlannedEdges
-      .filter(e => e.approvalStatus !== 'rejected')
-      .filter(edge => {
-        if (allSheetRelationships) return true
-        if (relationshipEndpoints.length) return edge.id === focusedRelationship
-        const source = edge.srcLive ?? (edge.srcPlanned ? `planned:${edge.srcPlanned}` : '')
-        const target = edge.dstLive ?? (edge.dstPlanned ? `planned:${edge.dstPlanned}` : '')
-        return selectedIdsRef.current.has(source) || selectedIdsRef.current.has(target)
-      })
-      .map(e => ({
-        id: `pedge:${e.id}`,
-        type: 'orthogonal',
-        source: e.srcPlanned ? `planned:${e.srcPlanned}` : (e.srcLive ?? ''),
-        target: e.dstPlanned ? `planned:${e.dstPlanned}` : (e.dstLive ?? ''),
-        animated: false,
-        style: e.approvalStatus === 'pending'
-          ? { strokeDasharray: '5 4', stroke: '#8b6429', strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' as const }
-          : { strokeDasharray: '6 4', stroke: 'var(--accent)', strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' as const },
-        zIndex: 10000,
-      }))
-      .filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target)), displayNodes)
+    const visibleIds = new Set(navigableDisplayNodes.filter(n => !n.hidden && n.style?.opacity !== 0).map(n => n.id))
+    const topology: Edge[] = overlayPlannedEdges.filter(edge => edge.approvalStatus !== 'rejected').map(edge => {
+      const focused = edge.id === focusedRelationship && relationshipEndpoints.length === 2
+      return {
+        id: `pedge:${edge.id}`, type: 'orthogonal',
+        source: edge.srcPlanned ? `planned:${edge.srcPlanned}` : (edge.srcLive ?? ''),
+        target: edge.dstPlanned ? `planned:${edge.dstPlanned}` : (edge.dstLive ?? ''), animated: false,
+        style: { stroke: focused ? '#2e746b' : edge.approvalStatus === 'pending' ? '#8b6429' : 'var(--accent)',
+          opacity: relationshipEndpoints.length && !focused ? .2 : 1 },
+        data: { relationshipFocused: focused }, zIndex: focused ? 10002 : 10000,
+      }
+    })
+    const requested = topology.filter(edge => {
+      if (allSheetRelationships) return true
+      if (relationshipEndpoints.length) return edge.id === `pedge:${focusedRelationship}`
+      return selectedIdsRef.current.has(edge.source) || selectedIdsRef.current.has(edge.target)
+    }).filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target))
+    // Route and filter the same revealed scene that is painted. Semantic zoom
+    // must not hide a selected connection after its endpoints were revealed.
+    const plannedRf = routeSheetRelationships(requested, navigableDisplayNodes, topology)
     return [
       ...surfacedRfEdges.map(e => visibleIds.has(e.source) && visibleIds.has(e.target) && (allSheetRelationships || (!relationshipEndpoints.length && (selectedIdsRef.current.has(e.source) || selectedIdsRef.current.has(e.target))))
-        ? e
-        : { ...e, style: { ...e.style, opacity: 0 }, selectable: false }),
+        ? e : { ...e, style: { ...e.style, opacity: 0 }, selectable: false }),
       ...plannedRf,
     ]
-  }, [rfEdges, visibleLayers, overlayPlannedEdges, displayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision, routeSheetRelationships])
+  }, [rfEdges, visibleLayers, overlayPlannedEdges, navigableDisplayNodes, allSheetRelationships, focusedRelationship, relationshipEndpoints, selectionRevision, routeSheetRelationships])
+
+  const focusedConnectionRoute = displayEdges.find(edge => edge.id === `pedge:${focusedRelationship}`)?.data?.sheetRoute as SheetRelationshipRoute | null | undefined
+  useEffect(() => {
+    if (relationshipEndpoints.length !== 2 || !focusedConnectionRoute || !sheetPreparation.current) return
+    const frame = requestAnimationFrame(() => {
+      const rects = absoluteRects(displayNodesRef.current)
+      const source = rects.get(relationshipEndpoints[0]), target = rects.get(relationshipEndpoints[1])
+      if (!source || !target) return
+      const bounds = sheetRelationshipBounds(focusedConnectionRoute, source, target)
+      const canvas = reactFlowStore.getState()
+      const surface = canvas.domNode?.getBoundingClientRect()
+      const scale = surface && canvas.width ? surface.width / canvas.width : 1
+      const palette = canvas.domNode?.parentElement?.querySelector('.ambio-sheet-palette')?.getBoundingClientRect()
+      const inspector = document.querySelector('.ambio-sheet-review-panel')?.getBoundingClientRect()
+      const left = surface && palette ? Math.max(0, (palette.right - surface.left) / scale + 12) : 0
+      const right = surface && inspector ? Math.max(0, (surface.right - inspector.left) / scale + 12) : 0
+      const usableWidth = Math.max(canvas.width * .3, canvas.width - left - right)
+      canvas.domNode?.dispatchEvent(new Event('ambio:camera-navigation', { bubbles: true }))
+      const viewport = getViewportForBounds(bounds, usableWidth, canvas.height, MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM, .2)
+      void setViewport({ ...viewport, x: viewport.x + left }, { duration: 650 })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [relationshipEndpoints, focusedConnectionRoute, sheetPreparation.current, reactFlowStore, setViewport])
 
   /**
    * Was this gesture released over the unclassified bin?
