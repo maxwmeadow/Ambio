@@ -24,7 +24,7 @@ export function ClippedDashedEdge({ id, path, markerEnd, style, interactionWidth
     const spine = cornerRadius ? orthogonalPoints(part.path) : null
     const painted = spine ? roundedOrthogonalPath(spine, cornerRadius, part.endsAtTarget ? terminalReserve : 0) : part.path
     return <React.Fragment key={index}>
-    {haloWidth > 0 && <path d={painted} className="ambio-sheet-relationship-halo" fill="none" stroke="var(--bg-surface)" strokeWidth={haloWidth} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />}
+    {haloWidth > 0 && <path d={painted} className="ambio-sheet-relationship-halo" fill="none" stroke="var(--bg-surface)" strokeWidth={haloWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={style.strokeDasharray} strokeDashoffset={offset + part.startLength} style={{ opacity: style.opacity }} pointerEvents="none" />}
     <path id={index ? `${id}-part-${index}` : id} d={painted} className="react-flow__edge-path" fill="none"
       markerEnd={part.endsAtTarget ? markerEnd : undefined} strokeWidth={1}
       // Flow scales an HTML camera around the SVG. Dash phase remains in path

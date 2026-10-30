@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-connection-contrast` Replace low-contrast blue with charcoal connection ink and a narrow ivory outline, including arrowheads, so routes remain legible over amber borders. Preserve teal focus and existing geometry. Done when the replay journey, types/build and visual check pass. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max's follow-up.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
@@ -412,6 +411,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-10-30 `sheet-connection-contrast` Replaced blue connection ink with charcoal and a narrow ivory outline on lines/arrowheads, providing light and dark separation over amber stripes. Outlines follow dash phase and dimming; selected connections retain teal. Types/build, replay navigation and large-sheet clipping/culling Electron journeys pass; visually inspected the rendered routes. (`codex/sheet-review-polish`)
 
 - 2026-10-30 `sheet-connection-color` Unfocused sheet connections now use dark slate-blue ink, including their source dots and arrowheads, to contrast with amber planned-node borders. Teal focus stays unchanged. Types/build and the existing replay navigation Electron journey pass; visually inspected all-connections screenshot. (`codex/sheet-review-polish`)
 

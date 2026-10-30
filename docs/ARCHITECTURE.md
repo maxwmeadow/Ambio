@@ -1048,8 +1048,10 @@ visibility. Previously solved routes reserve gutters; unrelated cards and
 ancestor header tabs remain obstacles. Terminal leads approach their faces
 normally. `ClippedDashedEdge` rounds the painted corners within obstacle clearance
 after clipping, reserving straight terminal ink for the bounded screen-size
-arrowhead. Unfocused routes use slate-blue ink to contrast with amber proposal
-borders. Focused routes use solid teal ink and a halo; other proposed edges dim.
+arrowhead. Unfocused routes use charcoal ink with a narrow surface-colored halo
+to remain legible over amber proposal borders; arrowheads have the same pale
+outline. Halo dashes and opacity follow the foreground ink. Focused routes use
+solid teal ink and a wider halo; other proposed edges dim.
 `AmbioCanvas` filters/routes the same `revealNodePath` projection it paints, so
 revealing hidden endpoints cannot discard their edge. Revealed ancestor titles
 fold into their tabs, and connection camera bounds include route detours and

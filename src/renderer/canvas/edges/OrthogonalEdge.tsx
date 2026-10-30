@@ -11,10 +11,10 @@ function SheetRelationship({ id, route, style, focused }: { id: string; route: S
   const stroke = String(style?.stroke ?? 'var(--accent)')
   const first = route.points[0]
   return <>
-    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth} cornerRadius={Math.min(5 / zoom, route.cornerRadius ?? 5 / zoom)} terminalReserve={ink.arrowLength} haloWidth={focused ? 5 / zoom : 0}
+    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth} cornerRadius={Math.min(5 / zoom, route.cornerRadius ?? 5 / zoom)} terminalReserve={ink.arrowLength} haloWidth={(focused ? 5 : 3.5) / zoom}
       style={{ ...style, vectorEffect: undefined, stroke, strokeWidth: focused ? 2 / zoom : ink.strokeWidth, strokeDasharray: focused ? undefined : ink.dash, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
     <circle className="ambio-sheet-relationship-source" cx={first.x} cy={first.y} r={2 / zoom} fill="var(--bg-surface)" stroke={stroke} strokeWidth={ink.strokeWidth} style={{ opacity: style?.opacity }} pointerEvents="none" />
-    <path className="ambio-sheet-relationship-arrow" d={ink.arrow} fill={stroke} style={{ opacity: style?.opacity }} pointerEvents="none" />
+    <path className="ambio-sheet-relationship-arrow" d={ink.arrow} fill={stroke} stroke="var(--bg-surface)" strokeWidth={1.5 / zoom} strokeLinejoin="round" style={{ opacity: style?.opacity, paintOrder: 'stroke fill' }} pointerEvents="none" />
   </>
 }
 

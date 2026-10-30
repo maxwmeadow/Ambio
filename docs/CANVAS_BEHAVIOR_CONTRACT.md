@@ -357,7 +357,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   its card (`SheetChangeBadge`: Added, Moved, Renamed, Moved + renamed) that
   keeps its screen size at any zoom; a renamed system shows the new name with
   the current one struck through under it, and an unfocused relationship is
-  drawn dashed slate blue, contrasting with amber proposal borders. Rejecting a move puts the node
+  drawn dashed charcoal with a narrow ivory outline, contrasting with amber
+  proposal borders. Rejecting a move puts the node
   back where the Floor has it; a rejected relationship is not drawn.
 - A sheet's relationships route between the facing sides of the two nodes,
   with orthogonal gutters and small rounded corners, and carry no text label
