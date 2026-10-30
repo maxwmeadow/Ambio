@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-sidebar-tree` **Expandable sheet navigation and quiet review.** Replace row checkboxes/badges/dispatch/delete clutter with a title, chevron and contextual menu; Ctrl/Cmd-click layers. Keep contents beneath each sheet after approval. Keep To review compact with grouped inspectable decisions. **Done when:** navigation, multi-layer selection, menu actions and exact-scope approval work in the Electron journey. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max approved the sidebar design.)
+
 - ⬜ `mcp-work-session-reconnect` A work session started before an Ambio/MCP reconnect cannot be completed afterward: update_work rejects its saved session ID as unknown in the new connection. Preserve or recover session ownership safely across reconnects. Found while closing the prior sheet-review work; its case is already interrupted/replayable. (2026-10-29)
 
 - ⬜ `investigation-electron-callback-instrumentation` An instrumented Playwright/Electron run injects recorder calls into serialized browser callbacks without a browser recorder (`skipAgentGuides`: undefined `enter`); the same ordinary Electron test passes. Reproduced in the saved planned-file scrolling investigation, R1. Keep renderer/browser callbacks isolated from Node instrumentation. (2026-10-29)
