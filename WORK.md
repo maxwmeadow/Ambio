@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `sheet-compressed-header-clearance` **Compressed live context must keep its title clear.** Reproduce a live single-file system receiving an unplaced nested proposal; preserve canonical body insets under compression and remove the misplaced system information badge while retaining normal Properties descriptions. **Done when:** shared geometry and Electron sheet regression cover header clearance, nesting/zoom, and Floor isolation. (🚧 Codex, `codex/sheet-review-polish`, 2026-10-29; Max's Helios screenshots.)
+
 
 - ⬜ `mcp-work-session-reconnect` A work session started before an Ambio/MCP reconnect cannot be completed afterward: update_work rejects its saved session ID as unknown in the new connection. Preserve or recover session ownership safely across reconnects. Found while closing the prior sheet-review work; its case is already interrupted/replayable. (2026-10-29)
 
