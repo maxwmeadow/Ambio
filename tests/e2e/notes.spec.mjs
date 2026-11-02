@@ -6,7 +6,7 @@ import { startHarness, harnessFetch } from '../../mcp/e2e/mcpHarness.mjs'
 import { skipAgentGuides } from './agentGuides'
 import { canvasViewportSettled } from './canvasComponentCounts'
 
-test('sticky notes share text with agents, preserve drafts, and persist geometry on Floor and sheets', async () => {
+test('notes autosave, nest, compress and persist through native Floor and sheet layouts', async () => {
   test.setTimeout(120000)
   const harness = await startHarness({ workspaceId: 'demo' })
   const home = mkdtempSync(join(tmpdir(), 'ambio-notes-home-'))
@@ -29,110 +29,138 @@ test('sticky notes share text with agents, preserve drafts, and persist geometry
         await route.fulfill({ response })
       } catch (error) { if (!/disposed|has been closed/.test(String(error))) throw error }
     })
-    await page.reload()
-    await expect(page.locator('.react-flow__node').first()).toBeAttached()
-    await expect(page.locator('.layout-transition')).toHaveCount(0)
-    const command = id => page.evaluate(id => window.dispatchEvent(new CustomEvent('ambio:command', { detail: id })), id)
+    const createdOwner = await harness.client.callTool('edit_systems', { op: 'create', name: 'Note owner' })
+    expect(createdOwner.isError, createdOwner.text).toBe(false)
+    const ownerId = createdOwner.payload.systemId ?? createdOwner.payload.id
+    expect(ownerId).toBeTruthy()
+    const ownerLayout = { nodeId: ownerId, nodeType: 'system', parentNodeId: null, parentNodeType: null, containmentKind: 'root', positionX: 0, positionY: 0, width: 620, height: 420, scale: 1, interiorScale: 1 }
+    const placed = await harnessFetch(`${harness.apiBase}/api/layout/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: 'demo', layouts: [ownerLayout] }) })
+    expect(placed.ok, await placed.clone().text()).toBe(true)
     const read = async surface => (await harnessFetch(`${harness.apiBase}/api/annotations?workspace=demo&sheet=${surface}`)).json()
+    const nativeScene = async () => {
+      const snapshot = await (await harnessFetch(`${harness.apiBase}/api/snapshot/demo`)).json()
+      await page.evaluate(({ snapshot, ownerId }) => window.__ambioGraphStore.setState({ systems: snapshot.systems.filter(system => system.id === ownerId), files: [], infraNodes: [], dependencies: [], floorLayouts: snapshot.floorLayouts ?? [] }), { snapshot, ownerId })
+      await expect(page.locator(`.react-flow__node[data-id="${ownerId}"]`)).toBeVisible()
+      await expect.poll(() => page.evaluate(canvasViewportSettled)).toBe(true)
+    }
+    const command = id => page.evaluate(id => window.dispatchEvent(new CustomEvent('ambio:command', { detail: id })), id)
     const publish = note => page.evaluate(note => window.__ambioGraphStore.getState().applyDbPatch({ type: 'annotation:upserted', payload: note }), note)
-
-    await expect.poll(() => page.evaluate(canvasViewportSettled)).toBe(true)
+    await page.reload(); await nativeScene()
+    const owner = page.locator(`.react-flow__node[data-id="${ownerId}"]`)
+    const noteCard = id => page.locator(`.react-flow__node[data-id="note:${id}"]`)
+    const edit = async (id, body) => {
+      const card = noteCard(id)
+      await card.locator('.canvas-note__body').dblclick()
+      await card.getByRole('textbox', { name: 'Note text' }).fill(body)
+      await expect.poll(async () => (await read('floor')).find(note => note.id === id)?.body).toBe(body)
+      await card.getByRole('textbox', { name: 'Note text' }).press('Escape')
+    }
+    const dragInside = async (id, surface) => {
+      const card = noteCard(id)
+      const header = await card.locator('.canvas-note__header').boundingBox()
+      const box = await owner.boundingBox()
+      await page.mouse.move(header.x + 20, header.y + header.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width * .3, box.y + box.height * .6, { steps: 16 })
+      await page.mouse.up()
+      await expect.poll(async () => {
+        const row = (await read(surface)).find(note => note.id === id)
+        return row?.layout?.parentNodeId
+      }).toBe(ownerId)
+      await expect.poll(() => page.evaluate(canvasViewportSettled)).toBe(true)
+    }
     await command('map.addNote')
-    const card = page.locator('.react-flow__node-note').first()
-    await expect(card).toBeVisible()
-    await card.getByRole('button', { name: 'Edit note', exact: true }).click()
-    await card.getByRole('textbox', { name: 'Note text' }).fill('Why this boundary exists\nKeep the evaluator independent.\n' + Array.from({ length: 30 }, (_, i) => `Explanation ${i + 1}`).join('\n'))
-    await card.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect.poll(async () => (await read('floor'))[0]?.body).toContain('Keep the evaluator')
-    const body = card.locator('.canvas-note__body')
-    const camera = await page.locator('.react-flow__viewport').getAttribute('style')
-    await body.hover(); await page.mouse.wheel(0, 300)
-    await expect.poll(() => body.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
-    await body.evaluate(element => { element.scrollTop = element.scrollHeight })
-    await page.mouse.wheel(0, 300)
-    expect(await page.locator('.react-flow__viewport').getAttribute('style')).toBe(camera)
-    let floor = (await read('floor'))[0]
-    expect(floor.author).toBe('user')
-    const originalWidth = (await card.boundingBox()).width
-    const resizedByAgent = await harness.client.callTool('edit_sheet', { op: 'edit_note', sheet: 'floor', noteId: floor.id, revision: floor.revision, width: 320, height: 210 })
-    expect(resizedByAgent.isError, resizedByAgent.text).toBe(false)
-    await publish(resizedByAgent.payload)
-    await expect.poll(async () => (await card.boundingBox()).width).toBeGreaterThan(originalWidth)
-    floor = (await read('floor'))[0]
-    const beforeLayout = await page.evaluate(() => JSON.stringify(window.__ambioGraphStore.getState().floorLayouts))
-    // Switching from a code selection to a note drag must leave code alone.
-    await page.evaluate(() => { const graph = window.__ambioGraphStore.getState(); graph.setSelectedNode(graph.systems[0].id) })
-    await expect(page.locator('.react-flow__node.selected:not(.react-flow__node-note)')).toHaveCount(1)
-    const header = await card.locator('.canvas-note__header').boundingBox()
-    await page.mouse.move(header.x + 25, header.y + header.height / 2)
-    await page.keyboard.down('Control')
-    await page.mouse.down(); await page.mouse.move(header.x + 105, header.y + header.height / 2 + 45, { steps: 12 }); await page.mouse.up()
-    await page.keyboard.up('Control')
-    await expect(page.locator('.react-flow__node.selected:not(.react-flow__node-note)')).toHaveCount(0)
-    await expect.poll(async () => (await read('floor'))[0]?.positionX).not.toBe(floor.positionX)
-    floor = (await read('floor'))[0]
-    const handle = page.locator(`.ambio-node-resizer[data-node-id="note:${floor.id}"] [data-resize-direction="bottom-right"]`)
+    await expect.poll(async () => (await read('floor')).length).toBe(1)
+    let first = (await read('floor'))[0]
+    await expect(noteCard(first.id).getByRole('button')).toHaveCount(0)
+    await edit(first.id, 'Live notes need no form controls')
+    await dragInside(first.id, 'floor')
+    let secondId
+    for (let index = 0; index < 2; index++) {
+      await command('map.addNote')
+      await expect.poll(async () => (await read('floor')).length).toBe(index + 2)
+      const latest = (await read('floor')).find(note => ![first.id, ...(index ? [secondId] : [])].includes(note.id))
+      if (!index) secondId = latest.id
+      await dragInside(latest.id, 'floor')
+    }
+    const notes = await read('floor')
+    expect(notes.every(note => note.layout?.parentNodeId === ownerId)).toBe(true)
+    const compressed = await page.evaluate(id => window.__ambioGraphStore.getState().floorLayouts.find(row => row.nodeId === id), ownerId)
+    expect(compressed.interiorScale).toBeLessThan(1)
+    const boxes = await Promise.all(notes.map(note => noteCard(note.id).boundingBox()))
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j]
+      expect(a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1 || a.y + a.height <= b.y + 1 || b.y + b.height <= a.y + 1).toBe(true)
+    }
+    // Pulling out restores a root frame; returning uses native collision again.
+    const source = await noteCard(first.id).locator('.canvas-note__header').boundingBox()
+    const canvas = await page.locator('.react-flow').boundingBox()
+    await page.mouse.move(source.x + 20, source.y + source.height / 2)
+    await page.mouse.down(); await page.mouse.move(canvas.x + canvas.width - 140, canvas.y + canvas.height - 130, { steps: 16 }); await page.mouse.up()
+    await expect.poll(async () => (await read('floor')).find(note => note.id === first.id)?.layout?.parentNodeId).toBe(null)
+    await dragInside(first.id, 'floor')
+
+    // Parent motion carries notes through native parent-relative geometry.
+    await page.evaluate(id => window.__ambioGraphStore.getState().setSelectedNode(id), ownerId)
+    const before = await noteCard(first.id).boundingBox()
+    const parent = await owner.boundingBox()
+    await page.mouse.move(parent.x + parent.width * .65, parent.y + 18)
+    await page.mouse.down(); await page.mouse.move(parent.x + parent.width * .65 + 65, parent.y + 53, { steps: 12 }); await page.mouse.up()
+    await expect.poll(async () => (await noteCard(first.id).boundingBox()).x).not.toBe(before.x)
+    expect((await read('floor')).find(note => note.id === first.id).layout.parentNodeId).toBe(ownerId)
+    // Standard resize chrome updates the parent and every child in one layout batch.
+    const handle = page.locator(`.ambio-node-resizer[data-node-id="${ownerId}"] [data-resize-direction="bottom-right"]`)
     await expect(handle).toBeVisible()
-    const box = await handle.boundingBox()
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2 + 50, { steps: 12 }); await page.mouse.up()
-    await expect.poll(async () => (await read('floor'))[0]?.width).toBeGreaterThan(floor.width)
-    expect(await page.evaluate(() => JSON.stringify(window.__ambioGraphStore.getState().floorLayouts))).toBe(beforeLayout)
-    floor = (await read('floor'))[0]
-
-    await card.getByRole('button', { name: 'Edit note', exact: true }).click()
-    const editor = card.getByRole('textbox', { name: 'Note text' })
-    await editor.fill('My unsaved clarification')
-    const agent = await harness.client.callTool('edit_sheet', { op: 'edit_note', sheet: 'floor', noteId: floor.id, revision: floor.revision, body: 'Agent clarification' })
-    expect(agent.isError, agent.text).toBe(false)
-    await publish(agent.payload)
-    await expect(editor).toHaveValue('My unsaved clarification')
-    await card.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(card.getByText('Use latest text', { exact: true })).toBeVisible()
-    await expect(editor).toHaveValue('My unsaved clarification')
-    expect((await read('floor'))[0].body).toBe('Agent clarification')
-    await card.getByRole('button', { name: 'Use latest text', exact: true }).click()
-    await expect(editor).toHaveValue('Agent clarification')
-    await editor.fill('Human and agent agree')
-    await editor.press('ControlOrMeta+Enter')
-    await expect.poll(async () => (await read('floor'))[0]?.body).toBe('Human and agent agree')
-
-    await card.getByRole('button', { name: 'Edit note', exact: true }).click()
-    await card.getByRole('textbox', { name: 'Note text' }).fill('Recovered explanation')
-    const current = (await read('floor'))[0]
-    const removed = await harness.client.callTool('edit_sheet', { op: 'delete_note', sheet: 'floor', noteId: current.id, revision: current.revision })
-    expect(removed.isError, removed.text).toBe(false)
-    await page.evaluate(id => window.__ambioGraphStore.getState().applyDbPatch({ type: 'annotation:deleted', payload: { id, workspaceId: 'demo' } }), current.id)
-    await expect(card.getByRole('textbox', { name: 'Note text' })).toHaveValue('Recovered explanation')
-    await card.getByRole('button', { name: 'Save as new note', exact: true }).click()
-    await expect.poll(async () => (await read('floor'))[0]?.body).toBe('Recovered explanation')
-    expect((await read('floor'))[0].id).not.toBe(current.id)
+    const resize = await handle.boundingBox()
+    const parentBeforeResize = await owner.boundingBox()
+    await page.mouse.move(resize.x + resize.width / 2, resize.y + resize.height / 2)
+    await page.mouse.down(); await page.mouse.move(resize.x + resize.width / 2 + 70, resize.y + resize.height / 2 + 50, { steps: 12 }); await page.mouse.up()
+    await expect.poll(async () => (await owner.boundingBox()).width).toBeGreaterThan(parentBeforeResize.width)
+    expect((await read('floor')).every(note => note.layout.parentNodeId === ownerId)).toBe(true)
+    await edit(first.id, '')
+    await edit(first.id, 'Text before concurrent editing')
+    // Concurrent agent text cannot overwrite an unsaved human edit.
+    first = (await read('floor')).find(note => note.id === first.id)
+    await noteCard(first.id).locator('.canvas-note__body').dblclick()
+    const editor = noteCard(first.id).getByRole('textbox', { name: 'Note text' })
+    let releaseDraft
+    const agentApplied = new Promise(resolve => { releaseDraft = resolve })
+    await page.route(url => url.pathname === `/api/annotations/${first.id}`, async route => {
+      if (route.request().method() === 'PATCH' && route.request().postDataJSON()?.body === 'My draft') await agentApplied
+      await route.fallback()
+    })
+    await editor.fill('My draft')
+    const agent = await harness.client.callTool('edit_sheet', { op: 'edit_note', sheet: 'floor', noteId: first.id, revision: first.revision, body: 'Agent text' })
+    expect(agent.isError, agent.text).toBe(false); await publish(agent.payload); releaseDraft()
+    await expect(editor).toHaveValue('My draft')
+    await expect(noteCard(first.id).getByRole('button', { name: 'Keep my text', exact: true })).toBeVisible()
+    await noteCard(first.id).getByRole('button', { name: 'Keep my text', exact: true }).click()
+    await expect.poll(async () => (await read('floor')).find(note => note.id === first.id)?.body).toBe('My draft')
+    await editor.press('Escape')
     await page.getByText('Note sheet', { exact: true }).click()
     await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
-    await expect(card.getByRole('button', { name: 'Edit note', exact: true })).toHaveCount(0)
     await page.locator('.ambio-sheet-palette').getByRole('button', { name: 'Add Note', exact: true }).click()
-    const canvas = await page.locator('.react-flow').boundingBox()
-    await page.mouse.click(canvas.x + canvas.width - 300, canvas.y + 300)
+    const target = await owner.boundingBox()
+    await page.mouse.click(target.x + target.width * .7, target.y + target.height * .7)
     await expect.poll(async () => (await read(sheet.id)).length).toBe(1)
     const sheetNote = (await read(sheet.id))[0]
-    const sheetCard = page.locator(`.react-flow__node[data-id="note:${sheetNote.id}"]`)
-    await sheetCard.getByRole('button', { name: 'Edit note', exact: true }).click()
-    await sheetCard.getByRole('textbox', { name: 'Note text' }).fill('Only on this proposal')
-    await sheetCard.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect.poll(async () => (await read(sheet.id))[0]?.body).toBe('Only on this proposal')
-    await page.screenshot({ path: 'test-results/sticky-notes-sheet.png' })
-    await page.reload()
-    await expect(page.getByText('Recovered explanation', { exact: true })).toBeVisible()
+    await expect.poll(async () => (await read(sheet.id))[0]?.layout?.parentNodeId).toBe(ownerId)
+    await noteCard(sheetNote.id).locator('.canvas-note__body').dblclick()
+    await noteCard(sheetNote.id).getByRole('textbox', { name: 'Note text' }).fill('Only this sheet')
+    await expect.poll(async () => (await read(sheet.id))[0]?.body).toBe('Only this sheet')
+    await noteCard(sheetNote.id).getByRole('textbox', { name: 'Note text' }).press('Escape')
+    await page.screenshot({ path: 'test-results/sticky-notes-native.png' })
+    await page.reload(); await nativeScene()
     await page.getByText('Note sheet', { exact: true }).click()
-    await expect(page.locator('.canvas-note__body').getByText('Only on this proposal', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Expand Note sheet', exact: true }).click()
-    await page.locator('.ambio-sheet-tree__note', { hasText: 'Only on this proposal' }).click()
-    await expect(page.locator(`.react-flow__node[data-id="note:${sheetNote.id}"]`)).toHaveClass(/selected/)
-    const reopened = page.locator(`.react-flow__node[data-id="note:${sheetNote.id}"]`)
-    await reopened.getByRole('button', { name: 'Delete note', exact: true }).click()
-    await expect(reopened).toHaveCount(0)
-    expect(await read(sheet.id)).toEqual([])
-    expect((await read('floor'))[0].body).toBe('Recovered explanation')
+    await expect(noteCard(sheetNote.id)).toHaveAttribute('data-id', `note:${sheetNote.id}`)
+    await page.evaluate(id => window.__ambioGraphStore.getState().setSelectedNode(`note:${id}`), sheetNote.id)
+    await command('view.fitView')
+    await expect(noteCard(sheetNote.id)).toBeVisible()
+    await noteCard(sheetNote.id).locator('.canvas-note__header').click()
+    await page.keyboard.press('Delete')
+    await expect.poll(async () => (await read(sheet.id)).length).toBe(0)
+    expect((await read('floor')).length).toBe(3)
+
   } finally {
     try { await app?.close() } finally { await harness.stop(); rmSync(home, { recursive: true, force: true }) }
   }

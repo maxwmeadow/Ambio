@@ -736,6 +736,7 @@ const CORE_TOOLS = [
         target: { type: 'string' },
         body: { type: 'string' },
         noteId: { type: 'string', description: 'Note ID' },
+        parentNodeId: { type: 'string', description: 'Note system; empty for root' },
         positionX: { type: 'number' }, positionY: { type: 'number' },
         width: { type: 'number' }, height: { type: 'number' },
         from: { type: 'string', description: 'connect: planned/live node ID on this sheet' },
@@ -2791,7 +2792,7 @@ Steps to execute:
         const removing = call === 'delete_note'
         const res = await fetch(removing ? `${url}&revision=${args.revision}` : url, {
           method: removing ? 'DELETE' : 'PATCH', headers: { 'Content-Type': 'application/json' },
-          ...(removing ? {} : { body: JSON.stringify({ revision: args.revision, body: args.body, positionX: args.positionX, positionY: args.positionY, width: args.width, height: args.height, updatedBy: 'agent' }) }),
+          ...(removing ? {} : { body: JSON.stringify({ revision: args.revision, body: args.body, positionX: args.positionX, positionY: args.positionY, width: args.width, height: args.height, parentNodeId: args.parentNodeId, updatedBy: 'agent' }) }),
         })
         if (!res.ok) throw new Error(`Note ${removing ? 'delete' : 'edit'} failed: ${await res.text()}`)
         result = await res.json()

@@ -382,7 +382,7 @@ export interface InfraPolicies {
   confirm_before_running?: boolean
 }
 
-export type FloorNodeType = 'system' | 'file' | 'infra'
+export type FloorNodeType = 'system' | 'file' | 'infra' | 'note'
 export type LayoutContainmentKind = 'root' | 'part_of' | 'hosted_by'
 
 /** Visual Floor geometry, intentionally independent from semantic ownership. */

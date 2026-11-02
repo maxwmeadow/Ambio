@@ -255,8 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `notes-native-nesting-autosave` **Integrate sticky notes with native system placement and live editing.** Remove ordinary edit/save/cancel/delete buttons; double-click edits text with automatic persistence. Extend existing canonical node/layout, drop, collision, compression and resize paths to notes on Floor and sheets; no parallel placement engine. Preserve agent access, scope isolation and concurrency protection. **Done when:** notes nest/unnest and reopen correctly, packed/occupied systems use existing collision/shrink behavior, resizing/moving parents includes notes, typing saves without controls, and related code/sheet regressions pass. (Codex, `codex/sheet-review-polish`, 2026-11-02; Max.)
-
 - ⬜ `note-context-handoffs` Include relevant sticky-note excerpts in automatic chat/work-order context. Agents can already read/write notes through `edit_sheet`, but note text is not yet injected into every architecture handoff. (2026-11-02)
 
 - ⬜ `git-worktree-status-watch-test` `TestMetadataWatcherIgnoresAStatusInALinkedWorktree` fails on Windows because a status in the linked checkout is reported as a metadata change. Reproduced in the full Go suite and alone during notes verification (2026-11-02); unrelated to notes.
@@ -416,6 +414,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-11-02 `notes-native-nesting-autosave` Notes now participate as native leaves in canonical preparation/projection, shared drop/collision/packing/compression, group selection and resize persistence on Floor/sheets. Schema v13 preserves prior layout rows/triggers and migrates legacy note geometry; scoped native transactions and reopen tests pass. Removed ordinary note buttons; serialized autosave flushes on blur, retains concurrent drafts and permits empty text. Types/build, 896 unit tests (7 skipped), 48 MCP journeys (2 skipped), daemon API/DB/upgrade tests and native-note plus existing sidebar/review/resize Electron journeys pass. Go vet passes; the full Go suite still has the separately recorded Windows Git watcher failure. (`codex/sheet-review-polish`)
 
 - 2026-11-02 `sheet-note-rendering` Added persisted sticky notes on Floor/sheets, inline text editing, normal drag/resize/delete, sheet-rail navigation, shared human/agent CRUD and immutable creator attribution. Revision checks preserve stale drafts, remote deletion offers save-as-new, and note gestures stay outside code grouping/containment/approvals. Schema v12 preserves prior annotations. Types/build, 890 unit tests (7 skipped), 48 MCP journeys (2 skipped), Go vet, daemon API/DB and four Electron journeys pass; the full Go suite exposes the separately recorded Windows Git watcher failure. Ambio development now explicitly uses ordinary repo tools rather than the installed manual-test connection. (`codex/sheet-review-polish`)
 

@@ -1,27 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Node, NodeChange } from '@xyflow/react'
+import type { Node } from '@xyflow/react'
 import { useSheetStore, type SheetAnnotation } from '../../store/sheetStore'
 import { useGraphStore } from '../../store/graphStore'
 import { raiseFailure } from '../../store/interruptionStore'
+import { createNoteAutosave, type NoteAutosave } from '../noteAutosave'
 import type { NoteNodeData } from '../nodes/NoteNode'
 
-type Geometry = Partial<Pick<SheetAnnotation, 'positionX' | 'positionY' | 'width' | 'height'>>
 type Draft = { note: SheetAnnotation; body: string; revision: number }
 
-/** Notes live beside the structural scene; they never participate in code packing or approvals. */
+/** Note text sessions decorate native canonical nodes; spatial behavior stays in the shared canvas. */
 export function useCanvasNotes(workspaceId: string, sheetId: string | null, visibleSheetIds: string[], enabled: boolean, readOnly: boolean) {
   const loadedWorkspace = useSheetStore(state => state.workspaceId)
   const floorNotes = useSheetStore(state => state.floorNotes)
   const layers = useSheetStore(state => state.layersById)
   const deleted = useSheetStore(state => state.deletedNoteIds)
   const selected = useSheetStore(state => state.selectedCanvasIds)
-  const [geometry, setGeometry] = useState<Record<string, Geometry>>({})
-  const geometryRef = useRef<Record<string, Geometry>>({})
-  const [saving, setSaving] = useState<Record<string, boolean>>({})
-  const [errors, setErrors] = useState<Record<string, string>>({})
   const [retained, setRetained] = useState<Record<string, SheetAnnotation>>({})
   const drafts = useRef(new Map<string, Draft>())
-  const revisions = useRef(new Map<string, number>())
+  const editors = useRef(new Map<string, NoteAutosave>())
+  const editorWorkspace = useRef(workspaceId)
   const scopeKey = visibleSheetIds.join('|')
   const annotations = useMemo(() => [
     ...floorNotes,
@@ -30,8 +27,10 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
   const models = useRef(annotations)
   models.current = annotations
   useEffect(() => {
-    geometryRef.current = {}
-    setGeometry({}); setSaving({}); setErrors({}); setRetained({}); drafts.current.clear(); revisions.current.clear()
+    if (editorWorkspace.current === workspaceId) return
+    for (const editor of editors.current.values()) editor.end()
+    editors.current.clear(); editorWorkspace.current = workspaceId
+    setRetained({}); drafts.current.clear()
   }, [workspaceId])
   useEffect(() => {
     if (!enabled || !workspaceId || loadedWorkspace !== workspaceId) return
@@ -39,51 +38,6 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
       raiseFailure('canvas-notes-load', 'Could not load notes', reason instanceof Error ? reason.message : String(reason))
     })
   }, [workspaceId, enabled, loadedWorkspace, scopeKey])
-
-  const beginGeometry = useCallback((id: string) => {
-    const selected = useSheetStore.getState().selectedCanvasIds
-    const ids = selected.includes(`note:${id}`) ? new Set(selected) : new Set([`note:${id}`])
-    revisions.current.clear()
-    for (const note of models.current) {
-      if (note.sheetId === sheetId && ids.has(`note:${note.id}`)) revisions.current.set(note.id, note.revision)
-    }
-  }, [sheetId])
-  const finishGeometry = useCallback(async (id: string, patch: Geometry) => {
-    const note = models.current.find(note => note.id === id)
-    if (!note) return
-    if (!revisions.current.has(id)) revisions.current.set(id, note.revision)
-    const members = [...revisions.current]
-    revisions.current.clear()
-    await Promise.all(members.map(async ([memberId, revision]) => {
-      const changes = { ...geometryRef.current[memberId], ...(memberId === id ? patch : {}) }
-      if (!Object.keys(changes).length) return
-      setSaving(previous => ({ ...previous, [memberId]: true }))
-      try {
-        await useSheetStore.getState().saveAnnotation(workspaceId, memberId, revision, changes)
-        setErrors(previous => ({ ...previous, [memberId]: '' }))
-      } catch (reason) {
-        setErrors(previous => ({ ...previous, [memberId]: reason instanceof Error ? reason.message : 'Could not move this note.' }))
-      } finally {
-        const next = { ...geometryRef.current }; delete next[memberId]; geometryRef.current = next
-        setGeometry(next)
-        setSaving(previous => ({ ...previous, [memberId]: false }))
-      }
-    }))
-  }, [workspaceId])
-
-  const onChanges = useCallback((changes: NodeChange[]) => {
-    const noteChanges = changes.filter(change => change.type !== 'add' && change.type !== 'replace' && change.id.startsWith('note:'))
-    if (noteChanges.some(change => (change.type === 'position' && change.dragging !== undefined) || (change.type === 'dimensions' && change.resizing !== undefined))) {
-      const next = { ...geometryRef.current }
-      for (const change of noteChanges) {
-        if (change.type === 'position' && change.position && change.dragging !== undefined) next[change.id.slice(5)] = { ...next[change.id.slice(5)], positionX: change.position.x, positionY: change.position.y }
-        if (change.type === 'dimensions' && change.dimensions && change.resizing !== undefined) next[change.id.slice(5)] = { ...next[change.id.slice(5)], width: change.dimensions.width, height: change.dimensions.height }
-      }
-      geometryRef.current = next
-      setGeometry(next)
-    }
-    return changes.filter(change => change.type === 'select' || change.type === 'add' || change.type === 'replace' || !change.id.startsWith('note:'))
-  }, [])
 
   const create = useCallback(async (point: { x: number; y: number }) => {
     const note = await useSheetStore.getState().createFloatingNote(workspaceId, sheetId, 'New note', point.x, point.y)
@@ -100,42 +54,42 @@ export function useCanvasNotes(workspaceId: string, sheetId: string | null, visi
     return [...byId.values()].map((note, index) => {
       const editable = !readOnly && note.sheetId === sheetId
       const draft = drafts.current.get(note.id)
-      const local = geometry[note.id]
       const nodeId = `note:${note.id}`
       const isDeleted = !!deleted[note.id] || !annotations.some(current => current.id === note.id)
+      const callbacks = {
+        save: async (body: string, revision: number) => isDeleted
+          ? useSheetStore.getState().createFloatingNote(workspaceId, note.sheetId, body, note.positionX ?? 40, note.positionY ?? 40)
+          : useSheetStore.getState().saveAnnotation(workspaceId, note.id, revision, { body }),
+        remove: (revision: number) => useSheetStore.getState().deleteAnnotation(workspaceId, note.id, revision),
+        draft: (next: { body: string; revision: number } | null) => {
+          if (useSheetStore.getState().workspaceId !== workspaceId) return
+          if (next) {
+            const first = !drafts.current.has(note.id)
+            drafts.current.set(note.id, { note, ...next })
+            if (first) setRetained(previous => ({ ...previous, [note.id]: note }))
+          } else if (drafts.current.delete(note.id)) {
+            setRetained(previous => { const next = { ...previous }; delete next[note.id]; return next })
+          }
+        },
+      }
+      let editor = editors.current.get(note.id)
+      if (!editor) { editor = createNoteAutosave(note, callbacks, draft); editors.current.set(note.id, editor) }
+      else editor.configure(callbacks)
       return {
-        id: nodeId, type: 'note', position: { x: local?.positionX ?? note.positionX ?? 40 + index * 24, y: local?.positionY ?? note.positionY ?? 40 + index * 24 },
-        width: local?.width ?? note.width ?? 260, height: local?.height ?? note.height ?? 180,
-        selected: selected.includes(nodeId), draggable: editable && !saving[note.id], selectable: true, deletable: false, zIndex: 15,
+        id: nodeId, type: 'note', position: { x: note.positionX ?? 40 + index * 24, y: note.positionY ?? 40 + index * 24 },
+        width: note.width ?? 260, height: note.height ?? 180,
+        selected: selected.includes(nodeId), draggable: editable && !isDeleted, selectable: true, deletable: false, zIndex: 15,
         data: {
-          note, editable, deleted: isDeleted, geometrySaving: !!saving[note.id], geometryError: errors[note.id],
-          initialDraft: draft && { body: draft.body, revision: draft.revision },
-          onDraft: next => {
-            if (next) {
-              const first = !drafts.current.has(note.id)
-              drafts.current.set(note.id, { note, ...next })
-              if (first) setRetained(previous => ({ ...previous, [note.id]: note }))
-            } else {
-              drafts.current.delete(note.id)
-              setRetained(previous => { const next = { ...previous }; delete next[note.id]; return next })
-            }
-          },
-          onSave: async (body, revision) => {
-            if (isDeleted) await useSheetStore.getState().createFloatingNote(workspaceId, note.sheetId, body, local?.positionX ?? note.positionX ?? 40, local?.positionY ?? note.positionY ?? 40)
-            else await useSheetStore.getState().saveAnnotation(workspaceId, note.id, revision, { body })
-          },
-          onDelete: async () => {
-            try { await useSheetStore.getState().deleteAnnotation(workspaceId, note.id, note.revision) }
-            catch (reason) {
-              setErrors(previous => ({ ...previous, [note.id]: reason instanceof Error ? reason.message : 'Could not delete this note.' }))
-              throw reason
-            }
-          },
-          onBeginGeometry: () => beginGeometry(note.id),
-          onFinishGeometry: params => { void finishGeometry(note.id, { positionX: params.x, positionY: params.y, width: params.width, height: params.height }) },
+          note, editable, deleted: isDeleted, geometrySaving: false,
+          editor,
+          onDelete: async () => { await editor!.remove() },
         },
       }
     })
-  }, [enabled, loadedWorkspace, annotations, retained, readOnly, sheetId, scopeKey, geometry, selected, saving, errors, deleted, workspaceId, beginGeometry, finishGeometry])
-  return { nodes, create, onChanges, beginGeometry, finishGeometry }
+  }, [enabled, loadedWorkspace, annotations, retained, readOnly, sheetId, scopeKey, selected, deleted, workspaceId])
+  const signature = annotations.map(note => [note.id, note.sheetId, note.positionX, note.positionY, note.width, note.height].join(':')).join('|')
+  const geometryNotes = useMemo(() => annotations.map(note => ({ id: `note:${note.id}`, systemId: null, positionX: note.positionX ?? 40, positionY: note.positionY ?? 40, width: note.width, height: note.height })), [signature])
+  const floorSignature = annotations.filter(note => note.sheetId === null).map(note => note.id).join('|')
+  const floorGeometryNotes = useMemo(() => geometryNotes.filter(note => annotations.some(a => a.sheetId === null && `note:${a.id}` === note.id)), [geometryNotes, floorSignature])
+  return { nodes, create, geometryNotes, floorGeometryNotes }
 }

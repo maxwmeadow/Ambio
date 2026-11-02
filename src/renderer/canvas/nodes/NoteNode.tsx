@@ -1,93 +1,62 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useSyncExternalStore } from 'react'
 import type { Node, NodeProps } from '@xyflow/react'
 import type { SheetAnnotation } from '../../store/sheetStore'
 import type { NodeResizeParams } from '../resizeGeometry'
+import type { NoteAutosave } from '../noteAutosave'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
 
 export interface NoteNodeData extends Record<string, unknown> {
   note: SheetAnnotation
+  editor: NoteAutosave
   editable: boolean
   deleted: boolean
   geometrySaving: boolean
   geometryError?: string
-  initialDraft?: { body: string; revision: number }
-  onDraft: (draft: { body: string; revision: number } | null) => void
-  onSave: (body: string, revision: number) => Promise<void>
+  onResizeStart?: (params: NodeResizeParams) => void
+  onResizeEnd?: (params: NodeResizeParams) => void
   onDelete: () => Promise<void>
-  onBeginGeometry: () => void
-  onFinishGeometry: (geometry: NodeResizeParams) => void
 }
 
 function NoteNode({ id, data, selected, width, height }: NodeProps<Node<NoteNodeData>>) {
-  const [editing, setEditing] = useState(!!data.initialDraft)
-  const [draft, setDraft] = useState(data.initialDraft?.body ?? data.note.body)
-  const [revision, setRevision] = useState(data.initialDraft?.revision ?? data.note.revision)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const changed = editing && revision !== data.note.revision
-  const begin = () => {
-    if (!data.editable) return
-    const next = { body: data.note.body, revision: data.note.revision }
-    setDraft(next.body); setRevision(next.revision); setEditing(true); setError(''); data.onDraft(next)
-  }
-  const cancel = () => { setEditing(false); setError(''); data.onDraft(null) }
-  const save = async (expected = revision) => {
-    if (!draft.trim() || saving) return
-    setSaving(true); setError('')
-    try { await data.onSave(draft, expected); setEditing(false); data.onDraft(null) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save this note.') }
-    finally { setSaving(false) }
-  }
-  const remove = async () => {
-    setSaving(true); setError('')
-    try { await data.onDelete(); data.onDraft(null) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not delete this note.') }
-    finally { setSaving(false) }
-  }
+  const editor = data.editor
+  const text = useSyncExternalStore(editor.subscribe, editor.getSnapshot)
+  const worldScale = Number(data.worldScale) || 1
+  useEffect(() => { editor.receive(data.note, data.deleted, data.editable) }, [editor, data.note, data.deleted, data.editable])
+  useEffect(() => { if (!data.editable && text.editing) editor.end() }, [editor, data.editable, text.editing])
+  useEffect(() => () => editor.end(), [editor])
   return <>
-    <AmbioNodeResizer nodeId={id} isVisible={!!selected && data.editable && !saving && !data.geometrySaving}
-      presentationScale={1} nodeWidth={width} nodeHeight={height} color="#9a782d"
-      minWidth={160} minHeight={100} maxWidth={2000} maxHeight={2000}
-      onResizeStart={data.onBeginGeometry} onResizeEnd={data.onFinishGeometry} />
-    <article className={`canvas-note${editing ? ' canvas-note--editing' : ''}`} aria-label="Sticky note"
-      tabIndex={0} onDoubleClick={event => { event.stopPropagation(); if (!editing) begin() }}
+    <AmbioNodeResizer nodeId={id} isVisible={!!selected && data.editable && !text.saving && !data.deleted}
+      presentationScale={worldScale} nodeWidth={width} nodeHeight={height} color="#9a782d"
+      minWidth={160 * worldScale} minHeight={100 * worldScale} maxWidth={2000 * worldScale} maxHeight={2000 * worldScale}
+      onResizeStart={data.onResizeStart} onResizeEnd={data.onResizeEnd} />
+    <article className={`canvas-note${text.editing ? ' canvas-note--editing' : ''}`} aria-label="Sticky note" aria-busy={text.saving}
+      style={{ width: `${100 / worldScale}%`, height: `${100 / worldScale}%`, transform: `scale(${worldScale})`, transformOrigin: 'top left' }}
+      tabIndex={0} onDoubleClick={event => { event.stopPropagation(); if (data.editable && !text.editing) editor.begin() }}
       onKeyDown={event => {
         if (event.target !== event.currentTarget || !data.editable) return
-        if (event.key === 'Enter') { event.preventDefault(); begin() }
-        if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); event.stopPropagation(); void remove() }
+        if (event.key === 'Enter') { event.preventDefault(); editor.begin() }
+        if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); event.stopPropagation(); void editor.remove() }
       }}>
-      <header className="canvas-note__header">
-        <span>NOTE <span className="canvas-note__author">{data.note.author === 'agent' ? 'Agent' : 'You'}</span></span>
-        {data.editable && <span className="canvas-note__actions nodrag nopan">
-          {!editing && <button title="Edit note" aria-label="Edit note" disabled={saving} onClick={begin}>Edit</button>}
-          <button title="Delete note" aria-label="Delete note" disabled={saving || data.deleted} onClick={() => void remove()}>×</button>
-        </span>}
-      </header>
-      {editing && data.editable ? <>
-        <textarea className="canvas-note__editor nodrag nopan nowheel" aria-label="Note text" autoFocus value={draft} maxLength={100000}
-          onChange={event => { setDraft(event.target.value); data.onDraft({ body: event.target.value, revision }) }}
-          onKeyDown={event => {
-            event.stopPropagation()
-            if (event.key === 'Escape') { event.preventDefault(); cancel() }
-            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void save() }
-          }} />
-        <footer className="canvas-note__footer nodrag nopan">
-          <button disabled={saving || !draft.trim()} onClick={() => void save()}>{saving ? 'Saving…' : data.deleted ? 'Save as new note' : 'Save'}</button>
-          <button disabled={saving} onClick={cancel}>Cancel</button>
-        </footer>
-      </> : <div className="canvas-note__body nodrag nopan">{editing ? draft : data.note.body}</div>}
-      {(changed || data.deleted || error || data.geometryError) && <div className="canvas-note__notice nodrag nopan" role="status">
-        {data.deleted ? 'This note was deleted. Your draft is kept.' : error || data.geometryError || 'This note has a newer edit. Your draft is kept.'}
-        {changed && !data.deleted && editing && <span className="canvas-note__conflict-actions">
-          <button disabled={saving} onClick={() => {
-            setDraft(data.note.body); setRevision(data.note.revision); setError('')
-            data.onDraft({ body: data.note.body, revision: data.note.revision })
-          }}>Use latest text</button>
-          <button disabled={saving || !draft.trim()} onClick={() => void save(data.note.revision)}>Save my draft instead</button>
+      <header className="canvas-note__header"><span>NOTE <span className="canvas-note__author">{data.note.author === 'agent' ? 'Agent' : 'You'}</span></span></header>
+      {text.editing && data.editable ? <textarea className="canvas-note__editor nodrag nopan nowheel" aria-label="Note text" autoFocus value={text.body} maxLength={100000}
+        onChange={event => editor.change(event.target.value)} onBlur={() => editor.end()}
+        onKeyDown={event => {
+          event.stopPropagation()
+          if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) {
+            event.preventDefault(); event.currentTarget.blur(); editor.end()
+          }
+        }} /> : <div className="canvas-note__body nodrag nopan">{text.body}</div>}
+      {(text.conflict || data.deleted || text.error || data.geometryError) && <div className="canvas-note__notice nodrag nopan" role="status">
+        {data.deleted ? 'This note was deleted. Your text is kept.' : text.error || data.geometryError || 'This note has a newer edit. Your text is kept.'}
+        {data.editable && <span className="canvas-note__conflict-actions">
+          {data.deleted ? <button disabled={text.saving} onMouseDown={event => event.preventDefault()} onClick={() => void editor.keepMine()}>Restore note</button>
+            : text.conflict ? <>
+              <button disabled={text.saving} onMouseDown={event => event.preventDefault()} onClick={() => editor.useLatest()}>Use latest text</button>
+              <button disabled={text.saving} onMouseDown={event => event.preventDefault()} onClick={() => void editor.keepMine()}>Keep my text</button>
+            </> : text.error && <button disabled={text.saving} onMouseDown={event => event.preventDefault()} onClick={() => void editor.retry()}>Retry</button>}
         </span>}
       </div>}
     </article>
   </>
 }
-
 export default memo(NoteNode)

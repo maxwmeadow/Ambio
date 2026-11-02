@@ -1,3 +1,4 @@
+import type { GeometryFile } from './scene/sceneGeometry'
 import type { DbSystem, DbFile, FloorLayout } from '../../shared/types'
 import { packFrame } from './packing.ts'
 import { FRAME_ITEM_GAP, frameContentInsets } from './frameGeometry.ts'
@@ -84,12 +85,12 @@ export function* fitAutomaticSheetContentsSteps(prepared: PreparedFloorGeometry,
 
 /** Reuse the normal packer for automatic proposals. Authored sheet frames
  * are excluded by the caller; no Floor geometry is mutated or saved. */
-export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layouts: FloorLayout[], automatic: Set<string>) {
+export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layouts: FloorLayout[], automatic: Set<string>, notes: GeometryFile[] = []) {
   const byId = new Map(layouts.map(layout => [layout.nodeId, { ...layout }]))
   const systemById = new Map(systems.map(system => [system.id, { ...system }]))
-  const fileById = new Map(files.map(file => [file.id, file]))
+  const fileById = new Map([...files, ...notes].map(file => [file.id, file]))
   const children = new Map<string, string[]>()
-  for (const node of [...systems, ...files]) {
+  for (const node of [...systems, ...files, ...notes]) {
     const parent = byId.has(node.id) ? byId.get(node.id)!.parentNodeId : ('parentId' in node ? node.parentId : node.systemId)
     if (parent) children.set(parent, [...children.get(parent) ?? [], node.id])
   }
@@ -150,7 +151,7 @@ export function compactSheetSystems(systems: DbSystem[], files: DbFile[], layout
       const node = systemById.get(child) ?? fileById.get(child)
       const previous = byId.get(child)
       byId.set(child, {
-        workspaceId: system.workspaceId, nodeId: child, nodeType: systemById.has(child) ? 'system' : 'file',
+        workspaceId: system.workspaceId, nodeId: child, nodeType: child.startsWith('note:') ? 'note' : systemById.has(child) ? 'system' : 'file',
         parentNodeId: id, parentNodeType: 'system', containmentKind: 'part_of',
         positionX: insets.left / interiorScale + position.x, positionY: insets.top / interiorScale + position.y,
         width: previous?.width ?? node?.width ?? 220, height: previous?.height ?? node?.height ?? 110,

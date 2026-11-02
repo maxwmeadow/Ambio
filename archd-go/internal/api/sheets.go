@@ -1046,11 +1046,11 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var a db.Annotation
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil || a.Body == "" {
+	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
 		jsonError(w, "bad request: body required", 400)
 		return
 	}
-	if strings.TrimSpace(a.Body) == "" || len(a.Body) > 100000 {
+	if (a.Kind != "" && a.Kind != "note" && strings.TrimSpace(a.Body) == "") || len(a.Body) > 100000 {
 		jsonError(w, "note text must contain 1 to 100000 characters", 400)
 		return
 	}
@@ -1131,13 +1131,14 @@ func (s *Server) handleAnnotationByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPatch {
 		var patch struct {
-			Revision  int      `json:"revision"`
-			Body      *string  `json:"body"`
-			X         *float64 `json:"positionX"`
-			Y         *float64 `json:"positionY"`
-			Width     *float64 `json:"width"`
-			Height    *float64 `json:"height"`
-			UpdatedBy string   `json:"updatedBy"`
+			Revision     int      `json:"revision"`
+			Body         *string  `json:"body"`
+			X            *float64 `json:"positionX"`
+			Y            *float64 `json:"positionY"`
+			Width        *float64 `json:"width"`
+			Height       *float64 `json:"height"`
+			UpdatedBy    string   `json:"updatedBy"`
+			ParentNodeID *string  `json:"parentNodeId"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil || patch.Revision < 1 {
 			jsonError(w, "revision required", 400)
@@ -1158,7 +1159,7 @@ func (s *Server) handleAnnotationByID(w http.ResponseWriter, r *http.Request) {
 		if patch.Height != nil {
 			a.Height = *patch.Height
 		}
-		if strings.TrimSpace(a.Body) == "" || len(a.Body) > 100000 || !validAnnotationGeometry(a.PositionX, a.PositionY, a.Width, a.Height, false) {
+		if (a.Kind != "note" && strings.TrimSpace(a.Body) == "") || len(a.Body) > 100000 || !validAnnotationGeometry(a.PositionX, a.PositionY, a.Width, a.Height, false) {
 			jsonError(w, "invalid note text or geometry", 400)
 			return
 		}
@@ -1170,7 +1171,39 @@ func (s *Server) handleAnnotationByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.UpdatedBy = patch.UpdatedBy
-		if err := db.UpdateAnnotation(sqlDB, a, patch.Revision); errors.Is(err, db.ErrAnnotationConflict) {
+		var layout *db.FloorLayout
+		if a.Kind == "note" && (patch.X != nil || patch.Y != nil || patch.Width != nil || patch.Height != nil || patch.ParentNodeID != nil) {
+			layout = a.Layout
+			if layout == nil {
+				jsonError(w, "note layout missing", 409)
+				return
+			}
+			if patch.X != nil {
+				layout.PositionX = *patch.X
+			}
+			if patch.Y != nil {
+				layout.PositionY = *patch.Y
+			}
+			if patch.Width != nil {
+				layout.Width = *patch.Width
+			}
+			if patch.Height != nil {
+				layout.Height = *patch.Height
+			}
+			if patch.ParentNodeID != nil {
+				if *patch.ParentNodeID == "" {
+					layout.ParentNodeID = nil
+					layout.ParentNodeType = nil
+					layout.ContainmentKind = "root"
+				} else {
+					kind := "system"
+					layout.ParentNodeID = patch.ParentNodeID
+					layout.ParentNodeType = &kind
+					layout.ContainmentKind = "part_of"
+				}
+			}
+		}
+		if err := db.UpdateAnnotationAndLayout(sqlDB, a, patch.Revision, layout); errors.Is(err, db.ErrAnnotationConflict) {
 			conflict()
 			return
 		} else if err != nil {

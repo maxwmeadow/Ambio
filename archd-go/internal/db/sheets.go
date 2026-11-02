@@ -64,22 +64,23 @@ func (e SheetElement) Tombstoned() bool {
 }
 
 type Annotation struct {
-	ID          string   `json:"id"`
-	WorkspaceID string   `json:"workspaceId"`
-	SheetID     *string  `json:"sheetId"`
-	TargetType  *string  `json:"targetType"`
-	TargetID    *string  `json:"targetId"`
-	Body        string   `json:"body"`
-	Kind        string   `json:"kind"`
-	Author      string   `json:"author"`
-	PositionX   *float64 `json:"positionX"`
-	PositionY   *float64 `json:"positionY"`
-	CreatedAt   int64    `json:"createdAt"`
-	Width       float64  `json:"width"`
-	Height      float64  `json:"height"`
-	Revision    int      `json:"revision"`
-	UpdatedAt   int64    `json:"updatedAt"`
-	UpdatedBy   string   `json:"updatedBy"`
+	Layout      *FloorLayout `json:"layout,omitempty"`
+	ID          string       `json:"id"`
+	WorkspaceID string       `json:"workspaceId"`
+	SheetID     *string      `json:"sheetId"`
+	TargetType  *string      `json:"targetType"`
+	TargetID    *string      `json:"targetId"`
+	Body        string       `json:"body"`
+	Kind        string       `json:"kind"`
+	Author      string       `json:"author"`
+	PositionX   *float64     `json:"positionX"`
+	PositionY   *float64     `json:"positionY"`
+	CreatedAt   int64        `json:"createdAt"`
+	Width       float64      `json:"width"`
+	Height      float64      `json:"height"`
+	Revision    int          `json:"revision"`
+	UpdatedAt   int64        `json:"updatedAt"`
+	UpdatedBy   string       `json:"updatedBy"`
 }
 
 type CanvasMessage struct {
@@ -662,6 +663,9 @@ func CreateAnnotation(db *sql.DB, a *Annotation) error {
 	if err == nil && a.SheetID != nil {
 		_ = TouchSheet(db, *a.SheetID)
 	}
+	if err == nil && a.Kind == "note" {
+		a.Layout, err = GetNoteLayout(db, *a)
+	}
 	return err
 }
 
@@ -689,7 +693,21 @@ func GetAnnotations(db Reader, workspaceID string, sheetID *string) ([]Annotatio
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].Kind == "note" {
+			out[i].Layout, err = GetNoteLayout(db, out[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }
 
 func DeleteAnnotation(db *sql.DB, id string) error {
@@ -710,6 +728,12 @@ func GetAnnotation(database Reader, workspaceID, id string) (*Annotation, error)
 	if err != nil {
 		return nil, err
 	}
+	if a.Kind == "note" {
+		a.Layout, err = GetNoteLayout(database, a)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &a, nil
 }
 
@@ -729,8 +753,17 @@ func GetSurfaceAnnotations(database Reader, workspaceID string, sheetID *string)
 }
 
 func UpdateAnnotation(database *sql.DB, a *Annotation, revision int) error {
+	return UpdateAnnotationAndLayout(database, a, revision, nil)
+}
+
+func UpdateAnnotationAndLayout(database *sql.DB, a *Annotation, revision int, layout *FloorLayout) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	a.UpdatedAt = time.Now().UnixMilli()
-	result, err := database.Exec(`UPDATE annotations SET body=?,position_x=?,position_y=?,width=?,height=?,updated_at=?,updated_by=?,revision=revision+1 WHERE workspace_id=? AND id=? AND revision=?`, a.Body, a.PositionX, a.PositionY, a.Width, a.Height, a.UpdatedAt, a.UpdatedBy, a.WorkspaceID, a.ID, revision)
+	result, err := tx.Exec(`UPDATE annotations SET body=?,position_x=?,position_y=?,width=?,height=?,updated_at=?,updated_by=?,revision=revision+1 WHERE workspace_id=? AND id=? AND revision=?`, a.Body, a.PositionX, a.PositionY, a.Width, a.Height, a.UpdatedAt, a.UpdatedBy, a.WorkspaceID, a.ID, revision)
 	if err != nil {
 		return err
 	}
@@ -741,11 +774,22 @@ func UpdateAnnotation(database *sql.DB, a *Annotation, revision int) error {
 	if count != 1 {
 		return ErrAnnotationConflict
 	}
-	a.Revision = revision + 1
-	if a.SheetID != nil {
-		_ = TouchSheet(database, *a.SheetID)
+	if layout != nil {
+		if a.SheetID == nil {
+			_, err = applyFloorLayoutBatch(tx, a.WorkspaceID, []FloorLayout{*layout})
+		} else {
+			_, err = applySheetLayoutBatch(tx, *a.SheetID, a.WorkspaceID, []SheetLayout{{SheetID: *a.SheetID, WorkspaceID: a.WorkspaceID, NodeID: layout.NodeID, NodeType: "note", ParentNodeID: layout.ParentNodeID, ParentNodeType: layout.ParentNodeType, ContainmentKind: layout.ContainmentKind, PositionX: layout.PositionX, PositionY: layout.PositionY, Width: layout.Width, Height: layout.Height, Scale: layout.Scale, InteriorScale: layout.InteriorScale}})
+		}
+		if err != nil {
+			return err
+		}
 	}
-	return nil
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	a.Revision = revision + 1
+	a.Layout, err = GetNoteLayout(database, *a)
+	return err
 }
 
 func DeleteAnnotationRevision(database *sql.DB, workspaceID, id string, revision int) error {

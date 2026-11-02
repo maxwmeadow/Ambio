@@ -1,7 +1,7 @@
 import { zoomVisibilitySteps } from '../semanticZoom'
 import { useEffect, useRef, useState } from 'react'
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout } from '../../../shared/types'
-import { numericGeometryInputSteps, type FloorGeometryInput, type GeneratedPlacement, type PreparedFloorGeometry } from './sceneGeometry'
+import { numericGeometryInputSteps, type GeometryFile, type FloorGeometryInput, type GeneratedPlacement, type PreparedFloorGeometry } from './sceneGeometry'
 import type { SceneController } from './sceneController'
 import { beginPerfStage } from '../perfTrace'
 import { runSceneSteps } from './sceneSteps'
@@ -14,6 +14,7 @@ import { fitAutomaticSheetContentsSteps } from '../compactSheetSystems'
 
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
+  notes?: GeometryFile[]
   dependencies: DbDependency[]; layouts: FloorLayout[]; scope: string
   /** Defined for sheets, even when empty: incoming authored proposals can
    * compress live context that also needs its final body clearance restored. */
@@ -43,7 +44,7 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
     void (async () => {
       const finishNumeric = beginPerfStage('scene.numeric-input')
       let numeric: FloorGeometryInput
-      try { numeric = await runSceneSteps(numericGeometryInputSteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, placements), abort.signal) }
+      try { numeric = await runSceneSteps(numericGeometryInputSteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, placements, input.notes), abort.signal) }
       finally { finishNumeric() }
       if (abort.signal.aborted) return
       let entry = cached.current

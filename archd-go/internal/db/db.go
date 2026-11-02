@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 12 // 12: revisioned canvas notes with persisted size and edit attribution
+const SchemaVersion = 13 // 13: notes participate in native Floor and sheet layouts
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -677,7 +677,7 @@ func migrate(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS floor_layouts (
 		workspace_id      TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		node_id           TEXT NOT NULL,
-		node_type         TEXT NOT NULL CHECK(node_type IN ('system','file','infra')),
+		node_type         TEXT NOT NULL CHECK(node_type IN ('system','file','infra','note')),
 		parent_node_id    TEXT,
 		parent_node_type  TEXT CHECK(parent_node_type IS NULL OR parent_node_type IN ('system','infra')),
 		containment_kind  TEXT NOT NULL DEFAULT 'root' CHECK(containment_kind IN ('root','part_of','hosted_by')),
@@ -707,7 +707,7 @@ func migrate(db *sql.DB) error {
 		sheet_id           TEXT NOT NULL REFERENCES sheets(id) ON DELETE CASCADE,
 		workspace_id       TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		node_id            TEXT NOT NULL,
-		node_type          TEXT NOT NULL CHECK(node_type IN ('system','file','infra')),
+		node_type          TEXT NOT NULL CHECK(node_type IN ('system','file','infra','note')),
 		parent_node_id     TEXT,
 		parent_node_type   TEXT CHECK(parent_node_type IS NULL OR parent_node_type IN ('system','infra')),
 		containment_kind   TEXT NOT NULL DEFAULT 'root' CHECK(containment_kind IN ('root','part_of','hosted_by')),
@@ -927,6 +927,9 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateProposalMembershipDeletes(db); err != nil {
 		return fmt.Errorf("migrate proposal memberships: %w", err)
+	}
+	if err := migrateNoteLayouts(db); err != nil {
+		return err
 	}
 	if err := RepairUnplacedSheetLayouts(db); err != nil {
 		return err

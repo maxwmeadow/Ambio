@@ -11,7 +11,7 @@ export function sameGeometryInput(a: FloorGeometryInput, b: FloorGeometryInput):
 export function* sameGeometryInputSteps(a: FloorGeometryInput, b: FloorGeometryInput): Generator<void, boolean> {
   let work = 0
   for (const [before, after, fields] of [
-    [a.systems, b.systems, systemFields], [a.files, b.files, fileFields],
+    [a.notes ?? [], b.notes ?? [], fileFields], [a.systems, b.systems, systemFields], [a.files, b.files, fileFields],
     [a.infraNodes, b.infraNodes, infraFields], [a.dependencies, b.dependencies, ['src', 'dst']],
   ] as Array<[any[], any[], readonly string[]]>) {
     if (before.length !== after.length) return false

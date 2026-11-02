@@ -11,7 +11,7 @@ import (
 // and today's features work on it. The fixtures were written by the older
 // versions' own code (testdata/schemagen).
 func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
-	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql", "schema-v9.sql", "schema-v10.sql", "schema-v11.sql"} {
+	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql", "schema-v9.sql", "schema-v10.sql", "schema-v11.sql", "schema-v12.sql"} {
 		t.Run(fixture, func(t *testing.T) {
 			dir := t.TempDir()
 			script, err := os.ReadFile(filepath.Join("testdata", fixture))
@@ -47,6 +47,13 @@ func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
 				note.Body = "Edited after upgrade"
 				note.UpdatedBy = "user"
 				must(t, UpdateAnnotation(sqlDB, note, 1))
+			}
+			if fixture == "schema-v12.sql" {
+				note, err := GetAnnotation(sqlDB, "ws", "v12-note")
+				must(t, err)
+				if note == nil || note.Layout == nil || note.Layout.NodeType != "note" || note.Layout.PositionX != 52 || note.Body != "Existing sticky note" {
+					t.Fatalf("native note upgrade lost data: %#v", note)
+				}
 			}
 			// What the older Ambio wrote is still there.
 			systems, err := GetSystems(sqlDB, "ws")

@@ -360,21 +360,30 @@ to API-key billing or another account. Setup and live-account validation:
   kinds. Proposed systems show a collapsed summary; full descriptions use
   normal double-click Properties inspection, without a separate header badge.
   Description edits do not alter frame/child geometry.
-  `NoteNode` and `useCanvasNotes` project free-standing sticky notes after the
-  structural scene, so annotations never enter code packing, containment or
-  proposal review. The same revisioned annotation model backs the Floor
-  (`sheet_id IS NULL`) and individual sheets. The renderer refreshes scoped
-  snapshots, merges newer patches and suppresses deleted IDs. Text drafts
-  survive remote edits/deletion and surface switches; conflicts keep the draft
-  until the human selects latest text, explicitly replaces it, or saves a
-  deleted draft as a new note. Geometry failures restore persisted placement.
-  Notes keep creator attribution and separately record the latest editor.
-  Human actions use `sheetStore`; agents use existing `edit_sheet` operations:
-  `notes`, `annotate`, `edit_note`, `delete_note`, with `sheet: floor` for the
-  Floor. Annotation PATCH/DELETE require a note revision; stale writes return
-  409 and the current note. Schema v12 preserves old annotations and adds size,
-  revision and edit attribution. Sheet contents navigate to notes independently
-  of their pending/approved architectural content.
+  Sticky notes are native `note` leaves in the Floor/sheet canonical scene.
+  `FloorModel.notes`, numeric preparation, worker transfer, projection and the
+  standard `planCanvasDrop`/`planCanvasResize` paths include them. They inherit
+  parent content scale, collision placement, packing, compression and resize
+  constraints exactly as other leaves; there is no note-specific drop engine.
+  Annotation text stays separate from code meaning and proposal approvals.
+  Schema v13 extends the existing layout tables to notes, preserves old rows,
+  initializes legacy note geometry and removes layout rows with deleted notes.
+  Floor notes belong to their project; sheet notes to their sheet. A sheet can
+  override Floor note geometry when transforming a containing system, while
+  leaving the Floor and its annotation text unchanged. Agents read the current
+  canonical parent/geometry through each annotation's `layout` and may set the
+  owner using `edit_sheet(edit_note, parentNodeId)`; an empty owner means root.
+  Spatial transactions and text revisions are independent. Combined agent edits
+  validate/commit both in one transaction using the existing layout validators.
+  `useCanvasNotes` decorates the native nodes with text sessions from
+  `noteAutosave.ts`. Each session serializes automatic updates and retains
+  in-flight/newer text across surface navigation. Double-click edits; typing
+  saves after a short quiet period and blur flushes immediately. Normal notes
+  have no edit/save/cancel/delete buttons. Conflicts keep local text until the
+  person chooses latest text or explicitly keeps theirs; remote deletion keeps
+  draft recovery available. Creator attribution is immutable, with the latest
+  editor recorded separately. Existing `edit_sheet` note operations serve both
+  people and agents without expanding the tool count.
 
   Hidden compact title editors do not
   intercept detailed content. `wheelRouting.ts` keeps overflowing content in

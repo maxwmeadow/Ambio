@@ -89,7 +89,7 @@ func TestNotesValidateSurfaceAndGeometry(t *testing.T) {
 	_, mux, _ := inboxServer(t)
 	for _, body := range []map[string]any{
 		{"workspaceId": "ws", "body": "text", "sheetId": "missing"},
-		{"workspaceId": "ws", "body": " "},
+		{"workspaceId": "ws", "body": " ", "kind": "flag"},
 		{"workspaceId": "ws", "body": "text", "width": 20},
 		{"workspaceId": "ws", "body": "text", "author": "someone"},
 	} {

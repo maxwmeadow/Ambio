@@ -114,3 +114,8 @@ tool description over 460 characters.
 Legacy names remain callable but unlisted for one release. Before removing
 them, instrument which adapters are actually being hit - `agent_actions` in
 archd already records every call by tool name, so the data is there.
+
+Note operations keep their existing tool entry point. `notes` exposes each note's
+canonical `layout` (parent, position, dimensions and scale); `edit_note` accepts
+`parentNodeId` for a system owner, or an empty string for the root. Text and
+spatial updates validate/commit together, with scope and revision checks.

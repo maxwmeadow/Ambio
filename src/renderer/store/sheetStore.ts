@@ -74,6 +74,7 @@ export interface SheetElement {
 }
 
 export interface SheetAnnotation {
+  layout?: FloorLayout
   id: string
   workspaceId: string
   sheetId: string | null
@@ -474,6 +475,17 @@ function mergeSheetStates(incoming: Sheet[], previous: Sheet[]): Sheet[] {
   })
 }
 
+function mergeNoteLayout<T extends FloorLayout>(rows: T[], note: T): T[] {
+  const previous = rows.find(row => row.nodeId === note.nodeId && row.nodeType === 'note')
+  if (previous && previous.updatedAt > note.updatedAt) return rows
+  return [...rows.filter(row => row.nodeId !== note.nodeId || row.nodeType !== 'note'), note]
+}
+async function acceptFloorNoteLayout(note: SheetAnnotation) {
+  if (note.sheetId || !note.layout || useSheetStore.getState().workspaceId !== note.workspaceId) return
+  const { useGraphStore } = await import('./graphStore.ts')
+  useGraphStore.setState(state => state.currentProject?.id === note.workspaceId ? { floorLayouts: mergeNoteLayout(state.floorLayouts, note.layout!) } : {})
+}
+
 function annotationState(state: SheetState, note: SheetAnnotation): Partial<SheetState> {
   if (note.workspaceId !== state.workspaceId || state.deletedNoteIds?.[note.id]) return {}
   const merge = (notes: SheetAnnotation[]) => {
@@ -483,7 +495,7 @@ function annotationState(state: SheetState, note: SheetAnnotation): Partial<Shee
   }
   if (!note.sheetId) return { floorNotes: merge(state.floorNotes ?? []) }
   const layer = state.layersById[note.sheetId]
-  return layer ? commitSheetLayer(state, note.sheetId, { ...layer, annotations: merge(layer.annotations) }) : {}
+  return layer ? commitSheetLayer(state, note.sheetId, { ...layer, annotations: merge(layer.annotations), layouts: note.layout ? mergeNoteLayout(layer.layouts, { ...note.layout, sheetId: note.sheetId }) : layer.layouts }) : {}
 }
 
 async function noteResponse(response: Response): Promise<SheetAnnotation> {
@@ -771,6 +783,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       body: JSON.stringify({ workspaceId, sheetId, body, author: 'user', positionX: x, positionY: y }),
     })
     const note = await noteResponse(response)
+    await acceptFloorNoteLayout(note)
     set(state => state.workspaceId === workspaceId ? annotationState(state, note) : {})
     return note
   },
@@ -783,6 +796,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     const response = await fetch(`${archdApi()}/api/annotations?workspace=${encodeURIComponent(workspaceId)}&sheet=${encodeURIComponent(sheetId ?? 'floor')}`)
     if (!response.ok) throw new Error('Could not load notes for this surface.')
     const notes = await response.json() as SheetAnnotation[]
+    await Promise.all(notes.map(acceptFloorNoteLayout))
     set(state => {
       if (state.workspaceId !== workspaceId) return {}
       const layer = sheetId ? state.layersById[sheetId] : null
@@ -794,7 +808,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         if (byId.has(note.id) ? (byId.get(note.id)!.revision ?? 1) < (note.revision ?? 1) : baseline.get(note.id) !== note.revision) byId.set(note.id, note)
       }
       const annotations = [...byId.values()]
-      return sheetId ? commitSheetLayer(state, sheetId, { ...layer!, annotations }) : { floorNotes: annotations }
+      return sheetId ? commitSheetLayer(state, sheetId, { ...layer!, annotations, layouts: annotations.reduce((rows, note) => note.layout ? mergeNoteLayout(rows, { ...note.layout, sheetId }) : rows, layer!.layouts) }) : { floorNotes: annotations }
     })
   },
 
@@ -804,6 +818,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     })
     if (response.status === 404 && get().workspaceId === workspaceId) handleSheetPatch({ type: 'annotation:deleted', payload: { id, workspaceId } })
     const note = await noteResponse(response)
+    await acceptFloorNoteLayout(note)
     set(state => state.workspaceId === workspaceId ? annotationState(state, note) : {})
     return note
   },
@@ -1270,14 +1285,16 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'annotation:upserted': {
       const a = patch.payload as SheetAnnotation
+      void acceptFloorNoteLayout(a)
       useSheetStore.setState(st => annotationState(st, a))
       break
     }
     case 'annotation:deleted': {
       const { id } = patch.payload as { id: string }
+      void import('./graphStore.ts').then(({ useGraphStore }) => useGraphStore.setState(state => state.currentProject?.id === s.workspaceId ? { floorLayouts: state.floorLayouts.filter(row => row.nodeId !== `note:${id}`) } : {}))
       useSheetStore.setState(st => {
         const layersById = Object.fromEntries(Object.entries(st.layersById).map(([sheetId, layer]) => [
-          sheetId, { ...layer, annotations: layer.annotations.filter(x => x.id !== id) },
+          sheetId, { ...layer, annotations: layer.annotations.filter(x => x.id !== id), layouts: layer.layouts.filter(row => row.nodeId !== `note:${id}`) },
         ]))
         return { layersById, floorNotes: st.floorNotes.filter(note => note.id !== id), deletedNoteIds: { ...st.deletedNoteIds, [id]: true as const }, ...activeLayerProjection(st.activeSheetId, layersById) }
       })

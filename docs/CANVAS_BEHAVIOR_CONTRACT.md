@@ -933,20 +933,28 @@ the resize SVG remain protected until the harness covers their contracts.
 ## Sticky notes
 
 - Floor notes belong to the project; sheet notes belong to their sheet. Opening
-  a sheet keeps Floor notes visible as read-only context. Only the active
-  surface accepts edits; review/bin canvases do not create or edit notes.
-- Map → Add Note and the pane menu create a note at the camera center. The Note
-  stencil places a note on a sheet. Sticky notes have no code parent and never
-  participate in code packing, containment, or proposal approvals.
-- Double-click or Edit opens multiline text; Save or Ctrl/Cmd+Enter saves;
-  Escape/Cancel closes editing. Overflowing text consumes wheel scrolling.
-  Header dragging and the normal eight resize handles persist note geometry.
-- Note gestures have a separate selection group from code. Multiple editable
-  notes may move/resize together; a note gesture cannot reparent or move code.
-- User and agent operations share text, geometry and immutable creator
-  attribution. Updates/deletion use expected revisions. Conflicts preserve the
-  draft, expose newer text, and require an explicit choice before replacing it.
-  Remote deletion preserves an open draft with Save as new note. Surface
-  switches retain unsaved drafts for the current project; project switches
-  clear them. Save/geometry failures remain visible and do not claim success.
-- Expanded sheets list their notes for navigation, independently of code review.
+  a sheet keeps Floor note text read-only. Review/bin canvases do not author notes.
+- Notes are native leaf nodes. Dragging into/out of a system uses the existing
+  target detection, collision, packing, compression and canonical layout writes.
+  The Note stencil uses the same creation/drop path. Parent movement, scaling
+  and resizing carry notes exactly like other children; selection/grouping is
+  the normal canvas selection model. Notes never become semantic code entities
+  or pending code proposals.
+- Note geometry lives in the existing Floor/sheet layout tables. Parent-relative
+  coordinates and inherited world/content scales use the same preparation,
+  projection, worker and resize logic as other nodes. A sheet transforms its own
+  geometry, including Floor context children, without changing the Floor.
+- Double-click text (or Enter on a focused note) opens multiline editing.
+  Typing automatically persists serialized updates; blur flushes pending text.
+  Escape/Ctrl/Cmd+Enter ends editing without discarding changes. Empty text is
+  valid. There are no normal Edit/Save/Cancel/Delete buttons; Delete/Backspace
+  removes a selected note and edits text normally inside its textarea.
+- Overflowing text consumes scrolling; note paper/content scales with its
+  canonical geometry and stays clipped to its bounds. The standard eight resize
+  handles retain normal canvas behavior and screen size.
+- Human/agent text updates and deletion require a note revision. Conflicts keep
+  local text until an explicit choice; failed writes remain visible and preserve
+  drafts. Remote deletion retains draft recovery. Surface changes retain active
+  text sessions and flush pending updates; project changes flush and clear them.
+- Expanded sheets list notes independently of code review. Agent reads expose
+  current canonical geometry in `layout`; agent owner changes use `parentNodeId`.

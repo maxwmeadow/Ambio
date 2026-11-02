@@ -7,7 +7,7 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
-- Added sticky notes on the Floor and sheets: edit text, move, resize and delete from the canvas; agents share the same notes with revision checks that preserve concurrent drafts. Sheet contents include note navigation.
+- Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
 ### Added
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
