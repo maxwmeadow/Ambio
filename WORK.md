@@ -255,7 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- ⬜ `sheet-note-rendering` Note stencil posts positioned annotations and the store receives them, but no renderer consumes sheet annotations to draw/edit notes. Complete human/agent-visible note rendering, editing and deletion; replace silent creation errors with visible feedback. (2026-10-30, Max's stencil audit.)
+- 🚧 `sheet-note-rendering` **Sticky notes on the Floor and sheets, writable by people and agents.** Reuse persisted annotations; add a sticky-note renderer/editor, positioned/resizable canvas projection, scoped CRUD/read operations and agent support through existing tools. Keep notes outside code hierarchy/approval, preserve author attribution, reject stale edits, report save failures and persist placement. **Done when:** human→agent and agent→human create/read/edit/delete round trips pass on both surfaces, Floor/sheet isolation and reopen persistence hold, schema upgrades preserve existing annotations, and the rendered sticky notes match canvas interaction rules. Plan in Ambio before new files. (🚧 Codex, `codex/sheet-review-polish`, 2026-11-02; Max.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
 
