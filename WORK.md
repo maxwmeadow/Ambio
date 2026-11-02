@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `notes-native-nesting-autosave` **Integrate sticky notes with native system placement and live editing.** Remove ordinary edit/save/cancel/delete buttons; double-click edits text with automatic persistence. Extend existing canonical node/layout, drop, collision, compression and resize paths to notes on Floor and sheets; no parallel placement engine. Preserve agent access, scope isolation and concurrency protection. **Done when:** notes nest/unnest and reopen correctly, packed/occupied systems use existing collision/shrink behavior, resizing/moving parents includes notes, typing saves without controls, and related code/sheet regressions pass. (Codex, `codex/sheet-review-polish`, 2026-11-02; Max.)
+
 - ⬜ `note-context-handoffs` Include relevant sticky-note excerpts in automatic chat/work-order context. Agents can already read/write notes through `edit_sheet`, but note text is not yet injected into every architecture handoff. (2026-11-02)
 
 - ⬜ `git-worktree-status-watch-test` `TestMetadataWatcherIgnoresAStatusInALinkedWorktree` fails on Windows because a status in the linked checkout is reported as a metadata change. Reproduced in the full Go suite and alone during notes verification (2026-11-02); unrelated to notes.
