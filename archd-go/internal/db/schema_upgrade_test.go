@@ -11,7 +11,7 @@ import (
 // and today's features work on it. The fixtures were written by the older
 // versions' own code (testdata/schemagen).
 func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
-	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql", "schema-v9.sql", "schema-v10.sql"} {
+	for _, fixture := range []string{"schema-v0.sql", "schema-v1.sql", "schema-v2.sql", "schema-v4.sql", "schema-v5.sql", "schema-v6.sql", "schema-v7.sql", "schema-v8.sql", "schema-v9.sql", "schema-v10.sql", "schema-v11.sql"} {
 		t.Run(fixture, func(t *testing.T) {
 			dir := t.TempDir()
 			script, err := os.ReadFile(filepath.Join("testdata", fixture))
@@ -38,6 +38,16 @@ func TestMapsFromEarlierSchemasUpgrade(t *testing.T) {
 				t.Fatalf("upgraded to v%d, want v%d", version, SchemaVersion)
 			}
 
+			if fixture == "schema-v11.sql" {
+				note, err := GetAnnotation(sqlDB, "ws", "legacy-note")
+				must(t, err)
+				if note == nil || note.Body != "Keep this explanation" || note.Author != "agent" || note.Revision != 1 || note.Width != 260 || *note.PositionX != 12 {
+					t.Fatalf("legacy note lost: %#v", note)
+				}
+				note.Body = "Edited after upgrade"
+				note.UpdatedBy = "user"
+				must(t, UpdateAnnotation(sqlDB, note, 1))
+			}
 			// What the older Ambio wrote is still there.
 			systems, err := GetSystems(sqlDB, "ws")
 			must(t, err)

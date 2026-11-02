@@ -85,6 +85,11 @@ export interface SheetAnnotation {
   positionX: number | null
   positionY: number | null
   createdAt: number
+  width: number
+  height: number
+  revision: number
+  updatedAt: number
+  updatedBy: 'user' | 'agent'
 }
 
 export interface CanvasMessage {
@@ -422,7 +427,13 @@ interface SheetState {
   ) => Promise<void>
   deletePlanned: (workspaceId: string, id: string) => Promise<void>
   createPlannedEdge: (workspaceId: string, sheetId: string, e: Partial<PlannedEdge>) => Promise<void>
-  createFloatingNote: (workspaceId: string, sheetId: string, body: string, x: number, y: number) => Promise<void>
+  floorNotes: SheetAnnotation[]
+  deletedNoteIds: Record<string, true>
+  loadFloorNotes: (workspaceId: string) => Promise<void>
+  loadSurfaceNotes: (workspaceId: string, sheetId: string | null) => Promise<void>
+  createFloatingNote: (workspaceId: string, sheetId: string | null, body: string, x: number, y: number) => Promise<SheetAnnotation>
+  saveAnnotation: (workspaceId: string, id: string, revision: number, patch: Partial<Pick<SheetAnnotation, 'body' | 'positionX' | 'positionY' | 'width' | 'height'>>) => Promise<SheetAnnotation>
+  deleteAnnotation: (workspaceId: string, id: string, revision: number) => Promise<void>
 }
 
 function activeLayerProjection(activeSheetId: string | null, layersById: Record<string, SheetLayerData>) {
@@ -463,6 +474,27 @@ function mergeSheetStates(incoming: Sheet[], previous: Sheet[]): Sheet[] {
   })
 }
 
+function annotationState(state: SheetState, note: SheetAnnotation): Partial<SheetState> {
+  if (note.workspaceId !== state.workspaceId || state.deletedNoteIds?.[note.id]) return {}
+  const merge = (notes: SheetAnnotation[]) => {
+    const current = notes.find(item => item.id === note.id)
+    if (current && (current.revision ?? 1) > (note.revision ?? 1)) return notes
+    return current ? notes.map(item => item.id === note.id ? note : item) : [...notes, note]
+  }
+  if (!note.sheetId) return { floorNotes: merge(state.floorNotes ?? []) }
+  const layer = state.layersById[note.sheetId]
+  return layer ? commitSheetLayer(state, note.sheetId, { ...layer, annotations: merge(layer.annotations) }) : {}
+}
+
+async function noteResponse(response: Response): Promise<SheetAnnotation> {
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    if (data.current) useSheetStore.setState(state => annotationState(state, data.current))
+    throw new Error(data.error || `Could not save this note (${response.status}).`)
+  }
+  return data as SheetAnnotation
+}
+
 export const useSheetStore = create<SheetState>((set, get) => ({
   workspaceId: null,
   sheets: [],
@@ -471,6 +503,8 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   layersById: {},
   elements: [],
   annotations: [],
+  floorNotes: [],
+  deletedNoteIds: {},
   planned: [],
   plannedEdges: [],
   layouts: [],
@@ -481,7 +515,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   selectedCanvasIds: [],
 
   fetchSheets: async (workspaceId) => {
-    if (get().workspaceId !== workspaceId) set({ workspaceId, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
+    if (get().workspaceId !== workspaceId) set({ workspaceId, floorNotes: [], deletedNoteIds: {}, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
     void refreshInbox(workspaceId)
     const request = ++fetchSheetsRequest
     try {
@@ -492,7 +526,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       set(s => s.workspaceId === workspaceId
         ? { sheets: mergeSheetStates(sheets,s.sheets), ...pruneResolvedLayers(s, mergeSheetStates(sheets,s.sheets)) }
         : {
-            workspaceId, sheets, activeSheetId: null, visibleSheetIds: [], layersById: {},
+            workspaceId, floorNotes: [], deletedNoteIds: {}, sheets, activeSheetId: null, visibleSheetIds: [], layersById: {},
             elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [],
           })
     } catch (err) {
@@ -731,11 +765,53 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   },
 
   createFloatingNote: async (workspaceId, sheetId, body, x, y) => {
-    await fetch(`${archdApi()}/api/annotations`, {
+    const response = await fetch(`${archdApi()}/api/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceId, sheetId, body, author: 'user', positionX: x, positionY: y }),
-    }).catch(() => {})
+    })
+    const note = await noteResponse(response)
+    set(state => state.workspaceId === workspaceId ? annotationState(state, note) : {})
+    return note
+  },
+
+  loadFloorNotes: async workspaceId => get().loadSurfaceNotes(workspaceId, null),
+
+  loadSurfaceNotes: async (workspaceId, sheetId) => {
+    const before = sheetId ? get().layersById[sheetId]?.annotations ?? [] : get().floorNotes
+    const baseline = new Map(before.map(note => [note.id, note.revision]))
+    const response = await fetch(`${archdApi()}/api/annotations?workspace=${encodeURIComponent(workspaceId)}&sheet=${encodeURIComponent(sheetId ?? 'floor')}`)
+    if (!response.ok) throw new Error('Could not load notes for this surface.')
+    const notes = await response.json() as SheetAnnotation[]
+    set(state => {
+      if (state.workspaceId !== workspaceId) return {}
+      const layer = sheetId ? state.layersById[sheetId] : null
+      if (sheetId && !layer) return {}
+      const current = sheetId ? layer!.annotations : state.floorNotes
+      const byId = new Map(notes.filter(note => !state.deletedNoteIds[note.id]).map(note => [note.id, note]))
+      for (const note of current) {
+        if (state.deletedNoteIds[note.id]) continue
+        if (byId.has(note.id) ? (byId.get(note.id)!.revision ?? 1) < (note.revision ?? 1) : baseline.get(note.id) !== note.revision) byId.set(note.id, note)
+      }
+      const annotations = [...byId.values()]
+      return sheetId ? commitSheetLayer(state, sheetId, { ...layer!, annotations }) : { floorNotes: annotations }
+    })
+  },
+
+  saveAnnotation: async (workspaceId, id, revision, patch) => {
+    const response = await fetch(`${archdApi()}/api/annotations/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...patch, revision, updatedBy: 'user' }),
+    })
+    if (response.status === 404 && get().workspaceId === workspaceId) handleSheetPatch({ type: 'annotation:deleted', payload: { id, workspaceId } })
+    const note = await noteResponse(response)
+    set(state => state.workspaceId === workspaceId ? annotationState(state, note) : {})
+    return note
+  },
+
+  deleteAnnotation: async (workspaceId, id, revision) => {
+    const response = await fetch(`${archdApi()}/api/annotations/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}&revision=${revision}`, { method: 'DELETE' })
+    if (!response.ok) { await noteResponse(response); return }
+    if (get().workspaceId === workspaceId) handleSheetPatch({ type: 'annotation:deleted', payload: { id, workspaceId } })
   },
 
   previewPlannedPosition: (id, x, y) => {
@@ -1194,14 +1270,7 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
     }
     case 'annotation:upserted': {
       const a = patch.payload as SheetAnnotation
-      if (!a.sheetId || !s.layersById[a.sheetId]) break
-      useSheetStore.setState(st => {
-        const layer = st.layersById[a.sheetId!]
-        const annotations = layer.annotations.some(x => x.id === a.id)
-          ? layer.annotations.map(x => x.id === a.id ? a : x)
-          : [...layer.annotations, a]
-        return commitSheetLayer(st, a.sheetId!, { ...layer, annotations })
-      })
+      useSheetStore.setState(st => annotationState(st, a))
       break
     }
     case 'annotation:deleted': {
@@ -1210,7 +1279,7 @@ export function handleSheetPatch(patch: { type: string; payload: unknown }): voi
         const layersById = Object.fromEntries(Object.entries(st.layersById).map(([sheetId, layer]) => [
           sheetId, { ...layer, annotations: layer.annotations.filter(x => x.id !== id) },
         ]))
-        return { layersById, ...activeLayerProjection(st.activeSheetId, layersById) }
+        return { layersById, floorNotes: st.floorNotes.filter(note => note.id !== id), deletedNoteIds: { ...st.deletedNoteIds, [id]: true as const }, ...activeLayerProjection(st.activeSheetId, layersById) }
       })
       break
     }

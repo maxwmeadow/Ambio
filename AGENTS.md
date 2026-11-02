@@ -4,6 +4,13 @@ You are working on Ambio: the bidirectional architecture
 layer between a developer and their coding agents. Read
 [docs/PRODUCT.md](docs/PRODUCT.md) once to understand what it is for.
 
+## Developing Ambio itself
+
+Do not use Ambio tools/MCP while developing this repository. Max keeps that
+connection installed for manual testing with the agent. Use ordinary repository
+tools and the user's implementation instructions; the draw-first workflow below
+does not apply to development of Ambio itself. (Max, 2026-11-02.)
+
 ## Where the work is
 
 **[WORK.md](WORK.md) is the work list for every session.** Several agent

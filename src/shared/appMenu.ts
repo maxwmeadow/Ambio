@@ -32,6 +32,7 @@ export type CommandId =
   | 'map.copyMermaid'
   | 'map.importSheetMarkdown'
   | 'map.addInfra'
+  | 'map.addNote'
   | 'map.lasso'
   | 'map.tidy'
   | 'view.zoomMapIn'
@@ -115,6 +116,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'map.importSheetMarkdown': { id: 'map.importSheetMarkdown', label: 'New Sheet from Markdown…', needsProject: true },
   'map.copySheetMarkdown': { id: 'map.copySheetMarkdown', label: 'Copy Sheet as Markdown', needsProject: true },
   'map.copyMermaid': { id: 'map.copyMermaid', label: 'Copy Map as Mermaid', needsProject: true },
+  'map.addNote': { id: 'map.addNote', label: 'Add Note', needsProject: true },
   'map.addInfra': { id: 'map.addInfra', label: 'Add Infrastructure…', needsProject: true },
   'map.lasso': { id: 'map.lasso', label: 'Lasso Select', needsProject: true },
   'map.tidy': { id: 'map.tidy', label: 'Tidy Layout', accelerator: 'CmdOrCtrl+Shift+L', needsProject: true },
@@ -256,7 +258,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
   sections.push({
     id: 'map', label: 'Map', entries: [
       command('map.newSheet'), command('map.importSheetMarkdown'), command('map.copySheetMarkdown'), command('map.copyMermaid'), separator,
-      command('map.addInfra'), command('map.lasso'), command('map.tidy'), separator,
+      command('map.addInfra'), command('map.addNote'), command('map.lasso'), command('map.tidy'), separator,
       command('view.reviewChanges'),
     ],
   })

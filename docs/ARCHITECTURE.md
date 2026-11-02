@@ -360,6 +360,22 @@ to API-key billing or another account. Setup and live-account validation:
   kinds. Proposed systems show a collapsed summary; full descriptions use
   normal double-click Properties inspection, without a separate header badge.
   Description edits do not alter frame/child geometry.
+  `NoteNode` and `useCanvasNotes` project free-standing sticky notes after the
+  structural scene, so annotations never enter code packing, containment or
+  proposal review. The same revisioned annotation model backs the Floor
+  (`sheet_id IS NULL`) and individual sheets. The renderer refreshes scoped
+  snapshots, merges newer patches and suppresses deleted IDs. Text drafts
+  survive remote edits/deletion and surface switches; conflicts keep the draft
+  until the human selects latest text, explicitly replaces it, or saves a
+  deleted draft as a new note. Geometry failures restore persisted placement.
+  Notes keep creator attribution and separately record the latest editor.
+  Human actions use `sheetStore`; agents use existing `edit_sheet` operations:
+  `notes`, `annotate`, `edit_note`, `delete_note`, with `sheet: floor` for the
+  Floor. Annotation PATCH/DELETE require a note revision; stale writes return
+  409 and the current note. Schema v12 preserves old annotations and adds size,
+  revision and edit attribution. Sheet contents navigate to notes independently
+  of their pending/approved architectural content.
+
   Hidden compact title editors do not
   intercept detailed content. `wheelRouting.ts` keeps overflowing content in
   control at either boundary while short content still allows camera zoom.

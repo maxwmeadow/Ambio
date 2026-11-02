@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 11 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames, 8: delta_watermarks per branch, 9: roots.is_focused, 10: systems.kind, 11: finite, credential-scoped mapping attempts
+const SchemaVersion = 12 // 12: revisioned canvas notes with persisted size and edit attribution
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -828,6 +828,11 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE roots ADD COLUMN is_focused INTEGER NOT NULL DEFAULT 0`,
 		// A repository's frame inside a project of several (GIT_AND_PROJECT_SHAPES).
 		`ALTER TABLE systems ADD COLUMN kind TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE annotations ADD COLUMN width REAL NOT NULL DEFAULT 260`,
+		`ALTER TABLE annotations ADD COLUMN height REAL NOT NULL DEFAULT 180`,
+		`ALTER TABLE annotations ADD COLUMN revision INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE annotations ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE annotations ADD COLUMN updated_by TEXT NOT NULL DEFAULT ''`,
 		// Parallel-agent history is stamped at write time. NULL deliberately
 		// remains the legacy representation and resolves to the primary root.
 		`ALTER TABLE structural_events ADD COLUMN root_id TEXT`,

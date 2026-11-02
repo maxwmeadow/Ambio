@@ -1,3 +1,5 @@
+import NoteNode from './nodes/NoteNode'
+import { useCanvasNotes } from './hooks/useCanvasNotes'
 /**
  * Ambio's nested canvas interaction controller. Numeric Floor/sheet geometry is
  * prepared by the shared scene worker. Complete canonical geometry stays
@@ -157,6 +159,7 @@ function dragTraceEnabled(): boolean {
 // ─── Node type registry ────────────────────────────────────────────────────
 
 export const NODE_TYPES: NodeTypes = {
+  note: NoteNode,
   system:  SystemNode     as any,
   file:    FileNode       as any,
   infra:   InfraNode      as any,
@@ -852,7 +855,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   // Review and bin canvases reuse this component; only the live Floor answers.
   useCommandHandlers({ 'map.newSheet': () => {
     if (isolatedScene) return
-    setSheetSourceIds([...selectedIdsRef.current])
+    setSheetSourceIds([...selectedIdsRef.current].filter(id => !id.startsWith('note:')))
     setSheetDialogOpen(true)
   } })
   // ── Sheet overlay (REVISION 2: sheets are layers over the Floor) ─────────
@@ -1376,7 +1379,16 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
-  const displayNodes = sheetInteractionNodes ?? composedNodes
+  const canvasNotes = useCanvasNotes(workspaceIdForOverlay, overlaySheetId, visibleSheetIds, !isolatedScene && !binMode && !reviewMode, readOnly)
+  const { beginGeometry: beginNoteGeometry, finishGeometry: finishNoteGeometry, onChanges: onNoteChanges } = canvasNotes
+  const displayNodes = useMemo(() => [...(sheetInteractionNodes ?? composedNodes).filter(node => node.type !== 'note'), ...canvasNotes.nodes], [sheetInteractionNodes, composedNodes, canvasNotes.nodes])
+  useEffect(() => {
+    const noteIds = new Set(canvasNotes.nodes.map(node => node.id))
+    const current = selectedIdsRef.current
+    const next = new Set([...current].filter(id => !id.startsWith('note:') || noteIds.has(id)))
+    if (next.size !== current.size) commitSelection(next)
+    if (selectedNodeId?.startsWith('note:') && !noteIds.has(selectedNodeId)) setSelectedNode(null)
+  }, [canvasNotes.nodes, selectedNodeId, commitSelection, setSelectedNode])
   const displayNodesRef = useRef<Node[]>(displayNodes)
   displayNodesRef.current = displayNodes
   const relationshipEndpoints = useMemo(() => {
@@ -1857,7 +1869,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const [creatingStencil, setCreatingStencil] = useState(false)
   const [stencilFocusId, setStencilFocusId] = useState<string | null>(null)
   const stencilScene = useCallback(() => {
-    const nodes = displayNodesRef.current
+    const nodes = displayNodesRef.current.filter(node => node.type !== 'note')
     const positions = new Map(nodes.map(node => [node.id,
       getInternalNode(node.id)?.internals.positionAbsolute ?? node.position]))
     return { nodes, positions }
@@ -1871,7 +1883,8 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     try {
       const store = useSheetStore.getState()
       if (stencil.shape === 'note') {
-        await store.createFloatingNote(workspaceIdForOverlay, overlaySheetId, 'New note - double-click to edit', point.x, point.y)
+        holdCameraForGesture()
+        await canvasNotes.create(point)
         return
       }
       const id = crypto.randomUUID()
@@ -2868,6 +2881,22 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   }, [floorEditable, selectedNodeId, setSelectedNode, setInspectedNode])
 
   useEffect(() => {
+    const note = canvasNotes.nodes.find(node => node.id === selectedNodeId && node.data.editable)
+    if (!note) return
+    const onDeleteNote = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return
+      event.preventDefault(); event.stopPropagation()
+      // The note keeps any failure inline. Only an explicit successful delete
+      // discards its draft; remote deletion keeps the recovery editor.
+      void note.data.onDelete().then(() => note.data.onDraft(null)).catch(() => {})
+    }
+    window.addEventListener('keydown', onDeleteNote)
+    return () => window.removeEventListener('keydown', onDeleteNote)
+  }, [canvasNotes.nodes, selectedNodeId])
+
+  useEffect(() => {
     if (readOnly || !overlaySheetId || !selectedNodeId) return
     const onDeleteSelectedSheetNode = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
@@ -3109,7 +3138,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      const { interaction, rejectedStructural } = partitionCanvasNodeChanges(changes)
+      const { interaction, rejectedStructural } = partitionCanvasNodeChanges(onNoteChanges(changes))
       if (rejectedStructural.length > 0) {
         console.error('[scene-integrity] rejected structural React Flow changes', {
           projectId: useGraphStore.getState().currentProject?.id ?? 'demo',
@@ -3198,13 +3227,13 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         const geometryChanges = interactionChanges.filter(change => change.type === 'position' ||
           (change.type === 'dimensions' && resizeStartRef.current.size > 0))
         if (geometryChanges.length > 0) {
-          setSheetInteractionNodes(nodes => applyNodeChanges(geometryChanges, nodes ?? displayNodesRef.current))
+          setSheetInteractionNodes(nodes => applyNodeChanges(geometryChanges, (nodes ?? displayNodesRef.current).filter(node => node.type !== 'note')))
         }
       } else {
         sceneSourceRef.current = 'react-flow-interaction'
         setRfNodes(nodes => applyNodeChanges(interactionChanges, nodes))
       }
-    }, [getViewport, overlaySheetId]
+    }, [getViewport, overlaySheetId, onNoteChanges]
   )
   const onEdgesChange: OnEdgesChange = useCallback(
     (changes) => setRfEdges(es => applyEdgeChanges(changes, es)), []
@@ -3237,6 +3266,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   }, [applySelection, setSelectedNode, setInspectedNode])
 
   const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (node.type === 'note') return
     const target = event.target as HTMLElement | null
     if (target?.closest('input, textarea, select, button, [contenteditable="true"], [data-node-editable="true"]')) return
     setSelectedNode(node.id)
@@ -3278,6 +3308,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   // ── Drag visibility override ─────────────────────────────────────────────
   const onNodeDragStart: OnNodeDrag = useCallback((event, node) => {
+    if (node.type === 'note') { holdCameraForGesture(); beginNoteGeometry(node.id.slice(5)); return }
     if (resizingNodeIdRef.current === node.id) return
     setIsTransitioningLayout(false)
     setIsDraggingScene(true)
@@ -3381,9 +3412,10 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         : undefined,
       element: traceState.elements.find(e => (e.systemId ?? e.fileId ?? e.infraId) === node.id),
     })
-  }, [applySelection, getInternalNode, getViewport, screenToFlowPosition, setSelectedNode, updateInteractiveNodes])
+  }, [applySelection, getInternalNode, getViewport, screenToFlowPosition, setSelectedNode, updateInteractiveNodes, beginNoteGeometry])
 
   const onNodeDrag: OnNodeDrag = useCallback((event, node) => {
+    if (node.type === 'note') return
     // Dragging a file out of the bin crosses a window boundary. The window
     // clips its own contents, so the real node vanishes the moment it leaves -
     // a ghost carries the gesture the rest of the way, at document level,
@@ -3571,6 +3603,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   }, [getInternalNode, getViewport, screenToFlowPosition, overlaySheetId, activeNodeIds, updateInteractiveNodes, reviewMode, reviewEditableNodeIds, files])
 
   const onNodeDragStop: OnNodeDrag = useCallback((event, node) => {
+    if (node.type === 'note') { void finishNoteGeometry(node.id.slice(5), { positionX: node.position.x, positionY: node.position.y }); return }
     if (resizingNodeIdRef.current === node.id) return
     const finalPosition = dragPositionRef.current.get(node.id) ?? node.position
     dragPositionRef.current.delete(node.id)
@@ -3833,7 +3866,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
       })))
     }
 
-  }, [currentProject, getInternalNode, getViewport, screenToFlowPosition, overlaySheetId, activeElementByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, updateInteractiveNodes, sheetSystemIds, sheetFileIds, sheetInfraIds, sheetEffectiveLayouts, reviewMode, reviewScene?.workspaceId, reviewEditableNodeIds, previewReviewLayouts, saveReviewLayouts, systems, files, infraNodes, floorLayouts])
+  }, [finishNoteGeometry, currentProject, getInternalNode, getViewport, screenToFlowPosition, overlaySheetId, activeElementByNodeId, activePlannedByNodeId, activeNodeIds, workspaceIdForOverlay, updateInteractiveNodes, sheetSystemIds, sheetFileIds, sheetInfraIds, sheetEffectiveLayouts, reviewMode, reviewScene?.workspaceId, reviewEditableNodeIds, previewReviewLayouts, saveReviewLayouts, systems, files, infraNodes, floorLayouts])
 
   // Meaning edits offered to nodes on the live Floor (floorEditContext). The
   // value is stable: it reads current state when called, so providing it
@@ -3892,6 +3925,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     return signature
   }, [renderedNodes, sceneProjectId])
   const attachNodeInteractions = useCallback((node: Node): Node => {
+    if (node.type === 'note') return node
     const editable = !readOnly && (!reviewMode || reviewLayoutReady)
     const handlers = editable ? getResizeHandlers(node.id, Boolean(overlaySheetId && activeNodeIds.has(node.id))) : undefined
     if (node.data.onResizeStart === handlers?.onResizeStart && node.data.onResizeEnd === handlers?.onResizeEnd) return node
@@ -4090,6 +4124,15 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const onCanvasPointerDownCapture = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     traceCanvasHit(event)
     const target = event.target as HTMLElement
+    // Annotations have their own selection group. A code drag must never move
+    // comments accidentally, or carry a note through code reparenting.
+    const noteTarget = target.closest('.react-flow__node-note, .ambio-node-resizer[data-node-id^="note:"]')
+    const codeTarget = !noteTarget && target.closest('.react-flow__node, .ambio-node-resizer')
+    if ((noteTarget || codeTarget) && target.closest(`[${CANVAS_SCOPE_ATTR}]`) === event.currentTarget) {
+      const current = selectedIdsRef.current
+      const next = new Set([...current].filter(id => id.startsWith('note:') === Boolean(noteTarget)))
+      if (next.size !== current.size) applySelection(next)
+    }
     // Review exposes every child. Capture a genuine pane pan so Chromium need
     // not hit-test that entire painted tree again for each mouse position.
     // Leave node gestures, Shift/lasso selection and touch/pinch to React Flow.
@@ -4099,7 +4142,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
         (event.button === 0 && (selectionMode || event.shiftKey))) return
     try { target.setPointerCapture(event.pointerId) }
     catch { /* A cancelled/synthetic pointer can use Flow's ordinary pan path. */ }
-  }, [reviewMode, selectionMode, traceCanvasHit])
+  }, [reviewMode, selectionMode, traceCanvasHit, applySelection])
 
   // Canvas commands (docs/INFRA.md, "Canvas chrome"): zoom, tidy and
   // the infrastructure sidebar live in the View and Map menus, the palette
@@ -4108,6 +4151,14 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
   const tidyFrameRef = useRef(tidyFrame)
   tidyFrameRef.current = tidyFrame
   useCommandHandlers({
+    'map.addNote': () => {
+      if (binMode || reviewMode || readOnly || isolatedScene) return
+      holdCameraForGesture()
+      const bounds = canvasRootRef.current?.getBoundingClientRect()
+      if (!bounds) return
+      void canvasNotes.create(screenToFlowPosition({ x: bounds.left + bounds.width / 2 - 130, y: bounds.top + bounds.height / 2 - 90 }))
+        .catch(reason => raiseFailure('canvas-note-create', 'Could not create note', reason instanceof Error ? reason.message : String(reason)))
+    },
     'view.zoomMapIn': () => { if (!binMode) void zoomIn({ duration: 180 }) },
     'view.zoomMapOut': () => { if (!binMode) void zoomOut({ duration: 180 }) },
     'map.tidy': () => { if (!binMode && !readOnly) void tidyFrameRef.current() },
@@ -4409,7 +4460,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           </button>
           <button
             type="button"
-            onClick={() => { setSheetSourceIds([...selectedIdsRef.current]); setSheetDialogOpen(true) }}
+            onClick={() => { setSheetSourceIds([...selectedIdsRef.current].filter(id => !id.startsWith('note:'))); setSheetDialogOpen(true) }}
             title="Curate the selection onto a named sheet - a live diagram telling one story"
             className="ambio-selection-action"
           >

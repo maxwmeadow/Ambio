@@ -38,6 +38,7 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
   }, [workspaceId, sheetId])
   if (!layer) return <p className="ambio-sheet-tree__empty" role={error ? 'alert' : 'status'}>{error || 'Loading contents…'}</p>
   const planned = layer.planned.filter(node => node.status !== 'flattened' && node.approvalStatus !== 'rejected')
+  const notes = (layer.annotations ?? []).filter(note => note.kind === 'note')
   const edges = layer.plannedEdges.filter(edge => edge.approvalStatus !== 'rejected')
   const removed = new Set(layer.removals?.map(item => item.nodeId))
   const references = layer.elements.map(element => ({ element, id: element.fileId ?? element.systemId ?? element.infraId ?? element.symbolRef ?? '' })).filter(item => item.id && !removed.has(item.id))
@@ -111,7 +112,14 @@ function SheetContents({ sheetId, workspaceId }: { sheetId: string; workspaceId:
         {element.fileId && <span className="ambio-sheet-tree__mark" />}<button type="button" className="ambio-sheet-tree__item" aria-label={`Show ${label(id)} on sheet`} onClick={() => void focus(id)}>{!element.fileId && <SystemIcon />}<span>{label(id)}</span></button>
       </li>)}
     </ul>
-    {!entries.length && !live.length && !edges.length && <p className="ambio-sheet-tree__empty">No proposed changes yet.</p>}
+    {notes.length > 0 && <div className="ambio-sheet-tree__notes" role="group" aria-label="Notes">
+      <span className="ambio-sheet-tree__notes-label">Notes · {notes.length}</span>
+      {notes.map(note => <button key={note.id} className="ambio-sheet-tree__note" title={note.body} onClick={() => void focus(`note:${note.id}`)}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12v8l-4 4H2Z M10 14v-4h4" /></svg>
+        <span>{note.body.split('\n')[0].trim() || 'Untitled note'}</span>
+      </button>)}
+    </div>}
+    {!entries.length && !live.length && !edges.length && !notes.length && <p className="ambio-sheet-tree__empty">No proposed changes yet.</p>}
     {edges.length > 0 && <div className="ambio-sheet-tree__connections">
       <button type="button" className="ambio-sheet-tree__heading" aria-expanded={connectionsOpen} aria-controls={connectionsId} onClick={() => setConnectionsOpen(value => !value)}>
         <svg className="ambio-sheet-connections-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h3v10h3M8 8h3" /><rect x="1" y="1" width="4" height="4" /><rect x="11" y="6" width="4" height="4" /><rect x="11" y="11" width="4" height="4" /></svg>

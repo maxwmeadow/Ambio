@@ -862,7 +862,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
     }
     deltaRefreshPending = false
-    useSheetStore.setState({ workspaceId: project?.id ?? null, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
+    useSheetStore.setState({ workspaceId: project?.id ?? null, floorNotes: [], deletedNoteIds: {}, messages: [], inboxError: null, inboxNextCursor: '', inboxAvailableCount: 0, selectedCanvasIds: [], sheets: [], activeSheetId: null, visibleSheetIds: [], layersById: {}, elements: [], annotations: [], planned: [], plannedEdges: [], layouts: [] })
     return {
       currentProject: project,
       systems: [],

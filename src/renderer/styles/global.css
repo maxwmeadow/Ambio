@@ -8524,3 +8524,27 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #26332f;
   font-size: 12px;
 }
+
+/* Notes are paper annotations, independent of code hierarchy and semantic zoom. */
+.react-flow__node-note { background: transparent; border: 0; }
+.canvas-note { width: 100%; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; position: relative; color: #453b22; background: linear-gradient(145deg, #fff3ad, #f5df85); border: 1px solid #c8ae60; border-radius: 2px 2px 16px 2px; box-shadow: 4px 5px 0 #28352f24; font: 14px/1.5 var(--font-sans, sans-serif); }
+.canvas-note::after { content: ''; position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; background: linear-gradient(135deg, #cfb361 48%, #eee6c7 50%); border-radius: 0 0 12px 0; pointer-events: none; }
+.canvas-note__header { display: flex; justify-content: space-between; align-items: center; min-height: 29px; padding: 4px 12px; border-bottom: 1px solid #a88b3029; font: 10px/1.4 var(--font-mono, monospace); letter-spacing: .1em; cursor: grab; }
+.canvas-note__author { margin-left: 7px; letter-spacing: 0; opacity: .65; }
+.canvas-note__actions { display: flex; gap: 7px; }
+.canvas-note button { border: 1px solid #aa913b66; background: #fff8d55c; color: inherit; padding: 2px 7px; font: inherit; cursor: pointer; border-radius: 2px; }
+.canvas-note button:hover { background: #fff8dc; border-color: #8d742d; }
+.canvas-note button:disabled { opacity: .5; cursor: default; }
+.canvas-note button:focus-visible, .canvas-note:focus-visible { outline: 2px solid #3d7b78; outline-offset: 2px; }
+.canvas-note__body { flex: 1; min-height: 0; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 11px 14px 17px; cursor: text; user-select: text; }
+.canvas-note__editor { flex: 1; min-height: 28px; resize: none; margin: 8px 10px 4px; padding: 4px; border: 1px solid #9e843c; outline-color: #3d7b78; background: #fffbed80; color: inherit; font: inherit; overflow-y: auto; }
+.canvas-note__footer { display: flex; gap: 6px; padding: 3px 12px 12px; font-size: 11px; }
+.canvas-note__notice { font-size: 11px; line-height: 1.35; padding: 6px 12px 12px; background: #fff5d16b; max-height: 40%; overflow-y: auto; }
+.canvas-note__conflict-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+
+.ambio-sheet-tree__notes { background: #f5e8ad55; border-top: 1px solid #baa05b33; padding: 8px 10px; }
+.ambio-sheet-tree__notes-label { display: block; color: #79632e; font: 10px var(--font-mono, monospace); letter-spacing: .06em; margin-bottom: 4px; text-transform: uppercase; }
+.ambio-sheet-tree__note { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; color: inherit; padding: 6px 3px; cursor: pointer; font: inherit; }
+.ambio-sheet-tree__note:hover, .ambio-sheet-tree__note:focus-visible { background: #eed79055; }
+.ambio-sheet-tree__note svg { width: 16px; height: 16px; flex: 0 0 auto; fill: #f1dc91; stroke: #99783a; stroke-width: 1.2; }
+.ambio-sheet-tree__note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

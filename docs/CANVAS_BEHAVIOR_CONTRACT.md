@@ -928,3 +928,25 @@ changing their behavior:
 `AmbioCanvas` remains the integration shell until each extracted module has
 characterization coverage. Node components, `frameGeometry`, `packing`, and
 the resize SVG remain protected until the harness covers their contracts.
+
+
+## Sticky notes
+
+- Floor notes belong to the project; sheet notes belong to their sheet. Opening
+  a sheet keeps Floor notes visible as read-only context. Only the active
+  surface accepts edits; review/bin canvases do not create or edit notes.
+- Map → Add Note and the pane menu create a note at the camera center. The Note
+  stencil places a note on a sheet. Sticky notes have no code parent and never
+  participate in code packing, containment, or proposal approvals.
+- Double-click or Edit opens multiline text; Save or Ctrl/Cmd+Enter saves;
+  Escape/Cancel closes editing. Overflowing text consumes wheel scrolling.
+  Header dragging and the normal eight resize handles persist note geometry.
+- Note gestures have a separate selection group from code. Multiple editable
+  notes may move/resize together; a note gesture cannot reparent or move code.
+- User and agent operations share text, geometry and immutable creator
+  attribution. Updates/deletion use expected revisions. Conflicts preserve the
+  draft, expose newer text, and require an explicit choice before replacing it.
+  Remote deletion preserves an open draft with Save as new note. Surface
+  switches retain unsaved drafts for the current project; project switches
+  clear them. Save/geometry failures remain visible and do not claim success.
+- Expanded sheets list their notes for navigation, independently of code review.

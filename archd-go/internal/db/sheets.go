@@ -4,6 +4,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -74,6 +75,11 @@ type Annotation struct {
 	PositionX   *float64 `json:"positionX"`
 	PositionY   *float64 `json:"positionY"`
 	CreatedAt   int64    `json:"createdAt"`
+	Width       float64  `json:"width"`
+	Height      float64  `json:"height"`
+	Revision    int      `json:"revision"`
+	UpdatedAt   int64    `json:"updatedAt"`
+	UpdatedBy   string   `json:"updatedBy"`
 }
 
 type CanvasMessage struct {
@@ -638,12 +644,21 @@ func CreateAnnotation(db *sql.DB, a *Annotation) error {
 		a.Author = "user"
 	}
 	a.CreatedAt = time.Now().UnixMilli()
+	a.UpdatedAt, a.UpdatedBy, a.Revision = a.CreatedAt, a.Author, 1
+	if a.Width == 0 {
+		a.Width = 260
+	}
+	if a.Height == 0 {
+		a.Height = 180
+	}
 	_, err := db.Exec(`
 		INSERT INTO annotations (id, workspace_id, sheet_id, target_type, target_id,
-		                         body, kind, author, position_x, position_y, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		                         body, kind, author, position_x, position_y, created_at,
+		                         width, height, revision, updated_at, updated_by)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		a.ID, a.WorkspaceID, a.SheetID, a.TargetType, a.TargetID,
-		a.Body, a.Kind, a.Author, a.PositionX, a.PositionY, a.CreatedAt)
+		a.Body, a.Kind, a.Author, a.PositionX, a.PositionY, a.CreatedAt,
+		a.Width, a.Height, a.Revision, a.UpdatedAt, a.UpdatedBy)
 	if err == nil && a.SheetID != nil {
 		_ = TouchSheet(db, *a.SheetID)
 	}
@@ -652,7 +667,7 @@ func CreateAnnotation(db *sql.DB, a *Annotation) error {
 
 func GetAnnotations(db Reader, workspaceID string, sheetID *string) ([]Annotation, error) {
 	q := `SELECT id, workspace_id, sheet_id, target_type, target_id, body, kind, author,
-	             position_x, position_y, created_at
+	             position_x, position_y, created_at, width, height, revision, updated_at, updated_by
 	      FROM annotations WHERE workspace_id=?`
 	args := []any{workspaceID}
 	if sheetID != nil {
@@ -668,7 +683,8 @@ func GetAnnotations(db Reader, workspaceID string, sheetID *string) ([]Annotatio
 	for rows.Next() {
 		var a Annotation
 		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.SheetID, &a.TargetType, &a.TargetID,
-			&a.Body, &a.Kind, &a.Author, &a.PositionX, &a.PositionY, &a.CreatedAt); err != nil {
+			&a.Body, &a.Kind, &a.Author, &a.PositionX, &a.PositionY, &a.CreatedAt,
+			&a.Width, &a.Height, &a.Revision, &a.UpdatedAt, &a.UpdatedBy); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -679,6 +695,72 @@ func GetAnnotations(db Reader, workspaceID string, sheetID *string) ([]Annotatio
 func DeleteAnnotation(db *sql.DB, id string) error {
 	_, err := db.Exec(`DELETE FROM annotations WHERE id=?`, id)
 	return err
+}
+
+var ErrAnnotationConflict = errors.New("this note changed; read its latest revision before saving")
+
+func GetAnnotation(database Reader, workspaceID, id string) (*Annotation, error) {
+	var a Annotation
+	err := database.QueryRow(`SELECT id,workspace_id,sheet_id,target_type,target_id,body,kind,author,
+ position_x,position_y,created_at,width,height,revision,updated_at,updated_by FROM annotations WHERE workspace_id=? AND id=?`, workspaceID, id).
+		Scan(&a.ID, &a.WorkspaceID, &a.SheetID, &a.TargetType, &a.TargetID, &a.Body, &a.Kind, &a.Author, &a.PositionX, &a.PositionY, &a.CreatedAt, &a.Width, &a.Height, &a.Revision, &a.UpdatedAt, &a.UpdatedBy)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// A nil surface means the Floor, unlike GetAnnotations' legacy all-sheets query.
+func GetSurfaceAnnotations(database Reader, workspaceID string, sheetID *string) ([]Annotation, error) {
+	rows, err := GetAnnotations(database, workspaceID, sheetID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Annotation, 0, len(rows))
+	for _, a := range rows {
+		if sheetID != nil || a.SheetID == nil {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func UpdateAnnotation(database *sql.DB, a *Annotation, revision int) error {
+	a.UpdatedAt = time.Now().UnixMilli()
+	result, err := database.Exec(`UPDATE annotations SET body=?,position_x=?,position_y=?,width=?,height=?,updated_at=?,updated_by=?,revision=revision+1 WHERE workspace_id=? AND id=? AND revision=?`, a.Body, a.PositionX, a.PositionY, a.Width, a.Height, a.UpdatedAt, a.UpdatedBy, a.WorkspaceID, a.ID, revision)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return ErrAnnotationConflict
+	}
+	a.Revision = revision + 1
+	if a.SheetID != nil {
+		_ = TouchSheet(database, *a.SheetID)
+	}
+	return nil
+}
+
+func DeleteAnnotationRevision(database *sql.DB, workspaceID, id string, revision int) error {
+	result, err := database.Exec(`DELETE FROM annotations WHERE workspace_id=? AND id=? AND revision=?`, workspaceID, id, revision)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return ErrAnnotationConflict
+	}
+	return nil
 }
 
 // ─── Canvas outbox ────────────────────────────────────────────────────────────
