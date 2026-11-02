@@ -255,7 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `sheet-review-exit-palette-cleanup` Remove the stencil footer and retain an inert review snapshot through its closing motion when leaving a sheet or clearing its last proposal. Explain current Service/Note support from code. Done when exit, cancellation/switching and reduced-motion checks pass with existing journeys. (Codex, `codex/sheet-review-polish`, 2026-10-30; Max.)
 - ⬜ `sheet-note-rendering` Note stencil posts positioned annotations and the store receives them, but no renderer consumes sheet annotations to draw/edit notes. Complete human/agent-visible note rendering, editing and deletion; replace silent creation errors with visible feedback. (2026-10-30, Max's stencil audit.)
 
 - ⬜ `interruption-expiry-test-clock` The notice expiry test uses a 40 ms real sleep between 20/60 ms deadlines and can overshoot both under concurrent build/UI load. It failed once with both expired and passed with the full suite rerun alone. Use a controlled clock for deterministic expiry assertions. (2026-10-29, sidebar verification.)
@@ -413,6 +412,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-11-02 `sheet-review-exit-palette-cleanup` Removed stencil footer copy/CSS. Review presence now survives navigation long enough for a downward height/fade exit, retaining the last pending layer with disabled/inert controls and no inspector. Reopening reverses it, new sheets cancel stale exits, project changes clear retained state, and reduced-motion mode skips/interrupts closing. Types/build, 887 unit tests (7 skipped) and two Electron journeys pass, including sampled exit frames, final-approval exit, reversal, sheet switching and a preference change during closing; half-exit screenshot visually inspected. Audited Service creation/editor/endpoint projection and logged Note's missing canvas renderer under `sheet-note-rendering`. (`codex/sheet-review-polish`)
 
 - 2026-10-30 `sheet-sidebar-motion` To review now reveals upward on sheet opening; sheet/system/connection disclosures fold their actual height with a short fade and retain state after first mount. Ownership frames fade with the fold. Closed content is immediately inert/aria-hidden and reduced-motion mode skips animations. Types/build and two Electron journeys pass, including sampled intermediate review/expansion frames, reversal during closing, inert focus exclusion and reduced-motion reopening. The current Electron uses the clipped-rise review fallback; intrinsic-height animation is enabled where supported. Final expanded layout visually inspected. (`codex/sheet-review-polish`)
 

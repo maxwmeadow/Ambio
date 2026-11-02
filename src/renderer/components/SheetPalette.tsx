@@ -86,9 +86,6 @@ export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stenci
           <span>{stencil.label}</span>
         </button>
       ))}
-      <div className="ambio-sheet-palette__hint">
-        click to add · drag to place · double-click to rename
-      </div>
     </div>
   )
 }

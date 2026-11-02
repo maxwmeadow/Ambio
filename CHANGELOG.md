@@ -34,6 +34,10 @@ in the app as "What's New" after updating, so write it for users.
   stop runs. Choose “Map with Grok” or “Map with Muse” during setup.
 
 ### Fixed
+- To review now closes smoothly when leaving a sheet or deciding its final
+  proposal. Closing actions are disabled; reopening and sheet switching cancel
+  stale exits, and reduced-motion mode removes the box immediately.
+- Removed the instruction footer from Stencils; individual tooltips retain help.
 - Expanded sheets visually contain their sections with a continuous accent
   frame and shared backing, keeping full-width contents tied to their header.
 - Expanded sheet contents fill the sidebar width. Systems have warm headers

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { plannedMetadata, useSheetStore } from '../store/sheetStore'
+import { plannedMetadata, useSheetStore, type SheetLayerData } from '../store/sheetStore'
 import { useGraphStore } from '../store/graphStore'
 import { relationshipVerb, useSheetView } from '../canvas/sheetView'
 import { useShowOnMap } from '../canvas/useShowOnMap'
@@ -31,8 +31,61 @@ interface ReviewItem {
  * of any work order until you confirm it. Each is one click either way.
  */
 export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
-  const sheetId = useSheetStore(s => s.activeSheetId)
   const layer = useSheetStore(s => (s.activeSheetId ? s.layersById[s.activeSheetId] : undefined))
+  const current = useMemo(() => layer?.sheet.workspaceId === workspaceId && (
+    layer.planned.some(node => node.approvalStatus === 'pending') ||
+    layer.elements.some(element => element.approvalStatus === 'pending' || element.renameStatus === 'pending' && element.proposedName && element.systemId) ||
+    layer.plannedEdges.some(edge => edge.approvalStatus === 'pending')
+  ) ? { layer, workspaceId } : null, [layer, workspaceId])
+  const [retained, setRetained] = useState(current)
+  const root = useRef<HTMLElement>(null)
+  const latest = useRef(current)
+  latest.current = current
+  const shown = current ?? (retained?.workspaceId === workspaceId ? retained : null)
+  useLayoutEffect(() => {
+    if (current && current !== retained) setRetained(current)
+    else if (retained && retained.workspaceId !== workspaceId) setRetained(null)
+  }, [current, retained, workspaceId])
+  useLayoutEffect(() => {
+    const node = root.current
+    if (current || !shown || !node) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reducedMotion.matches) {
+      setRetained(null)
+      return
+    }
+    const appearance = () => {
+      const style = getComputedStyle(node)
+      return { height: style.height, opacity: style.opacity, transform: style.transform,
+        clipPath: style.clipPath === 'none' ? 'inset(0)' : style.clipPath,
+        paddingBottom: style.paddingBottom, borderTopWidth: style.borderTopWidth }
+    }
+    const start = appearance()
+    for (const animation of node.getAnimations()) animation.cancel()
+    const exit = node.animate([start, { height: '0px', opacity: 0, transform: 'translateY(10px)',
+      clipPath: 'inset(100% 0 0)', paddingBottom: '0px', borderTopWidth: '0px' }],
+    { duration: 220, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' })
+    void exit.finished.then(() => setRetained(null), () => {})
+    const skipMotion = () => { if (reducedMotion.matches) setRetained(null) }
+    reducedMotion.addEventListener('change', skipMotion)
+    return () => {
+      reducedMotion.removeEventListener('change', skipMotion)
+      const interrupted = exit.playState !== 'finished'
+      const partial = appearance()
+      exit.cancel()
+      // Reopening the same sheet reverses the exit rather than jumping full size.
+      if (interrupted && node.isConnected && latest.current && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        node.animate([partial, appearance()], { duration: 180, easing: 'cubic-bezier(.22, 1, .36, 1)' })
+      }
+    }
+  }, [current, shown])
+  return shown ? <SheetReviewContent key={`${shown.workspaceId}:${shown.layer.sheet.id}`} workspaceId={shown.workspaceId} layer={shown.layer} closing={!current} root={root} /> : null
+}
+
+/** The last layer remains visible, but inert, while its review closes. */
+function SheetReviewContent({ workspaceId, layer, closing, root }: { workspaceId: string; layer: SheetLayerData; closing: boolean; root: RefObject<HTMLElement> }) {
+  const sheetId = layer.sheet.id
+  useLayoutEffect(() => { root.current?.toggleAttribute('inert', closing) }, [closing, root])
   const { decidePlanned, decideMove, decideRename, decideRelationship, reviewProposals } = useSheetStore(useShallow(s => ({
     decidePlanned: s.setPlannedApproval, decideMove: s.decideSheetMove, decideRename: s.decideSheetRename, decideRelationship: s.decideSheetRelationship,
     reviewProposals: s.reviewSheetProposals,
@@ -46,7 +99,6 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
   const [reason, setReason] = useState('')
   const [inspecting, setInspecting] = useState<string | null>(null)
   const inspectButton = useRef<HTMLButtonElement | null>(null)
-  if (!sheetId || !layer) return null
 
   const plannedName = new Map(layer.planned.map(node => [`planned:${node.id}`, node.kind === 'file' ? plannedFilename(node) : node.name]))
   const nameOf = (id: string | null | undefined): string => {
@@ -116,17 +168,17 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
     setRejecting({ key, items: chosen, revision: layer.sheet.revision }); setReason('')
   }
   const reasonForm = (key: string) => rejecting?.key === key && <form className="ambio-sheet-rail__review-reason" onSubmit={event => { event.preventDefault(); void run(rejecting.items, 'rejected', reason, rejecting.revision) }}>
-    <input autoFocus aria-label="What should change?" placeholder="What should change?" value={reason} maxLength={300} onChange={event => setReason(event.target.value)} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); setRejecting(null) } }} />
-    <button type="submit" disabled={busy || !reason.trim()}>Send</button>
-    <button type="button" disabled={busy} onClick={() => setRejecting(null)}>Cancel</button>
+    <input autoFocus disabled={closing} aria-label="What should change?" placeholder="What should change?" value={reason} maxLength={300} onChange={event => setReason(event.target.value)} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); setRejecting(null) } }} />
+    <button type="submit" disabled={busy || closing || !reason.trim()}>Send</button>
+    <button type="button" disabled={busy || closing} onClick={() => setRejecting(null)}>Cancel</button>
   </form>
   const actions = (group: typeof groups[number]) => <div className="ambio-sheet-review-actions">
-    <button type="button" disabled={busy} aria-label={`Approve ${group.name}`} onClick={() => void run(group.items, 'approved')}>Approve</button>
-    <button type="button" disabled={busy} onClick={() => requestChanges(group.key, group.items)}>{group.items.some(item => item.asksWhy) ? 'Request changes' : 'Reject'}</button>
+    <button type="button" disabled={busy || closing} aria-label={`Approve ${group.name}`} onClick={() => void run(group.items, 'approved')}>Approve</button>
+    <button type="button" disabled={busy || closing} onClick={() => requestChanges(group.key, group.items)}>{group.items.some(item => item.asksWhy) ? 'Request changes' : 'Reject'}</button>
   </div>
   const inspected = groups.find(group => group.key === inspecting)
   return <>
-    <section className="ambio-sheet-rail__review" aria-label="Agent proposals to review">
+    <section ref={root} className="ambio-sheet-rail__review" data-exiting={closing || undefined} aria-hidden={closing || undefined} aria-label="Agent proposals to review">
       <div className="ambio-sheet-rail__section-label ambio-sheet-rail__review-heading">
         <span>To review</span>
         <span className="ambio-sheet-rail__review-count" aria-label={`${groups.length} ${groups.length === 1 ? 'change' : 'changes'} to review`}>{groups.length}</span>
@@ -145,10 +197,10 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
           const root = layer.planned.find(node => `planned:${node.id}` === group.focus)
           const description = root ? plannedDescription(root, plannedMetadata(root)) : ''
           return <li className="ambio-sheet-review-group" key={group.key}>
-            <button type="button" className="ambio-sheet-rail__review-label" onClick={() => showOnMap(group.focus)} title="Show proposed change"><span>{group.name}</span></button>
+            <button type="button" disabled={closing} className="ambio-sheet-rail__review-label" onClick={() => showOnMap(group.focus)} title="Show proposed change"><span>{group.name}</span></button>
             {counts.length > 0 && <p className="ambio-sheet-review-summary">{counts.join(' · ')}</p>}
             {description && <p className="ambio-sheet-review-intent" title={description}>{description}</p>}
-            <button type="button" className="ambio-sheet-review-inspect" aria-label={`Inspect changes for ${group.name}`} onClick={event => { inspectButton.current = event.currentTarget; setInspecting(group.key); showOnMap(group.focus) }}>Inspect changes <span aria-hidden="true">→</span></button>
+            <button type="button" disabled={closing} className="ambio-sheet-review-inspect" aria-label={`Inspect changes for ${group.name}`} onClick={event => { inspectButton.current = event.currentTarget; setInspecting(group.key); showOnMap(group.focus) }}>Inspect changes <span aria-hidden="true">→</span></button>
             {actions(group)}
             {!inspected && reasonForm(group.key)}
           </li>
@@ -156,7 +208,7 @@ export function SheetProposalReview({ workspaceId }: { workspaceId: string }) {
       </ul>
       {error && <p className="ambio-sheet-review-error" role="alert">{error}</p>}
     </section>
-    {inspected && <ReviewInspector title={inspected.name} onClose={() => { setInspecting(null); inspectButton.current?.focus() }}>
+    {!closing && inspected && <ReviewInspector title={inspected.name} onClose={() => { setInspecting(null); inspectButton.current?.focus() }}>
       <p className="ambio-sheet-review-panel__context">{layer.sheet.name}</p>
       {(['addition', 'relationship', 'move', 'rename'] as const).map(kind => {
         const chosen = inspected.items.filter(item => item.kind === kind)

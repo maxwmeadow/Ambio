@@ -411,7 +411,7 @@ export function SheetRail() {
 
         {activeSheets.map(sheet => <SheetEntry key={`${workspaceId}:${sheet.id}`} sheet={sheet} workspaceId={workspaceId} />)}
       </div>
-      <SheetProposalReview key={activeSheetId ?? 'floor'} workspaceId={workspaceId} />
+      <SheetProposalReview workspaceId={workspaceId} />
       <SheetChangeDetails />
       <SheetRemovedList workspaceId={workspaceId} />
       {resolvedSheets.length > 0 && <div className="ambio-sheet-rail__archive">

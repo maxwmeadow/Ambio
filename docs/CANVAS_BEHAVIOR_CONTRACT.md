@@ -490,6 +490,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   or endpoints. Request changes records the reason against each selected part.
   Opening a sheet reveals To review upward from the bottom over roughly 260ms,
   without replaying the entrance on ordinary updates to an existing card.
+  Leaving the sheet or deciding its final proposal collapses/fades the review
+  downward over roughly 220ms. The exiting snapshot is immediately inert and
+  hidden from assistive technology, its actions disabled and inspector closed.
+  Reopening reverses the exit; another sheet cannot be cleared by the old exit.
+  Reduced-motion mode removes the review immediately.
 - Approval removes pending decisions, not navigation. Each sheet row has a
   chevron that expands its additions, meaningful live edits and connections before
   and after approval. Expanding a sheet does not activate or display its layer;

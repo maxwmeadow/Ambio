@@ -1029,6 +1029,8 @@ shows it, gated by the `workOrderNotifications` setting).
   and Go get a weaker map.
 - Full re-cluster reads the whole git history and rebuilds the root graph;
   not benchmarked on very large repos.
+- Sheet Note creation persists positioned annotations, but the canvas does not
+  yet project or edit them; completion is tracked by `sheet-note-rendering`.
 - macOS auto-update needs code signing.
 
 ### Sheet presentation defaults
@@ -1058,7 +1060,19 @@ Planned descendants render in nested disclosure ranges while remaining visually
 full-width. Closed groups are immediately inert and aria-hidden. The ownership
 frame fades with the fold. To review has a CSS bottom-up entrance on mount,
 using intrinsic height interpolation where supported and a clipped upward
-reveal otherwise. Reduced-motion rules disable both forms of motion.
+reveal otherwise. `SheetProposalReview` retains the last pending layer for a
+short Web Animations height/fade exit when the active sheet or final pending
+decision disappears. `SheetReviewContent` remains inert with disabled actions
+and no inspector during that exit. Reopening cancels/reverses it; switching
+projects discards the retained layer. Content state stays keyed by sheet, while
+the presence coordinator survives navigation. Reduced-motion rules skip the
+entrance and exit, including a preference change while closing.
+
+The Service stencil creates an authored planned API surface with protocol,
+address/topic and operations metadata. Its endpoint rows use the planned symbol
+projection and `UmlMetadataPanel` editor; normal source indexing does not create
+planned Service nodes. Stencil help remains in individual tooltips without a
+footer instruction block.
 
 `sheetRelationshipGeometry` assigns distinct incident ports from the complete
 sheet topology and caches routes by geometry/topology, independent of semantic

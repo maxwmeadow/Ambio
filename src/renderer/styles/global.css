@@ -3203,13 +3203,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-weight: 600;
 }
 
-.ambio-sheet-palette__hint {
-  padding: 6px 7px;
-  background: #d8d7d0;
-  color: #596560;
-  font-size: 7px;
-  line-height: 1.45;
-}
 
 
 
