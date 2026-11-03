@@ -62,7 +62,11 @@ recording, starting, saving or offering the saved capture for replay.
 space as conversations. `Toolbar` owns the active sidebar and their shared,
 persisted width (`ambio:sidebar-width`), migrating the previous width preferences.
 One `--workbench-sidebar-inset` keeps canvas framing stable when switching;
-the contents replace each other directly without overlapping slide animations.
+one persistent sidebar container slides in when opened and slides out before
+being hidden. Its contents replace each other directly when switching, without
+restarting the container animation or overlapping panels. Exiting contents are
+inert; the canvas inset remains reserved until the exit finishes. Reduced motion
+skips these animations.
 Both resize handles update the same width. Terminal tabs and controls occupy
 one compact top bar; shell selection/discovery live in its options menu and
 there is no footer.

@@ -1,6 +1,6 @@
 import { useConversationPreferences } from '../store/conversationPreferences'
 import { useCanvasFitView } from '../canvas/useCanvasFitView'
-import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { SendToAgentDialog } from './SendToAgentDialog'
@@ -16,6 +16,7 @@ import { ProposalDraftProgress } from './ProposalDraftProgress'
 import { ProjectActivity } from './ProjectActivity'
 import { BranchChip } from './BranchChip'
 import { ErrorBoundary } from './ErrorBoundary'
+import { usePresence } from './ui/usePresence'
 
 const TerminalPanel = lazy(() => import('./TerminalPanel'))
 
@@ -35,6 +36,10 @@ export function Toolbar({
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const projectName = useGraphStore(s => s.currentProject?.name)
   const [sidebar, setSidebar] = useState<'agent' | 'terminal' | null>(null)
+  const sidebarPresence = usePresence(sidebar !== null)
+  const lastSidebar = useRef(sidebar)
+  useLayoutEffect(() => { if (sidebar) lastSidebar.current = sidebar }, [sidebar])
+  const shownSidebar = sidebarPresence.mounted ? sidebar ?? lastSidebar.current : null
   const agentMsgOpen = sidebar === 'agent'
   const terminalOpen = sidebar === 'terminal'
   const clampSidebarWidth = (width: number) => Math.round(Math.max(360, Math.min(window.innerWidth * .85, width)))
@@ -46,9 +51,9 @@ export function Toolbar({
   useLayoutEffect(() => {
     const style = document.documentElement.style
     style.setProperty('--workbench-sidebar-width', `${sidebarWidth}px`)
-    style.setProperty('--workbench-sidebar-inset', sidebar ? `min(${sidebarWidth}px, 100vw)` : '0px')
+    style.setProperty('--workbench-sidebar-inset', sidebarPresence.mounted ? `min(${sidebarWidth}px, 100vw)` : '0px')
     return () => { style.removeProperty('--workbench-sidebar-width'); style.removeProperty('--workbench-sidebar-inset') }
-  }, [sidebar, sidebarWidth])
+  }, [sidebarPresence.mounted, sidebarWidth])
   useEffect(() => { try { localStorage.setItem('ambio:sidebar-width', String(sidebarWidth)) } catch { /* session only */ } }, [sidebarWidth])
   useEffect(() => {
     const fit = () => setSidebarWidth(width => clampSidebarWidth(width))
@@ -197,8 +202,11 @@ export function Toolbar({
       <InvestigationsMenu workspaceId={workspaceId} />
       <ProjectActivity key={workspaceId} workspaceId={workspaceId} />
       <ProposalDraftProgress key={`draft:${workspaceId}`} workspaceId={workspaceId} />
-      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setSidebar(null)} onManageConnections={onManageAgentConnections} onResize={resizeSidebar} />
-      {terminalMounted && <Suspense fallback={null}><TerminalPanel key={`terminal:${workspaceId}`} workspaceId={workspaceId} open={terminalOpen} width={sidebarWidth} onResize={resizeSidebar} onClose={() => setSidebar(null)} /></Suspense>}
+      <div className="ambio-workbench-sidebar" hidden={!sidebarPresence.mounted} data-closing={sidebarPresence.closing || undefined}
+        aria-hidden={sidebarPresence.closing || undefined} ref={element => { if (element) element.inert = sidebarPresence.closing || !sidebarPresence.mounted }}>
+        <SendToAgentDialog key={workspaceId} isOpen={shownSidebar === 'agent'} onClose={() => setSidebar(null)} onManageConnections={onManageAgentConnections} onResize={resizeSidebar} />
+        {terminalMounted && <Suspense fallback={null}><TerminalPanel key={`terminal:${workspaceId}`} workspaceId={workspaceId} open={shownSidebar === 'terminal'} width={sidebarWidth} onResize={resizeSidebar} onClose={() => setSidebar(null)} /></Suspense>}
+      </div>
     </>
   )
 }
