@@ -1372,6 +1372,23 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
   const [sheetInteractionNodes, setSheetInteractionNodes] = useState<Node[] | null>(null)
   useEffect(() => setSheetInteractionNodes(null), [overlaySheetId, visibleSheetIds.join('|')])
+  // A sheet drop's geometry is prepared in the scene worker. Until that
+  // projection lands, the prepared nodes still hold the pre-drag layout, so
+  // releasing the snapshot at pointer-up snapped the node back to where the
+  // drag began before it animated to the drop. Hold it until they catch up,
+  // and never swap it out under a gesture that started in the meantime.
+  const sheetReleasePendingRef = useRef(false)
+  const [sheetReleaseRequest, setSheetReleaseRequest] = useState(0)
+  const releaseSheetInteractionWhenPrepared = useCallback(() => {
+    sheetReleasePendingRef.current = true
+    setSheetReleaseRequest(request => request + 1)
+  }, [])
+  useEffect(() => {
+    if (!sheetReleasePendingRef.current || sheetPreparation.pending) return
+    if (draggingNodeIdRef.current || resizeStartRef.current.size > 0) return
+    sheetReleasePendingRef.current = false
+    setSheetInteractionNodes(null)
+  }, [sheetReleaseRequest, sheetPreparation.pending])
   const displayNodes = sheetInteractionNodes ?? composedNodes
   const displayNodesRef = useRef<Node[]>(displayNodes)
   displayNodesRef.current = displayNodes
@@ -3060,7 +3077,7 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
 
     // A sheet interaction snapshot must never outlive the geometry mutation
     // that created it, or it freezes semantic zoom on stale node styles.
-    if (useSheetStore.getState().activeSheetId && !draggingNodeIdRef.current && resizeStartRef.current.size === 0) {
+    if (useSheetStore.getState().activeSheetId && !draggingNodeIdRef.current && resizeStartRef.current.size === 0 && !sheetReleasePendingRef.current) {
       setSheetInteractionNodes(null)
     }
 
@@ -3745,10 +3762,6 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
           ...layout
         }) => layout)
         sheetState.previewLayoutsBatch(workspaceId, sheetId, arrivalMutations)
-        // The transient XYFlow interaction snapshot has completed its one job.
-        // Keeping it alive masks the optimistic canonical layouts and made
-        // nodes jump back as soon as selection changed.
-        setSheetInteractionNodes(null)
         requestAnimationFrame(() => {
           setIsTransitioningLayout(true)
           requestAnimationFrame(() => {
@@ -3817,9 +3830,19 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     if (plan.selectedIds.length > 0) commitSelection(new Set(plan.selectedIds))
     sceneSourceRef.current = `${sheetId ? 'sheet' : 'floor'}-drop${plan.updates.length > 1 ? '-repack' : ''}`
     if (sheetId) {
-      // Selection is projected from selectedIdsRef/selectionRevision. Do not
-      // recreate a stale sheetInteractionNodes snapshot merely to clear flags.
-      setSheetInteractionNodes(null)
+      // The transient XYFlow interaction snapshot has completed its one job,
+      // but it is what shows the node where it was dropped until the worker
+      // projects the layouts written above. Keeping it past that masks the
+      // optimistic layouts and made nodes jump back when selection changed.
+      // Never recreate one merely to clear flags.
+      setSheetInteractionNodes(current => current && current.map(candidate => ({
+        ...candidate,
+        selected: plan.selectedIds.length > 0
+          ? plan.selectedIds.includes(candidate.id)
+          : candidate.selected,
+        data: { ...candidate.data, isDropTarget: false, snapPreview: null, previewOffset: null },
+      })))
+      releaseSheetInteractionWhenPrepared()
     } else {
       updateInteractiveNodes(current => current.map(candidate => ({
         ...candidate,

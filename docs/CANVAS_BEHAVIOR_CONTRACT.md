@@ -235,6 +235,10 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   edge moves; their persisted local positions are compensated accordingly.
 - Dragging a container moves every descendant as one rigid visual body; child
   wrappers must not ease behind the parent.
+- A released node stays where the pointer left it; any settling animates from
+  there. On a sheet the drag's interaction snapshot is held until the worker
+  has projected the dropped layout (or failed), because until then the prepared
+  geometry is still the pre-drag layout.
 
 ## Node visual states
 

@@ -39,6 +39,8 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- Letting go of a node on a sheet leaves it where you dropped it. Before, it
+  jumped back to where the drag began and then slid over to the drop.
 - Setting up a project no longer counts, or indexes, a Python virtualenv or
   coverage report tucked inside a folder you never opened. Before, a backend's
   venv was only left out once you expanded its parent; now setup recognises

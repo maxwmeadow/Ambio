@@ -255,6 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- `sheet-resize-snapback` Sheet resize end (`onNodeResizeEnd` in AmbioCanvas) clears the interaction snapshot right after writing layouts, the same pattern that made sheet drops snap back while the worker re-projects; check whether a released resize briefly shows the old size and reuse `releaseSheetInteractionWhenPrepared` if so. (2026-11-03)
 - ⬜ `setup-scope-agent-proposals` **The mapping agent proposes scope changes:** after the first index, folders nothing imports, throwaway scripts and tests as their own layer, offered as pending "leave this out" proposals with confirm/reject in review. Deferred by Max 2026-10-29 in favour of setup's deterministic defaults. (2026-10-29)
 - `setup-estimate-blocks-main` The setup count runs synchronously in Electron's main process (up to its 3 s limit, plus ~1 s of git calls once per 15 s); on a large project each recount freezes the window briefly. Worth moving to a worker or async walk. (2026-10-29)
 - ⬜ `metadata-watcher-linked-status` **`TestMetadataWatcherIgnoresAStatusInALinkedWorktree` fails on Windows on main:** "a status in a linked worktree was taken for a Git metadata change" (`internal/gitworktree/metadata_test.go:53`), every run; the package does not depend on infra detection. (2026-10-29)
@@ -371,6 +372,8 @@ New items go at the bottom: `- ⬜ \`slug\` **Title** - context. (date, source)`
 - ⬜ `canvas-wasd-time-based-motion` **Calibrate keyboard motion by elapsed time and match benchmark paths.** Current WASD advances eight pixels per animation frame, so frame-rate improvements change travel during a fixed-duration hold; preserve intended feel and compare matched mouse/keyboard trajectories in dense acceptance. (2026-10-27, dense Review profiling)
 
 ## Done log
+
+- 2026-11-03 `sheet-drop-snapback` A node released on a sheet no longer jumps back to its drag start and slides to the drop: since sheet geometry moved to the scene worker, clearing the drag snapshot at pointer-up showed the stale pre-drag projection. The snapshot is now held until the worker projects the dropped layout. New `sheet-drop-release` e2e samples every frame after release (fails by ~108px without the fix). (`claude/sheet-drop-no-snapback`)
 
 - 2026-10-29 `setup-scope-defaults` Setup leaves out what is not the project's own code and says why on each row (`electron/scopeDefaults.ts`): `.gitignore` (asked of Git), other checkouts of a repository the project has (linked worktrees, second clones), plain copies of one, virtualenvs by any name, coverage/.NET/Unity output by contents; `coverage`/`bin`/`obj`/`Library` are no longer skipped by name. archd skips files with a generator's header in every project and now honours excluded files on a full index. On ThreePillars the first count is 3,363 (the two `feature/scenario-engine` worktrees under `scenario/` were most of the rest). New Go, scopeDefaults, estimate and model tests, the renderer suite, types and the setup e2e pass. (`claude/infra-detect-coverage`)
 
