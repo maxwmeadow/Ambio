@@ -1,7 +1,7 @@
 import { zoomVisibilitySteps } from '../semanticZoom'
 import { useEffect, useRef, useState } from 'react'
 import type { DbSystem, DbFile, DbInfraNode, DbDependency, FloorLayout } from '../../../shared/types'
-import { numericGeometryInputSteps, type FloorGeometryInput, type GeneratedPlacement, type PreparedFloorGeometry } from './sceneGeometry'
+import { numericGeometryInputSteps, type GeometryFile, type FloorGeometryInput, type GeneratedPlacement, type PreparedFloorGeometry } from './sceneGeometry'
 import type { SceneController } from './sceneController'
 import { beginPerfStage } from '../perfTrace'
 import { runSceneSteps } from './sceneSteps'
@@ -10,10 +10,15 @@ import type { Node } from '@xyflow/react'
 import { sameGeometryInputSteps } from './sceneInputs'
 import { prepareCanonicalSceneSteps, type CanonicalScene } from './canonicalScene'
 import { prepareFloorSceneIntegritySteps } from '../sceneIntegrity'
+import { fitAutomaticSheetContentsSteps } from '../compactSheetSystems'
 
 export interface FloorModel {
   systems: DbSystem[]; files: DbFile[]; infraNodes: DbInfraNode[]
+  notes?: GeometryFile[]
   dependencies: DbDependency[]; layouts: FloorLayout[]; scope: string
+  /** Defined for sheets, even when empty: incoming authored proposals can
+   * compress live context that also needs its final body clearance restored. */
+  automaticSheetSystems?: ReadonlySet<string>
 }
 export function usePreparedFloorGeometry(controller: SceneController, channel: string, input: FloorModel | null, placements: Map<string, GeneratedPlacement>, retry: number, currentZoom: () => number = () => 0.5, visibilityZoom?: () => number, canonicalNodeIds?: ReadonlySet<string>) {
   const [state, setState] = useState<{ input: FloorModel; geometry: PreparedFloorGeometry; nodes: Node[] } | null>(null)
@@ -39,7 +44,7 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
     void (async () => {
       const finishNumeric = beginPerfStage('scene.numeric-input')
       let numeric: FloorGeometryInput
-      try { numeric = await runSceneSteps(numericGeometryInputSteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, placements), abort.signal) }
+      try { numeric = await runSceneSteps(numericGeometryInputSteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, placements, input.notes), abort.signal) }
       finally { finishNumeric() }
       if (abort.signal.aborted) return
       let entry = cached.current
@@ -48,7 +53,8 @@ export function usePreparedFloorGeometry(controller: SceneController, channel: s
         entry = { controller, scope: input.scope, input: numeric, promise: controller.prepare(channel, numeric) }
         cached.current = entry
       }
-      const geometry = await entry.promise
+      const placedGeometry = await entry.promise
+      const geometry = input.automaticSheetSystems ? await runSceneSteps(fitAutomaticSheetContentsSteps(placedGeometry, input.automaticSheetSystems, input.layouts), abort.signal) : placedGeometry
       if (abort.signal.aborted) return
       const finishProjection = beginPerfStage('scene.floor-projection', geometry.descriptors.length)
       let nodes: Node[]

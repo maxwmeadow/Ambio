@@ -63,6 +63,14 @@ func sheetLayoutNodeExists(
 	tx *sql.Tx,
 	sheetID, workspaceID, nodeID, nodeType string,
 ) (bool, error) {
+	if nodeType == "note" {
+		if !strings.HasPrefix(nodeID, "note:") {
+			return false, nil
+		}
+		var exists int
+		err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM annotations WHERE workspace_id=? AND (sheet_id=? OR sheet_id IS NULL) AND id=? AND kind='note')`, workspaceID, sheetID, strings.TrimPrefix(nodeID, "note:")).Scan(&exists)
+		return exists == 1, err
+	}
 	if strings.HasPrefix(nodeID, "planned:") {
 		var kind string
 		err := tx.QueryRow(`
@@ -319,6 +327,17 @@ func ApplySheetLayoutBatch(
 	}
 	defer tx.Rollback()
 
+	result, err := applySheetLayoutBatch(tx, sheetID, workspaceID, updates)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func applySheetLayoutBatch(tx *sql.Tx, sheetID, workspaceID string, updates []SheetLayout) (*SheetLayoutBatchResult, error) {
 	var revision int64
 	if err := tx.QueryRow(`
 		SELECT revision FROM sheets WHERE id=? AND workspace_id=?`,
@@ -415,9 +434,6 @@ func ApplySheetLayoutBatch(
 		UPDATE sheets SET revision=?, updated_at=? WHERE id=? AND workspace_id=?`,
 		revision, now, sheetID, workspaceID,
 	); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &SheetLayoutBatchResult{Revision: revision, Layouts: updates}, nil

@@ -88,7 +88,7 @@ for (const scenario of ['floor', 'sheet', 'proposal', 'navigation', 'fallback'] 
         : page.locator('[data-ambio-canvas]').first()
       await expect(canvas).toBeVisible()
       if (mode === 'proposal') await expect(canvas).toHaveClass(/ambio-canvas-review-ready/)
-      if (mode === 'sheet') await page.getByRole('button', { name: 'Performance Draft STR', exact: true }).click()
+      if (mode === 'sheet') await page.getByRole('button', { name: 'Performance Draft', exact: true }).click()
       await page.waitForTimeout(1600)
       if (process.env.AMBIO_PERF_PROFILE && (scenario === 'floor' || scenario === 'sheet')) {
         await page.getByRole('button', { name: 'Fit view', exact: true }).click()

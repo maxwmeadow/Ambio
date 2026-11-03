@@ -245,6 +245,25 @@ a { color: var(--accent); text-decoration: none; }
 .symbol-scroll::-webkit-scrollbar-track { background: transparent; }
 .symbol-scroll::-webkit-scrollbar-thumb { background: var(--border); }
 
+/* One quiet invitation replaces the empty label and oversized separate +. */
+.ambio-symbol-empty-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 22px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-dim);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 8px/1.4 var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.ambio-symbol-empty-add__plus { color: var(--accent); font-size: 12px; line-height: 1; }
+.ambio-symbol-empty-add:hover { border-color: var(--accent); background: var(--bg-raised); color: var(--text-primary); }
+.ambio-symbol-empty-add:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+
 /* Portalled to the document body so React Flow transforms never scale or clip it. */
 .source-preview-backdrop {
   position: fixed;
@@ -2422,10 +2441,6 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 700;
 }
 
-.ambio-sheet-rail__row .ambio-sheet-rail__button--sheet {
-  padding-left: 31px;
-}
-
 .ambio-sheet-rail__visibility {
   position: absolute;
   left: 9px;
@@ -2465,10 +2480,6 @@ a { color: var(--accent); text-decoration: none; }
 .ambio-sheet-rail__row--active .ambio-sheet-rail__visibility {
   border-color: #d1ebe3;
   background: #f7f7f1;
-}
-
-.ambio-sheet-rail__row--active .ambio-sheet-rail__button {
-  padding-right: 26px;
 }
 
 .ambio-sheet-rail__delete {
@@ -3108,16 +3119,18 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #fff;
 }
 
-/* Top-left, clear of the Infrastructure tab on the left edge (18px), and
-   beside the Infrastructure sidebar while it is open rather than over it. */
+/* Equal top/left insets; reserve room below for the Infrastructure tab on
+   short windows and sit beside its sidebar while that panel is open. */
 .ambio-sheet-palette {
   position: absolute;
   top: 12px;
-  left: 30px;
+  left: 12px;
   z-index: 1000;
   transition: left 0.18s ease;
   width: 92px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100% - var(--sheet-infra-tab-height, 160px) - 36px);
   padding: 0;
   border: 1px solid #65706b;
   border-radius: 2px;
@@ -3127,6 +3140,11 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
 }
 
 .ambio-infra-sidebar:not([data-closing]) ~ .ambio-sheet-palette { left: calc(min(300px, 80%) + 12px); }
+
+.ambio-sheet-mode:has(> .ambio-sheet-palette) > .ambio-infra-sidebar-tab {
+  top: max(calc(50% - var(--sheet-infra-tab-height, 0px) / 2), calc(var(--sheet-stencils-bottom, 0px) + 12px));
+  transform: none;
+}
 
 .ambio-sheet-palette__title {
   height: 25px;
@@ -3185,13 +3203,6 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   font-weight: 600;
 }
 
-.ambio-sheet-palette__hint {
-  padding: 6px 7px;
-  background: #d8d7d0;
-  color: #596560;
-  font-size: 7px;
-  line-height: 1.45;
-}
 
 
 
@@ -8513,3 +8524,29 @@ body:has(.ambio-inbox) .ambio-selection-actions { display: none; }
   color: #26332f;
   font-size: 12px;
 }
+
+/* Notes are paper annotations, independent of code hierarchy and semantic zoom. */
+.react-flow__node-note { background: transparent; border: 0; }
+.canvas-note { overflow: hidden; width: 100%; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; position: relative; color: #453b22; background: linear-gradient(145deg, #fff3ad, #f5df85); border: 1px solid #c8ae60; border-radius: 2px 2px 16px 2px; box-shadow: 4px 5px 0 #28352f24; font: 14px/1.5 var(--font-sans, sans-serif); }
+.canvas-note::after { content: ''; position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; background: linear-gradient(135deg, #cfb361 48%, #eee6c7 50%); border-radius: 0 0 12px 0; pointer-events: none; }
+.canvas-note__header { display: flex; justify-content: space-between; align-items: center; min-height: 29px; padding: 4px 12px; border-bottom: 1px solid #a88b3029; font: 10px/1.4 var(--font-mono, monospace); letter-spacing: .1em; cursor: grab; }
+.canvas-note__author { margin-left: 7px; letter-spacing: 0; opacity: .65; }
+.canvas-note__actions { display: flex; gap: 7px; }
+.canvas-note button { border: 1px solid #aa913b66; background: #fff8d55c; color: inherit; padding: 2px 7px; font: inherit; cursor: pointer; border-radius: 2px; }
+.canvas-note button:hover { background: #fff8dc; border-color: #8d742d; }
+.canvas-note button:disabled { opacity: .5; cursor: default; }
+.canvas-note button:focus-visible, .canvas-note:focus-visible { outline: 2px solid #3d7b78; outline-offset: 2px; }
+.canvas-note__body { flex: 1; min-height: 0; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 11px 14px 17px; cursor: text; user-select: text; }
+.canvas-note__editor { flex: 1; min-height: 28px; resize: none; margin: 8px 10px 4px; padding: 4px; border: 1px solid #9e843c; outline-color: #3d7b78; background: #fffbed80; color: inherit; font: inherit; overflow-y: auto; }
+.canvas-note__footer { display: flex; gap: 6px; padding: 3px 12px 12px; font-size: 11px; }
+.canvas-note__notice { font-size: 11px; line-height: 1.35; padding: 6px 12px 12px; background: #fff5d16b; max-height: 40%; overflow-y: auto; }
+.canvas-note__conflict-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+
+.ambio-sheet-tree__notes { background: #f5e8ad55; border-top: 1px solid #baa05b33; padding: 8px 10px; }
+.ambio-sheet-tree__notes-label { display: block; color: #79632e; font: 10px var(--font-mono, monospace); letter-spacing: .06em; margin-bottom: 4px; text-transform: uppercase; }
+.ambio-sheet-tree__note { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; color: inherit; padding: 6px 3px; cursor: pointer; font: inherit; }
+.ambio-sheet-tree__note:hover, .ambio-sheet-tree__note:focus-visible { background: #eed79055; }
+.ambio-sheet-tree__note svg { width: 16px; height: 16px; flex: 0 0 auto; fill: #f1dc91; stroke: #99783a; stroke-width: 1.2; }
+.ambio-sheet-tree__note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.canvas-note__editor { min-width: 0; box-sizing: border-box; margin: 0; padding: 11px 14px 17px; border: 0; background: transparent; outline: none; }

@@ -12,7 +12,7 @@ import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { DEPTH_TITLE_PX } from '../frameGeometry'
 import { revealCrossfade } from '../semanticZoom'
 import { monoFontFittingWidth, systemTabChrome } from '../systemChrome'
-import { LIVING_WINDOW_CLOSE_MS } from '../../store/graphStore'
+import { LIVING_WINDOW_CLOSE_MS, useGraphStore } from '../../store/graphStore'
 import { livingActivityColor, livingActivityLabel } from '../livingChoreography'
 import { brandIcon, CATEGORY_GLYPHS, officialServiceIcon } from './infraIcons'
 import { useFloorEdits } from '../floorEditContext'
@@ -368,7 +368,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
           Repository{repositoryBranch ? ` · ${repositoryBranch}` : ''}
         </span>
       )}
-      <EditableNodeTitle value={name} onRename={onRename} style={{
+      <EditableNodeTitle value={name} onRename={containerAlpha < 0.2 ? onRename : undefined} style={{
         fontSize: bigTitleFont,
         fontWeight: 700,
         fontFamily: 'var(--font-mono)',
@@ -379,6 +379,11 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
         textAlign: 'center',
         pointerEvents: onRename ? 'auto' : 'none',
       }} />
+      {d.id.startsWith('planned:') && d.description && <p className="ambio-system-description-summary" style={{
+        margin: 0, maxWidth: '100%', font: `${Math.max(1, bigTitleFont * 0.28)}px/1.4 var(--font-mono)`,
+        color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+        overflow: 'hidden', overflowWrap: 'anywhere', textAlign: 'center',
+      }}>{d.description}</p>}
       {d.renamedFrom && (
         <span className="ambio-renamed-from" style={{ fontSize: Math.max(10, bigTitleFont * 0.28) }}>was {d.renamedFrom}</span>
       )}
@@ -434,7 +439,7 @@ export const SystemNode = React.memo(function SystemNode({ id, data, selected, w
       transition: crossfade.contents,
     }}>
       {infraIdentityIcon(Math.min(tabBandH * 0.78, Math.max(12, titleFont * 1.05)))}
-      <EditableNodeTitle value={name} onRename={onRename} style={{
+      <EditableNodeTitle value={name} onRename={containerAlpha > 0.8 ? onRename : undefined} style={{
         fontSize: titleFont,
         fontWeight: 600,
         fontFamily: 'var(--font-mono)',

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { startSplitSheet, systemPath } from './splitSystem.ts'
 import { emitCommand } from '../app/commands'
+import { COMMANDS } from '../../shared/appMenu'
 import { useGraphStore } from '../store/graphStore'
 import { raiseNotice } from '../store/interruptionStore.ts'
 import { commitMeaningEdits } from './meaningActions.ts'
@@ -135,6 +136,7 @@ function buildEntries(
     return [
       { label: 'New Sheet…', run: () => emitCommand('map.newSheet') },
       { label: 'Add Infrastructure…', run: () => emitCommand('map.addInfra') },
+      { label: COMMANDS['map.addNote'].label, run: () => emitCommand('map.addNote') },
       'separator',
       { label: store.selectionMode ? 'Stop Lasso Select' : 'Lasso Select', run: () => emitCommand('map.lasso') },
       { label: 'Fit Map to Window', run: () => emitCommand('view.fitView') },

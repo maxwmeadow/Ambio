@@ -22,8 +22,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +56,12 @@ func (s *Server) broadcastSheetLayoutState(sqlDB *sql.DB, sheetID string) ([]db.
 		s.broadcastPatch("sheet:upserted", sheet)
 	}
 	return elements, planned, sheet
+}
+
+func (s *Server) broadcastSheetRevision(sqlDB *sql.DB, sheetID string) {
+	if sheet, err := db.GetSheet(sqlDB, sheetID); err == nil && sheet != nil {
+		s.broadcastPatch("sheet:upserted", sheet)
+	}
 }
 
 func (s *Server) registerSheetRoutes(mux *http.ServeMux) {
@@ -216,6 +224,39 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workspaceID := r.URL.Query().Get("workspace")
+	if len(parts) == 2 && parts[1] == "review" && r.Method == http.MethodPost {
+		var body struct {
+			WorkspaceID string                   `json:"workspaceId"`
+			Revision    int                      `json:"revision"`
+			Choices     []db.SheetProposalChoice `json:"choices"`
+			Decision    string                   `json:"decision"`
+			Reason      string                   `json:"reason"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.WorkspaceID == "" {
+			jsonError(w, "workspace and reviewed proposal details required", 400)
+			return
+		}
+		sqlDB, err := s.dbFor(body.WorkspaceID)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		result, err := db.DecideSheetProposals(sqlDB, body.WorkspaceID, id, body.Revision, body.Choices, body.Decision, body.Reason)
+		if err != nil {
+			jsonError(w, err.Error(), 409)
+			return
+		}
+		for _, node := range result.Planned {
+			s.broadcastPatch("planned:upserted", node)
+		}
+		for _, edge := range result.PlannedEdges {
+			s.broadcastPatch("planned:edge", edge)
+		}
+		s.broadcastPatch("sheet:upserted", result.Sheet)
+		jsonOK(w, result)
+		return
+	}
 
 	if len(parts) == 2 && (parts[1] == "compare" || parts[1] == "resolve" || parts[1] == "bind" || parts[1] == "reopen" || parts[1] == "apply_nesting" || parts[1] == "context") {
 		s.handleSheetWork(w, r, id, parts[1])
@@ -261,6 +302,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:upserted", n)
+		s.broadcastSheetRevision(sqlDB, n.SheetID)
 		jsonOK(w, n)
 		return
 	}
@@ -285,6 +327,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:edge", edge)
+		s.broadcastSheetRevision(sqlDB, edge.SheetID)
 		jsonOK(w, edge)
 		return
 	}
@@ -305,6 +348,7 @@ func (s *Server) handleSheetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:edge", e)
+		s.broadcastSheetRevision(sqlDB, e.SheetID)
 		jsonOK(w, e)
 		return
 	}
@@ -814,6 +858,7 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			s.recordProposalDecision(sqlDB, planned, body.Decision, body.Reason)
 		}
 		s.broadcastPatch("planned:upserted", planned)
+		s.broadcastSheetRevision(sqlDB, planned.SheetID)
 		jsonOK(w, planned)
 
 	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "position":
@@ -919,6 +964,7 @@ func (s *Server) handlePlannedByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.broadcastPatch("planned:upserted", n)
+		s.broadcastSheetRevision(sqlDB, n.SheetID)
 		jsonOK(w, n)
 
 	case r.Method == http.MethodDelete && len(parts) == 1:
@@ -969,18 +1015,67 @@ func (s *Server) handlePlannedEdgeByID(w http.ResponseWriter, r *http.Request) {
 // ─── Annotations ──────────────────────────────────────────────────────────────
 
 func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		workspace := r.URL.Query().Get("workspace")
+		database, err := s.dbFor(workspace)
+		if err != nil {
+			jsonError(w, err.Error(), 404)
+			return
+		}
+		var surface *string
+		if id := r.URL.Query().Get("sheet"); id != "" && id != "floor" {
+			surface = &id
+		}
+		if surface != nil {
+			sheet, err := db.GetSheet(database, *surface)
+			if err != nil || sheet == nil || sheet.WorkspaceID != workspace {
+				jsonError(w, "sheet not found", 404)
+				return
+			}
+		}
+		notes, err := db.GetSurfaceAnnotations(database, workspace, surface)
+		if err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		jsonOK(w, notes)
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
 	var a db.Annotation
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil || a.Body == "" {
+	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
 		jsonError(w, "bad request: body required", 400)
+		return
+	}
+	if (a.Kind != "" && a.Kind != "note" && strings.TrimSpace(a.Body) == "") || len(a.Body) > 100000 {
+		jsonError(w, "note text must contain 1 to 100000 characters", 400)
+		return
+	}
+	if a.Author != "" && a.Author != "user" && a.Author != "agent" {
+		jsonError(w, "invalid author", 400)
+		return
+	}
+	if !validAnnotationGeometry(a.PositionX, a.PositionY, a.Width, a.Height, true) {
+		jsonError(w, "invalid note position or size", 400)
 		return
 	}
 	sqlDB, err := s.dbFor(a.WorkspaceID)
 	if err != nil {
 		jsonError(w, err.Error(), 404)
+		return
+	}
+	if a.SheetID != nil {
+		sheet, err := db.GetSheet(sqlDB, *a.SheetID)
+		if err != nil || sheet == nil || sheet.WorkspaceID != a.WorkspaceID {
+			jsonError(w, "sheet not found", 404)
+			return
+		}
+	}
+	if a.Kind != "" && a.Kind != "note" && a.Kind != "flag" && a.Kind != "decision" && a.Kind != "reply" {
+		jsonError(w, "invalid annotation kind", 400)
 		return
 	}
 	if err := db.CreateAnnotation(sqlDB, &a); err != nil {
@@ -991,9 +1086,21 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, a)
 }
 
+func validAnnotationGeometry(x, y *float64, width, height float64, defaults bool) bool {
+	for _, v := range []*float64{x, y} {
+		if v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || math.Abs(*v) > 1e9) {
+			return false
+		}
+	}
+	valid := func(v, min, max float64) bool {
+		return defaults && v == 0 || !math.IsNaN(v) && !math.IsInf(v, 0) && v >= min && v <= max
+	}
+	return valid(width, 160, 2000) && valid(height, 100, 2000)
+}
+
 func (s *Server) handleAnnotationByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/annotations/")
-	if id == "" || r.Method != http.MethodDelete {
+	if id == "" || (r.Method != http.MethodDelete && r.Method != http.MethodGet && r.Method != http.MethodPatch) {
 		http.NotFound(w, r)
 		return
 	}
@@ -1003,9 +1110,124 @@ func (s *Server) handleAnnotationByID(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 404)
 		return
 	}
-	if err := db.DeleteAnnotation(sqlDB, id); err != nil {
+	a, err := db.GetAnnotation(sqlDB, workspaceID, id)
+	if err != nil {
 		jsonError(w, err.Error(), 500)
 		return
+	}
+	if a == nil {
+		jsonError(w, "note not found", 404)
+		return
+	}
+	if r.Method == http.MethodGet {
+		jsonOK(w, a)
+		return
+	}
+	conflict := func() {
+		current, _ := db.GetAnnotation(sqlDB, workspaceID, id)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(409)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": db.ErrAnnotationConflict.Error(), "current": current})
+	}
+	if r.Method == http.MethodPatch {
+		var patch struct {
+			Revision     int      `json:"revision"`
+			Body         *string  `json:"body"`
+			X            *float64 `json:"positionX"`
+			Y            *float64 `json:"positionY"`
+			Width        *float64 `json:"width"`
+			Height       *float64 `json:"height"`
+			UpdatedBy    string   `json:"updatedBy"`
+			ParentNodeID *string  `json:"parentNodeId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil || patch.Revision < 1 {
+			jsonError(w, "revision required", 400)
+			return
+		}
+		if patch.Body != nil {
+			a.Body = *patch.Body
+		}
+		if patch.X != nil {
+			a.PositionX = patch.X
+		}
+		if patch.Y != nil {
+			a.PositionY = patch.Y
+		}
+		if patch.Width != nil {
+			a.Width = *patch.Width
+		}
+		if patch.Height != nil {
+			a.Height = *patch.Height
+		}
+		if (a.Kind != "note" && strings.TrimSpace(a.Body) == "") || len(a.Body) > 100000 || !validAnnotationGeometry(a.PositionX, a.PositionY, a.Width, a.Height, false) {
+			jsonError(w, "invalid note text or geometry", 400)
+			return
+		}
+		if patch.UpdatedBy == "" {
+			patch.UpdatedBy = "user"
+		}
+		if patch.UpdatedBy != "user" && patch.UpdatedBy != "agent" {
+			jsonError(w, "invalid editor", 400)
+			return
+		}
+		a.UpdatedBy = patch.UpdatedBy
+		var layout *db.FloorLayout
+		if a.Kind == "note" && (patch.X != nil || patch.Y != nil || patch.Width != nil || patch.Height != nil || patch.ParentNodeID != nil) {
+			layout = a.Layout
+			if layout == nil {
+				jsonError(w, "note layout missing", 409)
+				return
+			}
+			if patch.X != nil {
+				layout.PositionX = *patch.X
+			}
+			if patch.Y != nil {
+				layout.PositionY = *patch.Y
+			}
+			if patch.Width != nil {
+				layout.Width = *patch.Width
+			}
+			if patch.Height != nil {
+				layout.Height = *patch.Height
+			}
+			if patch.ParentNodeID != nil {
+				if *patch.ParentNodeID == "" {
+					layout.ParentNodeID = nil
+					layout.ParentNodeType = nil
+					layout.ContainmentKind = "root"
+				} else {
+					kind := "system"
+					layout.ParentNodeID = patch.ParentNodeID
+					layout.ParentNodeType = &kind
+					layout.ContainmentKind = "part_of"
+				}
+			}
+		}
+		if err := db.UpdateAnnotationAndLayout(sqlDB, a, patch.Revision, layout); errors.Is(err, db.ErrAnnotationConflict) {
+			conflict()
+			return
+		} else if err != nil {
+			jsonError(w, err.Error(), 500)
+			return
+		}
+		s.broadcastPatch("annotation:upserted", a)
+		jsonOK(w, a)
+		return
+	}
+	revision, err := strconv.Atoi(r.URL.Query().Get("revision"))
+	if err != nil || revision < 1 {
+		jsonError(w, "revision required", 400)
+		return
+	}
+	if err := db.DeleteAnnotationRevision(sqlDB, workspaceID, id, revision); errors.Is(err, db.ErrAnnotationConflict) {
+		conflict()
+		return
+	} else if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	if a.SheetID != nil {
+		_ = db.TouchSheet(sqlDB, *a.SheetID)
 	}
 	s.broadcastPatch("annotation:deleted", map[string]string{"id": id, "workspaceId": workspaceID})
 	jsonOK(w, map[string]string{"deleted": id})

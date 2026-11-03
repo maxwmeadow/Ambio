@@ -1,5 +1,6 @@
 // SheetPalette - the UML stencil sidebar, shown when a sheet layer is active.
 // Click to add to the selected system, or drag onto a specific frame.
+import { useLayoutEffect, useRef } from 'react'
 export interface StencilDef {
   id: string
   label: string
@@ -40,8 +41,31 @@ function StencilGlyph({ shape }: { shape: StencilDef['shape'] }) {
 }
 
 export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stencil: StencilDef) => void; disabled?: boolean }) {
+  const root = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const palette = root.current, canvas = palette?.parentElement
+    if (!palette || !canvas) return
+    let tab: HTMLElement | null = null
+    const observer = new ResizeObserver(() => measure())
+    const measure = () => {
+      const current = canvas.querySelector<HTMLElement>('.ambio-infra-sidebar-tab')
+      if (current !== tab) {
+        if (tab) observer.unobserve(tab)
+        tab = current
+        if (tab) observer.observe(tab)
+      }
+      const values = { '--sheet-stencils-bottom': `${palette.offsetTop + palette.offsetHeight}px`, '--sheet-infra-tab-height': `${tab?.offsetHeight ?? 0}px` }
+      for (const [key, value] of Object.entries(values)) if (canvas.style.getPropertyValue(key) !== value) canvas.style.setProperty(key, value)
+    }
+    measure()
+    observer.observe(palette)
+    // New infrastructure discoveries replace the pulsing tab's DOM node.
+    const children = new MutationObserver(measure)
+    children.observe(canvas, { childList: true })
+    return () => { observer.disconnect(); children.disconnect(); canvas.style.removeProperty('--sheet-stencils-bottom'); canvas.style.removeProperty('--sheet-infra-tab-height') }
+  }, [])
   return (
-    <div className="ambio-sheet-palette" aria-label="Sheet stencils" data-onboarding-target="stencils">
+    <div ref={root} className="ambio-sheet-palette" aria-label="Sheet stencils" data-onboarding-target="stencils">
       <div className="ambio-sheet-palette__title">Stencils</div>
       {STENCILS.map(stencil => (
         <button
@@ -62,9 +86,6 @@ export function SheetPalette({ onCreate, disabled = false }: { onCreate: (stenci
           <span>{stencil.label}</span>
         </button>
       ))}
-      <div className="ambio-sheet-palette__hint">
-        click to add · drag to place · double-click to rename
-      </div>
     </div>
   )
 }

@@ -168,6 +168,14 @@ export function* projectFloorNodeSteps({
       }
     }
 
+    if (descriptor.nodeType === 'note') {
+      return { id, type: 'note', parentId: parentId ?? undefined, position, style,
+        initialWidth: style.width, initialHeight: style.height,
+        data: { depth, frameScale: geometry.scale, worldScale, contentScale,
+          interiorScale: geometry.interiorScale, presentationScale: worldScale },
+        draggable: true, selectable: true }
+    }
+
     if (descriptor.nodeType === 'file') {
       const file = filesById.get(id)!
       return {

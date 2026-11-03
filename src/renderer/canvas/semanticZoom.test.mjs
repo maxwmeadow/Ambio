@@ -276,3 +276,17 @@ test('a semantically hidden node cannot be grabbed', () => {
   // A dragged node is forced interactive even while faded.
   assert.equal(makeFullyVisible(hiddenChild).draggable, true)
 })
+
+
+test('revealing a connection endpoint moves visible ancestor titles into their tabs', () => {
+  const projected = [node('root', 620, 420), node('nested', 220, 160, { parentId: 'root', depth: 1 }), node('target', 100, 50, { parentId: 'nested', depth: 2 }), node('sibling', 100, 50, { parentId: 'nested', depth: 2 })]
+  projected[0].hidden = false; projected[0].data.childrenVisible = 0
+  projected[1].hidden = false; projected[1].data.childrenVisible = 0
+  projected[2].hidden = true; projected[3].hidden = true
+  const revealed = revealNodePath(projected, 'target')
+  assert.equal(revealed[0].data.childrenVisible, 1)
+  assert.equal(revealed[1].data.childrenVisible, 1)
+  assert.equal(revealed[2].hidden, false)
+  assert.equal(revealed[3], projected[3], 'hidden siblings stay untouched')
+  assert.equal(revealNodePath(revealed, 'target'), revealed, 'a repeated reveal is stable')
+})

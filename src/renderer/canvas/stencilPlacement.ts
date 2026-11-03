@@ -45,13 +45,14 @@ export function planStencilPlacement(input: {
   infraIds: Set<string>
 }) {
   const { id, stencil, point, target } = input
+  const note = stencil.shape === 'note'
   const system = stencil.kind === 'system'
   const infra = stencil.kind === 'infra'
-  const width = system ? 620 : infra ? 260 : 220
-  const height = system ? 420 : infra ? 160 : 110
+  const width = note ? 260 : system ? 620 : infra ? 260 : 220
+  const height = note ? 180 : system ? 420 : infra ? 160 : 110
   const worldScale = target ? nodeContentScale(target) : 1
   const newcomer: Node = {
-    id, type: system ? 'system' : infra ? 'infra' : 'file',
+    id, type: note ? 'note' : system ? 'system' : infra ? 'infra' : 'file',
     position: point, selected: true,
     data: { worldScale },
     style: { width: width * worldScale, height: height * worldScale },
@@ -62,7 +63,7 @@ export function planStencilPlacement(input: {
     absolutePositions: new Map([...input.positions, [id, point]]),
     editableNodeIds: new Set([...input.editableIds, id]),
     systemIds: new Set([...input.systemIds, ...(system ? [id] : [])]),
-    fileIds: new Set([...input.fileIds, ...(!system && !infra ? [id] : [])]),
+    fileIds: new Set([...input.fileIds, ...(!note && !system && !infra ? [id] : [])]),
     infraIds: new Set([...input.infraIds, ...(infra ? [id] : [])]),
     floorLayouts: input.layouts,
   })
