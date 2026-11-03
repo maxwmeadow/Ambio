@@ -33,7 +33,7 @@ for (const creation of ['drag', 'click']) {
       await page.reload()
       await expect(page.locator('.react-flow__node').first()).toBeAttached()
       await expect(page.locator('.layout-transition')).toHaveCount(0)
-      await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
+      await page.getByRole('button', { name: 'Authoring lab', exact: true }).click()
       const palette = page.locator('.ambio-sheet-palette')
       await expect(palette).toBeVisible()
 
@@ -158,7 +158,7 @@ for (const creation of ['drag', 'click']) {
       await expect.poll(async () => (await readSheet()).layouts.find(layout => layout.nodeId === `planned:${rootFile.id}`)?.parentNodeId).toBe(`planned:${system.id}`)
       const saved = (await readSheet()).layouts
       await page.reload()
-      await page.getByRole('button', { name: 'Authoring lab STR', exact: true }).click()
+      await page.getByRole('button', { name: 'Authoring lab', exact: true }).click()
       await expect(systemNode).toBeAttached()
       await centerSystem()
       await systemNode.click({ position: { x: 10, y: 10 } })

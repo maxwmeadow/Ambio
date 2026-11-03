@@ -4,7 +4,7 @@ import { clipOrthogonalEdge } from '../../src/renderer/canvas/edges/clippedEdgeG
 import { canvasViewportSettled } from './canvasComponentCounts'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page, type Route } from '@playwright/test'
 
 let app: ElectronApplication
 let page: Page
@@ -3033,6 +3033,10 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
     realizedFileId: null, notes: '', shape: '', color: '', positionX: 0, positionY: 0,
     width: null, height: null, scale: 1, parentSystemId: null, createdBy: 'agent',
   }
+  // A later reload of the sheet list must keep the agent's sheet in the rail.
+  const runtimeSheet = { id: 'sheet_runtime', workspaceId: 'demo', name: 'Runtime Draft', purpose: 'Focused runtime architecture', kind: 'structure', folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 }
+  const listSheets = (route: Route) => route.fulfill({ json: [runtimeSheet, agentSheet] })
+  await page.route(/\/api\/sheets\?/, listSheets)
   await page.route(/\/api\/sheets\/sheet_split\?/, route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({ sheet: agentSheet, elements, annotations: [], planned: [proposal], plannedEdges: [relationship], layouts: [], removals: [] }),
@@ -3041,17 +3045,17 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Payments Split')
-  // The move and the relationship are reviewed with the new system.
-  await expect(review.locator('li[data-kind]')).toHaveCount(4)
-  await expect(review.locator('li[data-kind="rename"]')).toContainText('to Canvas Platform')
-  await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
-  await expect(review.locator('li[data-kind="relationship"]')).toContainText('Payments Split')
-  for (const summary of await review.locator('summary').all()) await summary.click()
+  // The relationship is reviewed with the new system; the move and the rename
+  // are changes of their own.
+  await expect(review.getByLabel('3 changes to review')).toBeVisible()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
-  const relationships = page.getByLabel('Show All Sheet Relationships', { exact: true })
-  await relationships.check()
+  await page.getByRole('button', { name: 'Expand Split Payments', exact: true }).click()
+  const relationships = page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true })
+  await relationships.click()
+  await expect(relationships).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
-  await relationships.uncheck()
+  await relationships.click()
+  await expect(relationships).toHaveAttribute('aria-pressed', 'false')
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   // The named system has not moved or resized.
   await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
@@ -3064,6 +3068,24 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await expect(renamedSystem.locator('.ambio-renamed-from')).toContainText('was ')
   await expect(renamedSystem).toContainText('Canvas Platform')
   await page.screenshot({ path: 'test-results/sheet-proposed-rename.png' })
+  // Each change's rows open in its inspector.
+  const inspect = async (group: RegExp) => {
+    await review.getByRole('button', { name: new RegExp(`^Inspect changes for ${group.source}$`) }).click()
+    // Inspecting flies to the change. A camera move that interrupts that
+    // flight leaves React Flow's fit-view promise unresolved for good, so let
+    // each one land before the next gesture.
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    return page.getByRole('dialog', { name: new RegExp(`^Review ${group.source}$`) })
+  }
+  let inspector = await inspect(/Add Payments Split/)
+  await expect(inspector.locator('li[data-kind]')).toHaveCount(2)
+  await expect(inspector.locator('li[data-kind="relationship"]')).toContainText('Payments Split')
+  inspector = await inspect(/Move .+ into Payments Split/)
+  await expect(inspector.locator('li[data-kind="move"]')).toContainText('into Payments Split')
+  inspector = await inspect(/Canvas Renderer/)
+  await expect(inspector.locator('li[data-kind="rename"]')).toContainText('to Canvas Platform')
+  await page.keyboard.press('Escape')
+  await expect(inspector).toHaveCount(0)
   // The file the proposal takes over is drawn inside it.
   await review.getByRole('button', { name: /Payments Split/ }).first().click()
   const plannedNode = page.locator('.react-flow__node[data-id="planned:plan_split"]')
@@ -3079,7 +3101,8 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await expect(fileNode).toHaveAttribute('data-proposal-kind', 'move')
   await expect(fileNode).not.toHaveCSS('outline-style', 'dashed')
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toBeAttached()
-  await review.locator('li[data-kind="relationship"]').getByRole('button').first().click()
+  inspector = await inspect(/Add Payments Split/)
+  await inspector.locator('li[data-kind="relationship"]').getByRole('button').first().click()
   await expect(page.getByLabel('Selected relationship')).toContainText('Payments Split uses')
   await expect.poll(async () => {
     const canvas = await page.locator('.react-flow').first().boundingBox()
@@ -3093,9 +3116,10 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
     return size?.height ?? 0
   }).toBeLessThan(22)
   await page.evaluate(edge => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'planned:edge', payload: { ...edge, approvalStatus: 'approved' } }), relationship)
-  await expect(review.locator('li[data-kind="relationship"]')).toHaveCount(0)
+  await expect(inspector.locator('li[data-kind="relationship"]')).toHaveCount(0)
   await page.locator('.react-flow__pane').click({ position: { x: 350, y: 100 } })
-  await relationships.check()
+  await relationships.click()
+  await expect(relationships).toHaveAttribute('aria-pressed', 'true')
   const connection = page.locator('.react-flow__edge[data-id="pedge:edge_split"] .react-flow__edge-interaction')
   const midpoint = await connection.evaluate(element => {
     const path = element as SVGPathElement
@@ -3107,6 +3131,7 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   await expect(page.getByLabel('Selected relationship')).toContainText('Part of this plan')
   await page.screenshot({ path: 'test-results/sheet-proposed-move.png' })
   await page.unroute(/\/api\/sheets\/sheet_split\?/)
+  await page.unroute(/\/api\/sheets\?/, listSheets)
 })
 
 test('Edit → Undo and Redo step through map changes made on the Floor', async () => {
