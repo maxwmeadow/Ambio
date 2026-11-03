@@ -173,6 +173,73 @@ the short type fix merely to force a timing test.
   Build approved plan, with durable human acceptance. Current manual mode changes
   establish the baseline; they are not evidence that this feature already works.
 
+## Session C: investigation readability, before and after (prepared 2026-11-03)
+
+**Purpose:** observe a growing live case, inspect its evidence and save it for
+an identical replay after UI changes. This explicitly requests an investigation;
+it does not repeat Session A's test of automatic workflow selection. Max runs
+this in Helios through Ambio; this preparation did not launch an Ambio case.
+
+**Verified offline candidate:** `backend/heuristics.py` declares a configurable
+movement threshold, but changing it does not alter the observed speed gate.
+With a chair in the path, zero steps and speed 0.2 m/s, both the default 0.1
+threshold and a custom 1.0 threshold return an urgent STOP. At speed 0.05 with
+a custom threshold 0.01, the function stays silent. At speed 0.1 it stays
+silent; one step with speed zero triggers STOP. A moving bicycle in the path
+and a moving chair outside the path both stay silent. These are observed
+outputs, not a decision about intended warning behavior: the implementation
+explicitly describes a debug mode. The service passes its config into the
+function; the full service was inspected, not executed.
+
+Preflight used inline standard-library Python 3.14 commands against Helios
+`c90db0d`; no Helios source, dependencies or existing dirty work were changed.
+No server, phone, models, credentials or external services are needed. During
+an observed run use normal Python startup (for the recorder) and `-B` to avoid
+bytecode writes, importing only the heuristics module rather than the service.
+
+**Send in Ask, in a fresh Helios conversation with the same engine/model as the
+original run:**
+
+> Investigate whether Helios's HeuristicsConfig actually controls when STOP
+> warnings fire. Use Ambio's investigation feature and name the case
+> "Helios warning thresholds". Watch backend/heuristics.py:evaluate_scene.
+> Run three small groups of offline experiments: default versus changed
+> movement thresholds on identical input; speed-only versus step-only motion;
+> and in-path versus off-path objects with different labels. State what each
+> experiment tests, record its result and update the corresponding hypothesis
+> from the evidence. Inspect the caller to explain which settings affect the
+> actual warning path, and distinguish deliberate debug behavior from a defect.
+> Use inline Python repros importing only the heuristics module. Don't start
+> the backend or mobile app, load models, use external services, install
+> dependencies, edit project files, create sheets, commit or push. Explain the
+> smallest potential fix without applying it. Leave the case open after the
+> experiments so I can inspect it and take screenshots.
+
+**Capture:** start a screen recording before sending, since individual commands
+may finish quickly. Take frames at the first hypothesis, an executing/completed
+experiment, the grown case and the final conclusion. Keep app dimensions, chat
+width, engine/model and visible canvas context consistent between captures.
+Record where a reader loses track, what requires scrolling and whether the
+current question, experiment, finding and next step are immediately clear.
+
+**Then send:**
+
+> Conclude the investigation, link the findings to its recorded runs and save
+> it for replay. Don't apply any fixes.
+
+Capture the closed case and retain its name/save reference. Replay that same
+saved investigation after UI changes for a comparison with identical evidence;
+a second live agent run can separately check live updates and chat steering.
+Do not claim that a replay exercises live feedback delivery.
+
+**Max's presentation requirements (2026-11-03):** one clear reading order,
+compact current activity/finding with expandable evidence and history, bounded
+space as the case grows, no shrinking sliver of scrollable history, and the
+existing chat as the visible place for steering. Preserve delivery to the
+investigating agent for both in-app chat and client connections rather than
+simply deleting the case's feedback capability. No redesign has been applied
+or evaluated by this preparation.
+
 ## Scorecard and evidence
 
 For each step, record elapsed time, action taken, visible result and a friction
