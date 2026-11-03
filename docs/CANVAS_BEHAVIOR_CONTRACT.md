@@ -807,6 +807,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   remains reachable from the toolbar, View and command palette, including while
   new changes arrive. Opening or dismissing an invitation never acknowledges
   the underlying changes. No permanent footer is required.
+- Review Changes is selected/expanded only while its review is open. Repeating
+  the command closes it without acknowledging changes, just like Escape or
+  Close review; pending updates alone do not select the toolbar button.
 
 ### First-run payoff
 

@@ -255,7 +255,7 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `review-changes-toggle` **Make the Review Changes button reflect its open panel.** Pending deltas currently select the button while it is closed and deselect it on opening. Use the existing review-open state for its selected/expanded appearance; repeat activation closes without acknowledging changes. **Done when:** pending updates stay unselected, open/close/Escape and acknowledgement synchronize the button, and review remains available after closing. (Codex, `codex/project-title-hero`, 2026-11-03; Max.)
+- ⬜ `terminal-toolbar-width` The new Terminal button precedes Search in the navigation group, so existing first-child Search selectors give Terminal the large search-field width. Target Search explicitly when finalizing the terminal toolbar. (2026-11-03; seen in Review Changes UI captures.)
 
 - ⬜ `windows-go-test-runner-stall` During 2026-11-03 merge validation, `go test ./...` kept consuming CPU after its test processes exited. An uncached `go test -count=1 -json ./...` completed with only the already recorded Git watcher failure. Investigate the normal runner/cache path on Windows.
 
@@ -422,6 +422,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-11-03 `review-changes-toggle` Review Changes now highlights/expands only while reviewing, and repeating the shared command closes without acknowledging the delta. Verified pending updates, toolbar close/reopen, Escape, Close review and Accept all with the existing Electron review journey; acknowledgement stays explicit. Types/build, 900 unit tests (7 skipped), and 2 focused review UI tests pass; open/closed toolbar captures inspected. (`codex/project-title-hero`)
 
 - 2026-11-03 `project-title-hero` Show the current saved project title immediately left of the unchanged branch control in the hero bar, with compact label/value styling and hover text for truncated names. Follows project metadata on Floor and sheets. TypeScript, renderer tests (900 passed / 7 skipped), build and 3 focused Electron toolbar/branch tests passed; visually checked ordinary and 900px toolbar captures. (`codex/project-title-hero`)
 

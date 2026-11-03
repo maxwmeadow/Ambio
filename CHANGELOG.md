@@ -7,6 +7,8 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Fixed Review Changes appearing selected while closed. Its highlight follows
+  the open panel, and clicking it again closes review without accepting changes.
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
 ### Added

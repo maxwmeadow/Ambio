@@ -34,7 +34,9 @@ migrations; `internal/indexer/limits.go`) in every project, and the count
 mirrors it. Excluded files, not only folders, are honoured by a full index.
 
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
-Fit and Message Agent visible. The current project's saved display name sits
+Fit and Message Agent visible. Review Changes uses the existing review-open
+state for its highlight; the shared command toggles review without acknowledging
+changes on close. The current project's saved display name sits
 immediately left of the unchanged branch control; it follows project changes
 and truncates long titles with the full name on hover. There is no permanent
 status footer or idle indexing label. On the Floor, its name appears only in the left rail, with no
