@@ -1,6 +1,21 @@
 /* Application chrome: title-bar menu bar (Windows/Linux), command palette,
    Settings, Keyboard Shortcuts, About and the transient status toast. */
 
+/* Animate the shared slot only when it opens or closes. Switching its contents
+   leaves the same element and animation in place, so neither panel slides over
+   the other. The slot keeps its canvas inset until the exit finishes. */
+.ambio-workbench-sidebar {
+  position: fixed; z-index: 181; top: var(--chrome-toolbar-height, 82px); right: 0; bottom: 0;
+  width: min(var(--workbench-sidebar-width, 560px), 100vw);
+  animation: ambioPanelInRight var(--panel-enter) both;
+}
+.ambio-workbench-sidebar[hidden] { display: none; }
+.ambio-workbench-sidebar[data-closing] { animation: ambioPanelOutRight var(--panel-exit) both; }
+.ambio-workbench-sidebar > .ambio-inbox, .ambio-workbench-sidebar > .ambio-terminal {
+  position: absolute; inset: 0; width: 100%;
+}
+@media (prefers-reduced-motion: reduce) { .ambio-workbench-sidebar { animation: none !important; } }
+
 .ambio-menubar {
   display: flex;
   align-items: center;

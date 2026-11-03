@@ -9,7 +9,8 @@ in the app as "What's New" after updating, so write it for users.
 
 - Terminal controls now fit in one compact top bar with shell options tucked
   into a menu and no footer. Terminal and agent messages share a saved sidebar
-  width and switch in place without overlapping animations.
+  width and switch in place without overlapping animations. Opening and closing
+  either sidebar retain their slide animations.
 
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 

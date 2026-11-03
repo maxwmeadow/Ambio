@@ -42,6 +42,10 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   the canvas viewport. Both share one saved width: resizing either applies to
   the other, including after reopening. Switching replaces the contents in
   place without overlapping slide animations or changing the canvas width.
+  Opening from closed and closing to the canvas retain the shared slide-in/out
+  animations; only switching between the two skips a new animation. Closing
+  content is inert and reserves its inset until the exit completes. Reduced
+  motion skips the animation.
   The terminal has a single compact control bar and no footer.
   Opening either sidebar hides the other; terminal shells
   and scrollback remain alive while hidden. Ctrl+` toggles the terminal on every
