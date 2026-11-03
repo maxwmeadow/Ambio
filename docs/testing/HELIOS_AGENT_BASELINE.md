@@ -274,6 +274,46 @@ squeezed scroll area; and chat as the single visible steering input. Preserve
 feedback delivery to the investigating agent for both chat and client sessions.
 No UI redesign has been applied or evaluated by this preparation.
 
+### Session D observed answer: Antigravity CLI, 2026-11-03
+
+Max supplied the natural Ask prompt and the final `antigravity-cli` answer,
+reporting that no investigation appeared. This differs from Session C's Claude
+Code route and the first Codex run. Model, engine version and raw tool/command
+activity were not supplied in this attachment; it contains only the user
+message and final answer, despite being described as a full transcript.
+
+The answer identifies the same late-startup subscription leak as independent
+preflight, explains state churn from step-count dependencies and proposes
+cancellation/lifetime guards. Its connection exclusion is too broad: one active
+socket suffices to reproduce this sensor leak, but `connect()` can create more
+instances if invoked repeatedly before the current one connects. Those are
+separate failure modes. A changing `enabled` dependency reruns effects in the
+same hook instance; it need not remount the component as the answer suggests.
+
+**Reproduction by this agent is unverified.** No executed repro command, harness,
+output, assertions or recorded run accompanies the answer. The table of exact
+millisecond timings must be treated as an illustrative schedule. In particular,
+it schedules motion callbacks at 140ms and says their timers expire at 250ms,
+while the active screen configures a 200ms update interval. It also omits the
+first-sample initialization step. These details cannot be quoted as captured
+runtime evidence. This does not prove that no commands were run; their activity
+is absent from the supplied transcript.
+
+**Investigation adoption: not observed, with cause unknown.** Unlike the simple
+threshold diagnosis, this is a legitimate execution-tracing candidate. Current
+source advertises `investigation` in `CORE_TOOLS`; only `debug_runtime` needs the
+debug profile. `SERVER_INSTRUCTIONS` tells debugging agents to use it, although
+actual client delivery/consumption of those instructions is not established
+here. Do not attribute the omission to tool preference until the selected host's
+runtime tool list, instructions, permission/refusal events and command activity
+are inspected. Likewise do not assume a chat heading containing "Investigation"
+is a saved Ambio case.
+
+Next checks: separate host/model routes; verify the exact capability/instruction
+handoff; distinguish executed experiments from explanatory timelines; preserve
+the natural user prompt. A larger artificial bug is unnecessary while the
+independently verified timing case already supplies suitable execution behavior.
+
 ## Scorecard and evidence
 
 For each step, record elapsed time, action taken, visible result and a friction

@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- ⬜ `investigation-host-adoption-evidence` **Audit investigation discovery and execution evidence per host.** Antigravity CLI answered the natural Helios sensor-race task with no visible case and an unsupported millisecond timeline; the supplied text omits command/tool activity. Current MCP source exposes investigations in core and supplies debugging instructions. Verify actual per-run tool/instruction delivery, refusals and observed commands before blaming model selection; separate illustrative timelines from reproduced results. **Start:** baseline Session D observed answer, `mcp/ambio-mcp.ts`, `electron/agentDrivers.ts`, common run events. (2026-11-03)
+
 - ⬜ `windows-go-test-runner-stall` During 2026-11-03 merge validation, `go test ./...` kept consuming CPU after its test processes exited. An uncached `go test -count=1 -json ./...` completed with only the already recorded Git watcher failure. Investigate the normal runner/cache path on Windows.
 
 - ⬜ `setup-scope-agent-proposals` **The mapping agent proposes scope changes:** after the first index, folders nothing imports, throwaway scripts and tests as their own layer, offered as pending "leave this out" proposals with confirm/reject in review. Deferred by Max 2026-10-29 in favour of setup's deterministic defaults. (2026-10-29)
