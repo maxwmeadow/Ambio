@@ -10,12 +10,10 @@
   --inbox-line: #aeb8ae;
   --inbox-accent: #2d625c;
   top: var(--chrome-toolbar-height, 82px); right: 0; bottom: 0;
-  width: min(var(--inbox-width, 456px), 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
+  width: min(var(--workbench-sidebar-width, 560px), 100vw); border: 0; border-left: 1px solid #62716b; border-radius: 0;
   background: var(--inbox-paper); color: var(--inbox-ink); box-shadow: -5px 0 0 #1f2b2524;
   font: 13px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
-  animation: ambioPanelInRight var(--panel-enter) both;
 }
-.ambio-inbox[data-closing] { animation: ambioPanelOutRight var(--panel-exit) both; }
 .ambio-inbox button { cursor: pointer; border: 0; border-radius: 0; background: transparent; padding: 0; text-align: inherit; color: inherit; font: inherit; }
 .ambio-inbox button:disabled { cursor: default; opacity: .5; }
 .ambio-inbox button:hover:not(:disabled) { color: var(--inbox-accent); }
@@ -204,7 +202,6 @@
 .ambio-inbox__error { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 9px 18px; color: #8d4235; background: #f8eae3; overflow-wrap: anywhere; }
 .ambio-inbox__error button { text-decoration: underline; }
 .ambio-inbox__limit { display: block; padding: 5px; color: #a5563b; }
-@media (max-width: 700px) { .ambio-inbox { top: var(--chrome-toolbar-height, 82px); bottom: 0; width: 100vw; } }
 @media (max-height: 620px) { .ambio-inbox__header { height: 40px; } .ambio-inbox__history { padding-top: 12px; gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { .ambio-inbox__comparison-summary > svg:last-child { transition: none; } }
 .ambio-sheet-rail__archive { padding: 10px; border-top: 1px solid #dce0d6; font-size: 11px; }
@@ -394,7 +391,6 @@
 /* The left edge resizes the panel; double-click returns it to its width. */
 .ambio-inbox__resize { position: absolute; z-index: 20; top: 0; bottom: 0; left: -3px; width: 7px; cursor: ew-resize; touch-action: none; }
 .ambio-inbox__resize:hover, .ambio-inbox__resize:active { background: linear-gradient(90deg, transparent 2px, #6caaa0 2px, #6caaa0 4px, transparent 4px); }
-@media (max-width: 700px) { .ambio-inbox__resize { display: none; } }
 /* The agent, with its model joined to it, in the message box's row. */
 .ambio-inbox__compose { position: relative; }
 .ambio-inbox__compose-tools { flex-wrap: nowrap; }

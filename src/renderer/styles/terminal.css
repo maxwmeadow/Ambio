@@ -1,0 +1,38 @@
+.ambio-terminal {
+  position: fixed; z-index: 181; top: var(--chrome-toolbar-height, 82px); right: 0; bottom: 0;
+  width: min(var(--workbench-sidebar-width, 560px), 100vw); display: flex; flex-direction: column;
+  background: #202b28; color: #e2e8de; border-left: 1px solid #62716b; box-shadow: -5px 0 #1f2b2524;
+  font: 12px/1.45 var(--font-ui, 'IBM Plex Sans', sans-serif);
+}
+.ambio-terminal[hidden], .ambio-terminal__screen[hidden] { display: none; }
+.ambio-terminal button, .ambio-terminal select { font: inherit; color: inherit; border-radius: 0; cursor: pointer; }
+.ambio-terminal button { background: transparent; border: 1px solid transparent; padding: 4px 9px; }
+.ambio-terminal button:hover:not(:disabled) { background: #415b51; border-color: #6e9183; color: #fff; }
+.ambio-terminal button:disabled { opacity: .45; cursor: default; }
+.ambio-terminal button:focus-visible, .ambio-terminal select:focus-visible, .ambio-terminal__resize:focus-visible { outline: 2px solid #9bceba; outline-offset: -2px; }
+.ambio-terminal__header { position: relative; display: flex; flex: none; align-items: stretch; height: 34px; background: linear-gradient(#394746, #293433); border-bottom: 1px solid #17211e; box-shadow: inset 0 1px #53635e; }
+.ambio-terminal__tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.ambio-terminal__idle { align-self: center; padding: 0 10px; color: #adbbb1; font-size: 11px; }
+.ambio-terminal__actions { display: flex; flex: none; align-items: center; padding: 0 4px; }
+.ambio-terminal__actions > button, .ambio-terminal__options > summary { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; box-sizing: border-box; font-size: 19px; }
+.ambio-terminal__options > summary { list-style: none; cursor: pointer; border: 1px solid transparent; }
+.ambio-terminal__options > summary::-webkit-details-marker { display: none; }
+.ambio-terminal__options > summary:hover, .ambio-terminal__options[open] > summary { background: #415b51; border-color: #6e9183; }
+.ambio-terminal__options > summary:focus-visible { outline: 2px solid #9bceba; outline-offset: -2px; }
+.ambio-terminal__menu { position: absolute; z-index: 3; top: 100%; right: 4px; width: min(270px, calc(100% - 8px)); box-sizing: border-box; padding: 8px; background: #e9e7df; color: #27332f; border: 1px solid #62716b; box-shadow: 0 4px 12px #0005; }
+.ambio-terminal__menu label { display: flex; flex-direction: column; gap: 5px; padding-bottom: 7px; font-size: 11px; }
+.ambio-terminal__menu select { width: 100%; padding: 5px; border: 1px solid #aeb8ae; background: #f2f0e8; color: #27332f; }
+.ambio-terminal__menu button { display: block; width: 100%; text-align: left; }
+.ambio-terminal__menu button:hover:not(:disabled) { background: #d2ded2; color: #2d625c; }
+.ambio-terminal__tab { display: flex; flex: none; border-right: 1px solid #47594f; border-bottom: 2px solid transparent; color: #adbbb1; }
+.ambio-terminal__tab[data-active=true] { color: #e2e8de; border-bottom-color: #9bceba; background: #202b28; }
+.ambio-terminal__tab > button:first-child { font-size: 11px; padding: 7px 10px; }
+.ambio-terminal__tab > button:last-child { padding: 0 7px; }
+.ambio-terminal__body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.ambio-terminal__screen { height: 100%; box-sizing: border-box; padding: 10px 4px 6px 12px; }
+.ambio-terminal__screen .xterm { height: 100%; }
+.ambio-terminal__empty { padding: 40px 22px; text-align: center; color: #adbbb1; }
+.ambio-terminal__empty p:first-child { color: #e2e8de; }
+.ambio-terminal__error { margin: 0; padding: 9px 12px; color: #ffb3a3; }
+.ambio-terminal__resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: ew-resize; z-index: 2; touch-action: none; }
+.ambio-terminal__resize:hover { background: #9bceba66; }
