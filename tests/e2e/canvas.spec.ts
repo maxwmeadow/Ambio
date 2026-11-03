@@ -1922,8 +1922,14 @@ test('opens saved investigations and controls replay through the workbench trans
   await replay.getByRole('button', { name: 'Exit replay' }).click()
   await expect(replay).toHaveCount(0)
 
-  await openInvestigations()
+  // The toolbar button opens the same popover, hanging from the button.
+  const toolbarButton = page.locator('.ambio-toolbar').getByRole('button', { name: 'Investigations', exact: true })
+  await toolbarButton.click()
   await expect(page.getByRole('dialog', { name: 'Saved investigations' })).toBeVisible()
+  await expect(toolbarButton).toHaveAttribute('aria-expanded', 'true')
+  const buttonBox = await toolbarButton.boundingBox()
+  const anchoredBox = await page.getByRole('dialog', { name: 'Saved investigations' }).boundingBox()
+  expect(Math.abs(anchoredBox!.x - buttonBox!.x)).toBeLessThan(2)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Saved investigations' })).toHaveCount(0)
 })

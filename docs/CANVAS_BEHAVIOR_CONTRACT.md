@@ -792,9 +792,11 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 - Routine index activity, daemon health and passive graph counts take no
   permanent screen space. The canvas and chat extend to the bottom edge.
-- Selection, Review Changes, the active sheet name, Search, Fit and Message
-  Agent remain in the toolbar. Recording and saved investigations live in
-  Tools; an active recording retains a visible Stop control.
+- Selection, Review Changes, Investigations, the active sheet name, Search,
+  Fit and Message Agent remain in the toolbar. Investigations opens the saved
+  investigations popover under its button (also Tools ▸ Saved
+  Investigations…). Recording lives in Tools; an active recording retains a
+  visible Stop control.
 - The Floor name appears in the left rail only; its toolbar label and reserved
   space are omitted. Open sheets keep their name in the toolbar.
 - Reads lasting over 1.5 seconds show progress and Stop in the interruption

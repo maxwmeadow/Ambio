@@ -111,6 +111,7 @@ export function Toolbar({
               <path d="M9 5H5v16h14V5h-4M9 3h6v4H9zM8 14l3 3 5-6"/>
             </svg>
           </ChromeButton>
+          <InvestigationsMenu workspaceId={workspaceId} trigger />
         </div>
 
         {activeSheetId && <div className="ambio-surface-readout">
@@ -157,7 +158,6 @@ export function Toolbar({
       </div>
 
       </header>
-      <InvestigationsMenu workspaceId={workspaceId} />
       <ProjectActivity key={workspaceId} workspaceId={workspaceId} />
       <ProposalDraftProgress key={`draft:${workspaceId}`} workspaceId={workspaceId} />
       <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />

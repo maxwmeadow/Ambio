@@ -50,6 +50,9 @@ in the app as "What's New" after updating, so write it for users.
   Django migration headers, `@generated`) are no longer drawn on the map.
 
 ### Fixed
+- The Investigations button is back in the toolbar, and saved investigations
+  open in a cleaner, compact popover: newest first, delete on hover, one line
+  of language coverage, and setup help behind an ⓘ.
 - Letting go of a node on a sheet leaves it where you dropped it. Before, it
   jumped back to where the drag began and then slid over to the drop.
 - Setting up a project no longer counts, or indexes, a Python virtualenv or
