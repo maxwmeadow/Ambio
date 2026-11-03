@@ -53,6 +53,27 @@ from Agent. The queue ranks progress below decisions, failures and invitations;
 only one notice occupies the canvas at a time. Recording controls appear while
 recording, starting, saving or offering the saved capture for replay.
 
+## Integrated terminals
+
+`TerminalPanel` is lazy-loaded from the toolbar into the same right sidebar
+space as conversations. Its own inset keeps canvas framing in the visible area.
+The shared `view.terminal` command uses Control+backtick on all platforms. Shell
+tabs stay mounted and process output while hidden, with bounded xterm scrollback.
+The shell picker remembers its preference; discovery covers Windows PowerShell,
+PowerShell Core, cmd, Git Bash, installed WSL distributions, Unix login shells
+and PATH shells. A native executable picker saves custom shells per machine.
+
+`electron/terminals.ts` owns native `node-pty` sessions; typed preload IPC exposes
+session operations, shell discovery/selection, clipboard paste and events. Starts resolve a registered
+project's current root and a discovered shell in main, never a renderer-supplied
+command or directory. Data acknowledgements pause/resume PTYs to bound outstanding
+output; hidden tabs continue consuming it. Closing a tab, leaving the workbench,
+reloading, renderer crashes, window close and quit dispose the owned shells.
+Sessions do not survive app restart. `node-pty` and its native helpers are unpacked
+from ASAR in packaged apps; xterm is bundled in a separate renderer chunk.
+Reusable tasks, server lifecycle and agent terminal controls remain tracked in
+`agent-execution-workspace` in WORK.md.
+
 ## Integrated coding conversations
 
 Conversation presentation (`store/conversationPreferences.ts`) stores custom

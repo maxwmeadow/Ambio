@@ -46,6 +46,7 @@ export type CommandId =
   | 'view.search'
   | 'view.fitView'
   | 'view.agentLog'
+  | 'view.terminal'
   | 'view.documents'
   | 'view.explorer'
   | 'view.zoomSelection'
@@ -138,6 +139,7 @@ export const COMMANDS: Record<CommandId, CommandSpec> = {
   'view.sheetRelationships': { id: 'view.sheetRelationships', label: 'Show All Sheet Relationships', needsProject: true },
   'view.infrastructure': { id: 'view.infrastructure', label: 'Infrastructure Sidebar', accelerator: 'CmdOrCtrl+Shift+E', needsProject: true },
   'view.agentLog': { id: 'view.agentLog', label: 'Agent Log', accelerator: 'CmdOrCtrl+Shift+A', needsProject: true },
+  'view.terminal': { id: 'view.terminal', label: 'Toggle Terminal', accelerator: 'Ctrl+`', needsProject: true },
   'view.documents': { id: 'view.documents', label: 'Documents', accelerator: 'CmdOrCtrl+Shift+D', needsProject: true },
   'view.explorer': { id: 'view.explorer', label: 'Model Explorer', accelerator: 'CmdOrCtrl+Shift+O', needsProject: true },
   'view.reviewChanges': { id: 'view.reviewChanges', label: 'Review Changes', needsProject: true },
@@ -234,7 +236,7 @@ export function buildMenu(platform: MenuPlatform, options: { developer?: boolean
       command('view.commandPalette'), command('view.search'), separator,
       {
         kind: 'group', label: 'Panels', entries: [
-          'view.agentLog', 'view.documents', 'view.explorer', 'view.infrastructure', 'view.sheetRelationships',
+          'view.terminal', 'view.agentLog', 'view.documents', 'view.explorer', 'view.infrastructure', 'view.sheetRelationships',
           'view.panelSheetRail', 'view.panelDetail',
         ],
       },
@@ -351,7 +353,7 @@ function parseAccelerator(accelerator: string, platform: MenuPlatform): ParsedAc
 const DIGIT_CODES: Record<string, string> = {
   '0': 'Digit0', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', '4': 'Digit4',
   '5': 'Digit5', '6': 'Digit6', '7': 'Digit7', '8': 'Digit8', '9': 'Digit9',
-  '=': 'Equal', '-': 'Minus', '/': 'Slash', ',': 'Comma',
+  '=': 'Equal', '-': 'Minus', '/': 'Slash', ',': 'Comma', '`': 'Backquote',
 }
 
 export function matchesAccelerator(event: KeyEventLike, accelerator: string, platform: MenuPlatform): boolean {

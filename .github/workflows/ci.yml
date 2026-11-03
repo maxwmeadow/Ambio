@@ -99,6 +99,12 @@ jobs:
       - name: Build Electron bundles
         run: npm run build
 
+      # Linux runs this with the full UI suite below. Exercise the platform PTY
+      # and clipboard on the other hosts too, rather than only simulating them.
+      - name: Test integrated terminal
+        if: runner.os != 'Linux'
+        run: npx playwright test tests/e2e/terminal.spec.ts
+
   # The canvas is covered by Playwright and the agent surface by the MCP
   # end-to-end suite; both drive real processes (Electron, archd, the MCP
   # server), so they run once, on Linux, under a virtual display.
