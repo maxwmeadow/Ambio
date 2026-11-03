@@ -8,6 +8,8 @@ import { architectureLinkTarget, fileLinkTarget, normalizeAgentText, remarkCodeR
 import { codeReferenceFromAmbioHref, describeLines, type CodeReference } from './codeReference'
 import { useSheetStore } from '../store/sheetStore'
 import { useSourcePreviewStore } from '../store/sourcePreviewStore'
+import { symbolFromAmbioHref, type FileHints } from './symbolReference'
+import { resolveSymbol, useResolvedSymbol } from './symbolLookup'
 import { InboxIcon } from './InboxIcon'
 
 function CodeBlock({ text, language }: { text: string; language?: string }) {
@@ -35,6 +37,21 @@ function CodeChip({ reference, fileId, label, workspaceId }: { reference: CodeRe
     useSourcePreviewStore.getState().open({ fileId, workspaceId, name: reference.relPath, lineStart: reference.line, lineEnd: reference.endLine })
   }
   return <button type="button" className="ambio-inbox__file-link" title={reference.line ? `Open ${reference.relPath} at ${lines}` : `Show ${reference.relPath} on the map`} onClick={open}>{label}</button>
+}
+
+/**
+ * A function, class or other symbol the agent named. It reads as plain code
+ * until archd confirms which one definition it means; then it opens there.
+ */
+function SymbolChip({ text, hints, relPaths, root, workspaceId }: { text: string; hints: FileHints; relPaths: ReadonlySet<string>; root?: string; workspaceId: string }) {
+  const found = useResolvedSymbol(workspaceId, text, hints, relPaths, root)
+  if (!found) return <code>{text}</code>
+  const open = async () => {
+    // Ask again so the lines are the ones on disk now, not when the reply was drawn.
+    const current = await resolveSymbol(workspaceId, text, hints, relPaths, root, true) ?? found
+    useSourcePreviewStore.getState().open({ fileId: current.fileId, workspaceId, name: current.name, kind: current.kind, lineStart: current.lineStart, lineEnd: current.lineEnd })
+  }
+  return <button type="button" className="ambio-inbox__file-link" title={`Open ${found.kind} ${found.name} in ${found.relPath}`} onClick={() => { void open() }}>{text}</button>
 }
 
 /**
@@ -74,6 +91,8 @@ export function AgentMessageContent({ text }: { text: string }) {
     a: ({ href, children }) => {
       const code = href ? codeReferenceFromAmbioHref(href) : null
       if (code) return <CodeChip reference={code} fileId={byPath.get(code.relPath)} label={textOf(children).trim() || code.relPath} workspaceId={workspaceId} />
+      const symbol = href ? symbolFromAmbioHref(href) : null
+      if (symbol) return <SymbolChip text={symbol.text} hints={symbol.hints} relPaths={paths} root={root} workspaceId={workspaceId} />
       if (href && /^ambio:/i.test(href)) {
         try {
           const target = architectureLinkTarget(href)
@@ -93,7 +112,7 @@ export function AgentMessageContent({ text }: { text: string }) {
       return <CodeBlock text={textOf(children).replace(/\n$/, '')} language={/language-([\w+#.-]+)/.exec(className)?.[1]} />
     },
     table: ({ children }) => <div className="ambio-inbox__table"><table>{children}</table></div>,
-  }), [root, byPath, references, workspaceId, showOnMap])
+  }), [root, byPath, paths, references, workspaceId, showOnMap])
   return <div className="ambio-inbox__prose">
     <Markdown remarkPlugins={plugins} components={components} urlTransform={safeUrl}>{normalizeAgentText(text, root)}</Markdown>
   </div>

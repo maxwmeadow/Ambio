@@ -106,7 +106,28 @@ test('inline code, links and nearby line numbers from different clients all reac
   assert.equal(after[0].url, 'ambio://code/robot%2Fheuristics.py#L114')
   assert.deepEqual(after[0].children, [text('heuristics.py')])
   assert.equal(before[1].url, 'ambio://code/robot%2Fheuristics.py#L7')
-  assert.deepEqual(symbol, [{ type: 'inlineCode', value: 'evaluate_scene' }])
+  // A symbol name becomes a symbol link that knows which files the reply names.
+  const { symbolFromAmbioHref } = await import('./symbolReference.ts')
+  assert.deepEqual(symbolFromAmbioHref(symbol[0].url), { text: 'evaluate_scene', hints: { nearby: [], message: ['robot/heuristics.py'] } })
+  assert.deepEqual(symbol[0].children, [text('evaluate_scene')])
+})
+
+test('a symbol learns the files named in its own paragraph first', async () => {
+  const { remarkCodeReferences } = await import('./agentMessageFormat.ts')
+  const { symbolFromAmbioHref } = await import('./symbolReference.ts')
+  const files = new Set(['robot/heuristics.py', 'robot/server.py'])
+  const paragraph = (...children) => ({ type: 'paragraph', children })
+  const code = value => ({ type: 'inlineCode', value })
+  const tree = { type: 'root', children: [
+    paragraph(code('evaluate_scene'), { type: 'text', value: ' in ' }, code('heuristics.py:114')),
+    paragraph({ type: 'text', value: 'See ' }, code('server.py'), { type: 'text', value: ' and ' }, code('Scene.update()')),
+    paragraph(code('0.1'), code('speed > 0.2')),
+  ] }
+  remarkCodeReferences(files)()(tree)
+  assert.deepEqual(symbolFromAmbioHref(tree.children[0].children[0].url).hints, { nearby: ['robot/heuristics.py'], message: ['robot/heuristics.py', 'robot/server.py'] })
+  assert.deepEqual(symbolFromAmbioHref(tree.children[1].children[3].url), { text: 'Scene.update()', hints: { nearby: ['robot/server.py'], message: ['robot/heuristics.py', 'robot/server.py'] } })
+  // Values and expressions stay code.
+  assert.deepEqual(tree.children[2].children, [code('0.1'), code('speed > 0.2')])
 })
 
 test('architecture references read as names, open the artifact, and preserve code examples', async () => {

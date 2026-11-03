@@ -4064,3 +4064,35 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
   }), { timeout: 5_000 }).toBe(true)
   await page.unroute(/\/api\/canvas\/history\?/)
 })
+
+test('a function an agent names opens at its definition; an ambiguous name stays code', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const hit = (id: string, name: string, kind: string, lineStart: number, lineEnd: number) => ({ id, fileId, name, kind, lineStart, lineEnd, relPath: file })
+  await page.route(/\/api\/symbols\/search\?/, route => {
+    const name = new URL(route.request().url()).searchParams.get('q')
+    const symbols = name === 'evaluate_scene' ? [hit('s1', 'evaluate_scene', 'function', 3, 6)]
+      : name === 'update' ? [hit('s2', 'update', 'method', 8, 9), hit('s3', 'update', 'method', 10, 11)] : []
+    return route.fulfill({ json: { symbols } })
+  })
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: { fileId, relPath: file, language: 'plaintext', lineCount: 12, content: Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n') } }))
+  const body = 'The knob is dead: `evaluate_scene()` hardcodes `0.1`, and `update` is called twice.'
+  const reply = { id: 'sym-1', workspaceId: 'demo', sheetId: null, note: 'Why?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'sym-1', createdAt: 60, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'claude-code', body, createdAt: 61 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'The knob is dead' })
+  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText(['evaluate_scene()'])
+  await expect(prose.locator('code')).toHaveText(['0.1', 'update'])
+  await prose.getByRole('button', { name: 'evaluate_scene()' }).click()
+  const source = page.getByRole('dialog', { name: `evaluate_scene in ${file}` })
+  await expect(source.locator('.source-preview-location')).toHaveText('function evaluate_scene · lines 3–6')
+  await expect(source.locator('.source-preview-line-highlighted')).toHaveCount(4)
+  await source.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(source).toHaveCount(0)
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/symbols\/search\?/)
+})

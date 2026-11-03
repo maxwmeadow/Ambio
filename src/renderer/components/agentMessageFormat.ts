@@ -5,6 +5,7 @@
  */
 
 import { adjacentLines, codeReferenceFromAmbioHref, codeReferenceFromHref, codeReferenceFromText, codeReferenceHref } from './codeReference.ts'
+import { parseSymbolCandidate, symbolHref } from './symbolReference.ts'
 
 /**
  * Text as the agent meant it.
@@ -121,7 +122,13 @@ export function remarkCodeReferences(relPaths: ReadonlySet<string>, projectRoot?
       }
       if (child.type === 'inlineCode' && child.value) {
         const target = codeReferenceFromText(child.value, relPaths, projectRoot)
-        if (!target) return [child]
+        if (!target) {
+          // Shaped like a symbol: which definition it means is asked of archd when it renders.
+          if (!parseSymbolCandidate(child.value, relPaths, projectRoot)) return [child]
+          const link = reference(SYMBOL_PENDING, child.value.trim())
+          symbols.add(link)
+          return [link]
+        }
         const link = reference(codeReferenceHref(target), child.value.trim())
         created.add(link)
         return [link]
@@ -151,8 +158,28 @@ export function remarkCodeReferences(relPaths: ReadonlySet<string>, projectRoot?
       if (target && lines) child.url = codeReferenceHref({ ...target, ...lines })
     })
   }
-  return () => (tree: MarkdownNode) => { if (relPaths.size) walk(tree) }
+  // Each symbol learns which files its paragraph and the whole reply name, to choose between definitions.
+  const filesIn = (node: MarkdownNode): string[] => {
+    const target = node.type === 'link' && node.url ? codeReferenceFromAmbioHref(node.url) : null
+    return [...(target ? [target.relPath] : []), ...(node.children ?? []).flatMap(filesIn)]
+  }
+  const unique = (paths: string[]) => [...new Set(paths)]
+  const addHints = (node: MarkdownNode, nearby: string[], message: string[]) => {
+    if (symbols.has(node)) { node.url = symbolHref(markdownText(node), { nearby, message }); return }
+    const block = BLOCKS.has(node.type) ? unique(filesIn(node)) : nearby
+    node.children?.forEach(child => addHints(child, block, message))
+  }
+  const symbols = new WeakSet<MarkdownNode>()
+  return () => (tree: MarkdownNode) => {
+    if (!relPaths.size) return
+    walk(tree)
+    addHints(tree, [], unique(filesIn(tree)))
+  }
 }
+
+const SYMBOL_PENDING = 'ambio://symbol/'
+/** Where "nearby" ends for a symbol's file hints. */
+const BLOCKS = new Set(['paragraph', 'heading', 'listItem', 'tableCell', 'blockquote'])
 
 /** Make map references readable even in replies written before the response
  * guidance was installed. Code blocks and link destinations stay verbatim. */

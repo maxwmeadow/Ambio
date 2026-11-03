@@ -57,8 +57,8 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   review, a system in the mapping review list) brings the node into view the
   way search does: it opens a collapsed system, selects the node and fits once
   the node has been measured. All of them share one flight and its framing.
-  A file chip that names a line opens the source viewer at that line instead,
-  leaving the map where it is.
+  A file chip that names a line, or a symbol chip, opens the source viewer at
+  that line or definition instead, leaving the map where it is.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and

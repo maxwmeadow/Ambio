@@ -23,6 +23,9 @@ in the app as "What's New" after updating, so write it for users.
   hidden sessions keep running until closed or the app exits.
 - Click a file and line an agent mentions in chat, such as `heuristics.py:114`,
   to open that file's source at that line. Works however the agent wrote it.
+- Click a function or class an agent names in chat, such as `evaluate_scene()`
+  or `Scene.update`, to open it at its definition. Names that could mean more
+  than one definition stay plain.
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
   for To review when opening a sheet. Reduced-motion preferences are respected.
 - Expand a sheet in the sidebar to find its systems, files and connections,

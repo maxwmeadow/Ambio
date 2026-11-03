@@ -802,8 +802,14 @@ relative links, `:12`, `#L12-L20`, `(12,5)`, "line 12 of `a.py`" - is read by
 `remarkCodeReferences` plugin rewrites each into an `ambio://code/` link that
 renders as one chip; a shortened or differently-cased name counts when exactly
 one indexed path matches it. A chip with a line opens the app-wide source
-viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the same
-`SourcePreviewDialog` symbol rows use). A chip without one, like a row
+viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the one viewer
+symbol rows and search also open). Inline code shaped like a symbol (`run()`,
+`Scene.update`, `a.py::run`; `symbolReference.ts`) becomes an `ambio://symbol/`
+link carrying the files its paragraph and the reply name; the chip asks archd's
+symbol search for exact matches (`symbolLookup.ts`, cached until the files
+list changes) and becomes clickable only when one definition is clear, a
+class before the name being matched by line-range containment. Otherwise it
+stays code. A file chip without a line, like a row
 under To review, brings the map to its node through `useShowOnMap`, which
 opens a collapsed system, selects the node and fits the view once React Flow
 has measured it. The toolbar reserves the shared sidebar width as
