@@ -4,6 +4,8 @@
  * something a person can read and click.
  */
 
+import { adjacentLines, codeReferenceFromAmbioHref, codeReferenceFromHref, codeReferenceFromText, codeReferenceHref } from './codeReference.ts'
+
 /**
  * Text as the agent meant it.
  *
@@ -66,26 +68,6 @@ export function fileLinkTarget(href: string | undefined, projectRoot?: string): 
   return target
 }
 
-/**
- * A file named in inline code, when it is one Ambio indexed: its full project
- * path, or - as agents often shorten them - a bare name or partial path that
- * ends exactly one indexed path. An ambiguous name stays plain code.
- */
-export function inlineFilePath(text: string, relPaths: ReadonlySet<string>): string | null {
-  const candidate = text.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/:(\d+)(-\d+)?$/, '')
-  if (relPaths.has(candidate)) return candidate
-  // Only something shaped like a file name: no spaces or wildcards, with an extension.
-  if (!/^[\w.@-][\w.@/-]*\.[A-Za-z0-9]+$/.test(candidate)) return null
-  const suffix = `/${candidate}`
-  let match: string | null = null
-  for (const path of relPaths) {
-    if (!path.endsWith(suffix)) continue
-    if (match) return null
-    match = path
-  }
-  return match
-}
-
 type MarkdownNode = { type: string; value?: string; url?: string; children?: MarkdownNode[] }
 /** Parse only Ambio's artifact links; custom schemes need no browser URL handling. */
 export function architectureLinkTarget(href: string): { type: 'sheet' | 'system'; id: string } | null {
@@ -96,36 +78,77 @@ export function architectureLinkTarget(href: string): { type: 'sheet' | 'system'
 
 /** Where a path is already code, a link or raw text, it is left as written. */
 const KEEP_AS_WRITTEN = new Set(['code', 'inlineCode', 'link', 'linkReference', 'definition', 'html'])
-const FILE_NAME = /[\w.@-][\w.@/-]*\.[A-Za-z0-9]+/g
+const markdownText = (node: MarkdownNode): string => node.value ?? (node.children ?? []).map(markdownText).join('')
+
+/** A file name in prose, with any location suffix a client writes after it. */
+const PROSE_REFERENCE = /[\w.@-][\w.@/\\-]*\.[A-Za-z0-9]+(?:#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?|:\d+(?::\d+)?(?:[-\u2013]\d+(?::\d+)?)?|\(\d+(?:,\s*\d+)?\))?/g
 
 /**
- * A remark plugin: file names written as plain prose ("see query_builder.py")
- * become inline code when they name a file Ambio indexed, so they render as
- * the same chips as paths the agent put in backticks.
+ * A remark plugin: every way an agent names a project file - inline code,
+ * plain prose ("see query_builder.py:40"), or a link of any scheme - becomes
+ * one `ambio://code/` link carrying the file and line, so each renders as the
+ * same chip whichever client wrote it. A line given beside the name ("`a.py`
+ * line 40", "line 40 of `a.py`") is attached to it. Code blocks and unknown
+ * files stay as written.
  */
-export function remarkFilePaths(relPaths: ReadonlySet<string>) {
+export function remarkCodeReferences(relPaths: ReadonlySet<string>, projectRoot?: string) {
+  const reference = (url: string, label: string): MarkdownNode => ({ type: 'link', url, children: [{ type: 'text', value: label }] })
   const split = (text: string): MarkdownNode[] | null => {
     const parts: MarkdownNode[] = []
     let last = 0
-    for (const found of text.matchAll(FILE_NAME)) {
+    for (const found of text.matchAll(PROSE_REFERENCE)) {
       const start = found.index ?? 0
       // Part of a longer word or URL ("example.com/x.py", "a:b.py") is not a path on its own.
-      if (start > 0 && /[\w:/]/.test(text[start - 1])) continue
-      if (!inlineFilePath(found[0], relPaths)) continue
+      if (start > 0 && /[\w:/\\]/.test(text[start - 1])) continue
+      const target = codeReferenceFromText(found[0], relPaths, projectRoot)
+      if (!target) continue
       if (start > last) parts.push({ type: 'text', value: text.slice(last, start) })
-      parts.push({ type: 'inlineCode', value: found[0] })
+      parts.push(reference(codeReferenceHref(target), found[0]))
       last = start + found[0].length
     }
     if (!parts.length) return null
     if (last < text.length) parts.push({ type: 'text', value: text.slice(last) })
     return parts
   }
+  const created = new WeakSet<MarkdownNode>()
   const walk = (node: MarkdownNode) => {
     if (!node.children || KEEP_AS_WRITTEN.has(node.type)) return
     node.children = node.children.flatMap(child => {
-      if (child.type === 'text' && child.value) return split(child.value) ?? [child]
+      if (child.type === 'text' && child.value) {
+        const parts = split(child.value)
+        parts?.forEach(part => { if (part.type === 'link') created.add(part) })
+        return parts ?? [child]
+      }
+      if (child.type === 'inlineCode' && child.value) {
+        const target = codeReferenceFromText(child.value, relPaths, projectRoot)
+        if (!target) return [child]
+        const link = reference(codeReferenceHref(target), child.value.trim())
+        created.add(link)
+        return [link]
+      }
+      if (child.type === 'link') {
+        const target = codeReferenceFromHref(child.url, relPaths, projectRoot)
+        if (!target) return [child]
+        child.url = codeReferenceHref(target)
+        created.add(child)
+        // "[executor.py](…/executor.py#L50-L67)": the line is only in the address, so show it.
+        const range = target.line ? `${target.line}${target.endLine ? `–${target.endLine}` : ''}` : ''
+        const text = markdownText(child)
+        if (!text.trim()) child.children = [{ type: 'text', value: `${target.relPath}${range ? `:${range}` : ''}` }]
+        else if (range && !text.includes(String(target.line))) child.children = [...(child.children ?? []), { type: 'text', value: `:${range}` }]
+        return [child]
+      }
       walk(child)
       return [child]
+    })
+    // "`a.py` line 40" or "line 40 of `a.py`": the sentence gives the line.
+    node.children.forEach((child, index, siblings) => {
+      if (!created.has(child) || !child.url || child.url.includes('#L')) return
+      const before = siblings[index - 1]?.type === 'text' ? siblings[index - 1].value ?? '' : ''
+      const after = siblings[index + 1]?.type === 'text' ? siblings[index + 1].value ?? '' : ''
+      const lines = adjacentLines(before, after)
+      const target = lines && codeReferenceFromAmbioHref(child.url)
+      if (target && lines) child.url = codeReferenceHref({ ...target, ...lines })
     })
   }
   return () => (tree: MarkdownNode) => { if (relPaths.size) walk(tree) }

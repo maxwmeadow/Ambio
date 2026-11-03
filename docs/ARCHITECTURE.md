@@ -762,10 +762,15 @@ for a one-line progress message before each major step. Ambio chat keeps OpenCod
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
 render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).
 `normalizeAgentText` repairs what agents commonly break (a `\b` decoded into a
-backspace, one-backtick fences, absolute project paths). File links, inline
-code and plain-prose file names that resolve to an indexed file become chips
-(`fileLinkTarget`, `inlineFilePath`, the `remarkFilePaths` plugin); a shortened
-name counts when exactly one indexed path ends with it. A chip, like a row
+backspace, one-backtick fences, absolute project paths). Every way a client
+names a code location - inline code, plain prose, file://, vscode://file/ and
+relative links, `:12`, `#L12-L20`, `(12,5)`, "line 12 of `a.py`" - is read by
+`codeReference.ts` into one file-and-line reference, and the
+`remarkCodeReferences` plugin rewrites each into an `ambio://code/` link that
+renders as one chip; a shortened or differently-cased name counts when exactly
+one indexed path matches it. A chip with a line opens the app-wide source
+viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the same
+`SourcePreviewDialog` symbol rows use). A chip without one, like a row
 under To review, brings the map to its node through `useShowOnMap`, which
 opens a collapsed system, selects the node and fits the view once React Flow
 has measured it. While the panel is open it publishes its width as

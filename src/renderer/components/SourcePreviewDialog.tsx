@@ -1,22 +1,32 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import type { DbSymbol } from '../../shared/types'
 import { apiGetFileSource, type FileSource } from '../canvas/arcdApi'
+import { useSourcePreviewStore } from '../store/sourcePreviewStore'
 import { highlightSource, type HighlightedSource, type SyntaxToken } from './sourceHighlighting'
 
 interface SourcePreviewDialogProps {
   fileId: string
   workspaceId: string
-  symbol: Pick<DbSymbol, 'name' | 'kind' | 'lineStart' | 'lineEnd'>
+  /** A symbol (with its kind), or a plain line range someone pointed at (without). */
+  symbol: { name: string; kind?: string; lineStart: number; lineEnd?: number }
   onClose: () => void
 }
 
 function highlightedRange(symbol: SourcePreviewDialogProps['symbol']): { start: number; end: number } {
   const start = Math.max(1, symbol.lineStart)
-  const kind = symbol.kind.toLowerCase()
-  const spansDefinition = kind === 'function' || kind === 'method' || kind === 'class' ||
+  const kind = symbol.kind?.toLowerCase()
+  const spansDefinition = !kind || kind === 'function' || kind === 'method' || kind === 'class' ||
     kind === 'interface' || kind === 'type'
-  return { start, end: spansDefinition ? Math.max(start, symbol.lineEnd) : start }
+  return { start, end: spansDefinition ? Math.max(start, symbol.lineEnd ?? start) : start }
+}
+
+/** The app-wide source viewer, opened through useSourcePreviewStore. */
+export function SourcePreviewHost() {
+  const request = useSourcePreviewStore(state => state.request)
+  const close = useSourcePreviewStore(state => state.close)
+  if (!request) return null
+  const { fileId, workspaceId, ...symbol } = request
+  return <SourcePreviewDialog key={`${fileId}:${symbol.lineStart}:${symbol.lineEnd ?? ''}`} fileId={fileId} workspaceId={workspaceId} symbol={symbol} onClose={close} />
 }
 
 function displayError(error: unknown): string {
@@ -150,7 +160,8 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           <div className="source-preview-heading">
             <div className="source-preview-path" title={title}>{title}</div>
             <div className="source-preview-location">
-              {symbol.kind} {symbol.name} · {range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
+              {symbol.kind ? `${symbol.kind} ${symbol.name} · ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
+              {source && range.start > lines.length && ` · past the end of this ${lines.length}-line file; it may have changed since`}
             </div>
           </div>
           <button autoFocus className="source-preview-close" onClick={onClose} aria-label="Close source preview">×</button>

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { architectureLinkTarget, fileLinkTarget, inlineFilePath, normalizeAgentText } from './agentMessageFormat.ts'
+import { architectureLinkTarget, fileLinkTarget, normalizeAgentText } from './agentMessageFormat.ts'
+import { codeReferenceFromText } from './codeReference.ts'
+
+const inlineFilePath = (text, files) => codeReferenceFromText(text, files)?.relPath ?? null
 
 test('artifact links resolve encoded identifiers without browser-specific custom scheme handling', () => {
   assert.deepEqual(architectureLinkTarget('ambio://sheet/394dba97-cb06-46b3-9e53-c4c8d231bad5'), { type: 'sheet', id: '394dba97-cb06-46b3-9e53-c4c8d231bad5' })
@@ -57,23 +60,53 @@ test('a bare file name or partial path is recognised when one indexed file ends 
 })
 
 test('file names written as plain prose become chips; code, links and unknown names do not', async () => {
-  const { remarkFilePaths } = await import('./agentMessageFormat.ts')
+  const { remarkCodeReferences } = await import('./agentMessageFormat.ts')
   const files = new Set(['backend/src/database/query_builder.py', 'backend/test_skills.py'])
   const text = (value) => ({ type: 'text', value })
+  const chip = (url, label) => ({ type: 'link', url, children: [text(label)] })
   const tree = { type: 'root', children: [
-    { type: 'paragraph', children: [text('See backend/src/database/query_builder.py, test_skills.py and notes.py.')] },
+    { type: 'paragraph', children: [text('See backend/src/database/query_builder.py, test_skills.py:12 and notes.py.')] },
     { type: 'paragraph', children: [{ type: 'strong', children: [text('(backend/test_skills.py)')] }] },
-    { type: 'link', children: [text('query_builder.py')] },
+    { type: 'link', url: 'https://x.io', children: [text('query_builder.py')] },
     { type: 'paragraph', children: [text('https://x.io/query_builder.py')] },
+    { type: 'code', value: 'query_builder.py:3' },
   ] }
-  remarkFilePaths(files)()(tree)
+  remarkCodeReferences(files)()(tree)
   assert.deepEqual(tree.children[0].children, [
-    text('See '), { type: 'inlineCode', value: 'backend/src/database/query_builder.py' }, text(', '),
-    { type: 'inlineCode', value: 'test_skills.py' }, text(' and notes.py.'),
+    text('See '), chip('ambio://code/backend%2Fsrc%2Fdatabase%2Fquery_builder.py', 'backend/src/database/query_builder.py'), text(', '),
+    chip('ambio://code/backend%2Ftest_skills.py#L12', 'test_skills.py:12'), text(' and notes.py.'),
   ])
-  assert.deepEqual(tree.children[1].children[0].children, [text('('), { type: 'inlineCode', value: 'backend/test_skills.py' }, text(')')])
+  assert.deepEqual(tree.children[1].children[0].children, [text('('), chip('ambio://code/backend%2Ftest_skills.py', 'backend/test_skills.py'), text(')')])
   assert.deepEqual(tree.children[2].children, [text('query_builder.py')])
   assert.deepEqual(tree.children[3].children, [text('https://x.io/query_builder.py')])
+  assert.deepEqual(tree.children[4], { type: 'code', value: 'query_builder.py:3' })
+})
+
+test('inline code, links and nearby line numbers from different clients all reach the same chip', async () => {
+  const { remarkCodeReferences } = await import('./agentMessageFormat.ts')
+  const files = new Set(['robot/heuristics.py'])
+  const root = 'C:\\Users\\me\\proj'
+  const text = (value) => ({ type: 'text', value })
+  const paragraph = (...children) => ({ type: 'paragraph', children })
+  const tree = { type: 'root', children: [
+    paragraph(text('One line in evaluate_scene ('), { type: 'inlineCode', value: 'heuristics.py:114' }, text('):')),
+    paragraph({ type: 'link', url: 'file:///C:/Users/me/proj/robot/heuristics.py#L50-L67', children: [text('heuristics.py')] }),
+    paragraph({ type: 'link', url: 'robot/heuristics.py:9', children: [text('heuristics.py:9')] }),
+    paragraph({ type: 'inlineCode', value: 'heuristics.py' }, text(' line 114 hardcodes it')),
+    paragraph(text('see line 7 of '), { type: 'inlineCode', value: 'robot/heuristics.py' }),
+    paragraph({ type: 'inlineCode', value: 'evaluate_scene' }),
+  ] }
+  remarkCodeReferences(files, root)()(tree)
+  const [inline, codexLink, claudeLink, after, before, symbol] = tree.children.map(node => node.children)
+  assert.deepEqual(inline[1], { type: 'link', url: 'ambio://code/robot%2Fheuristics.py#L114', children: [text('heuristics.py:114')] })
+  assert.equal(codexLink[0].url, 'ambio://code/robot%2Fheuristics.py#L50-L67')
+  assert.deepEqual(codexLink[0].children, [text('heuristics.py'), text(':50\u201367')])
+  assert.equal(claudeLink[0].url, 'ambio://code/robot%2Fheuristics.py#L9')
+  assert.deepEqual(claudeLink[0].children, [text('heuristics.py:9')])
+  assert.equal(after[0].url, 'ambio://code/robot%2Fheuristics.py#L114')
+  assert.deepEqual(after[0].children, [text('heuristics.py')])
+  assert.equal(before[1].url, 'ambio://code/robot%2Fheuristics.py#L7')
+  assert.deepEqual(symbol, [{ type: 'inlineCode', value: 'evaluate_scene' }])
 })
 
 test('architecture references read as names, open the artifact, and preserve code examples', async () => {

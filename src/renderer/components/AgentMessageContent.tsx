@@ -4,8 +4,10 @@ import remarkGfm from 'remark-gfm'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
-import { architectureLinkTarget, fileLinkTarget, inlineFilePath, normalizeAgentText, remarkFilePaths, remarkArchitectureNames } from './agentMessageFormat'
+import { architectureLinkTarget, fileLinkTarget, normalizeAgentText, remarkCodeReferences, remarkArchitectureNames } from './agentMessageFormat'
+import { codeReferenceFromAmbioHref, describeLines, type CodeReference } from './codeReference'
 import { useSheetStore } from '../store/sheetStore'
+import { useSourcePreviewStore } from '../store/sourcePreviewStore'
 import { InboxIcon } from './InboxIcon'
 
 function CodeBlock({ text, language }: { text: string; language?: string }) {
@@ -13,16 +15,26 @@ function CodeBlock({ text, language }: { text: string; language?: string }) {
   return <div className="ambio-inbox__code"><div><span>{language || 'Code'}</span><button type="button" aria-label={status} onClick={() => { void navigator.clipboard.writeText(text).then(() => setStatus('Copied'), () => setStatus('Copy unavailable')) }}><InboxIcon name={status === 'Copied' ? 'check' : 'copy'} size={13} />{status}</button></div><pre><code>{text}</code></pre></div>
 }
 
-/** A file the agent named: its path in the project, opening it on the map when Ambio indexed it. */
-function FileChip({ relPath, absolute, lines, fileId, written }: { relPath?: string; absolute: string; lines?: string; fileId?: string; written?: string }) {
-  // Inline code keeps what the agent wrote, even a shortened name; a link shows its path.
-  const label = written ?? `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
+/** A file outside what Ambio indexed: shown in the system's file manager. */
+function FileChip({ relPath, absolute, lines }: { relPath?: string; absolute: string; lines?: string }) {
+  const label = `${relPath ?? absolute.split('/').pop()}${lines ? `:${lines.replace('-', '–')}` : ''}`
+  return <button type="button" className="ambio-inbox__file-link" title={absolute} onClick={() => window.ambio?.showInFolder(absolute)}>{label}</button>
+}
+
+/**
+ * A project file the agent named, however its client wrote it. With a line it
+ * opens the source there; without one it shows the file on the map.
+ */
+function CodeChip({ reference, fileId, label, workspaceId }: { reference: CodeReference; fileId?: string; label: string; workspaceId: string }) {
   const showOnMap = useShowOnMap()
+  const lines = describeLines(reference)
+  // The label is what the agent wrote, even a shortened name.
+  if (!fileId) return <code>{label}</code>
   const open = () => {
-    if (fileId) showOnMap(fileId)
-    else window.ambio?.showInFolder(absolute)
+    if (!reference.line) { showOnMap(fileId); return }
+    useSourcePreviewStore.getState().open({ fileId, workspaceId, name: reference.relPath, lineStart: reference.line, lineEnd: reference.endLine })
   }
-  return <button type="button" className="ambio-inbox__file-link" title={fileId ? `Show ${relPath} on the map` : absolute} onClick={open}>{label}</button>
+  return <button type="button" className="ambio-inbox__file-link" title={reference.line ? `Open ${reference.relPath} at ${lines}` : `Show ${reference.relPath} on the map`} onClick={open}>{label}</button>
 }
 
 /**
@@ -51,7 +63,7 @@ export function AgentMessageContent({ text }: { text: string }) {
   const { root, files } = useGraphStore(useShallow(state => ({ root: state.currentProject?.rootPath, files: state.files })))
   const byPath = useMemo(() => new Map(files.map(file => [file.relPath.replace(/\\/g, '/'), file.id])), [files])
   const paths = useMemo(() => new Set(byPath.keys()), [byPath])
-  const plugins = useMemo(() => [remarkGfm, remarkArchitectureNames(references), remarkFilePaths(paths)], [paths, references])
+  const plugins = useMemo(() => [remarkGfm, remarkArchitectureNames(references), remarkCodeReferences(paths, root)], [paths, references, root])
   const components: Components = useMemo(() => ({
     h1: ({ children }) => <h4>{children}</h4>,
     h2: ({ children }) => <h4>{children}</h4>,
@@ -60,6 +72,8 @@ export function AgentMessageContent({ text }: { text: string }) {
     h5: ({ children }) => <h4>{children}</h4>,
     h6: ({ children }) => <h4>{children}</h4>,
     a: ({ href, children }) => {
+      const code = href ? codeReferenceFromAmbioHref(href) : null
+      if (code) return <CodeChip reference={code} fileId={byPath.get(code.relPath)} label={textOf(children).trim() || code.relPath} workspaceId={workspaceId} />
       if (href && /^ambio:/i.test(href)) {
         try {
           const target = architectureLinkTarget(href)
@@ -69,7 +83,7 @@ export function AgentMessageContent({ text }: { text: string }) {
         } catch { return <span>{children}</span> }
       }
       const target = fileLinkTarget(href, root)
-      if (target) return <FileChip {...target} fileId={target.relPath ? byPath.get(target.relPath) : undefined} />
+      if (target) return <FileChip {...target} />
       // Web links open in the browser (the window's open handler), never inside Ambio.
       return <a href={href} target="_blank" rel="noreferrer">{children}</a>
     },
@@ -78,13 +92,8 @@ export function AgentMessageContent({ text }: { text: string }) {
       const className = (code as ReactElement<{ className?: string }> | undefined)?.props?.className ?? ''
       return <CodeBlock text={textOf(children).replace(/\n$/, '')} language={/language-([\w+#.-]+)/.exec(className)?.[1]} />
     },
-    code: ({ children, className }) => {
-      // Inline code naming a project file becomes a chip; anything else stays code.
-      const path = !className && typeof children === 'string' ? inlineFilePath(children, paths) : null
-      return path ? <FileChip relPath={path} absolute={path} fileId={byPath.get(path)} written={(children as string).trim()} /> : <code className={className}>{children}</code>
-    },
     table: ({ children }) => <div className="ambio-inbox__table"><table>{children}</table></div>,
-  }), [root, byPath, paths, references, workspaceId, showOnMap])
+  }), [root, byPath, references, workspaceId, showOnMap])
   return <div className="ambio-inbox__prose">
     <Markdown remarkPlugins={plugins} components={components} urlTransform={safeUrl}>{normalizeAgentText(text, root)}</Markdown>
   </div>

@@ -4035,10 +4035,20 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
   await expect(prose.locator('hr')).toHaveCount(1)
   await expect(prose.locator('table td')).toHaveText(['build_query', 'executor'])
   await page.screenshot({ path: 'test-results/agent-markdown.png' })
-  // A chip selects its file and brings the map to it.
+  // A chip with a line opens the file's source there.
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: { relPath: file, language: 'plaintext', content: Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n') } }))
+  await prose.locator('.ambio-inbox__file-link').first().click()
+  const source = page.getByRole('dialog', { name: `${file} in ${file}` })
+  await expect(source.locator('.source-preview-location')).toHaveText('lines 5–9')
+  await expect(source.locator('.source-preview-line-highlighted')).toHaveCount(5)
+  await expect(source.locator('.source-preview-line-highlighted').first()).toContainText('line 5')
+  await source.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(source).toHaveCount(0)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  // A chip without one selects its file and brings the map to it.
   const viewport = page.locator('.react-flow__viewport')
   const before = await viewport.getAttribute('style')
-  await prose.locator('.ambio-inbox__file-link').first().click()
+  await prose.locator('.ambio-inbox__file-link').nth(1).click()
   await expect.poll(() => page.evaluate(() => {
     const state = (window as any).__ambioGraphStore.getState()
     return state.selectedNodeId === state.files[0].id

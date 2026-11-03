@@ -9,6 +9,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { DocumentsPanel } from './components/DocumentsPanel'
 import { BinDragGhostLayer } from './components/BinDragGhostLayer'
 import { SearchBar } from './components/SearchBar'
+import { SourcePreviewHost } from './components/SourcePreviewDialog'
 import { ModelExplorer } from './components/ModelExplorer'
 import { InjectConfirmBanner } from './components/InjectConfirmBanner'
 import { AgentLogPanel } from './components/AgentLogPanel'
@@ -1053,6 +1054,7 @@ export default function App() {
 
           {/* Search overlay */}
           {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
+          <SourcePreviewHost />
           {explorerOpen && <ModelExplorer onClose={() => setExplorerOpen(false)} />}
 
           {/* The one surface anything is allowed to interrupt you through.
