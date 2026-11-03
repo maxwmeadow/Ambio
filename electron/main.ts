@@ -3,6 +3,9 @@ import { pathToFileURL } from 'node:url'
 import { ChatGPTAuth } from './chatgptAuth'
 import { CHATGPT_USAGE_URL } from '../src/shared/chatgpt'
 import { brandImage } from './branding'
+import { Terminals } from './terminals'
+import { detectTerminalProfiles } from './terminalProfiles'
+import type { TerminalStart } from '../src/shared/terminal'
 import { listModels, validModel } from './agentModels'
 import { AgentChat } from './agentChat'
 import { ChatProviders } from './chatProviders'
@@ -116,6 +119,8 @@ process.on('uncaughtException', error => console.error('[main] uncaught exceptio
 process.on('unhandledRejection', reason => console.error('[main] unhandled rejection:', reason))
 
 let mainWindow: BrowserWindow | null = null
+const terminals = new Terminals()
+let terminalGeneration = 0
 let archdProcess: ChildProcess | null = null
 let tray: Tray | null = null
 // Set once the app is really leaving, so archd exiting then is expected.
@@ -856,6 +861,8 @@ function createWindow(): void {
     console.error(`[main] renderer failed to load: ${code} ${desc} url=${url}`)
   })
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    terminalGeneration++
+    terminals.close()
     console.error('[main] renderer process gone:', details.reason, details.exitCode)
   })
   mainWindow.on('unresponsive', () => {
@@ -863,13 +870,70 @@ function createWindow(): void {
   })
 
   mainWindow.on('closed', () => {
+    terminalGeneration++
+    terminals.close()
     mainWindow = null
+  })
+  mainWindow.webContents.on('did-start-loading', () => {
+    terminalGeneration++
+    terminals.close()
   })
 }
 
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function setupIPC(): void {
+  const terminalProfilesFile = join(CONFIG_DIR, 'terminal-shells.json')
+  let customShells: string[] = []
+  try {
+    const saved: unknown = JSON.parse(fs.readFileSync(terminalProfilesFile, 'utf8'))
+    if (Array.isArray(saved)) customShells = saved.filter((value): value is string => typeof value === 'string')
+  } catch { /* no custom shells yet */ }
+  const detectShells = () => detectTerminalProfiles(process.platform, process.env, customShells)
+  let profiles = detectShells()
+  const terminalOwner = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error('Terminal access requires the Ambio workbench.')
+    return event.sender.id
+  }
+  ipcMain.handle('terminal:profiles', event => {
+    terminalOwner(event)
+    profiles = detectShells()
+    return profiles
+  })
+  ipcMain.handle('terminal:locate-profile', async event => {
+    terminalOwner(event)
+    const result = await dialog.showOpenDialog(mainWindow!, { title: 'Choose a shell executable', properties: ['openFile'],
+      ...(process.platform === 'win32' ? { filters: [{ name: 'Shell executables', extensions: ['exe'] }] } : {}) })
+    if (result.canceled || !result.filePaths[0]) return null
+    const path = result.filePaths[0]
+    if (!fs.statSync(path).isFile()) throw new Error('Choose a shell executable.')
+    fs.accessSync(path, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+    if (!customShells.includes(path)) customShells.push(path)
+    fs.mkdirSync(CONFIG_DIR, { recursive: true })
+    fs.writeFileSync(terminalProfilesFile, JSON.stringify(customShells))
+    profiles = detectShells()
+    return (await profiles).find(profile => profile.path === path) ?? null
+  })
+  ipcMain.handle('terminal:start', async (event, input: TerminalStart) => {
+    const owner = terminalOwner(event)
+    const generation = terminalGeneration
+    const project = loadRecentProjects().find(project => project.id === input?.workspaceId)
+    if (!project) throw new Error('Open a registered project before starting a terminal.')
+    const profile = (await profiles).find(profile => profile.id === input.profileId)
+    if (!profile) throw new Error('This shell is no longer available. Refresh the shell list.')
+    if (!fs.statSync(project.rootPath).isDirectory()) throw new Error('The project folder is unavailable.')
+    if (generation !== terminalGeneration || event.sender.isDestroyed()) throw new Error('The terminal window was closed.')
+    terminals.start(owner, input, profile, project.rootPath, message => {
+      if (!event.sender.isDestroyed()) event.sender.send('terminal:event', message)
+    })
+  })
+  ipcMain.handle('terminal:stop', (event, id: string) => terminals.stop(terminalOwner(event), id))
+  ipcMain.handle('terminal:read-clipboard', event => { terminalOwner(event); return clipboard.readText() })
+  ipcMain.on('terminal:write', (event, id: string, data: string) => terminals.write(terminalOwner(event), id, data))
+  ipcMain.on('terminal:resize', (event, id: string, cols: number, rows: number) => {
+    try { terminals.resize(terminalOwner(event), id, cols, rows) } catch { /* ignore stale/invalid geometry */ }
+  })
+  ipcMain.on('terminal:acknowledge', (event, id: string, count: number) => terminals.acknowledge(terminalOwner(event), id, count))
   const chatDirectory = join(CONFIG_DIR, 'chat')
   const networkFetch = net.fetch.bind(net) as typeof fetch
   const credentialEncryption = {
@@ -2194,6 +2258,7 @@ app.on('window-all-closed', () => {
 
 let chatShutdownComplete = false
 app.on('before-quit', event => {
+  terminals.close()
   if (!chatShutdownComplete) {
     event.preventDefault()
     quitting = true
@@ -2208,6 +2273,7 @@ app.on('before-quit', event => {
 })
 
 const shutdownOnSignal = () => {
+  terminals.close()
   quitting = true
   void Promise.allSettled([deliveryRunner.stopAll(), agentChat?.close() ?? Promise.resolve()]).then(() => { stopArchd(); process.exit(0) })
 }

@@ -1026,7 +1026,7 @@ export default function App() {
           {panels.sheetRail && <SheetRail />}
           <SheetMarkdown />
           {/* The agent panel publishes its width while open; the map ends at its edge. */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', marginRight: 'var(--agent-panel-inset, 0px)' }}>
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', marginRight: 'calc(var(--agent-panel-inset, 0px) + var(--terminal-panel-inset, 0px))' }}>
           {/* REVISION 2: sheets are layers over the live canvas, not separate
               views - AmbioCanvas renders the base layer + active sheet overlay. */}
           <ErrorBoundary>

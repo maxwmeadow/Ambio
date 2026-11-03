@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { MapBackup, ProjectConfig, TrashedProject, WsMessage } from '../src/shared/types'
 import type { AppSettings } from '../src/shared/appSettings'
 import type { CommandId, SystemRole } from '../src/shared/appMenu'
+import type { TerminalBridge, TerminalEvent, TerminalStart } from '../src/shared/terminal'
 import type { DeliveryEvent, DeliveryHost, DeliveryRequest, DeliveryResult, DeliveryRun, ModelOption } from '../src/shared/agentDelivery'
 import type { ConnectionTestResult } from './agentConnectionTest'
 
@@ -11,6 +12,21 @@ import type { ChatGPTState, ChatGPTModel } from '../src/shared/chatgpt'
 
 // Expose a safe API to the renderer process
 contextBridge.exposeInMainWorld('ambio', {
+  terminal: {
+    profiles: () => ipcRenderer.invoke('terminal:profiles'),
+    locateProfile: () => ipcRenderer.invoke('terminal:locate-profile'),
+    readClipboard: () => ipcRenderer.invoke('terminal:read-clipboard'),
+    start: (input: TerminalStart) => ipcRenderer.invoke('terminal:start', input),
+    write: (id: string, data: string) => ipcRenderer.send('terminal:write', id, data),
+    resize: (id: string, cols: number, rows: number) => ipcRenderer.send('terminal:resize', id, cols, rows),
+    acknowledge: (id: string, count: number) => ipcRenderer.send('terminal:acknowledge', id, count),
+    stop: (id: string) => ipcRenderer.invoke('terminal:stop', id),
+    onEvent: (listener: (event: TerminalEvent) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: TerminalEvent) => listener(value)
+      ipcRenderer.on('terminal:event', handler)
+      return () => ipcRenderer.removeListener('terminal:event', handler)
+    },
+  } satisfies TerminalBridge,
   getChatGPTState: (): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:state'),
   signInChatGPT: (id?: string): Promise<ChatGPTState> => ipcRenderer.invoke('chatgpt:sign-in', id),
   cancelChatGPTSignIn: (): Promise<void> => ipcRenderer.invoke('chatgpt:cancel-sign-in'),
@@ -338,6 +354,7 @@ export type ArchdStatus =
 declare global {
   interface Window {
     ambio: {
+      terminal: TerminalBridge
       getChatGPTState: () => Promise<ChatGPTState>
       signInChatGPT: (id?: string) => Promise<ChatGPTState>
       cancelChatGPTSignIn: () => Promise<void>

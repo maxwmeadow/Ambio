@@ -55,6 +55,9 @@ export function GlobalCommands() {
       if (event.defaultPrevented || event.repeat) return
       const id = commandForKey(event, platform)
       if (!id) return
+      // The terminal owns editing, signals and shell shortcuts. Only its toggle
+      // and the command palette escape to Ambio while it has keyboard focus.
+      if ((event.target as Element)?.closest?.('.ambio-terminal__screen') && id !== 'view.terminal' && id !== 'view.commandPalette') return
       const spec = COMMANDS[id]
       const modified = event.metaKey || event.ctrlKey
       if (!modified && isEditable(event.target)) return

@@ -5,6 +5,14 @@ import { COMMANDS, buildMenu, commandForKey, formatAccelerator, paletteCommands,
 
 const key = (overrides) => ({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...overrides })
 
+test('Control backtick toggles terminals on all platforms, including physical-key fallback', () => {
+  for (const platform of ['win32', 'linux', 'darwin']) {
+    assert.equal(commandForKey(key({ key: '`', ctrlKey: true }), platform), 'view.terminal')
+    assert.equal(commandForKey(key({ key: '§', code: 'Backquote', ctrlKey: true }), platform), 'view.terminal')
+    assert.equal(commandForKey(key({ key: '`', metaKey: true }), platform), null)
+  }
+})
+
 test('CmdOrCtrl means Command on macOS and Control elsewhere', () => {
   assert.equal(commandForKey(key({ key: 'p', metaKey: true, shiftKey: true }), 'darwin'), 'view.commandPalette')
   assert.equal(commandForKey(key({ key: 'P', ctrlKey: true, shiftKey: true }), 'win32'), 'view.commandPalette')

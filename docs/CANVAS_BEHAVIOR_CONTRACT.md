@@ -38,7 +38,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - The canvas is only the part of the window you can see: while the agent
   panel is open the canvas area ends at its edge (`--agent-panel-inset`), so
   every fit, search result, selection and chip centres there, not under the
-  panel.
+  panel. The terminal sidebar uses the same right-hand space and also reduces
+  the canvas viewport. Opening either sidebar hides the other; terminal shells
+  and scrollback remain alive while hidden. Ctrl+` toggles the terminal on every
+  platform, including when its input has focus. Shell editing, signals and Escape
+  stay inside the terminal; the command palette remains available.
 - Navigation from outside the canvas (a file chip in a reply, a row under To
   review, a system in the mapping review list) brings the node into view the
   way search does: it opens a collapsed system, selects the node and fits once

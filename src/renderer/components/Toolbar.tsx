@@ -1,6 +1,6 @@
 import { useConversationPreferences } from '../store/conversationPreferences'
 import { useCanvasFitView } from '../canvas/useCanvasFitView'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { SendToAgentDialog } from './SendToAgentDialog'
@@ -16,6 +16,8 @@ import { ProposalDraftProgress } from './ProposalDraftProgress'
 import { ProjectActivity } from './ProjectActivity'
 import { BranchChip } from './BranchChip'
 import { ErrorBoundary } from './ErrorBoundary'
+
+const TerminalPanel = lazy(() => import('./TerminalPanel'))
 
 interface ToolbarProps {
   onSearch: () => void
@@ -33,8 +35,10 @@ export function Toolbar({
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const projectName = useGraphStore(s => s.currentProject?.name)
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalMounted, setTerminalMounted] = useState(false)
   const requestedConversation = useConversationPreferences(s => s.requested)
-  useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) setAgentMsgOpen(true) }, [requestedConversation, workspaceId])
+  useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) { setTerminalOpen(false); setAgentMsgOpen(true) } }, [requestedConversation, workspaceId])
   const queuedMsgs = useConversationPreferences(s => s.attention[workspaceId] ?? 0)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
   const activeSheetName = useSheetStore(s =>
@@ -42,6 +46,8 @@ export function Toolbar({
   )
 
   useEffect(() => {
+    setTerminalOpen(false)
+    setTerminalMounted(false)
     setAgentMsgOpen(useConversationPreferences.getState().requested?.workspaceId === workspaceId)
     if (!workspaceId) return
     void refreshInbox(workspaceId)
@@ -50,6 +56,11 @@ export function Toolbar({
   }, [workspaceId])
 
   useCommandHandlers({
+    'view.terminal': () => {
+      setAgentMsgOpen(false)
+      setTerminalMounted(true)
+      setTerminalOpen(open => !open)
+    },
     'view.fitView': () => fitView({ padding: 0.15, duration: 850 }),
     // Frames what is selected; with nothing selected it frames the inspected node.
     'view.zoomSelection': () => {
@@ -63,7 +74,7 @@ export function Toolbar({
 
   useEffect(() => {
     void window.ambio?.setTitleBarHeight?.(34)
-    const openDispatch = () => setAgentMsgOpen(true)
+    const openDispatch = () => { setTerminalOpen(false); setAgentMsgOpen(true) }
     window.addEventListener('ambio:open-agent-dispatch', openDispatch)
     return () => window.removeEventListener('ambio:open-agent-dispatch', openDispatch)
   }, [])
@@ -147,8 +158,11 @@ export function Toolbar({
 
         {/* Last on the right: the panel it opens is on the right edge, under it. */}
         <div className="ambio-command-group">
+          <ChromeButton onClick={() => emitCommand('view.terminal')} label="Terminal" active={terminalOpen} ariaExpanded={terminalOpen}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 5 6 6-6 6M12 19h8" /></svg>
+          </ChromeButton>
           <ChromeButton
-            onClick={() => setAgentMsgOpen(open => !open)}
+            onClick={() => { setTerminalOpen(false); setAgentMsgOpen(open => !open) }}
             label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} need attention)` : 'Message agent'}
             visualLabel="Message agent"
             active={agentMsgOpen || queuedMsgs > 0}
@@ -167,6 +181,7 @@ export function Toolbar({
       <ProjectActivity key={workspaceId} workspaceId={workspaceId} />
       <ProposalDraftProgress key={`draft:${workspaceId}`} workspaceId={workspaceId} />
       <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
+      {terminalMounted && <Suspense fallback={null}><TerminalPanel key={`terminal:${workspaceId}`} workspaceId={workspaceId} open={terminalOpen} onClose={() => setTerminalOpen(false)} /></Suspense>}
     </>
   )
 }

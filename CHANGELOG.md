@@ -12,6 +12,10 @@ in the app as "What's New" after updating, so write it for users.
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
 ### Added
+- Integrated terminals in an Ambio-styled, resizable right sidebar. Ctrl+` opens
+  or hides it on every platform. Run interactive shells in the project folder,
+  keep multiple sessions, pick detected shells or locate another executable;
+  hidden sessions keep running until closed or the app exits.
 - The hero bar shows the current project title beside its branch, with long
   names truncated and the full title available on hover.
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
