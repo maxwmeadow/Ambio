@@ -26,6 +26,9 @@ in the app as "What's New" after updating, so write it for users.
 - Click a function or class an agent names in chat, such as `evaluate_scene()`
   or `Scene.update`, to open it at its definition. Names that could mean more
   than one definition stay plain.
+- Edit code right in Ambio's source viewer and save with Ctrl+S. If an agent
+  or another editor changed the file while you were editing, Ambio shows you
+  the differences instead of overwriting them.
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
   for To review when opening a sheet. Reduced-motion preferences are respected.
 - Expand a sheet in the sidebar to find its systems, files and connections,

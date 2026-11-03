@@ -1,8 +1,11 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { apiGetFileSource, type FileSource } from '../canvas/arcdApi'
+import { unifiedMergeView } from '@codemirror/merge'
+import { Compartment, EditorState, type Text } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
+import { apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
 import { useSourcePreviewStore } from '../store/sourcePreviewStore'
-import { highlightSource, type HighlightedSource, type SyntaxToken } from './sourceHighlighting'
+import { languageFor, revealLine, sourceEditorState } from './sourceEditor'
 
 interface SourcePreviewDialogProps {
   fileId: string
@@ -11,6 +14,9 @@ interface SourcePreviewDialogProps {
   symbol: { name: string; kind?: string; lineStart: number; lineEnd?: number }
   onClose: () => void
 }
+
+/** Larger files open read-only; archd refuses to save them from Ambio. */
+const MAX_EDITABLE = 8 << 20
 
 function highlightedRange(symbol: SourcePreviewDialogProps['symbol']): { start: number; end: number } {
   const start = Math.max(1, symbol.lineStart)
@@ -39,41 +45,29 @@ function displayError(error: unknown): string {
   }
 }
 
-function sourceLines(content: string): string[] {
-  if (!content) return []
-  const lines = content.split(/\r?\n/)
-  if (lines.at(-1) === '') lines.pop()
-  return lines
-}
+type SaveStatus = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'failed'; message: string }
 
-function tokenStyle(token: SyntaxToken): React.CSSProperties {
-  const fontStyle = token.fontStyle ?? 0
-  const decorations = [
-    fontStyle & 4 ? 'underline' : '',
-    fontStyle & 8 ? 'line-through' : '',
-  ].filter(Boolean).join(' ')
-  return {
-    color: token.color,
-    backgroundColor: token.bgColor,
-    fontStyle: fontStyle & 1 ? 'italic' : undefined,
-    fontWeight: fontStyle & 2 ? 700 : undefined,
-    textDecoration: decorations || undefined,
-  }
-}
-
-const LINE_HEIGHT = 18.6
-const OVERSCAN = 30
-const VIRTUALIZE_THRESHOLD = 100
-
+/**
+ * A project file in an editor, opened at the lines someone pointed at. Edits
+ * save with Ctrl+S (or Save) only over the version they were made against: if
+ * an agent or another editor changed the file meanwhile, the save stops and
+ * shows the differences, and the person chooses which version to keep.
+ */
 export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: SourcePreviewDialogProps) {
   const [source, setSource] = React.useState<FileSource | null>(null)
-  const [highlightedSource, setHighlightedSource] = React.useState<HighlightedSource | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const containerRef = React.useRef<HTMLDivElement | null>(null)
-  const highlightedLineRef = React.useRef<HTMLDivElement | null>(null)
+  const [dirty, setDirty] = React.useState(false)
+  const [status, setStatus] = React.useState<SaveStatus>({ kind: 'idle' })
+  const [conflict, setConflict] = React.useState<FileSource | null>(null)
+  const [showDiff, setShowDiff] = React.useState(false)
+  const [confirmClose, setConfirmClose] = React.useState(false)
+  const hostRef = React.useRef<HTMLDivElement | null>(null)
+  const viewRef = React.useRef<EditorView | null>(null)
+  /** The version on disk the editor's text is based on. */
+  const baseRef = React.useRef<{ hash: string; text: Text | null }>({ hash: '', text: null })
+  const slots = React.useMemo(() => ({ language: new Compartment(), readOnly: new Compartment(), diff: new Compartment() }), [])
   const range = React.useMemo(() => highlightedRange(symbol), [symbol])
-  const [scrollTop, setScrollTop] = React.useState(0)
-  const [viewportHeight, setViewportHeight] = React.useState(600)
+  const editable = !!source && source.editable && source.content.length <= MAX_EDITABLE
 
   React.useEffect(() => {
     const controller = new AbortController()
@@ -82,68 +76,119 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     void apiGetFileSource(fileId, workspaceId, controller.signal)
       .then(setSource)
       .catch(fetchError => {
-        if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) {
-          setError(displayError(fetchError))
-        }
+        if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) setError(displayError(fetchError))
       })
     return () => controller.abort()
   }, [fileId, workspaceId])
 
-  React.useEffect(() => {
-    if (!source) {
-      setHighlightedSource(null)
-      return
+  const save = React.useCallback(async (baseHash?: string): Promise<boolean> => {
+    const view = viewRef.current
+    if (!view || !editable) return false
+    const text = view.state.doc
+    // Nothing to write: Ctrl+S on an unchanged file is not a save.
+    if (!baseHash && baseRef.current.text && text.eq(baseRef.current.text)) return true
+    setStatus({ kind: 'saving' })
+    // sliceDoc joins lines with the file's own separator; doc.toString() would turn CRLF into LF.
+    const result = await apiSaveFileSource(fileId, workspaceId, view.state.sliceDoc(), baseHash ?? baseRef.current.hash)
+    if (result.status === 'saved') {
+      baseRef.current = { hash: result.source.hash, text }
+      // Typing during the save leaves those keystrokes unsaved.
+      setDirty(!view.state.doc.eq(text))
+      setConflict(null)
+      setShowDiff(false)
+      setStatus({ kind: 'saved' })
+      return true
     }
+    if (result.status === 'conflict') {
+      setConflict(result.current)
+      setStatus({ kind: 'idle' })
+      return false
+    }
+    setStatus({ kind: 'failed', message: result.error })
+    return false
+  }, [editable, fileId, workspaceId])
+  const saveRef = React.useRef(save)
+  saveRef.current = save
+
+  // The editor is made once, from the version first loaded; saves keep it.
+  const opened = source !== null
+  React.useEffect(() => {
+    const host = hostRef.current
+    if (!opened || !host || !source) return
+    baseRef.current = { hash: source.hash, text: null }
+    const view = new EditorView({
+      parent: host,
+      state: sourceEditorState({
+        content: source.content,
+        range,
+        dynamic: [
+          slots.language.of([]),
+          slots.readOnly.of([EditorState.readOnly.of(!editable)]),
+          slots.diff.of([]),
+        ],
+        onSave: () => { void saveRef.current(); return true },
+        onChange: state => setDirty(!state.doc.eq(baseRef.current.text!)),
+      }),
+    })
+    baseRef.current.text = view.state.doc
+    viewRef.current = view
+    revealLine(view, range.start)
     let current = true
-    setHighlightedSource(null)
-    void highlightSource(source.content, source.language, source.relPath)
-      .then(result => {
-        if (current) setHighlightedSource(result)
-      })
-      .catch(highlightError => {
-        // Source viewing must remain available even when a third-party or
-        // custom language grammar cannot be loaded.
-        console.warn('[source-preview] syntax highlighting unavailable', highlightError)
-      })
-    return () => { current = false }
-  }, [source])
+    void languageFor(source.relPath).then(language => {
+      if (current && language) view.dispatch({ effects: slots.language.reconfigure(language) })
+    })
+    return () => {
+      current = false
+      view.destroy()
+      viewRef.current = null
+    }
+    // Only a newly opened file makes a new editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened])
+
+  React.useEffect(() => {
+    viewRef.current?.dispatch({ effects: slots.diff.reconfigure(showDiff && conflict ? unifiedMergeView({ original: conflict.content, mergeControls: false, gutter: true }) : []) })
+  }, [showDiff, conflict, slots])
+
+  const requestClose = React.useCallback(() => {
+    if (dirty) setConfirmClose(true)
+    else onClose()
+  }, [dirty, onClose])
 
   React.useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      // The editor's own Escape (closing search, a selection) comes first.
+      if (event.key === 'Escape' && !event.defaultPrevented) requestClose()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
+  }, [requestClose])
 
-  React.useEffect(() => {
-    if (!source) return
-    const container = containerRef.current
-    if (!container) return
-    const vHeight = container.clientHeight || 600
-    setViewportHeight(vHeight)
-    const target = Math.max(0, (range.start - 1) * LINE_HEIGHT - vHeight / 2)
-    container.scrollTop = target
-    setScrollTop(target)
-    requestAnimationFrame(() => highlightedLineRef.current?.scrollIntoView({ block: 'center' }))
-  }, [source, range.start])
-
-  const onCodeScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(event.currentTarget.scrollTop)
-    if (event.currentTarget.clientHeight && event.currentTarget.clientHeight !== viewportHeight) {
-      setViewportHeight(event.currentTarget.clientHeight)
-    }
+  const takeDiskVersion = () => {
+    const view = viewRef.current
+    if (!view || !conflict) return
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: conflict.content } })
+    baseRef.current = { hash: conflict.hash, text: view.state.doc }
+    setSource(conflict)
+    setDirty(false)
+    setConflict(null)
+    setShowDiff(false)
+    setStatus({ kind: 'idle' })
   }
 
-  const lines = React.useMemo(() => source ? sourceLines(source.content) : [], [source])
   const title = source?.relPath ?? fileId
-
-  const isVirtualized = lines.length > VIRTUALIZE_THRESHOLD
-  const startIndex = isVirtualized ? Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN) : 0
-  const endIndex = isVirtualized ? Math.min(lines.length, Math.ceil((scrollTop + viewportHeight) / LINE_HEIGHT) + OVERSCAN) : lines.length
-  const topSpacerHeight = isVirtualized ? startIndex * LINE_HEIGHT : 0
-  const bottomSpacerHeight = isVirtualized ? (lines.length - endIndex) * LINE_HEIGHT : 0
-  const visibleLines = isVirtualized ? lines.slice(startIndex, endIndex) : lines
+  const lineCount = React.useMemo(() => {
+    if (!source?.content) return 0
+    const lines = source.content.split(/\r\n|\n/)
+    return lines.at(-1) === '' ? lines.length - 1 : lines.length
+  }, [source])
+  const statusText = !source ? ''
+    : !source.editable ? 'read-only: not UTF-8 text'
+      : !editable ? 'read-only: too large to edit here'
+        : status.kind === 'saving' ? 'saving…'
+          : status.kind === 'failed' ? `not saved: ${status.message}`
+            : dirty ? 'modified'
+              : status.kind === 'saved' ? 'saved' : ''
 
   return createPortal(
     <div
@@ -151,56 +196,45 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
       role="presentation"
       onPointerDown={event => {
         event.stopPropagation()
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) requestClose()
       }}
       onWheel={event => event.stopPropagation()}
     >
       <section className="source-preview-dialog" role="dialog" aria-modal="true" aria-label={`${symbol.name} in ${title}`}>
         <header className="source-preview-header">
           <div className="source-preview-heading">
-            <div className="source-preview-path" title={title}>{title}</div>
+            <div className="source-preview-path" title={title}>{title}{dirty ? ' •' : ''}</div>
             <div className="source-preview-location">
               {symbol.kind ? `${symbol.kind} ${symbol.name} · ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
-              {source && range.start > lines.length && ` · past the end of this ${lines.length}-line file; it may have changed since`}
+              {source && range.start > lineCount && ` · past the end of this ${lineCount}-line file; it may have changed since`}
             </div>
           </div>
-          <button autoFocus className="source-preview-close" onClick={onClose} aria-label="Close source preview">×</button>
+          <div className="source-preview-actions">
+            {statusText && <span className={`source-preview-status${status.kind === 'failed' ? ' source-preview-status-error' : ''}`} role="status">{statusText}</span>}
+            {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
+            <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview">×</button>
+          </div>
         </header>
-        <div
-          ref={containerRef}
-          onScroll={isVirtualized ? onCodeScroll : undefined}
-          className="source-preview-code"
-          aria-busy={!source && !error}
-          style={{ backgroundColor: highlightedSource?.background }}
-        >
+        {conflict && (
+          <div className="source-preview-bar" role="alert">
+            <span>{conflict.relPath} changed on disk while you were editing. Nothing was saved.</span>
+            <button type="button" className="source-preview-button" onClick={() => setShowDiff(shown => !shown)}>{showDiff ? 'Hide differences' : 'Show differences'}</button>
+            <button type="button" className="source-preview-button" onClick={() => { void save(conflict.hash) }}>Keep mine</button>
+            <button type="button" className="source-preview-button" onClick={takeDiskVersion}>Use the file on disk</button>
+          </div>
+        )}
+        {confirmClose && (
+          <div className="source-preview-bar" role="alert">
+            <span>Save your changes to {title}?</span>
+            <button type="button" className="source-preview-button" onClick={() => { void save().then(saved => { if (saved) onClose(); else setConfirmClose(false) }) }}>Save and close</button>
+            <button type="button" className="source-preview-button" onClick={onClose}>Discard</button>
+            <button type="button" className="source-preview-button" onClick={() => { setConfirmClose(false); viewRef.current?.focus() }}>Keep editing</button>
+          </div>
+        )}
+        <div className="source-preview-code" aria-busy={!source && !error}>
           {!source && !error && <div className="source-preview-message">Loading source…</div>}
           {error && <div className="source-preview-message source-preview-error">{error}</div>}
-          {source && (
-            <>
-              {topSpacerHeight > 0 && <div style={{ height: topSpacerHeight, flexShrink: 0 }} aria-hidden="true" />}
-              {visibleLines.map((line, offset) => {
-                const index = startIndex + offset
-                const lineNumber = index + 1
-                const highlighted = lineNumber >= range.start && lineNumber <= range.end
-                const tokens = highlightedSource?.tokens[index]
-                return (
-                  <div
-                    key={lineNumber}
-                    ref={lineNumber === range.start ? highlightedLineRef : undefined}
-                    className={`source-preview-line${highlighted ? ' source-preview-line-highlighted' : ''}`}
-                  >
-                    <span className="source-preview-line-number">{lineNumber}</span>
-                    <span className="source-preview-line-content" style={{ color: highlightedSource?.foreground }}>
-                      {tokens?.length
-                        ? tokens.map((token, tokenIndex) => <span key={tokenIndex} style={tokenStyle(token)}>{token.content}</span>)
-                        : line || ' '}
-                    </span>
-                  </div>
-                )
-              })}
-              {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight, flexShrink: 0 }} aria-hidden="true" />}
-            </>
-          )}
+          <div ref={hostRef} className="source-preview-editor" hidden={!source} />
         </div>
       </section>
     </div>,

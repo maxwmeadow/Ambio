@@ -353,56 +353,90 @@ a { color: var(--accent); text-decoration: none; }
   box-shadow: inset 0 0 0 1px #6fa9a0;
 }
 
+.source-preview-actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-preview-status {
+  overflow: hidden;
+  color: #bac5c0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-preview-status-error {
+  color: #f0a397;
+}
+
+.source-preview-button {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid #18231f;
+  border-radius: 1px;
+  outline: none;
+  background: linear-gradient(180deg, #667570 0%, #3c4945 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: #f2efe6;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.source-preview-button:hover:not(:disabled),
+.source-preview-button:focus-visible {
+  border-color: #6fa9a0;
+  box-shadow: inset 0 0 0 1px #6fa9a0;
+}
+
+.source-preview-button:disabled {
+  opacity: 0.45;
+}
+
+/* A question about the edit: a conflict on save, or unsaved changes on close. */
+.source-preview-bar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #84713f;
+  background: #3a3424;
+  color: #f2e6c4;
+  font-size: 11px;
+}
+
+.source-preview-bar > span {
+  flex: 1 1 260px;
+}
+
 .source-preview-code {
+  display: flex;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
   margin: 6px;
-  padding: 10px 0 24px;
   border: 1px solid #4d5955;
   background: #111719;
   box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.68);
   font-family: var(--font-mono);
   font-size: 12px;
-  line-height: 1.55;
   tab-size: 4;
 }
 
-.source-preview-line {
-  display: flex;
-  width: max-content;
-  min-width: 100%;
-  border-left: 3px solid transparent;
+.source-preview-editor {
+  flex: 1;
+  min-height: 0;
 }
 
-.source-preview-line-highlighted {
-  border-left-color: #65a69d;
-  background: rgba(60, 125, 118, 0.27);
-}
-
-.source-preview-line-number {
-  position: sticky;
-  left: 0;
-  width: 58px;
-  padding-right: 13px;
-  flex: 0 0 58px;
-  border-right: 1px solid #263134;
-  color: #66736f;
-  background: #141b1e;
-  text-align: right;
-  user-select: none;
-}
-
-.source-preview-line-highlighted .source-preview-line-number {
-  color: #86c1b8;
-  background: #1a2826;
-}
-
-.source-preview-line-content {
-  padding: 0 18px 0 13px;
-  color: var(--text-primary);
-  white-space: pre;
-  user-select: text;
+.source-preview-editor[hidden] {
+  display: none;
 }
 
 .source-preview-message {

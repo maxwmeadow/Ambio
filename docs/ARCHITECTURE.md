@@ -816,6 +816,22 @@ has measured it. The toolbar reserves the shared sidebar width as
 `--workbench-sidebar-inset` and the canvas area ends at the panel's edge, so every
 fit and selection centres in what is visible.
 
+**Source editor** (`SourcePreviewDialog.tsx`, `sourceEditor.ts`): the source
+viewer is a CodeMirror 6 editor (DECISIONS 2026-11-03), loaded with
+`GET /api/files/<id>/source`, which returns the content, its SHA-256 `hash` and
+whether it is `editable` (UTF-8). The language comes from
+`@codemirror/language-data` on demand; colours are Dark Modern. The editor keeps
+the file's dominant line separator (`EditorState.lineSeparator`), so
+`state.sliceDoc()` - never `doc.toString()`, which joins with LF - returns the
+file's bytes. The pointed-at lines are a decoration field mapped through edits.
+A save is `PUT /api/files/<id>/source {workspaceId, content, baseHash}`: archd
+looks the file up by ID only, checks it resolves inside its root, and under one
+lock compares the disk hash with `baseHash` - a mismatch writes nothing and
+returns 409 with the current file, which the dialog shows as a unified diff
+(`@codemirror/merge`) with Keep mine (saves over the new hash) or Use the file
+on disk. Files are written in place; the watcher reindexes them like any save.
+Mapping credentials cannot reach the route.
+
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
 files (compose, `.env`, Dockerfile, Procfile, fly/vercel/netlify/render/railway,

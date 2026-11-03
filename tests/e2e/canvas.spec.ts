@@ -4096,3 +4096,73 @@ test('a function an agent names opens at its definition; an ambiguous name stays
   await page.unroute(/\/api\/files\/[^/]+\/source\?/)
   await page.unroute(/\/api\/symbols\/search\?/)
 })
+
+test('source opened from a reply can be edited, saved, and never overwrites a newer file', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const original = 'speed = read()\r\nmoving = speed > 0.1\r\nstop()\r\n'
+  const source = (content: string, hash: string) => ({ fileId, relPath: file, language: 'python', lineCount: 3, content, hash, editable: true })
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: source(original, 'hash-1') }))
+  const saves: Array<{ content: string; baseHash: string }> = []
+  let conflictNext = false
+  await page.route(/\/api\/files\/[^/]+\/source$/, route => {
+    const body = route.request().postDataJSON()
+    saves.push(body)
+    if (conflictNext) return route.fulfill({ status: 409, json: { error: 'changed', current: source('speed = read()\r\nmoving = speed > config.limit\r\nstop()\r\n', 'hash-agent') } })
+    return route.fulfill({ json: source(body.content, `hash-${saves.length + 1}`) })
+  })
+  const reply = { id: 'edit-1', workspaceId: 'demo', sheetId: null, note: 'Fix it', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'edit-1', createdAt: 70, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: `The threshold is hardcoded at \`${file}:2\`.`, createdAt: 71 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'The threshold is hardcoded' })
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  const dialog = page.getByRole('dialog', { name: `${file} in ${file}` })
+  const editor = dialog.locator('.cm-content')
+  await expect(dialog.locator('.source-preview-line-highlighted')).toHaveText('moving = speed > 0.1')
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+  await page.screenshot({ path: 'test-results/source-editor.png' })
+
+  // Edit the cited line and save with the keyboard: the file's CRLF endings are kept.
+  await dialog.locator('.source-preview-line-highlighted').click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Shift+ControlOrMeta+ArrowLeft')
+  await page.keyboard.type('limit')
+  await expect(dialog.getByRole('status')).toHaveText('modified')
+  await page.keyboard.press('ControlOrMeta+S')
+  await expect(dialog.getByRole('status')).toHaveText('saved')
+  expect(saves).toEqual([{ workspaceId: 'demo', baseHash: 'hash-1', content: 'speed = read()\r\nmoving = speed > 0.limit\r\nstop()\r\n' }])
+
+  // An agent wrote the file meanwhile: nothing is overwritten, and the person chooses.
+  conflictNext = true
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type('# mine')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  const bar = dialog.getByRole('alert')
+  await expect(bar).toContainText('changed on disk while you were editing')
+  expect(saves[1].baseHash).toBe('hash-2')
+  await bar.getByRole('button', { name: 'Show differences' }).click()
+  await expect(dialog.locator('.cm-deletedChunk').filter({ hasText: 'config.limit' })).toHaveCount(1)
+  await page.screenshot({ path: 'test-results/source-editor-conflict.png' })
+  await bar.getByRole('button', { name: 'Use the file on disk' }).click()
+  await expect(bar).toHaveCount(0)
+  await expect(editor).toContainText('moving = speed > config.limit')
+  await expect(editor).not.toContainText('# mine')
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+
+  // Closing with unsaved changes asks first.
+  await editor.click()
+  await page.keyboard.type('x')
+  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(saves).toHaveLength(2)
+
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source$/)
+})
