@@ -13,13 +13,13 @@ import {
   type DeltaReview,
 } from '../canvas/deltaReview.ts'
 import type { DbFile, DbSystem, DeltaClaim } from '../../shared/types'
-import { raiseFailure, raiseInvitation, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
+import { raiseFailure, raiseNotice, resolveInterruption } from '../store/interruptionStore.ts'
 import { apiUndoArchitecture } from '../canvas/arcdApi.ts'
 import { codeFitNoticeBody, openMakeCodeMatch } from '../canvas/codeFit.ts'
 import { reviewMarkdown } from '../canvas/reviewMarkdown.ts'
 import { NO_FILTER, claimMatches, isFiltered, reviewFilterOptions, type FilterOption, type ReviewFilter } from '../canvas/reviewFilters.ts'
 
-/** One id, so a refreshed delta replaces its invitation instead of stacking. */
+/** Clear invitations left by earlier versions; review now stays in the toolbar. */
 const DELTA_INVITATION = 'delta-review'
 const EMPTY_FILES: DbFile[] = []
 const EMPTY_SYSTEMS: DbSystem[] = []
@@ -209,17 +209,14 @@ function FilterSelect({ label, value, options, onChange }: {
 }
 
 export function DeltaPanel() {
-  const { delta, reviewing, cursor, deferredUntil, files, systems, startReview, setCursor, deferDelta, endReview } =
+  const { delta, reviewing, cursor, files, systems, setCursor, endReview } =
     useGraphStore(useShallow(state => ({
       delta: state.delta,
       reviewing: state.deltaReviewing,
       cursor: state.deltaCursor,
-      deferredUntil: state.deltaDeferredUntil,
       files: state.delta ? state.files : EMPTY_FILES,
       systems: state.delta ? state.systems : EMPTY_SYSTEMS,
-      startReview: state.startDeltaReview,
       setCursor: state.setDeltaCursor,
-      deferDelta: state.deferDelta,
       endReview: state.endDeltaReview,
     })))
 
@@ -323,30 +320,12 @@ export function DeltaPanel() {
     node?.scrollIntoView({ block: 'nearest' })
   }, [reviewing, active])
 
-  // The invitation to review lives in the interruption lane, not beside it.
-  // It used to be a strip at top-centre - the same coordinates the lane now
-  // occupies, so the two covered each other exactly like the banners this was
-  // supposed to have fixed. One surface owns that space; this is a tenant.
-  const pending = Boolean(delta) && !review.empty && !reviewing &&
-    deferredUntil !== delta?.until
+  // Changes accumulate quietly behind the toolbar's Review Changes control.
+  // Each edit advances the delta window; turning those updates into invitations
+  // made a dismissed notice return throughout an agent's coding session.
   useEffect(() => {
-    if (!pending || !delta) {
-      resolveInterruption(DELTA_INVITATION)
-      return
-    }
-    // No "Later" button: the × beside it already means exactly that, and two
-    // controls for one gesture invited the reading that they differ. Dismissal
-    // now records the deferral, which is what keeps the delta unreviewed in
-    // archd and keeps a way back through Review Changes.
-    raiseInvitation(
-      DELTA_INVITATION,
-      deltaHeadline(review),
-      `${deltaWindow(delta.since, delta.until)} · ${deltaAttribution(delta.counts)}`,
-      [{ label: 'Review', primary: true, run: startReview }],
-      deferDelta,
-      'Set aside — stays unreviewed, reopen with Review Changes',
-    )
-  }, [pending, delta, review, startReview, deferDelta])
+    resolveInterruption(DELTA_INVITATION)
+  }, [])
 
   // Only the expanded review renders here now; the invitation is a lane tenant.
   if (!delta || review.empty || !reviewing) return null

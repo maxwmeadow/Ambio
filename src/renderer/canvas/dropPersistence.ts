@@ -132,6 +132,7 @@ export interface CanvasDropPersistencePlan {
 }
 
 function nodeTypeFor(id: string, systemIds: Set<string>, fileIds: Set<string>): FloorNodeType {
+  if (id.startsWith('note:')) return 'note'
   if (systemIds.has(id)) return 'system'
   if (fileIds.has(id)) return 'file'
   return 'infra'

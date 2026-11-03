@@ -3,13 +3,15 @@ import { useShallow } from 'zustand/react/shallow'
 import type { DbDependency, DbFile, DbInfraNode, DbSystem } from '../../shared/types'
 import { IMPLEMENTATION_LABEL, ITEM_ROLE, RELATIONSHIP_LABEL, RELATIONSHIP_ORDER, ROLE_LABEL, readDetectedBy } from '../canvas/infraRoles'
 import { apiUpdateSystem } from '../canvas/arcdApi'
-import { filenameForLanguage, LanguagePicker } from '../canvas/languages'
+import { filenameForLanguage, languageDefinition, languageFromFilename, LanguagePicker } from '../canvas/languages'
+import { plannedFileProperties, plannedFileSymbols, renamePlannedFile, fileSymbolTab, plannedDescription } from '../canvas/plannedFileIdentity'
 import { UmlMetadataPanel } from '../canvas/nodes/UmlMetadataPanel'
 import { useGraphStore } from '../store/graphStore'
 import { usePresence } from './ui/usePresence'
 import { useRegistryStore } from '../store/registryStore'
 import {
   plannedMetadata,
+  plannedMembers,
   useSheetStore,
   type PlannedNode,
   type PlannedNodeMetadata,
@@ -271,6 +273,8 @@ function KeyValueEditor({
 
 function PlannedDetail({ node }: { node: PlannedNode }) {
   const metadata = plannedMetadata(node)
+  const file = node.kind === 'file' ? plannedFileProperties(node, metadata) : null
+  const symbols = file ? plannedFileSymbols(metadata, plannedMembers(node)) : []
   const updatePlanned = useSheetStore(s => s.updatePlanned)
   const { services, loaded, fetchRegistry } = useRegistryStore()
   const setInfraPickerNode = useGraphStore(s => s.setInfraPickerNode)
@@ -284,10 +288,11 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
   }, [loaded, fetchRegistry])
 
   const update = (patch: Partial<PlannedNode>, metadataPatch?: Partial<PlannedNodeMetadata>) => {
+    const current = useSheetStore.getState().layersById[node.sheetId]?.planned.find(item => item.id === node.id) ?? node
     void updatePlanned(node.workspaceId, {
-      ...node,
+      ...current,
       ...patch,
-      metadata: metadataPatch ? { ...metadata, ...metadataPatch, version: 1 } : node.metadata,
+      metadata: metadataPatch ? { ...plannedMetadata(current), ...metadataPatch, version: 1 } : current.metadata,
     })
   }
   const service = metadata.service ? services.find(item => item.id === metadata.service) : undefined
@@ -297,24 +302,28 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
     <>
       <InspectorIdentity
         kicker={`Planned ${node.kind.replace('_', ' ')}`}
-        name={node.name}
-        detail="Overlay-authored architecture element"
+        name={file?.filename ?? node.name}
+        detail={node.approvalStatus === 'approved' ? 'Approved proposal' : 'Proposed architecture element'}
       />
       <div className="ambio-inspector-form">
-        <InspectorText label="NAME" value={node.name} onCommit={name => update({ name })} />
+        <InspectorText label={file ? 'FILE NAME' : 'NAME'} value={file?.filename ?? node.name} onCommit={name => {
+          if (!file) { update({ name }); return }
+          const patch = renamePlannedFile(node, name)
+          const language = languageFromFilename(patch.declaredPath)?.id
+          update(patch, language ? { language } : undefined)
+        }} />
 
         {(node.kind === 'class' || node.kind === 'file') && (
           <div className="ambio-inspector-field">
             <div className="ambio-inspector-field__label">LANGUAGE</div>
             <div className="ambio-inspector-language">
               <LanguagePicker
-                value={metadata.language ?? ''}
+                value={file?.language ?? metadata.language ?? ''}
                 onChange={language => {
-                  const name = node.kind === 'file' ? filenameForLanguage(node.name, language) : node.name
-                  update({ name, declaredPath: node.kind === 'file' ? name : '' }, { language })
+                  update(file ? renamePlannedFile(node, filenameForLanguage(node.declaredPath || node.name, language)) : {}, { language })
                 }}
               />
-              <span>{metadata.language || 'Choose language'}</span>
+              <span>{languageDefinition(file?.language ?? metadata.language ?? '')?.label || file?.language || metadata.language || 'Choose language'}</span>
             </div>
           </div>
         )}
@@ -339,10 +348,21 @@ function PlannedDetail({ node }: { node: PlannedNode }) {
 
         <InspectorText
           label="DESCRIPTION (OPTIONAL)"
-          value={metadata.description ?? ''}
+          value={plannedDescription(node, metadata)}
           multiline
           onCommit={description => update({}, { description })}
         />
+
+        {file && <Section title="Members">
+          {(['function', 'variable', 'class'] as const).map(kind => <div key={kind} className="ambio-planned-file-members">
+            <h4>{kind === 'class' ? 'Classes' : `${kind[0].toUpperCase()}${kind.slice(1)}s`}</h4>
+            {symbols.map((symbol, index) => ({ symbol, index })).filter(({ symbol }) => fileSymbolTab(symbol.kind) === (kind === 'class' ? 'classes' : `${kind}s`)).map(({ symbol, index }) => <div key={index} style={{ display: 'flex', alignItems: 'end', gap: 4 }}>
+              <InspectorText label={`${kind.toUpperCase()} NAME`} value={symbol.name} onCommit={name => update({ members: '[]' }, { symbols: symbols.map((row, i) => ({ name: i === index ? name : row.name, kind: row.kind })) })} />
+              <button type="button" className="ambio-inspector-icon-button" aria-label={`Remove ${symbol.name}`} onClick={() => update({ members: '[]' }, { symbols: symbols.filter((_, i) => i !== index).map(({ name, kind }) => ({ name, kind })) })}>×</button>
+            </div>)}
+            <button type="button" className="ambio-inspector-add-button" onClick={() => update({ members: '[]' }, { symbols: [...symbols.map(({ name, kind }) => ({ name, kind })), { name: kind === 'function' ? 'newFunction' : kind === 'class' ? 'NewClass' : 'newVariable', kind }] })}>Add {kind}</button>
+          </div>)}
+        </Section>}
 
         {(node.kind === 'class' || node.kind === 'service') && (
           <Section title="Detailed structure">

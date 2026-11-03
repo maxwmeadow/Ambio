@@ -1,6 +1,22 @@
 import React from 'react'
-import { EdgeText, type EdgeProps, getSmoothStepPath } from '@xyflow/react'
+import { EdgeText, type EdgeProps, getSmoothStepPath, useStore } from '@xyflow/react'
 import { ClippedDashedEdge } from './ClippedDashedEdge'
+import { sheetRelationshipInk, type SheetRelationshipRoute } from './sheetRelationshipGeometry'
+
+function SheetRelationship({ id, route, style }: { id: string; route: SheetRelationshipRoute | null; style?: React.CSSProperties }) {
+  // Subscribe only to zoom; panning leaves the route and its ink untouched.
+  const zoom = useStore(state => state.transform[2])
+  if (!route || route.points.length < 2) return null
+  const ink = sheetRelationshipInk(route, zoom)
+  const stroke = String(style?.stroke ?? 'var(--accent)')
+  const first = route.points[0]
+  return <>
+    <ClippedDashedEdge id={id} path={route.path} interactionWidth={ink.interactionWidth} cornerRadius={Math.min(5 / zoom, route.cornerRadius ?? 5 / zoom)} terminalReserve={ink.arrowLength} haloWidth={3.5 / zoom}
+      style={{ ...style, vectorEffect: undefined, stroke, strokeWidth: ink.strokeWidth, strokeDasharray: ink.dash, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+    <circle className="ambio-sheet-relationship-source" cx={first.x} cy={first.y} r={2 / zoom} fill="var(--bg-surface)" stroke={stroke} strokeWidth={ink.strokeWidth} style={{ opacity: style?.opacity }} pointerEvents="none" />
+    <path className="ambio-sheet-relationship-arrow" d={ink.arrow} fill={stroke} stroke="var(--bg-surface)" strokeWidth={1.5 / zoom} strokeLinejoin="round" style={{ opacity: style?.opacity, paintOrder: 'stroke fill' }} pointerEvents="none" />
+  </>
+}
 
 /**
  * Hard-corner stepped edge that respects the actual source and target faces.
@@ -25,6 +41,7 @@ export function OrthogonalEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps) {
+  if (data?.sheetRelationship) return <SheetRelationship id={id} route={data.sheetRoute as SheetRelationshipRoute | null} style={style} />
   const [pathD, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,

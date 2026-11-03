@@ -718,23 +718,27 @@ const CORE_TOOLS = [
   },
   {
     name: 'edit_sheet',
-    description: 'Draw/reuse a sheet for review before structural code changes. connect draws dependencies; move puts members in target; rename gives a member system name; remove proposes deleting live nodes. compare checks structure. After building: bind, apply_nesting, recompare; resolve needs a match and latest revision/token. export/import Markdown.',
+    description: 'Plan structural changes on sheets. connect draws dependencies; move/rename/remove set boundaries. notes reads, annotate creates, edit_note/delete_note revise notes (sheet or floor). After building bind, apply_nesting, compare, resolve with latest revision/token. export/import Markdown.',
     inputSchema: {
       type: 'object',
       properties: {
-        op: { type: 'string', enum: ['list','get','create','add','move','rename','remove','restore','annotate','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
-        sheet: { type: 'string', description: 'Sheet ID, name, or unambiguous name fragment' },
+        op: { type: 'string', enum: ['list','get','create','add','move','rename','remove','restore','annotate','notes','edit_note','delete_note','connect','compare','bind','apply_nesting','resolve','reopen','export','import'] },
+        sheet: { type: 'string', description: 'Sheet ID/name; floor for notes' },
         includeResolved: { type: 'boolean', description: 'list: include archived resolved sheets' },
-        revision: { type: 'integer', description: 'Latest sheet revision from compare; required for bind, apply_nesting, resolve, reopen' },
-        token: { type: 'string', description: 'Latest comparison token; required for apply_nesting and resolve' },
+        revision: { type: 'integer', description: 'Expected revision; read notes or compare first' },
+        token: { type: 'string', description: 'compare token for apply_nesting/resolve' },
         plannedId: { type: 'string', description: 'bind: planned node ID' },
-        liveId: { type: 'string', description: 'bind: corresponding live node ID of the same type' },
-        nodeId: { type: 'string', description: 'apply_nesting: requirement node ID returned by compare' },
+        liveId: { type: 'string', description: 'bind: live node ID' },
+        nodeId: { type: 'string', description: 'apply_nesting: node from compare' },
         name: { type: 'string' },
         purpose: { type: 'string' },
         members: { type: 'array', items: { type: 'string' }, description: 'File paths or live node IDs (add, move, remove, restore)' },
         target: { type: 'string' },
         body: { type: 'string' },
+        noteId: { type: 'string', description: 'Note ID' },
+        parentNodeId: { type: 'string', description: 'Note system; empty for root' },
+        positionX: { type: 'number' }, positionY: { type: 'number' },
+        width: { type: 'number' }, height: { type: 'number' },
         from: { type: 'string', description: 'connect: planned/live node ID on this sheet' },
         to: { type: 'string' },
         kind: { type: 'string', description: 'connect: relationship, default DEPENDS_ON' },
@@ -2769,9 +2773,34 @@ Steps to execute:
         break
       }
 
+      case 'list_notes': {
+        const surface = !args.sheet || args.sheet === 'floor' ? 'floor' : await resolveSheetId(project.workspaceId, args.sheet as string)
+        const res = await fetch(`${API_BASE}/api/annotations?workspace=${encodeURIComponent(project.workspaceId)}&sheet=${encodeURIComponent(surface)}`)
+        if (!res.ok) throw new Error(`Read notes failed: ${await res.text()}`)
+        result = await res.json()
+        break
+      }
+      case 'edit_note':
+      case 'delete_note': {
+        if (typeof args.noteId !== 'string' || !Number.isInteger(args.revision) || Number(args.revision) < 1) throw new Error('noteId and the latest note revision are required; read notes first')
+        const surface = !args.sheet || args.sheet === 'floor' ? null : await resolveSheetId(project.workspaceId, args.sheet as string)
+        const url = `${API_BASE}/api/annotations/${encodeURIComponent(args.noteId)}?workspace=${encodeURIComponent(project.workspaceId)}`
+        const read = await fetch(url)
+        if (!read.ok) throw new Error(`Read note failed: ${await read.text()}`)
+        const note = await read.json() as { sheetId: string | null }
+        if ((note.sheetId ?? null) !== surface) throw new Error('This note belongs to a different surface; select its sheet or floor')
+        const removing = call === 'delete_note'
+        const res = await fetch(removing ? `${url}&revision=${args.revision}` : url, {
+          method: removing ? 'DELETE' : 'PATCH', headers: { 'Content-Type': 'application/json' },
+          ...(removing ? {} : { body: JSON.stringify({ revision: args.revision, body: args.body, positionX: args.positionX, positionY: args.positionY, width: args.width, height: args.height, parentNodeId: args.parentNodeId, updatedBy: 'agent' }) }),
+        })
+        if (!res.ok) throw new Error(`Note ${removing ? 'delete' : 'edit'} failed: ${await res.text()}`)
+        result = await res.json()
+        break
+      }
       case 'annotate_sheet': {
         let sheetId: string | undefined
-        if (args.sheet) sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
+        if (args.sheet && args.sheet !== 'floor') sheetId = await resolveSheetId(project.workspaceId, args.sheet as string)
         let targetType: string | undefined
         let targetId: string | undefined
         if (args.target) {
@@ -2788,6 +2817,7 @@ Steps to execute:
             sheetId,
             targetType, targetId,
             body: args.body,
+            positionX: args.positionX, positionY: args.positionY, width: args.width, height: args.height,
             author: 'agent',
           }),
         })

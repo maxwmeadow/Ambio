@@ -55,11 +55,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   zooming.
 - Wheel zoom works over revealed file-node content. An explicit `nowheel`
   ancestor opts a surface out of canvas zoom entirely.
-- A scrollable region inside a node (file symbol list, class member list)
-  consumes the wheel only while it can still scroll in that direction. At its
-  boundary, and whenever its content is too short to scroll, the wheel returns
-  to canvas zoom. A scroll region is never a permanent zoom dead-zone, and the
-  canvas root itself never counts as node content.
+- An overflowing region inside a node (file descriptions, symbol lists, class
+  members) owns the wheel even at either end. Reaching the end of text never
+  becomes camera zoom. Content without overflow leaves the wheel to the canvas;
+  the canvas root itself never counts as node content. Invisible compact/detail
+  title copies cannot intercept the active layer's scroll or editing controls.
 - Normal mode pans with the primary, middle, or secondary drag accepted by
   React Flow. Selection mode reserves primary drag for partial-box selection
   and limits panning to middle/secondary drag.
@@ -160,6 +160,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Rich file detail unmounts after its 250 ms exit crossfade. Symbol lists render
   a visible window plus four rows of overscan, retaining a focused editor. Source
   actions, authoring, list scrolling and keyboard navigation remain available.
+- Empty editable symbol categories use one compact Add first function/variable/
+  class button that combines the empty state and add action. Read-only and
+  loading lists retain plain status text. The member tab determines what is added.
 - Shared symbol requests have independent consumer cancellation, a four-request
   concurrency limit, revision invalidation, short-lived empty replies and a
   bounded LRU. Large lists do not create one DOM row per indexed symbol.
@@ -357,11 +360,24 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   dashed amber outline. What a sheet changes about a node is a small badge in
   its card (`SheetChangeBadge`: Added, Moved, Renamed, Moved + renamed) that
   keeps its screen size at any zoom; a renamed system shows the new name with
-  the current one struck through under it, and a relationship is drawn dashed
-  amber. Rejecting a move puts the node
+  the current one struck through under it, and an unfocused relationship is
+  drawn dashed charcoal with a narrow ivory outline, contrasting with amber
+  proposal borders. Rejecting a move puts the node
   back where the Floor has it; a rejected relationship is not drawn.
 - A sheet's relationships route between the facing sides of the two nodes,
-  with right angles, and carry no text label over node titles.
+  with orthogonal gutters and small rounded corners, and carry no text label
+  over node titles. Incident connections use distinct ports; reserved gutters
+  discourage overlapping routes. The last segment approaches the target face
+  normally, with enough straight ink for its bounded screen-size arrowhead.
+  Rounded corners stay within the route's obstacle clearance.
+- Selecting a connection in the sheet sidebar reveals both endpoints and
+  their complete route, including below the normal semantic zoom threshold.
+  Revealed ancestors keep titles in their header tabs. The camera fits the
+  endpoint cards and route detours clear of the stencil palette and open sheet
+  inspector. Individual navigation and the all-connections view share the same
+  dashed charcoal ink, width, ivory outline, arrowheads and source dots; other
+  proposed routes dim while focus is active. Camera and selection changes
+  alone do not reroute the connection.
 - The stencil palette sits at the top left of the canvas, clear of the
   Infrastructure tab, and moves beside the Infrastructure sidebar while it is
   open. The PROPOSAL band is the only mode badge.
@@ -454,11 +470,96 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   active sheet changes. Hidden lines never remove items from proposal review.
   Visible proposed relationships retain a readable screen-space line weight
   when zoomed out, with an arrow showing which system uses the other.
+- Proposed relationships choose endpoint faces and orthogonal gutters together,
+  avoiding unrelated cards and folder tabs. Ancestor frames are traversable
+  context. Routes attach to actual perimeters, retain selection, and cache by
+  scene geometry rather than camera position. Stroke, dashes, hit targets and
+  arrowheads have bounded screen sizes at wide and close zoom.
 - Moves and additions have small screen-size markers, without a second dashed
   perimeter. Selecting a move explains its original and proposed parent.
 - Unplaced new systems and automatically moved systems fit their contents using
   the shared packer. Explicit sheet positions/sizes stay authoritative; neither
   compacting nor reviewing a proposal rewrites Floor geometry.
+- Automatic sheet compaction accounts for nesting, world scale and interior
+  scale when reserving header clearance. A system's dimensions and its layout
+  row agree, so projection cannot reuse an oversized Floor frame.
+- To review stays compact in the sidebar. A nested addition and its connections
+  form one change card; independent additions and connections between them
+  remain separate. Inspect changes opens a nonmodal panel with additions,
+  connections, moves and renames grouped for individual decisions; the compact
+  card shows actual system/file/connection counts and descriptive intent.
+  Group approval/rejection applies exactly the displayed pending parts in one
+  revision-checked transaction. A stale plan refreshes for review without
+  retrying approval; approved children/connections cannot have unapproved parents
+  or endpoints. Request changes records the reason against each selected part.
+  Opening a sheet reveals To review upward from the bottom over roughly 260ms,
+  without replaying the entrance on ordinary updates to an existing card.
+  Leaving the sheet or deciding its final proposal collapses/fades the review
+  downward over roughly 220ms. The exiting snapshot is immediately inert and
+  hidden from assistive technology, its actions disabled and inspector closed.
+  Reopening reverses the exit; another sheet cannot be cleared by the old exit.
+  Reduced-motion mode removes the review immediately.
+- Approval removes pending decisions, not navigation. Each sheet row has a
+  chevron that expands its additions, meaningful live edits and connections before
+  and after approval. Expanding a sheet does not activate or display its layer;
+  selecting a content entry opens that sheet and reveals nested/off-screen
+  content. There is no separate bottom Contents section.
+- Sheet, system and Connections disclosures expand/collapse their actual height
+  over roughly 240ms with a short fade. Reversing a toggle mid-transition starts
+  from its current position. Contents mount on first opening and retain local
+  state afterward; closed content is inert and hidden from assistive technology
+  immediately. Reduced-motion preferences disable these transitions and the
+  To review entrance.
+- The sheet tree omits unchanged live context, connection-only endpoints and
+  layout-only repositioning. Explicit reparenting, reviewed renames and authored
+  file design remain discoverable; Connections retains all of its endpoints.
+  The underlying sheet membership and build context are unchanged by this filter.
+- Expanded sheet contents fill the rail width. Systems use warm tinted headers,
+  folder icons and trailing disclosure controls; files use flat rows below.
+  Nested systems use a quieter header tint rather than cumulative indentation.
+  A continuous accent frame joins the owning sheet header to its expanded
+  sections, with a shared backing and closing bottom edge. Collapsing the sheet
+  removes that frame; opening an inactive sheet's contents does not activate it.
+- Connections use a compact tinted toolbar with a connection icon, count and
+  right-side disclosure, distinct from the system tree without a separator
+  rule. The map-visibility button belongs to this toolbar and includes an eye
+  icon; it is available on the active sheet whether the connections are
+  expanded or collapsed.
+- Stencils use equal top and left canvas insets. On short windows the palette
+  scrolls within the available space, keeping the Infrastructure tab below it
+  and reachable; when Infrastructure opens, the palette sits beside that panel.
+- A normal sheet-title click makes it the only visible overlay and primary
+  editing target. Ctrl/Cmd-click toggles additional layers without changing the
+  primary target; hiding that primary promotes the last remaining visible layer,
+  or returns to the Floor if none remain. The Floor stays the base. Active rows
+  are teal; other visible layers use a quieter tint. Titles allow two lines.
+- Sheet rows omit checkboxes, type abbreviations and author badges. A hover/
+  keyboard-focus menu and the same right-click/Shift-F10 menu provide Rename,
+  Discuss or implement, and Delete. Connections visibility lives inside the
+  expanded active sheet. Approval confirms a plan; implementation is separate.
+- Planned file headers use their declared filename and the normal language
+  icon. Cards and Properties share a single filename, language and description
+  model, including path-derived languages and legacy descriptions stored in
+  notes. Recognized file extensions override stale language metadata. There is
+  no separate semantic filename in the file UI, and no repeated full path in
+  the body; paths remain in the proposal data and hover context. Filename edits
+  preserve directories. Description and function/variable/class controls remain
+  available together, with the same members editable in Properties. Explicitly
+  clearing descriptions/members cannot resurrect legacy notes/member lists.
+- Language menus use the browser top layer at screen size, outside node
+  stacking/clipping. They stay within the window, follow their anchor, support
+  keyboard selection and outside-click dismissal; Escape restores focus to the
+  language button. Closed menus do not mount their option lists.
+- Proposed systems show their responsibility below the collapsed title.
+  Full description editing uses the normal Properties inspector (double-click
+  the frame); there is no separate information badge on the header ledge.
+  Cards and Properties share the same metadata/legacy-notes fallback, including
+  explicit description clearing.
+- If an incoming proposal compresses an existing live context frame, sheet
+  preparation refits its content subtree against each frame's canonical body
+  insets, using the final inherited scale. Its children cannot shrink upward
+  into the title. Outer frame geometry, neighboring frames and saved Floor
+  layouts remain unchanged; unchanged authored interiors are not repacked.
 
 
 - A sheet is a PROPOSAL about the live architecture, made of three kinds of
@@ -702,8 +803,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Workbench architecture drafts use that same lane, become unfinished after
   five minutes without an update, and remain recoverable from Agent →
   Architecture Draft after dismissal. Progress yields to decisions and failures.
-- Review Changes remains reachable from the toolbar, View and command palette
-  after a review invitation is dismissed. No permanent footer is required.
+- Routine code changes do not raise Review Changes invitations. Pending review
+  remains reachable from the toolbar, View and command palette, including while
+  new changes arrive. Opening or dismissing an invitation never acknowledges
+  the underlying changes. No permanent footer is required.
 
 ### First-run payoff
 
@@ -829,3 +932,33 @@ changing their behavior:
 `AmbioCanvas` remains the integration shell until each extracted module has
 characterization coverage. Node components, `frameGeometry`, `packing`, and
 the resize SVG remain protected until the harness covers their contracts.
+
+
+## Sticky notes
+
+- Floor notes belong to the project; sheet notes belong to their sheet. Opening
+  a sheet keeps Floor note text read-only. Review/bin canvases do not author notes.
+- Notes are native leaf nodes. Dragging into/out of a system uses the existing
+  target detection, collision, packing, compression and canonical layout writes.
+  The Note stencil uses the same creation/drop path. Parent movement, scaling
+  and resizing carry notes exactly like other children; selection/grouping is
+  the normal canvas selection model. Notes never become semantic code entities
+  or pending code proposals.
+- Note geometry lives in the existing Floor/sheet layout tables. Parent-relative
+  coordinates and inherited world/content scales use the same preparation,
+  projection, worker and resize logic as other nodes. A sheet transforms its own
+  geometry, including Floor context children, without changing the Floor.
+- Double-click text (or Enter on a focused note) opens multiline editing.
+  Typing automatically persists serialized updates; blur flushes pending text.
+  Escape/Ctrl/Cmd+Enter ends editing without discarding changes. Empty text is
+  valid. There are no normal Edit/Save/Cancel/Delete buttons; Delete/Backspace
+  removes a selected note and edits text normally inside its textarea.
+- Overflowing text consumes scrolling; note paper/content scales with its
+  canonical geometry and stays clipped to its bounds. The standard eight resize
+  handles retain normal canvas behavior and screen size.
+- Human/agent text updates and deletion require a note revision. Conflicts keep
+  local text until an explicit choice; failed writes remain visible and preserve
+  drafts. Remote deletion retains draft recovery. Surface changes retain active
+  text sessions and flush pending updates; project changes flush and clear them.
+- Expanded sheets list notes independently of code review. Agent reads expose
+  current canonical geometry in `layout`; agent owner changes use `parentNodeId`.

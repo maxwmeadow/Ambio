@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -63,6 +64,11 @@ func nodeBelongsToWorkspace(tx *sql.Tx, workspaceID, nodeType, nodeID string) (b
 	switch nodeType {
 	case "system":
 		err = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM systems WHERE workspace_id=? AND id=?)`, workspaceID, nodeID).Scan(&exists)
+	case "note":
+		if !strings.HasPrefix(nodeID, "note:") {
+			return false, nil
+		}
+		err = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM annotations WHERE workspace_id=? AND id=? AND kind='note' AND sheet_id IS NULL)`, workspaceID, strings.TrimPrefix(nodeID, "note:")).Scan(&exists)
 	case "file":
 		err = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM files f JOIN roots r ON r.id=f.root_id WHERE r.workspace_id=? AND f.id=?)`, workspaceID, nodeID).Scan(&exists)
 	case "infra":

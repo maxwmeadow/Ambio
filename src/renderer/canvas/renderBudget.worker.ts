@@ -39,7 +39,7 @@ self.onmessage = (event: MessageEvent<SceneMessage | QueryMessage | PrepareMessa
   if (message.op === 'prepare-start') {
     const { channel, token, trace } = message
     preparations.set(channel, token); outputs.delete(channel)
-    inputs.set(channel, { op: 'prepare', channel, token, trace, input: { systems: [], files: [], infraNodes: [], dependencies: [], layouts: [], placements: new Map() } })
+    inputs.set(channel, { op: 'prepare', channel, token, trace, input: { systems: [], files: [], notes: [], infraNodes: [], dependencies: [], layouts: [], placements: new Map() } })
     self.postMessage({ op: 'prepare-input-next', channel, token }); return
   }
   if (message.op === 'prepare-chunk' || message.op === 'prepare-commit') {
@@ -64,7 +64,7 @@ self.onmessage = (event: MessageEvent<SceneMessage | QueryMessage | PrepareMessa
   if (message.op === 'prepare') {
     preparations.set(message.channel, message.token)
     const { input, channel, token, trace } = message
-    const steps = prepareFloorGeometrySteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, input.placements)
+    const steps = prepareFloorGeometrySteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, input.placements, input.notes)
     let computeMs = 0
     const tick = () => {
       if (preparations.get(channel) !== token) return

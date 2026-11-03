@@ -19,6 +19,7 @@ import { LanguageIcon, LanguagePicker } from '../languages'
 import { SourcePreviewDialog } from '../../components/SourcePreviewDialog'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
+import { fileSymbolTab } from '../plannedFileIdentity'
 import { AmbioNodeResizer } from './AmbioNodeResizer'
 import { VirtualSymbolRows } from './VirtualSymbolRows'
 import {
@@ -108,17 +109,7 @@ function EditableSymbolName({ value, editable, onCommit }: { value: string; edit
 
 /** Which tab a symbol kind belongs to. Unknown kinds render as 'v' rows, so they live under variables. */
 function tabForKind(kind: string): SymbolTab {
-  switch ((kind || '').toLowerCase()) {
-    case 'function':
-    case 'method':
-      return 'functions'
-    case 'class':
-    case 'interface':
-    case 'type':
-      return 'classes'
-    default:
-      return 'variables'
-  }
+  return fileSymbolTab(kind)
 }
 
 function RuntimeTooltip({ runtime, color }: { runtime: RuntimeNodeState; color: string }) {
@@ -377,6 +368,10 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
     return symbols.filter(sym => tabForKind(sym.kind) === activeTab)
   }, [symbols, activeTab])
   const editableSymbols = Boolean(d.onSymbolsChange)
+  const [showPlannedDescription, setShowPlannedDescription] = React.useState(true)
+  const plannedFile = d.id.startsWith('planned:') && d.umlKind === 'file'
+  const plannedSummary = plannedFile && showPlannedDescription
+  const activeMemberKind = activeTab === 'classes' ? 'class' : activeTab.slice(0, -1)
   const updateSymbols = (next: any[]) => {
     setSymbols(next)
     setCachedSymbols(workspaceId, fileId, next)
@@ -444,7 +439,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
             : undefined,
       } as React.CSSProperties}
     >
-      <SheetChangeBadge change={d.sheetChange} width={Number(width) || 220} />
+      <SheetChangeBadge change={plannedFile ? undefined : d.sheetChange} width={Number(width) || 220} />
       <AgentPresenceBadge presence={d.agentPresence} scale={Math.max(0.8, Math.min(1.1, s))} />
       <BranchOverlayMark marks={overlayMarks} />
       {/* Preview plane: node visuals ride the predicted post-drop offset.
@@ -517,7 +512,7 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           } : {}),
         }}>
         <LanguagePicker value={d.language ?? ''} onChange={d.onLanguageChange} />
-        <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={d.onRename} title={d.relPath} style={{
+        <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={detailAlpha > 0.8 ? d.onRename : undefined} title={d.relPath} style={{
           fontSize: 12,
           color: 'var(--text-primary)',
           fontWeight: 600,
@@ -569,7 +564,10 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           pointerEvents: detailAlpha < 0.2 ? 'auto' : 'none',
         }}>
           <LanguagePicker value={d.language ?? ''} onChange={d.onLanguageChange} iconSize={30} />
-          <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={d.onRename} title={d.relPath} style={{
+          {/* An editable title opts into pointer events itself. The invisible
+              compact copy must not cover the revealed scroll region. */}
+          <EditableNodeTitle value={classFirst ? d.displayName : d.label} onRename={detailAlpha < 0.2 ? d.onRename : undefined} title={d.relPath} style={{
+            pointerEvents: detailAlpha < 0.2 ? 'auto' : 'none',
             width: '100%',
             minWidth: 0,
             fontSize: 19,
@@ -606,6 +604,9 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           transition: 'opacity 0.25s ease',
           pointerEvents: detailAlpha > 0.8 ? 'auto' : 'none',
         }} className="nodrag nopan">
+          {plannedSummary ? <div className="symbol-scroll nodrag" aria-label={`Description of ${d.label}`} style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', font: '8px/1.4 var(--font-mono)', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+            <p style={{ margin: '4px 0' }} title="Edit this description in Properties">{d.proposedDescription || 'Describe what belongs in this file in Properties.'}</p>
+          </div> : <>
           {/* Scrollable symbols list viewport */}
           {symbols && filteredSymbols.length > 0 ? <VirtualSymbolRows rows={filteredSymbols} render={(sym, idx) => {
             const isSymWatched = runtime?.watchedSymbols?.includes(sym.name)
@@ -632,53 +633,61 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
                   style={{ border: 0, background: 'transparent', color: 'var(--text-dim)', padding: 0, cursor: 'pointer' }}>×</button>
                   : <span style={{ color: 'var(--text-dim)', fontSize: 7, flexShrink: 0, marginLeft: 4 }}>: {sym.lineStart}</span>}
               </div>)
-          }} footer={editableSymbols ? <button className="nodrag nopan" title={`Add ${activeTab.slice(0, -1)}`}
+          }} footer={editableSymbols ? <button className="nodrag nopan" title={`Add ${activeMemberKind}`} aria-label={`Add ${activeMemberKind}`}
             onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
             style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button> : undefined} />
           : <div className="symbol-scroll nodrag" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+            {editableSymbols && !symbolsLoading ? <button type="button" className="ambio-symbol-empty-add nodrag nopan" title={`Add ${activeMemberKind}`} aria-label={`Add ${activeMemberKind}`}
+              onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}>
+              <span className="ambio-symbol-empty-add__plus" aria-hidden="true">+</span>
+              <span>Add first {activeMemberKind}</span>
+            </button> : <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
               {symbolsLoading ? 'Loading...' : !symbols?.length ? 'No symbols' : 'Empty'}
-            </span>
-            {editableSymbols && <button className="nodrag nopan" title={`Add ${activeTab.slice(0, -1)}`}
-              onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); addSymbolForActiveTab() }}
-              style={{ width: '100%', minHeight: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>+</button>}
+            </span>}
           </div>}
+          </>}
 
           {/* Vertical tab rail, flush right */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 3,
+            gap: plannedFile ? 2 : 3,
             flexShrink: 0,
             marginLeft: 'auto',
           }}>
+              {plannedFile && <button type="button" title="Description" aria-label="Show description" aria-pressed={showPlannedDescription}
+                onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setShowPlannedDescription(true) }}
+                style={{ width: 14, height: 14, padding: 0, font: '9px var(--font-mono)', color: 'var(--accent)', border: `1px solid ${showPlannedDescription ? 'var(--accent)' : 'var(--border)'}`, background: 'transparent', cursor: 'pointer' }}>i</button>}
               {tabs.map(tab => (
-                <span
+                <button type="button" aria-label={`Show ${tab}`}
                   key={tab}
                   title={tab}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
                     setActiveTab(tab)
+                    setShowPlannedDescription(false)
                   }}
                   style={{
                     width: 14,
                     height: 14,
+                    padding: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 9,
+                    lineHeight: 1,
                     fontFamily: 'var(--font-mono)',
                     cursor: 'pointer',
                     borderRadius: 0,
-                    border: `1px solid ${activeTab === tab ? 'var(--accent)' : 'var(--border)'}`,
-                    color: activeTab === tab ? 'var(--accent)' : 'var(--text-secondary)',
-                    background: activeTab === tab ? 'var(--bg-raised)' : 'transparent',
-                    fontWeight: activeTab === tab ? 700 : 400,
+                    border: `1px solid ${activeTab === tab && !plannedSummary ? 'var(--accent)' : 'var(--border)'}`,
+                    color: activeTab === tab && !plannedSummary ? 'var(--accent)' : 'var(--text-secondary)',
+                    background: activeTab === tab && !plannedSummary ? 'var(--bg-raised)' : 'transparent',
+                    fontWeight: activeTab === tab && !plannedSummary ? 700 : 400,
                   }}
                 >
                   {tab === 'functions' ? 'ƒ' : tab === 'variables' ? 'v' : 'C'}
-                </span>
+                </button>
               ))}
           </div>
         </div>

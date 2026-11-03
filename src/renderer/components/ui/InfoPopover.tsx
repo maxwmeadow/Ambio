@@ -2,10 +2,11 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import '../../styles/infoPopover.css'
 
 /** Top-layer help anchored to its button, independent of scroll-container layout. */
-export function InfoPopover({ label, title, className, children }: {
+export function InfoPopover({ label, title, className, panelClassName, children }: {
   label: string
   title: string
   className?: string
+  panelClassName?: string
   children: ReactNode
 }) {
   const id = useId()
@@ -69,7 +70,7 @@ export function InfoPopover({ label, title, className, children }: {
   }, [open])
   return <>
     <button ref={anchor} type="button" className={className} aria-label={label} aria-expanded={open} aria-controls={id}>i</button>
-    <div ref={popup} id={id} role="region" aria-label={title} className="ambio-info-popover">
+    <div ref={popup} id={id} role="region" aria-label={title} className={`ambio-info-popover${panelClassName ? ` ${panelClassName}` : ''}`}>
       <div className="ambio-info-popover__content">{children}</div>
     </div>
   </>

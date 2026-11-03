@@ -6,9 +6,9 @@
  * regions `nowheel` is the wrong trade: it permanently dead-zones canvas zoom
  * over most of a revealed node, including lists too short to scroll at all.
  *
- * Instead a region claims the wheel only while it can actually consume it. The
- * list scrolls until it reaches a boundary, then the canvas resumes zooming -
- * the same chaining behavior a browser gives nested scroll areas.
+ * An overflowing region owns the wheel, including at its boundaries. Reaching
+ * the end of text must not change the camera. Regions without overflow still
+ * leave the wheel to the canvas.
  */
 export interface WheelScrollMetrics {
   /** Computed `overflow-y` of the candidate region. */
@@ -18,8 +18,7 @@ export interface WheelScrollMetrics {
   clientHeight: number
 }
 
-// Sub-pixel slack: fractional layout means a region resting at its boundary can
-// report a scrollTop a hair away from the exact limit.
+// Ignore sub-pixel overflow caused by fractional layout.
 const BOUNDARY_EPSILON = 1
 
 export function regionConsumesWheel(
@@ -29,9 +28,7 @@ export function regionConsumesWheel(
   if (metrics.overflowY !== 'auto' && metrics.overflowY !== 'scroll') return false
   const maxScroll = metrics.scrollHeight - metrics.clientHeight
   if (maxScroll <= BOUNDARY_EPSILON) return false
-  if (deltaY < 0) return metrics.scrollTop > BOUNDARY_EPSILON
-  if (deltaY > 0) return metrics.scrollTop < maxScroll - BOUNDARY_EPSILON
-  return false
+  return deltaY !== 0
 }
 
 /**

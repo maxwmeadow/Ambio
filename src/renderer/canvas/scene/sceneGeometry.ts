@@ -10,14 +10,14 @@ export type GeometryFile = Pick<DbFile, 'id' | 'systemId' | 'positionX' | 'posit
 export type GeometryInfra = Pick<DbInfraNode, 'id' | 'category' | 'positionX' | 'positionY'>
 export type GeometryDependency = Pick<DbDependency, 'src' | 'dst'>
 export interface FloorGeometryInput {
-  systems: GeometrySystem[]; files: GeometryFile[]; infraNodes: GeometryInfra[]
+  systems: GeometrySystem[]; files: GeometryFile[]; infraNodes: GeometryInfra[]; notes?: GeometryFile[]
   dependencies: GeometryDependency[]; layouts: FloorLayout[]; placements: Map<string, GeneratedPlacement>
 }
 export function numericGeometryInput(...args: Parameters<typeof numericGeometryInputSteps>): FloorGeometryInput {
   const steps = numericGeometryInputSteps(...args)
   for (;;) { const result = steps.next(); if (result.done) return result.value }
 }
-export function* numericGeometryInputSteps(systems: DbSystem[], files: DbFile[], infraNodes: DbInfraNode[], dependencies: DbDependency[], layouts: FloorLayout[], placements: Map<string, GeneratedPlacement>): Generator<void, FloorGeometryInput> {
+export function* numericGeometryInputSteps(systems: DbSystem[], files: DbFile[], infraNodes: DbInfraNode[], dependencies: DbDependency[], layouts: FloorLayout[], placements: Map<string, GeneratedPlacement>, notes: GeometryFile[] = []): Generator<void, FloorGeometryInput> {
   const authored = new Set<string>()
   let work = 0
   for (const row of layouts) {
@@ -45,6 +45,7 @@ export function* numericGeometryInputSteps(systems: DbSystem[], files: DbFile[],
     input.placements.set(id, placement)
     if ((++work & 255) === 0) yield
   }
+  input.notes = notes.map(note => ({ ...note }))
   return input
 }
 
@@ -726,8 +727,10 @@ export function* prepareFloorGeometrySteps(
   dependencies: GeometryDependency[],
   floorLayouts: FloorLayout[],
   generatedPlacements: Map<string, GeneratedPlacement> = new Map(),
+  notes: GeometryFile[] = [],
 ): Generator<void, PreparedFloorGeometry, void> {
   let work = 0
+  files = [...files, ...notes]
   const systemsById = new Map(systems.map(system => [system.id, system]))
   const filesById = new Map(files.map(file => [file.id, file]))
   const infraById = new Map(infraNodes.map(infra => [infra.id, infra]))
@@ -737,7 +740,7 @@ export function* prepareFloorGeometrySteps(
     : null
   const nodeTypes = new Map<string, FloorNodeType>([
     ...systems.map(system => [system.id, 'system'] as const),
-    ...files.map(file => [file.id, 'file'] as const),
+    ...files.map(file => [file.id, file.id.startsWith('note:') ? 'note' : 'file'] as const),
     ...infraNodes.map(infra => [infra.id, 'infra'] as const),
   ])
 
@@ -752,7 +755,7 @@ export function* prepareFloorGeometrySteps(
   // graph disappear. The API rejects new invalid writes; this protects legacy DBs.
   for (const [id, parentId] of parentById) {
     if ((++work & 255) === 0) yield
-    if (parentId && (!nodeTypes.has(parentId) || nodeTypes.get(parentId) === 'file')) parentById.set(id, null)
+    if (parentId && (!nodeTypes.has(parentId) || (nodeTypes.get(parentId) === 'file' || nodeTypes.get(parentId) === 'note'))) parentById.set(id, null)
     const visited = new Set<string>([id])
     let current = parentById.get(id) ?? null
     while (current) {

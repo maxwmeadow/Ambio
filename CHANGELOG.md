@@ -7,7 +7,18 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
+
 ### Added
+- Smooth sheet, system and Connections expansion, plus a gentle upward reveal
+  for To review when opening a sheet. Reduced-motion preferences are respected.
+- Expand a sheet in the sidebar to find its systems, files and connections,
+  including after approval. Sheet rows have readable titles and contextual
+  Rename, Discuss or implement, and Delete actions; Ctrl/Cmd-click adds layers.
+- To review stays compact at the bottom-left. Inspect changes opens grouped
+  additions and connections for individual decisions, or approve the exact
+  change together and request changes with a reason. Planned file cards show
+  filenames and responsibilities, with symbol editing available on demand.
 - Pull, push and publish your branch from the branch chip. The branch menu
   now says where your branch stands (“3 commits to pull from origin/main”),
   checks the remote when you open it, and leads with the one action that
@@ -46,6 +57,50 @@ in the app as "What's New" after updating, so write it for users.
   venv was only left out once you expanded its parent; now setup recognises
   generated folders by what they hold, wherever they are, and leaves your own
   code alone even when it is named “coverage”.
+- To review now closes smoothly when leaving a sheet or deciding its final
+  proposal. Closing actions are disabled; reopening and sheet switching cancel
+  stale exits, and reduced-motion mode removes the box immediately.
+- Removed the instruction footer from Stencils; individual tooltips retain help.
+- Expanded sheets visually contain their sections with a continuous accent
+  frame and shared backing, keeping full-width contents tied to their header.
+- Expanded sheet contents fill the sidebar width. Systems have warm headers
+  and folder icons; color replaces cumulative indentation, leaving more room
+  for names and connections.
+- Connections in the sheet sidebar have a compact toolbar with a connection
+  icon, count and map-visibility action, distinct from the system tree.
+- Sheet connections use charcoal ink with a narrow ivory outline to stay
+  visible across amber proposal borders. Individual navigation and showing all
+  connections share the same color, dashes, width and outline.
+- Sheet connections use separate ports, wider gutters and clean arrowhead
+  approaches. Selecting a connection reveals and frames its entire path,
+  including from a zoomed-out view, with quieter neighbors during focus.
+- Sheet contents omit unchanged context and layout-only shifts; connection
+  endpoints remain available under Connections. Stencils now have equal top
+  and left spacing, with the Infrastructure tab kept clear.
+- Empty editable symbol lists use one compact “+ Add first function” row
+  (or variable/class), replacing the separate label and large plus box.
+- Sheet proposals keep existing files clear of system titles when fitting new
+  contents. Nested frames use the same body clearance at every zoom.
+- Proposed system descriptions use the normal Properties inspector. Removed
+  the separate information badge from the header ledge; collapsed summaries
+  and older agent notes remain available.
+- Planned files use the same filename, language and description in their cards
+  and Properties. Removed duplicate semantic names and paths from cards; the
+  function, variable and class controls stay available beside descriptions.
+- Language menus stay above neighboring nodes and within the window, with
+  keyboard navigation, Escape and outside-click dismissal.
+- Scrolling a planned file's description scrolls its text, including at either
+  end, without moving the camera. Invisible compact titles no longer intercept
+  detailed file controls.
+- Planned file headers show filenames and language icons, including JSON
+  fixtures. Filename and language edits preserve directories and the editable
+  descriptive name shown in the body.
+- Sheet relationships route through gaps around cards and folder titles.
+  Lines, dashes and arrowheads keep a consistent size as you zoom.
+- Review Changes no longer interrupts coding with recurring review popups.
+  Pending changes remain available from the toolbar whenever you want them.
+- Automatically arranged sheet systems keep their children below the header
+  and inside the frame, including nested and scaled proposals.
 - The agent panel's “Here” button is gone. Starting a Build in its own
   worktree is now an option in the Build menu, offered only when a new
   conversation starts, and the panel header shows which branch a conversation

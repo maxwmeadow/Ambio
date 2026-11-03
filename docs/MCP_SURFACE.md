@@ -55,7 +55,7 @@ in the surface for exactly that reason.
 | `get_data_flow` | - |
 | `edit_systems` | propose, begin_session, add_chunk, commit_session, abort_session, session_status, create, update, delete, assign, merge, bulk |
 | `edit_infra` | create, update, delete, connect, contents, require, decide |
-| `edit_sheet` | list, get, create, add, move, rename, remove, restore, annotate, connect, compare, bind, apply_nesting, resolve, reopen, export, import |
+| `edit_sheet` | list, get, create, add, move, rename, remove, restore, annotate, notes, edit_note, delete_note, connect, compare, bind, apply_nesting, resolve, reopen, export, import |
 | `get_inbox` | Atomic instruction claim/renewal with the conversation's earlier turns, or paginated context via `messageHandle` and `contextOffset`; nonblocking unless `watch: true` (a session the user asked to watch waits up to 45s for an open request) |
 | `get_build_plan` | `get_build_spec`, `get_plan_status` |
 | `plan_element` | - |
@@ -114,3 +114,8 @@ tool description over 460 characters.
 Legacy names remain callable but unlisted for one release. Before removing
 them, instrument which adapters are actually being hit - `agent_actions` in
 archd already records every call by tool name, so the data is there.
+
+Note operations keep their existing tool entry point. `notes` exposes each note's
+canonical `layout` (parent, position, dimensions and scale); `edit_note` accepts
+`parentNodeId` for a system owner, or an empty string for the root. Text and
+spatial updates validate/commit together, with scope and revision checks.

@@ -10,17 +10,22 @@ const scrollable = (overrides = {}) => ({
   ...overrides,
 })
 
-test('a scrollable list consumes the wheel only while it has room', () => {
+test('an overflowing description owns the wheel at both ends, without changing the camera', () => {
+  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 0 }), -100), true)
+  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 300 }), 100), true)
+})
+
+test('an overflowing list keeps the wheel while hovering over its content', () => {
   // Mid-list: both directions are the list's to consume.
   assert.equal(regionConsumesWheel(scrollable(), -1), true)
   assert.equal(regionConsumesWheel(scrollable(), 1), true)
 
-  // At the top, scrolling up belongs to the canvas; down still scrolls.
-  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 0 }), -1), false)
+  // Reaching either boundary never turns a text gesture into camera movement.
+  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 0 }), -1), true)
   assert.equal(regionConsumesWheel(scrollable({ scrollTop: 0 }), 1), true)
 
   // At the bottom, the reverse.
-  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 300 }), 1), false)
+  assert.equal(regionConsumesWheel(scrollable({ scrollTop: 300 }), 1), true)
   assert.equal(regionConsumesWheel(scrollable({ scrollTop: 300 }), -1), true)
 })
 
@@ -58,9 +63,9 @@ test('the wheel walk routes to nowheel, scrollable content, or canvas zoom', () 
   assert.equal(scrollRoute.kind, 'scroll')
   assert.equal(scrollRoute.element, list)
 
-  // Same row, but the list is scrolled to the bottom: canvas zoom resumes.
+  // At the bottom the overflowing list retains the gesture.
   metricsFor.set(list, scrollable({ scrollTop: 300 }))
-  assert.equal(routeWheelEvent(row, 1, root, read).kind, 'zoom')
+  assert.equal(routeWheelEvent(row, 1, root, read).kind, 'scroll')
 
   // An explicit opt-out still wins outright (inputs, selects).
   const optedOut = { classList: { contains: name => name === 'nowheel' }, parentElement: root }

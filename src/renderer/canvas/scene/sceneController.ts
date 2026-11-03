@@ -139,7 +139,7 @@ export function createSceneController(factory: () => WorkerPort = () => {
         if (input.systems.length + input.files.length + input.infraNodes.length > 2000 || input.dependencies.length > 2000 || input.layouts.length > 2000) {
           jobs.delete(channel); reject(Error('Background canvas preparation is unavailable. Retry to restart the worker.')); return
         }
-        const steps = prepareFloorGeometrySteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, input.placements)
+        const steps = prepareFloorGeometrySteps(input.systems, input.files, input.infraNodes, input.dependencies, input.layouts, input.placements, input.notes)
         const tick = () => {
           if (jobs.get(channel)?.token !== token) return
           const deadline = performance.now() + 3

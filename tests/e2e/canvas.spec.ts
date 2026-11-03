@@ -1960,32 +1960,93 @@ test('keeps canvas utility chrome screen-sized, legible, and interactive', async
   await expect(infraTab).toBeVisible()
 })
 
+test('sheet rows expand independently, toggle extra layers and expose contextual actions', async () => {
+  const draft = { id: 'sheet_second', workspaceId: 'demo', name: 'Offline Scene Replay with a readable two line title', purpose: '', kind: 'structure', folder: '', createdBy: 'user', revision: 1, createdAt: 1, updatedAt: 1 }
+  let deleted = false
+  await page.route(/\/api\/sheets\/sheet_second(?:\?|$)/, async route => {
+    const method = route.request().method()
+    if (method === 'PUT') {
+      draft.name = route.request().postDataJSON().name; draft.revision++
+      await route.fulfill({ json: draft }); return
+    }
+    if (method === 'DELETE') { deleted = true; await route.fulfill({ json: { ok: true } }); return }
+    await route.fulfill({ json: { sheet: draft, planned: [], plannedEdges: [], elements: [], annotations: [], layouts: [], removals: [] } })
+  })
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), draft)
+  const rail = page.getByRole('complementary', { name: 'Drawings' })
+  const runtime = rail.getByRole('button', { name: 'Runtime Draft', exact: true })
+  const second = rail.getByRole('button', { name: draft.name, exact: true })
+  await rail.getByRole('button', { name: `Expand ${draft.name}`, exact: true }).click()
+  await expect(rail.getByRole('button', { name: /^The Floor/ })).toHaveAttribute('aria-current', 'page')
+  await expect(rail.getByRole('group', { name: `Contents of ${draft.name}`, exact: true })).toBeVisible()
+  await runtime.click()
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await expect(second.locator('..')).toHaveClass(/row--visible/)
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(second.locator('..')).not.toHaveClass(/row--visible/)
+  await second.click()
+  await expect(second).toHaveAttribute('aria-current', 'page')
+  await expect(runtime.locator('..')).not.toHaveClass(/row--visible/)
+  await runtime.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime.locator('..')).toHaveClass(/row--visible/)
+  await second.click({ modifiers: ['ControlOrMeta'] })
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  // Context menus work by mouse and keyboard without activating the sheet.
+  await second.click({ button: 'right' })
+  let menu = page.getByRole('menu', { name: `Actions for ${draft.name}`, exact: true })
+  await expect(menu.getByRole('menuitem', { name: 'Rename…' })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(menu.getByRole('menuitem', { name: 'Delete sheet…' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).not.toBeVisible()
+  await rail.getByRole('button', { name: `Actions for ${draft.name}`, exact: true }).focus()
+  await page.keyboard.press('Shift+F10')
+  await menu.getByRole('menuitem', { name: 'Rename…' }).click()
+  await rail.getByRole('textbox', { name: 'Sheet name', exact: true }).fill('Offline Replay')
+  await rail.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(rail.getByRole('button', { name: 'Offline Replay', exact: true })).toBeVisible()
+  await expect(rail.getByRole('group', { name: 'Contents of Offline Replay', exact: true })).toBeVisible()
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await rail.getByRole('button', { name: 'Actions for Offline Replay', exact: true }).click()
+  menu = page.getByRole('menu', { name: 'Actions for Offline Replay', exact: true })
+  page.once('dialog', dialog => dialog.accept())
+  await menu.getByRole('menuitem', { name: 'Delete sheet…' }).click()
+  await expect.poll(() => deleted).toBe(true)
+  await expect(rail.getByRole('button', { name: 'Offline Replay', exact: true })).toHaveCount(0)
+  await expect(runtime).toHaveAttribute('aria-current', 'page')
+})
+
 test('preserves sheet rail hierarchy, layer visibility, and Floor navigation', async () => {
   const rail = page.getByRole('complementary', { name: 'Drawings' })
   const floor = rail.getByRole('button', { name: /The Floor/ })
-  const runtime = rail.getByRole('button', { name: 'Runtime Draft STR', exact: true })
-  const visibility = rail.getByRole('button', { name: 'Show Runtime Draft' })
+  const runtime = rail.getByRole('button', { name: 'Runtime Draft', exact: true })
+  const expand = rail.getByRole('button', { name: 'Expand Runtime Draft' })
 
   await expect(rail.getByText('Live model', { exact: true })).toBeVisible()
   await expect(rail.getByText('Overlay sheets', { exact: true })).toBeVisible()
-  await expect(rail.getByText('STR', { exact: true })).toBeVisible()
+  await expect(rail.getByText('STR', { exact: true })).toHaveCount(0)
   await expect(floor).toHaveAttribute('aria-current', 'page')
-  await expect(visibility).toHaveAttribute('aria-pressed', 'false')
+  await expect(expand).toHaveAttribute('aria-expanded', 'false')
+  await expand.click()
+  await expect(floor).toHaveAttribute('aria-current', 'page')
+  await expect(rail.getByRole('group', { name: 'Contents of Runtime Draft' })).toBeVisible()
 
   await runtime.click()
   await expect(runtime).toHaveAttribute('aria-current', 'page')
+  await expect.poll(() => runtime.evaluate(element => parseFloat(getComputedStyle(element).paddingRight))).toBeLessThan(10)
   await expect(page.locator('.ambio-surface-readout')).toContainText('Runtime Draft')
-  await expect(rail.getByRole('button', { name: 'Hide Runtime Draft' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(runtime.locator('..')).toHaveClass(/row--visible/)
   await expect(page.locator('.ambio-sheet-palette')).toBeVisible()
   await expect(page.locator('.ambio-sheet-palette__item')).toHaveCount(6)
 
   await floor.click()
   await expect(floor).toHaveAttribute('aria-current', 'page')
-  await expect(rail.getByRole('button', { name: 'Show Runtime Draft' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(runtime.locator('..')).not.toHaveClass(/row--visible/)
   await expect(page.locator('.ambio-sheet-palette')).toHaveCount(0)
   await expect.poll(() => runtime.evaluate(element => {
     const style = getComputedStyle(element)
-    return { color: style.color, background: style.backgroundColor }
+    return { color: style.color, background: getComputedStyle(element.parentElement!).backgroundColor }
   })).toEqual({ color: 'rgb(38, 51, 47)', background: 'rgb(231, 229, 223)' })
 
   const addSheet = rail.getByRole('button', { name: 'Create new overlay sheet' })
@@ -2414,9 +2475,9 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
     contentType: 'application/json',
     body: JSON.stringify({ sheet: agentSheet, elements: [], annotations: [], planned: [proposal], plannedEdges: [], layouts: [], removals: [] }),
   }))
-  await page.route(/\/api\/planned\/plan_queue\/approval$/, async route => {
+  await page.route(/\/api\/sheets\/sheet_agent\/review$/, async route => {
     decided = route.request().postDataJSON()
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...proposal, approvalStatus: decided?.decision }) })
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet: { ...agentSheet, revision: 2 }, planned: [{ ...proposal, approvalStatus: decided?.decision }], plannedEdges: [] }) })
   })
   await page.evaluate(sheet => {
     (window as unknown as { __ambioGraphStore: { getState: () => { applyDbPatch: (patch: unknown) => void } } })
@@ -2424,7 +2485,8 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   }, agentSheet)
 
   await expect(page.getByText('An agent drew a sheet: Agent Plan')).toBeVisible()
-  await expect(page.locator('.ambio-sheet-rail__new')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Agent Plan', exact: true })).toBeVisible()
+  await expect(page.locator('.ambio-sheet-rail__new')).toHaveCount(0)
   await page.getByRole('button', { name: 'Open Sheet' }).click()
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Job Queue')
@@ -2437,15 +2499,512 @@ test('an agent-drawn sheet cannot go unnoticed, and a rejection can say why', as
   const infraTab = await page.locator('.ambio-infra-sidebar-tab').boundingBox()
   expect(palette && infraTab).toBeTruthy()
   expect(palette!.x >= infraTab!.x + infraTab!.width || palette!.y + palette!.height <= infraTab!.y).toBe(true)
+  const checkPalette = async () => {
+    const canvas = (await page.locator('[data-ambio-canvas]').first().boundingBox())!
+    const stencil = (await page.locator('.ambio-sheet-palette').boundingBox())!
+    const tab = (await page.locator('.ambio-infra-sidebar-tab').boundingBox())!
+    expect(Math.abs((stencil.x - canvas.x) - (stencil.y - canvas.y))).toBeLessThan(1)
+    expect(tab.y).toBeGreaterThanOrEqual(stencil.y + stencil.height)
+    expect(tab.y + tab.height).toBeLessThanOrEqual(canvas.y + canvas.height)
+  }
+  await checkPalette()
+  await page.setViewportSize({ width: 900, height: 600 })
+  await expect.poll(async () => {
+    const stencil = (await page.locator('.ambio-sheet-palette').boundingBox())!
+    const tab = (await page.locator('.ambio-infra-sidebar-tab').boundingBox())!
+    return tab.y >= stencil.y + stencil.height
+  }).toBe(true)
+  await checkPalette()
+  await page.getByRole('button', { name: 'Open infrastructure', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: 'Infrastructure', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Close infrastructure', exact: true }).click()
+  await page.setViewportSize({ width: 1400, height: 900 })
   await page.screenshot({ path: 'test-results/sheet-proposal-review.png' })
   // A proposal's name takes you to it on the sheet.
   await review.getByRole('button', { name: /Job Queue/ }).first().click()
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('planned:plan_queue')
-  await review.getByRole('button', { name: 'Reject Job Queue' }).click()
-  await review.getByLabel('Why reject Job Queue? (optional)').fill('we already queue through SQS')
-  await review.getByRole('button', { name: 'Reject', exact: true }).click()
-  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', decision: 'rejected', reason: 'we already queue through SQS' })
+  await review.getByRole('button', { name: 'Request changes', exact: true }).click()
+  await review.getByLabel('What should change?').fill('we already queue through SQS')
+  await review.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', revision: 1, choices: [{ kind: 'addition', id: 'plan_queue' }], decision: 'rejected', reason: 'we already queue through SQS' })
   await expect(review).toHaveCount(0)
+})
+
+test('a nested proposal keeps compressed live context below its title and leaves the Floor intact', async () => {
+  const sheet = { id: 'sheet_clearance', workspaceId: 'demo', name: 'Heuristics replay', kind: 'structure', purpose: '', folder: '', createdBy: 'agent', revision: 1, createdAt: 1, updatedAt: 1 }
+  const original = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    const system = { ...state.systems[0], id: 'sys_heuristics', name: 'Reflex Collision Heuristics', parentId: null, width: 480, height: 360 }
+    const neighbor = { ...system, id: 'sys_neighbor', name: 'Neighbor' }
+    const distant = { ...system, id: 'sys_distant', name: 'Distant context' }
+    const file = { ...state.files[0], id: 'file_heuristics', systemId: system.id, path: '/fixture/heuristics.py', relPath: 'heuristics.py', language: 'python', width: 220, height: 110 }
+    const row = (nodeId: string, nodeType: string, parentNodeId: string | null, x: number, y: number, width: number, height: number) => ({ workspaceId: 'demo', nodeId, nodeType, parentNodeId, parentNodeType: parentNodeId ? 'system' : null, containmentKind: parentNodeId ? 'part_of' : 'root', positionX: x, positionY: y, width, height, scale: 1, interiorScale: 1, updatedAt: 0 })
+    const snapshot = { systems: [system, neighbor, distant], files: [file], dependencies: [], infraNodes: [], floorLayouts: [row(system.id, 'system', null, 100, 100, 480, 360), row(neighbor.id, 'system', null, 676, 100, 480, 360), row(file.id, 'file', system.id, 12, 34.8, 220, 110), row(distant.id, 'system', null, 12000, 100, 480, 360)] }
+    state.applySnapshot(snapshot)
+    return snapshot
+  })
+  const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({ id, sheetId: sheet.id, workspaceId: 'demo', name: index === 0 ? 'Offline Replay Tool' : `${id}.py`, kind: index === 0 ? 'system' : 'file', parentSystemId: index === 0 ? 'sys_heuristics' : 'planned:tool', declaredPath: index === 0 ? '' : `${id}.py`, members: '[]', metadata: '{}', notes: 'Reuse the evaluator offline.', status: 'planned', approvalStatus: 'pending', positionX: 0, positionY: 0, width: index === 0 ? null : 440, height: index === 0 ? null : 220, scale: 1, createdBy: 'agent' }))
+  const plannedEdges = [['use_evaluator', 'cli', null, 'file_heuristics'], ['test_cli', 'tests', 'cli', null], ['test_evaluator', 'tests', null, 'file_heuristics'], ['test_fixtures', 'tests', 'fixtures', null]].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, srcPlanned, dstPlanned, dstLive, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', approvalStatus: 'pending', createdBy: 'agent' }))
+  await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
+  await page.route(/\/api\/sheets\/sheet_clearance\?/, route => route.fulfill({ json: { sheet, planned, plannedEdges, elements: [{ id: 'context_file', fileId: 'file_heuristics', parentSystemId: 'sys_heuristics', positionX: 0, positionY: 0, width: null, height: null }], layouts: [], annotations: [], removals: [] } }))
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(() => {
+    ;(window as any).__pauseSheetMotion = true
+    const pause = (event: Event) => {
+      const target = event.target as HTMLElement
+      if (!(window as any).__pauseSheetMotion || !target.matches('.ambio-sheet-rail__review, .ambio-sheet-entry__contents')) return
+      for (const animation of target.getAnimations()) animation.pause()
+    }
+    document.addEventListener('animationstart', pause)
+    document.addEventListener('transitionrun', pause)
+  })
+  const sampleMotion = (locator: Locator) => locator.evaluate(async element => {
+    const animations = element.getAnimations().filter(animation => Number(animation.effect?.getComputedTiming().endTime) > 0)
+    if (!animations.length) return []
+    for (const animation of animations) animation.pause()
+    await Promise.all(animations.map(animation => animation.ready))
+    const duration = Math.max(...animations.map(animation => Number(animation.effect!.getComputedTiming().endTime)))
+    const samples = [0, .5, 1].map(progress => {
+      for (const animation of animations) animation.currentTime = duration * progress
+      const box = element.getBoundingClientRect()
+      const clip = getComputedStyle(element).clipPath.match(/^inset\(([\d.]+)%/)
+      return { height: box.height, visibleHeight: box.height * (1 - Number(clip?.[1] ?? 0) / 100), top: box.top }
+    })
+    for (const animation of animations) animation.finish()
+    return samples
+  })
+  await page.getByRole('button', { name: 'Open Sheet', exact: true }).click()
+  const review = page.locator('.ambio-sheet-rail__review')
+  await expect.poll(() => review.evaluate(element => element.getAnimations().length)).toBeGreaterThan(0)
+  const reviewMotion = await sampleMotion(review)
+  expect(reviewMotion).toHaveLength(3)
+  expect(reviewMotion[0].visibleHeight).toBeLessThan(reviewMotion[1].visibleHeight)
+  expect(reviewMotion[1].visibleHeight).toBeLessThanOrEqual(reviewMotion[2].visibleHeight)
+  expect(reviewMotion[0].top).toBeGreaterThan(reviewMotion[2].top)
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  const foldId = await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).getAttribute('aria-controls')
+  const fold = page.locator(`[id="${foldId}"]`)
+  await expect.poll(() => fold.evaluate(element => element.getAnimations().length)).toBeGreaterThan(0)
+  const expansion = await sampleMotion(fold)
+  expect(expansion).toHaveLength(3)
+  expect(expansion[0].height).toBeLessThan(expansion[1].height)
+  expect(expansion[1].height).toBeLessThanOrEqual(expansion[2].height)
+  await page.evaluate(() => { (window as any).__pauseSheetMotion = false })
+  await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).click()
+  expect(await fold.evaluate(element => {
+    const button = element.querySelector('button')!
+    button.focus()
+    return (element as HTMLElement).inert && document.activeElement !== button
+  })).toBe(true)
+  // Reverse an in-flight close; it must settle at the same full height.
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  await fold.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))) })
+  expect((await fold.boundingBox())!.height).toBeCloseTo(expansion[2].height, 0)
+  await expect(page.getByRole('button', { name: 'Show heuristics.py on sheet', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Collapse Offline Replay Tool', exact: true }).click()
+  await page.screenshot({ path: 'test-results/sheet-connections-collapsed.png' })
+  await page.getByRole('button', { name: 'Expand Offline Replay Tool', exact: true }).click()
+  await page.getByRole('button', { name: 'Connections 4', exact: true }).click()
+  await page.getByRole('button', { name: 'cli.py → heuristics.py', exact: true }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const parent = page.locator('.react-flow__node[data-id="sys_heuristics"]')
+  const file = page.locator('.react-flow__node[data-id="file_heuristics"]')
+  const checkClearance = async () => {
+    const header = await parent.getByText('Reflex Collision Heuristics', { exact: true }).first().boundingBox()
+    const child = await file.boundingBox()
+    expect(header && child).toBeTruthy()
+    expect(child!.y).toBeGreaterThan(header!.y + header!.height + 2)
+    const bounds = (await parent.boundingBox())!
+    expect(child!.x).toBeGreaterThan(bounds.x)
+    expect(child!.x + child!.width).toBeLessThan(bounds.x + bounds.width)
+    expect(child!.y + child!.height).toBeLessThan(bounds.y + bounds.height)
+  }
+  await checkClearance()
+  await expect(page.locator('.ambio-system-description-trigger')).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/compressed-sheet-clearance.png' })
+  for (const key of ['-', '=', '=']) {
+    const before = await page.locator('.react-flow__viewport').getAttribute('style')
+    await page.keyboard.press(`ControlOrMeta+${key}`)
+    await expect.poll(() => page.locator('.react-flow__viewport').getAttribute('style')).not.toBe(before)
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    await checkClearance()
+  }
+  const links = [['use_evaluator', 'cli.py → heuristics.py'], ['test_cli', 'tests.py → cli.py'], ['test_evaluator', 'tests.py → heuristics.py'], ['test_fixtures', 'tests.py → fixtures.py']]
+  const renderedInk = () => page.locator('.react-flow__edge[data-id="pedge:use_evaluator"] .react-flow__edge-path').evaluate(element => {
+    const path = element as SVGPathElement, matrix = path.getScreenCTM()!
+    const scale = Math.hypot(matrix.a, matrix.b)
+    const screen = (value: string) => Number((parseFloat(value) * scale).toFixed(4))
+    const style = getComputedStyle(path)
+    const edge = path.closest('.react-flow__edge')!
+    const halo = getComputedStyle(edge.querySelector('.ambio-sheet-relationship-halo')!)
+    const arrow = getComputedStyle(edge.querySelector('.ambio-sheet-relationship-arrow')!)
+    return { stroke: style.stroke, width: screen(style.strokeWidth),
+      dashes: style.strokeDasharray.split(/[ ,]+/).map(screen),
+      outline: halo.stroke, outlineWidth: screen(halo.strokeWidth),
+      arrow: arrow.fill, arrowOutline: arrow.stroke }
+  })
+  let focusedInk: Awaited<ReturnType<typeof renderedInk>> | undefined
+  for (const [id, label] of links) {
+    await page.evaluate(() => (window as any).__ambioGraphStore.getState().setSelectedNode(null))
+    await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    // At overview zoom both nested files begin below the semantic threshold.
+    await expect(page.locator('.react-flow__viewport')).toHaveAttribute('style', /scale\(0\./)
+    await page.getByRole('button', { name: label, exact: true }).click()
+    const edge = page.locator(`.react-flow__edge[data-id="pedge:${id}"]`)
+    await expect(edge.locator('.react-flow__edge-path')).toBeAttached()
+    await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    await expect(edge.locator('.ambio-sheet-relationship-halo')).toBeAttached()
+    await expect(edge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
+    const visiblePath = () => edge.locator('.react-flow__edge-path').evaluate(element => {
+      const path = element as SVGPathElement, matrix = path.getScreenCTM()!
+      const canvas = document.querySelector('[data-ambio-canvas]')!.getBoundingClientRect()
+      const palette = document.querySelector('.ambio-sheet-palette')!.getBoundingClientRect()
+      const style = getComputedStyle(path)
+      if (Number(style.opacity) === 0 || style.stroke === 'none' || path.getTotalLength() <= 0) return false
+      for (let sample = 0; sample <= 100; sample++) {
+        const p = path.getPointAtLength(path.getTotalLength() * sample / 100)
+        const screen = new DOMPoint(p.x, p.y).matrixTransform(matrix)
+        if (screen.x <= palette.right || screen.x >= canvas.right || screen.y <= canvas.top || screen.y >= canvas.bottom) return false
+      }
+      return true
+    })
+    // The relationship's deferred focus can start after the previous Fit has
+    // settled. Wait for the visible route itself, not that earlier camera state.
+    await expect.poll(visiblePath, { message: `${label}: the entire selected route is visible` }).toBe(true)
+    if (id === 'use_evaluator') {
+      focusedInk = await renderedInk()
+      await page.screenshot({ path: 'test-results/focused-replay-connection.png' })
+    }
+  }
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('Reflex Collision Heuristics')
+  await page.getByRole('option').first().click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const closeProperties = page.getByRole('button', { name: 'Close properties', exact: true })
+  if (await closeProperties.isVisible()) await closeProperties.click()
+  await expect(page.locator('.react-flow__edge[data-id^="pedge:"] .react-flow__edge-path')).toHaveCount(4)
+  expect(await renderedInk(), 'connection ink matches individual navigation at a different zoom').toEqual(focusedInk)
+  await page.screenshot({ path: 'test-results/replay-connection-gutters.png' })
+  const holdReviewExit = () => review.evaluate(element => {
+    const observer = new MutationObserver(() => {
+      if (element.hasAttribute('data-exiting')) for (const animation of element.getAnimations()) animation.pause()
+    })
+    observer.observe(element, { attributes: true, attributeFilter: ['data-exiting'] })
+    ;(element as any).__exitObserver = observer
+  })
+  await holdReviewExit()
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(review).toHaveAttribute('data-exiting', 'true')
+  expect(await review.evaluate(element => (element as HTMLElement).inert && element.getAttribute('aria-hidden') === 'true' && [...element.querySelectorAll('button')].every(button => button.disabled))).toBe(true)
+  await review.evaluate(element => { for (const animation of element.getAnimations()) animation.currentTime = Number(animation.effect!.getComputedTiming().endTime) / 2 })
+  await page.screenshot({ path: 'test-results/review-exit-half.png' })
+  const exitMotion = await sampleMotion(review)
+  expect(exitMotion).toHaveLength(3)
+  expect(exitMotion[0].height).toBeGreaterThan(exitMotion[1].height)
+  expect(exitMotion[1].height).toBeGreaterThan(exitMotion[2].height)
+  expect(exitMotion[0].top).toBeLessThan(exitMotion[2].top)
+  await expect(review).toHaveCount(0)
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await review.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))) })
+  await holdReviewExit()
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(review).toHaveAttribute('data-exiting', 'true')
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await expect(review).not.toHaveAttribute('data-exiting', 'true')
+  await review.evaluate(async element => {
+    ;(element as any).__exitObserver.disconnect()
+    await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {})))
+  })
+  expect(await review.evaluate(element => !(element as HTMLElement).inert && element.getBoundingClientRect().height > 100)).toBe(true)
+  const other = { ...sheet, id: 'sheet_exit_other', name: 'Other proposal' }
+  const otherNode = { ...planned[1], id: 'other_file', sheetId: other.id, name: 'other.py', declaredPath: 'other.py', parentSystemId: null }
+  await page.route(/\/api\/sheets\/sheet_exit_other\?/, route => route.fulfill({ json: { sheet: other, planned: [otherNode], plannedEdges: [], elements: [], layouts: [], annotations: [], removals: [] } }))
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), other)
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await page.getByRole('button', { name: 'Other proposal', exact: true }).click()
+  await expect(review).toContainText('Add other.py')
+  await review.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))) })
+  await expect(review).toHaveCount(1)
+  await expect(review).not.toContainText('Offline Replay Tool')
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await review.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {}))) })
+  await holdReviewExit()
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(review).toHaveAttribute('data-exiting', 'true')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(review).toHaveCount(0)
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Collapse Heuristics replay', exact: true }).click()
+  expect((await fold.boundingBox())!.height).toBe(0)
+  await page.getByRole('button', { name: 'Expand Heuristics replay', exact: true }).click()
+  expect(await fold.evaluate(element => element.getAnimations().length)).toBe(0)
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect(review).toHaveCount(0)
+  await page.getByRole('button', { name: 'Heuristics replay', exact: true }).click()
+  await expect(review).toBeVisible()
+  expect(await review.evaluate(element => element.getAnimations().length)).toBe(0)
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().floorLayouts)).toEqual(original.floorLayouts)
+})
+
+test('compact sheet review retains exact decisions and navigates approved contents from the sheet row', async () => {
+  test.setTimeout(90_000)
+  const sheet = { id: 'sheet_replay', workspaceId: 'demo', name: 'Offline Replay', purpose: '', kind: 'structure', folder: '', createdBy: 'agent', revision: 12, createdAt: 1, updatedAt: 1 }
+  const planned = ['tool', 'cli', 'tests', 'fixtures'].map((id, index) => ({
+    id, sheetId: sheet.id, workspaceId: 'demo', kind: index === 0 ? 'system' : 'file', name: index === 0 ? 'Replay Tool' : id === 'cli' ? 'Scene Replay CLI' : id === 'tests' ? 'Scene Replay Verification' : 'Synthetic Replay Scenes',
+    declaredPath: index === 0 ? '' : id === 'fixtures' ? 'backend/fixtures/replay_scenes.json' : id === 'cli' ? 'backend/replay_scene.py' : 'backend/tests/test_replay_scene.py', members: '[]', metadata: '{}', notes: 'Replay synthetic input offline. '.repeat(30), status: 'planned', approvalStatus: 'pending',
+    positionX: 0, positionY: 0, width: null, height: null, scale: 1, parentSystemId: index === 0 ? 'sys_shared' : 'planned:tool', createdBy: 'agent',
+  }))
+  const plannedEdges = [
+    ['call', 'cli', null, 'file_canvas'], ['test-cli', 'tests', 'cli', null],
+    ['test-evaluator', 'tests', null, 'file_canvas'], ['test-fixtures', 'tests', 'fixtures', null],
+  ].map(([id, srcPlanned, dstPlanned, dstLive]) => ({ id, sheetId: sheet.id, workspaceId: 'demo', kind: 'IMPORTS', srcPlanned, dstPlanned, dstLive, srcLive: null, approvalStatus: 'pending', createdBy: 'agent' }))
+  const context = [{ id: 'context_system', systemId: 'sys_shared', parentSystemId: null, positionX: 0, positionY: 0, width: null, height: null }, { id: 'context_file', fileId: 'file_canvas', parentSystemId: 'sys_canvas', positionX: 0, positionY: 0, width: null, height: null }]
+  const layouts = [{ workspaceId: 'demo', nodeId: 'file_canvas', nodeType: 'file', parentNodeId: 'sys_canvas', parentNodeType: 'system', containmentKind: 'part_of', positionX: 120, positionY: 150, width: 220, height: 110, scale: 1, interiorScale: 1, updatedAt: 0 }]
+  let reviewed: any
+  const edits: any[] = []
+  const systemEdits: any[] = []
+  await page.route(/\/api\/sheets\?/, route => route.fulfill({ json: [sheet] }))
+  await page.route(/\/api\/planned\/(cli|tool)$/, async route => {
+    const edit = route.request().postDataJSON()
+    if (edit.id === 'tool') systemEdits.push(edit)
+    else edits.push(edit)
+    Object.assign(planned.find(node => node.id === edit.id)!, edit)
+    await route.fulfill({ json: edit })
+  })
+  await page.route(/\/api\/sheets\/sheet_replay\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ sheet, planned, plannedEdges, elements: context, annotations: [], layouts, removals: [] }) }))
+  await page.route(/\/api\/sheets\/sheet_replay\/review$/, async route => {
+    reviewed = route.request().postDataJSON()
+    sheet.revision = 17
+    for (const node of planned) node.approvalStatus = 'approved'
+    for (const edge of plannedEdges) edge.approvalStatus = 'approved'
+    await route.fulfill({ json: { sheet, planned, plannedEdges } })
+  })
+  await page.evaluate(sheet => (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'sheet:upserted', payload: sheet }), sheet)
+  await page.getByRole('button', { name: 'Open Sheet' }).click()
+  const review = page.getByLabel('Agent proposals to review')
+  await expect(review.getByLabel('1 change to review')).toBeVisible()
+  await expect(review.locator('.ambio-sheet-review-group')).toHaveCount(1)
+  await expect(review.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).not.toBeVisible()
+  expect((await review.boundingBox())!.height).toBeLessThan(210)
+  await expect(review).toContainText('1 system · 3 files · 4 connections')
+  await expect(review.locator('details')).toHaveCount(0)
+  await review.getByRole('button', { name: 'Inspect changes for Add Replay Tool', exact: true }).click()
+  const reviewPanel = page.getByRole('dialog', { name: 'Review Add Replay Tool' })
+  await expect(reviewPanel.locator('li[data-kind]')).toHaveCount(8)
+  await expect(reviewPanel.getByRole('button', { name: 'Confirm replay_scene.py', exact: true })).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  await page.screenshot({ path: 'test-results/sheet-review-inspector.png' })
+  await reviewPanel.getByRole('button', { name: 'Request changes', exact: true }).click()
+  await expect(reviewPanel.getByRole('textbox', { name: 'What should change?' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(reviewPanel.getByRole('textbox', { name: 'What should change?' })).toHaveCount(0)
+  await expect(reviewPanel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(reviewPanel).toHaveCount(0)
+  await expect(review.getByRole('button', { name: 'Inspect changes for Add Replay Tool', exact: true })).toBeFocused()
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  const assertContained = async () => {
+    const tool = page.locator('.react-flow__node[data-id="planned:tool"]')
+    const parent = await tool.boundingBox()
+    const title = await tool.getByText('Replay Tool', { exact: true }).first().boundingBox()
+    expect(parent).not.toBeNull()
+    expect(title).not.toBeNull()
+    for (const id of ['cli', 'tests', 'fixtures']) {
+      const child = await page.locator(`.react-flow__node[data-id="planned:${id}"]`).boundingBox()
+      expect(child).not.toBeNull()
+      expect(child!.x).toBeGreaterThan(parent!.x)
+      expect(child!.y).toBeGreaterThan(title!.y + title!.height)
+      expect(child!.x + child!.width).toBeLessThan(parent!.x + parent!.width + 1)
+      expect(child!.y + child!.height).toBeLessThan(parent!.y + parent!.height + 1)
+      const controls = page.locator(`.react-flow__node[data-id="planned:${id}"]`).getByRole('button', { name: 'Show classes', exact: true })
+      const control = await controls.boundingBox()
+      expect(control!.y + control!.height).toBeLessThan(child!.y + child!.height + 1)
+    }
+  }
+  await assertContained()
+  const systemCard = page.locator('.react-flow__node[data-id="planned:tool"]')
+  await expect(systemCard.getByRole('button', { name: 'Description of Replay Tool', exact: true })).toHaveCount(0)
+  const inspectSystem = async () => {
+    const box = (await systemCard.boundingBox())!
+    await systemCard.dblclick({ position: { x: box.width - 12, y: 12 } })
+  }
+  await inspectSystem()
+  const systemInspector = page.getByRole('complementary', { name: /planned system properties/i })
+  await expect(systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replay synthetic input offline. '.repeat(30))
+  await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).fill('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).press('Tab')
+  await expect.poll(() => systemEdits.at(-1)?.metadata?.description).toBe('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('button', { name: 'Close properties' }).click()
+  await inspectSystem()
+  await expect(systemInspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replays scene decisions offline using the existing evaluator.')
+  await systemInspector.getByRole('button', { name: 'Close properties' }).click()
+  const cli = page.locator('.react-flow__node[data-id="planned:cli"]')
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('replay_scene.py')
+  await expect(cli.getByLabel('Python', { exact: true }).first()).toBeVisible()
+  const fixtures = page.locator('.react-flow__node[data-id="planned:fixtures"]')
+  await expect(fixtures.locator('[data-node-editable]').first()).toHaveText('replay_scenes.json')
+  await expect(fixtures.getByLabel('JSON', { exact: true }).first()).toBeVisible()
+  await expect(cli.locator('.symbol-scroll')).not.toContainText('Scene Replay CLI')
+  await expect(cli.locator('.symbol-scroll')).not.toContainText('backend/replay_scene.py')
+  await page.getByRole('button', { name: 'Expand Offline Replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
+  const routedEdge = page.locator('.react-flow__edge[data-id="pedge:test-cli"]')
+  await expect(routedEdge.locator('.ambio-sheet-relationship-arrow')).toBeAttached()
+  const obstacle = (await fixtures.boundingBox())!
+  const crossesFixture = await routedEdge.locator('.react-flow__edge-path').evaluate((element, rect) => {
+    const path = element as SVGPathElement
+    const matrix = path.getScreenCTM()!
+    for (let sample = 0; sample <= 100; sample++) {
+      const point = path.getPointAtLength(path.getTotalLength() * sample / 100)
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix)
+      if (screen.x > rect.x + 1 && screen.x < rect.x + rect.width - 1 && screen.y > rect.y + 1 && screen.y < rect.y + rect.height - 1) return true
+    }
+    return false
+  }, obstacle)
+  expect(crossesFixture).toBe(false)
+  const assertInk = async () => {
+    const arrow = (await routedEdge.locator('.ambio-sheet-relationship-arrow').boundingBox())!
+    // The 8px arrowhead includes a 1.5px ivory stroke in its painted bounds.
+    expect(Math.max(arrow.width, arrow.height)).toBeCloseTo(9.5, 0)
+    const width = await routedEdge.locator('.react-flow__edge-path').evaluate(element => parseFloat(getComputedStyle(element).strokeWidth) * (element as SVGPathElement).getScreenCTM()!.a)
+    expect(width).toBeCloseTo(1.25, 2)
+  }
+  await assertInk()
+  const description = page.locator('.react-flow__node[data-id="planned:cli"] .symbol-scroll')
+  await expect.poll(() => description.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(10)
+  const camera = () => page.locator('.react-flow__viewport').getAttribute('style')
+  const beforeScroll = await camera()
+  await description.hover()
+  await page.mouse.wheel(0, 100)
+  await expect.poll(() => description.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await description.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await page.waitForTimeout(300)
+  await page.mouse.wheel(0, 100)
+  await page.waitForTimeout(350)
+  expect(await camera()).toBe(beforeScroll)
+  await page.screenshot({ path: 'test-results/compact-sheet-review.png' })
+  const zoom = () => page.locator('.react-flow__viewport').evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a)
+  const initialZoom = await zoom()
+  for (const [key, presses] of [['-', 6], ['=', 12]] as const) {
+    for (let index = 0; index < presses; index++) {
+      const previousZoom = await zoom()
+      await page.keyboard.press(`ControlOrMeta+${key}`)
+      if (key === '-') await expect.poll(zoom).toBeLessThan(previousZoom)
+      else await expect.poll(zoom).toBeGreaterThan(previousZoom)
+      await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+    }
+    if (key === '-') {
+      await expect.poll(zoom).toBeLessThan(initialZoom / 2)
+      // At overview zoom semantic detail is hidden instead of spilling over titles.
+      await expect(page.locator('.react-flow__node[data-id="planned:cli"]')).toHaveCount(0)
+    } else {
+      await expect.poll(zoom).toBeGreaterThan(initialZoom)
+      await assertContained()
+      await assertInk()
+    }
+  }
+  // Description and member authoring are both available without losing either.
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  for (const [tab, kind] of [['functions', 'function'], ['variables', 'variable'], ['classes', 'class']]) {
+    await cli.getByRole('button', { name: `Show ${tab}`, exact: true }).click()
+    const add = cli.getByRole('button', { name: `Add ${kind}`, exact: true })
+    await expect(add).toHaveText(`+Add first ${kind}`)
+    await expect(cli.locator('.symbol-scroll')).not.toContainText('No symbols')
+    if (kind === 'function') {
+      await page.screenshot({ path: 'test-results/symbol-empty-add.png' })
+      await add.focus()
+      await page.keyboard.press('Enter')
+    } else await add.click()
+    await expect.poll(() => edits.at(-1)?.metadata?.symbols?.some((symbol: any) => symbol.kind === kind)).toBe(true)
+  }
+  await cli.getByRole('button', { name: 'Show description', exact: true }).click()
+  await expect(description).toContainText('Replay synthetic input offline.')
+
+  await cli.dblclick({ position: { x: 12, y: 12 } })
+  const inspector = page.getByRole('complementary', { name: /planned file properties/i })
+  await expect(inspector.getByLabel('FILE NAME', { exact: true })).toHaveValue('replay_scene.py')
+  await expect(inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true })).toHaveValue('Replay synthetic input offline. '.repeat(30))
+  await expect(inspector.getByRole('button', { name: 'Language: Python' })).toBeVisible()
+  await expect(inspector.getByLabel('FUNCTION NAME', { exact: true })).toHaveValue('newFunction')
+  await expect(inspector.getByLabel('VARIABLE NAME', { exact: true })).toHaveValue('newVariable')
+  await expect(inspector.getByLabel('CLASS NAME', { exact: true })).toHaveValue('NewClass')
+  await inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).fill('Evaluate scenes without a phone.')
+  await inspector.getByRole('textbox', { name: 'DESCRIPTION (OPTIONAL)', exact: true }).press('Tab')
+  await expect(description).toHaveText('Evaluate scenes without a phone.')
+  await inspector.getByLabel('FUNCTION NAME', { exact: true }).fill('evaluate_scene')
+  await inspector.getByLabel('FUNCTION NAME', { exact: true }).press('Tab')
+  await cli.getByRole('button', { name: 'Show functions', exact: true }).click()
+  await expect(cli.locator('.symbol-row')).toContainText('evaluate_scene')
+  await inspector.getByLabel('FILE NAME', { exact: true }).fill('inspected_replay.py')
+  await inspector.getByLabel('FILE NAME', { exact: true }).press('Tab')
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('inspected_replay.py')
+  await inspector.getByRole('button', { name: 'Close properties' }).click()
+  await review.getByRole('button', { name: /^Add Replay Tool/ }).click()
+  await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+  // Filename edits keep the directory and use a single real name.
+  await cli.locator('[data-node-editable]').first().dblclick()
+  await cli.getByRole('textbox').fill('renamed_replay.py')
+  await cli.getByRole('textbox').press('Enter')
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.py')
+  expect(edits.at(-1)?.name).toBe('renamed_replay.py')
+  await cli.locator('button[title="Choose implementation language"]').first().click()
+  const menu = page.getByRole('listbox', { name: 'Implementation language' })
+  await expect(menu).toBeVisible()
+  expect(await menu.evaluate(element => element.matches(':popover-open'))).toBe(true)
+  const json = menu.getByRole('option', { name: /^JSON/ })
+  await json.scrollIntoViewIfNeeded()
+  const aboveNodes = await json.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+  })
+  expect(aboveNodes).toBe(true)
+  await json.click()
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.json')
+  await cli.locator('button[title="Choose implementation language"]').first().click()
+  await menu.getByRole('option', { name: /^TypeScript/ }).click()
+  await expect.poll(() => edits.at(-1)?.declaredPath).toBe('backend/renamed_replay.ts')
+  expect(edits.at(-1)?.name).toBe('renamed_replay.ts')
+  await review.evaluate(element => {
+    new MutationObserver(() => {
+      if (element.hasAttribute('data-exiting')) for (const animation of element.getAnimations()) animation.pause()
+    }).observe(element, { attributes: true, attributeFilter: ['data-exiting'] })
+  })
+  await review.getByRole('button', { name: 'Approve Add Replay Tool', exact: true }).click()
+  await expect.poll(() => reviewed?.choices.length).toBe(8)
+  expect(reviewed).toMatchObject({ revision: 12, decision: 'approved' })
+  await expect(review).toHaveAttribute('data-exiting', 'true')
+  expect(await review.evaluate(element => (element as HTMLElement).inert && [...element.querySelectorAll('button')].every(button => button.disabled))).toBe(true)
+  await review.evaluate(element => { for (const animation of element.getAnimations()) animation.finish() })
+  await expect(review).toHaveCount(0)
+  const contents = page.getByRole('group', { name: 'Contents of Offline Replay', exact: true })
+  await expect(contents.getByRole('button', { name: 'Show Shared Types on sheet', exact: true })).toHaveCount(0)
+  await expect(contents.getByRole('button', { name: 'Show AmbioCanvas.tsx on sheet', exact: true })).toHaveCount(0)
+  await contents.getByRole('button', { name: 'Connections 4', exact: true }).click()
+  await expect(contents).toContainText('AmbioCanvas.tsx')
+  await contents.getByRole('button', { name: 'Connections 4', exact: true }).click()
+  await expect(contents).toBeVisible()
+  await expect(contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true })).toBeVisible()
+  await expect(contents).not.toContainText('To review')
+  await expect(contents.getByText('Approved', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Actions for Offline Replay', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Discuss or implement…', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: /^The Floor/ }).click()
+  await contents.getByRole('button', { name: 'Show renamed_replay.ts on sheet', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Offline Replay', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(cli).toBeInViewport()
+  await expect(cli.locator('[data-node-editable]').first()).toHaveText('renamed_replay.ts')
+  await cli.getByRole('button', { name: 'Show description', exact: true }).click()
+  await expect(cli.locator('.symbol-scroll')).toContainText('Evaluate scenes without a phone.')
+  await cli.getByRole('button', { name: 'Show functions', exact: true }).click()
+  await expect(cli.locator('.symbol-row')).toContainText('evaluate_scene')
+  await page.screenshot({ path: 'test-results/approved-sheet-contents.png' })
 })
 
 test('a system an agent names stays where the Floor has it, and a proposed move draws the file inside the new system', async () => {
@@ -2483,10 +3042,11 @@ test('a system an agent names stays where the Floor has it, and a proposed move 
   const review = page.getByLabel('Agent proposals to review')
   await expect(review).toContainText('Payments Split')
   // The move and the relationship are reviewed with the new system.
-  await expect(review.locator('li')).toHaveCount(4)
+  await expect(review.locator('li[data-kind]')).toHaveCount(4)
   await expect(review.locator('li[data-kind="rename"]')).toContainText('to Canvas Platform')
   await expect(review.locator('li[data-kind="move"]')).toContainText('into Payments Split')
   await expect(review.locator('li[data-kind="relationship"]')).toContainText('Payments Split')
+  for (const summary of await review.locator('summary').all()) await summary.click()
   await expect(page.locator('.react-flow__edge[data-id="pedge:edge_split"]')).toHaveCount(0)
   const relationships = page.getByLabel('Show All Sheet Relationships', { exact: true })
   await relationships.check()
@@ -2623,7 +3183,13 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
     const store = (window as unknown as { __ambioGraphStore: { setState: (s: unknown) => void; getState: () => { startDeltaReview: () => void } } }).__ambioGraphStore
     store.setState({ delta: summary })
   }, { since: 1, until: 3, files: [], edges: [], systems: [], claims: [moved], sessions: [], counts, empty: false })
-  await page.getByRole('button', { name: 'Set aside — stays unreviewed, reopen with Review Changes' }).click()
+  await expect(page.locator('.ambio-lane')).toHaveCount(0)
+  // Further code updates must stay quiet too; review remains explicitly available.
+  await page.evaluate(() => {
+    const store = (window as any).__ambioGraphStore
+    store.setState({ delta: { ...store.getState().delta, until: 4 } })
+  })
+  await expect(page.locator('.ambio-lane')).toHaveCount(0)
   await page.getByRole('button', { name: 'Review Changes', exact: true }).click()
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
@@ -2714,17 +3280,18 @@ test('a sheet can start from a right-clicked system, with the system on it', asy
 })
 
 test('culls a large planned sheet over a small Floor and retains measurements during zoom', async () => {
-  // Put the first endpoint in the actual viewport. A path whose entire bounding
-  // box is offscreen is correctly culled; it cannot prove visible edge parity.
+  // Keep the compact file and its facing port in clear viewport space. An
+  // oversized source that overlaps the Floor is automatically displaced, and
+  // a visible sliver of its card does not guarantee a visible clipped line.
   const placement = await page.locator('.react-flow').first().evaluate(root => {
     const matrix = new DOMMatrixReadOnly(getComputedStyle(root.querySelector('.react-flow__viewport')!).transform)
-    return { x: (root.clientWidth * .45 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
+    return { x: (root.clientWidth * .12 - matrix.e) / matrix.a, y: (80 - matrix.f) / matrix.a }
   })
   const planned = Array.from({ length: 180 }, (_, i) => ({
     id: `large-planned-${i}`, workspaceId: 'demo', sheetId: 'sheet_runtime', name: `Planned ${i}`,
     kind: i === 0 ? 'file' : 'system', status: 'planned', approvalStatus: 'approved', parentPlannedId: null,
     positionX: i === 0 ? placement.x : 1500 + i * 800, positionY: i === 0 ? placement.y : 1200,
-    width: 620, height: 420, scale: 1,
+    width: i === 0 ? 220 : 620, height: i === 0 ? 110 : 420, scale: 1,
     metadata: {}, createdBy: 'user', createdAt: 1, updatedAt: 1,
   }))
   await page.route(/\/api\/sheets\/sheet_runtime\?/, route => route.fulfill({ json: {
@@ -2734,11 +3301,12 @@ test('culls a large planned sheet over a small Floor and retains measurements du
       id: 'offscreen-link', sheetId: 'sheet_runtime', srcPlanned: 'large-planned-0', dstPlanned: 'large-planned-179', approvalStatus: 'approved',
     }], layouts: [], removals: [],
   } }))
-  await page.getByRole('button', { name: 'Runtime Draft STR', exact: true }).click()
+  await page.getByRole('button', { name: 'Runtime Draft', exact: true }).click()
   const canvas = page.locator('[data-ambio-canvas]').first()
   await expect.poll(() => canvas.locator('.react-flow__node').count()).toBeLessThan(80)
   // A line into off-screen space must retain its endpoint handle geometry.
-  await page.getByLabel('Show All Sheet Relationships', { exact: true }).check()
+  await page.getByRole('button', { name: 'Expand Runtime Draft', exact: true }).click()
+  await page.getByRole('button', { name: 'Show All Sheet Relationships', exact: true }).click()
   const relationship = canvas.locator('.react-flow__edge[data-id="pedge:offscreen-link"] .react-flow__edge-path')
   await expect(relationship).toBeAttached()
   expect(await relationship.getAttribute('d')).not.toContain('NaN')

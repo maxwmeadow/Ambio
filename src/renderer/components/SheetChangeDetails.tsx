@@ -1,6 +1,7 @@
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore } from '../store/sheetStore'
 import { relationshipVerb, useSheetView } from '../canvas/sheetView'
+import { plannedFilename } from '../canvas/plannedFileIdentity'
 
 /** Meaning appears on selection, while the overview stays quiet. */
 export function SheetChangeDetails() {
@@ -10,10 +11,13 @@ export function SheetChangeDetails() {
   const layer = useSheetStore(s => s.activeSheetId ? s.layersById[s.activeSheetId] : undefined)
   const relationship = useSheetView(s => s.relationship)
   if (!layer) return null
-  const nameOf = (id: string | null | undefined): string => !id ? 'the top level'
-    : layer.planned.find(node => `planned:${node.id}` === id)?.name
-      ?? systems.find(node => node.id === id)?.name
-      ?? files.find(node => node.id === id)?.relPath.split(/[\\/]/).pop() ?? 'Unavailable item'
+  const nameOf = (id: string | null | undefined): string => {
+    if (!id) return 'the top level'
+    const node = layer.planned.find(node => `planned:${node.id}` === id)
+    return node ? node.kind === 'file' ? plannedFilename(node) : node.name
+      : systems.find(node => node.id === id)?.name
+        ?? files.find(node => node.id === id)?.relPath.split(/[\\/]/).pop() ?? 'Unavailable item'
+  }
   const edge = layer.plannedEdges.find(edge => edge.id === relationship && edge.approvalStatus !== 'rejected')
   const source = edge?.srcLive ?? (edge?.srcPlanned ? `planned:${edge.srcPlanned}` : null)
   const target = edge?.dstLive ?? (edge?.dstPlanned ? `planned:${edge.dstPlanned}` : null)

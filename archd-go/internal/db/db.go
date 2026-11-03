@@ -27,7 +27,7 @@ const (
 // stamped into every database (PRAGMA user_version) once migration succeeds.
 // Bump it whenever migrate gains a table, column, index or data rewrite, so an
 // older Ambio can recognise a database written by a newer one.
-const SchemaVersion = 11 // 3: work_order_code_checks, 4: sheet_removals, 5: canvas_outbox threads, 6: reviewable sheet moves and relationships, 7: proposed renames, 8: delta_watermarks per branch, 9: roots.is_focused, 10: systems.kind, 11: finite, credential-scoped mapping attempts
+const SchemaVersion = 13 // 13: notes participate in native Floor and sheet layouts
 
 // ErrNewerSchema reports a database written by a newer Ambio. Opening it
 // with this build could silently drop what the newer schema added, so it is
@@ -677,7 +677,7 @@ func migrate(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS floor_layouts (
 		workspace_id      TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		node_id           TEXT NOT NULL,
-		node_type         TEXT NOT NULL CHECK(node_type IN ('system','file','infra')),
+		node_type         TEXT NOT NULL CHECK(node_type IN ('system','file','infra','note')),
 		parent_node_id    TEXT,
 		parent_node_type  TEXT CHECK(parent_node_type IS NULL OR parent_node_type IN ('system','infra')),
 		containment_kind  TEXT NOT NULL DEFAULT 'root' CHECK(containment_kind IN ('root','part_of','hosted_by')),
@@ -707,7 +707,7 @@ func migrate(db *sql.DB) error {
 		sheet_id           TEXT NOT NULL REFERENCES sheets(id) ON DELETE CASCADE,
 		workspace_id       TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		node_id            TEXT NOT NULL,
-		node_type          TEXT NOT NULL CHECK(node_type IN ('system','file','infra')),
+		node_type          TEXT NOT NULL CHECK(node_type IN ('system','file','infra','note')),
 		parent_node_id     TEXT,
 		parent_node_type   TEXT CHECK(parent_node_type IS NULL OR parent_node_type IN ('system','infra')),
 		containment_kind   TEXT NOT NULL DEFAULT 'root' CHECK(containment_kind IN ('root','part_of','hosted_by')),
@@ -828,6 +828,11 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE roots ADD COLUMN is_focused INTEGER NOT NULL DEFAULT 0`,
 		// A repository's frame inside a project of several (GIT_AND_PROJECT_SHAPES).
 		`ALTER TABLE systems ADD COLUMN kind TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE annotations ADD COLUMN width REAL NOT NULL DEFAULT 260`,
+		`ALTER TABLE annotations ADD COLUMN height REAL NOT NULL DEFAULT 180`,
+		`ALTER TABLE annotations ADD COLUMN revision INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE annotations ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE annotations ADD COLUMN updated_by TEXT NOT NULL DEFAULT ''`,
 		// Parallel-agent history is stamped at write time. NULL deliberately
 		// remains the legacy representation and resolves to the primary root.
 		`ALTER TABLE structural_events ADD COLUMN root_id TEXT`,
@@ -922,6 +927,9 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateProposalMembershipDeletes(db); err != nil {
 		return fmt.Errorf("migrate proposal memberships: %w", err)
+	}
+	if err := migrateNoteLayouts(db); err != nil {
+		return err
 	}
 	if err := RepairUnplacedSheetLayouts(db); err != nil {
 		return err

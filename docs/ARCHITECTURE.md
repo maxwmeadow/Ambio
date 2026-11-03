@@ -337,7 +337,81 @@ to API-key billing or another account. Setup and live-account validation:
   `db/sheet_layouts.go`, `isUnplaced` in the canvas): it is drawn where the
   Floor has it, or inside its proposed parent, and a planned node without a
   position is placed in free space. The sheet rail's To review section
-  (`SheetProposalReview.tsx`) lists every pending part with confirm/reject.
+  (`SheetProposalReview.tsx`, `sheetReviewGroups.ts`) groups a nested addition
+  and its connections into a compact card, with every pending part available
+  in a nonmodal review inspector grouped by additions, connections, moves and
+  renames. The bottom-left card shows actual part counts and intent rather than
+  raw record counts. Cross-group connections, moves and renames stay separate.
+  `POST /api/sheets/:id/review` (`db/sheet_review.go`) validates the exact pending
+  node/edge selection and sheet revision, rejects orphan approvals, and records
+  every decision and optional change-request reason in one transaction. Its
+  response carries the committed sheet/nodes/edges snapshot. A stale decision
+  refreshes the client without retrying approval. Automatic sheet compaction
+  uses canonical nesting/world/interior scales and updates both system and
+  layout dimensions. After placement compresses an automatic frame, a cancellable
+  fitting pass reserves its final rendered tab clearance by fitting the interior
+  within its allocated rectangle. The same pass includes live context whose
+  interior was compressed by incoming placement, and its descendants, so
+  inherited scaling cannot pull children beneath their fixed title bands.
+  Authored sheet and Floor geometry remain authoritative.
+  `SheetRail` places persistent contents beneath each expandable sheet row.
+  `loadSheetContents` caches a layer without changing visibility or editing
+  target; content navigation opens its sheet. Normal row clicks open exclusively;
+  Ctrl/Cmd-click toggles additional layers. Hover/focus and right-click share a
+  native top-layer contextual menu for rename, discuss/implement and deletion.
+  Menu wording comes from `appMenu.ts`; connection visibility sits in the tree.
+  `sheetElementHasChange` excludes context/position-only live references from
+  tree rows, retaining responsibility moves, reviewed renames and design edits.
+  Connections still resolve every endpoint against the full sheet/live data.
+  `SheetPalette` measures its chrome and the Infrastructure tab to keep equal
+  canvas insets and avoid overlap at short window heights.
+  Planned file cards and `DetailPanel` use `plannedFileIdentity.ts` for the
+  declared filename, path-derived language and description (including legacy
+  notes). Human writes normalize the file name to its basename while preserving
+  its directory. Cards omit redundant paths/semantic names and keep description
+  and member controls available; empty editable categories combine their state
+  and add action in one compact Add first member row. Properties edits the same
+  metadata symbols.
+  An explicitly empty symbol list wins over legacy exports/members. Pure
+  language definitions live in `languageDefinitions.ts`; `LanguagePicker` uses
+  a viewport-anchored native popover top layer independent of node transforms.
+  `plannedDescription` shares metadata/legacy-note resolution across all planned
+  kinds. Proposed systems show a collapsed summary; full descriptions use
+  normal double-click Properties inspection, without a separate header badge.
+  Description edits do not alter frame/child geometry.
+  Sticky notes are native `note` leaves in the Floor/sheet canonical scene.
+  `FloorModel.notes`, numeric preparation, worker transfer, projection and the
+  standard `planCanvasDrop`/`planCanvasResize` paths include them. They inherit
+  parent content scale, collision placement, packing, compression and resize
+  constraints exactly as other leaves; there is no note-specific drop engine.
+  Annotation text stays separate from code meaning and proposal approvals.
+  Schema v13 extends the existing layout tables to notes, preserves old rows,
+  initializes legacy note geometry and removes layout rows with deleted notes.
+  Floor notes belong to their project; sheet notes to their sheet. A sheet can
+  override Floor note geometry when transforming a containing system, while
+  leaving the Floor and its annotation text unchanged. Agents read the current
+  canonical parent/geometry through each annotation's `layout` and may set the
+  owner using `edit_sheet(edit_note, parentNodeId)`; an empty owner means root.
+  Spatial transactions and text revisions are independent. Combined agent edits
+  validate/commit both in one transaction using the existing layout validators.
+  `useCanvasNotes` decorates the native nodes with text sessions from
+  `noteAutosave.ts`. Each session serializes automatic updates and retains
+  in-flight/newer text across surface navigation. Double-click edits; typing
+  saves after a short quiet period and blur flushes immediately. Normal notes
+  have no edit/save/cancel/delete buttons. Conflicts keep local text until the
+  person chooses latest text or explicitly keeps theirs; remote deletion keeps
+  draft recovery available. Creator attribution is immutable, with the latest
+  editor recorded separately. Existing `edit_sheet` note operations serve both
+  people and agents without expanding the tool count.
+
+  Hidden compact title editors do not
+  intercept detailed content. `wheelRouting.ts` keeps overflowing content in
+  control at either boundary while short content still allows camera zoom.
+  Proposed relationships use `edges/sheetRelationshipGeometry.ts`: choose
+  perimeter ports and clear orthogonal gutters, avoiding unrelated cards/tabs
+  while allowing ancestor context. A bounded visibility search handles staggered
+  obstacles. Geometry-keyed routes survive camera changes; `OrthogonalEdge`
+  draws proposal strokes/dashes/hit targets and arrowheads in screen pixels.
 - **Work orders**: addressed inbox messages with leases, frozen sheet
   snapshots and review states. See [INBOX_PROTOCOL.md](INBOX_PROTOCOL.md).
 - **Structural journal**: every structural change, attributed to a person or
@@ -590,6 +664,8 @@ prompt) rather than repair clusters.
 compact call sites and imports into claims with evidence, rank them, attribute
 them, and classify realisation against sent work orders (MATCHED / FLEXED /
 DRIFTED / MISSING / UNKNOWN).
+Routine deltas remain discoverable through the toolbar without automatically
+raising review invitations; explicit review and acknowledgement are unchanged.
 
 **Work orders** (`internal/api/inbox.go`, `sheet_work.go`): send freezes the
 sheet, build spec and comparison in one transaction → an agent claims by ID
@@ -998,18 +1074,66 @@ shows it, gated by the `workOrderNotifications` setting).
   and Go get a weaker map.
 - Full re-cluster reads the whole git history and rebuilds the root graph;
   not benchmarked on very large repos.
+- Sheet Note creation persists positioned annotations, but the canvas does not
+  yet project or edit them; completion is tracked by `sheet-note-rendering`.
 - macOS auto-update needs code signing.
 
 ### Sheet presentation defaults
 
 A sheet starts with relationships hidden. Selecting a system reveals its
-connections; selecting a relationship review row reveals and frames both
-endpoints, accents their existing outlines and explains the relationship in
+connections; selecting a relationship in the rail reveals and frames both
+endpoint cards and the whole routed path, accents their existing outlines and explains the relationship in
 the rail. Show All Sheet Relationships is a presentation toggle shared with
 the View menu; it resets on sheet navigation. Proposed relationships remain
 reviewable even when their lines are hidden. Moves state their original and
 proposed parent in ordinary language. Added/moved markers use `canvasZoomChrome`
 to retain a small screen size without invalidating the whole scene during zoom.
+
+`SheetRail` expands contents across the rail width, with warm system headers,
+folder icons and trailing disclosures above flat file rows. Nested headers use
+a quieter tint instead of accumulating horizontal indentation. Connections use
+a separate green-gray toolbar with a connection icon, count and trailing
+disclosure. Its eye-button toggles map visibility whether the
+connection list is expanded or collapsed; both controls retain their existing
+sheet-view actions.
+Expanded sheet entries share a backing and continuous accent frame around the
+header and contents, preserving ownership without indenting the sections.
+The local `SheetDisclosure` in `SheetRail` animates a zero-to-one fractional
+grid track around clipped content. Sheet contents mount lazily on first opening
+and stay mounted for reversible closing and preserved local disclosure state.
+Planned descendants render in nested disclosure ranges while remaining visually
+full-width. Closed groups are immediately inert and aria-hidden. The ownership
+frame fades with the fold. To review has a CSS bottom-up entrance on mount,
+using intrinsic height interpolation where supported and a clipped upward
+reveal otherwise. `SheetProposalReview` retains the last pending layer for a
+short Web Animations height/fade exit when the active sheet or final pending
+decision disappears. `SheetReviewContent` remains inert with disabled actions
+and no inspector during that exit. Reopening cancels/reverses it; switching
+projects discards the retained layer. Content state stays keyed by sheet, while
+the presence coordinator survives navigation. Reduced-motion rules skip the
+entrance and exit, including a preference change while closing.
+
+The Service stencil creates an authored planned API surface with protocol,
+address/topic and operations metadata. Its endpoint rows use the planned symbol
+projection and `UmlMetadataPanel` editor; normal source indexing does not create
+planned Service nodes. Stencil help remains in individual tooltips without a
+footer instruction block.
+
+`sheetRelationshipGeometry` assigns distinct incident ports from the complete
+sheet topology and caches routes by geometry/topology, independent of semantic
+visibility. Previously solved routes reserve gutters; unrelated cards and
+ancestor header tabs remain obstacles. Terminal leads approach their faces
+normally. `ClippedDashedEdge` rounds the painted corners within obstacle clearance
+after clipping, reserving straight terminal ink for the bounded screen-size
+arrowhead. Unfocused routes use charcoal ink with a narrow surface-colored halo
+to remain legible over amber proposal borders; arrowheads have the same pale
+outline. Halo dashes and opacity follow the foreground ink. Individual focus
+and the overview share the same ink, dashes, width and outline; other proposed
+edges dim during focus.
+`AmbioCanvas` filters/routes the same `revealNodePath` projection it paints, so
+revealing hidden endpoints cannot discard their edge. Revealed ancestor titles
+fold into their tabs, and connection camera bounds include route detours and
+endpoint cards with space reserved for the palette and open sheet inspector.
 
 `compactSheetSystems` reuses `packFrame` and frame insets to size unplaced new
 systems and automatic system moves from their contents, recursively. It modifies
