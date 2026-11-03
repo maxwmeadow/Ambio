@@ -255,6 +255,8 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
+- 🚧 `review-changes-toggle` **Make the Review Changes button reflect its open panel.** Pending deltas currently select the button while it is closed and deselect it on opening. Use the existing review-open state for its selected/expanded appearance; repeat activation closes without acknowledging changes. **Done when:** pending updates stay unselected, open/close/Escape and acknowledgement synchronize the button, and review remains available after closing. (Codex, `codex/project-title-hero`, 2026-11-03; Max.)
+
 - ⬜ `windows-go-test-runner-stall` During 2026-11-03 merge validation, `go test ./...` kept consuming CPU after its test processes exited. An uncached `go test -count=1 -json ./...` completed with only the already recorded Git watcher failure. Investigate the normal runner/cache path on Windows.
 
 - ⬜ `setup-scope-agent-proposals` **The mapping agent proposes scope changes:** after the first index, folders nothing imports, throwaway scripts and tests as their own layer, offered as pending "leave this out" proposals with confirm/reject in review. Deferred by Max 2026-10-29 in favour of setup's deterministic defaults. (2026-10-29)
