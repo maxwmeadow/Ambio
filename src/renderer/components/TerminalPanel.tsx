@@ -9,15 +9,15 @@ import '../styles/terminal.css'
 
 interface Session { id: string; profile: TerminalProfile; exitCode?: number }
 
-export default function TerminalPanel({ workspaceId, open, onClose }: { workspaceId: string; open: boolean; onClose: () => void }) {
+export default function TerminalPanel({ workspaceId, open, width, onResize, onClose }: { workspaceId: string; open: boolean; width: number; onResize: (width: number) => void; onClose: () => void }) {
   const [profiles, setProfiles] = useState<TerminalProfile[]>([])
   const [profileId, setProfileId] = useState('')
   const [sessions, setSessions] = useState<Session[]>([])
   const [active, setActive] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [width, setWidth] = useState(() => { try { return Math.max(320, Math.min(window.innerWidth * .85, Number(localStorage.getItem('ambio:terminal-width')) || 560)) } catch { return 560 } })
   const panel = useRef<HTMLElement>(null)
+  const options = useRef<HTMLDetailsElement>(null)
   const autoStarted = useRef(false)
   const restoreFocus = useRef<HTMLElement | null>(null)
 
@@ -41,16 +41,18 @@ export default function TerminalPanel({ workspaceId, open, onClose }: { workspac
     finally { setLoading(false) }
   }, [add])
   useEffect(() => { void refresh() }, [refresh])
-  useEffect(() => { try { localStorage.setItem('ambio:terminal-width', String(width)) } catch { /* session only */ } }, [width])
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (options.current && !options.current.contains(event.target as Node)) options.current.open = false
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [])
   useLayoutEffect(() => {
     if (!open || !panel.current) return
     restoreFocus.current = document.activeElement as HTMLElement
     const root = panel.current
-    const publish = () => document.documentElement.style.setProperty('--terminal-panel-inset', `${root.offsetWidth}px`)
-    publish()
-    const observer = new ResizeObserver(publish); observer.observe(root)
     return () => {
-      observer.disconnect(); document.documentElement.style.removeProperty('--terminal-panel-inset')
       if (root.contains(document.activeElement)) restoreFocus.current?.focus({ preventScroll: true })
     }
   }, [open])
@@ -64,40 +66,16 @@ export default function TerminalPanel({ workspaceId, open, onClose }: { workspac
   }
   const selectedProfile = profiles.find(profile => profile.id === profileId)
   return (
-    <aside ref={panel} className="ambio-terminal" aria-label="Terminal" hidden={!open} style={{ '--terminal-width': `${width}px` } as React.CSSProperties}>
-      <div className="ambio-terminal__resize" role="separator" aria-label="Terminal width" aria-orientation="vertical" aria-valuenow={Math.round(width)} aria-valuemin={320} aria-valuemax={Math.round(Math.max(320, window.innerWidth * .85))} tabIndex={0}
+    <aside ref={panel} className="ambio-terminal" aria-label="Terminal" hidden={!open}>
+      <div className="ambio-terminal__resize" role="separator" aria-label="Terminal width" aria-orientation="vertical" aria-valuenow={Math.round(width)} aria-valuemin={360} aria-valuemax={Math.round(Math.max(360, window.innerWidth * .85))} tabIndex={0}
         onPointerDown={resize} onPointerMove={event => {
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(320, Math.min(window.innerWidth * .85, window.innerWidth - event.clientX)))
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) onResize(window.innerWidth - event.clientX)
         }} onPointerUp={event => {
           event.currentTarget.releasePointerCapture(event.pointerId)
         }} onKeyDown={event => {
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWidth(value => Math.max(320, Math.min(window.innerWidth * .85, value + (event.key === 'ArrowLeft' ? 32 : -32)))) }
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); onResize(width + (event.key === 'ArrowLeft' ? 32 : -32)) }
         }} />
       <header className="ambio-terminal__header">
-        <span className="ambio-terminal__mark" aria-hidden="true">›_</span>
-        <div><h2>Terminal</h2><span>WORKSPACE SHELL · CTRL + `</span></div>
-        <button type="button" onClick={onClose} aria-label="Hide terminal" title="Hide terminal (Ctrl+`)">×</button>
-      </header>
-      <div className="ambio-terminal__tools">
-        <select aria-label="Shell profile" value={profileId} onChange={event => {
-          setProfileId(event.target.value)
-          try { localStorage.setItem('ambio:terminal-profile', event.target.value) } catch { /* session only */ }
-        }} disabled={loading || !profiles.length}>
-          {!profiles.length && <option value="">{loading ? 'Finding shells…' : 'No shells found'}</option>}
-          {profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
-        </select>
-        <button type="button" disabled={!selectedProfile || sessions.length >= 16} onClick={() => selectedProfile && add(selectedProfile)} title="New terminal">+ New</button>
-        <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh shells" title="Refresh shells">↻</button>
-        <button type="button" aria-label="Locate shell executable" title="Locate another shell…" onClick={() => {
-          void window.ambio.terminal.locateProfile().then(profile => {
-            if (!profile) return
-            setError('')
-            setProfiles(current => current.some(item => item.id === profile.id) ? current : [...current, profile]); setProfileId(profile.id)
-            try { localStorage.setItem('ambio:terminal-profile', profile.id) } catch { /* session only */ }
-          }).catch(error => setError(String(error)))
-        }}>…</button>
-      </div>
-      {error && <p role="alert" className="ambio-terminal__error">{error}</p>}
       <div className="ambio-terminal__tabs" role="tablist" aria-label="Terminal sessions" onKeyDown={event => {
         if (!(event.target as HTMLElement).matches('[role=tab]')) return
         const index = sessions.findIndex(session => session.id === active)
@@ -111,13 +89,48 @@ export default function TerminalPanel({ workspaceId, open, onClose }: { workspac
             onClick={() => setActive(session.id)}>{index + 1} · {session.profile.label}{session.exitCode !== undefined ? ` · exited ${session.exitCode}` : ''}</button>
           <button type="button" aria-label={`Close terminal ${index + 1}`} title="Kill terminal" onClick={() => remove(session.id)}>×</button>
         </div>)}
+        {!sessions.length && <span className="ambio-terminal__idle">{loading ? 'Finding shells…' : 'Terminal'}</span>}
       </div>
+      <div className="ambio-terminal__actions">
+        <button type="button" disabled={!selectedProfile || sessions.length >= 16} onClick={() => {
+          if (options.current) options.current.open = false
+          if (selectedProfile) add(selectedProfile)
+        }} aria-label="New terminal" title={`New terminal${selectedProfile ? ` (${selectedProfile.label})` : ''}`}>+</button>
+        <details ref={options} className="ambio-terminal__options" onKeyDown={event => {
+          if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() }
+        }}>
+          <summary aria-label="Shell options" title="Shell options">…</summary>
+          <div className="ambio-terminal__menu">
+            <label>New terminals use
+              <select aria-label="Shell profile" value={profileId} onChange={event => {
+                setProfileId(event.target.value)
+                try { localStorage.setItem('ambio:terminal-profile', event.target.value) } catch { /* session only */ }
+              }} disabled={loading || !profiles.length}>
+                {!profiles.length && <option value="">{loading ? 'Finding shells…' : 'No shells found'}</option>}
+                {profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={() => void refresh()} disabled={loading}>Refresh shells</button>
+            <button type="button" aria-label="Locate shell executable" onClick={() => {
+              void window.ambio.terminal.locateProfile().then(profile => {
+                if (!profile) return
+                setError('')
+                setProfiles(current => current.some(item => item.id === profile.id) ? current : [...current, profile]); setProfileId(profile.id)
+                try { localStorage.setItem('ambio:terminal-profile', profile.id) } catch { /* session only */ }
+                if (options.current) options.current.open = false
+              }).catch(error => setError(String(error)))
+            }}>Locate another shell…</button>
+          </div>
+        </details>
+        <button type="button" onClick={onClose} aria-label="Hide terminal" title="Hide terminal (Ctrl+`)">›</button>
+      </div>
+      </header>
+      {error && <p role="alert" className="ambio-terminal__error">{error}</p>}
       <div className="ambio-terminal__body">
         {!sessions.length && !loading && <div className="ambio-terminal__empty"><p>Your workspace, at the command line.</p><p>Choose a shell and open a new terminal.</p></div>}
         {sessions.map(session => <TerminalScreen key={session.id} session={session} workspaceId={workspaceId} visible={open && active === session.id}
           onExit={exitCode => setSessions(current => current.map(item => item.id === session.id ? { ...item, exitCode } : item))} />)}
       </div>
-      <footer className="ambio-terminal__footer"><span>{sessions.length} session{sessions.length === 1 ? '' : 's'}</span><span>Hiding keeps sessions running</span></footer>
     </aside>
   )
 }

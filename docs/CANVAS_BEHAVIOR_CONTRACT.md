@@ -36,10 +36,14 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 
 - Canvas zoom range is `0.02` through `100`.
 - The canvas is only the part of the window you can see: while the agent
-  panel is open the canvas area ends at its edge (`--agent-panel-inset`), so
+  panel is open the canvas area ends at its edge (`--workbench-sidebar-inset`), so
   every fit, search result, selection and chip centres there, not under the
   panel. The terminal sidebar uses the same right-hand space and also reduces
-  the canvas viewport. Opening either sidebar hides the other; terminal shells
+  the canvas viewport. Both share one saved width: resizing either applies to
+  the other, including after reopening. Switching replaces the contents in
+  place without overlapping slide animations or changing the canvas width.
+  The terminal has a single compact control bar and no footer.
+  Opening either sidebar hides the other; terminal shells
   and scrollback remain alive while hidden. Ctrl+` toggles the terminal on every
   platform, including when its input has focus. Shell editing, signals and Escape
   stay inside the terminal; the command palette remains available.
