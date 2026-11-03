@@ -34,8 +34,10 @@ migrations; `internal/indexer/limits.go`) in every project, and the count
 mirrors it. Excluded files, not only folders, are honoured by a full index.
 
 `Toolbar` keeps selection, Review Changes, the active sheet name, Search,
-Fit and Message Agent visible. There is no permanent status footer or idle
-indexing label. On the Floor, its name appears only in the left rail, with no
+Fit and Message Agent visible. The current project's saved display name sits
+immediately left of the unchanged branch control; it follows project changes
+and truncates long titles with the full name on hover. There is no permanent
+status footer or idle indexing label. On the Floor, its name appears only in the left rail, with no
 duplicate toolbar label or reserved space. `shared/appMenu.ts` supplies Tools
 commands for recording and saved investigations, Agent → Architecture Draft for
 draft recovery, and Help → Setup Guide for the opt-in legacy tutorial.

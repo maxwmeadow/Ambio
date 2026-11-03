@@ -31,6 +31,7 @@ export function Toolbar({
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
+  const projectName = useGraphStore(s => s.currentProject?.name)
   const [agentMsgOpen, setAgentMsgOpen] = useState(false)
   const requestedConversation = useConversationPreferences(s => s.requested)
   useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) setAgentMsgOpen(true) }, [requestedConversation, workspaceId])
@@ -115,6 +116,10 @@ export function Toolbar({
 
         {activeSheetId && <div className="ambio-surface-readout">
           <strong>{activeSheetName ?? 'Overlay Sheet'}</strong>
+        </div>}
+        {projectName && <div className="ambio-project-readout" aria-label="Current project" title={projectName}>
+          <span>Project</span>
+          <strong>{projectName}</strong>
         </div>}
         {/* Boundaried: a malformed checkouts response once blanked the whole
             workbench through the panel this replaced. */}

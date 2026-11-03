@@ -255,8 +255,6 @@ Current state: [docs/INVESTIGATIONS.md](docs/INVESTIGATIONS.md). Old plan: [docs
 
 ## Inbox
 
-- 🚧 `project-title-hero` **Show the current project beside its branch in the hero bar.** Place the saved project display name immediately left of the existing branch control, styled as one context group. Preserve branch markup, styling and behavior; truncate long names without displacing navigation, and retain the active sheet label. **Done when:** Floor/sheet views show the title, project changes/renames update it, and focused toolbar/branch checks pass. (Codex, `codex/project-title-hero`, 2026-11-03; Max.)
-
 - ⬜ `windows-go-test-runner-stall` During 2026-11-03 merge validation, `go test ./...` kept consuming CPU after its test processes exited. An uncached `go test -count=1 -json ./...` completed with only the already recorded Git watcher failure. Investigate the normal runner/cache path on Windows.
 
 - ⬜ `setup-scope-agent-proposals` **The mapping agent proposes scope changes:** after the first index, folders nothing imports, throwaway scripts and tests as their own layer, offered as pending "leave this out" proposals with confirm/reject in review. Deferred by Max 2026-10-29 in favour of setup's deterministic defaults. (2026-10-29)
@@ -422,6 +420,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-progress-presentation` **Prefer useful task progress over internal process commentary.** The first Helios run exposes long thinking summaries about workflow/time/output formatting and repeated generic investigation tool names. **Done when:** default progress explains current task/evidence, detailed thinking remains inspectable, and tool events identify meaningful investigation steps. **Start:** `SendToAgentDialog.tsx`, driver events and `agent-run-event-contract`; Helios screenshots in the baseline assessment. (2026-10-29)
 
 ## Done log
+
+- 2026-11-03 `project-title-hero` Show the current saved project title immediately left of the unchanged branch control in the hero bar, with compact label/value styling and hover text for truncated names. Follows project metadata on Floor and sheets. TypeScript, renderer tests (900 passed / 7 skipped), build and 3 focused Electron toolbar/branch tests passed; visually checked ordinary and 900px toolbar captures. (`codex/project-title-hero`)
 
 - 2026-10-29 `setup-scope-defaults` Setup leaves out what is not the project's own code and says why on each row (`electron/scopeDefaults.ts`): `.gitignore` (asked of Git), other checkouts of a repository the project has (linked worktrees, second clones), plain copies of one, virtualenvs by any name, coverage/.NET/Unity output by contents; `coverage`/`bin`/`obj`/`Library` are no longer skipped by name. archd skips files with a generator's header in every project and now honours excluded files on a full index. On ThreePillars the first count is 3,363 (the two `feature/scenario-engine` worktrees under `scenario/` were most of the rest). New Go, scopeDefaults, estimate and model tests, the renderer suite, types and the setup e2e pass. (`claude/infra-detect-coverage`)
 

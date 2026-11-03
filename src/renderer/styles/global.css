@@ -2088,6 +2088,35 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 700;
 }
 
+.ambio-project-readout {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  max-width: clamp(120px, 18vw, 240px);
+  height: 32px;
+  padding: 0 10px;
+  border-left: 1px solid #a3aaa6;
+  color: #6b7671;
+  -webkit-app-region: no-drag;
+}
+
+.ambio-project-readout span {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ambio-project-readout strong {
+  overflow: hidden;
+  color: var(--workbench-ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ambio-surface-readout {
   min-width: 140px;
   height: 32px;
