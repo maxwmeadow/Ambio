@@ -1,0 +1,218 @@
+{
+  "scope": "Actual Helios hooks and React 19.1.0; mocked native sensors and Socket.IO; not a device test",
+  "heliosCommit": "c90db0dcc3bf1cf7cfcf6fe98a72a0c4a9878b3b",
+  "sourceFiles": [
+    "mobile/hooks/useDeviceSensors.ts",
+    "mobile/hooks/useWebSocket.ts"
+  ],
+  "motionUpdateIntervalMs": 200,
+  "sampleTimestamps": [
+    1,
+    1.05
+  ],
+  "reactVersion": "19.1.0",
+  "cases": [
+    {
+      "scenario": "disconnect after permission resolves",
+      "afterOldPermission": 0,
+      "afterReconnect": 1,
+      "emittedPackets": 1,
+      "afterUnmount": 0,
+      "trace": [
+        {
+          "event": "socket.created",
+          "socket": 1
+        },
+        {
+          "event": "socket.connected",
+          "socket": 1
+        },
+        {
+          "event": "motion.permission.request",
+          "id": 1
+        },
+        {
+          "event": "motion.permission.resolve",
+          "id": 1
+        },
+        {
+          "event": "motion.interval",
+          "ms": 50
+        },
+        {
+          "event": "motion.subscribe",
+          "id": 1,
+          "active": 1
+        },
+        {
+          "event": "socket.disconnected",
+          "socket": 1
+        },
+        {
+          "event": "motion.remove",
+          "id": 1,
+          "active": 0
+        },
+        {
+          "event": "checkpoint.disabled",
+          "active": 0
+        },
+        {
+          "event": "checkpoint.oldPermissionSettled",
+          "active": 0
+        },
+        {
+          "event": "socket.created",
+          "socket": 2
+        },
+        {
+          "event": "socket.connected",
+          "socket": 2
+        },
+        {
+          "event": "motion.permission.request",
+          "id": 2
+        },
+        {
+          "event": "motion.permission.resolve",
+          "id": 2
+        },
+        {
+          "event": "motion.interval",
+          "ms": 50
+        },
+        {
+          "event": "motion.subscribe",
+          "id": 2,
+          "active": 1
+        },
+        {
+          "event": "motion.sample",
+          "t": 1,
+          "receivers": 1
+        },
+        {
+          "event": "motion.sample",
+          "t": 1.05,
+          "receivers": 1
+        },
+        {
+          "event": "device_sensor_stream",
+          "socket": 2
+        },
+        {
+          "event": "socket.disconnected",
+          "socket": 2
+        },
+        {
+          "event": "motion.remove",
+          "id": 2,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "scenario": "disconnect before permission resolves",
+      "afterOldPermission": 1,
+      "afterReconnect": 2,
+      "emittedPackets": 2,
+      "afterUnmount": 1,
+      "trace": [
+        {
+          "event": "socket.created",
+          "socket": 1
+        },
+        {
+          "event": "socket.connected",
+          "socket": 1
+        },
+        {
+          "event": "motion.permission.request",
+          "id": 1
+        },
+        {
+          "event": "socket.disconnected",
+          "socket": 1
+        },
+        {
+          "event": "checkpoint.disabled",
+          "active": 0
+        },
+        {
+          "event": "motion.permission.resolve",
+          "id": 1
+        },
+        {
+          "event": "motion.interval",
+          "ms": 50
+        },
+        {
+          "event": "motion.subscribe",
+          "id": 1,
+          "active": 1
+        },
+        {
+          "event": "checkpoint.oldPermissionSettled",
+          "active": 1
+        },
+        {
+          "event": "socket.created",
+          "socket": 2
+        },
+        {
+          "event": "socket.connected",
+          "socket": 2
+        },
+        {
+          "event": "motion.permission.request",
+          "id": 2
+        },
+        {
+          "event": "motion.permission.resolve",
+          "id": 2
+        },
+        {
+          "event": "motion.interval",
+          "ms": 50
+        },
+        {
+          "event": "motion.subscribe",
+          "id": 2,
+          "active": 2
+        },
+        {
+          "event": "motion.sample",
+          "t": 1,
+          "receivers": 2
+        },
+        {
+          "event": "motion.sample",
+          "t": 1.05,
+          "receivers": 2
+        },
+        {
+          "event": "device_sensor_stream",
+          "socket": 2
+        },
+        {
+          "event": "device_sensor_stream",
+          "socket": 2
+        },
+        {
+          "event": "socket.disconnected",
+          "socket": 2
+        },
+        {
+          "event": "motion.remove",
+          "id": 2,
+          "active": 1
+        }
+      ]
+    }
+  ],
+  "checkout": "Existing dirty Helios checkout; pre-existing edits preserved",
+  "inputSha256": {
+    "mobile/hooks/useDeviceSensors.ts": "f003f74acf73378d88b1f11763b05aae39735690cb5b090ba9cde0f9a57cf6f8",
+    "mobile/hooks/useWebSocket.ts": "236521ce377ad260a92d0305ccdde68323ba7445e90d39eb932b67d12a863bb5"
+  }
+}

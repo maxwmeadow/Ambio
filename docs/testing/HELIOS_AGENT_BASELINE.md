@@ -173,72 +173,106 @@ the short type fix merely to force a timing test.
   Build approved plan, with durable human acceptance. Current manual mode changes
   establish the baseline; they are not evidence that this feature already works.
 
-## Session C: investigation readability, before and after (prepared 2026-11-03)
+## Session C: warning-threshold activation probe (2026-11-03)
 
-**Purpose:** observe a growing live case, inspect its evidence and save it for
-an identical replay after UI changes. This explicitly requests an investigation;
-it does not repeat Session A's test of automatic workflow selection. Max runs
-this in Helios through Ambio; this preparation did not launch an Ambio case.
+Max asked for a natural debugging prompt that did not name investigations:
 
-**Verified offline candidate:** `backend/heuristics.py` declares a configurable
-movement threshold, but changing it does not alter the observed speed gate.
-With a chair in the path, zero steps and speed 0.2 m/s, both the default 0.1
-threshold and a custom 1.0 threshold return an urgent STOP. At speed 0.05 with
-a custom threshold 0.01, the function stays silent. At speed 0.1 it stays
-silent; one step with speed zero triggers STOP. A moving bicycle in the path
-and a moving chair outside the path both stay silent. These are observed
-outputs, not a decision about intended warning behavior: the implementation
-explicitly describes a debug mode. The service passes its config into the
-function; the full service was inspected, not executed.
+> Changing fast_movement_threshold_mps in HeuristicsConfig doesn't seem to
+> change when Helios produces STOP warnings. Can you reproduce this offline,
+> trace what actually controls the decision, and explain the smallest correct
+> fix? Check how speed, step counts and whether an object is in the walking
+> path affect the result. Distinguish intentional debug behavior from a bug.
+> Don't edit files yet, install dependencies, start the backend/mobile app,
+> load models or call external services.
 
-Preflight used inline standard-library Python 3.14 commands against Helios
-`c90db0d`; no Helios source, dependencies or existing dirty work were changed.
-No server, phone, models, credentials or external services are needed. During
-an observed run use normal Python startup (for the recorder) and `-B` to avoid
-bytecode writes, importing only the heuristics module rather than the service.
+Max supplied Claude Code's answer: a direct diagnosis of the literal movement
+threshold, reported offline input comparisons, caller inspection and a one-line
+proposed fix. Max saw no investigation open. Tool calls and the claimed repro
+commands from that session were not independently inspected. Earlier direct
+preflight independently confirmed the threshold behavior against Helios c90db0d
+with standard-library Python 3.14 and no source edits.
 
-**Send in Ask, in a fresh Helios conversation with the same engine/model as the
-original run:**
+**Interpretation:** reasonable tool selection, not an investigation adoption
+failure. A visible literal in place of a config field plus a small confirmation
+can be explained without a persistent investigation. Reading a call chain alone
+should not force one. The stronger trigger is needing execution evidence to
+explain control flow, state or timing, or experiments that decide between
+plausible causes. Session D below is a better candidate for testing that choice.
 
-> Investigate whether Helios's HeuristicsConfig actually controls when STOP
-> warnings fire. Use Ambio's investigation feature and name the case
-> "Helios warning thresholds". Watch backend/heuristics.py:evaluate_scene.
-> Run three small groups of offline experiments: default versus changed
-> movement thresholds on identical input; speed-only versus step-only motion;
-> and in-path versus off-path objects with different labels. State what each
-> experiment tests, record its result and update the corresponding hypothesis
-> from the evidence. Inspect the caller to explain which settings affect the
-> actual warning path, and distinguish deliberate debug behavior from a defect.
-> Use inline Python repros importing only the heuristics module. Don't start
-> the backend or mobile app, load models, use external services, install
-> dependencies, edit project files, create sheets, commit or push. Explain the
-> smallest potential fix without applying it. Leave the case open after the
-> experiments so I can inspect it and take screenshots.
+## Session D: sensor reconnect lifecycle and investigation readability
 
-**Capture:** start a screen recording before sending, since individual commands
-may finish quickly. Take frames at the first hypothesis, an executing/completed
-experiment, the grown case and the final conclusion. Keep app dimensions, chat
-width, engine/model and visible canvas context consistent between captures.
-Record where a reader loses track, what requires scrolling and whether the
-current question, experiment, finding and next step are immediately clear.
+Prepared 2026-11-03 against the existing dirty Helios checkout at HEAD c90db0d;
+raw evidence records the exact input file hashes. No Ambio case was launched by
+this preparation. Helios source/dependencies were not edited and no server, hardware or external service
+was used. Max should run the natural prompt below through Ambio.
 
-**Then send:**
+### Independently reproduced candidate
 
-> Conclude the investigation, link the findings to its recorded runs and save
-> it for replay. Don't apply any fixes.
+Helios's entry screen uses `useWebSocket` and `useDeviceSensors`, enabling the
+latter when the socket status is connected. An offline harness bundled the
+actual two hooks with Helios's installed React/React DOM 19.1.0, then ran them
+in a hidden Electron renderer using real hook effects and cleanup. Sensor and
+Socket.IO boundaries were mocked; motion-permission completion was controlled.
+Heading permission was denied and the pedometer unavailable to isolate motion.
+Strict Mode was not enabled. This demonstrates the JavaScript lifecycle race;
+it does not establish its frequency or native behavior on a phone.
 
-Capture the closed case and retain its name/save reference. Replay that same
-saved investigation after UI changes for a comparison with identical evidence;
-a second live agent run can separately check live updates and chat steering.
-Do not claim that a replay exercises live feedback delivery.
+Both cases created exactly two sequential socket instances, with one connected
+socket receiving telemetry. Both fed the same two motion samples inside one
+200ms throttle interval. Assertions checked these results:
 
-**Max's presentation requirements (2026-11-03):** one clear reading order,
-compact current activity/finding with expandable evidence and history, bounded
-space as the case grows, no shrinking sliver of scrollable history, and the
-existing chat as the visible place for steering. Preserve delivery to the
-investigating agent for both in-app chat and client connections rather than
-simply deleting the case's feedback capability. No redesign has been applied
-or evaluated by this preparation.
+| Event ordering | Old permission settled while disconnected: active motion listeners | After reconnect | Telemetry packets | After unmount |
+| --- | --- | --- | --- | --- |
+| Permission resolves before disconnect | 0 | 1 | 1 | 0 |
+| Disconnect occurs before permission resolves | 1 | 2 | 2 | 1 |
+
+The timed trace establishes that the first effect's cleanup runs before its
+permission promise completes. That completion still installs a listener; the
+new connection installs another. Their separate throttles emit into the current
+socket. Unmount removes the current effect's listener while the old one remains.
+This separates a subscription leak from duplicate active sockets and ordinary
+throttling. Raw observed events are saved in
+[evidence/helios-sensor-lifecycle.json](evidence/helios-sensor-lifecycle.json).
+The local preflight bundle/runner window and results were created under
+`%TEMP%/ambio-helios-sensor-probe-RP1Tzr`; temporary artifacts are not a portable
+or permanent test dependency. React/TypeScript inputs came from the existing
+Helios checkout and tooling from the existing Ambio development install.
+
+### Natural prompt for a fresh Ask conversation
+
+Do not include the diagnosis or preflight trace in the initial message. The
+agent should choose its debugging workflow. Do not nudge it toward a named
+feature if it initially chooses ordinary inspection.
+
+> Can a quick disconnect/reconnect make Helios send duplicate sensor updates
+> or leave sensors running after the screen closes? Trace the sensor-to-socket
+> lifecycle and reproduce any problem offline. Compare a normal reconnect with
+> one that interrupts startup, and use a time-ordered trace to distinguish
+> duplicate connections, leftover subscriptions and delayed callbacks. Explain
+> the exact sequence responsible and the smallest correct fix.
+> Don't change application code or apply fixes yet. A temporary offline repro
+> outside the application source is fine. Don't install dependencies, start
+> the backend/mobile app, use hardware, load models, commit or push.
+
+### Capture and comparison
+
+Start recording before sending; the commands may finish quickly. Hold app
+size, chat width, canvas context and engine/model constant. If an investigation
+opens naturally, capture its initial question, an experiment, the grown case
+and conclusion. Record whether the current activity, result and next step are
+readable as evidence accumulates. If no case opens, retain the activity/tool
+trace as an adoption observation rather than claiming an investigation ran.
+
+After capturing a live case, ask the agent to conclude and save it for replay
+without applying fixes. Replay that same saved case after UI changes for an
+identical-evidence comparison. A later live run should separately test updates
+and steering; replay cannot verify delivery to a running agent.
+
+Max's presentation requirements: one clear reading order; compact current
+activity/finding with expandable evidence/history; bounded growth without a
+squeezed scroll area; and chat as the single visible steering input. Preserve
+feedback delivery to the investigating agent for both chat and client sessions.
+No UI redesign has been applied or evaluated by this preparation.
 
 ## Scorecard and evidence
 
