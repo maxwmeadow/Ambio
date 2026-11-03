@@ -421,6 +421,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-03 `sidebar-motion-canvas-gap` Replaced the full-width inset held during exit with one registered CSS progress value driving sidebar translation and live canvas width together. The map fills the exposed area during both opening/closing; direct sidebar switches stay still. Types/bundles, 903 unit tests (7 skipped) and the Electron terminal journey pass. Quarter/half/three-quarter samples on both sidebars verify aligned edges within 1px and live-canvas hit testing; mid-animation screenshots visually checked. (`codex/integrated-terminals`)
+
 - 2026-11-03 `sidebar-open-close-motion` Restored slide-in/out on the shared terminal/messages container; only direct content switches stay still. Closing reserves the canvas inset and makes contents inert until the exit finishes; reduced motion skips animation. Types/bundles, 903 unit tests (7 skipped) and the Electron terminal journey pass, including intermediate opening/closing keyframes for both sidebars, stable handoff and reduced-motion checks. (`codex/integrated-terminals`)
 
 - 2026-11-03 `terminal-sidebar-compact-shared-size` Consolidated terminal tabs/actions into one 34px top bar, moved shell setup into its options menu and removed the footer. Toolbar owns one saved width and inset for terminal/messages; both resize handles share it, and direct swaps remove overlapping slide animations. Types/bundles, 903 unit tests (7 skipped), and the real Electron terminal journey pass, including both resize directions, narrow sizing, reload persistence and frame-sampled stable handoff; screenshot visually checked. (`codex/integrated-terminals`)

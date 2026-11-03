@@ -44,8 +44,10 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   place without overlapping slide animations or changing the canvas width.
   Opening from closed and closing to the canvas retain the shared slide-in/out
   animations; only switching between the two skips a new animation. Closing
-  content is inert and reserves its inset until the exit completes. Reduced
-  motion skips the animation.
+  content is inert. The canvas edge follows the visible sidebar edge throughout
+  opening and closing, revealing the live map with no empty strip or final
+  width jump. One shared animation progress drives both edges. Reduced motion
+  skips the animation.
   The terminal has a single compact control bar and no footer.
   Opening either sidebar hides the other; terminal shells
   and scrollback remain alive while hidden. Ctrl+` toggles the terminal on every

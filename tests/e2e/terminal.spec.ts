@@ -19,7 +19,8 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     const page = await app.firstWindow()
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
     await page.waitForURL(/e2e=1/); await page.setViewportSize({ width: 1440, height: 900 })
-    await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, route => route.fulfill({ json: [] }))
+    await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, route => route.fulfill({ json:
+      new URL(route.request().url()).pathname === '/api/canvas/history' ? { messages: [], nextCursor: '' } : [] }))
     await skipAgentGuides(page)
     const workbench = new URL(page.url()); workbench.searchParams.delete('home'); await page.goto(workbench.toString())
     await expect(page.getByRole('button', { name: 'Terminal', exact: true })).toBeVisible()
@@ -138,42 +139,59 @@ test('terminal runs a real interactive PTY, survives hiding, resizes, and shares
     expect(refused).toBe(true)
     // Opening/closing still animate the common slot; only a content handoff
     // stays still. Sample actual keyframes, including an intermediate position.
-    const motion = async (close = false) => page.evaluate(async close => {
-      const slot = document.querySelector<HTMLElement>('.ambio-workbench-sidebar')!
-      if (close) {
-        slot.querySelector<HTMLButtonElement>('[aria-label="Hide terminal"], [aria-label="Close agent inbox"]')!.click()
-        await new Promise(requestAnimationFrame)
-      }
-      const animation = slot.getAnimations()[0]
-      if (!animation) return null
-      animation.pause(); await animation.ready
-      animation.currentTime = Number(animation.effect!.getComputedTiming().duration) * .45
-      await new Promise(requestAnimationFrame)
-      const result = { name: getComputedStyle(slot).animationName, x: new DOMMatrixReadOnly(getComputedStyle(slot).transform).m41,
-        width: slot.offsetWidth, inert: slot.inert, inset: getComputedStyle(document.documentElement).getPropertyValue('--workbench-sidebar-inset').trim() }
-      // A script-seeked CSS animation can retain its fill above the next CSS
-      // animation. Release the sampled effect before testing the next motion.
-      animation.finish(); animation.cancel()
+    let motionCapture = 0
+    const motion = async (close = false) => {
+      const result = await page.evaluate(async close => {
+        const slot = document.querySelector<HTMLElement>('.ambio-workbench-sidebar')!
+        const root = document.documentElement
+        if (close) {
+          slot.querySelector<HTMLButtonElement>('[aria-label="Hide terminal"], [aria-label="Close agent inbox"]')!.click()
+          await new Promise(requestAnimationFrame)
+        }
+        const animation = root.getAnimations()[0]
+        if (!animation) return null
+        animation.pause(); await animation.ready
+        const frames = []
+        for (const fraction of [.25, .5, .75]) {
+          animation.currentTime = Number(animation.effect!.getComputedTiming().duration) * fraction
+          await new Promise(requestAnimationFrame)
+          const bounds = slot.getBoundingClientRect()
+          const canvas = document.querySelector<HTMLElement>('[data-ambio-canvas]')!
+          const exposed = document.elementFromPoint(bounds.left - 8, bounds.top + 100)
+          frames.push({ x: new DOMMatrixReadOnly(getComputedStyle(slot).transform).m41, edgeDifference: bounds.left - canvas.getBoundingClientRect().right,
+            liveCanvas: Boolean(exposed?.closest('[data-ambio-canvas]')) })
+        }
+        if (!close) {
+          animation.currentTime = Number(animation.effect!.getComputedTiming().duration) * .25
+          await new Promise(requestAnimationFrame)
+        }
+        return { name: getComputedStyle(root).animationName, frames, width: slot.offsetWidth, inert: slot.inert }
+      }, close)
+      if (!close) await page.screenshot({ path: info.outputPath(`sidebar-opening-${motionCapture++}.png`) })
+      // Release script-seeked fill before testing the next CSS animation.
+      await page.evaluate(() => document.documentElement.getAnimations().forEach(animation => { animation.finish(); animation.cancel() }))
       return result
-    }, close)
+    }
     for (const kind of ['terminal', 'agent']) {
       if (kind === 'agent') {
         await page.getByRole('button', { name: /^Message agent/ }).click()
         await expect(agent).toBeVisible()
       }
       const entered = await motion()
-      expect(entered?.name).toBe('ambioPanelInRight')
-      expect(entered!.x).toBeGreaterThan(0); expect(entered!.x).toBeLessThan(entered!.width)
+      expect(entered?.name).toBe('ambioWorkbenchSidebarIn')
       const closing = await motion(true)
-      expect(closing?.name).toBe('ambioPanelOutRight')
-      expect(closing!.x, JSON.stringify(closing)).toBeGreaterThan(0); expect(closing!.x).toBeLessThan(closing!.width)
+      expect(closing?.name).toBe('ambioWorkbenchSidebarOut')
+      for (const result of [entered!, closing!]) for (const frame of result.frames) {
+        expect(frame.x).toBeGreaterThan(0); expect(frame.x).toBeLessThan(result.width)
+        expect(Math.abs(frame.edgeDifference)).toBeLessThan(1)
+        expect(frame.liveCanvas).toBe(true)
+      }
       expect(closing!.inert).toBe(true)
-      expect(closing!.inset).not.toBe('0px')
       await expect(page.locator('.ambio-workbench-sidebar')).toBeHidden()
     }
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.keyboard.press('Control+Backquote'); await expect(panel).toBeVisible()
-    expect(await page.locator('.ambio-workbench-sidebar').evaluate(slot => getComputedStyle(slot).animationName)).toBe('none')
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).animationName)).toBe('none')
     await panel.getByRole('button', { name: 'Hide terminal' }).click()
     await expect(page.locator('.ambio-workbench-sidebar')).toBeHidden()
   } finally { await app.close(); rmSync(home, { recursive: true, force: true }) }

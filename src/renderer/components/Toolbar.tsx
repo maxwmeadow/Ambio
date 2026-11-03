@@ -51,9 +51,13 @@ export function Toolbar({
   useLayoutEffect(() => {
     const style = document.documentElement.style
     style.setProperty('--workbench-sidebar-width', `${sidebarWidth}px`)
-    style.setProperty('--workbench-sidebar-inset', sidebarPresence.mounted ? `min(${sidebarWidth}px, 100vw)` : '0px')
-    return () => { style.removeProperty('--workbench-sidebar-width'); style.removeProperty('--workbench-sidebar-inset') }
-  }, [sidebarPresence.mounted, sidebarWidth])
+    return () => { style.removeProperty('--workbench-sidebar-width') }
+  }, [sidebarWidth])
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    root.dataset.workbenchSidebarState = sidebarPresence.closing ? 'closing' : sidebarPresence.mounted ? 'open' : 'closed'
+    return () => { delete root.dataset.workbenchSidebarState }
+  }, [sidebarPresence.mounted, sidebarPresence.closing])
   useEffect(() => { try { localStorage.setItem('ambio:sidebar-width', String(sidebarWidth)) } catch { /* session only */ } }, [sidebarWidth])
   useEffect(() => {
     const fit = () => setSidebarWidth(width => clampSidebarWidth(width))

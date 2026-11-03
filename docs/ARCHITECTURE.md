@@ -65,8 +65,10 @@ One `--workbench-sidebar-inset` keeps canvas framing stable when switching;
 one persistent sidebar container slides in when opened and slides out before
 being hidden. Its contents replace each other directly when switching, without
 restarting the container animation or overlapping panels. Exiting contents are
-inert; the canvas inset remains reserved until the exit finishes. Reduced motion
-skips these animations.
+inert. One registered CSS progress value drives both the sidebar translation
+and canvas inset on each frame, so the map fills the area revealed during exit
+and gives space back during entry without an empty strip. Reduced motion skips
+these animations.
 Both resize handles update the same width. Terminal tabs and controls occupy
 one compact top bar; shell selection/discovery live in its options menu and
 there is no footer.

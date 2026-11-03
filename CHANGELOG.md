@@ -11,6 +11,8 @@ in the app as "What's New" after updating, so write it for users.
   into a menu and no footer. Terminal and agent messages share a saved sidebar
   width and switch in place without overlapping animations. Opening and closing
   either sidebar retain their slide animations.
+- Fixed the empty strip during sidebar motion: the canvas now expands and
+  contracts with the moving sidebar edge throughout opening and closing.
 
 - Fixed Review Changes appearing selected while closed. Its highlight follows
   the open panel, and clicking it again closes review without accepting changes.
