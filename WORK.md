@@ -421,6 +421,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 ## Done log
 
+- 2026-11-03 `terminal-sidebar-compact-shared-size` Consolidated terminal tabs/actions into one 34px top bar, moved shell setup into its options menu and removed the footer. Toolbar owns one saved width and inset for terminal/messages; both resize handles share it, and direct swaps remove overlapping slide animations. Types/bundles, 903 unit tests (7 skipped), and the real Electron terminal journey pass, including both resize directions, narrow sizing, reload persistence and frame-sampled stable handoff; screenshot visually checked. (`codex/integrated-terminals`)
+
 - 2026-11-03 `integrated-terminals` Native PTYs in an Ambio-styled, resizable right sidebar with Ctrl+` on every platform, shell detection/custom executable selection, remembered profiles, multiple tabs, clipboard paste, exit status and hidden-session continuity. Canvas inset and agent sidebar switching preserve usable map space. Types/build, 903 unit tests (7 skipped), license checks and real Windows Electron plus packaged-ASAR journeys pass, including cwd/TTY, paste, Ctrl+C, resize, hidden output and tab/reload child cleanup. macOS/Windows CI smoke added; Linux uses the full UI suite. Other-platform runtime results remain pending CI. (`codex/integrated-terminals`)
 - 2026-11-03 `terminal-toolbar-width` Terminal now sits beside Message agent in its own command group, leaving Search first in the navigation group and preserving its field width. Verified in the terminal Electron journey and screenshot. (`codex/integrated-terminals`)
 

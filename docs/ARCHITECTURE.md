@@ -59,7 +59,13 @@ recording, starting, saving or offering the saved capture for replay.
 ## Integrated terminals
 
 `TerminalPanel` is lazy-loaded from the toolbar into the same right sidebar
-space as conversations. Its own inset keeps canvas framing in the visible area.
+space as conversations. `Toolbar` owns the active sidebar and their shared,
+persisted width (`ambio:sidebar-width`), migrating the previous width preferences.
+One `--workbench-sidebar-inset` keeps canvas framing stable when switching;
+the contents replace each other directly without overlapping slide animations.
+Both resize handles update the same width. Terminal tabs and controls occupy
+one compact top bar; shell selection/discovery live in its options menu and
+there is no footer.
 The shared `view.terminal` command uses Control+backtick on all platforms. Shell
 tabs stay mounted and process output while hidden, with bounded xterm scrollback.
 The shell picker remembers its preference; discovery covers Windows PowerShell,
@@ -792,8 +798,8 @@ code and plain-prose file names that resolve to an indexed file become chips
 name counts when exactly one indexed path ends with it. A chip, like a row
 under To review, brings the map to its node through `useShowOnMap`, which
 opens a collapsed system, selects the node and fits the view once React Flow
-has measured it. While the panel is open it publishes its width as
-`--agent-panel-inset` and the canvas area ends at the panel's edge, so every
+has measured it. The toolbar reserves the shared sidebar width as
+`--workbench-sidebar-inset` and the canvas area ends at the panel's edge, so every
 fit and selection centres in what is visible.
 
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure

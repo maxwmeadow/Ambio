@@ -10,7 +10,6 @@ import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
-import { usePresence } from './ui/usePresence'
 import { WorkOrderReview } from './WorkOrderReview'
 import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
 import { useCheckoutStore } from '../store/checkoutStore'
@@ -25,7 +24,7 @@ import { conversationKey, useConversationPreferences } from '../store/conversati
 import { ConversationMenu, type ConversationEntry } from './ConversationMenu'
 import '../styles/inbox.css'
 
-export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void }) {
+export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResize }: { isOpen: boolean; onClose: () => void; onManageConnections?: () => void; onResize: (width: number) => void }) {
   const graph = useGraphStore(useShallow(s => ({ workspaceId: s.currentProject?.id ?? '', rootPath: s.currentProject?.rootPath ?? '', name: s.currentProject?.name, files: s.files, systems: s.systems, infra: s.infraNodes })))
   const sheet = useSheetStore(useShallow(s => ({ sheets: s.sheets, activeSheetId: s.activeSheetId, layers: s.layersById, selected: s.selectedCanvasIds, messages: s.messages, error: s.inboxError, next: s.inboxNextCursor, send: s.sendToAgent })))
   const requestedConversation = useConversationPreferences(s => s.requested)
@@ -37,33 +36,17 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
   // Questions from started agents; a project that opens mid-question still shows it.
   const permissions = useAgentPermissionStore(state => state.requests)
   useEffect(() => { void refreshAgentPermissions(graph.workspaceId) }, [graph.workspaceId, isOpen])
-  const presence = usePresence(isOpen)
-  const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('ambio:inbox-width')) || 0 } catch { return 0 } })
   const resize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault()
     const handle = event.currentTarget
     handle.setPointerCapture(event.pointerId)
-    const clamp = (value: number) => Math.round(Math.min(Math.max(value, 360), Math.max(360, window.innerWidth * 0.8)))
-    const move = (moved: PointerEvent) => setWidth(clamp(window.innerWidth - moved.clientX))
+    const move = (moved: PointerEvent) => onResize(window.innerWidth - moved.clientX)
     const done = (ended: PointerEvent) => {
       handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', done)
-      try { localStorage.setItem('ambio:inbox-width', String(clamp(window.innerWidth - ended.clientX))) } catch { /* kept for this session */ }
+      onResize(window.innerWidth - ended.clientX)
     }
     handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', done)
   }
-  // The open panel covers the map's right edge; the map's area ends where the
-  // panel begins, so every fit, search and selection centres in what is visible.
-  const panelRef = useRef<HTMLElement>(null)
-  useEffect(() => {
-    const panel = panelRef.current
-    const style = document.documentElement.style
-    if (!isOpen || !panel) { style.removeProperty('--agent-panel-inset'); return }
-    const publish = () => style.setProperty('--agent-panel-inset', `${panel.offsetWidth}px`)
-    publish()
-    const observer = new ResizeObserver(publish)
-    observer.observe(panel)
-    return () => { observer.disconnect(); style.removeProperty('--agent-panel-inset') }
-  }, [isOpen, presence.mounted])
   const deliveryHost = delivery.hosts.find(host => host.id === delivery.hostId)
   // A worktree of its own needs a repository with a commit to start from.
   const canWorktree = useCheckoutStore(state => {
@@ -223,7 +206,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 180)}px` }
   }, [isOpen, note, sending])
 
-  if (!presence.mounted) return null
+  if (!isOpen) return null
   const effectiveSheetId = retry.current ? retry.current.sheetId : attachedSheetId
   const latestRun = (messageId: string) => delivery.runs.filter(run => run.messageId === messageId).sort((a, b) => b.startedAt - a.startedAt)[0]
   const attachedSheet = sheet.sheets.find(item => item.id === effectiveSheetId)
@@ -304,9 +287,9 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections }: { is
     if (openRun && runWorking(openRun)) await delivery.stop(openRun)
     await cancelInboxMessage(graph.workspaceId, openTurn.id).catch(err => setError(String(err)))
   }
-  return <aside ref={panelRef} className="ambio-inbox nodrag nowheel" aria-label="Agent inbox" data-closing={presence.closing || undefined} style={width ? { '--inbox-width': `${width}px` } as React.CSSProperties : undefined}>
+  return <aside className="ambio-inbox nodrag nowheel" aria-label="Agent inbox">
     <div className="ambio-inbox__resize" role="separator" aria-orientation="vertical" aria-label="Resize the agent panel" title="Drag to resize" onPointerDown={resize}
-      onDoubleClick={() => { setWidth(0); try { localStorage.removeItem('ambio:inbox-width') } catch { /* nothing kept */ } }} />
+      onDoubleClick={() => onResize(560)} />
     <header className="ambio-inbox__header"><span className="ambio-inbox__brand"><InboxIcon name="agent" size={18} /></span>
       <ConversationMenu onRename={(id, title) => updatePreference(graph.workspaceId, id, { title })} onDelete={async id => {
         const entry = entries.find(item => item.id === id)

@@ -1,6 +1,6 @@
 import { useConversationPreferences } from '../store/conversationPreferences'
 import { useCanvasFitView } from '../canvas/useCanvasFitView'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useGraphStore } from '../store/graphStore'
 import { SendToAgentDialog } from './SendToAgentDialog'
@@ -34,11 +34,30 @@ export function Toolbar({
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
   const projectName = useGraphStore(s => s.currentProject?.name)
-  const [agentMsgOpen, setAgentMsgOpen] = useState(false)
-  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [sidebar, setSidebar] = useState<'agent' | 'terminal' | null>(null)
+  const agentMsgOpen = sidebar === 'agent'
+  const terminalOpen = sidebar === 'terminal'
+  const clampSidebarWidth = (width: number) => Math.round(Math.max(360, Math.min(window.innerWidth * .85, width)))
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try { return clampSidebarWidth(Number(localStorage.getItem('ambio:sidebar-width') || localStorage.getItem('ambio:terminal-width') || localStorage.getItem('ambio:inbox-width')) || 560) }
+    catch { return 560 }
+  })
+  const resizeSidebar = (width: number) => setSidebarWidth(clampSidebarWidth(width))
+  useLayoutEffect(() => {
+    const style = document.documentElement.style
+    style.setProperty('--workbench-sidebar-width', `${sidebarWidth}px`)
+    style.setProperty('--workbench-sidebar-inset', sidebar ? `min(${sidebarWidth}px, 100vw)` : '0px')
+    return () => { style.removeProperty('--workbench-sidebar-width'); style.removeProperty('--workbench-sidebar-inset') }
+  }, [sidebar, sidebarWidth])
+  useEffect(() => { try { localStorage.setItem('ambio:sidebar-width', String(sidebarWidth)) } catch { /* session only */ } }, [sidebarWidth])
+  useEffect(() => {
+    const fit = () => setSidebarWidth(width => clampSidebarWidth(width))
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
   const [terminalMounted, setTerminalMounted] = useState(false)
   const requestedConversation = useConversationPreferences(s => s.requested)
-  useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) { setTerminalOpen(false); setAgentMsgOpen(true) } }, [requestedConversation, workspaceId])
+  useEffect(() => { if (requestedConversation?.workspaceId === workspaceId) setSidebar('agent') }, [requestedConversation, workspaceId])
   const queuedMsgs = useConversationPreferences(s => s.attention[workspaceId] ?? 0)
   const activeSheetId = useSheetStore(s => s.activeSheetId)
   const activeSheetName = useSheetStore(s =>
@@ -46,9 +65,8 @@ export function Toolbar({
   )
 
   useEffect(() => {
-    setTerminalOpen(false)
     setTerminalMounted(false)
-    setAgentMsgOpen(useConversationPreferences.getState().requested?.workspaceId === workspaceId)
+    setSidebar(useConversationPreferences.getState().requested?.workspaceId === workspaceId ? 'agent' : null)
     if (!workspaceId) return
     void refreshInbox(workspaceId)
     const timer = setInterval(() => { void useSheetStore.getState().fetchSheets(workspaceId) }, 5000)
@@ -57,9 +75,8 @@ export function Toolbar({
 
   useCommandHandlers({
     'view.terminal': () => {
-      setAgentMsgOpen(false)
       setTerminalMounted(true)
-      setTerminalOpen(open => !open)
+      setSidebar(current => current === 'terminal' ? null : 'terminal')
     },
     'view.fitView': () => fitView({ padding: 0.15, duration: 850 }),
     // Frames what is selected; with nothing selected it frames the inspected node.
@@ -74,7 +91,7 @@ export function Toolbar({
 
   useEffect(() => {
     void window.ambio?.setTitleBarHeight?.(34)
-    const openDispatch = () => { setTerminalOpen(false); setAgentMsgOpen(true) }
+    const openDispatch = () => setSidebar('agent')
     window.addEventListener('ambio:open-agent-dispatch', openDispatch)
     return () => window.removeEventListener('ambio:open-agent-dispatch', openDispatch)
   }, [])
@@ -162,7 +179,7 @@ export function Toolbar({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 5 6 6-6 6M12 19h8" /></svg>
           </ChromeButton>
           <ChromeButton
-            onClick={() => { setTerminalOpen(false); setAgentMsgOpen(open => !open) }}
+            onClick={() => setSidebar(current => current === 'agent' ? null : 'agent')}
             label={queuedMsgs > 0 ? `Message agent (${queuedMsgs} need attention)` : 'Message agent'}
             visualLabel="Message agent"
             active={agentMsgOpen || queuedMsgs > 0}
@@ -180,8 +197,8 @@ export function Toolbar({
       <InvestigationsMenu workspaceId={workspaceId} />
       <ProjectActivity key={workspaceId} workspaceId={workspaceId} />
       <ProposalDraftProgress key={`draft:${workspaceId}`} workspaceId={workspaceId} />
-      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setAgentMsgOpen(false)} onManageConnections={onManageAgentConnections} />
-      {terminalMounted && <Suspense fallback={null}><TerminalPanel key={`terminal:${workspaceId}`} workspaceId={workspaceId} open={terminalOpen} onClose={() => setTerminalOpen(false)} /></Suspense>}
+      <SendToAgentDialog key={workspaceId} isOpen={agentMsgOpen} onClose={() => setSidebar(null)} onManageConnections={onManageAgentConnections} onResize={resizeSidebar} />
+      {terminalMounted && <Suspense fallback={null}><TerminalPanel key={`terminal:${workspaceId}`} workspaceId={workspaceId} open={terminalOpen} width={sidebarWidth} onResize={resizeSidebar} onClose={() => setSidebar(null)} /></Suspense>}
     </>
   )
 }
