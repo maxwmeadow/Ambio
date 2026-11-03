@@ -1853,8 +1853,8 @@ test('opens saved investigations and controls replay through the workbench trans
   }
   await openInvestigations()
 
-  const menu = page.getByRole('menu', { name: 'Investigation captures' })
-  const capture = menu.getByRole('menuitem', { name: /Checkout timeout/ })
+  const menu = page.getByRole('dialog', { name: 'Saved investigations' })
+  const capture = menu.getByRole('button', { name: /^Checkout timeout/ })
   await expect(menu).toBeVisible()
   await expect(capture).toBeVisible()
   await expect(capture).toContainText('2 events')
@@ -1863,7 +1863,10 @@ test('opens saved investigations and controls replay through the workbench trans
   const toolbarBox = await page.locator('.ambio-toolbar').boundingBox()
   const menuBox = await menu.boundingBox()
   expect(menuBox?.y).toBeGreaterThan(toolbarBox!.height - 12)
-  expect(menuBox?.height).toBeGreaterThan(120)
+  // Sized to its one capture: the whole row shows, with no dead space under it.
+  const captureBox = await capture.boundingBox()
+  expect(captureBox!.y + captureBox!.height).toBeLessThanOrEqual(menuBox!.y + menuBox!.height)
+  expect(menuBox!.y + menuBox!.height - (captureBox!.y + captureBox!.height)).toBeLessThan(4)
   await expect.poll(() => menu.evaluate(element => {
     const style = getComputedStyle(element)
     return {
@@ -1874,8 +1877,9 @@ test('opens saved investigations and controls replay through the workbench trans
   })).toEqual({
     background: 'rgb(217, 215, 208)',
     borderRadius: '2px',
-    width: '360px',
+    width: '380px',
   })
+  await expect(menu.getByRole('button', { name: 'Delete Checkout timeout' })).toBeAttached()
 
   await capture.click()
   await expect(menu).toHaveCount(0)
@@ -1919,9 +1923,9 @@ test('opens saved investigations and controls replay through the workbench trans
   await expect(replay).toHaveCount(0)
 
   await openInvestigations()
-  await expect(page.getByRole('menu', { name: 'Investigation captures' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Saved investigations' })).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('menu', { name: 'Investigation captures' })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Saved investigations' })).toHaveCount(0)
 })
 
 test('keeps canvas utility chrome screen-sized, legible, and interactive', async () => {
