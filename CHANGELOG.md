@@ -11,6 +11,8 @@ in the app as "What's New" after updating, so write it for users.
   into a menu and no footer. Terminal and agent messages share a saved sidebar
   width and switch in place without overlapping animations. Opening and closing
   either sidebar retain their slide animations.
+- Fixed the empty strip during sidebar motion: the canvas now expands and
+  contracts with the moving sidebar edge throughout opening and closing.
 
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
