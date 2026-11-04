@@ -6,7 +6,7 @@ import { EditorView } from '@codemirror/view'
 import { apiGetCommittedSource, apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
 import { baselineText, setBaseline } from './sourceChanges'
 import { useSourcePreviewStore } from '../store/sourcePreviewStore'
-import { languageFor, revealLine, sourceEditorState } from './sourceEditor'
+import { askAboutLines, languageFor, revealLine, sourceEditorState } from './sourceEditor'
 
 interface SourcePreviewDialogProps {
   fileId: string
@@ -128,6 +128,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           slots.diff.of([]),
         ],
         onSave: () => { void saveRef.current(); return true },
+        onAsk: () => { askRef.current(); return true },
         onChange: state => setDirty(!state.doc.eq(baseRef.current.text!)),
       }),
     })
@@ -161,6 +162,25 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     if (dirty) setConfirmClose(true)
     else onClose()
   }, [dirty, onClose])
+
+  /**
+   * Start a message to the agent about the selected lines (or the lines this
+   * viewer was opened at), then step aside so the conversation is in view.
+   */
+  const askAgent = () => {
+    const view = viewRef.current
+    if (!view || !source) return
+    const { state } = view
+    const selection = state.selection.main
+    const [fromLine, toLine] = selection.empty
+      ? [Math.min(range.start, state.doc.lines), Math.min(range.end, state.doc.lines)]
+      : [state.doc.lineAt(selection.from).number, state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number]
+    const code = state.sliceDoc(state.doc.line(fromLine).from, state.doc.line(toLine).to)
+    window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { note: askAboutLines(source.relPath, fromLine, toLine, code) } }))
+    requestClose()
+  }
+  const askRef = React.useRef(askAgent)
+  askRef.current = askAgent
 
   React.useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -218,6 +238,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           </div>
           <div className="source-preview-actions">
             {statusText && <span className={`source-preview-status${status.kind === 'failed' ? ' source-preview-status-error' : ''}`} role="status">{statusText}</span>}
+            {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Start a message to the agent about the selected lines, or these lines (Ctrl+I)">Ask agent</button>}
             {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
             <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview">×</button>
           </div>

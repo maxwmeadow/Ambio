@@ -121,9 +121,11 @@ export interface SourceEditorOptions {
   dynamic: Extension
   onSave: () => boolean
   onChange: (state: EditorState) => void
+  /** Ctrl+I, VS Code's inline-chat key: ask the agent about the selection. */
+  onAsk?: () => boolean
 }
 
-export function sourceEditorState({ content, range, dynamic, onSave, onChange }: SourceEditorOptions): EditorState {
+export function sourceEditorState({ content, range, dynamic, onSave, onChange, onAsk }: SourceEditorOptions): EditorState {
   return EditorState.create({
     doc: content,
     extensions: [
@@ -144,13 +146,34 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange }:
       rectangularSelection(),
       highlightActiveLine(),
       highlightSelectionMatches(),
-      keymap.of([{ key: 'Mod-s', run: onSave, preventDefault: true }, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+      keymap.of([{ key: 'Mod-s', run: onSave, preventDefault: true }, ...(onAsk ? [{ key: 'Mod-i', run: onAsk, preventDefault: true }] : []), ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
       targetLines(range.start, range.end),
       EditorView.updateListener.of(update => { if (update.docChanged) onChange(update.state) }),
       theme,
       dynamic,
     ],
   })
+}
+
+/** At most this many lines of code go into a message to an agent; it can read the rest. */
+const MAX_ASK_LINES = 200
+
+/**
+ * The start of a message to an agent about some lines of a file: where they
+ * are, as a reference Ambio's chat turns back into a link, and the code
+ * itself, fenced so nothing in it can end the fence. The person writes the
+ * question after it.
+ */
+export function askAboutLines(relPath: string, fromLine: number, toLine: number, code: string): string {
+  const where = fromLine === toLine ? `${relPath}:${fromLine}` : `${relPath}:${fromLine}-${toLine}`
+  const lines = code.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n')
+  const shown = lines.slice(0, MAX_ASK_LINES).join('\n')
+  const longestRun = Math.max(2, ...[...shown.matchAll(/`+/g)].map(run => run[0].length))
+  const fence = '`'.repeat(longestRun + 1)
+  const language = LanguageDescription.matchFilename(languages, relPath.split('/').pop() ?? relPath)
+  const tag = language ? (language.alias[0] ?? language.name.toLowerCase()).replace(/\s+/g, '') : ''
+  const cut = lines.length > MAX_ASK_LINES ? `\n(First ${MAX_ASK_LINES} of ${lines.length} lines; read the file for the rest.)` : ''
+  return `About \`${where}\`:\n\n${fence}${tag}\n${shown}\n${fence}${cut}\n\n`
 }
 
 /** Put the first pointed-at line in the middle of the view, with the cursor on it. */

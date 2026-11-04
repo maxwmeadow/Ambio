@@ -1,6 +1,19 @@
 ﻿import assert from 'node:assert/strict'
 import test from 'node:test'
-import { lineSeparatorOf, sourceEditorState } from './sourceEditor.ts'
+import { askAboutLines, lineSeparatorOf, sourceEditorState } from './sourceEditor.ts'
+
+test('asking an agent about lines names where they are and quotes them safely', () => {
+  assert.equal(askAboutLines('robot/heuristics.py', 114, 114, 'is_moving = speed > 0.1\r\n'),
+    'About `robot/heuristics.py:114`:\n\n```python\nis_moving = speed > 0.1\n```\n\n')
+  // Code holding its own fence gets a longer one, so it cannot end the quote early.
+  assert.equal(askAboutLines('docs/a.md', 3, 5, 'x\n```js\ny\n```'), 'About `docs/a.md:3-5`:\n\n````markdown\nx\n```js\ny\n```\n````\n\n')
+  // An unknown language is still fenced.
+  assert.match(askAboutLines('notes.zzz', 1, 1, 'z'), /^About `notes\.zzz:1`:\n\n```\nz\n```/)
+  const long = Array.from({ length: 250 }, (_, i) => `l${i}`).join('\n')
+  const asked = askAboutLines('a.ts', 1, 250, long)
+  assert.ok(asked.includes('l199\n```\n(First 200 of 250 lines; read the file for the rest.)'))
+  assert.ok(!asked.includes('l200'))
+})
 
 const open = (content, range = { start: 1, end: 1 }) => sourceEditorState({ content, range, dynamic: [], onSave: () => true, onChange: () => {} })
 
