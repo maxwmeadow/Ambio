@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `investigation-step-carousel` **Follow investigations as distinct step cards.** Max found silent paragraph replacements, weak phase headings and a buried fix hard to follow. Replace the current-finding reader with an animated, automatically following step carousel; pause following while browsing, preserve evidence/replay/chat and simplify file destinations. **Done when:** live arrivals visibly advance, previous steps remain readable, findings/fixes have prominent cards, navigation survives replay and narrow/reduced-motion layouts. (🚧 Codex, codex/investigation-card, 2026-11-03)
+
 
 The next things to do, in order. Max reorders this; agents pick from the top.
 The area tag says which part of the code an item touches: when several
