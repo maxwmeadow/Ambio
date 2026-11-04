@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `investigation-space-following` **Use the available investigation height and explicit following controls.** Max found the carousel cramped and its hover/focus pauses unreliable. Consolidate title/status/step metadata into one header and navigation/follow/chat/replay into one bottom bar; fill canvas height above floating controls. Following pauses only on explicit pause or step browsing; Resume catches up reliably. **Done when:** hover/focus/evidence interactions do not pause, repeated resume and new arrivals advance, controls remain usable at narrow heights and replay does not overlap. (🚧 Codex, codex/investigation-card, 2026-11-04)
+
 
 
 The next things to do, in order. Max reorders this; agents pick from the top.
