@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `investigation-carousel-footer` **Simplify the replay card footer.** Max requests removing Play/read-only text and placing better arrows closer to pagination dots. Keep playback in the timeline, preserve navigation linkage and live feedback/following. **Done when:** replay has one centered navigation cluster, no duplicate playback controls or read-only label, and timeline seeking/playback still drives it. (🚧 Codex, codex/investigation-card, 2026-11-04)
+
 
 
 
