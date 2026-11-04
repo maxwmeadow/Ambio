@@ -854,6 +854,17 @@ minimal diff (`replaceWithin`) or raises the conflict bar over edits. Unsaved
 edits are written to `localStorage` (`ambio.sourceDraft.<workspace>.<file>`)
 with the hash they were made against and offered back on the next open.
 
+Ask agent (Ctrl+I) attaches code to the next message rather than writing it
+into the text: it dispatches `ambio:open-agent-dispatch` with
+`code: [reference]`, and the composer keeps those references beside the map
+selection as chips (persisted with the draft). A range is an ordinary file
+reference with a `lines` parameter (`codeReference` in `inboxModel.ts`:
+`ambio://file/<id>?label=path:12-20&lines=12-20`), so archd's selection
+validation, retries and history need nothing new; `get_inbox` targets add
+`lines`, and Ambio chat's hidden context carries the reference as written.
+References are parsed with a pattern, not `URL`: Electron 31's Chromium gives
+custom schemes no host.
+
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
 files (compose, `.env`, Dockerfile, Procfile, fly/vercel/netlify/render/railway,

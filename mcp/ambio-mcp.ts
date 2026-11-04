@@ -2994,7 +2994,8 @@ Steps to execute:
               let references: unknown
               try { references = JSON.parse(item.selection || '[]') } catch { references = [] }
               const targets = (Array.isArray(references) ? references.filter(ref => typeof ref === 'string') : []).map(reference => {
-                try { const url = new URL(reference); return { reference, type: url.host, id: decodeURIComponent(url.pathname.slice(1)), label: url.searchParams.get('label') } }
+                // lines: the part of a file the person attached ("12-20"); read the file there.
+                try { const url = new URL(reference); const lines = url.searchParams.get('lines'); return { reference, type: url.host, id: decodeURIComponent(url.pathname.slice(1)), label: url.searchParams.get('label'), ...(lines ? { lines } : {}) } }
                 catch { return { reference } }
               })
               return { ...message, targets, messageHandle: Buffer.from(JSON.stringify({

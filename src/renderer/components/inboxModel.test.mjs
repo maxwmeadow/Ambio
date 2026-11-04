@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff } from './inboxModel.ts'
+import { canvasReference, codeReference, referenceLines, referenceTarget, messageReferences, inboxStatus, workOrderHandoff } from './inboxModel.ts'
+test('attached lines of code are a file reference that also names the lines', () => {
+  const lines = codeReference('file-1', 'mobile/hooks/useDeviceSensors.ts', { start: 12, end: 20 })
+  assert.deepEqual(referenceTarget(lines), { id: 'file-1', label: 'mobile/hooks/useDeviceSensors.ts:12-20' })
+  assert.deepEqual(referenceLines(lines), { start: 12, end: 20 })
+  assert.ok(lines.startsWith('ambio://file/file-1?'))
+  assert.deepEqual(referenceLines(codeReference('file-1', 'a.ts', { start: 7, end: 7 })), { start: 7, end: 7 })
+  // The whole file is the same reference selecting it on the map makes, so the two never both attach.
+  assert.equal(codeReference('file-1', 'a.ts'), canvasReference('file', 'file-1', 'a.ts'))
+  assert.equal(referenceLines(codeReference('file-1', 'a.ts')), null)
+  assert.equal(referenceLines('ambio://system/s?lines=1-2'), null)
+  assert.equal(referenceLines('ambio://file/f?lines=9-3'), null)
+})
 test('canvas references keep identity separate from mutable, Unicode display labels', () => {
   const first = canvasReference('file', 'stable/identifier', 'src/日本語 & payments.ts')
   assert.deepEqual(referenceTarget(first), { id: 'stable/identifier', label: 'src/日本語 & payments.ts' })

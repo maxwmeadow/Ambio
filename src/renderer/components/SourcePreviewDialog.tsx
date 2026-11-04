@@ -9,7 +9,8 @@ import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
 import { useSourcePreviewStore, type SourcePreviewRequest } from '../store/sourcePreviewStore'
 import { ago, baselineText, setBaseline } from './sourceChanges'
-import { askAboutLines, detectIndent, languageFor, languageName, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
+import { codeReference } from './inboxModel'
+import { detectIndent, languageFor, languageName, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
 import { definitionInFile, enclosingSymbols, outlineField, outlineFromSymbols, setOutline, type OutlineSymbol } from './sourceOutline'
 import { resolveSymbol } from './symbolLookup'
 
@@ -208,20 +209,20 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
   definitionRef.current = openDefinition
 
   /**
-   * Start a message to the agent about the selected lines (or the lines this
-   * viewer was opened at), then step aside so the conversation is in view.
+   * Attach what is in front of the person to a message for the agent, as a
+   * chip beside it (like a file or sheet), leaving the text for their
+   * question: the selected lines, else the lines this viewer was opened at,
+   * else the file itself. Then step aside so the conversation is in view.
    */
   const askAgent = () => {
     const view = viewRef.current
     if (!view || !source) return
     const { state } = view
     const selection = state.selection.main
-    const cursorLine = state.doc.lineAt(selection.head).number
-    const [fromLine, toLine] = selection.empty
-      ? range ? [Math.min(range.start, state.doc.lines), Math.min(range.end, state.doc.lines)] : [cursorLine, cursorLine]
-      : [state.doc.lineAt(selection.from).number, state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number]
-    const code = state.sliceDoc(state.doc.line(fromLine).from, state.doc.line(toLine).to)
-    window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { note: askAboutLines(source.relPath, fromLine, toLine, code) } }))
+    const lines = !selection.empty
+      ? { start: state.doc.lineAt(selection.from).number, end: state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number }
+      : range ? { start: Math.min(range.start, state.doc.lines), end: Math.min(range.end, state.doc.lines) } : undefined
+    window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { code: [codeReference(fileId, source.relPath, lines)] } }))
     requestClose()
   }
   const askRef = React.useRef(askAgent)
@@ -409,7 +410,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
             {statusText && <span className={`source-preview-status${status.kind === 'failed' ? ' source-preview-status-error' : ''}`} role="status">{statusText}</span>}
             {history.length > 0 && <button type="button" className="source-preview-button" onClick={() => leave(() => useSourcePreviewStore.getState().back())} title="Back to where you followed this definition from">Back</button>}
             {fileRecord && <button type="button" className="source-preview-button" onClick={() => leave(() => { onClose(); showOnMap(fileId) })} title="Close the editor and show this file on the map">Show on map</button>}
-            {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Start a message to the agent about the selected lines, or these lines (Ctrl+I)">Ask agent</button>}
+            {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Attach the selected lines (or this file) to a message for your agent (Ctrl+I)">Ask agent</button>}
             {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
             <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview">×</button>
           </div>

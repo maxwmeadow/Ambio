@@ -31,9 +31,10 @@ in the app as "What's New" after updating, so write it for users.
 - The editor marks what changed since your last commit, in the margin and on
   the scrollbar, and whose change it is: yours, or an agent's (in violet, with
   what it was doing). Click a mark to see the committed lines and revert them.
-- Select code and press Ctrl+I (or Ask agent) to ask your agent about it;
-  Ctrl+click a name to jump to its definition; Show on map takes you to the
-  file on the map.
+- Select code and press Ctrl+I (or Ask agent) to attach it to your next
+  message, as a chip beside the text like an attached sheet; with nothing
+  selected, the file itself is attached. Ctrl+click a name to jump to its
+  definition; Show on map takes you to the file on the map.
 - A file an agent changes while it is open updates in front of you, and edits
   you have not saved come back after a crash or restart.
 - Edit code right in Ambio's source viewer and save with Ctrl+S. If an agent

@@ -2248,7 +2248,15 @@ test('double-clicking a file opens its code; its properties are on the right-cli
   await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
   await page.getByRole('menu').getByRole('menuitem', { name: 'Open Code in Ambio' }).click()
   await expect(editor.locator('.cm-content')).toContainText('export function renderCanvas()')
-  await editor.getByRole('button', { name: 'Close source preview' }).click()
+
+  // With the whole file open and nothing selected, Ask agent attaches the file itself, once,
+  // even though it is also selected on the map.
+  await editor.getByRole('button', { name: 'Ask agent' }).click()
+  await expect(editor).toHaveCount(0)
+  const attachments = page.locator('.ambio-inbox__attachments')
+  await expect(attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('textbox', { name: 'Instruction for your agent' })).toHaveValue('')
+  await attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true }).click()
 })
 
 test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
@@ -4185,7 +4193,7 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await expect(dialog.locator('.cm-change-mark')).toHaveCount(2)
   await expect(dialog.getByRole('status')).toHaveText('modified')
 
-  // Ctrl+I starts a message to the agent about the selected lines; unsaved edits still ask first.
+  // Ctrl+I attaches the selected lines beside the message, leaving the text for the question; unsaved edits still ask first.
   const composer = page.getByRole('textbox', { name: 'Instruction for your agent' })
   await composer.fill('')
   await dialog.locator('.cm-line', { hasText: 'wait()' }).click()
@@ -4196,8 +4204,12 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
   await dialog.getByRole('button', { name: 'Discard' }).click()
   await expect(dialog).toHaveCount(0)
-  await expect(composer).toHaveValue(`About \`${file}:3-4\`:\n\n\`\`\`tsx\nwait()\nstop()\n\`\`\`\n\n`)
-  await composer.fill('')
+  await expect(composer).toHaveValue('')
+  const attached = page.locator('.ambio-inbox__attachments').getByRole('button', { name: `${file}:3-4` })
+  await expect(attached).toHaveAttribute('title', `Remove ${file}:3-4 from message`)
+  await page.locator('.ambio-inbox__compose, .ambio-inbox form').first().screenshot({ path: 'test-results/agent-code-attachment.png' })
+  await attached.click()
+  await expect(attached).toHaveCount(0)
   await page.unroute(/\/api\/canvas\/history\?/)
   await page.unroute(/\/api\/files\/[^/]+\/source\?/)
   await page.unroute(/\/api\/files\/[^/]+\/committed\?/)

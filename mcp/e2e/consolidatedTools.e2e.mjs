@@ -456,7 +456,8 @@ test('the loop prompts are advertised and filled in', async () => {
 
 test('canvas instruction survives retries, prompt previews and desktop project switches', async () => {
   const file = harness.snapshot.files[0]
-  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`ambio://file/${file.id}?label=Original%20file`]) }
+  // The file, and lines of it attached from the editor.
+  const body = { id: 'inbox-e2e', workspaceId: harness.workspaceId, note: 'Explain this file', selection: JSON.stringify([`ambio://file/${file.id}?label=Original%20file`, `ambio://file/${file.id}?label=Original%20file%3A2-4&lines=2-4`]) }
   const post = (path, data) => fetch(`${harness.apiBase}/api/canvas/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
   for (let i = 0; i < 2; i++) {
     const sent = await post('send', body)
@@ -469,6 +470,8 @@ test('canvas instruction survives retries, prompt previews and desktop project s
   assert.equal(received.payload.messages.length, 1)
   const message = received.payload.messages[0]
   assert.equal(message.targets[0].id, file.id)
+  assert.equal(message.targets[0].lines, undefined)
+  assert.deepEqual({ ...message.targets[1], reference: undefined }, { reference: undefined, type: 'file', id: file.id, label: 'Original file:2-4', lines: '2-4' })
   assert.equal(message.leaseToken, undefined)
   const again = await client.callTool('get_inbox')
   assert.equal(again.payload.messages[0].messageHandle, message.messageHandle)
