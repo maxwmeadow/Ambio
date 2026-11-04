@@ -46,7 +46,29 @@ export interface DeliveryHost {
   executablePath?: string
   executableOverride?: string
   discoveryError?: string
+  /** The access levels this agent can be run at; unset runs it with full access only. */
+  access?: AgentAccess[]
+  /** The agent takes messages while it works (DeliveryRunner.send). */
+  steerable?: boolean
 }
+
+/**
+ * How much an agent Ambio runs may do without asking, chosen per agent.
+ * Questions go to the conversation's permission card; no answer is a no.
+ */
+export type AgentAccess = 'ask' | 'edits' | 'auto' | 'full'
+
+export const AGENT_ACCESS: { id: AgentAccess; label: string; hint: string }[] = [
+  { id: 'ask', label: 'Ask me', hint: 'Reading runs freely; it asks you before it edits a file or runs a command.' },
+  { id: 'edits', label: 'Allow edits', hint: 'It edits files in the project freely and asks before it runs a command.' },
+  { id: 'auto', label: 'Auto', hint: 'The agent’s own safety check runs ordinary steps and refuses risky ones.' },
+  { id: 'full', label: 'Full access', hint: 'Everything runs without asking. Use it on projects and computers you trust.' },
+]
+
+/** Full access until the user picks a level (DECISIONS 2026-10-19, 2026-11-04). */
+export const DEFAULT_AGENT_ACCESS: AgentAccess = 'full'
+
+export const isAgentAccess = (value: unknown): value is AgentAccess => AGENT_ACCESS.some(level => level.id === value)
 
 export interface DeliveryRun {
   key: string
@@ -75,9 +97,12 @@ export interface DeliveryRun {
 /** One thing a running agent said or did, as the host reported it. */
 export interface DeliveryEvent {
   at: number
-  /** thinking: the agent's own summary of its reasoning, where the host reports one. */
-  kind: 'text' | 'tool' | 'error' | 'thinking'
+  /** thinking: the agent's own summary of its reasoning, where the host reports one.
+   *  sent: a message the user sent into the running turn, once the agent took it in. */
+  kind: 'text' | 'tool' | 'error' | 'thinking' | 'sent'
   text: string
+  /** Text the agent is still writing; replaced as it grows and dropped when the message is complete. */
+  live?: boolean
 }
 
 export interface DeliveryRequest {
@@ -92,6 +117,8 @@ export interface DeliveryRequest {
    *  can work at once (docs/GIT_AND_PROJECT_SHAPES.md stage 4). A follow-up
    *  turn keeps the worktree its conversation started in. */
   where?: 'here' | 'worktree'
+  /** How much the agent may do without asking, for an agent that offers levels (DeliveryHost.access). */
+  access?: AgentAccess
 }
 
 /** A model an agent can be asked to use. */
@@ -222,8 +249,10 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     how: STARTED('Claude Code'),
     can: [
       'Ask and Propose: reads your code and map and can run commands, with its file-editing tools switched off.',
-      'Build: full access. It edits files and runs any command without asking, then hands the result back for review.',
-      FULL_ACCESS,
+      'Build: edits files and runs commands, then hands the result back for review.',
+      'Choose how much it may do without asking beside the model: Ask me, Allow edits, Auto (Claude’s own safety check) or Full access. Its questions appear in the conversation; no answer within about two minutes is a no.',
+      'While it works you can send it more: your message joins the turn under way.',
+      'It uses the MCP servers you set up in Claude Code as well as Ambio’s.',
     ],
   },
   codex: {

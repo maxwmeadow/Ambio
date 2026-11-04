@@ -7,6 +7,14 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Choose how much Claude Code may do without asking, beside the request type:
+  Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
+  it asks appears in the conversation for you to allow or refuse.
+- While Claude Code works you can keep typing: your message joins the turn
+  under way and shows in its activity once Claude has read it. Its reply
+  appears as it is written.
+- Claude Code runs started from Ambio can now use the MCP servers you set up
+  in Claude Code, not only Ambio's.
 - Stopping a Claude Code run now asks Claude to end its turn instead of
   killing it, so the conversation continues cleanly on the next turn. A run's
   activity also shows what Claude's subagents are doing.

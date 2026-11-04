@@ -776,7 +776,12 @@ stream-json`) keeps the host's stdin open while its turn runs:
 running turn and resolves when the host echoes it back (`delivered`), Stop
 sends an interrupt and waits up to five seconds for the host to end its own
 turn before killing it, and stdin is closed when the driver reads the end of
-the turn (`ended`), so anything already sent is still answered. A session told to watch
+the turn (`ended`), so anything already sent is still answered. Text a driver
+reads as `partial` is kept in memory per run and returned as the last,
+`live` event until the whole message arrives; the panel's one-second poll
+shows it growing. A driver's `access` lists the levels it honours
+(`AgentAccess`, chosen in `AgentAccessMenu`); `claudePermissions` maps them to
+Claude's permission modes and its prompt tool. A session told to watch
 waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in

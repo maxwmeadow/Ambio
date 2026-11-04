@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
 import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
-import type { MappingBinding } from '../src/shared/agentDelivery.ts'
+import type { AgentAccess, MappingBinding } from '../src/shared/agentDelivery.ts'
 import { followCodexTranscript } from './codexTranscript.ts'
 
 /**
@@ -39,6 +39,8 @@ export interface DriverTurn {
   /** The model the user chose for this turn; unset keeps the host's default. */
   model?: string
   mapping?: MappingBinding
+  /** How much the agent may do without asking, for a driver that offers levels (AgentDriver.access). */
+  access?: AgentAccess
 }
 
 /** The usual flag for choosing a model, for hosts that take one. */
@@ -60,6 +62,8 @@ export interface DriverOutput {
   ended?: boolean
   /** The host has taken in the message Ambio sent with this ID. */
   delivered?: string
+  /** More of the text the agent is writing, before its message is complete. */
+  partial?: string
 }
 
 /**
@@ -94,6 +98,8 @@ export interface AgentDriver {
   muse?: boolean
   /** The host reads its turn as a stream on stdin, kept open until read() says the turn has ended. */
   stream?: DriverStream
+  /** The access levels this host can be run at (DriverTurn.access); unset is full access only. */
+  access?: AgentAccess[]
   /** Check local prerequisites before spawning, without widening permissions. */
   preflight?(mode: TurnMode, env: NodeJS.ProcessEnv, platform: NodeJS.Platform): void
   plan(turn: DriverTurn): DriverPlan
@@ -162,7 +168,9 @@ function toolTarget(input: unknown): string {
 // runs unrestricted. Ask and Propose may run any command (searching, listing,
 // tests) but have their file-editing tools switched off where the agent can
 // do that; the turn's contract tells them not to change anything. Each
-// destination's guide says what this means for it.
+// destination's guide says what this means for it. Claude Code also runs at
+// the access level the user chooses (claudePermissions); full access is its
+// default too.
 
 // Claude Code reads stream-json on stdin (Claude Code 2.1): a message sent
 // while a turn runs joins that turn, each message is echoed back with its
@@ -173,9 +181,26 @@ const claudeStream: DriverStream = {
   interrupt: () => JSON.stringify({ type: 'control_request', request_id: randomUUID(), request: { subtype: 'interrupt' } }),
 }
 
+/**
+ * The turn's access level as Claude Code's own permission mode. Below full
+ * access, what Claude would ask is asked in the conversation: Ambio's server
+ * answers Claude's permission prompts (approve_action, the archd permission
+ * desk). Headless, Claude 2.1.198 asks for edits and commands in `default`,
+ * for commands in `acceptEdits`, and in `auto` runs ordinary steps itself and
+ * refuses those its classifier flags. A mapping turn is always full access:
+ * its server offers no approve_action.
+ */
+function claudePermissions(turn: DriverTurn): string[] {
+  const mode = turn.mapping ? 'bypassPermissions'
+    : turn.access === 'ask' ? 'default' : turn.access === 'edits' ? 'acceptEdits' : turn.access === 'auto' ? 'auto' : 'bypassPermissions'
+  // Ambio's own tools are how the turn is claimed and answered; they never ask.
+  return ['--permission-mode', mode, ...(mode === 'bypassPermissions' ? [] : ['--permission-prompt-tool', 'mcp__ambio__approve_action', '--allowedTools', 'mcp__ambio'])]
+}
+
 const claudeCode: AgentDriver = {
   resumable: true,
   stream: claudeStream,
+  access: ['ask', 'edits', 'auto', 'full'],
   plan(turn) {
     // The session is named up front, so a turn that is stopped before it
     // prints anything can still be continued.
@@ -187,11 +212,17 @@ const claudeCode: AgentDriver = {
       args: [
         '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),
+        // Text arrives as it is written (stream_event deltas), as well as whole.
+        '--include-partial-messages',
         ...modelFlag(turn),
-        // Every permission is granted; a question or a proposal loses only the
-        // tools that write files (deny rules hold even when bypassing).
-        '--permission-mode', 'bypassPermissions',
-        '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { ambio: mcpServer(turn) } }),
+        ...claudePermissions(turn),
+        // The user's own MCP servers load beside Ambio's, which is named here
+        // and so wins over an "ambio" entry in their settings (Claude Code
+        // 2.1.198). A mapping turn holds a scoped credential and uses only Ambio.
+        ...(turn.mapping ? ['--strict-mcp-config'] : []),
+        '--mcp-config', JSON.stringify({ mcpServers: { ambio: mcpServer(turn) } }),
+        // A question or a proposal loses the tools that write files, at every
+        // level (deny rules hold even when bypassing).
         ...(building ? [] : ['--disallowedTools', 'Edit,Write,MultiEdit,NotebookEdit']),
       ],
     }
@@ -201,6 +232,12 @@ const claudeCode: AgentDriver = {
     if (!message) return NOTHING
     const sessionId = typeof message.session_id === 'string' ? message.session_id : undefined
     if (message.type === 'user' && message.isReplay && typeof message.uuid === 'string') return { sessionId, delivered: message.uuid, events: [] }
+    // The main agent's text as it is written; the whole message follows as `assistant`.
+    if (message.type === 'stream_event') {
+      const event = message.event
+      return !message.parent_tool_use_id && event?.type === 'content_block_delta' && event.delta?.type === 'text_delta' && typeof event.delta.text === 'string'
+        ? { sessionId, partial: event.delta.text, events: [] } : { sessionId, events: [] }
+    }
     if (message.type === 'assistant' && Array.isArray(message.message?.content)) {
       // A subagent's words belong to its own transcript; what it does is
       // still this turn's work, so its tool calls are shown, marked as its.

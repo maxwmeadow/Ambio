@@ -13,11 +13,20 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   fs.mkdirSync(root); fs.mkdirSync(bin); fs.mkdirSync(path.join(home, '.ambio'))
   fs.writeFileSync(path.join(home, '.ambio', 'projects.json'), JSON.stringify([{ id: 'demo', name: 'Delivery fixture', rootPath: root, ignoredPaths: [], createdAt: 1 }]))
   const fakeAgent = 'const fs=require("fs");const host=process.env.AMBIO_AGENT_HOST;const prompt=host==="copilot-cli"?process.argv[process.argv.indexOf("--prompt")+1]:fs.readFileSync(0,"utf8");fs.writeFileSync("captured-"+host+".json",JSON.stringify({args:process.argv.slice(2),prompt,cwd:process.cwd(),workspace:process.env.AMBIO_WORKSPACE_ID}));fs.writeSync(1,"Fixture agent started");process.exit(host==="copilot-cli"?7:0)'
+  // Claude Code reads its turn as stream-json and is sent nothing more after
+  // its result. With steer.flag in the project, the stand-in keeps working
+  // after its first message: it takes later messages in and answers them
+  // until Stop interrupts it.
+  const fakeClaude = 'const fs=require("fs");const out=v=>console.log(JSON.stringify(v));let first=true;require("readline").createInterface({input:process.stdin}).on("line",line=>{const m=JSON.parse(line);'
+    + 'if(m.type==="control_request"){out({type:"result",is_error:true,subtype:"error_during_execution"});return}if(m.type!=="user")return;out({type:"user",isReplay:true,uuid:m.uuid,message:m.message});'
+    + 'if(first){first=false;fs.writeFileSync("captured-claude-code.json",JSON.stringify({args:process.argv.slice(2),prompt:m.message.content,cwd:process.cwd(),workspace:process.env.AMBIO_WORKSPACE_ID}));if(fs.existsSync("steer.flag")){out({type:"assistant",message:{content:[{type:"text",text:"Working on the fixture."}]}});return}out({type:"result",is_error:false,result:"ok"});return}'
+    + 'out({type:"assistant",message:{content:[{type:"text",text:"Heard: "+m.message.content}]}})}).on("close",()=>process.exit(0))'
   const scripts: Record<string, string> = { claude: '@anthropic-ai/claude-code/cli.js', codex: '@openai/codex/bin/codex.js', copilot: '@github/copilot/index.js' }
   for (const [name, entry] of Object.entries(scripts)) {
     const script = path.join(bin, 'node_modules', entry)
-    fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, fakeAgent)
-    if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${fakeAgent}`, { mode: 0o755 })
+    const source = name === 'claude' ? fakeClaude : fakeAgent
+    fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, source)
+    if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${source}`, { mode: 0o755 })
   }
   const protocolPeer = fs.readFileSync(path.join(__dirname, 'fixtures', 'grok-muse-agent.cjs'), 'utf8')
   const grokBootstrap = path.join(bin, 'node_modules', '@xai-official', 'grok', 'bin', 'grok-bootstrap.js')
@@ -116,7 +125,12 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await destination.choose(host)
       if (['grok', 'muse', 'copilot-cli'].includes(host)) await confirm()
       // The agent pill keeps one shape whichever agent and model are chosen.
-      pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
+      // Claude Code also offers its access level beside the request type, so
+      // its pill gives up some room; nothing in it is cut off for that.
+      if (host === 'claude-code') {
+        const clipped = await inbox.locator('.ambio-inbox__compose-tools').evaluate(tools => [...tools.querySelectorAll<HTMLElement>('.ambio-inbox__mode-button, .ambio-inbox__model-label')].filter(item => item.scrollWidth > item.clientWidth + 1).map(item => item.textContent))
+        expect(clipped).toEqual([])
+      } else pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
       await inbox.locator('.ambio-inbox__compose-tools').screenshot({ path: `test-results/pill-${host}.png` })
       // Claude Code's models are offered beside the request type; the choice reaches its command line.
       if (host === 'claude-code') {
@@ -129,8 +143,14 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await page.screenshot({ path: 'test-results/model-menu.png' })
         await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
         await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
+        // How much it may do without asking: full access until chosen, then remembered.
+        await inbox.getByRole('button', { name: 'Access: Full access' }).click()
+        await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveText([/^Ask me/, /^Allow edits/, /^Auto/, /^Full access/])
+        await page.screenshot({ path: 'test-results/access-menu.png' })
+        await inbox.getByRole('menuitemradio', { name: 'Ask me' }).click()
+        await expect(inbox.getByRole('button', { name: 'Access: Ask me' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
-      }
+      } else if (host !== 'claude-code') await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
@@ -150,7 +170,12 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         expect(mcpEnv).toEqual({ AMBIO_WORKSPACE_ID: 'demo' })
         if (host === 'muse') expect(actual.args).toEqual(['serve'])
       }
-      if (host === 'claude-code') expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
+      if (host === 'claude-code') {
+        expect(actual.args[actual.args.indexOf('--model') + 1]).toBe('opus')
+        // Ask me: Claude's own default mode, its questions answered in Ambio.
+        expect(actual.args[actual.args.indexOf('--permission-mode') + 1]).toBe('default')
+        expect(actual.args[actual.args.indexOf('--permission-prompt-tool') + 1]).toBe('mcp__ambio__approve_action')
+      }
       expect(actual.prompt).toContain(orders.at(-1).id)
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
       // The stand-in exits without replying: the turn says so in one line, and the next message replaces it.
@@ -168,6 +193,26 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.evaluate(messageId => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId, hostId: 'copilot-cli' }), firstMessageId)
     expect(fs.statSync(path.join(root, 'captured-copilot-cli.json')).mtimeMs).toBe(modifiedAt)
     expect(orders.at(-1).id).toBe(firstMessageId)
+    // While Claude Code works the message box stays open: a message joins the
+    // turn under way and shows once Claude has taken it in; Stop still ends it.
+    fs.writeFileSync(path.join(root, 'steer.flag'), '')
+    await destination.choose('claude-code')
+    const box = inbox.getByRole('textbox', { name: 'Instruction for your agent' })
+    await box.fill('Handle the steering fixture.')
+    await inbox.locator('form').getByRole('button', { name: 'Start Claude Code CLI' }).click()
+    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('Working on the fixture.')
+    await expect(box).toBeEnabled()
+    await expect(box).toHaveAttribute('placeholder', 'Tell Claude Code CLI more while it works…')
+    await box.fill('Also check the tests.')
+    await box.press('Enter')
+    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('You: Also check the tests.')
+    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('Heard: Also check the tests.')
+    await expect(box).toHaveValue('')
+    await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-steering.png' })
+    await inbox.locator('.ambio-inbox__turn-status').last().screenshot({ path: 'test-results/turn-steered.png' })
+    await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]').last()).toHaveText('Cancelled')
+    fs.rmSync(path.join(root, 'steer.flag'))
     if (process.platform !== 'win32') {
       await destination.choose('zed')
       await confirm()
@@ -187,7 +232,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await page.mouse.move(handle.x - 200, handle.y + handle.height / 2, { steps: 5 })
     await page.mouse.up()
     await expect.poll(async () => Math.round((await inbox.boundingBox())!.width - before.width)).toBeGreaterThan(190)
-    expect(Number(await page.evaluate(() => localStorage.getItem('ambio:inbox-width')))).toBeGreaterThan(before.width + 190)
+    expect(Number(await page.evaluate(() => localStorage.getItem('ambio:sidebar-width')))).toBeGreaterThan(before.width + 190)
     await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-wide.png' })
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })

@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
-import { CLI_CLIENTS, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
+import { CLI_CLIENTS, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpMcpServer } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
@@ -205,13 +205,13 @@ export function chatDeepLink(hostId: string, prompt: string, mode: TurnMode = 'b
 }
 
 /** How one turn is started in a host: its arguments, stdin and session. */
-export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding } = {}): DriverPlan {
+export function deliveryPlan(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): DriverPlan {
   const driver = agentDriver(hostId)
   if (!driver) throw new Error('This host has no direct delivery route.')
-  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, mapping: turn.mapping })
+  return driver.plan({ hostId, mcp, workspaceId, prompt, mode: turn.mode ?? 'build', resume: turn.resume, messageId: turn.messageId, cwd: turn.cwd, model: turn.model, mapping: turn.mapping, access: turn.access })
 }
 
-export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding } = {}): string[] {
+export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspaceId: string, prompt: string, turn: { mode?: TurnMode; resume?: string; messageId?: string; cwd?: string; model?: string; mapping?: MappingBinding; access?: AgentAccess } = {}): string[] {
   return deliveryPlan(hostId, mcp, workspaceId, prompt, turn).args
 }
 
@@ -252,6 +252,8 @@ export class DeliveryRunner {
   private acp = new Map<string, AcpClient | MuseClient>()
   /** Streaming hosts whose turn is still open to messages (AgentDriver.stream). */
   private streams = new Map<string, { send(id: string, text: string): Promise<void>; interrupt(): void; close(): void }>()
+  /** Text each run's agent is still writing (DriverOutput.partial), kept only in memory. */
+  private writing = new Map<string, { at: number; text: string }>()
   private directory: string
   private spawnProcess: typeof spawn
   private finished = new Map<string, Promise<void>>()
@@ -292,8 +294,11 @@ export class DeliveryRunner {
     try {
       const receipt = JSON.parse(fs.readFileSync(this.file(key), 'utf8')) as DeliveryRun
       if (receipt.workspaceId !== workspaceId) return []
-      return fs.readFileSync(this.eventsFile(key), 'utf8').split('\n').filter(Boolean).slice(Math.max(0, after))
+      const recorded = fs.readFileSync(this.eventsFile(key), 'utf8').split('\n').filter(Boolean).slice(Math.max(0, after))
         .flatMap(line => { try { return [JSON.parse(line) as DeliveryEvent] } catch { return [] } })
+      // What the agent is writing right now comes last, until its message is whole.
+      const writing = this.writing.get(key)
+      return writing?.text.trim() ? [...recorded, { at: writing.at, kind: 'text', text: writing.text.replace(/\s+/g, ' ').trim().slice(-1200), live: true }] : recorded
     } catch { return [] }
   }
   private save(run: DeliveryRun): void {
@@ -482,7 +487,7 @@ export class DeliveryRunner {
         ...protocolTurn, mcpServers: input.acp.mcpServers, resume: input.acp.resume, authentication: input.driver?.acpAuthentication,
       })
       // Messages sent into a streaming host's turn, until it takes each in.
-      const waiting = new Map<string, { resolve(): void; reject(error: Error): void }>()
+      const waiting = new Map<string, { text: string; resolve(): void; reject(error: Error): void }>()
       const understand = (chunk: Buffer) => {
         if (!input.driver && !acp) return
         pending += chunk.toString('utf8')
@@ -494,9 +499,16 @@ export class DeliveryRunner {
           let read: ReturnType<AgentDriver['read']>
           try { read = input.driver!.read(line) } catch { continue }
           if (read.sessionId) session(read.sessionId)
+          if (read.partial && !superseded) {
+            const writing = this.writing.get(key)
+            this.writing.set(key, { at: Date.now(), text: `${writing?.text ?? ''}${read.partial}`.slice(-4000) })
+          }
+          // A whole message replaces the text that was arriving piece by piece.
+          if (read.events.length || read.ended) this.writing.delete(key)
           // A streaming host ends a stopped turn as an error; Stop already says what happened.
           for (const event of read.events) if (!(read.ended && event.kind === 'error' && input.driver!.stream && run.state === 'stopping')) report(event)
-          if (read.delivered) { waiting.get(read.delivered)?.resolve(); waiting.delete(read.delivered) }
+          const sent = read.delivered ? waiting.get(read.delivered) : undefined
+          if (sent) { waiting.delete(read.delivered!); report({ kind: 'sent', text: sent.text.replace(/\s+/g, ' ').trim().slice(0, 1200) }); sent.resolve() }
           // What was already sent is still answered; nothing more is taken.
           if (read.ended) this.streams.get(key)?.close()
         }
@@ -547,7 +559,7 @@ export class DeliveryRunner {
           this.streams.set(key, {
             send: (id, text) => new Promise<void>((resolve, reject) => {
               if (!open) { reject(new Error('This turn has finished. Send it as the next turn.')); return }
-              waiting.set(id, { resolve, reject })
+              waiting.set(id, { text, resolve, reject })
               try { fs.appendFileSync(run.logPath, `\n[Ambio] Sent into this turn: ${text}\n`) } catch { /* the log is best effort */ }
               write(stream.message(text, id))
             }),
@@ -570,6 +582,7 @@ export class DeliveryRunner {
         this.streams.get(key)?.close()
         for (const message of waiting.values()) message.reject(new Error('The agent exited before it took this message in.'))
         waiting.clear()
+        this.writing.delete(key)
         this.live.delete(key)
         if (input.mapping) {
           try {

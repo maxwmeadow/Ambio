@@ -14,9 +14,10 @@ import { WorkOrderReview } from './WorkOrderReview'
 import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
 import { useCheckoutStore } from '../store/checkoutStore'
 import { conversationWorkplace, focusedCheckout } from './checkoutModel'
-import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type ModelOption } from '../../shared/agentDelivery'
+import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, type ModelOption } from '../../shared/agentDelivery'
 import { chatModels } from '../../shared/agentChat'
 import { AgentModelMenu, useAgentModel } from './AgentModelMenu'
+import { AgentAccessMenu, useAgentAccess } from './AgentAccessMenu'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
@@ -79,7 +80,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const [attachedSheetId, setAttachedSheetId] = useState<string | null>(() => { try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:sheet`) ?? 'null'); return typeof saved === 'string' ? saved : null } catch { return null } })
   const attachmentChosen = useRef((() => { try { return localStorage.getItem(`${draftKey}:sheet`) !== null } catch { return false } })())
   const sendLock = useRef(false)
-  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string; where?: 'here' | 'worktree' }>(undefined)
+  const retry = useRef<{ id: string; note: string; selection: string[]; sheetId: string | null; hostId?: string; codeFitFileIds?: string[]; threadId?: string; mode?: WorkOrderMode; model?: string; where?: 'here' | 'worktree'; access?: AgentAccess }>(undefined)
   const restored = useRef(false)
   if (!restored.current) {
     restored.current = true
@@ -186,6 +187,9 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     chatOptions: toChat && chatProvider ? chatModels(chatProvider).map((id): ModelOption => ({ id, label: id })) : undefined,
     current: chatCurrent?.model,
   })
+  const agentAccess = useAgentAccess(runHost)
+  // Messages sent into a running turn that the agent has not taken in yet.
+  const [steering, setSteering] = useState(0)
   // A worktree of its own is decided by a conversation's first turn (later
   // turns stay where it started), and only for an agent Ambio starts.
   const worktreeOffered = !!runHost && canWorktree && !current
@@ -231,8 +235,20 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     <InboxIcon name="canvas" size={12} /><span>{referenceTarget(ref).label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
   </button>)}</div>
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
+  // Set below, once the open turn is known; read only when the form is submitted.
+  let steerable = false
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    // An agent that takes messages while it works gets this one now, in the turn under way.
+    if (steerable && openRun) {
+      const text = note.trim()
+      if (!text) return
+      setNote(''); setError(null); setSteering(count => count + 1)
+      try { await window.ambio.sendToDeliveryRun(graph.workspaceId, openRun.key, text) }
+      catch (err) { setNote(current => current.trim() ? current : text); setError(err instanceof Error ? err.message : String(err)) }
+      finally { setSteering(count => Math.max(0, count - 1)) }
+      return
+    }
     if (sendLock.current || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100) return
     if (!retry.current && attachedSheetId && !attachedSheet) { setError('This attached sheet is no longer available. Remove it before sending.'); return }
     if (toChat) {
@@ -247,7 +263,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     for (const stale of shown) if ((stale.status === 'queued' || stale.status === 'delivered') && latestRun(stale.id) && !runWorking(latestRun(stale.id))) await cancelInboxMessage(graph.workspaceId, stale.id).catch(() => {})
     if (!retry.current) {
       const id = crypto.randomUUID()
-      retry.current = { id, note: workOrderNote(mode, note.trim()), selection, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode, model: agentModel.value || undefined, where }
+      retry.current = { id, note: workOrderNote(mode, note.trim()), selection, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode, model: agentModel.value || undefined, where, access: agentAccess.value }
     }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
     try {
@@ -261,7 +277,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       setNote(''); setCodeFitFileIds([]); retry.current = undefined; nearBottom.current = true
       setThreadId(pending.threadId ?? pending.id)
       try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
-      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where)
+      if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where, pending.access)
     } catch (err) {
       const status = (err as { status?: number }).status
       if (status && status >= 400 && status < 500) {
@@ -273,13 +289,15 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     finally { sendLock.current = false; setSending(false); requestAnimationFrame(() => textarea.current?.focus()) }
   }
   const sendLabel = toChat ? 'Send to Ambio chat' : deliveryAction(deliveryHost, delivery.hostId, delivery.watchingHosts)
-  // A turn in progress holds the message box: agents cannot take a second
-  // message mid-turn, so the box says what is happening and Send becomes Stop.
+  // A turn in progress holds the message box: most agents cannot take a
+  // second message mid-turn, so the box says what is happening and Send
+  // becomes Stop. One that can (DeliveryHost.steerable) keeps the box open.
   const openTurn = [...shown].reverse().find(message => message.status === 'queued' || message.status === 'delivered')
   const openRun = openTurn ? latestRun(openTurn.id) : undefined
   // A send still waiting to be confirmed is that same turn, and stays editable for its retry.
   const inProgress = toChat ? chat.running : !retry.current && !!openTurn && (runWorking(openRun) || !openRun)
   const workingLabel = toChat ? 'Ambio chat' : openRun ? delivery.hosts.find(host => host.id === openRun.hostId)?.label ?? 'The agent' : ''
+  steerable = !toChat && inProgress && openRun?.state === 'running' && !!delivery.hosts.find(host => host.id === openRun.hostId)?.steerable
   const workplace = conversationWorkplace(shown.map(message => latestRun(message.id)), graph.rootPath, checkouts)
   const stopTurn = async () => {
     if (toChat) { await chat.stop(); return }
@@ -331,7 +349,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
             {message.sheetId && <button type="button" className="ambio-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
           </div>
           {(message.status === 'queued' || message.status === 'delivered') && (run => run
-            ? <AgentDeliveryStatus run={run} hosts={delivery.hosts} events={delivery.events[run.key]} onRetry={runWorking(run) ? undefined : () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined) }} />
+            ? <AgentDeliveryStatus run={run} hosts={delivery.hosts} events={delivery.events[run.key]} onRetry={runWorking(run) ? undefined : () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined, 'here', run.hostId === runHost?.id ? agentAccess.value : undefined) }} />
             // Nothing Ambio started: the turn waits for an agent outside it, which takes the handoff.
             : <div className="ambio-inbox__turn-status" data-state="waiting" role="status">
               <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{inboxStatus(message)}.</p>
@@ -362,7 +380,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name} · revision ${attachedSheet.revision} · snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}
-        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress ? '' : retry.current?.note ?? note} disabled={locked || inProgress} onChange={event => setNote(event.target.value)} maxLength={16000} rows={2} placeholder={inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
+        <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steerable ? '' : retry.current?.note ?? note} disabled={locked || (inProgress && !steerable)} onChange={event => setNote(event.target.value)} maxLength={16000} rows={2} placeholder={steerable ? `Tell ${workingLabel} more while it works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
           if (event.key === '@' && (event.currentTarget.selectionStart === 0 || /\s/.test(note[event.currentTarget.selectionStart - 1]))) { event.preventDefault(); setPickerOpen(true) }
@@ -376,8 +394,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
           fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined}>
           <AgentModelMenu model={agentModel} disabled={locked || inProgress} />
-        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
-          worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} />{inProgress
+        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : sending || chat.busy ? 'Sending…' : steering ? `${workingLabel} reads it at its next step…` : ''}</span><AgentAccessMenu access={agentAccess} disabled={locked || inProgress} /><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
+          worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} />{steerable && note.trim() && <button className="ambio-inbox__send" type="submit" aria-label={`Send to ${workingLabel} now`} title="Adds this to the turn under way"><InboxIcon name="send" size={19} /></button>}{inProgress
           ? <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>
           : <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>

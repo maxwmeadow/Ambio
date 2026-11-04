@@ -172,9 +172,27 @@ edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
 Propose also skip permissions and rely on the turn's contract. Grok uses its
 read-only sandbox plus ACP edit refusals for Ask/Propose; Muse relies on the
 turn's no-edit contract for those modes. Each guide says
-this. The permission desk (`POST /api/agent/permission`, `approve_action`)
-remains for the per-agent permission settings planned in WORK.md
-(`agent-permission-modes`).
+this.
+
+Claude Code alone offers access levels so far (decision 2026-11-04), sent
+as `DeliveryRequest.access` and refused for an agent that does not list it
+(`DeliveryHost.access`): `ask` runs Claude's `default` mode, `edits`
+`acceptEdits`, `auto` its `auto` classifier and `full` `bypassPermissions`.
+Below full access Claude is given `--permission-prompt-tool
+mcp__ambio__approve_action` and `--allowedTools mcp__ambio`: each prompt
+becomes a request on the permission desk (`POST /api/agent/permission`),
+shown as the turn's permission card and answered allow or deny; no answer
+within the desk's wait (110 s) is a deny. Ask and Propose keep their
+`--disallowedTools` at every level. The other agents' levels are WORK.md
+`agent-permission-modes`.
+
+**Messages during a turn.** An agent whose driver reads a stream
+(`DeliveryHost.steerable`, Claude Code) keeps the message box open while it
+works: `agent:delivery-send` writes the message into the running turn and
+resolves once the agent echoes it back, when it is recorded in the run's
+activity as a `sent` event. It is part of that host's session, not of the
+inbox conversation, so an agent that later claims the conversation does not
+see it unless the agent's reply carries it.
 
 **Live activity.** A driver reads the host's output for what the agent says,
 does and thinks (its reasoning, where the host reports it; see ARCHITECTURE). The runner keeps up to 400 events per run beside its log

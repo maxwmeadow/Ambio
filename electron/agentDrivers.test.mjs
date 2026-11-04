@@ -135,6 +135,28 @@ test('a later turn continues the host session where the host can, and names a ne
   assert.throws(() => deliveryPlan('cursor', mcp, 'ws', 'p'), /no direct/)
 })
 
+test('Claude Code runs at the access level chosen for it, and asks in Ambio below full access', () => {
+  const plan = access => deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-1', access }).args
+  const mode = args => args[args.indexOf('--permission-mode') + 1]
+  const asks = args => args[args.indexOf('--permission-prompt-tool') + 1]
+  assert.deepEqual([mode(plan('ask')), asks(plan('ask'))], ['default', 'mcp__ambio__approve_action'])
+  assert.deepEqual([mode(plan('edits')), asks(plan('edits'))], ['acceptEdits', 'mcp__ambio__approve_action'])
+  assert.deepEqual([mode(plan('auto')), asks(plan('auto'))], ['auto', 'mcp__ambio__approve_action'])
+  for (const args of [plan('full'), plan(undefined)]) assert.ok(mode(args) === 'bypassPermissions' && !args.includes('--permission-prompt-tool'))
+  // Ambio's own tools claim and answer the turn, so they never ask.
+  assert.equal(plan('ask')[plan('ask').indexOf('--allowedTools') + 1], 'mcp__ambio')
+  // A question keeps its editing tools off at every level.
+  const ask = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'ask', access: 'ask' }).args
+  assert.match(ask[ask.indexOf('--disallowedTools') + 1], /Edit,Write/)
+  // The user's own MCP servers load beside Ambio's; a mapping turn uses only Ambio.
+  assert.ok(!plan('ask').includes('--strict-mcp-config'))
+  const mapping = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', access: 'ask', mapping: { attempt: { id: 'a1' }, token: 't' } }).args
+  assert.ok(mapping.includes('--strict-mcp-config'))
+  assert.equal(mode(mapping), 'bypassPermissions')
+  assert.deepEqual(agentDriver('claude-code').access, ['ask', 'edits', 'auto', 'full'])
+  assert.equal(agentDriver('codex').access, undefined)
+})
+
 test('a started turn still names its request to Ambio, and Cursor accepts its workspace itself', () => {
   const build = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-7' }).args
   assert.equal(JSON.parse(build[build.indexOf('--mcp-config') + 1]).mcpServers.ambio.env.AMBIO_RUN_MESSAGE_ID, 'turn-7')
@@ -167,6 +189,12 @@ test('each host\'s output is read for its session and for what the agent is doin
   assert.equal(claude.read(JSON.stringify({ type: 'user', isReplay: true, uuid: 'm-1', message: { content: 'x' } })).delivered, 'm-1')
   assert.equal(claude.read(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result' }] } })).delivered, undefined)
   assert.deepEqual(JSON.parse(claude.stream.interrupt()).request, { subtype: 'interrupt' })
+  // Text as it is written, the main agent's only.
+  const delta = (text, parent = null) => JSON.stringify({ type: 'stream_event', parent_tool_use_id: parent, event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } })
+  assert.equal(claude.read(delta('Look')).partial, 'Look')
+  assert.equal(claude.read(delta('sub', 'tool-1')).partial, undefined)
+  assert.equal(claude.read(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'x' } } })).partial, undefined)
+  assert.ok(deliveryPlan('claude-code', mcp, 'ws', 'p').args.includes('--include-partial-messages'))
   assert.deepEqual(claude.read('not json').events, [])
 
   const codex = agentDriver('codex')
@@ -345,6 +373,8 @@ const streamingHost = ['-e', `
     if (message.type === 'user') {
       out({ type: 'user', isReplay: true, uuid: message.uuid, message: message.message })
       out({ type: 'assistant', session_id: 'stream-session', message: { content: [{ type: 'text', text: 'heard ' + message.message.content }] } })
+      // Then starts writing more, which stays unfinished until the next message.
+      for (const text of ['Still ', 'writing']) out({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } })
       if (message.message.content !== 'p') out({ type: 'result', is_error: false, result: 'ok' })
     }
     if (message.type === 'control_request' && message.request.subtype === 'interrupt') {
@@ -374,9 +404,16 @@ test('a message sent while Claude Code works joins its turn, and the turn ends w
   const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
   const started = await runner.start(streamingTurn(root, 'turn-steer'))
   await said(runner, started.key, 'heard p')
-  // Resolves once the agent has taken it in.
+  // What it is still writing shows last, as live text that is not recorded.
+  await said(runner, started.key, 'Still writing')
+  assert.equal(runner.events('ws', started.key).at(-1).live, true)
+  // Resolves once the agent has taken it in, which is recorded in the turn.
   await runner.send('ws', started.key, 'also check the tests')
   await said(runner, started.key, 'heard also check the tests')
+  const events = runner.events('ws', started.key)
+  assert.ok(events.some(event => event.kind === 'sent' && event.text === 'also check the tests'))
+  // The live text was replaced by the whole message that followed it.
+  assert.equal(events.filter(event => event.live).length, events.at(-1).live ? 1 : 0)
   // The host leaves only because its stdin was closed when the turn ended.
   const run = await settled(runner, 'ws', started.key)
   assert.equal(run.state, 'completed')

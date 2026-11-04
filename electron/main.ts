@@ -32,7 +32,7 @@ import fs from 'fs'
 import type { ProjectConfig, WsMessage } from '../src/shared/types'
 import { completeSourceBoundaries, mergePersistedProjectConfig } from '../src/shared/projectLifecycle'
 import { buildHosts, detectHosts, inspectHostConfiguration, installFamily } from './agentInstallers'
-import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId } from '../src/shared/agentDelivery'
+import { CLI_CLIENTS, RUN_NEEDS_INSTALL, SHARED_APP_CLIENTS, installerHostId, isAgentAccess } from '../src/shared/agentDelivery'
 import { discoverAppClients } from './agentClientDiscovery'
 import { readExecutableOverrides, setExecutableOverride, clearExecutableOverride } from './agentExecutableOverrides'
 import { removeLegacyServer, uninstallAll, uninstallHost } from './agentUninstall'
@@ -1578,7 +1578,11 @@ function setupIPC(): void {
     const target = availableTargets().find(host => host.id === hostId && host.route === 'run' && host.available)
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
   })
-  ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => host))
+  // Each agent says which access levels it honours and whether it takes messages while it works.
+  ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => {
+    const driver = host.route === 'run' ? agentDriver(host.id) : undefined
+    return { ...host, ...(driver?.access ? { access: driver.access } : {}), ...(driver?.stream ? { steerable: true } : {}) }
+  }))
   ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
     const client = CLI_CLIENTS.find(client => client.id === hostId)
     if (!client) return { ok: false, detail: 'Unknown runnable client.' }
@@ -1729,7 +1733,9 @@ function setupIPC(): void {
       const threadId = conversation
       if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
       const resume = !mapping && driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
-      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(validModel(request.model) ? { model: request.model } : {}) }
+      // A level the agent does not offer is refused, never widened to full access.
+      if (request.access !== undefined && (!isAgentAccess(request.access) || !driver?.access?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(validModel(request.model) ? { model: request.model } : {}), ...(request.access ? { access: request.access } : {}) }
       const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
       // An ACP agent is given Ambio's tools for the session and continues or
       // restarts the session itself.

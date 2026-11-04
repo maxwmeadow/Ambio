@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, type DeliveryReadinessResult, chooseDeliveryHost, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
+import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, type DeliveryReadinessResult, chooseDeliveryHost, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../../shared/agentDelivery'
 import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
@@ -85,7 +85,8 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
           const fresh = await window.ambio.listDeliveryEvents?.(workspaceId, run.key, 0) ?? []
           if (!active) return
           const next = Object.assign(fresh, { settled: !working })
-          if (!known || known.length !== fresh.length || !working) { seen.current = { ...seen.current, [run.key]: next }; setEvents(seen.current) }
+          // Text the agent is still writing grows without adding an event.
+          if (!known || known.length !== fresh.length || known.at(-1)?.text !== fresh.at(-1)?.text || !working) { seen.current = { ...seen.current, [run.key]: next }; setEvents(seen.current) }
         }
       } catch { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }
       const watchingNow = await watching()
@@ -96,11 +97,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
   // `place` is the turn's own: only a conversation's first Build can ask for a worktree.
-  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here') => {
+  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', access?: AgentAccess) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place, ...(access ? { access } : {}) })
       if (workspace.current !== workspaceId) return
       // A run says where it stands on its turn; the notice is for routes that need the user.
       setNotice(result.run ? '' : result.detail)
@@ -360,7 +361,7 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}</li>)}
+      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You: ${event.text}` : event.text}</li>)}
     </ol>}
     <div className="ambio-inbox__turn-actions">
       {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}
