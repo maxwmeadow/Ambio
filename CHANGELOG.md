@@ -35,6 +35,10 @@ in the app as "What's New" after updating, so write it for users.
   message, as a chip beside the text like an attached sheet; with nothing
   selected, the file itself is attached. Ctrl+click a name to jump to its
   definition; Show on map takes you to the file on the map.
+- Right-click in the code editor for Cut, Copy, Paste, Select All, Find, Go
+  to Definition, Ask agent, Copy Reference (the file and lines, ready to
+  paste), Revert This Change and Show on Map. Unsaved changes show as a dot
+  beside the file name.
 - A file an agent changes while it is open updates in front of you, and edits
   you have not saved come back after a crash or restart.
 - Edit code right in Ambio's source viewer and save with Ctrl+S. If an agent

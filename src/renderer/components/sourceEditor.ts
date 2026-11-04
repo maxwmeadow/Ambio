@@ -168,7 +168,7 @@ export interface SourceEditorOptions {
 }
 
 /** The identifier at a position, if any. */
-function nameAt(state: EditorState, position: number): string | null {
+export function nameAt(state: EditorState, position: number): string | null {
   const word = state.wordAt(position)
   const text = word ? state.sliceDoc(word.from, word.to) : ''
   return /^[A-Za-z_$][\w$]*$/.test(text) ? text : null

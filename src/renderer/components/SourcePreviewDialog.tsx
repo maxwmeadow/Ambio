@@ -3,14 +3,17 @@ import { createPortal } from 'react-dom'
 import { unifiedMergeView } from '@codemirror/merge'
 import { Compartment, EditorState, type Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { openSearchPanel } from '@codemirror/search'
+import { selectAll } from '@codemirror/commands'
 import { apiGetCommittedSource, apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
 import { fetchFileSymbols } from '../canvas/symbolCache'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
 import { useSourcePreviewStore, type SourcePreviewRequest } from '../store/sourcePreviewStore'
-import { ago, baselineText, setBaseline } from './sourceChanges'
+import { ago, baselineText, chunkAt, revertSpec, setBaseline } from './sourceChanges'
+import { ContextMenu, type ContextMenuEntry } from './ContextMenu'
 import { codeReference } from './inboxModel'
-import { detectIndent, languageFor, languageName, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
+import { detectIndent, languageFor, languageName, nameAt, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
 import { definitionInFile, enclosingSymbols, outlineField, outlineFromSymbols, setOutline, type OutlineSymbol } from './sourceOutline'
 import { resolveSymbol } from './symbolLookup'
 
@@ -214,19 +217,74 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
    * question: the selected lines, else the lines this viewer was opened at,
    * else the file itself. Then step aside so the conversation is in view.
    */
+  const attachedLines = (state: EditorState) => {
+    const selection = state.selection.main
+    return !selection.empty
+      ? { start: state.doc.lineAt(selection.from).number, end: state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number }
+      : range ? { start: Math.min(range.start, state.doc.lines), end: Math.min(range.end, state.doc.lines) } : undefined
+  }
   const askAgent = () => {
     const view = viewRef.current
     if (!view || !source) return
-    const { state } = view
-    const selection = state.selection.main
-    const lines = !selection.empty
-      ? { start: state.doc.lineAt(selection.from).number, end: state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number }
-      : range ? { start: Math.min(range.start, state.doc.lines), end: Math.min(range.end, state.doc.lines) } : undefined
+    const lines = attachedLines(view.state)
     window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { code: [codeReference(fileId, source.relPath, lines)] } }))
     requestClose()
   }
   const askRef = React.useRef(askAgent)
   askRef.current = askAgent
+
+  const [menu, setMenu] = React.useState<{ x: number; y: number; entries: ContextMenuEntry[] } | null>(null)
+  const closeMenu = React.useCallback(() => setMenu(null), [])
+  /**
+   * Right-click: the usual editing commands, and this viewer's own. A click
+   * outside the selection moves the cursor there first, as editors do.
+   */
+  const openMenu = (event: React.MouseEvent) => {
+    const view = viewRef.current
+    if (!view || !source) return
+    event.preventDefault()
+    const at = view.posAtCoords({ x: event.clientX, y: event.clientY })
+    const before = view.state.selection.main
+    if (at !== null && (at < before.from || at > before.to)) view.dispatch({ selection: { anchor: at } })
+    const { state } = view
+    const position = at ?? state.selection.main.head
+    const selected = !state.selection.main.empty
+    const writable = !state.readOnly
+    const name = nameAt(state, position)
+    const change = chunkAt(state, position)
+    const mod = window.ambio?.platform === 'darwin' ? '⌘' : 'Ctrl+'
+    const lines = attachedLines(state)
+    const reference = lines ? `${source.relPath}:${lines.start === lines.end ? lines.start : `${lines.start}-${lines.end}`}` : source.relPath
+    const copy = (text: string) => { if (window.ambio?.copyText) void window.ambio.copyText(text); else void navigator.clipboard?.writeText(text) }
+    const selectedText = () => state.selection.ranges.map(part => state.sliceDoc(part.from, part.to)).join(state.lineBreak)
+    view.focus()
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      entries: [
+        { label: name ? `Go to Definition of ${name}` : 'Go to Definition', shortcut: 'F12', disabled: !name, run: () => { if (name) void openDefinition(name, position) } },
+        { label: 'Ask Agent About This', shortcut: `${mod}I`, run: askAgent },
+        'separator',
+        { label: 'Cut', shortcut: `${mod}X`, disabled: !selected || !writable, run: () => {
+          copy(selectedText())
+          view.dispatch(view.state.replaceSelection(''), { userEvent: 'delete.cut' })
+          view.focus()
+        } },
+        { label: 'Copy', shortcut: `${mod}C`, disabled: !selected, run: () => { copy(selectedText()); view.focus() } },
+        { label: 'Paste', shortcut: `${mod}V`, disabled: !writable || !window.ambio?.pasteIntoFocus, run: () => { view.focus(); void window.ambio?.pasteIntoFocus() } },
+        { label: 'Select All', shortcut: `${mod}A`, run: () => { selectAll(view); view.focus() } },
+        'separator',
+        { label: 'Find', shortcut: `${mod}F`, run: () => { openSearchPanel(view) } },
+        { label: lines ? `Copy Reference (${reference.split('/').pop()})` : 'Copy Path', run: () => { copy(reference); say(`Copied ${reference}`); view.focus() } },
+        ...(change && writable ? [{ label: 'Revert This Change', run: () => {
+          const spec = revertSpec(view.state, change)
+          if (spec) view.dispatch(spec)
+          view.focus()
+        } }] : []),
+        ...(fileRecord ? ['separator' as const, { label: 'Show on Map', run: () => leave(() => { onClose(); showOnMap(fileId) }) }] : []),
+      ],
+    })
+  }
 
   /**
    * Show the file as it is on disk and make that the version edits are based
@@ -381,8 +439,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
       : !editable ? 'read-only: too large to edit here'
         : status.kind === 'saving' ? 'saving…'
           : status.kind === 'failed' ? `not saved: ${status.message}`
-            : dirty ? 'modified'
-              : status.kind === 'saved' ? 'saved' : ''
+            : status.kind === 'saved' && !dirty ? 'saved' : ''
 
   return createPortal(
     <div
@@ -397,7 +454,10 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
       <section className="source-preview-dialog" role="dialog" aria-modal="true" aria-label={`${symbol.name} in ${title}`}>
         <header className="source-preview-header">
           <div className="source-preview-heading">
-            <div className="source-preview-path" title={title}>{title}{dirty ? ' •' : ''}</div>
+            <div className="source-preview-path" title={title}>
+              <span className="source-preview-path-text">{title}</span>
+              {dirty && <span className="source-preview-unsaved" title="Unsaved changes" role="img" aria-label="Unsaved changes" />}
+            </div>
             <div className="source-preview-location">
               {!range ? (source ? `${lineCount} lines` : '')
                 : <>
@@ -448,7 +508,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
         <div className="source-preview-code" aria-busy={!source && !error}>
           {!source && !error && <div className="source-preview-message">Loading source…</div>}
           {error && <div className="source-preview-message source-preview-error">{error}</div>}
-          <div ref={hostRef} className="source-preview-editor" hidden={!source} />
+          <div ref={hostRef} className="source-preview-editor" hidden={!source} onContextMenu={openMenu} />
         </div>
         {source && (
           <footer className="source-preview-statusline">
@@ -460,6 +520,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           </footer>
         )}
       </section>
+      {menu && <ContextMenu x={menu.x} y={menu.y} entries={menu.entries} onClose={closeMenu} label="Code" />}
     </div>,
     document.body,
   )

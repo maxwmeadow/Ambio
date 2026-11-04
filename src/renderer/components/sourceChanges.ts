@@ -159,7 +159,8 @@ const peekField = StateField.define<number | null>({
   },
 })
 
-function chunkAt(state: EditorState, position: number): Chunk | undefined {
+/** The change on the line at a position, if any. */
+export function chunkAt(state: EditorState, position: number): Chunk | undefined {
   const line = state.doc.lineAt(position)
   return state.field(changeField).chunks.find(chunk => chunk.fromB <= line.to && Math.max(chunk.toB, chunk.fromB) >= line.from &&
     (chunk.fromB !== chunk.toB || state.doc.lineAt(Math.min(chunk.fromB, state.doc.length)).number === line.number))

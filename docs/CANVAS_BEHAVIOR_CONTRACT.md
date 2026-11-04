@@ -453,6 +453,11 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   planned files, which have no code to open, keep opening Properties on
   double-click. Double-clicking editable text edits it, as before. (Max,
   2026-11-03.)
+- Right-clicking in the code editor opens its own menu, never the canvas's:
+  Go to Definition, Ask Agent About This, Cut, Copy, Paste, Select All, Find,
+  Copy Reference, Revert This Change (on a changed line) and Show on Map. A
+  right-click outside the selection moves the cursor there first. Escape
+  closes the menu and leaves the editor open. (Max, 2026-11-04.)
 - Floor nodes are not manually connectable.
 - Nodes become connectable on an active editable sheet overlay.
 - Planned edges may connect planned and live sheet members according to the

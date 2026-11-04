@@ -307,16 +307,32 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 .source-preview-path {
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   color: #fffdf5;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.25;
-  text-overflow: ellipsis;
   text-shadow: 0 1px 0 #14201c;
   white-space: nowrap;
+}
+
+.source-preview-path-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Unsaved changes: a dot beside the name, as editors mark a dirty tab. */
+.source-preview-unsaved {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #e8c170;
+  box-shadow: 0 0 0 2px rgba(232, 193, 112, 0.18);
 }
 
 .source-preview-location {

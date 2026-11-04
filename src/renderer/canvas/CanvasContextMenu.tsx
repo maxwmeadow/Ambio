@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuItem } from '../components/ContextMenu'
 import { startSplitSheet, systemPath } from './splitSystem.ts'
 import { emitCommand } from '../app/commands'
 import { COMMANDS } from '../../shared/appMenu'
@@ -34,8 +34,8 @@ interface Props {
   }
 }
 
-interface Item { label: string; run: () => void; danger?: boolean }
-type Entry = Item | 'separator'
+type Item = ContextMenuItem
+type Entry = ContextMenuEntry
 
 function revealLabel(): string {
   const platform = window.ambio?.platform
@@ -49,71 +49,7 @@ function copy(text: string) {
 
 /** Right-click menu for the live canvas. */
 export function CanvasContextMenu({ x, y, target, onClose, onShowDetails, onZoomTo, floorEdits }: Props) {
-  const menu = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: x, top: y })
-  const entries = buildEntries(target, onShowDetails, onZoomTo, floorEdits, { x, y })
-
-  // Keep the menu inside the window.
-  useLayoutEffect(() => {
-    const rect = menu.current?.getBoundingClientRect()
-    if (!rect) return
-    setPosition({
-      left: Math.min(x, window.innerWidth - rect.width - 8),
-      top: Math.min(y, window.innerHeight - rect.height - 8),
-    })
-  }, [x, y])
-
-  useEffect(() => {
-    menu.current?.querySelector<HTMLButtonElement>('button')?.focus()
-    const close = (event: Event) => {
-      if (event instanceof KeyboardEvent && event.key !== 'Escape') return
-      if (event instanceof MouseEvent && menu.current?.contains(event.target as Node)) return
-      onClose()
-    }
-    window.addEventListener('mousedown', close, true)
-    window.addEventListener('keydown', close)
-    window.addEventListener('wheel', onClose, { passive: true })
-    window.addEventListener('blur', onClose)
-    return () => {
-      window.removeEventListener('mousedown', close, true)
-      window.removeEventListener('keydown', close)
-      window.removeEventListener('wheel', onClose)
-      window.removeEventListener('blur', onClose)
-    }
-  }, [onClose])
-
-  if (entries.length === 0) return null
-  return (
-    <div
-      ref={menu}
-      className="ambio-context-menu"
-      role="menu"
-      style={{ left: position.left, top: position.top }}
-      onContextMenu={event => event.preventDefault()}
-      onKeyDown={event => {
-        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-        event.preventDefault()
-        const buttons = [...(menu.current?.querySelectorAll('button') ?? [])]
-        const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-        const next = buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]
-        next?.focus()
-      }}
-    >
-      {entries.map((entry, index) => entry === 'separator'
-        ? <hr key={`separator-${index}`} />
-        : (
-          <button
-            key={entry.label}
-            type="button"
-            role="menuitem"
-            className={entry.danger ? 'ambio-context-menu__danger' : undefined}
-            onClick={() => { onClose(); entry.run() }}
-          >
-            {entry.label}
-          </button>
-        ))}
-    </div>
-  )
+  return <ContextMenu x={x} y={y} entries={buildEntries(target, onShowDetails, onZoomTo, floorEdits, { x, y })} onClose={onClose} />
 }
 
 function buildEntries(
