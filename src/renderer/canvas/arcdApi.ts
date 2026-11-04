@@ -161,6 +161,32 @@ export async function apiGetFileSource(fileId: string, workspaceId: string, sign
   return res.json() as Promise<FileSource>
 }
 
+/** Who changed a file since its last commit: a person, or an agent's work session. */
+export interface FileAuthor {
+  actor: 'human' | 'agent' | string
+  sessionId?: string
+  agent?: string
+  goal?: string
+  lastAt: number
+  saves: number
+}
+
+export interface CommittedSource {
+  /** False when the file is not in a Git checkout: there is nothing to compare with. */
+  repository: boolean
+  /** False for a file the last commit does not hold: every line is new. */
+  tracked: boolean
+  content: string
+  authors: FileAuthor[]
+}
+
+/** The file as its checkout's last commit has it, and who changed it since. */
+export async function apiGetCommittedSource(fileId: string, workspaceId: string, signal?: AbortSignal): Promise<CommittedSource> {
+  const res = await fetch(`${archdWsHttp()}/api/files/${encodeURIComponent(fileId)}/committed?workspace=${encodeURIComponent(workspaceId)}`, { signal })
+  if (!res.ok) return { repository: false, tracked: false, content: '', authors: [] }
+  return res.json() as Promise<CommittedSource>
+}
+
 export type SaveSourceResult =
   | { status: 'saved'; source: FileSource }
   /** The file changed on disk since it was opened; nothing was written. */

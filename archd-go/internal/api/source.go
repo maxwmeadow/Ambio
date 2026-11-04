@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"ambio.local/archd/internal/db"
+	"ambio.local/archd/internal/gitworktree"
 )
 
 // maxBodyLines caps a single returned function body so a pathological symbol
@@ -149,6 +150,49 @@ func (s *Server) handleSaveFileSource(w http.ResponseWriter, r *http.Request, fi
 		return
 	}
 	jsonOK(w, sourceResponse(file, []byte(body.Content)))
+}
+
+type committedSourceResponse struct {
+	// Repository is false when the file is not in a Git checkout; there is nothing to compare with.
+	Repository bool `json:"repository"`
+	// Tracked is false for a file the last commit does not hold: every line is new.
+	Tracked bool   `json:"tracked"`
+	Content string `json:"content"`
+	// Authors changed the file since it was last committed, newest first.
+	Authors []db.FileAuthor `json:"authors"`
+}
+
+// handleCommittedSource returns an indexed file as the checkout's last commit
+// has it, so the editor can mark what has changed since.
+//
+//	GET /api/files/<id>/committed?workspace=<id>
+func (s *Server) handleCommittedSource(w http.ResponseWriter, r *http.Request, fileID string) {
+	workspaceID := r.URL.Query().Get("workspace")
+	sqlDB, err := s.dbFor(workspaceID)
+	if err != nil {
+		jsonError(w, err.Error(), 404)
+		return
+	}
+	file, err := db.FindFileByIDOrPath(sqlDB, workspaceID, fileID)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	if file == nil || file.ID != fileID {
+		jsonError(w, fmt.Sprintf("file %q not found in workspace", fileID), 404)
+		return
+	}
+	committed, err := gitworktree.CommittedFile(file.Path)
+	// Not a checkout, or a committed version that is not text: no comparison.
+	if err != nil || !utf8.Valid(committed.Content) {
+		jsonOK(w, committedSourceResponse{Authors: []db.FileAuthor{}})
+		return
+	}
+	authors, err := db.FileAuthorsSince(sqlDB, workspaceID, file.ID, committed.At*1000)
+	if err != nil {
+		authors = []db.FileAuthor{}
+	}
+	jsonOK(w, committedSourceResponse{Repository: true, Tracked: committed.Tracked, Content: string(committed.Content), Authors: authors})
 }
 
 // insideRoot reports an error unless the file, with every link resolved, is

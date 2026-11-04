@@ -11,6 +11,7 @@ import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
 import { EditorState, StateField, type Extension, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
+import { sourceChanges, targetLinesFacet } from './sourceChanges.ts'
 
 /**
  * The line break a file uses, so a save writes the same bytes the person did
@@ -70,6 +71,30 @@ const theme = EditorView.theme({
   '.cm-panels.cm-panels-bottom': { borderTop: '1px solid #263134' },
   '.cm-panel input, .cm-panel button': { fontSize: '11px' },
   '.cm-foldPlaceholder': { backgroundColor: '#263134', border: 'none', color: '#aab6b1' },
+  // Changes since the last commit: green added, blue changed, red removed (a
+  // wedge between lines); violet when only agents changed the file since.
+  '.cm-change-gutter': { width: '6px', cursor: 'pointer' },
+  '.cm-change-gutter .cm-gutterElement': { padding: '0' },
+  '.cm-change-mark': { height: '100%', width: '3px', marginLeft: '1px' },
+  '.cm-change-added': { backgroundColor: '#2EA043' },
+  '.cm-change-modified': { backgroundColor: '#1B81A8' },
+  '.cm-change-added.cm-change-by-agent': { backgroundColor: '#B180D7' },
+  '.cm-change-modified.cm-change-by-agent': { background: 'repeating-linear-gradient(180deg, #B180D7 0 3px, transparent 3px 5px)' },
+  '.cm-change-deleted': { height: '0', width: '0', marginTop: '-4px', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '6px solid #F14C4C' },
+  '.cm-change-peek': { margin: '2px 0 4px', borderTop: '1px solid #3d4b47', borderBottom: '1px solid #3d4b47', backgroundColor: '#161e20', fontFamily: 'var(--font-mono)' },
+  '.cm-change-peek-head': { display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', color: '#aab6b1', fontSize: '11px' },
+  '.cm-change-peek-head span': { flex: '1' },
+  '.cm-change-peek-head button': { padding: '2px 8px', border: '1px solid #4d5955', borderRadius: '1px', backgroundColor: '#263134', color: '#e6e1d6', fontSize: '11px', cursor: 'pointer' },
+  '.cm-change-peek-head button:hover': { borderColor: '#6fa9a0' },
+  '.cm-change-peek-old': { margin: '0', padding: '4px 10px 6px', backgroundColor: 'rgba(241, 76, 76, 0.12)', color: '#d7b3ae', whiteSpace: 'pre', overflowX: 'auto' },
+  '.cm-overview-ruler': { position: 'absolute', top: '0', right: '0', bottom: '0', width: '12px', pointerEvents: 'none', zIndex: '3' },
+  '.cm-overview-mark': { position: 'absolute', left: '2px', right: '2px', opacity: '0.85' },
+  '.cm-overview-added': { backgroundColor: '#2EA043' },
+  '.cm-overview-modified': { backgroundColor: '#1B81A8' },
+  '.cm-overview-deleted': { backgroundColor: '#F14C4C', height: '3px !important' },
+  '.cm-overview-by-agent.cm-overview-added, .cm-overview-by-agent.cm-overview-modified': { backgroundColor: '#B180D7' },
+  '.cm-overview-target': { left: '0', right: '6px', backgroundColor: '#65a69d' },
+  '.cm-overview-search': { left: '6px', right: '0', height: '2px !important', backgroundColor: '#D18616' },
 }, { dark: true })
 
 const targetLine = Decoration.line({ class: 'source-preview-line-highlighted' })
@@ -106,6 +131,8 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange }:
       lineNumbers(),
       highlightActiveLineGutter(),
       foldGutter(),
+      sourceChanges(),
+      targetLinesFacet.of(range),
       highlightSpecialChars(),
       history(),
       drawSelection(),

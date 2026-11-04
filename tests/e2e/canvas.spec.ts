@@ -4097,6 +4097,63 @@ test('a function an agent names opens at its definition; an ambiguous name stays
   await page.unroute(/\/api\/symbols\/search\?/)
 })
 
+test('the editor marks what changed since the commit, whose change it is, and can revert it', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const content = 'speed = read()\nmoving = speed > config.limit\nwait()\nstop()\nlog()\n'
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: { fileId, relPath: file, language: 'python', lineCount: 4, content, hash: 'h1', editable: true } }))
+  await page.route(/\/api\/files\/[^/]+\/committed\?/, route => route.fulfill({ json: {
+    repository: true, tracked: true, content: 'speed = read()\nmoving = speed > 0.1\nwait()\nlog()\n',
+    authors: [{ actor: 'agent', agent: 'codex', goal: 'Fix threshold', lastAt: Date.now() - 4 * 60_000, saves: 2 }],
+  } }))
+  const reply = { id: 'marks-1', workspaceId: 'demo', sheetId: null, note: 'What changed?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'marks-1', createdAt: 80, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: `Codex changed \`${file}:2\`.`, createdAt: 81 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'Codex changed' })
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  const dialog = page.getByRole('dialog', { name: `${file} in ${file}` })
+
+  // Codex changed line 2 and added line 4, so both are marked as an agent's.
+  const marks = dialog.locator('.cm-change-mark')
+  await expect(marks).toHaveCount(2)
+  await expect(dialog.locator('.cm-change-modified.cm-change-by-agent')).toHaveAttribute('title', /Changed\. Changed since the last commit by Codex \("Fix threshold"\), 4 min ago/)
+  await expect(dialog.locator('.cm-change-added.cm-change-by-agent')).toHaveCount(1)
+  await expect(dialog.locator('.cm-overview-mark.cm-overview-by-agent')).toHaveCount(2)
+  await expect(dialog.locator('.cm-overview-target')).toHaveCount(1)
+
+  // A line the person types is theirs; the agent's line beside it stays the agent's.
+  await dialog.locator('.cm-line', { hasText: 'log()' }).click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' # mine')
+  await expect(dialog.locator('.cm-change-by-mine')).toHaveCount(1)
+  await expect(dialog.locator('.cm-change-by-mine')).toHaveAttribute('title', /Changed by you in this editor/)
+  await expect(dialog.locator('.cm-change-by-agent')).toHaveCount(2)
+  await page.screenshot({ path: 'test-results/source-editor-changes.png' })
+
+  // Alt+F5 steps to the next change; clicking a mark shows the committed lines, and Revert puts them back.
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.press('Alt+F5')
+  await expect(dialog.locator('.cm-activeLine')).toHaveText('moving = speed > config.limit')
+  await dialog.locator('.cm-change-by-agent').first().click()
+  const peek = dialog.getByRole('group', { name: 'Committed lines' })
+  await expect(peek).toContainText('moving = speed > 0.1')
+  await peek.getByRole('button', { name: 'Revert' }).click()
+  await expect(peek).toHaveCount(0)
+  await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
+  await expect(dialog.locator('.cm-change-mark')).toHaveCount(2)
+  await expect(dialog.getByRole('status')).toHaveText('modified')
+
+  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect(dialog).toHaveCount(0)
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/committed\?/)
+})
+
 test('source opened from a reply can be edited, saved, and never overwrites a newer file', async () => {
   const { file, fileId } = await page.evaluate(() => {
     const state = (window as any).__ambioGraphStore.getState()

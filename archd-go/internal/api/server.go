@@ -963,6 +963,9 @@ func (s *Server) handleFileByID(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPut && sub == "source":
 		s.handleSaveFileSource(w, r, id)
 
+	case r.Method == http.MethodGet && sub == "committed":
+		s.handleCommittedSource(w, r, id)
+
 	default:
 		http.NotFound(w, r)
 	}

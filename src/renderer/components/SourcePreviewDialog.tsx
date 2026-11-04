@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { unifiedMergeView } from '@codemirror/merge'
 import { Compartment, EditorState, type Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
+import { apiGetCommittedSource, apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
+import { baselineText, setBaseline } from './sourceChanges'
 import { useSourcePreviewStore } from '../store/sourcePreviewStore'
 import { languageFor, revealLine, sourceEditorState } from './sourceEditor'
 
@@ -136,6 +137,12 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     let current = true
     void languageFor(source.relPath).then(language => {
       if (current && language) view.dispatch({ effects: slots.language.reconfigure(language) })
+    })
+    // What changed since the last commit, and who changed it, once Git has answered.
+    void apiGetCommittedSource(fileId, workspaceId).then(committed => {
+      if (!current || !committed.repository) return
+      const text = baselineText(committed.tracked ? committed.content : '', view.state.lineBreak)
+      view.dispatch({ effects: setBaseline.of({ text, tracked: committed.tracked, authors: committed.authors ?? [] }) })
     })
     return () => {
       current = false
