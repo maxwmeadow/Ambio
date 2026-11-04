@@ -4311,7 +4311,7 @@ test('saved investigation cards and timeline navigate the full eight-event recor
   await slide.locator('.ambio-case__run > summary').click()
   await slide.getByText('Program output',{exact:true}).click()
   await expect(slide.locator('.ambio-case__output pre')).toContainText('RACE listeners=2 packets=2')
-  await expect(card.getByRole('button',{name:'Play replay'})).toBeVisible()
+  await expect(card.getByRole('button',{name:'Play replay'})).toHaveCount(0)
   await dots.getByRole('button',{name:'Go to step 1: A possible cause'}).click()
   await expect(slider).toHaveValue('1')
   await expect(slide).toContainText('A possible cause')
@@ -4331,19 +4331,16 @@ test('saved investigation cards and timeline navigate the full eight-event recor
   await slider.focus();await slider.press('ArrowLeft')
   await expect(slide).toContainText('The hypothesis is supported')
   await dots.getByRole('button',{name:'Go to step 3: The experiment finished'}).click()
-  // Both play buttons and both pause buttons control the same player.
-  await card.getByRole('button',{name:'Play replay'}).click()
-  await expect(replay.getByRole('button',{name:'Pause',exact:true})).toBeVisible()
-  await replay.getByRole('button',{name:'Pause',exact:true}).click()
-  await expect(card.getByRole('button',{name:'Play replay'})).toBeVisible()
+  // Replay playback lives in the timeline; the card only navigates steps.
+  await expect(card.getByRole('button',{name:'Play replay'})).toHaveCount(0)
   await replay.getByRole('button',{name:'Play',exact:true}).click()
-  await expect(card.getByRole('button',{name:'Pause replay'})).toBeVisible()
+  await expect(replay.getByRole('button',{name:'Pause',exact:true})).toBeVisible()
   await page.clock.fastForward(5000)
   await expect(slide).toContainText('The control has one listener')
   await expect(slider).toHaveValue('4')
   await page.clock.fastForward(3000)
   await expect(slide).toContainText('The hypothesis is supported')
-  await card.getByRole('button',{name:'Pause replay'}).click()
+  await replay.getByRole('button',{name:'Pause',exact:true}).click()
   await page.clock.fastForward(10000)
   await expect(slider).toHaveValue('5')
   await replay.getByRole('button',{name:'Restart',exact:true}).click()
@@ -4354,7 +4351,16 @@ test('saved investigation cards and timeline navigate the full eight-event recor
   await list.getByRole('button',{name:/What’s causing it/}).click()
   await expect(slider).toHaveValue('6')
   await expect(card.getByRole('button',{name:'Reply in chat'})).toHaveCount(0)
-  await expect(card).toContainText('Read-only replay')
+  await expect(card).not.toContainText('Read-only replay')
+  const controls=card.locator('.ambio-case__controls')
+  expect((await controls.boundingBox())!.height).toBeLessThan(52)
+  await expect(controls.locator('.ambio-case__follow, .ambio-case__read-only')).toHaveCount(0)
+  const pagination=(await dots.boundingBox())!
+  const previous=(await card.getByRole('button',{name:'Previous investigation step'}).boundingBox())!
+  const next=(await card.getByRole('button',{name:'Next investigation step'}).boundingBox())!
+  expect(pagination.x-previous.x-previous.width).toBeLessThanOrEqual(12)
+  expect(next.x-pagination.x-pagination.width).toBeLessThanOrEqual(12)
+
   const cardBox=(await card.boundingBox())!,transportBox=(await replay.boundingBox())!
   expect(cardBox.y+cardBox.height).toBeLessThan(transportBox.y)
   await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-linked.png'})

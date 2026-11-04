@@ -65,17 +65,15 @@
 .ambio-case__outcome strong { font-weight: 600; }
 .ambio-case__delivery { font-size: 11px; color: #617960; }
 .ambio-case__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; align-items: center; gap: 6px 10px; padding: 8px 12px; border-top: 1px solid #bdc9b8; background: #e4e9dc; box-shadow: inset 0 1px #f7f9f0; }
-.ambio-case__pager { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 8px; }
-.ambio-case__arrow { display: inline-flex; align-items: center; justify-content: center; width: 29px; height: 29px; border: 1px solid #9cad96; background: #f4f5eb; color: #3c664a; font: 17px/1 var(--font-ui); cursor: pointer; }
-.ambio-case__arrow { border-radius: 2px; }
-.ambio-case__arrow:disabled { color: #a7b1a0; background: #e9eddf; cursor: default; }
-.ambio-case__arrow:not(:disabled):hover { background: #d6e3cb; }
+.ambio-case__pager { display: flex; grid-column: 1 / -1; align-items: center; justify-content: center; gap: 10px; }
+.ambio-case__arrow { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 3px; background: transparent; color: #3c664a; cursor: pointer; transition: background-color 130ms ease, border-color 130ms ease; }
+.ambio-case__arrow:disabled { color: #a7b1a0; cursor: default; }
+.ambio-case__arrow:not(:disabled):hover { border-color: #a2b698; background: #d6e3cb; }
 .ambio-case__follow { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; min-height: 29px; border: 1px solid #8da082; border-radius: 2px; background: #f4f5ea; color: #436143; font: 600 11px/1.4 var(--font-ui); cursor: pointer; }
 .ambio-case__follow[aria-pressed='true'] { background: #d2e0c6; border-color: #7e9b6d; color: #365831; box-shadow: inset 0 0 0 1px #e5eedc; }
 .ambio-case__follow:not(:disabled):hover { background: #c6d9b8; }
 .ambio-case__follow:disabled { opacity: .45; cursor: default; }
-.ambio-case__controls > .ambio-case__action, .ambio-case__read-only { justify-self: end; }
-.ambio-case__read-only { color: #64775e; font: 10px/1.4 var(--font-ui); }
+.ambio-case__controls > .ambio-case__action { justify-self: end; }
 .ambio-case__dots { display: flex; align-items: center; gap: 3px; }
 .ambio-case__dots button { display: flex; align-items: center; justify-content: center; width: 24px; height: 27px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .ambio-case__dots button::after { content: ''; display: block; width: 6px; height: 6px; border-radius: 4px; background: #a6b89a; transition: width 180ms ease, background-color 180ms ease; }
@@ -135,7 +133,7 @@ details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
 .ambio-case :focus-visible, .ambio-case-chip:focus-visible { outline: 2px solid #437b66; outline-offset: 2px; }
 @keyframes ambioCaseArrival { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ambioCaseLive { 50% { opacity: .4; } }
-@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron, .ambio-case__dots button::after { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron, .ambio-case__arrow, .ambio-case__dots button::after { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
 
 /* Investigation feedback uses the same chat composer and delivery queue. */
 .ambio-inbox__case-context { display: flex; align-items: center; gap: 10px; padding: 9px 11px; margin: 0 0 8px; border-left: 3px solid #67957b; background: #e3ecdf; color: #345b45; }

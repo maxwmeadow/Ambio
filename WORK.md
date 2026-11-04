@@ -49,7 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `investigation-carousel-footer` **Simplify the replay card footer.** Max requests removing Play/read-only text and placing better arrows closer to pagination dots. Keep playback in the timeline, preserve navigation linkage and live feedback/following. **Done when:** replay has one centered navigation cluster, no duplicate playback controls or read-only label, and timeline seeking/playback still drives it. (🚧 Codex, codex/investigation-card, 2026-11-04)
 
 
 
@@ -435,6 +434,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-citation-guidance` **Ask agents to cite code as `path/from/root.ext:line`.** The renderer reads every common style, but one requested form in `agentWorkflow.ts` guidance would make chips more reliable for clients that write bare prose. Changes installed guidance text. (2026-11-03)
 
 ## Done log
+
+- 2026-11-04 `investigation-carousel-footer` Removed replay card Play/read-only controls, centered pagination between nearby SVG chevrons, and kept playback in the timeline. Types/build and three Electron journeys pass, including footer height/spacing and timeline linkage. (`codex/investigation-card`)
 
 - 2026-11-04 `investigation-replay-navigation` Projected the complete saved deck with event-time cases, linked carousel/timeline/map navigation, unified play/pause and preserved finding/fix cards at one event. Restored pill pagination dots; added runtime-only/empty capture handling and replay case-ID/live-marker guards. Types/build, 919 unit tests (7 skipped) and five Electron journeys pass, including the eight-event/seven-card regression. (`codex/investigation-card`)
 

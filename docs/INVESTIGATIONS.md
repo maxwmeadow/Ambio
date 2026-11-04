@@ -170,8 +170,9 @@ timeline, so a saved case opens to its conclusion and replays step by step.
   makes the complete step index available immediately. Arrows, pagination dots
   (with a pill-shaped active indicator), the index and keyboard navigation seek
   the shared timeline and rebuild the recorded map state. Timeline seeking and
-  playback select the corresponding card; both Play/Pause controls share one
-  player. Manual navigation pauses it. Restart rewinds without hiding later
+  playback select the corresponding card. Playback buttons live in the
+  timeline; the reader footer contains only nearby chevrons and pagination dots,
+  without a duplicate Play button or read-only caption. Manual navigation pauses it. Restart rewinds without hiding later
   cards. A finding and its fix remain separately browsable even when they came
   from one event. Earlier cards use their recorded case snapshot, without
   leaking later verdicts. Event counts include runtime/delivery bookkeeping,

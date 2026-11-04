@@ -529,3 +529,10 @@ layouts keep the transport accessible. Store tests verify exact map-prefix
 reconstruction, historical snapshot isolation, older case IDs and empty and
 runtime-only captures. These previews are fixture renders; replay Max's actual
 saved Helios recording after restarting Ambio for the direct comparison.
+
+
+Replay footer refinement (2026-11-04): Max requested removing the duplicate
+Play/read-only row and grouping cleaner arrows beside the pagination dots.
+The replay card now has one centered navigation row; playback remains in the
+linked timeline. Live follow/chat actions remain. Existing Electron navigation
+checks now also verify the removed controls, footer height and arrow spacing.

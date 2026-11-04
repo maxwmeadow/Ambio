@@ -844,7 +844,9 @@ The step index, previous/next controls and pagination dots share the cursor.
 For saved recordings, `caseReplayFrames` projects the complete immutable deck
 with an event index and event-time case for each card. `ReplayState` owns this
 deck, the selected card, applied event prefix and shared play/pause state;
-`CasePanel` and `ReplayBar` both navigate this controller. Carousel navigation
+`CasePanel` and `ReplayBar` both navigate this controller; playback buttons
+live only in `ReplayBar`, with centered chevrons/dots in the replay card footer.
+Carousel navigation
 seeks/rebuilds the map prefix, while timeline seeking/playback selects its card.
 A conclusion can yield finding/fix cards at one event; bookkeeping events keep
 raw counts distinct from reader steps. Recorded case IDs normalize only inside

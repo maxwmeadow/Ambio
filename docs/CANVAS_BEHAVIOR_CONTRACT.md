@@ -875,8 +875,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   recorded activity with expandable details. Empty captures stay empty.
 - Carousel navigation seeks the timeline and rebuilds the map/runtime prefix.
   Timeline seeks, stepping, playback and restart select the corresponding card.
-  The shared player owns event position, reader position and play/pause for
-  both controls. Restart returns to the beginning without discarding the full
+  The shared player owns event position, reader position and play/pause.
+  Playback buttons live only in the timeline. The replay card footer is a
+  single centered cluster of nearby chevron arrows and pagination dots, without
+  a duplicate Play button or read-only caption. Live follow/chat remain. Restart returns to the beginning without discarding the full
   index; each finding and fix gets its own reading time even at one timestamp.
   Manual navigation pauses playback. Historical cards carry event-time case
   snapshots, so earlier hypotheses cannot display later assessments. Different

@@ -16,7 +16,8 @@ in the app as "What's New" after updating, so write it for users.
   bottom control bar and full descriptions. Code links show one clear filename.
   Evidence stays expandable in one scrolling body. Saved recordings expose all
   steps immediately; carousel and timeline navigation, map state and play/pause
-  stay synchronized. Pagination dots are back with a pill-shaped active marker. Reply in chat keeps delivery status and unsent drafts when a case ends
+  stay synchronized. Pagination dots have a pill-shaped active marker and
+  nearby chevrons; replay playback buttons stay in the timeline. Reply in chat keeps delivery status and unsent drafts when a case ends
   or changes.
 
 - Terminal controls now fit in one compact top bar with shell options tucked

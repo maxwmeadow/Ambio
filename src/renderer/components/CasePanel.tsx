@@ -268,14 +268,14 @@ function CaseCarousel({ file, now, replay, onDismiss, action, error }: {
     </div>
     <footer className="ambio-case__controls" aria-label="Investigation controls">
       <div className="ambio-case__pager" role="group" aria-label="Browse investigation steps">
-        <button type="button" className="ambio-case__arrow" aria-label="Previous investigation step" disabled={index <= 0} onClick={() => go(index - 1)}>←</button>
+        <button type="button" className="ambio-case__arrow" aria-label="Previous investigation step" disabled={index <= 0} onClick={() => go(index - 1)}><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="m12 5-5 5 5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
         <div className="ambio-case__dots" role="group" aria-label="Investigation pagination">{steps.map((item,n) => n >= dotStart && n < dotStart + 7 && <button key={item.id} type="button" aria-label={`Go to step ${n + 1}: ${item.title}`} title={`Step ${n + 1}: ${item.title}`} aria-current={n === index ? 'step' : undefined} onClick={() => go(n)} />)}</div>
-        <button type="button" className="ambio-case__arrow" aria-label="Next investigation step" disabled={pending <= 0} onClick={() => go(index + 1)}>→</button>
+        <button type="button" className="ambio-case__arrow" aria-label="Next investigation step" disabled={pending <= 0} onClick={() => go(index + 1)}><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="m8 5 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
       </div>
-      <button type="button" className="ambio-case__follow" disabled={!!replay && replay.cursor >= replay.events.length - 1 && replay.frameCursor >= replay.frames.length - 1} aria-label={replay ? following ? 'Pause replay' : 'Play replay' : following ? 'Pause following' : 'Resume following'} aria-pressed={following} title={replay ? 'Play or pause the shared investigation timeline' : following ? 'Following new steps automatically. Click to pause.' : 'Continue with the next queued step and follow new arrivals.'} onClick={() => replay ? useGraphStore.getState().setReplayPlaying(!following) : following ? pause() : go(pending > 0 ? index + 1 : index, true)}>
+      {!replay && <button type="button" className="ambio-case__follow" aria-label={following ? 'Pause following' : 'Resume following'} aria-pressed={following} title={following ? 'Following new steps automatically. Click to pause.' : 'Continue with the next queued step and follow new arrivals.'} onClick={() => following ? pause() : go(pending > 0 ? index + 1 : index, true)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">{following ? <path d="M5 3v10M11 3v10" fill="none" stroke="currentColor" strokeWidth="2" /> : <path d="m4 2 9 6-9 6z" fill="currentColor" />}</svg>
-        {replay ? following ? 'Pause' : 'Play' : following ? 'Following' : 'Resume'}
-      </button>
+        {following ? 'Following' : 'Resume'}
+      </button>}
       {action}
       {error && <p className="ambio-case__error" role="alert">{error}</p>}
     </footer>
@@ -368,7 +368,7 @@ export function CasePanel() {
       <CaseCarousel key={`${caseFile.id}:${caseFile.status === 'replay'}`} file={caseFile} now={now} replay={replay} onDismiss={dismissCase} error={replayError} action={
         live ? <button type="button" className="ambio-case__action" title="Send guidance through the existing chat. Replies arrive with the agent’s next step." onClick={() => { window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {detail:{investigationId:caseFile.id}})); if (narrow) {setNarrowExpanded(false); dismissCase()} }}>Reply in chat <span aria-hidden="true">↗</span></button>
           : caseFile.status === 'closed' && caseFile.savedId ? <button type="button" className="ambio-case__action" aria-label="Watch the replay" onClick={() => void watchReplay()}>Replay <span aria-hidden="true">↻</span></button>
-          : <span className="ambio-case__read-only" title="Playback · messages are read-only">{caseFile.status === 'replay' ? 'Read-only replay' : 'Case closed'}</span>
+          : null
       } />
     </aside></>
   )
