@@ -7,6 +7,10 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Stopping a Claude Code run now asks Claude to end its turn instead of
+  killing it, so the conversation continues cleanly on the next turn. A run's
+  activity also shows what Claude's subagents are doing.
+
 - Terminal controls now fit in one compact top bar with shell options tucked
   into a menu and no footer. Terminal and agent messages share a saved sidebar
   width and switch in place without overlapping animations. Opening and closing

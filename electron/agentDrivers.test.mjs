@@ -103,7 +103,13 @@ test('a later turn continues the host session where the host can, and names a ne
   const first = deliveryPlan('claude-code', mcp, 'ws', 'p')
   assert.match(first.sessionId, /^[0-9a-f-]{36}$/)
   assert.equal(first.args[first.args.indexOf('--session-id') + 1], first.sessionId)
-  assert.equal(first.stdin, 'p')
+  // The prompt is the first message of a stream Claude Code keeps reading.
+  assert.ok(first.args.includes('--replay-user-messages'))
+  assert.equal(first.args[first.args.indexOf('--input-format') + 1], 'stream-json')
+  assert.ok(first.stdin.endsWith('\n'))
+  const message = JSON.parse(first.stdin)
+  assert.deepEqual([message.type, message.message.content], ['user', 'p'])
+  assert.match(message.uuid, /^[0-9a-f-]{36}$/)
   const next = deliveryPlan('claude-code', mcp, 'ws', 'p', { resume: 'session-1' })
   assert.equal(next.args[next.args.indexOf('--resume') + 1], 'session-1')
   assert.ok(!next.args.includes('--session-id'))
@@ -151,8 +157,16 @@ test('each host\'s output is read for its session and for what the agent is doin
     { kind: 'tool', text: 'Read · src/worker.ts' },
     { kind: 'tool', text: 'Ambio · reply_to_canvas' },
   ])
-  assert.deepEqual(claude.read(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'sub', message: { content: [{ type: 'text', text: 'subagent' }] } })).events, [])
+  // A subagent's words stay in its transcript; what it does is shown as its.
+  assert.deepEqual(claude.read(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'sub', message: { content: [
+    { type: 'text', text: 'subagent' }, { type: 'tool_use', name: 'Grep', input: { pattern: 'retry' } },
+  ] } })).events, [{ kind: 'tool', text: 'Subagent · Grep · retry' }])
   assert.equal(claude.read(JSON.stringify({ type: 'result', is_error: true, result: 'Not logged in' })).events[0].kind, 'error')
+  // The result ends the turn; an echoed message is the agent taking it in.
+  assert.equal(claude.read(JSON.stringify({ type: 'result', is_error: false, result: 'ok' })).ended, true)
+  assert.equal(claude.read(JSON.stringify({ type: 'user', isReplay: true, uuid: 'm-1', message: { content: 'x' } })).delivered, 'm-1')
+  assert.equal(claude.read(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result' }] } })).delivered, undefined)
+  assert.deepEqual(JSON.parse(claude.stream.interrupt()).request, { subtype: 'interrupt' })
   assert.deepEqual(claude.read('not json').events, [])
 
   const codex = agentDriver('codex')
@@ -318,6 +332,75 @@ test('a run records what the agent said and did, and remembers its session for t
   // Another project cannot read this run's activity.
   assert.deepEqual(runner.events('other', run.key), [])
   assert.deepEqual(runner.events('ws', '../escape'), [])
+})
+
+// A host that reads stream-json the way Claude Code does: each message is
+// echoed and answered; the prompt "p" keeps its turn open until another
+// message or an interrupt ends it. It leaves when its stdin is closed.
+const streamingHost = ['-e', `
+  const out = value => console.log(JSON.stringify(value))
+  out({ type: 'system', subtype: 'init', session_id: 'stream-session' })
+  require('readline').createInterface({ input: process.stdin }).on('line', line => {
+    const message = JSON.parse(line)
+    if (message.type === 'user') {
+      out({ type: 'user', isReplay: true, uuid: message.uuid, message: message.message })
+      out({ type: 'assistant', session_id: 'stream-session', message: { content: [{ type: 'text', text: 'heard ' + message.message.content }] } })
+      if (message.message.content !== 'p') out({ type: 'result', is_error: false, result: 'ok' })
+    }
+    if (message.type === 'control_request' && message.request.subtype === 'interrupt') {
+      out({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id } })
+      out({ type: 'result', is_error: true, subtype: 'error_during_execution' })
+    }
+  }).on('close', () => process.exit(0))
+`]
+async function said(runner, key, text) {
+  for (let i = 0; i < 400; i++) {
+    if (runner.events('ws', key).some(event => event.text === text)) return
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  assert.fail(`never said ${text}: ${JSON.stringify(runner.events('ws', key))}`)
+}
+function streamingTurn(root, messageId) {
+  const plan = deliveryPlan('claude-code', mcp, 'ws', 'p', { messageId })
+  return {
+    workspaceId: 'ws', messageId, hostId: 'claude-code', rootPath: root, revision: 'initial', prompt: 'p',
+    launcher: { command: process.execPath, args: [] }, args: streamingHost, stdin: plan.stdin,
+    threadId: 'thread', mode: 'build', driver: agentDriver('claude-code'), sessionId: plan.sessionId,
+  }
+}
+
+test('a message sent while Claude Code works joins its turn, and the turn ends when the agent says so', async t => {
+  const root = fixture(t)
+  const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
+  const started = await runner.start(streamingTurn(root, 'turn-steer'))
+  await said(runner, started.key, 'heard p')
+  // Resolves once the agent has taken it in.
+  await runner.send('ws', started.key, 'also check the tests')
+  await said(runner, started.key, 'heard also check the tests')
+  // The host leaves only because its stdin was closed when the turn ended.
+  const run = await settled(runner, 'ws', started.key)
+  assert.equal(run.state, 'completed')
+  await assert.rejects(() => runner.send('ws', started.key, 'too late'), /no longer controlled/)
+  await assert.rejects(() => runner.send('other', started.key, 'x'), /no longer controlled/)
+  assert.match(fs.readFileSync(run.logPath, 'utf8'), /Sent into this turn: also check the tests/)
+})
+
+test('Stop asks Claude Code to end its turn, so it leaves on its own with its session intact', async t => {
+  const root = fixture(t)
+  const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
+  const started = await runner.start(streamingTurn(root, 'turn-stop'))
+  await said(runner, started.key, 'heard p')
+  const asked = Date.now()
+  await runner.stop('ws', started.key)
+  // Well inside the grace period after which it would have been ended.
+  assert.ok(Date.now() - asked < 3000, `took ${Date.now() - asked}ms`)
+  const run = runner.list('ws').find(item => item.key === started.key)
+  assert.equal(run.state, 'stopped')
+  assert.equal(run.sessionId, 'stream-session')
+  // The interrupt was answered: the process was not killed mid-turn.
+  assert.match(fs.readFileSync(run.logPath, 'utf8'), /"control_response"/)
+  // Ending the stopped turn is not reported as an error of its own.
+  assert.ok(!runner.events('ws', run.key).some(event => event.kind === 'error'))
 })
 
 test('a session that cannot be continued starts the same turn fresh instead of failing it', async t => {

@@ -770,7 +770,13 @@ driver per started host: how to start a turn, continue the host's session,
 apply the turn's mode as permissions, and read its output. The runner stores
 host sessions per conversation and a run's activity events; `acpClient.ts`
 drives hosts that speak the Agent Client Protocol and `museClient.ts` drives
-Muse MSP sessions. A session told to watch
+Muse MSP sessions. A driver with a `stream` (Claude Code, `--input-format
+stream-json`) keeps the host's stdin open while its turn runs:
+`DeliveryRunner.send` (`agent:delivery-send`) writes a message that joins the
+running turn and resolves when the host echoes it back (`delivered`), Stop
+sends an interrupt and waits up to five seconds for the host to end its own
+turn before killing it, and stdin is closed when the driver reads the end of
+the turn (`ended`), so anything already sent is still answered. A session told to watch
 waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in

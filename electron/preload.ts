@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('ambio', {
   deliverWorkOrder: (request: DeliveryRequest): Promise<DeliveryResult> => ipcRenderer.invoke('agent:deliver', request),
   listDeliveryRuns: (workspaceId: string): Promise<DeliveryRun[]> => ipcRenderer.invoke('agent:delivery-runs', workspaceId),
   stopDeliveryRun: (workspaceId: string, key: string): Promise<void> => ipcRenderer.invoke('agent:delivery-stop', workspaceId, key),
+  /** Sends a message into a running turn, for agents that take one; resolves once the agent has taken it in. */
+  sendToDeliveryRun: (workspaceId: string, key: string, text: string): Promise<void> => ipcRenderer.invoke('agent:delivery-send', workspaceId, key, text),
   listDeliveryEvents: (workspaceId: string, key: string, after = 0): Promise<DeliveryEvent[]> => ipcRenderer.invoke('agent:delivery-events', workspaceId, key, after),
 
   // Install Ambio into one agent - server entry and slash command
@@ -415,6 +417,7 @@ declare global {
       deliverWorkOrder: (request: DeliveryRequest) => Promise<DeliveryResult>
       listDeliveryRuns: (workspaceId: string) => Promise<DeliveryRun[]>
       stopDeliveryRun: (workspaceId: string, key: string) => Promise<void>
+      sendToDeliveryRun: (workspaceId: string, key: string, text: string) => Promise<void>
       listDeliveryEvents: (workspaceId: string, key: string, after?: number) => Promise<DeliveryEvent[]>
       installAgent: (hostId: string, projectRoot?: string) => Promise<AgentInstallResult>
       installFamily: (familyId: string, projectRoot?: string) => Promise<AgentInstallResult>

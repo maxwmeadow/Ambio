@@ -1635,6 +1635,10 @@ function setupIPC(): void {
     if (typeof workspaceId !== 'string' || typeof key !== 'string') throw new Error('Invalid agent run.')
     return deliveryRunner.stop(workspaceId, key)
   })
+  ipcMain.handle('agent:delivery-send', (_event, workspaceId: string, key: string, text: string) => {
+    if (typeof workspaceId !== 'string' || typeof key !== 'string' || typeof text !== 'string') throw new Error('Invalid agent run.')
+    return deliveryRunner.send(workspaceId, key, text.slice(0, 100000))
+  })
   // One bootstrap per attempt: retries must not rotate a live agent's credential.
   const mappingLaunches = new Map<string, Promise<unknown>>()
   const deliver = async (request: DeliveryRequest) => {

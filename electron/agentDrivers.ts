@@ -56,6 +56,22 @@ export interface DriverPlan {
 export interface DriverOutput {
   sessionId?: string
   events: Array<Omit<DeliveryEvent, 'at'>>
+  /** The turn is over: a host that reads a stream (AgentDriver.stream) is then sent nothing more. */
+  ended?: boolean
+  /** The host has taken in the message Ambio sent with this ID. */
+  delivered?: string
+}
+
+/**
+ * A host that keeps reading its stdin while a turn runs. The prompt is the
+ * first line; more messages can join the running turn, and the turn can be
+ * interrupted without killing the process, which keeps its session whole.
+ */
+export interface DriverStream {
+  /** One line that sends the agent a message; the host acknowledges `id` (DriverOutput.delivered). */
+  message(text: string, id: string): string
+  /** One line that asks the running turn to stop. */
+  interrupt(): string
 }
 
 export interface AgentDriver {
@@ -76,6 +92,8 @@ export interface AgentDriver {
   acpAuthentication?: 'grok'
   /** Muse Session Protocol over muse serve. */
   muse?: boolean
+  /** The host reads its turn as a stream on stdin, kept open until read() says the turn has ended. */
+  stream?: DriverStream
   /** Check local prerequisites before spawning, without widening permissions. */
   preflight?(mode: TurnMode, env: NodeJS.ProcessEnv, platform: NodeJS.Platform): void
   plan(turn: DriverTurn): DriverPlan
@@ -146,8 +164,18 @@ function toolTarget(input: unknown): string {
 // do that; the turn's contract tells them not to change anything. Each
 // destination's guide says what this means for it.
 
+// Claude Code reads stream-json on stdin (Claude Code 2.1): a message sent
+// while a turn runs joins that turn, each message is echoed back with its
+// uuid once taken in (--replay-user-messages), and an interrupt ends the turn
+// with the session intact. Closing stdin lets it finish what it was sent and exit.
+const claudeStream: DriverStream = {
+  message: (text, id) => JSON.stringify({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: '', uuid: id }),
+  interrupt: () => JSON.stringify({ type: 'control_request', request_id: randomUUID(), request: { subtype: 'interrupt' } }),
+}
+
 const claudeCode: AgentDriver = {
   resumable: true,
+  stream: claudeStream,
   plan(turn) {
     // The session is named up front, so a turn that is stopped before it
     // prints anything can still be continued.
@@ -155,9 +183,9 @@ const claudeCode: AgentDriver = {
     const building = turn.mode === 'build'
     return {
       sessionId,
-      stdin: turn.prompt,
+      stdin: `${claudeStream.message(turn.prompt, randomUUID())}\n`,
       args: [
-        '-p', '--output-format', 'stream-json', '--verbose',
+        '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
         ...(turn.resume ? ['--resume', turn.resume] : ['--session-id', sessionId!]),
         ...modelFlag(turn),
         // Every permission is granted; a question or a proposal loses only the
@@ -172,9 +200,17 @@ const claudeCode: AgentDriver = {
     const message = parse(line)
     if (!message) return NOTHING
     const sessionId = typeof message.session_id === 'string' ? message.session_id : undefined
+    if (message.type === 'user' && message.isReplay && typeof message.uuid === 'string') return { sessionId, delivered: message.uuid, events: [] }
     if (message.type === 'assistant' && Array.isArray(message.message?.content)) {
-      // Subagent chatter belongs to its own run, not this conversation.
-      if (message.parent_tool_use_id) return { sessionId, events: [] }
+      // A subagent's words belong to its own transcript; what it does is
+      // still this turn's work, so its tool calls are shown, marked as its.
+      if (message.parent_tool_use_id) {
+        return {
+          sessionId,
+          events: message.message.content.filter((block: any) => block?.type === 'tool_use')
+            .map((block: any) => ({ kind: 'tool' as const, text: ['Subagent', String(block.name ?? 'tool').replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ') })),
+        }
+      }
       return {
         sessionId,
         events: message.message.content.flatMap((block: any) => {
@@ -186,7 +222,7 @@ const claudeCode: AgentDriver = {
         }),
       }
     }
-    if (message.type === 'result' && message.is_error) return { sessionId, events: [{ kind: 'error', text: clip(String(message.result ?? message.subtype ?? 'The run ended with an error.')) }] }
+    if (message.type === 'result') return { sessionId, ended: true, events: message.is_error ? [{ kind: 'error', text: clip(String(message.result || message.subtype || 'The run ended with an error.')) }] : [] }
     return { sessionId, events: [] }
   },
 }

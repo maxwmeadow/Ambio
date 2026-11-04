@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
@@ -233,6 +233,9 @@ export interface RunInput {
   mapping?: MappingBinding
 }
 
+/** How long a streaming host is given to end its own turn on Stop. */
+const STREAM_STOP_GRACE = 5000
+
 /** How many events a run keeps for the inbox to show. */
 const EVENT_LIMIT = 400
 
@@ -247,6 +250,8 @@ export function checkDeliveryMessage(message: { id?: string; workspaceId?: strin
 export class DeliveryRunner {
   private live = new Map<string, { child: ChildProcess; run: DeliveryRun }>()
   private acp = new Map<string, AcpClient | MuseClient>()
+  /** Streaming hosts whose turn is still open to messages (AgentDriver.stream). */
+  private streams = new Map<string, { send(id: string, text: string): Promise<void>; interrupt(): void; close(): void }>()
   private directory: string
   private spawnProcess: typeof spawn
   private finished = new Map<string, Promise<void>>()
@@ -476,6 +481,8 @@ export class DeliveryRunner {
       const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
         ...protocolTurn, mcpServers: input.acp.mcpServers, resume: input.acp.resume, authentication: input.driver?.acpAuthentication,
       })
+      // Messages sent into a streaming host's turn, until it takes each in.
+      const waiting = new Map<string, { resolve(): void; reject(error: Error): void }>()
       const understand = (chunk: Buffer) => {
         if (!input.driver && !acp) return
         pending += chunk.toString('utf8')
@@ -487,7 +494,11 @@ export class DeliveryRunner {
           let read: ReturnType<AgentDriver['read']>
           try { read = input.driver!.read(line) } catch { continue }
           if (read.sessionId) session(read.sessionId)
-          for (const event of read.events) report(event)
+          // A streaming host ends a stopped turn as an error; Stop already says what happened.
+          for (const event of read.events) if (!(read.ended && event.kind === 'error' && input.driver!.stream && run.state === 'stopping')) report(event)
+          if (read.delivered) { waiting.get(read.delivered)?.resolve(); waiting.delete(read.delivered) }
+          // What was already sent is still answered; nothing more is taken.
+          if (read.ended) this.streams.get(key)?.close()
         }
       }
       // Some hosts explain a turn that went nowhere on their error output.
@@ -528,6 +539,22 @@ export class DeliveryRunner {
             report({ kind: 'error', text: acpError })
             finish()
           })
+        } else if (input.driver?.stream) {
+          const stream = input.driver.stream
+          let open = true
+          const write = (line: string) => { try { child.stdin?.write(`${line}\n`) } catch { /* close reports the failure */ } }
+          const close = () => { if (!open) return; open = false; this.streams.delete(key); try { child.stdin?.end() } catch { /* already gone */ } }
+          this.streams.set(key, {
+            send: (id, text) => new Promise<void>((resolve, reject) => {
+              if (!open) { reject(new Error('This turn has finished. Send it as the next turn.')); return }
+              waiting.set(id, { resolve, reject })
+              try { fs.appendFileSync(run.logPath, `\n[Ambio] Sent into this turn: ${text}\n`) } catch { /* the log is best effort */ }
+              write(stream.message(text, id))
+            }),
+            interrupt: () => { if (open) write(stream.interrupt()); close() },
+            close,
+          })
+          child.stdin?.write(attempt.stdin ?? '')
         } else child.stdin?.end(attempt.stdin)
         settle()
       })
@@ -540,6 +567,9 @@ export class DeliveryRunner {
         unfollow?.()
         acp?.close()
         this.acp.delete(key)
+        this.streams.get(key)?.close()
+        for (const message of waiting.values()) message.reject(new Error('The agent exited before it took this message in.'))
+        waiting.clear()
         this.live.delete(key)
         if (input.mapping) {
           try {
@@ -614,7 +644,18 @@ export class DeliveryRunner {
     // An ACP agent is asked to stop the turn before its process is stopped.
     this.acp.get(key)?.cancel()
     entry.run.state = 'stopping'; entry.run.detail = 'Stop requested. Waiting for the agent process to exit.'; this.save(entry.run)
-    if (entry.child.pid) {
+    // A streaming host stops its own turn and leaves, which keeps its session
+    // whole; it is ended only if it has not gone within a few seconds.
+    const stream = this.streams.get(key)
+    const finishing = this.finished.get(key)
+    let left = false
+    if (stream && finishing && !entry.run.mappingAttemptId) {
+      stream.interrupt()
+      let timer: ReturnType<typeof setTimeout> | undefined
+      left = await Promise.race([finishing.then(() => true), new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), STREAM_STOP_GRACE) })])
+      if (timer) clearTimeout(timer)
+    }
+    if (!left && this.live.has(key) && entry.child.pid) {
       const termination = this.terminate(entry.child.pid, !!entry.run.mappingAttemptId)
       this.terminating.set(key, termination)
       try { await termination } finally { this.terminating.delete(key) }
@@ -633,6 +674,19 @@ export class DeliveryRunner {
       killer.once('close', () => resolve()); killer.once('error', reject)
     })
     else { try { process.kill(-pid, force ? 'SIGKILL' : 'SIGTERM') } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error } }
+  }
+  /**
+   * Sends a message into a running turn of a host that reads a stream. It
+   * resolves once the agent has taken it in: it joins the turn under way, or
+   * runs next in the same session when that turn is just finishing.
+   */
+  send(workspaceId: string, key: string, text: string): Promise<void> {
+    const entry = this.live.get(key)
+    if (!entry || entry.run.workspaceId !== workspaceId) return Promise.reject(new Error('This run is no longer controlled by Ambio.'))
+    const stream = this.streams.get(key)
+    if (!stream || entry.run.state !== 'running') return Promise.reject(new Error('This agent cannot take a message while it works. Send it as the next turn.'))
+    if (!text.trim()) return Promise.reject(new Error('The message is empty.'))
+    return stream.send(randomUUID(), text)
   }
   async stopAll(): Promise<void> { await Promise.allSettled([...this.live].map(([key, { run }]) => this.stop(run.workspaceId, key))) }
 }
