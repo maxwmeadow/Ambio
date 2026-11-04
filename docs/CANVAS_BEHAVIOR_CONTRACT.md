@@ -826,6 +826,31 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   new changes arrive. Opening or dismissing an invitation never acknowledges
   the underlying changes. No permanent footer is required.
 
+### Investigation reader and feedback (Max, November 3, 2026)
+
+- A case has one compact current question/activity/finding and expandable
+  evidence/history. There is no repeated hypothesis board or separate composer.
+- The entire body scrolls as one reader, bounded to 580px or the available
+  height; opening long prose, runs or raw output cannot squeeze history into
+  its own smaller scrollbar. Header and actions stay reachable. New events and
+  case completion preserve the evidence the user is reading; Latest step is
+  explicit. A new case starts compact.
+- Run details preserve all findings, samples and available output. No watched
+  functions and no fix-verification run are stated separately from successful
+  command execution and the agent's conclusion.
+- Reply in chat explicitly targets the live case in the existing composer,
+  including while a turn is working. Feedback has queued/delivered state and
+  uses the shared investigation queue for both managed and client agents.
+  Stop remains available for the managed turn. Failed sends retain the draft;
+  closed/replaced cases disable sending until the user chooses another context.
+  Case-bound server requests and feedback events cannot target a replacement.
+- Below 340px of available canvas width, a chip replaces the default card.
+  Explicit expansion borrows bounded viewport space; replying minimizes it
+  again to keep chat usable. Ordinary card width is at most 420px.
+- Replay uses the same card with read-only feedback and recorded-command
+  labels. Its transport remains clear of the card. Reduced-motion mode
+  disables arrival, pulse and chevron animations.
+
 ### First-run payoff
 
 - The initial review shows the real repository materializing as the baseline;

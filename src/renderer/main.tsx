@@ -25,6 +25,7 @@ import './styles/bins.css'
 import './styles/infraSidebar.css'
 import './styles/drafts.css'
 import './styles/appChrome.css'
+import './styles/investigations.css'
 
 // Uncaught errors reach the log (warnings and errors are kept in
 // ~/.ambio/logs/renderer.log) instead of vanishing with the console.

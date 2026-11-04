@@ -1,7 +1,8 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore, type InvestigationDoc } from '../store/graphStore'
 import { apiGetInvestigation } from '../canvas/arcdApi'
+import { useShowOnMap } from '../canvas/useShowOnMap'
 import {
   caseSummary,
   type CaseAnchor,
@@ -25,7 +26,7 @@ import {
  */
 
 const STATUS_LABEL: Record<CaseHypothesis['status'], string> = {
-  open: 'Testing',
+  open: 'Open',
   confirmed: 'Confirmed',
   refuted: 'Ruled out',
   inconclusive: 'Inconclusive',
@@ -51,10 +52,29 @@ function Rich({ text }: { text: string }) {
   )
 }
 
+function FindingText({ text, conclusion }: { text: string; conclusion: boolean }) {
+  const paragraph = useRef<HTMLParagraphElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflows, setOverflows] = useState(false)
+  useLayoutEffect(() => {
+    const element = paragraph.current
+    if (!element || expanded) return
+    const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [text, expanded])
+  return <>
+    <p ref={paragraph} className={expanded ? '' : 'ambio-case__preview'}><Rich text={text} /></p>
+    {(expanded || overflows) && <button type="button" className="ambio-case__text-button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : conclusion ? 'Read full finding' : 'Read more'}</button>}
+  </>
+}
+
 function useFocus() {
-  const setSelectedNode = useGraphStore(state => state.setSelectedNode)
+  const showOnMap = useShowOnMap(false, {duration:300, maxZoom:1.2, padding:.5})
   return (anchor?: CaseAnchor) => {
-    if (anchor?.fileId) setSelectedNode(anchor.fileId)
+    if (anchor?.fileId) showOnMap(anchor.fileId)
   }
 }
 
@@ -99,48 +119,41 @@ function FindingRow({ finding }: { finding: CaseFinding }) {
 }
 
 function RunCard({ run, hypothesis }: { run: CaseRun; hypothesis?: CaseHypothesis }) {
-  const [showOutput, setShowOutput] = useState(false)
-  const findings = run.findings.filter(f => f.severity !== 'info')
+  const findings = run.findings
   const failed = run.timedOut || run.exitCode !== 0 || !!run.error
   return (
-    <article className="ambio-case__run" data-failed={failed || undefined}>
-      <header>
-        <span className="ambio-case__run-id">R{run.n}</span>
-        <code className="ambio-case__run-command" title={run.command}>{run.command}</code>
-        <span className="ambio-case__run-meta">
-          {run.error ? 'could not run' : run.timedOut ? 'timed out' : `exit ${run.exitCode}`} · {duration(run.durationMs)}
-        </span>
-      </header>
-      {hypothesis && <p className="ambio-case__run-tests" title={hypothesis.text}>Testing {hypothesis.id}</p>}
-      {run.error && <p className="ambio-case__run-error">{run.error}</p>}
-      {findings.length > 0 ? (
-        <ul className="ambio-case__findings" aria-label={`What run R${run.n} showed`}>
-          {findings.slice(0, 5).map((f, i) => <FindingRow key={i} finding={f} />)}
-        </ul>
-      ) : !run.error && (
-        <p className="ambio-case__run-quiet">
-          Nothing unusual in the watched code{run.functionsRun ? ` · ${run.functionsRun} functions ran in ${run.filesRun} files` : ''}
-        </p>
-      )}
-      {run.watched.length > 0 && (
-        <ul className="ambio-case__watched">
-          {run.watched.map((w, i) => (
-            <li key={i}>
-              <code>{w.anchor.symbol}</code> ×{w.calls}{w.errors ? ` · ${w.errors} threw` : ''}
-              {w.returns && w.returns.length <= 48 ? ` · returns ${w.returns}` : ''}
-            </li>
-          ))}
-        </ul>
-      )}
-      {run.outputTail && (
-        <div className="ambio-case__output">
-          <button type="button" aria-expanded={showOutput} onClick={() => setShowOutput(v => !v)}>
-            {showOutput ? 'Hide output' : 'Program output'}
-          </button>
-          {showOutput && <pre>{run.outputTail}</pre>}
-        </div>
-      )}
-    </article>
+    <details className="ambio-case__run" data-failed={failed || undefined} id={`case-run-${run.id}`}>
+      <summary>
+        <span className="ambio-case__run-id">R{run.n}{hypothesis ? ` · ${hypothesis.id}` : ''}</span>
+        <span className="ambio-case__run-title">{run.error ? 'Could not run' : run.timedOut ? 'Timed out' : failed ? 'Command failed' : 'Command completed'}</span>
+        <span className="ambio-case__run-meta">{duration(run.durationMs)} · {run.error ? 'not started' : run.timedOut ? 'timed out' : `exit ${run.exitCode}`}</span>
+        <span className="ambio-case__chevron" aria-hidden="true">›</span>
+      </summary>
+      <div className="ambio-case__run-detail">
+        <code className="ambio-case__command">{run.command}</code>
+        {hypothesis && <p className="ambio-case__run-tests">Tests {hypothesis.id}</p>}
+        {run.error && <p className="ambio-case__run-error">{run.error}</p>}
+        {findings.length > 0 ? (
+          <ul className="ambio-case__findings" aria-label={`What run R${run.n} showed`}>
+            {findings.map((f, i) => <FindingRow key={i} finding={f} />)}
+          </ul>
+        ) : !run.error && <p className="ambio-case__run-quiet">{run.watched.length
+          ? 'No unusual behavior reported in the watched functions.'
+          : 'Command output recorded; no watched-function evidence.'}</p>}
+        {run.functionsRun != null && <p className="ambio-case__run-meta">{run.functionsRun} functions ran in {run.filesRun ?? 0} files</p>}
+        {run.watched.length > 0 && <ul className="ambio-case__watched">
+          {run.watched.map((w, i) => <li key={i}>
+            <AnchorChips anchors={[w.anchor]} />
+            <span>{w.calls} calls{w.errors ? ` · ${w.errors} threw` : ''}</span>
+            {w.returns && <p>Returns: <code>{w.returns}</code></p>}
+            {w.samples?.length ? <details><summary>Sample calls ({w.samples.length})</summary>
+              {w.samples.map((sample, n) => <pre key={n}>{`Call ${sample.call}\nArguments: ${sample.args}${sample.returned ? `\nReturned: ${sample.returned}` : ''}${sample.threw ? `\nThrew: ${sample.threw}` : ''}${sample.mutated?.length ? `\nChanged: ${sample.mutated.join(', ')}` : ''}`}</pre>)}
+            </details> : null}
+          </li>)}
+        </ul>}
+        {run.outputTail && <details className="ambio-case__output"><summary>Program output</summary><pre>{run.outputTail}</pre></details>}
+      </div>
+    </details>
   )
 }
 
@@ -151,8 +164,8 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
       if (!h) return null
       return (
         <li className="ambio-case__entry" data-kind="hypothesis">
-          <span className="ambio-case__entry-label">Suspects</span>
-          <p><strong>{h.id}</strong> {h.text}</p>
+          <span className="ambio-case__entry-label">Question · {h.id}</span>
+          <p>{h.text}</p>
           <AnchorChips anchors={h.anchors} />
         </li>
       )
@@ -196,67 +209,8 @@ function Entry({ entry, file }: { entry: CaseEntry; file: CaseFile }) {
       )
     }
     case 'conclusion':
-      return null // shown pinned above the story
+      return <li className="ambio-case__entry" data-kind="conclusion"><span className="ambio-case__entry-label">Conclusion recorded</span><button type="button" className="ambio-case__text-button" onClick={event => event.currentTarget.closest('.ambio-case__body')?.scrollTo({top:0})}>Back to finding ↑</button></li>
   }
-}
-
-function Composer({ disabled }: { disabled: boolean }) {
-  const sendCaseMessage = useGraphStore(state => state.sendCaseMessage)
-  const selected = useGraphStore(state => state.selectedNodeId)
-  const files = useGraphStore(state => state.files)
-  const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [attach, setAttach] = useState(true)
-  const selectedFile = selected ? files.find(f => f.id === selected) : undefined
-
-  const send = async () => {
-    const body = text.trim()
-    if (!body || sending) return
-    setSending(true)
-    setError(null)
-    try {
-      await sendCaseMessage(body, attach && selectedFile ? { fileId: selectedFile.id, relPath: selectedFile.relPath } : undefined)
-      setText('')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <form
-      className="ambio-case__composer"
-      onSubmit={event => { event.preventDefault(); void send() }}
-    >
-      <label htmlFor="ambio-case-message" className="ambio-case__composer-label">Tell the agent</label>
-      <textarea
-        id="ambio-case-message"
-        value={text}
-        disabled={disabled || sending}
-        rows={2}
-        placeholder={disabled ? 'The case is closed' : 'A hint, a correction, a question…'}
-        onChange={event => setText(event.target.value)}
-        onKeyDown={event => {
-          if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault()
-            void send()
-          }
-        }}
-      />
-      <div className="ambio-case__composer-row">
-        {selectedFile && !disabled ? (
-          <label className="ambio-case__attach">
-            <input type="checkbox" checked={attach} onChange={event => setAttach(event.target.checked)} />
-            Pointing at {basename(selectedFile.relPath)}
-          </label>
-        ) : <span className="ambio-case__hint">Select a file on the map to point at it</span>}
-        <button type="submit" disabled={disabled || sending || !text.trim()}>{sending ? 'Sending…' : 'Send'}</button>
-      </div>
-      {error && <p className="ambio-case__error" role="alert">{error}</p>}
-    </form>
-  )
 }
 
 export function CasePanel() {
@@ -277,33 +231,45 @@ export function CasePanel() {
     if (workspaceId) void loadCase(workspaceId)
   }, [workspaceId, loadCase])
   const [replayError, setReplayError] = useState<string | null>(null)
-  const storyRef = useRef<HTMLOListElement>(null)
-  const stickToBottom = useRef(true)
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const [availableWidth, setAvailableWidth] = useState(1000)
+  const [narrowExpanded, setNarrowExpanded] = useState(false)
+  useLayoutEffect(() => {
+    const parent = anchorRef.current?.parentElement
+    if (!parent) return
+    const measure = () => setAvailableWidth(parent.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(parent)
+    return () => observer.disconnect()
+  }, [caseFile?.id])
+  const narrow = availableWidth < 340
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [evidenceOpen, setEvidenceOpen] = useState(false)
+  useEffect(() => {
+    setEvidenceOpen(false); setNarrowExpanded(false); setReplayError(null)
+    if (bodyRef.current) bodyRef.current.scrollTop = 0
+  }, [caseFile?.id])
   const live = caseFile?.status === 'live'
 
   useEffect(() => {
-    if (!live && !caseFile?.running) return
+    if (!live) return
+    setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
-  }, [live, caseFile?.running])
+  }, [live])
 
-  const entryCount = caseFile?.entries.length ?? 0
-  useLayoutEffect(() => {
-    const el = storyRef.current
-    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight
-  }, [entryCount, caseFile?.running])
-
-  const summary = useMemo(() => (caseFile ? caseSummary(caseFile) : ''), [caseFile])
+  const summary = caseFile ? caseSummary(caseFile) : ''
 
   if (!caseFile) return null
 
-  if (dismissedId === caseFile.id) {
+  if (dismissedId === caseFile.id || (narrow && !narrowExpanded)) {
     return (
-      <button type="button" className="ambio-case-chip" data-status={caseFile.status} onClick={showCase}>
+      <><span ref={anchorRef} hidden /><button type="button" className="ambio-case-chip" data-status={caseFile.status} title={caseFile.name} onClick={() => { setNarrowExpanded(true); showCase() }}>
         <span className="ambio-case-chip__dot" aria-hidden="true" />
         <span className="ambio-case-chip__name">{caseFile.name}</span>
         <span className="ambio-case-chip__summary">{summary}</span>
-      </button>
+      </button></>
     )
   }
 
@@ -311,7 +277,10 @@ export function CasePanel() {
     if (!caseFile.savedId || !workspaceId) return
     setReplayError(null)
     try {
-      startReplay(await apiGetInvestigation(workspaceId, caseFile.savedId) as InvestigationDoc)
+      const document = await apiGetInvestigation(workspaceId, caseFile.savedId) as InvestigationDoc
+      const current = useGraphStore.getState()
+      if (current.currentProject?.id !== workspaceId || current.caseFile?.id !== caseFile.id) return
+      startReplay(document)
     } catch (err) {
       setReplayError(err instanceof Error ? err.message : String(err))
     }
@@ -325,91 +294,61 @@ export function CasePanel() {
     caseFile.runs.length && `${caseFile.runs.length} run${caseFile.runs.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ')
 
+  const hypothesis = caseFile.running
+    ? caseFile.hypotheses.find(h => h.id === caseFile.running?.hypothesisId)
+    : caseFile.hypotheses.at(-1)
+  const lastNote = caseFile.entries.filter(entry => entry.kind !== 'message' && entry.kind !== 'conclusion').at(-1)
+  const finding = caseFile.conclusion?.rootCause
+    ?? (caseFile.running ? hypothesis?.text ?? 'Observing the code as the command runs.'
+      : lastNote?.kind === 'note' ? lastNote.text
+      : hypothesis?.verdict || hypothesis?.text
+      || (caseFile.runs.length ? 'Experiment complete. Waiting for the agent’s next finding.'
+        : caseFile.status === 'replay' ? 'Press Play to watch the investigation unfold.' : caseFile.status === 'closed' ? 'No conclusion was recorded. Any available evidence is kept below.' : 'Waiting for the first question or experiment.'))
+  const label = caseFile.conclusion ? 'Finding' : caseFile.status === 'closed' ? 'Ended without a conclusion' : caseFile.running ? caseFile.status === 'replay' ? 'Recorded experiment' : 'Testing now'
+    : lastNote?.kind === 'note' ? 'Latest observation' : lastNote?.kind === 'run' ? 'Reviewing result' : hypothesis ? hypothesis.status === 'open' ? 'Current question' : STATUS_LABEL[hypothesis.status] : 'Getting started'
+  const verification = caseFile.conclusion?.verified
+    ? caseFile.runs.find(run => run.id === caseFile.conclusion?.verified) : undefined
+
   return (
-    <aside className="ambio-case" data-status={caseFile.status} data-with-replay={replay ? true : undefined} aria-label={`Investigation: ${caseFile.name}`}>
+    <><span ref={anchorRef} hidden /><aside className="ambio-case nodrag nowheel" data-narrow={narrow || undefined} data-status={caseFile.status} data-with-replay={replay ? true : undefined} aria-label={`Investigation: ${caseFile.name}`}>
       <header className="ambio-case__header">
-        <span className="ambio-case__mode" data-status={caseFile.status}>
-          {live && <span className="ambio-case__live-dot" aria-hidden="true" />}
-          {mode}
-        </span>
         <div className="ambio-case__identity">
+          <span className="ambio-case__eyebrow">Investigation <span className="ambio-case__mode" data-status={caseFile.status}>{live && <span className="ambio-case__live-dot" aria-hidden="true" />}{mode}</span></span>
           <strong title={caseFile.name}>{caseFile.name}</strong>
           <span>{caseFile.status === 'replay' ? 'Saved investigation' : since}{counts ? ` · ${counts}` : ''}</span>
         </div>
-        <button
-          type="button"
-          className="ambio-case__close"
-          aria-label={caseFile.status === 'closed' ? 'Dismiss the closed case' : 'Minimize the case'}
-          title={caseFile.status === 'closed' ? 'Dismiss' : 'Minimize'}
-          onClick={dismissCase}
-        >
-          {caseFile.status === 'closed' ? '×' : '–'}
-        </button>
+        <button type="button" className="ambio-case__close" aria-label={caseFile.status === 'closed' ? 'Dismiss the closed case' : 'Minimize the case'} title={caseFile.status === 'closed' ? 'Dismiss' : 'Minimize'} onClick={dismissCase}>{caseFile.status === 'closed' ? '×' : '–'}</button>
       </header>
-
-      <div className="ambio-case__summary" aria-live="polite">
-        <span>{caseFile.conclusion ? 'Root cause' : 'So far'}</span>
-        <p><Rich text={summary} /></p>
-        {caseFile.conclusion && <AnchorChips anchors={caseFile.conclusion.anchors} />}
-        {caseFile.conclusion?.fix && <p className="ambio-case__fix"><span>Fix</span> {caseFile.conclusion.fix}</p>}
-        {caseFile.conclusion && (
-          <p className="ambio-case__verified" data-verified={caseFile.conclusion.verified ? true : undefined}>
-            {caseFile.conclusion.verified
-              ? `Verified by R${caseFile.runs.find(r => r.id === caseFile.conclusion?.verified)?.n ?? '?'}`
-              : 'Not yet verified by a run'}
-          </p>
-        )}
-      </div>
-
-      {caseFile.status === 'closed' && (
-        <div className="ambio-case__closed">
-          <p>The agent closed this case{caseFile.conclusion ? '' : ' without a stated root cause'}.</p>
-          {caseFile.savedId && <button type="button" onClick={() => void watchReplay()}>Watch the replay</button>}
-          {replayError && <p className="ambio-case__error" role="alert">{replayError}</p>}
-        </div>
-      )}
-
-      {caseFile.hypotheses.length > 0 && (
-        <section className="ambio-case__board" aria-label="Hypotheses">
-          {caseFile.hypotheses.map(h => (
-            <div key={h.id} className="ambio-case__hypothesis" data-status={h.status}>
-              <span className="ambio-case__hypothesis-id">{h.id}</span>
-              <span className="ambio-case__hypothesis-text">{h.text}</span>
-              <span className="ambio-case__hypothesis-status">{STATUS_LABEL[h.status]}</span>
-            </div>
-          ))}
+      <div className="ambio-case__body" ref={bodyRef}>
+        <section className="ambio-case__summary" aria-label="Current finding">
+          <span className="ambio-case__entry-label" role="status">{label}</span>
+          <FindingText key={caseFile.id} text={finding} conclusion={!!caseFile.conclusion} />
+          <AnchorChips anchors={caseFile.conclusion ? caseFile.conclusion.anchors : !caseFile.running && lastNote?.kind === 'note' ? lastNote.anchors : hypothesis?.anchors} />
+          {caseFile.running && <div className="ambio-case__running" role="status">
+            <span className="ambio-case__live-dot" aria-hidden="true" />
+            <span>{caseFile.status === 'replay' ? 'Recorded command' : `Running experiment · ${elapsed(now - caseFile.running.startedAt)}`} </span>
+            <code title={caseFile.running.command}>{caseFile.running.command}</code>
+            <AnchorChips anchors={caseFile.running.watches} />
+          </div>}
+          {caseFile.conclusion && <p className="ambio-case__evidence-state">{caseFile.runs.length ? `${caseFile.runs.length} recorded ${caseFile.runs.length === 1 ? 'experiment' : 'experiments'}` : 'Agent conclusion · no experiment recorded'}{verification ? ` · Fix verified by R${verification.n}` : caseFile.conclusion.fix ? ' · No fix verification recorded' : ''}</p>}
+          {caseFile.conclusion?.fix && <details className="ambio-case__fix"><summary>Suggested fix</summary><p><Rich text={caseFile.conclusion.fix} /></p></details>}
         </section>
-      )}
-
-      <ol
-        className="ambio-case__story"
-        ref={storyRef}
-        aria-label="How the investigation unfolded"
-        onScroll={event => {
-          const el = event.currentTarget
-          stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
-        }}
-      >
-        {caseFile.entries.length === 0 && !caseFile.running && (
-          <li className="ambio-case__empty">
-            {caseFile.status === 'replay'
-              ? 'Press Play to watch the investigation unfold.'
-              : 'The agent has opened the case. Its hypotheses and experiments will appear here as it works.'}
-          </li>
-        )}
-        {caseFile.entries.map((entry, i) => <Entry key={`${entry.kind}-${i}`} entry={entry} file={caseFile} />)}
-        {caseFile.running && (
-          <li className="ambio-case__entry" data-kind="running" aria-live="polite">
-            <span className="ambio-case__entry-label">Running</span>
-            <p><code>{caseFile.running.command}</code> · {elapsed(now - caseFile.running.startedAt)}</p>
-            {caseFile.running.watches.length > 0 && (
-              <p className="ambio-case__watching">Watching <AnchorChips anchors={caseFile.running.watches} /></p>
-            )}
-          </li>
-        )}
-      </ol>
-
-      {caseFile.status !== 'replay' && <Composer disabled={!live} />}
-    </aside>
+        <div className="ambio-case__evidence-heading">
+          <button type="button" className="ambio-case__evidence-toggle" aria-expanded={evidenceOpen} aria-controls="ambio-case-history" onClick={() => setEvidenceOpen(v => !v)}><span className="ambio-case__chevron" aria-hidden="true">›</span>Evidence & history <span>{caseFile.entries.length}</span></button>
+          {evidenceOpen && <button type="button" className="ambio-case__text-button" onClick={() => bodyRef.current?.scrollTo({top:bodyRef.current.scrollHeight,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'})}>Latest step ↓</button>}
+        </div>
+        <ol id="ambio-case-history" className="ambio-case__story" aria-label="How the investigation unfolded" hidden={!evidenceOpen}>
+          {caseFile.entries.length === 0 && <li className="ambio-case__empty">Experiments and observations will appear here.</li>}
+          {caseFile.entries.map((entry, i) => <Entry key={`${entry.kind}-${i}`} entry={entry} file={caseFile} />)}
+        </ol>
+      </div>
+      <footer className="ambio-case__footer">
+        {live ? <button type="button" className="ambio-case__action" onClick={() => { window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {detail:{investigationId:caseFile.id}})); if (narrow) {setNarrowExpanded(false); dismissCase()} }}>Reply in chat <span aria-hidden="true">↗</span></button>
+          : caseFile.status === 'closed' && caseFile.savedId ? <button type="button" className="ambio-case__action" onClick={() => void watchReplay()}>Watch the replay <span aria-hidden="true">↻</span></button>
+          : <span>{caseFile.status === 'replay' ? 'Playback · messages are read-only' : 'Investigation closed'}</span>}
+        {live && <span>Replies arrive with the next step</span>}
+        {replayError && <p className="ambio-case__error" role="alert">{replayError}</p>}
+      </footer>
+    </aside></>
   )
 }

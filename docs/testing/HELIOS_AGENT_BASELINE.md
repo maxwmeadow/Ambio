@@ -417,3 +417,31 @@ separate containment reproduction/fix and quieter planned-node presentation.
 This changes the roadmap priority: establish a usable review surface before
 expanding agent workflow automation. Do not treat a grouped preview, the agent's
 explanation or this assessment as approval to implement Helios's pending plan.
+
+
+## Explicit investigation control and reader redesign, 2026-11-03
+
+Max supplied three screenshots after explicitly asking Antigravity CLI to use
+Ambio investigations for the Helios sensor reconnect issue. They show a live
+case with one hypothesis, a recorded Node command (exit 0, 1.3 seconds), a
+confirmed verdict, and a closed case at 49 seconds with Watch the replay. The
+model label is truncated. This establishes that this route can use the case
+workflow when asked; it does not establish automatic selection. The displayed
+run says nothing unusual in watched code, and program output was not opened in
+these captures, so the exact reproduction and watched-function evidence are
+not independently established by the screenshots.
+
+The reader redesign replaces the repeated summary/board/Suspects treatment and
+separate composer with one compact current finding and expandable chronological
+evidence. It caps the reader's size and uses one scrolling body. Reply in chat
+explicitly targets the case through the existing queue, with queued/delivered
+status, retained drafts and guards against a closed or replacement case. Narrow
+canvas space defaults to a chip. Replay uses the same reader and keeps its
+transport usable. No Helios source or saved investigation was modified by this
+implementation.
+
+UI checks use isolated Electron fixtures with a sensor lifecycle scenario,
+including a larger eight-question/eight-run case. Fixture previews exercise
+more growth than the supplied one-question recording; they are not an identical
+before/after event stream. For the direct comparison, restart Ambio on
+`codex/investigation-card` and replay Max's saved Helios sensor reconnect case.

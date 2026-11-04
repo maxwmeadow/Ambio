@@ -137,3 +137,15 @@ test('a focus the recorded calls never reach falls back to the busiest crossings
   const steps = traceStepsForRun({ ...ledgerly, watched: [{ anchor: { fileId: 'x', symbol: 'nowhere' }, calls: 0, errors: 0 }] }, 2)
   assert.deepEqual(steps.map(s => s.calleeSymbol), ['ruleById', 'roundCents'])
 })
+
+
+test('delayed feedback events from an old investigation cannot enter its replacement', () => {
+  const current = emptyCase('new-case', 'Reconnect', 'live')
+  const message = { id: 'm1', text: 'Check cleanup', at: 1 }
+  assert.equal(reduceCase(current, 'investigation:message', { caseId: 'old-case', message }, 1), current)
+  const received = reduceCase(current, 'investigation:message', { caseId: 'new-case', message }, 1)
+  assert.equal(received.messages.length, 1)
+  assert.equal(reduceCase(received, 'investigation:message_delivered', { caseId: 'old-case', ids: ['m1'] }, 2), received)
+  const delivered = reduceCase(received, 'investigation:message_delivered', { caseId: 'new-case', ids: ['m1'] }, 3)
+  assert.equal(delivered.messages[0].deliveredAt, 3)
+})

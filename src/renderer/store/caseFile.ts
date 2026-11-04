@@ -187,7 +187,7 @@ export function reduceCase(state: CaseFile | null, type: string, payload: any, a
       if (!state || state.status === 'replay') return state
       return { ...state, status: 'closed', running: null, savedId: payload?.id ?? state.id, closedAt: at }
   }
-  if (!state) return state
+  if (!state || (payload?.caseId && payload.caseId !== state.id)) return state
   switch (type) {
     case 'investigation:hypothesis': {
       const h = payload?.hypothesis as CaseHypothesis | undefined

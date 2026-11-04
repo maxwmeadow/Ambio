@@ -254,6 +254,7 @@ test.beforeEach(async () => {
     localStorage.removeItem('ambio:inbox-draft:demo')
     localStorage.removeItem('ambio:inbox-draft:demo:pending')
     localStorage.removeItem('ambio:inbox-draft:demo:sheet')
+    localStorage.removeItem('ambio:inbox-draft:demo:investigation')
   })
   await page.reload()
   // Project/view labels were intentionally removed from the title bar. Check
@@ -4063,4 +4064,171 @@ test('an agent reply reads as formatted Markdown, with project files as chips', 
     return Math.abs(map.right - panel.left) < 2 && Math.abs((card.left + card.right) / 2 - (map.left + map.right) / 2) < 8
   }), { timeout: 5_000 }).toBe(true)
   await page.unroute(/\/api\/canvas\/history\?/)
+})
+
+
+async function seedSensorInvestigation() {
+  await page.evaluate(() => {
+    const store = (window as any).__ambioGraphStore.getState()
+    const at = Date.now() - 20_000
+    store.applyCaseEvent('investigation:started', {id:'case_sensor', name:'Helios sensor reconnect causes duplicate updates', origin:'agent'}, at)
+    for (let n=1; n<=8; n++) {
+      const hypothesis = {id:`H${n}`, text:`An interrupted reconnect during asynchronous permission checks can attach sensor listeners after cleanup. Experiment ${n} distinguishes leftover subscriptions from duplicate sockets and delayed callbacks.`, status:'open', createdAt:at+n, anchors:[{fileId:'file_canvas',relPath:'src/renderer/canvas/AmbioCanvas.tsx',symbol:'startMotion'}]}
+      store.applyCaseEvent('investigation:hypothesis', {hypothesis}, at+n)
+      store.applyCaseEvent('investigation:run', {run:{id:`r${n}`, n, command:`node offline-sensor-repro.cjs --experiment ${n}`,exitCode:n===2?2:0,timedOut:false,durationMs:1300,headline:'Offline experiment completed',hypothesisId:`H${n}`,findings:n===1 ? Array.from({length:6},(_,i)=>({kind:'repeat',severity:'medium',text:`Observation ${i+1}: an old callback remains attached`,anchor:{fileId:'file_canvas'}})) : [],watched:n===3 ? [{anchor:{fileId:'file_canvas',symbol:'startMotion'},calls:2,errors:0,returns:'subscription',samples:[{call:1,args:'enabled=true',returned:'listener 1',mutated:['activeListeners']}]}] : [], calls:[],outputTail:`CONTROL: 1 listener, 1 packet\nINTERRUPTED: 2 listeners, 2 packets\n${'offline trace output\n'.repeat(18)}`}},at+n+10)
+      store.applyCaseEvent('investigation:note', {text:`Experiment ${n} compared the same samples under two startup schedules. ${'Both schedules use one connected socket. '.repeat(5)}`}, at+n+11)
+    }
+  })
+}
+
+test('a growing investigation has one bounded reader, expandable evidence and stable history', async () => {
+  await seedSensorInvestigation()
+  const card=page.getByRole('complementary', {name:'Investigation: Helios sensor reconnect causes duplicate updates'})
+  await expect(card).toBeVisible()
+  await expect(card.getByRole('textbox')).toHaveCount(0)
+  await expect(card.locator('.ambio-case__board')).toHaveCount(0)
+  await expect(card.getByRole('button',{name:/Evidence & history/})).toHaveAttribute('aria-expanded','false')
+  expect((await card.boundingBox())!.height).toBeLessThan(420)
+  await page.screenshot({path:'test-results/investigation-compact-live.png'})
+  await card.getByRole('button',{name:/Evidence & history/}).click()
+  const body=card.locator('.ambio-case__body')
+  await expect(card.getByRole('list',{name:'How the investigation unfolded'})).toBeVisible()
+  expect((await card.boundingBox())!.height).toBeLessThanOrEqual(581)
+  expect(await body.evaluate(el=>el.clientHeight)).toBeGreaterThan(250)
+  expect(await body.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true)
+  expect(await card.locator('.ambio-case__story').evaluate(el=>getComputedStyle(el).overflowY)).toBe('visible')
+  await card.locator('.ambio-case__anchor').first().click()
+  await expect(page.locator('.react-flow__node[data-id="file_canvas"]')).toBeVisible()
+  await page.waitForFunction(canvasViewportSettled)
+  await card.locator('.ambio-case__run').first().locator('summary').first().click()
+  await expect(card.locator('.ambio-case__run').first().locator('.ambio-case__finding')).toHaveCount(6)
+  await card.locator('.ambio-case__run').first().getByText('Program output',{exact:true}).click()
+  await expect(card.locator('.ambio-case__run').first().locator('pre')).toContainText('INTERRUPTED: 2 listeners, 2 packets')
+  await page.screenshot({path:'test-results/investigation-evidence.png'})
+  await body.evaluate(el=>{el.scrollTop=320})
+  const readingAnchor=card.locator('.ambio-case__run').first()
+  const position=await readingAnchor.evaluate(el=>el.getBoundingClientRect().y)
+  await page.evaluate(()=> (window as any).__ambioGraphStore.getState().applyCaseEvent('investigation:note',{text:'A new observation arrived while the reader was inspecting earlier evidence.'}))
+  expect(await readingAnchor.evaluate(el=>el.getBoundingClientRect().y)).toBeCloseTo(position,0)
+  await card.getByRole('button',{name:'Latest step ↓'}).click()
+  await expect.poll(()=>body.evaluate(el=>el.scrollHeight-el.scrollTop-el.clientHeight)).toBeLessThan(3)
+  await card.getByRole('button',{name:/Evidence & history/}).click()
+  await page.evaluate(()=> (window as any).__ambioGraphStore.getState().applyCaseEvent('investigation:run_started',{command:'node offline-sensor-repro.cjs --late-start',hypothesisId:'H1',watches:[{fileId:'file_canvas',symbol:'startMotion'}]}))
+  await expect(card).toContainText('Testing now')
+  await expect(card).toContainText('Running experiment')
+  await page.screenshot({path:'test-results/investigation-running.png'})
+  await page.setViewportSize({width:900,height:600})
+  await card.getByRole('button',{name:'Reply in chat'}).click()
+  const inbox=page.getByRole('complementary',{name:'Agent inbox'})
+  await expect(inbox).toBeVisible()
+  await expect(page.locator('.ambio-case-chip')).toBeVisible()
+  await expect(card).toHaveCount(0)
+  await page.locator('.ambio-case-chip').click()
+  await expect(card).toBeVisible()
+  const box=(await card.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.y).toBeGreaterThan(70)
+  expect(box.x+box.width).toBeLessThanOrEqual(900)
+  expect(box.y+box.height).toBeLessThanOrEqual(600)
+  await expect(card).toHaveCSS('opacity','1')
+  await page.screenshot({path:'test-results/investigation-narrow.png'})
+  await page.evaluate(()=> (window as any).__ambioGraphStore.getState().applyCaseEvent('investigation:stopped',{id:'case_sensor'}))
+  await expect(card).toContainText('Ended without a conclusion')
+})
+
+test('investigation steering uses chat, preserves failed drafts and cannot spill into another case', async () => {
+  const turn={id:'sensor_turn',workspaceId:'demo',sheetId:null,note:'Diagnose sensor reconnect',selection:'[]',changeSummary:'',sheetContext:'',buildSpec:'',status:'delivered',leaseExpiresAt:Date.now()+600_000,agent:'antigravity-cli',createdAt:5,deliveredTo:'client',answerAnnotationId:null,threadId:'sensor_turn',mode:'ask'}
+  await page.route(/\/api\/canvas\/history\?/,route=>route.fulfill({json:{nextCursor:'',availableCount:0,messages:[turn]}}))
+  let fail=true
+  const requests: Record<string,unknown>[]=[]
+  await page.route(/\/api\/investigation\/message$/,async route=>{
+    const request=route.request().postDataJSON();requests.push(request)
+    if(fail){fail=false;await route.fulfill({status:503,body:'Could not queue feedback'});return}
+    await route.fulfill({json:{message:{id:'feedback1',text:request.text,at:Date.now()}}})
+  })
+  await seedSensorInvestigation()
+  const card=page.getByRole('complementary',{name:'Investigation: Helios sensor reconnect causes duplicate updates'})
+  await card.getByRole('button',{name:'Reply in chat'}).click()
+  const inbox=page.getByRole('complementary',{name:'Agent inbox'})
+  const input=inbox.getByRole('textbox',{name:'Instruction for your agent'})
+  await expect(inbox.getByRole('button',{name:'Stop',exact:true})).toBeVisible()
+  await expect(input).toBeEnabled()
+  await expect(inbox.getByLabel('Investigation reply target')).toContainText('Helios sensor reconnect')
+  await input.fill('Check whether the first listener survives unmount.')
+  await input.press('Enter')
+  await expect(inbox).toContainText('Could not queue feedback')
+  await expect(input).toHaveValue('Check whether the first listener survives unmount.')
+  await inbox.getByRole('button',{name:'Send to investigation'}).click()
+  await expect(input).toHaveValue('')
+  expect(requests).toHaveLength(2)
+  expect(requests[1]).toEqual({workspaceId:'demo',caseId:'case_sensor',text:'Check whether the first listener survives unmount.'})
+  await expect(inbox.getByLabel('Investigation message')).toContainText('Queued for the agent’s next investigation step')
+  await page.evaluate(()=> (window as any).__ambioGraphStore.getState().applyCaseEvent('investigation:message_delivered',{ids:['feedback1']}))
+  await expect(inbox.getByLabel('Investigation message')).toContainText('Delivered to the investigating agent')
+  await page.screenshot({path:'test-results/investigation-chat-feedback.png'})
+  await input.fill('Keep this unsent draft.')
+  await page.evaluate(()=>{
+    const store=(window as any).__ambioGraphStore.getState()
+    store.applyCaseEvent('investigation:conclusion',{conclusion:{rootCause:'A late permission result attaches the old listener after cleanup.',fix:'Cancel pending startup before registering a subscription.',at:Date.now()}})
+    store.applyCaseEvent('investigation:stopped',{id:'saved_sensor'})
+  })
+  await expect(input).toBeDisabled()
+  await expect(input).toHaveValue('Keep this unsent draft.')
+  await expect(card).toContainText('No fix verification recorded')
+  await expect(card.getByRole('button',{name:'Watch the replay'})).toBeVisible()
+  await page.screenshot({path:'test-results/investigation-closed.png'})
+  await page.evaluate(()=> (window as any).__ambioGraphStore.getState().applyCaseEvent('investigation:started',{id:'replacement',name:'Another agent’s case',origin:'agent'}))
+  await expect(input).toBeDisabled()
+  await inbox.locator('form').evaluate(form=>(form as HTMLFormElement).requestSubmit())
+  expect(requests).toHaveLength(2)
+  await page.reload()
+  await page.getByRole('button',{name:/^Message agent/}).click()
+  await expect(inbox.getByLabel('Investigation reply target')).toContainText('Investigation ended or changed')
+  await expect(input).toHaveValue('Keep this unsent draft.')
+  await expect(input).toBeDisabled()
+  await expect(inbox.getByRole('button',{name:'Send to investigation'})).toBeDisabled()
+  expect(requests).toHaveLength(2)
+  await inbox.getByRole('button',{name:'Return to conversation'}).click()
+  await expect(input).toBeDisabled() // the ordinary conversation is still running
+  await expect(inbox.getByRole('button',{name:'Stop',exact:true})).toBeVisible()
+})
+
+
+test('a saved investigation replays in the compact reader with read-only evidence', async () => {
+  const name='Helios sensor reconnect causes duplicate updates'
+  const hypothesis={id:'H1',text:'A startup promise resolves after cleanup and attaches an old sensor listener.',status:'confirmed',verdict:'The interrupted schedule leaves two listeners; the control leaves one.',createdAt:1,anchors:[{fileId:'file_canvas',symbol:'startMotion'}]}
+  const rootCause='Late sensor startup attaches an orphaned listener. Reconnect adds another, so both send telemetry.'
+  await page.route(/\/api\/investigation\/saved_sensor\?/,route=>route.fulfill({json:{id:'saved_sensor',name,createdAt:Date.now()-60_000,durationMs:5000,events:[
+    {type:'investigation:hypothesis',offsetMs:0,payload:{hypothesis:{...hypothesis,status:'open'}}},
+    {type:'investigation:run_started',offsetMs:500,payload:{command:'node sensor-race.cjs',hypothesisId:'H1',watches:[]}},
+    {type:'investigation:run',offsetMs:1000,payload:{run:{id:'saved_r1',n:1,command:'node sensor-race.cjs',exitCode:0,durationMs:1300,timedOut:false,findings:[],watched:[],calls:[],outputTail:'CONTROL listeners=1 packets=1\nRACE listeners=2 packets=2'}}},
+    {type:'investigation:verdict',offsetMs:2500,payload:{hypothesis}},
+    {type:'investigation:conclusion',offsetMs:4000,payload:{conclusion:{rootCause,fix:'Cancel pending startup.',at:4000}}}
+  ]}}))
+  await seedSensorInvestigation()
+  await page.evaluate(rootCause=>{
+    const store=(window as any).__ambioGraphStore.getState()
+    store.applyCaseEvent('investigation:conclusion',{conclusion:{rootCause,fix:'Cancel pending startup.',at:Date.now()}})
+    store.applyCaseEvent('investigation:stopped',{id:'saved_sensor'})
+  },rootCause)
+  const card=page.getByRole('complementary',{name:`Investigation: ${name}`})
+  await card.getByRole('button',{name:'Watch the replay'}).click()
+  const replay=page.getByRole('region',{name:`Investigation replay: ${name}`})
+  await expect(replay).toBeVisible()
+  const slider=replay.getByRole('slider',{name:'Investigation timeline'})
+  await slider.focus();await slider.press('ArrowRight');await slider.press('ArrowRight')
+  await expect(card).toContainText('Recorded command')
+  await expect(card).not.toContainText('Running experiment')
+  await slider.press('End')
+  await expect(card.getByRole('region',{name:'Current finding'})).toContainText(rootCause)
+  await expect(card.getByRole('button',{name:'Reply in chat'})).toHaveCount(0)
+  await expect(card).toContainText('Playback · messages are read-only')
+  await card.getByRole('button',{name:/Evidence & history/}).click()
+  await card.locator('.ambio-case__run > summary').click()
+  await card.getByText('Program output',{exact:true}).click()
+  await expect(card.locator('.ambio-case__output pre')).toContainText('RACE listeners=2 packets=2')
+  await expect(card).toContainText('No fix verification recorded')
+  const cardBox=(await card.boundingBox())!,transportBox=(await replay.boundingBox())!
+  expect(cardBox.y+cardBox.height).toBeLessThan(transportBox.y)
+  await page.screenshot({path:'test-results/investigation-replay.png'})
 })

@@ -320,7 +320,7 @@ interface GraphState {
   loadCase: (workspaceId: string) => Promise<void>
   dismissCase: () => void
   showCase: () => void
-  sendCaseMessage: (text: string, anchor?: CaseAnchor) => Promise<void>
+  sendCaseMessage: (text: string, anchor?: CaseAnchor, caseId?: string) => Promise<void>
   beginInvestigation: (
     id: string,
     name: string,
@@ -690,18 +690,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     else set({ caseDismissedId: c.id })
   },
   showCase: () => set({ caseDismissedId: null }),
-  sendCaseMessage: async (text, anchor) => {
+  sendCaseMessage: async (text, anchor, caseId) => {
     const workspaceId = get().currentProject?.id
     if (!workspaceId || !text.trim()) return
+    const target = get().caseFile
+    if (caseId && (target?.id !== caseId || target.status !== 'live')) throw new Error('This investigation has ended or changed. Your draft is kept.')
     const res = await fetch(`${archdApi()}/api/investigation/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, text, fileId: anchor?.fileId, symbol: anchor?.symbol }),
+      body: JSON.stringify({ workspaceId, caseId, text, fileId: anchor?.fileId, symbol: anchor?.symbol }),
     })
     if (!res.ok) {
       let message = await res.text()
       try { message = JSON.parse(message).error ?? message } catch { /* plain text */ }
       throw new Error(message)
+    }
+    const result = await res.json() as { message?: unknown }
+    if (get().currentProject?.id === workspaceId && get().caseFile?.id === target?.id && result.message) {
+      get().applyCaseEvent('investigation:message', {message:result.message})
     }
   },
   resetRuntimeVisuals: () => set({

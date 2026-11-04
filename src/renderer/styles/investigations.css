@@ -1,0 +1,120 @@
+/* One bounded reader for live cases and saved replay. */
+.ambio-case {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1150;
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  max-width: calc(100% - 28px);
+  max-height: min(580px, calc(100% - 28px));
+  overflow: hidden;
+  border: 1px solid #65716b;
+  border-radius: 3px;
+  background: #f0eee7;
+  color: #26332f;
+  box-shadow: 3px 4px 0 #24342c30, 0 8px 24px #24342c1c;
+  font: 13px/1.5 var(--font-ui);
+  animation: ambioCaseArrival 160ms ease-out;
+}
+.ambio-case__header { display: flex; flex: 0 0 auto; align-items: flex-start; gap: 12px; padding: 13px 15px; background: #2d3c37; color: #f4f2e9; }
+.ambio-case__identity { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
+.ambio-case__identity > strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.ambio-case__identity > span:last-child { color: #b9c9c1; font: 10px/1.5 var(--font-mono); }
+.ambio-case__eyebrow { display: flex; align-items: center; gap: 9px; color: #bbcec4; font: 9px/1.5 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.ambio-case__mode { display: inline-flex; align-items: center; gap: 5px; color: #d3ebe2; letter-spacing: .05em; }
+.ambio-case__mode[data-status='replay'] { color: #f1d59f; }
+.ambio-case__mode[data-status='closed'] { color: #bad5b5; }
+.ambio-case__live-dot { flex: 0 0 5px; width: 5px; height: 5px; border-radius: 50%; background: #87c7b1; animation: ambioCaseLive 1.8s ease-in-out infinite; }
+.ambio-case__close { flex: 0 0 25px; width: 25px; height: 25px; border: 1px solid #6a8076; border-radius: 2px; background: transparent; color: #e0e9e3; cursor: pointer; font: 18px/1 var(--font-ui); }
+.ambio-case__close:hover { background: #ffffff18; }
+.ambio-case__body { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.ambio-case__summary { display: grid; gap: 9px; padding: 16px; }
+.ambio-case__summary p { margin: 0; overflow-wrap: anywhere; }
+.ambio-case__summary > p:first-of-type { font-size: 14px; line-height: 1.55; }
+.ambio-case__preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.ambio-case__entry-label { color: #4e7465; font: 9px/1.5 var(--font-mono); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.ambio-case__text-button { justify-self: start; padding: 0; border: 0; background: transparent; color: #316a60; font: 11px/1.5 var(--font-ui); cursor: pointer; text-align: left; }
+.ambio-case__text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ambio-case__running { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; border-left: 2px solid #4c9480; padding: 8px 10px; background: #dde7df; color: #375c50; font-size: 11px; }
+.ambio-case__running > code { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambio-case__evidence-state { color: #67746b; font-size: 11px; }
+.ambio-case__fix { border-top: 1px solid #d5d8ce; padding-top: 9px; }
+.ambio-case__fix summary { color: #426c5c; cursor: pointer; font-size: 12px; }
+.ambio-case__fix p { padding: 8px 0 0; }
+.ambio-case__evidence-heading { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-top: 1px solid #cdd4c9; background: #e5e9df; }
+.ambio-case__evidence-toggle { display: flex; align-items: center; gap: 8px; flex: 1; padding: 11px 0; border: 0; background: transparent; color: #364b40; text-align: left; font: 600 12px/1.5 var(--font-ui); cursor: pointer; }
+.ambio-case__evidence-toggle > span:last-child { margin-left: auto; color: #617166; font: 10px var(--font-mono); }
+.ambio-case__chevron { display: inline-block; color: #6a8075; font: 20px/1 var(--font-ui); transition: transform 160ms ease; }
+[aria-expanded='true'] > .ambio-case__chevron, details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
+.ambio-case__story { display: grid; gap: 0; margin: 0; padding: 0 16px; list-style: none; }
+.ambio-case__story[hidden] { display: none; }
+.ambio-case__entry { display: grid; gap: 6px; min-width: 0; padding: 13px 0; border-bottom: 1px solid #d6d9d0; }
+.ambio-case__entry:last-child { border-bottom: 0; }
+.ambio-case__entry p { margin: 0; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.ambio-case__entry[data-status='refuted'] > .ambio-case__entry-label { color: #9b594a; }
+.ambio-case__entry[data-status='inconclusive'] > .ambio-case__entry-label { color: #8a7042; }
+.ambio-case__entry[data-kind='message'] { border-left: 2px solid #82a596; margin: 8px 0; padding: 5px 10px; }
+.ambio-case__delivery { font-size: 10px; color: #718174; }
+.ambio-case__empty { padding: 16px 0; color: #718174; font-size: 12px; }
+.ambio-case__run { min-width: 0; background: #f8f6f0; border: 1px solid #c9d0c5; border-radius: 2px; }
+.ambio-case__run[data-failed] { border-left: 2px solid #a15e4c; }
+.ambio-case__run > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px; cursor: pointer; list-style: none; }
+.ambio-case__run > summary::-webkit-details-marker { display: none; }
+.ambio-case__run-id { color: #3f7a68; font: 600 10px var(--font-mono); }
+.ambio-case__run-title { flex: 1; font-size: 12px; }
+.ambio-case__run-meta { color: #6c786e; font-size: 10px; }
+.ambio-case__run-detail { display: grid; gap: 9px; padding: 0 11px 11px; }
+.ambio-case code, .ambio-case pre { font: 11px/1.55 var(--font-mono); overflow-wrap: anywhere; }
+.ambio-case__command { display: block; padding: 8px; background: #e6e9e0; white-space: pre-wrap; }
+.ambio-case__run-tests, .ambio-case__run-quiet { color: #69796c; }
+.ambio-case__run-error, .ambio-case__error { color: #a14a43; }
+.ambio-case__findings { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.ambio-case__finding button { display: flex; gap: 7px; width: 100%; padding: 6px; text-align: left; border: 0; border-radius: 2px; background: #e5ebe0; color: #344d3e; font: 12px/1.5 var(--font-ui); cursor: pointer; }
+.ambio-case__finding button:disabled { cursor: default; }
+.ambio-case__finding[data-severity='high'] button { background: #f1e2db; color: #864a3c; }
+.ambio-case__finding-mark { font-weight: 700; }
+.ambio-case__watched { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ambio-case__watched li { display: grid; gap: 5px; font-size: 11px; }
+.ambio-case__output summary, .ambio-case__watched summary { font-size: 11px; color: #356f60; cursor: pointer; }
+.ambio-case pre { margin: 7px 0 0; padding: 9px; background: #27342e; color: #e2e9df; white-space: pre-wrap; word-break: break-word; }
+.ambio-case__anchors { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.ambio-case__anchor { display: inline-flex; gap: 6px; min-width: 0; max-width: 100%; padding: 3px 6px; border: 1px solid #bcccbc; border-radius: 2px; background: #f4f7ed; color: #3b6c57; font: 10px/1.4 var(--font-mono); cursor: pointer; overflow-wrap: anywhere; }
+.ambio-case__anchor small { color: #7b897b; font: inherit; }
+.ambio-case__anchor:disabled { cursor: default; }
+.ambio-case__footer { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 9px; padding: 11px 16px; border-top: 1px solid #c6cec1; background: #e5e9df; }
+.ambio-case__footer > span { color: #6d7b6e; font-size: 10px; }
+.ambio-case__action { display: inline-flex; align-items: center; justify-content: space-between; gap: 16px; padding: 5px 9px; border: 1px solid #7c9c86; border-radius: 2px; background: #f3f5ed; color: #38624c; font: 600 11px/1.5 var(--font-ui); cursor: pointer; }
+.ambio-case__action:hover { background: #d4e3d5; }
+.ambio-case__error { flex-basis: 100%; margin: 0; font-size: 11px; }
+.ambio-case-chip { position: absolute; right: 14px; bottom: 14px; z-index: 1150; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3px 8px; width: max-content; max-width: min(420px, calc(100% - 28px)); padding: 9px 12px; border: 1px solid #71917a; border-radius: 3px; background: #e7eee1; color: #344d3e; text-align: left; cursor: pointer; box-shadow: 2px 3px 0 #24342c20; }
+.ambio-case-chip__dot { width: 6px; height: 6px; border-radius: 50%; background: #518b6b; animation: ambioCaseLive 1.8s infinite; }
+.ambio-case-chip[data-status='closed'] .ambio-case-chip__dot, .ambio-case-chip[data-status='replay'] .ambio-case-chip__dot { animation: none; }
+.ambio-case-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px/1.4 var(--font-ui); }
+.ambio-case-chip__summary { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #718174; font: 11px/1.4 var(--font-ui); }
+.ambio-case :focus-visible, .ambio-case-chip:focus-visible { outline: 2px solid #437b66; outline-offset: 2px; }
+@keyframes ambioCaseArrival { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ambioCaseLive { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron { transition: none; } }
+
+/* Investigation feedback uses the same chat composer and delivery queue. */
+.ambio-inbox__case-context { display: flex; align-items: center; gap: 10px; padding: 9px 11px; margin: 0 0 8px; border-left: 3px solid #67957b; background: #e3ecdf; color: #345b45; }
+.ambio-inbox__case-context > span { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.ambio-inbox__case-context strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px var(--font-ui); }
+.ambio-inbox__case-context small { font: 10px/1.5 var(--font-ui); }
+.ambio-inbox__case-message { padding: 10px 12px; margin-top: 10px; background: #e3ecdf; border-left: 2px solid #78a18a; }
+.ambio-inbox__case-message p { margin: 3px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ambio-inbox__case-message small { font: 10px/1.5 var(--font-ui); color: #597760; }
+
+/* In a narrow canvas, the chip is the default. Explicit expansion can borrow
+   viewport space; replying returns it to the chip so chat stays usable. */
+.ambio-case[data-narrow] { position: fixed; top: calc(var(--chrome-toolbar-height) + 14px); left: calc(var(--chrome-rail-width) + 14px); right: 14px; width: auto; max-width: min(420px, calc(100vw - var(--chrome-rail-width) - 28px)); max-height: min(580px, calc(100dvh - var(--chrome-toolbar-height) - 28px)); }
+
+.ambio-case[data-with-replay] { max-height: min(580px, calc(100% - 110px)); }
+.ambio-case[data-narrow][data-with-replay] { max-height: min(580px, calc(100dvh - var(--chrome-toolbar-height) - 110px)); }
+.ambio-case-chip[data-status='replay'] { bottom: 90px; }
+
+.ambio-inbox__compose-tools--case > span { flex: 1; }
+
+.ambio-case[data-status='replay'] .ambio-case__live-dot { animation: none; background: #bd9860; }

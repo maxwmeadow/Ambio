@@ -831,6 +831,16 @@ while its root is alive. DAP inspection for other languages is behind the MCP
 debug profile. See [INVESTIGATIONS.md](INVESTIGATIONS.md) and
 [INVESTIGATION_RUNTIMES.md](INVESTIGATION_RUNTIMES.md).
 
+`CasePanel` is a bounded current-finding card with one scrolling body and
+expandable chronological evidence; its styles live in `investigations.css`.
+Live events and replay share the same reader. `SendToAgentDialog` accepts an
+explicit investigation reply context from the card and sends through the
+existing `sendCaseMessage` queue while keeping ordinary turn submission
+separate. It shows queue/delivery status and preserves drafts through failures
+and case changes. `caseId` is checked under the runtime's active-case lock;
+feedback events and HTTP acknowledgements cannot spill into replacement cases.
+The optional ID keeps existing clients and older saved recordings compatible.
+
 ## MCP surface
 
 Fifteen tools by default (`get_architecture`, `search_symbols`, `get_symbols`,
