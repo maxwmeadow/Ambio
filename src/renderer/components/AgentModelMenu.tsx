@@ -34,9 +34,12 @@ export interface AgentModelChoice {
   /** The agent's models are still being looked up. */
   loading: boolean
   set: (model: string) => void
+  thinking?: string
+  thinkingLevels?: Array<{ id: string; label: string }>
+  setThinking?: (level: string) => void
 }
 
-export function useAgentModel({ key, hostId, chatOptions, current }: {
+export function useAgentModel({ key, hostId, chatOptions, current, context = '', currentThinking }: {
   /** What the choice is remembered under: a host ID, or chat:<service>. */
   key: string
   /** An agent Ambio runs, whose models are looked up. */
@@ -45,10 +48,15 @@ export function useAgentModel({ key, hostId, chatOptions, current }: {
   chatOptions?: ModelOption[]
   /** The model an open conversation last used. */
   current?: string
+  context?: string
+  currentThinking?: string
 }): AgentModelChoice {
   const [found, setFound] = useState<ModelOption[]>([])
   const [loading, setLoading] = useState(false)
   const [, setVersion] = useState(0)
+  const [choice, setChoice] = useState<{ context: string; value: string }>()
+  const [thought, setThought] = useState<{ context: string; value: string }>()
+  const identity = `${key}:${context}`
   useEffect(() => {
     setFound([])
     setLoading(!!hostId)
@@ -59,13 +67,28 @@ export function useAgentModel({ key, hostId, chatOptions, current }: {
   }, [hostId])
   const options = chatOptions ?? found
   const saved = key ? remembered(key) : null
-  const value = chatOptions
+  const normalize = (id: string | null | undefined) => options.find(option => option.id === id || option.aliases?.includes(id ?? ''))?.id
+  const value = choice?.context === identity ? choice.value : chatOptions
     ? [current, saved].find(model => model && options.some(option => option.id === model)) ?? options[0]?.id ?? ''
-    : saved && options.some(option => option.id === saved) ? saved : ''
+    : normalize(current) ?? normalize(saved) ?? ''
+  const selected = options.find(option => option.id === value)
+  const thoughtIdentity = `${identity}:${value}`
+  const aliasThinking = selected?.thinkingLevels?.find(level => [current, saved].includes(`${selected.id}-${level.id}`))?.id
+  const thinking = thought?.context === thoughtIdentity ? thought.value : currentThinking ?? remembered(`${key}:thinking:${value}`) ?? aliasThinking ?? selected?.defaultThinking
   return {
     options, value, hasDefault: !chatOptions, loading: !chatOptions && loading,
-    set: model => { if (key) { remember(key, model); setVersion(version => version + 1) } },
+    set: model => { if (key) { remember(key, model); setChoice({ context: identity, value: model }); setVersion(version => version + 1) } },
+    thinking: selected?.thinkingLevels?.some(level => level.id === thinking) ? thinking : selected?.defaultThinking,
+    thinkingLevels: selected?.thinkingLevels,
+    setThinking: level => { remember(`${key}:thinking:${value}`, level); setThought({ context: thoughtIdentity, value: level }) },
   }
+}
+
+export function AgentThinkingSelect({ model, disabled }: { model: AgentModelChoice; disabled?: boolean }) {
+  if (!model.thinkingLevels?.length) return null
+  return <select className="ambio-inbox__thinking" aria-label="Thinking level" title="How much the agent thinks" disabled={disabled} value={model.thinking ?? ''} onChange={event => model.setThinking?.(event.target.value)}>
+    {model.thinkingLevels.map(level => <option key={level.id} value={level.id}>{level.label}</option>)}
+  </select>
 }
 
 /** The model button beside the request type, opening the agent's models. */

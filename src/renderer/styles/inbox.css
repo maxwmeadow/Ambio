@@ -622,3 +622,8 @@
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason { flex-wrap: wrap; margin-top: 10px; }
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
 .ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }
+.ambio-inbox__thinking { max-width: 90px; color: inherit; background: transparent; border: 0; font: inherit; }
+.ambio-inbox__transport { display: block; padding: 5px 10px; color: var(--rail-muted); font-size: 11px; }
+.ambio-inbox__tool-detail { margin: 5px 0; min-width: 0; }
+.ambio-inbox__tool-detail summary { cursor: pointer; }
+.ambio-inbox__tool-detail pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px var(--font-mono); }

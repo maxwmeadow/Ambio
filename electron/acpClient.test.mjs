@@ -209,8 +209,8 @@ test('supported ACP agents remain listed independently of editor discovery and r
   fs.mkdirSync(bin)
   const env = { PATH: bin }
   for (const name of ['devin']) fs.writeFileSync(path.join(bin, process.platform === 'win32' ? `${name}.exe` : name), '', { mode: 0o755 })
-  // Google's ACP server for Antigravity ships as a .par on every platform.
-  fs.writeFileSync(path.join(bin, 'agy_acp_server.par'), '', { mode: 0o755 })
+  // Google's CLI now includes its own ACP server.
+  fs.writeFileSync(path.join(bin, process.platform === 'win32' ? 'agy.exe' : 'agy'), '', { mode: 0o755 })
   const ids = hosts => deliveryTargets(hosts, env, process.platform, root).map(target => target.id)
   assert.ok(ids([{ id: 'codex', label: 'Codex' }]).includes('devin-cli'))
   assert.ok(ids([{ id: 'windsurf', label: 'Windsurf' }]).includes('devin-cli'))
@@ -221,4 +221,5 @@ test('supported ACP agents remain listed independently of editor discovery and r
   assert.equal(agentDriver('devin-cli').acp, true)
   assert.equal(agentDriver('gemini-cli'), undefined)
   assert.deepEqual(agentDriver('devin-cli').plan({}).args, ['acp'])
+  assert.deepEqual(agentDriver('antigravity-acp').plan({}).args, ['acp'])
 })

@@ -119,8 +119,8 @@ its host (`electron/agentDrivers.ts`) and passes it on every turn.
 | Codex | `codex exec --json`, Ambio's MCP server set to `default_tools_approval_mode="approve"`, reasoning summaries on (`model_reasoning_summary="auto"`, shown as the turn's thinking) | `codex exec resume <thread>`, sandbox given as `-c sandbox_mode=` (resume has no `--sandbox`) | read-only sandbox; on Windows `danger-full-access`, because the read-only sandbox cannot start a shell there (`codexSandbox`) | `danger-full-access` |
 | Copilot CLI | An ACP session (`copilot --acp`, a public preview); `copilot --prompt` when it cannot hold one | In the ACP session; print mode reports none | `--allow-all-tools --allow-all-paths --allow-all-urls --deny-tool write` | `--yolo` |
 | Cursor CLI (experimental) | `cursor-agent -p --output-format stream-json` | `--resume=<chat>` | `--mode ask` / `--mode plan` | `--force` |
-| Antigravity CLI (needs Ambio added to Antigravity: it reads MCP servers only from `~/.gemini/config/mcp_config.json`; Ambio refuses to start it otherwise, `RUN_NEEDS_INSTALL`) | `agy -p <prompt> --output-format stream-json --add-dir <project>` | `--conversation <id>` | `--dangerously-skip-permissions`; it has nothing narrower, so the turn's contract keeps it from editing | `--dangerously-skip-permissions` |
-| Devin CLI, Antigravity agent (experimental) | An Agent Client Protocol session (`devin acp`, Google's `agy_acp_server`) | `session/resume` or `session/load` when the agent offers it | Agent's ask/plan mode; edit, delete, move and execute requests are refused | Permission requests are allowed |
+| Antigravity CLI (retains `RUN_NEEDS_INSTALL`) | Model-driven: `agy acp` for models its session offers; otherwise `agy -p <prompt> --output-format stream-json --add-dir <project>` | Connection pinned per conversation; ACP resume or print `--conversation` | ACP rejects requested edits; print relies on the no-edit contract | ACP permission requests use the human desk; print retains full access |
+| Devin CLI / explicit Antigravity ACP | ACP (`devin acp` / native `agy acp`) | `session/resume` or `session/load` when offered; Antigravity never substitutes a fresh session on failure | Agent's ask/plan mode; edit/delete/move requests are refused | Devin retains automatic approval; Antigravity uses the human permission desk |
 
 The experimental rows are offered only when their editor (Cursor, Windsurf,
 Antigravity) is set up with Ambio and the CLI is found.
@@ -163,12 +163,12 @@ unrestricted; Muse preserves its native sandbox/profile. The settings are: Claud
 Code `--permission-mode bypassPermissions`, Codex `--sandbox
 danger-full-access`, Copilot CLI `--yolo`, Antigravity CLI
 `--dangerously-skip-permissions`, Cursor CLI `--force`, Grok `--sandbox off`,
-Muse MSP `allowAll` with its configured sandbox, and ACP agents have every
-request approved. Ask and Propose may run commands but lose file editing where
+Muse MSP `allowAll` with its configured sandbox, and ACP agents other than Antigravity have every
+request approved. Antigravity ACP routes its requests to the human permission desk (2026-11-04). Ask and Propose may run commands but lose file editing where
 the agent allows it: Claude Code `--disallowedTools Edit,Write,…`, Codex's
 read-only sandbox (except on Windows, where it cannot start a shell; decision
 2026-10-20), Copilot `--deny-tool write`, Cursor's ask/plan modes, ACP
-edit/delete/move refused. Antigravity has nothing narrower, so its Ask and
+edit/delete/move refused. Antigravity print mode has nothing narrower, so its Ask and
 Propose also skip permissions and rely on the turn's contract. Grok uses its
 read-only sandbox plus ACP edit refusals for Ask/Propose; Muse relies on the
 turn's no-edit contract for those modes. Each guide says
@@ -188,7 +188,7 @@ Ambio gives the agent its MCP server for the session (`session/new`
 `mcpServers`), sets the agent's own mode to match the turn, answers
 `session/request_permission` by the turn's mode, and offers the agent no file
 system or terminal of its own. Grok additionally authenticates using an
-advertised headless method and a bounded handshake. Muse uses its published
+advertised headless method. Handshake/session construction is bounded for ACP hosts. Antigravity additionally applies model/thinking config before prompting, supports qualified mid-turn corrections, retains structured bounded tool/diff detail, and uses abortable human permission requests. Its process stays alive through steered replacements even if the original prompt resolves first. See [the assessment](testing/AGENT_TRANSPORT_ASSESSMENT.md) for model access and validation. Muse uses its published
 Session Protocol instead (`electron/museClient.ts`), with the same runner,
 per-session MCP identity, saved conversations, events and stop behavior.
 Its Ask/Propose restriction is prompt-based. Build uses `allowAll` approval

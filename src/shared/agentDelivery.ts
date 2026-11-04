@@ -66,6 +66,11 @@ export interface DeliveryRun {
   mode?: 'ask' | 'propose' | 'build'
   /** The host's own session, kept so the conversation's next turn can continue it. */
   sessionId?: string
+  /** Chosen once for an Antigravity conversation; older CLI receipts mean print. */
+  transport?: 'acp' | 'print'
+  model?: string
+  thinking?: string
+  canSteer?: boolean
   /** This run continued the session an earlier turn left behind. */
   resumed?: boolean
   /** Finite setup mapping; never resumed as ordinary work. */
@@ -78,6 +83,10 @@ export interface DeliveryEvent {
   /** thinking: the agent's own summary of its reasoning, where the host reports one. */
   kind: 'text' | 'tool' | 'error' | 'thinking'
   text: string
+  /** Structured ACP detail, retained alongside the compact activity label. */
+  toolCallId?: string
+  status?: string
+  content?: unknown[]
 }
 
 export interface DeliveryRequest {
@@ -87,6 +96,7 @@ export interface DeliveryRequest {
   mappingAttemptId?: string
   /** The model to run the agent with; unset uses the agent's own default. */
   model?: string
+  thinking?: string
   /** Where an agent Ambio starts works: the project's own checkout (the
    *  default), or a new worktree of its own on an ambio/ branch, so several
    *  can work at once (docs/GIT_AND_PROJECT_SHAPES.md stage 4). A follow-up
@@ -95,7 +105,15 @@ export interface DeliveryRequest {
 }
 
 /** A model an agent can be asked to use. */
-export interface ModelOption { id: string; label: string }
+export interface ModelOption {
+  id: string
+  label: string
+  transport?: 'acp' | 'print'
+  aliases?: string[]
+  printIds?: string[]
+  thinkingLevels?: Array<{ id: string; label: string }>
+  defaultThinking?: string
+}
 
 export interface DeliveryResult {
   detail: string
@@ -245,12 +263,12 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'antigravity-cli': {
-    need: ['Antigravity installed and signed in.', 'Ambio added to Antigravity once, from Settings \u2192 Agents. That is what lets its CLI use Ambio\u2019s tools.'],
+    need: ['Antigravity installed and signed in. Version 1.5 or newer enables the interactive connection for its offered models.', 'Ambio added to Antigravity once, from Settings \u2192 Agents. That is what lets its CLI use Ambio\u2019s tools.'],
     how: STARTED('Antigravity CLI'),
     can: [
-      'Ask and Propose: answers questions and draws plans on your map. It is told not to change files, but Antigravity has no setting that stops it.',
-      'Build: full access. It edits files and runs any command without asking, then hands the result back for review.',
-      FULL_ACCESS,
+      'Models offered by the interactive connection use it automatically in a new conversation. It supports thinking controls, approval requests, corrections while working, and tool details. Your Antigravity permission settings still apply.',
+      'Other models and existing CLI conversations keep full access without permission prompts. Ask and Propose tell the agent not to change files; that instruction is not a sandbox.',
+      'A conversation keeps its connection. To move from the interactive connection to another model, start a new conversation.',
     ],
   },
   'cursor-cli': {
@@ -272,12 +290,12 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     ],
   },
   'antigravity-acp': {
-    need: ['Antigravity installed on this computer and signed in. Nothing needs to be open.'],
+    need: ['Antigravity CLI 1.5 or newer installed and signed in with agy. Nothing needs to be open.'],
     how: STARTED('the Antigravity agent'),
     can: [
-      'Ask and Propose: can run commands; any change to your files is refused.',
-      'Build: everything it asks to do is approved without asking you, and the result comes back for review.',
-      FULL_ACCESS,
+      'Uses the models Antigravity offers to this interactive connection, with model and thinking controls, approval requests, corrections while working and tool details.',
+      'Ask and Propose reject requested file edits. Actions already allowed by your Antigravity settings may run without asking; those settings still apply.',
+      'Build: approval requests appear in this conversation. Stopping cancels pending requests.',
     ],
   },
   copilot: {

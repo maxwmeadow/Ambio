@@ -7,6 +7,12 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Antigravity now chooses its connection from the model you select: supported
+  models get thinking controls, approval requests, corrections while working,
+  and expandable tool output and file changes. Other models retain the CLI's
+  full-access connection. Existing conversations keep their connection, and
+  Ambio never silently retries through another one.
+
 - Investigations now follow a sequence of animated step cards, with clear
   phase headings and separate finding and suggested-fix cards. New steps queue
   with time to read; browsing pauses following, with previous/next controls,

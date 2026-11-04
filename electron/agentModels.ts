@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process'
 import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
 import { MuseClient } from './museClient.ts'
+import { antigravityOptions, inspectAntigravity } from './antigravityTransport.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -97,7 +98,7 @@ function museModels(launcher: DriverLauncher): Promise<ModelOption[]> {
 function run(launcher: DriverLauncher, args: string[]): Promise<string> {
   return new Promise(resolve => {
     // Nothing is written to it: some CLIs (agy) read stdin even when told what to do.
-    const child = spawn(launcher.command, [...launcher.args, ...args], { cwd: tmpdir(), windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) })
+    const child = spawn(launcher.command, [...launcher.args, ...args], { cwd: tmpdir(), windowsHide: true, env: { ...process.env, ...(launcher.bundledNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }, stdio: ['ignore', 'pipe', 'ignore'], shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(launcher.command) })
     let output = ''
     const timer = setTimeout(() => child.kill(), 30000)
     child.stdout?.on('data', chunk => { if (output.length < 1 << 20) output += chunk })
@@ -106,12 +107,13 @@ function run(launcher: DriverLauncher, args: string[]): Promise<string> {
   })
 }
 
-const cache = new Map<string, Promise<ModelOption[]>>()
+const cache = new Map<string, { lookup: Promise<ModelOption[]>; expires: number }>()
 
-/** The models for one host, looked up once per app session. */
+/** Bounded catalog caching, separated by the actual executable selection. */
 export function listModels(hostId: string, launcher: DriverLauncher | undefined, home: string): Promise<ModelOption[]> {
-  const known = cache.get(hostId)
-  if (known) return known
+  const key = JSON.stringify([hostId, launcher?.command, launcher?.args, home])
+  const known = cache.get(key)
+  if (known && known.expires > Date.now()) return known.lookup
   const lookup = (async (): Promise<ModelOption[]> => {
     if (hostId === 'claude-code') return CLAUDE_ALIASES
     if (hostId === 'codex') {
@@ -121,11 +123,15 @@ export function listModels(hostId: string, launcher: DriverLauncher | undefined,
     if (hostId === 'grok') return grokModels(await run(launcher, ['models']))
     if (hostId === 'muse') return museModels(launcher)
     if (hostId === 'copilot-cli') return copilotModels(await run(launcher, ['help', 'config']))
-    if (hostId === 'antigravity-cli') return antigravityModels(await run(launcher, ['models']))
+    if (hostId === 'antigravity-cli' || hostId === 'antigravity-acp') {
+      const [print, session] = await Promise.all([run(launcher, ['models']), inspectAntigravity(launcher)])
+      const options = antigravityOptions(antigravityModels(print), session)
+      return hostId === 'antigravity-acp' ? options.filter(model => model.transport === 'acp') : options
+    }
     return []
   })()
-  cache.set(hostId, lookup)
+  cache.set(key, { lookup, expires: Date.now() + 300000 })
   // A lookup that found nothing is tried again next time.
-  void lookup.then(models => { if (!models.length) cache.delete(hostId) })
+  void lookup.then(models => { if (!models.length && cache.get(key)?.lookup === lookup) cache.delete(key) }, () => { if (cache.get(key)?.lookup === lookup) cache.delete(key) })
   return lookup
 }

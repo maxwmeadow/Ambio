@@ -1,22 +1,45 @@
 # Agent transport assessment
 
-Research for Max, 2026-11-04. No runtime behavior changed. This compares the
-installed Ambio integrations with current upstream documentation and adapter
-source; it is not an authenticated end-to-end qualification.
+Research for Max, 2026-11-04. The initial audit below describes the pre-upgrade
+implementation. Max subsequently approved joint Antigravity routing and shared
+ACP improvements, with Codex and Claude unchanged on this branch.
+
+Signed-in `agy acp` 1.5.0 discovery has now confirmed Gemini-only access for
+Ambio: three Gemini variants versus six CLI models, including Claude/GPT-OSS.
+The implementation combines the catalogs, routes new conversations by offered
+model, pins existing conversations, modernizes the explicit route to `agy acp`,
+and adds model/thinking controls, permission cards, steering and tool/diff detail.
+Default without a selected model and old CLI conversations retain print.
+Live small no-tool prompts verified model/thinking configuration, steering and
+resume. They exposed and fixed agy's early completion of the original request
+while a steered replacement still runs. A harmless stand-in MCP tool also verified native per-session environment
+forwarding. Full authenticated Ambio-tool coding journeys remain distinct from
+these smoke checks.
+
+Validation: `npx tsc --noEmit`, `npm run build`, the unit suite (929 passed,
+7 skipped before the final additional discovery test), 11 targeted Antigravity
+tests, and all four chat harness checks pass. The Electron Antigravity journey
+covers approval/reload, thinking configuration, steered completion, blocking a
+cross-route model change without a new work order, and a separate print-model
+conversation. Inbox and client discovery Electron tests also pass. The full
+MCP run has 47 passes, two skips and two already-tracked Windows EBUSY cleanup
+failures (branches and investigation teardown). The legacy delivery UI journey
+passes its agent checks, then fails its pre-existing retired-width-key assertion;
+WORK.md records the remaining test maintenance.
 
 ## Recommendation
 
-- Add native `agy acp` as an optional Antigravity CLI transport, qualify it,
-  then prefer it where the model/account and feature checks pass. Retain print
-  transport for existing conversations, older versions and model access that
-  the custom ACP client cannot offer. Do not silently change a conversation's
-  transport or retry a potentially executed turn through another transport.
-- For Codex, prefer a direct App Server adapter for the full Ambio workspace.
-  ACP is a credible alternative if shared maintenance outweighs direct access
-  to Codex features. It is not necessary to adopt ACP to get interactive Codex.
-- For Claude, compare persistent native streaming with `claude-agent-acp`,
-  using the same acceptance journey. Confirm supported authentication/account
-  access before choosing. ACP is useful reuse, not a requirement for streaming,
+- Use native `agy acp` for models its signed-in catalog offers in a new
+  Antigravity conversation, and print for other models. Retain print for old
+  conversations and an unspecified default. Pin transport per conversation;
+  never silently retry a potentially executed turn through another transport.
+- For Codex, evaluate `codex-acp` against the improved shared client before
+  investing in a direct App Server adapter. Native App Server remains available
+  if a required capability is missing. No Codex transport change is part of
+  this implementation.
+- For Claude, retain the native route. Persistent native input is a separate
+  follow-up; confirm supported authentication/account access before changing
+  the integration. ACP is useful reuse, not a requirement for streaming,
   approvals, images or interruption.
 
 ## What Ambio actually does
@@ -62,8 +85,8 @@ open work, rather than an implemented native-versus-ACP comparison.
    Analyzer, Zed and Xcode). Ambio is a custom client. Locally, `agy models`
    lists Gemini 3.8 Flash at three thinking levels, Claude Sonnet 4.6, Claude
    Opus 4.6 Thinking and GPT-OSS 120B. Thus a forced switch could remove useful
-   choices. This is a documented risk, not an observed ACP model denial on this
-   account: no authenticated ACP session was opened. Do not spoof an editor's
+   choices. The signed-in ACP check subsequently confirmed the three-model
+   difference on this account; hybrid routing preserves the others. Do not spoof an editor's
    identity to obtain entitlements. T3's provider documentation describing its
    runtime/account models does not establish identical access for Ambio.
 2. **A command change is insufficient.** `AcpTurn` carries no selected model;

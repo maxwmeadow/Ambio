@@ -43,7 +43,7 @@ export async function setExecutableOverride(directory: string, hostId: string, f
     // ACP discovery must not require a version flag or start a long-lived
     // protocol session. The run checks the handshake.
     if (hostId === 'antigravity-acp') {
-      if (!DRIVER_CLI_NAMES[hostId].some(name => [name, `${name}.exe`].includes(basename(file)))) throw new Error('Choose agy_acp_server or agy_acp_server.par for the Antigravity ACP agent.')
+      if (!DRIVER_CLI_NAMES[hostId].some(name => [name, `${name}.exe`].includes(basename(file)))) throw new Error('Choose agy (Antigravity CLI 1.5 or newer) for the Antigravity ACP agent.')
       save(directory, { ...readExecutableOverrides(directory), [hostId]: file })
       return { ok: true, detail: 'ACP executable located. Protocol compatibility is checked when starting a session.', path: file }
     }

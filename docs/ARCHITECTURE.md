@@ -792,6 +792,30 @@ Mapping turns also send `MAPPING_PROGRESS` after the contract, asking the agent
 for a one-line progress message before each major step. Ambio chat keeps OpenCode's
 `reasoning` parts as a `reasoning` chat part, shown collapsed above the reply.
 
+**Antigravity connections** (`antigravityTransport.ts`, `agentModels.ts`): model
+discovery opens and closes an empty native `agy acp` session, with no prompt or
+MCP servers, and combines its catalog with `agy models`. Canonical model options
+retain legacy model aliases and separate thinking choices. New CLI conversations
+use ACP for offered models and print for the others; an unspecified Default uses
+print. Delivery receipts store the transport/model/thinking. An existing CLI
+receipt without a transport means print, including after restart. Print
+conversations can keep using their native model aliases; ACP conversations must
+start a new conversation to select a print-only model. Neither route silently
+retries through the other. The explicit ACP destination now discovers `agy` and
+runs `agy acp`; obsolete saved server paths require locating the new executable.
+The hybrid CLI retains the installed-MCP prerequisite.
+
+The shared ACP client applies model and thinking configuration before prompting,
+passes Antigravity's permission requests to the existing daemon permission desk,
+and cancels pending waits on Stop/process exit. Ask/Propose still refuse requested
+file edits; vendor permission rules may allow actions without a callback. Other
+agents retain their current approval policies. Qualified Antigravity ACP runs
+accept composer corrections through the running session, retaining the process
+until both the original request and any steered replacements finish. A completed
+request is acknowledged before its composer draft is cleared. Bounded ACP text
+and diff content is stored with activity events and can be expanded in the panel.
+Codex and Claude transports are unchanged.
+
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
 render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).
 `normalizeAgentText` repairs what agents commonly break (a `\b` decoded into a

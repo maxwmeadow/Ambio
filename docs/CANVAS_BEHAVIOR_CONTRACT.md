@@ -10,6 +10,15 @@ Product direction lives in [PRODUCT.md](PRODUCT.md) and open work in
 
 ## Purpose
 
+The agent panel permits a text correction during a qualified Antigravity ACP
+turn. Stop remains available; model, mode and attachment choices stay fixed
+while it runs. Sending waits for acknowledgement, keeps a failed draft, and
+never creates a second work order or changes transport. Other ordinary managed
+routes retain the disabled-during-work composer. Model selection chooses the
+connection for a new Antigravity conversation; existing conversations retain
+their connection. Tool output and diffs can be expanded without changing the
+canvas selection or camera. (Approved joint Antigravity approach, 2026-11-04.)
+
 This document records behavior that exists and is intentionally tuned today.
 Refactors may change ownership, module boundaries, and implementation details,
 but must not change these observable results unless a later product decision
