@@ -14,7 +14,9 @@ in the app as "What's New" after updating, so write it for users.
   focus or evidence clicks; Resume advances queued work immediately. The card
   uses available height above floating controls, with a compact header, one
   bottom control bar and full descriptions. Code links show one clear filename.
-  Evidence stays expandable in one scrolling body; replay uses the same cards. Reply in chat keeps delivery status and unsent drafts when a case ends
+  Evidence stays expandable in one scrolling body. Saved recordings expose all
+  steps immediately; carousel and timeline navigation, map state and play/pause
+  stay synchronized. Pagination dots are back with a pill-shaped active marker. Reply in chat keeps delivery status and unsent drafts when a case ends
   or changes.
 
 - Terminal controls now fit in one compact top bar with shell options tucked

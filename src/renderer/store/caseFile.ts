@@ -303,6 +303,7 @@ export interface CaseStep {
   hypothesisId?: string
   status?: HypothesisStatus
   messageId?: string
+  recordedDetails?: unknown
 }
 
 export function caseSteps(file: CaseFile): CaseStep[] {
@@ -343,6 +344,66 @@ export function caseSteps(file: CaseFile): CaseStep[] {
   if (file.running && !file.conclusion) steps.push({id:`running:${file.running.startedAt}`, kind:'running', title:'Testing the code', label:'Experiment in progress', text:file.running.command, anchors:file.running.watches, hypothesisId:file.running.hypothesisId})
   if (file.status === 'closed' && !file.conclusion) steps.push({id:'ended', kind:'ended', title:'Ended without a conclusion', label:'Investigation ended', text:'The recorded questions and evidence are still available in the previous steps.'})
   return steps.length ? steps : [{id:'opening', kind:'opening', title:'Opening the investigation', label:'Getting started', text:file.symptom || 'Questions and recorded evidence will appear here as the investigation develops.'}]
+}
+
+/** A saved capture can have a different ID from the original live case.
+ * Recorded events are trusted to belong to the selected document, while live
+ * events keep reduceCase's case-ID guard. Never reopen a replay as a live case. */
+export function reduceReplayCase(state: CaseFile, type: string, payload: any, at: number): CaseFile {
+  if (type === 'investigation:started') return {...emptyCase(state.id, payload?.name ?? state.name, 'replay', payload?.origin ?? 'agent', state.startedAt), symptom:payload?.symptom}
+  if (type === 'investigation:stopped') return state
+  return reduceCase(state, type, payload && typeof payload === 'object' ? {...payload, caseId:state.id} : payload, at) ?? state
+}
+
+export interface CaseReplayFrame {
+  step: CaseStep
+  file: CaseFile
+  eventIndex: number
+}
+
+/** Build the complete immutable deck once, independently of the played prefix.
+ * Each card carries its event-time case, so browsing a hypothesis cannot expose
+ * a future verdict. One conclusion can yield two cards at the same event. */
+export function caseReplayFrames(id: string, name: string, startedAt: number, events: readonly {type: string; offsetMs: number; payload: unknown}[]): CaseReplayFrame[] {
+  let file = emptyCase(id, name, 'replay', 'agent', startedAt)
+  const frames: CaseReplayFrame[] = []
+  const kinds: Record<string, CaseStep['kind']> = {
+    'investigation:hypothesis':'hypothesis', 'investigation:run_started':'running',
+    'investigation:run':'run', 'investigation:verdict':'verdict',
+    'investigation:note':'note', 'investigation:message':'message',
+    'investigation:conclusion':'conclusion',
+  }
+  events.forEach((event, eventIndex) => {
+    const before = file
+    file = reduceReplayCase(file, event.type, event.payload, startedAt + (event.offsetMs ?? 0))
+    const kind = kinds[event.type]
+    if (!kind || file === before) return
+    const candidates = caseSteps(file)
+    const step: CaseStep | undefined = kind === 'running' && file.running
+      ? {id:`running:${file.running.startedAt}`,kind:'running',title:'Testing the code',label:'Experiment in progress',text:file.running.command,anchors:file.running.watches,hypothesisId:file.running.hypothesisId}
+      : candidates.findLast(step => step.kind === kind)
+    if (step) frames.push({step:{...step, id:`event:${eventIndex}:${kind}`}, file, eventIndex})
+    if (kind === 'conclusion') {
+      const fix = candidates.findLast(step => step.kind === 'fix')
+      if (fix) frames.push({step:{...fix, id:`event:${eventIndex}:fix`}, file, eventIndex})
+    }
+  })
+  if (frames.length || !events.length) return frames
+  // Older captures may contain runtime activity without a case-file story.
+  // They remain browsable instead of appearing to be an empty investigation.
+  const titles: Record<string,string> = {'runtime:call':'Function called','runtime:return':'Function returned','runtime:exception':'Exception observed','call:trace':'Execution traced','data:flow':'Data flow recorded','agent:activity':'Agent update'}
+  return events.map((event,eventIndex): CaseReplayFrame => {
+    const payload = event.payload as {message?:string; symbol?:string} | null
+    return {eventIndex, file, step:{id:`event:${eventIndex}:activity`,kind:'note',label:'Recorded activity',title:titles[event.type] ?? 'Runtime activity recorded',text:payload?.message ?? payload?.symbol ?? 'Recorded program activity.',recordedDetails:event.payload}}
+  })
+}
+
+/** A timeline seek selects the first card for that event (finding before fix).
+ * Between reader events, retain the last preceding card, including its fix. */
+export function caseReplayFrameIndex(frames: readonly CaseReplayFrame[], eventIndex: number): number {
+  if (eventIndex < 0) return -1
+  const exact = frames.findIndex(frame => frame.eventIndex === eventIndex)
+  return exact >= 0 ? exact : frames.findLastIndex(frame => frame.eventIndex < eventIndex)
 }
 
 export interface RunTraceStep {

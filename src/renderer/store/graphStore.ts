@@ -29,6 +29,10 @@ import { apiAckDelta, apiGetAgentActions, apiGetDelta } from '../canvas/arcdApi.
 import {
   CASE_EVENT_TYPES,
   caseFromState,
+  caseReplayFrames,
+  caseReplayFrameIndex,
+  reduceReplayCase,
+  type CaseReplayFrame,
   emptyCase,
   reduceCase,
   traceStepsForRun,
@@ -159,6 +163,8 @@ export interface ReplayState {
   startedAt: number
   events: CapturedEvent[]
   cursor: number   // index of the last-applied event; -1 = nothing applied yet
+  frames: CaseReplayFrame[]
+  frameCursor: number   // selected reader card; two cards can share one event
   playing: boolean
 }
 
@@ -333,6 +339,8 @@ interface GraphState {
   startReplay: (doc: InvestigationDoc) => void
   stopReplay: () => void
   replaySeek: (index: number) => void      // reset visuals + apply events[0..index]
+  replaySeekFrame: (index: number) => void
+  setReplayPlaying: (playing: boolean) => void
   replayNext: () => boolean                // apply next event incrementally; false at end
   resetRuntimeVisuals: () => void
 
@@ -662,7 +670,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   caseDismissedId: null,
   applyCaseEvent: (type, payload, at) => {
     const before = get().caseFile
-    const next = reduceCase(before, type, payload, at ?? Date.now())
+    const next = get().replay && replayDispatching && before
+      ? reduceReplayCase(before, type, payload, at ?? Date.now())
+      : reduceCase(before, type, payload, at ?? Date.now())
     if (next === before) return
     set({ caseFile: next })
     if (type === 'investigation:run' && next) {
@@ -735,16 +745,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
     : {})),
   startReplay: (doc) => {
+    const startedAt = doc.createdAt ?? Date.now()
     get().resetRuntimeVisuals()
     set({
       replay: {
         id: doc.id, name: doc.name, commit: doc.commit, branch: doc.branch,
-        startedAt: doc.createdAt ?? Date.now(),
-        events: doc.events ?? [], cursor: -1, playing: false,
+        startedAt,
+        events: doc.events ?? [], cursor: -1, playing: false, frameCursor:-1,
+        frames:caseReplayFrames(doc.id, doc.name, startedAt, doc.events ?? []),
       },
-      caseFile: emptyCase(doc.id, doc.name, 'replay', 'agent', doc.createdAt ?? Date.now()),
+      caseFile: emptyCase(doc.id, doc.name, 'replay', 'agent', startedAt),
       caseDismissedId: null,
     })
+    if (get().replay!.frames.length) get().replaySeekFrame(0)
   },
   stopReplay: () => {
     get().resetRuntimeVisuals()
@@ -754,22 +767,40 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
   replayNext: () => {
     const rp = get().replay
-    if (!rp || rp.cursor >= rp.events.length - 1) return false
+    if (!rp) return false
+    // A finding and its fix share a captured event, but each gets reading time.
+    const nextFrame = rp.frames[rp.frameCursor + 1]
+    if (nextFrame && nextFrame.eventIndex <= rp.cursor) {
+      set({replay:{...rp, frameCursor:rp.frameCursor + 1, playing:rp.cursor >= rp.events.length - 1 && rp.frameCursor + 1 >= rp.frames.length - 1 ? false : rp.playing}})
+      return true
+    }
+    if (rp.cursor >= rp.events.length - 1) return false
     const next = rp.cursor + 1
-    const ev = rp.events[next]
-    dispatchReplayEvent(ev)
-    set({ replay: { ...rp, cursor: next } })
+    dispatchReplayEvent(rp.events[next])
+    const frameCursor = caseReplayFrameIndex(rp.frames,next)
+    set({ replay: { ...rp, cursor:next, frameCursor, playing:next >= rp.events.length - 1 && frameCursor >= rp.frames.length - 1 ? false : rp.playing } })
     return true
   },
   replaySeek: (index) => {
     const rp = get().replay
     if (!rp) return
     const target = Math.max(-1, Math.min(index, rp.events.length - 1))
-    // Reset visuals and re-apply from the start for a deterministic frame.
+    // Reset map/runtime state and rebuild exactly the selected event prefix.
     get().resetRuntimeVisuals()
-    set({ caseFile: emptyCase(rp.id, rp.name, 'replay', 'agent', rp.startedAt) })
+    set({ caseFile:emptyCase(rp.id,rp.name,'replay','agent',rp.startedAt) })
     for (let i = 0; i <= target; i++) dispatchReplayEvent(rp.events[i])
-    set({ replay: { ...get().replay!, cursor: target } })
+    set({ replay:{...get().replay!,cursor:target,frameCursor:caseReplayFrameIndex(rp.frames,target),playing:false} })
+  },
+  replaySeekFrame: (index) => {
+    const rp = get().replay
+    if (!rp || !rp.frames.length) return
+    const target = Math.max(0,Math.min(index,rp.frames.length - 1))
+    get().replaySeek(rp.frames[target].eventIndex)
+    set({replay:{...get().replay!,frameCursor:target}})
+  },
+  setReplayPlaying: (playing) => {
+    const rp = get().replay
+    if (rp) set({replay:{...rp,playing:playing && !(rp.cursor >= rp.events.length - 1 && rp.frameCursor >= rp.frames.length - 1)}})
   },
 
   runtimeSessions: [],
@@ -1772,7 +1803,7 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
   const eventWorkspace = envelope?.workspaceId ?? envelope?.payload?.workspaceId
   if (eventWorkspace && eventWorkspace !== store.currentProject?.id) return
   // Gate live dynamic events during replay (graph/indexing events still apply).
-  if (store.replay && !replayDispatching && LIVE_GATED_TYPES.has(msg.type)) {
+  if (store.replay && !replayDispatching && (LIVE_GATED_TYPES.has(msg.type) || msg.type === 'investigation:started' || msg.type === 'investigation:stopped')) {
     return
   }
   // These are precisely the types archd records, so the live count matches
@@ -1824,7 +1855,7 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
       break
     case 'investigation:started': {
       const started = msg.payload as { id?: string; name?: string; origin?: string }
-      store.beginInvestigation(
+      if (!replayDispatching) store.beginInvestigation(
         started?.id ?? '',
         started?.name ?? 'Investigation',
         undefined,
@@ -1840,7 +1871,7 @@ export function handleWsMessage(msg: { type: string; payload: unknown; at?: numb
       break
     }
     case 'investigation:stopped':
-      store.endInvestigation()
+      if (!replayDispatching) store.endInvestigation()
       store.applyCaseEvent(msg.type, msg.payload, msg.at)
       break
     case 'investigation:note':

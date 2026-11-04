@@ -831,7 +831,8 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Investigations read as an animated step carousel. Recorded questions,
   experiments, observations, assessments and guidance remain separate cards;
   the finding and suggested fix each have a prominent card. An in-progress
-  command becomes its completed experiment in the same timeline position.
+  command becomes its completed experiment in the same live timeline position;
+  saved playback retains recorded start/result moments as distinct cards.
   There is no repeated hypothesis board or separate composer.
 - New live steps queue in order behind a 3.5–7.5 second reading interval,
   rather than silently replacing a paragraph or skipping a burst of results.
@@ -840,8 +841,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   restart its timer. Resume advances to the next queued step immediately and
   follows subsequent arrivals with the reading interval; Latest skips directly
   to the newest. The step index temporarily holds the view while open without
-  changing the following setting. Previous/Next, the complete step index and
-  Left/Right/Home/End navigate the sequence. Opening a case midway starts at
+  changing the live following setting. Previous/Next, pagination dots with an
+  elongated active indicator, the complete index and Left/Right/Home/End
+  navigate the sequence. Opening a case midway starts at
   its latest step rather than replaying its entire backlog.
 - The card fills the available canvas height above the floating bins or replay
   transport, measured rather than using a fixed height cap. A compact header
@@ -865,13 +867,25 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 - Below 340px of available canvas width, a chip replaces the default card.
   Explicit expansion borrows bounded viewport space; replying minimizes it
   again to keep chat usable. Ordinary card width is at most 420px.
-- Replay uses the same card with read-only feedback and recorded-command
-  labels. Its transport remains clear of the card. Playback supplies the event
-  pace; seeking lands on that recorded moment, with a conclusion first showing
-  the finding and the proposed fix available as the next card. Browsing pauses
-  following. Reduced-motion mode disables arrival, pulse, chevron and swipe
-  animations; outgoing animation layers cannot intercept pointer or keyboard
-  access to the step index.
+- Saved replay builds its complete reader deck before playback. Opening selects
+  the first meaningful recorded step; all later cards remain available through
+  arrows, dots and the full index. Raw event count and card count can differ:
+  runtime/delivery bookkeeping does not add story cards, while a finding/fix can
+  produce two cards at one event. Runtime-only captures remain browsable as
+  recorded activity with expandable details. Empty captures stay empty.
+- Carousel navigation seeks the timeline and rebuilds the map/runtime prefix.
+  Timeline seeks, stepping, playback and restart select the corresponding card.
+  The shared player owns event position, reader position and play/pause for
+  both controls. Restart returns to the beginning without discarding the full
+  index; each finding and fix gets its own reading time even at one timestamp.
+  Manual navigation pauses playback. Historical cards carry event-time case
+  snapshots, so earlier hypotheses cannot display later assessments. Different
+  live/saved case IDs remain compatible; live case markers cannot replace a
+  replay. Feedback stays read-only, running commands are labeled recorded and
+  the playback transport remains clear of the card.
+- Reduced-motion mode disables arrival, pulse, chevron and swipe animations;
+  outgoing animation layers cannot intercept pointer or keyboard access to
+  the step index.
 
 ### First-run payoff
 

@@ -498,3 +498,34 @@ new steps. Geometry checks cover the available height, compact chrome, floating
 bins, narrow chat and resized replay transport; existing evidence, draft and
 delivery checks remain. Previews are isolated fixture renders; replay Max's
 same saved Helios case after restarting Ambio for the next direct comparison.
+
+
+## Complete saved deck and timeline synchronization, 2026-11-04
+
+Max opened an eight-event saved Helios recording before playback and the
+reader index showed only the opening placeholder. The timeline still contained
+eight events: CasePanel was projecting only its applied prefix. Carousel
+navigation also changed a local cursor without seeking the timeline, and its
+following state was independent of ReplayBar's local play state. Max requested
+bidirectional synchronization and restoration of carousel pagination dots.
+
+The saved deck now projects the entire recording into event-indexed cards with
+immutable event-time cases. Opening selects the first meaningful card; future
+steps are immediately available. Carousel navigation rebuilds the map/timeline
+prefix and timeline navigation selects its card. One shared playback controller
+handles position and play/pause. Finding/fix cards can share an event while
+remaining separately readable. Raw runtime/delivery entries need not create
+reader cards; event count and step count remain distinct. Runtime-only legacy
+captures get activity cards/details. Saved/live ID differences do not reject
+recorded case events, and live start/stop broadcasts cannot replace replay.
+Pagination dots return with a pill-shaped active marker and a bounded window
+for long investigations.
+
+Checks use an isolated eight-event fixture with seven reader cards: opening
+shows the full index, arrows/dots/index seek the slider, seeking selects the
+correct card, finding/fix share a timeline position, both play/pause controls
+agree, automatic playback advances, restart preserves the index, and narrow
+layouts keep the transport accessible. Store tests verify exact map-prefix
+reconstruction, historical snapshot isolation, older case IDs and empty and
+runtime-only captures. These previews are fixture renders; replay Max's actual
+saved Helios recording after restarting Ambio for the direct comparison.

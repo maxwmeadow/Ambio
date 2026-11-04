@@ -128,7 +128,8 @@ timeline, so a saved case opens to its conclusion and replays step by step.
   or browsing another step disables following; hovering, focusing and opening
   evidence do not. Resume advances to the next queued card immediately, then
   follows new arrivals. The header's newer-step shortcut jumps to the latest.
-  Previous/next buttons, keyboard navigation and a full step index keep earlier
+  Previous/next buttons, pagination dots, keyboard navigation and a full step
+  index keep earlier
   evidence accessible. Opening the index holds the view without changing the
   following setting. Joining an existing case starts at its latest card.
 - **Space**: one compact header combines title, status, elapsed time, step index
@@ -165,13 +166,19 @@ timeline, so a saved case opens to its conclusion and replays step by step.
   cards with Watch the replay available. A fix shows whether a verification
   experiment is linked. Closing the case preserves the earlier step the person
   is reading; queued cards can still be followed or reached with Latest step.
-- **Replay**: the same event handler and reader as live, paced so each finding
-  stays up long enough to read, with 1×/2×/4× speed. Seeking aligns the carousel
-  to that moment; a conclusion lands on its finding, followed by the fix card.
-  Browsing pauses following while the playback transport remains available.
-  Saved running commands are
-  labeled as recorded rather than timed against today's wall clock. Feedback
-  is read-only, and the card leaves space for the playback transport.
+- **Replay**: opening a saved recording selects its first meaningful card and
+  makes the complete step index available immediately. Arrows, pagination dots
+  (with a pill-shaped active indicator), the index and keyboard navigation seek
+  the shared timeline and rebuild the recorded map state. Timeline seeking and
+  playback select the corresponding card; both Play/Pause controls share one
+  player. Manual navigation pauses it. Restart rewinds without hiding later
+  cards. A finding and its fix remain separately browsable even when they came
+  from one event. Earlier cards use their recorded case snapshot, without
+  leaking later verdicts. Event counts include runtime/delivery bookkeeping,
+  so they need not equal card counts. Runtime-only legacy captures remain
+  readable as recorded activity, with available details. Empty captures do not
+  invent steps. Feedback is read-only, running commands are labeled recorded,
+  and the card leaves space for the playback transport.
 - **Narrow canvas**: a minimized chip is the default when adjacent sidebars
   leave less than 340px. Explicit expansion uses a bounded viewport card; Reply
   in chat returns it to the chip so the composer stays usable. Reduced motion

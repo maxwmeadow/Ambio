@@ -49,7 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `investigation-replay-navigation` **Connect the complete saved carousel to replay.** Max can open an eight-event recording but sees only the placeholder because the reader projects only the applied timeline prefix. Build the full saved step index immediately, seek timeline/map from carousel navigation and update the card from timeline playback/seeking. Restore pagination dots with an elongated active indicator. **Done when:** opening, bidirectional navigation, play/pause/restart, multi-card conclusions and bookkeeping events stay synchronized without live-feedback regressions. (🚧 Codex, codex/investigation-card, 2026-11-04)
 
 
 
@@ -434,6 +433,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-citation-guidance` **Ask agents to cite code as `path/from/root.ext:line`.** The renderer reads every common style, but one requested form in `agentWorkflow.ts` guidance would make chips more reliable for clients that write bare prose. Changes installed guidance text. (2026-11-03)
 
 ## Done log
+
+- 2026-11-04 `investigation-replay-navigation` Projected the complete saved deck with event-time cases, linked carousel/timeline/map navigation, unified play/pause and preserved finding/fix cards at one event. Restored pill pagination dots; added runtime-only/empty capture handling and replay case-ID/live-marker guards. Types/build, 919 unit tests (7 skipped) and five Electron journeys pass, including the eight-event/seven-card regression. (`codex/investigation-card`)
 
 - 2026-11-04 `investigation-space-following` Expanded the reader above measured floating controls, consolidated header and bottom actions, showed full descriptions and removed redundant run metadata. Following now pauses only explicitly or for step browsing; Resume advances queued work immediately. Types/build, 915 unit tests (7 skipped) and four Electron journeys pass, including hover/focus/evidence interactions, repeated resume, full-height geometry and resized replay. (`codex/investigation-card`)
 

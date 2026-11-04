@@ -1889,9 +1889,9 @@ test('opens saved investigations and controls replay through the workbench trans
   const timeline = replay.getByRole('slider', { name: 'Investigation timeline' })
   await expect(replay).toBeVisible()
   await expect(replay).toContainText('fix/checkout@9fc31ab4')
-  await expect(replay).toContainText('0/2')
-  await expect(replay).toContainText('Press Play to watch it unfold')
-  await expect(timeline).toHaveValue('-1')
+  await expect(replay).toContainText('1/2')
+  await expect(replay).toContainText('Checkout stalls after authorization')
+  await expect(timeline).toHaveValue('0')
   await expect.poll(() => replay.evaluate(element => {
     const style = getComputedStyle(element)
     return {
@@ -1906,9 +1906,8 @@ test('opens saved investigations and controls replay through the workbench trans
   })
 
   await replay.getByRole('button', { name: 'Step' }).click()
-  await expect(replay).toContainText('1/2')
-  await expect(replay).toContainText('Checkout stalls after authorization')
-  await expect(timeline).toHaveValue('0')
+  await expect(replay).toContainText('2/2')
+  await expect(timeline).toHaveValue('1')
 
   await replay.getByRole('button', { name: 'Restart' }).click()
   await expect(replay).toContainText('0/2')
@@ -4158,7 +4157,7 @@ test('a growing investigation carousel keeps evidence and navigation in one boun
   expect(binsBox.y-(initialBox.y+initialBox.height)).toBeLessThanOrEqual(15)
   expect((await card.locator('.ambio-case__viewport').boundingBox())!.height).toBeGreaterThan(480)
   expect((await card.locator('.ambio-case__header').boundingBox())!.height).toBeLessThan(110)
-  expect((await card.locator('.ambio-case__controls').boundingBox())!.height).toBeLessThan(60)
+  expect((await card.locator('.ambio-case__controls').boundingBox())!.height).toBeLessThan(90)
   await page.screenshot({animations:'disabled',path:'test-results/investigation-carousel-live.png'})
   await card.locator('.ambio-case__step-index').click()
   const list=card.getByRole('list',{name:'All investigation steps'})
@@ -4268,16 +4267,20 @@ test('investigation steering uses chat, preserves failed drafts and cannot spill
 })
 
 
-test('a saved investigation replays through step cards with read-only evidence', async () => {
+test('saved investigation cards and timeline navigate the full eight-event recording together', async () => {
+  await page.clock.install()
   const name='Helios sensor reconnect causes duplicate updates'
   const hypothesis={id:'H1',text:'A startup promise resolves after cleanup and attaches an old sensor listener.',status:'confirmed',verdict:'The interrupted schedule leaves two listeners; the control leaves one.',createdAt:1,anchors:[{fileId:'file_canvas',symbol:'startMotion'}]}
   const rootCause='Late sensor startup attaches an orphaned listener. Reconnect adds another, so both send telemetry.'
   await page.route(/\/api\/investigation\/saved_sensor\?/,route=>route.fulfill({json:{id:'saved_sensor',name,createdAt:Date.now()-60_000,durationMs:5000,events:[
-    {type:'investigation:hypothesis',offsetMs:0,payload:{hypothesis:{...hypothesis,status:'open'}}},
-    {type:'investigation:run_started',offsetMs:500,payload:{command:'node sensor-race.cjs',hypothesisId:'H1',watches:[]}},
-    {type:'investigation:run',offsetMs:1000,payload:{run:{id:'saved_r1',n:1,command:'node sensor-race.cjs',exitCode:0,durationMs:1300,timedOut:false,findings:[],watched:[],calls:[],outputTail:'CONTROL listeners=1 packets=1\nRACE listeners=2 packets=2'}}},
-    {type:'investigation:verdict',offsetMs:2500,payload:{hypothesis}},
-    {type:'investigation:conclusion',offsetMs:4000,payload:{conclusion:{rootCause,fix:'Cancel pending startup.',at:4000}}}
+    {type:'agent:activity',offsetMs:0,payload:{message:'Preparing the offline reproduction',level:'info'}},
+    {type:'investigation:hypothesis',offsetMs:100,payload:{caseId:'original-live-case',hypothesis:{...hypothesis,status:'open'}}},
+    {type:'investigation:run_started',offsetMs:500,payload:{caseId:'original-live-case',command:'node sensor-race.cjs',hypothesisId:'H1',watches:[]}},
+    {type:'investigation:run',offsetMs:1000,payload:{caseId:'original-live-case',run:{id:'saved_r1',n:1,command:'node sensor-race.cjs',exitCode:0,durationMs:1300,timedOut:false,findings:[],watched:[],calls:[],outputTail:'CONTROL listeners=1 packets=1\nRACE listeners=2 packets=2'}}},
+    {type:'investigation:note',offsetMs:2000,payload:{caseId:'original-live-case',text:'The control has one listener; the interrupted schedule leaves two.'}},
+    {type:'investigation:verdict',offsetMs:2500,payload:{caseId:'original-live-case',hypothesis}},
+    {type:'investigation:conclusion',offsetMs:4000,payload:{caseId:'original-live-case',conclusion:{rootCause,fix:'Cancel pending startup.',at:4000}}},
+    {type:'investigation:message_delivered',offsetMs:4500,payload:{caseId:'original-live-case',ids:[]}}
   ]}}))
   await seedSensorInvestigation()
   await page.evaluate(rootCause=>{
@@ -4286,38 +4289,83 @@ test('a saved investigation replays through step cards with read-only evidence',
     store.applyCaseEvent('investigation:stopped',{id:'saved_sensor'})
   },rootCause)
   const card=page.getByRole('complementary',{name:`Investigation: ${name}`})
+  const slide=card.locator('.ambio-case__step')
   await card.getByRole('button',{name:'Watch the replay'}).click()
   const replay=page.getByRole('region',{name:`Investigation replay: ${name}`})
-  await expect(replay).toBeVisible()
   const slider=replay.getByRole('slider',{name:'Investigation timeline'})
-  await slider.focus();await slider.press('ArrowRight');await slider.press('ArrowRight')
-  await expect(card).toContainText('Recorded command')
-  await expect(card).not.toContainText('Running experiment')
-  await slider.press('End')
-  await expect(card.locator('.ambio-case__step')).toContainText('Late sensor startup attaches an orphaned listener.')
-  await expect(card.locator('.ambio-case__step')).toContainText('Reconnect adds another, so both send telemetry.')
+  await expect(replay).toBeVisible()
+  await expect(slide).toContainText('A possible cause')
+  await expect(card).toContainText('8 events')
+  await expect(slider).toHaveValue('1')
+  await expect(card.locator('.ambio-case__step-index')).toHaveAttribute('aria-label','Investigation step 1 of 7, show all steps')
+  const dots=card.getByRole('group',{name:'Investigation pagination'})
+  await expect(dots.getByRole('button')).toHaveCount(7)
+  await expect(card.getByRole('button',{name:'Next investigation step'})).toBeEnabled()
+  await card.locator('.ambio-case__step-index').click()
+  const list=card.getByRole('list',{name:'All investigation steps'})
+  await expect(list.getByRole('button')).toHaveCount(7)
+  await expect(list).toContainText('Suggested fix')
+  await page.screenshot({animations:'disabled',path:'test-results/investigation-saved-full-index.png'})
+  await list.getByRole('button',{name:/The experiment finished/}).click()
+  await expect(slider).toHaveValue('3')
+  await slide.locator('.ambio-case__run > summary').click()
+  await slide.getByText('Program output',{exact:true}).click()
+  await expect(slide.locator('.ambio-case__output pre')).toContainText('RACE listeners=2 packets=2')
+  await expect(card.getByRole('button',{name:'Play replay'})).toBeVisible()
+  await dots.getByRole('button',{name:'Go to step 1: A possible cause'}).click()
+  await expect(slider).toHaveValue('1')
+  await expect(slide).toContainText('A possible cause')
+  await card.getByRole('button',{name:'Next investigation step'}).click()
+  await expect(slider).toHaveValue('2')
+  await expect(slide).toContainText('Recorded command')
+  await expect(slide).not.toContainText('Running experiment')
+  await slider.focus();await slider.press('End')
+  await expect(slider).toHaveValue('7')
+  await expect(slide.getByRole('heading',{name:'Suggested fix'})).toBeVisible()
+  await card.getByRole('button',{name:'Previous investigation step'}).click()
+  await expect(slider).toHaveValue('6')
+  await expect(slide).toContainText('Late sensor startup attaches an orphaned listener.')
+  await card.getByRole('button',{name:'Next investigation step'}).click()
+  await expect(slider).toHaveValue('6') // finding/fix are separate cards from one event
+  await expect(slide).toContainText('No fix verification recorded')
+  await slider.focus();await slider.press('ArrowLeft')
+  await expect(slide).toContainText('The hypothesis is supported')
+  await dots.getByRole('button',{name:'Go to step 3: The experiment finished'}).click()
+  // Both play buttons and both pause buttons control the same player.
+  await card.getByRole('button',{name:'Play replay'}).click()
+  await expect(replay.getByRole('button',{name:'Pause',exact:true})).toBeVisible()
+  await replay.getByRole('button',{name:'Pause',exact:true}).click()
+  await expect(card.getByRole('button',{name:'Play replay'})).toBeVisible()
+  await replay.getByRole('button',{name:'Play',exact:true}).click()
+  await expect(card.getByRole('button',{name:'Pause replay'})).toBeVisible()
+  await page.clock.fastForward(5000)
+  await expect(slide).toContainText('The control has one listener')
+  await expect(slider).toHaveValue('4')
+  await page.clock.fastForward(3000)
+  await expect(slide).toContainText('The hypothesis is supported')
+  await card.getByRole('button',{name:'Pause replay'}).click()
+  await page.clock.fastForward(10000)
+  await expect(slider).toHaveValue('5')
+  await replay.getByRole('button',{name:'Restart',exact:true}).click()
+  await expect(slider).toHaveValue('-1')
+  await expect(slide).toContainText('Beginning of the recording')
+  await card.locator('.ambio-case__step-index').click()
+  await expect(list.getByRole('button')).toHaveCount(7)
+  await list.getByRole('button',{name:/What’s causing it/}).click()
+  await expect(slider).toHaveValue('6')
   await expect(card.getByRole('button',{name:'Reply in chat'})).toHaveCount(0)
   await expect(card).toContainText('Read-only replay')
-  await card.getByRole('button',{name:'Next investigation step'}).click()
-  await expect(card.locator('.ambio-case__step')).toContainText('No fix verification recorded')
-  await card.locator('.ambio-case__step-index').click()
-  await card.getByRole('list',{name:'All investigation steps'}).getByRole('button',{name:/The experiment finished/}).click()
-  await card.locator('.ambio-case__step .ambio-case__run > summary').click()
-  await card.getByText('Program output',{exact:true}).click()
-  await expect(card.locator('.ambio-case__output pre')).toContainText('RACE listeners=2 packets=2')
   const cardBox=(await card.boundingBox())!,transportBox=(await replay.boundingBox())!
   expect(cardBox.y+cardBox.height).toBeLessThan(transportBox.y)
-  await page.screenshot({animations:'disabled',path:'test-results/investigation-replay.png'})
-  await slider.press('Home')
-  await expect(card.locator('.ambio-case__step')).toContainText('Opening the investigation')
-  await slider.press('End')
-  await expect(card.locator('.ambio-case__step')).toContainText('Late sensor startup attaches an orphaned listener.')
+  await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-linked.png'})
+  const active=dots.locator('[aria-current="step"]')
+  await expect.poll(()=>active.evaluate(el=>getComputedStyle(el,'::after').width)).toBe('21px')
   await page.setViewportSize({width:900,height:600})
   const chip=page.locator('.ambio-case-chip')
   if(await chip.count()) await chip.click()
   const narrowBox=(await card.boundingBox())!,narrowTransport=(await replay.boundingBox())!
   expect(narrowBox.y+narrowBox.height).toBeLessThan(narrowTransport.y)
   expect((await card.locator('.ambio-case__viewport').boundingBox())!.height).toBeGreaterThan(150)
-  await expect(card.getByRole('button',{name:'Next investigation step'})).toBeVisible()
-  await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-narrow.png'})
+  await expect(card.getByRole('group',{name:'Investigation pagination'})).toBeVisible()
+  await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-linked-narrow.png'})
 })

@@ -64,18 +64,24 @@
 .ambio-case__outcome[data-verified='true'] { background: #dfe9d9; border-color: #6b8c59; color: #4e6940; }
 .ambio-case__outcome strong { font-weight: 600; }
 .ambio-case__delivery { font-size: 11px; color: #617960; }
-.ambio-case__controls { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px solid #bdc9b8; background: #e4e9dc; box-shadow: inset 0 1px #f7f9f0; }
-.ambio-case__pager { display: inline-flex; flex: 0 0 auto; }
+.ambio-case__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; align-items: center; gap: 6px 10px; padding: 8px 12px; border-top: 1px solid #bdc9b8; background: #e4e9dc; box-shadow: inset 0 1px #f7f9f0; }
+.ambio-case__pager { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 8px; }
 .ambio-case__arrow { display: inline-flex; align-items: center; justify-content: center; width: 29px; height: 29px; border: 1px solid #9cad96; background: #f4f5eb; color: #3c664a; font: 17px/1 var(--font-ui); cursor: pointer; }
-.ambio-case__arrow:first-child { border-radius: 2px 0 0 2px; }
-.ambio-case__arrow:last-child { border-left: 0; border-radius: 0 2px 2px 0; }
+.ambio-case__arrow { border-radius: 2px; }
 .ambio-case__arrow:disabled { color: #a7b1a0; background: #e9eddf; cursor: default; }
 .ambio-case__arrow:not(:disabled):hover { background: #d6e3cb; }
-.ambio-case__follow { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; min-height: 29px; border: 1px solid #8da082; border-radius: 2px; background: #f4f5ea; color: #436143; font: 600 11px/1.4 var(--font-ui); cursor: pointer; }
+.ambio-case__follow { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; min-height: 29px; border: 1px solid #8da082; border-radius: 2px; background: #f4f5ea; color: #436143; font: 600 11px/1.4 var(--font-ui); cursor: pointer; }
 .ambio-case__follow[aria-pressed='true'] { background: #d2e0c6; border-color: #7e9b6d; color: #365831; box-shadow: inset 0 0 0 1px #e5eedc; }
-.ambio-case__follow:hover { background: #c6d9b8; }
-.ambio-case__controls > .ambio-case__action, .ambio-case__read-only { margin-left: auto; }
+.ambio-case__follow:not(:disabled):hover { background: #c6d9b8; }
+.ambio-case__follow:disabled { opacity: .45; cursor: default; }
+.ambio-case__controls > .ambio-case__action, .ambio-case__read-only { justify-self: end; }
 .ambio-case__read-only { color: #64775e; font: 10px/1.4 var(--font-ui); }
+.ambio-case__dots { display: flex; align-items: center; gap: 3px; }
+.ambio-case__dots button { display: flex; align-items: center; justify-content: center; width: 24px; height: 27px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.ambio-case__dots button::after { content: ''; display: block; width: 6px; height: 6px; border-radius: 4px; background: #a6b89a; transition: width 180ms ease, background-color 180ms ease; }
+.ambio-case__dots button[aria-current='step']::after { width: 21px; height: 7px; background: #42785a; }
+.ambio-case__dots button:hover::after { background: #648c62; }
+.ambio-case__dots button:first-child:not([aria-current='step'])::after, .ambio-case__dots button:last-child:not([aria-current='step'])::after { opacity: .65; }
 .ambio-case__step-list { margin: 0; padding: 4px 0; list-style: none; }
 .ambio-case__step-list li + li { border-top: 1px solid #d9ddcf; }
 .ambio-case__step-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 16px; border: 0; background: transparent; color: #405842; text-align: left; cursor: pointer; }
@@ -120,7 +126,7 @@ details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
 .ambio-case__anchor:disabled { cursor: default; }
 .ambio-case__action { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 29px; padding: 5px 9px; border: 1px solid #7c9c86; border-radius: 2px; background: #f3f5ed; color: #38624c; font: 600 11px/1.5 var(--font-ui); cursor: pointer; }
 .ambio-case__action:hover { background: #d4e3d5; }
-.ambio-case__error { flex: 0 0 100%; margin: 0; font-size: 11px; }
+.ambio-case__error { grid-column: 1 / -1; margin: 0; font-size: 11px; }
 .ambio-case-chip { position: absolute; right: 14px; bottom: var(--case-bottom, 68px); z-index: 1150; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3px 8px; width: max-content; max-width: min(420px, calc(100% - 28px)); padding: 9px 12px; border: 1px solid #71917a; border-radius: 3px; background: #e7eee1; color: #344d3e; text-align: left; cursor: pointer; box-shadow: 2px 3px 0 #24342c20; }
 .ambio-case-chip__dot { width: 6px; height: 6px; border-radius: 50%; background: #518b6b; animation: ambioCaseLive 1.8s infinite; }
 .ambio-case-chip[data-status='closed'] .ambio-case-chip__dot, .ambio-case-chip[data-status='replay'] .ambio-case-chip__dot { animation: none; }
@@ -129,7 +135,7 @@ details[open] > summary > .ambio-case__chevron { transform: rotate(90deg); }
 .ambio-case :focus-visible, .ambio-case-chip:focus-visible { outline: 2px solid #437b66; outline-offset: 2px; }
 @keyframes ambioCaseArrival { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ambioCaseLive { 50% { opacity: .4; } }
-@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ambio-case, .ambio-case__live-dot, .ambio-case-chip__dot { animation: none; } .ambio-case__chevron, .ambio-case__dots button::after { transition: none; } .ambio-case__step { animation: none; } .ambio-case__leaving { display: none; } }
 
 /* Investigation feedback uses the same chat composer and delivery queue. */
 .ambio-inbox__case-context { display: flex; align-items: center; gap: 10px; padding: 9px 11px; margin: 0 0 8px; border-left: 3px solid #67957b; background: #e3ecdf; color: #345b45; }

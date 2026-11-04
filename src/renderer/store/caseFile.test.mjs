@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { caseFromState, caseSteps, caseSummary, emptyCase, reduceCase, traceStepsForRun } from './caseFile.ts'
+import { caseFromState, caseSteps, caseReplayFrames, caseReplayFrameIndex, caseSummary, emptyCase, reduceCase, traceStepsForRun } from './caseFile.ts'
 
 const fold = (events, start = null) =>
   events.reduce((state, [type, payload], i) => reduceCase(state, type, payload, 1000 + i * 100), start)
@@ -191,4 +191,40 @@ test('carousel distinguishes failed experiments, an unfinished case and replay b
   assert.equal(caseSteps(file)[0].title,'The experiment could not start')
   assert.equal(caseSteps(file)[1].title,'Ended without a conclusion')
   assert.equal(caseSteps(emptyCase('r','Saved case','replay'))[0].kind,'opening')
+})
+
+
+test('the full replay deck maps cards to recorded events without exposing future assessments', () => {
+  const events = [
+    {type:'runtime:watch',payload:{watch:{id:'w'}}},
+    {type:'investigation:hypothesis',payload:{caseId:'live-id',...hypothesis('H1','Startup outlives cleanup.')}},
+    {type:'investigation:run_started',payload:{caseId:'live-id',command:'node repro.cjs',hypothesisId:'H1'}},
+    {type:'investigation:run',payload:{caseId:'live-id',run:{id:'r1',n:1,command:'node repro.cjs',exitCode:0}}},
+    {type:'runtime:unwatch',payload:{watch:{id:'w'}}},
+    {type:'investigation:verdict',payload:{caseId:'live-id',...hypothesis('H1','Startup outlives cleanup.','confirmed','Two listeners remain.')}},
+    {type:'investigation:conclusion',payload:{caseId:'live-id',conclusion:{rootCause:'Late startup.',fix:'Cancel startup.',at:70}}},
+    {type:'investigation:message_delivered',payload:{caseId:'live-id',ids:[]}},
+  ].map((event,index)=>({...event,offsetMs:index*100}))
+  const frames = caseReplayFrames('saved-id','Sensors',1000,events)
+  assert.deepEqual(frames.map(frame=>frame.step.kind),['hypothesis','running','run','verdict','conclusion','fix'])
+  assert.deepEqual(frames.map(frame=>frame.eventIndex),[1,2,3,5,6,6])
+  assert.equal(frames[0].file.id,'saved-id','live and saved IDs need not match')
+  assert.equal(frames[0].file.hypotheses[0].status,'open')
+  assert.equal(frames[0].file.conclusion,undefined)
+  assert.equal(frames[3].file.hypotheses[0].status,'confirmed')
+  assert.equal(caseReplayFrameIndex(frames,-1),-1)
+  assert.equal(caseReplayFrameIndex(frames,0),-1)
+  assert.equal(caseReplayFrameIndex(frames,4),2,'bookkeeping keeps the previous card')
+  assert.equal(caseReplayFrameIndex(frames,6),4,'a seek selects the finding before the fix')
+  assert.equal(caseReplayFrameIndex(frames,7),5)
+  assert.equal(events[1].payload.caseId,'live-id','projection does not mutate the capture')
+})
+
+test('runtime-only and empty captures remain honestly browsable', () => {
+  const frames=caseReplayFrames('old','Legacy capture',0,[{type:'runtime:call',offsetMs:10,payload:{symbol:'startSensor',args:'enabled=true'}},{type:'runtime:exception',offsetMs:20,payload:{symbol:'startSensor',message:'Permission denied'}}])
+  assert.equal(frames.length,2)
+  assert.equal(frames[0].step.title,'Function called')
+  assert.equal(frames[1].step.text,'Permission denied')
+  assert.deepEqual(frames[0].step.recordedDetails,{symbol:'startSensor',args:'enabled=true'})
+  assert.deepEqual(caseReplayFrames('empty','Empty capture',0,[]),[])
 })

@@ -840,8 +840,16 @@ reading interval; only explicit pause or step browsing disables it. Resume
 advances queued work immediately. Hover, focus and evidence interaction leave
 following enabled. A compact header and single bottom control bar surround the
 full-height body, with available height measured above the bins/replay transport.
-A full step index and previous/next controls share the cursor. Replay uses the same cards,
-with explicit seek alignment and read-only feedback. `SendToAgentDialog` accepts an
+The step index, previous/next controls and pagination dots share the cursor.
+For saved recordings, `caseReplayFrames` projects the complete immutable deck
+with an event index and event-time case for each card. `ReplayState` owns this
+deck, the selected card, applied event prefix and shared play/pause state;
+`CasePanel` and `ReplayBar` both navigate this controller. Carousel navigation
+seeks/rebuilds the map prefix, while timeline seeking/playback selects its card.
+A conclusion can yield finding/fix cards at one event; bookkeeping events keep
+raw counts distinct from reader steps. Recorded case IDs normalize only inside
+replay; live guards remain intact. Runtime-only captures have activity cards,
+and live start/stop markers cannot hijack replay. `SendToAgentDialog` accepts an
 explicit investigation reply context from the card and sends through the
 existing `sendCaseMessage` queue while keeping ordinary turn submission
 separate. It shows queue/delivery status and preserves drafts through failures

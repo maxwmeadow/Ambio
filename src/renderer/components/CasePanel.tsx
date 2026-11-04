@@ -1,11 +1,12 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useGraphStore, type InvestigationDoc } from '../store/graphStore'
+import { useGraphStore, type InvestigationDoc, type ReplayState } from '../store/graphStore'
 import { apiGetInvestigation } from '../canvas/arcdApi'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import {
   caseSummary,
   caseSteps,
+  emptyCase,
   type CaseStep,
   type CaseAnchor,
   type CaseFile,
@@ -138,11 +139,11 @@ function StepIcon({ kind }: { kind: CaseStep['kind'] }) {
   return <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" /></svg>
 }
 
-function StepContent({ step, file, now, navigate }: { step: CaseStep; file: CaseFile; now: number; navigate: (id: string) => void }) {
-  const question = step.hypothesisId ? caseSteps(file).find(s => s.kind === 'hypothesis' && s.hypothesisId === step.hypothesisId) : undefined
+function StepContent({ step, file, steps, now, navigate }: { step: CaseStep; file: CaseFile; steps: readonly CaseStep[]; now: number; navigate: (id: string) => void }) {
+  const question = step.hypothesisId ? steps.find(s => s.kind === 'hypothesis' && s.hypothesisId === step.hypothesisId) : undefined
   const verified = file.conclusion?.verified ? file.runs.find(run => run.id === file.conclusion?.verified) : undefined
   const linkedRun = verified ?? file.runs.at(-1)
-  const evidence = linkedRun ? caseSteps(file).find(s => s.run?.id === linkedRun.id) : undefined
+  const evidence = linkedRun ? steps.find(s => s.run?.id === linkedRun.id) : undefined
   const message = file.messages.find(m => m.id === step.messageId)
   return <>
     <div className="ambio-case__step-heading">
@@ -161,8 +162,9 @@ function StepContent({ step, file, now, navigate }: { step: CaseStep; file: Case
         </p>
         <RunCard run={step.run} />
       </>}
+      {step.recordedDetails != null && <details className="ambio-case__output"><summary>Recorded details</summary><pre>{JSON.stringify(step.recordedDetails,null,2)}</pre></details>}
       <AnchorChips anchors={step.anchors} />
-      {step.kind === 'message' && <p className="ambio-case__delivery">{message?.deliveredAt ? 'Delivered to the investigating agent' : file.status === 'live' ? 'Queued for the next investigation step' : 'Not delivered'}</p>}
+      {step.kind === 'message' && <p className="ambio-case__delivery">{message?.deliveredAt ? 'Delivered to the investigating agent' : file.status === 'live' ? 'Queued for the next investigation step' : file.status === 'replay' ? 'Queued at this step' : 'Not delivered'}</p>}
       {step.kind === 'conclusion' && <div className="ambio-case__outcome">
         {!evidence && <span>Agent conclusion · no experiment recorded</span>}
         {evidence && <button type="button" className="ambio-case__text-button" onClick={() => navigate(evidence.id)}>Review experiment R{linkedRun!.n} →</button>}
@@ -177,33 +179,43 @@ function StepContent({ step, file, now, navigate }: { step: CaseStep; file: Case
 
 /** Only explicit pause or step navigation disables following. Resume advances
  * queued work immediately, then preserves a reading interval between arrivals. */
-function CaseCarousel({ file, now, playbackCursor, onDismiss, action, error }: {
-  file: CaseFile; now: number; playbackCursor?: number; onDismiss: () => void; action: React.ReactNode; error: string | null
+function CaseCarousel({ file, now, replay, onDismiss, action, error }: {
+  file: CaseFile; now: number; replay: ReplayState | null; onDismiss: () => void; action: React.ReactNode; error: string | null
 }) {
-  const steps = useMemo(() => caseSteps(file), [file])
-  const [cursor, setCursor] = useState(() => ({id:steps.at(-1)!.id, index:steps.length - 1, following:true, direction:'forward'}))
+  const steps = useMemo(() => replay ? replay.frames.map(frame => frame.step) : caseSteps(file), [file, replay?.frames])
+  const [cursor, setCursor] = useState(() => ({id:steps.at(-1)?.id ?? 'opening', index:Math.max(0,steps.length - 1), following:true}))
   const [indexOpen, setIndexOpen] = useState(false)
-  const [leaving, setLeaving] = useState<CaseStep | null>(null)
+  const [leaving, setLeaving] = useState<{step:CaseStep; file:CaseFile} | null>(null)
+  const [direction, setDirection] = useState('forward')
   const selected = steps.findIndex(step => step.id === cursor.id)
-  const index = selected < 0 ? Math.min(cursor.index, steps.length - 1) : selected
-  const step = steps[index]
-  const previous = useRef(step)
-  const previousPlayback = useRef(playbackCursor)
+  const index = replay ? replay.frameCursor : selected < 0 ? Math.min(cursor.index, steps.length - 1) : selected
+  const step = steps[index] ?? {...caseSteps(emptyCase(file.id,file.name,'replay'))[0], title:'Beginning of the recording',label:'Replay',text:replay?.events.length ? 'Choose a recorded step or press Play to follow the investigation.' : 'This recording contains no recorded events.'}
+  const stepFile = replay?.frames[index]?.file ?? file
+  const previous = useRef({step, file:stepFile, index})
   const lastAdvance = useRef(Date.now())
   const body = useRef<HTMLDivElement>(null)
   const pending = steps.length - index - 1
   const reading = !cursor.following || indexOpen
-  const pause = () => setCursor(value => value.following ? {...value, following:false} : value)
+  const following = replay ? replay.playing : cursor.following
+  const dotStart = Math.max(0, Math.min(index - 3, steps.length - 7))
+  const pause = () => {
+    if (replay) useGraphStore.getState().setReplayPlaying(false)
+    else setCursor(value => value.following ? {...value, following:false} : value)
+  }
   const go = (next: number, following = false) => {
     const target = Math.max(0, Math.min(steps.length - 1, next))
     lastAdvance.current = Date.now()
-    setCursor({id:steps[target].id, index:target, following, direction:target < index ? 'backward' : 'forward'})
+    if (replay) {
+      useGraphStore.getState().replaySeekFrame(target)
+      if (following) useGraphStore.getState().setReplayPlaying(true)
+    } else setCursor({id:steps[target].id, index:target, following})
     setIndexOpen(false)
   }
   useLayoutEffect(() => {
-    if (previous.current.id === step.id) return
+    if (previous.current.step.id === step.id) return
     setLeaving(previous.current)
-    previous.current = step
+    setDirection(index < previous.current.index ? 'backward' : 'forward')
+    previous.current = {step, file:stepFile, index}
     if (body.current) body.current.scrollTop = 0
     const timer = setTimeout(() => setLeaving(null), 240)
     return () => clearTimeout(timer)
@@ -211,27 +223,17 @@ function CaseCarousel({ file, now, playbackCursor, onDismiss, action, error }: {
   useEffect(() => {
     // Backward replay seeking can remove the selected step. Follow the new
     // playback position instead of keeping a cursor into a different event.
-    if (selected < 0) {
-      setCursor(value => ({...value, id:step.id, index, direction:'forward'}))
+    if (!replay && selected < 0) {
+      setCursor(value => ({...value, id:step.id, index}))
       lastAdvance.current = Date.now()
     }
   }, [selected, step.id, index])
   useEffect(() => {
-    if (reading || pending <= 0) return
+    if (replay || reading || pending <= 0) return
     const dwell = Math.min(7500, Math.max(3500, step.text.split(/\s+/).length * 180))
     const timer = setTimeout(() => go(index + 1, true), Math.max(0, dwell - (Date.now() - lastAdvance.current)))
     return () => clearTimeout(timer)
   }, [reading, pending, index, step.id, step.text, steps.length])
-  useEffect(() => {
-    if (playbackCursor === undefined || previousPlayback.current === playbackCursor) return
-    const jumped = previousPlayback.current !== undefined && (playbackCursor < previousPlayback.current || playbackCursor > previousPlayback.current + 1)
-    previousPlayback.current = playbackCursor
-    if (!jumped && (!cursor.following || indexOpen)) return
-    // The replay transport already supplies its reading intervals. A conclusion
-    // first lands on the finding; its separate fix is the following card.
-    const target = steps.at(-1)?.kind === 'fix' ? steps.length - 2 : steps.length - 1
-    go(target, true)
-  }, [playbackCursor])
   const navigate = (id: string) => { const target = steps.findIndex(step => step.id === id); if (target >= 0) go(target) }
   const mode = file.status === 'replay' ? 'Replay' : file.status === 'live' ? 'Live' : 'Closed'
   const since = elapsed((file.closedAt ?? now) - file.startedAt)
@@ -248,30 +250,31 @@ function CaseCarousel({ file, now, playbackCursor, onDismiss, action, error }: {
       <button type="button" className="ambio-case__close" aria-label={file.status === 'closed' ? 'Dismiss the closed case' : 'Minimize the case'} title={file.status === 'closed' ? 'Dismiss' : 'Minimize'} onClick={onDismiss}>{file.status === 'closed' ? '×' : '–'}</button>
       <div className="ambio-case__metadata">
         <span className="ambio-case__mode" data-status={file.status}>{file.status === 'live' && <span className="ambio-case__live-dot" aria-hidden="true" />}{mode}</span>
-        <span className="ambio-case__elapsed" title={`${file.hypotheses.length} hypotheses · ${file.runs.length} experiments`}>{file.status === 'replay' ? 'Saved case' : since}</span>
+        <span className="ambio-case__elapsed" title={`${file.hypotheses.length} hypotheses · ${file.runs.length} experiments`}>{replay ? `${replay.events.length} events` : since}</span>
         <button type="button" className="ambio-case__step-index" aria-label={`Investigation step ${index + 1} of ${steps.length}, show all steps`} aria-expanded={indexOpen} onClick={() => setIndexOpen(value => !value)}>{indexOpen ? 'All steps' : `${String(index + 1).padStart(2, '0')} / ${String(steps.length).padStart(2, '0')}`}<span aria-hidden="true">{indexOpen ? ' ×' : ' ▾'}</span></button>
         {pending > 0 && <button type="button" className="ambio-case__latest" aria-label="Latest step →" title={`${pending} newer ${pending === 1 ? 'step' : 'steps'} · Jump to latest and follow`} onClick={() => go(steps.length - 1, true)}>+{pending}</button>}
       </div>
     </header>
     <div className="ambio-case__announcement" role="status" aria-atomic="true">Step {index + 1} of {steps.length}: {step.title}</div>
-    <div className="ambio-case__viewport" data-direction={cursor.direction}>
+    <div className="ambio-case__viewport" data-direction={direction}>
       {indexOpen ? <div key="step-index" className="ambio-case__body"><ol className="ambio-case__step-list" aria-label="All investigation steps">
         {steps.map((item, n) => <li key={item.id}><button type="button" aria-current={n === index ? 'step' : undefined} onClick={() => go(n)}><span>{String(n + 1).padStart(2,'0')}</span><span><strong>{item.title}</strong><small>{item.label}</small></span><span aria-hidden="true">›</span></button></li>)}
       </ol></div> : <>
-        {leaving && <div key="outgoing-step" className="ambio-case__leaving" aria-hidden="true" ref={element => {if (element) element.inert = true}} data-kind={leaving.kind}><StepContent step={leaving} file={file} now={now} navigate={navigate} /></div>}
+        {leaving && <div key="outgoing-step" className="ambio-case__leaving" aria-hidden="true" ref={element => {if (element) element.inert = true}} data-kind={leaving.step.kind}><StepContent step={leaving.step} file={leaving.file} steps={steps} now={now} navigate={navigate} /></div>}
         <div key={step.id} ref={body} className="ambio-case__body ambio-case__step" data-kind={step.kind} role="group" aria-roledescription="slide" aria-label={`Step ${index + 1} of ${steps.length}: ${step.title}`} tabIndex={0}>
-          <StepContent step={step} file={file} now={now} navigate={navigate} />
+          <StepContent step={step} file={stepFile} steps={steps} now={now} navigate={navigate} />
         </div>
       </>}
     </div>
     <footer className="ambio-case__controls" aria-label="Investigation controls">
       <div className="ambio-case__pager" role="group" aria-label="Browse investigation steps">
-        <button type="button" className="ambio-case__arrow" aria-label="Previous investigation step" disabled={index === 0} onClick={() => go(index - 1)}>←</button>
-        <button type="button" className="ambio-case__arrow" aria-label="Next investigation step" disabled={pending === 0} onClick={() => go(index + 1)}>→</button>
+        <button type="button" className="ambio-case__arrow" aria-label="Previous investigation step" disabled={index <= 0} onClick={() => go(index - 1)}>←</button>
+        <div className="ambio-case__dots" role="group" aria-label="Investigation pagination">{steps.map((item,n) => n >= dotStart && n < dotStart + 7 && <button key={item.id} type="button" aria-label={`Go to step ${n + 1}: ${item.title}`} title={`Step ${n + 1}: ${item.title}`} aria-current={n === index ? 'step' : undefined} onClick={() => go(n)} />)}</div>
+        <button type="button" className="ambio-case__arrow" aria-label="Next investigation step" disabled={pending <= 0} onClick={() => go(index + 1)}>→</button>
       </div>
-      <button type="button" className="ambio-case__follow" aria-label={cursor.following ? 'Pause following' : 'Resume following'} aria-pressed={cursor.following} title={cursor.following ? 'Following new steps automatically. Click to pause.' : 'Continue with the next queued step and follow new arrivals.'} onClick={() => cursor.following ? pause() : go(pending > 0 ? index + 1 : index, true)}>
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">{cursor.following ? <path d="M5 3v10M11 3v10" fill="none" stroke="currentColor" strokeWidth="2" /> : <path d="m4 2 9 6-9 6z" fill="currentColor" />}</svg>
-        {cursor.following ? 'Following' : 'Resume'}
+      <button type="button" className="ambio-case__follow" disabled={!!replay && replay.cursor >= replay.events.length - 1 && replay.frameCursor >= replay.frames.length - 1} aria-label={replay ? following ? 'Pause replay' : 'Play replay' : following ? 'Pause following' : 'Resume following'} aria-pressed={following} title={replay ? 'Play or pause the shared investigation timeline' : following ? 'Following new steps automatically. Click to pause.' : 'Continue with the next queued step and follow new arrivals.'} onClick={() => replay ? useGraphStore.getState().setReplayPlaying(!following) : following ? pause() : go(pending > 0 ? index + 1 : index, true)}>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">{following ? <path d="M5 3v10M11 3v10" fill="none" stroke="currentColor" strokeWidth="2" /> : <path d="m4 2 9 6-9 6z" fill="currentColor" />}</svg>
+        {replay ? following ? 'Pause' : 'Play' : following ? 'Following' : 'Resume'}
       </button>
       {action}
       {error && <p className="ambio-case__error" role="alert">{error}</p>}
@@ -362,7 +365,7 @@ export function CasePanel() {
 
   return (
     <><span ref={anchorRef} hidden /><aside className="ambio-case nodrag nowheel" style={placement} data-narrow={narrow || undefined} data-status={caseFile.status} data-with-replay={replay ? true : undefined} aria-label={`Investigation: ${caseFile.name}`}>
-      <CaseCarousel key={`${caseFile.id}:${caseFile.status === 'replay'}`} file={caseFile} now={now} playbackCursor={replay?.cursor} onDismiss={dismissCase} error={replayError} action={
+      <CaseCarousel key={`${caseFile.id}:${caseFile.status === 'replay'}`} file={caseFile} now={now} replay={replay} onDismiss={dismissCase} error={replayError} action={
         live ? <button type="button" className="ambio-case__action" title="Send guidance through the existing chat. Replies arrive with the agent’s next step." onClick={() => { window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', {detail:{investigationId:caseFile.id}})); if (narrow) {setNarrowExpanded(false); dismissCase()} }}>Reply in chat <span aria-hidden="true">↗</span></button>
           : caseFile.status === 'closed' && caseFile.savedId ? <button type="button" className="ambio-case__action" aria-label="Watch the replay" onClick={() => void watchReplay()}>Replay <span aria-hidden="true">↻</span></button>
           : <span className="ambio-case__read-only" title="Playback · messages are read-only">{caseFile.status === 'replay' ? 'Read-only replay' : 'Case closed'}</span>
