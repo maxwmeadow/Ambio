@@ -446,6 +446,13 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Box selection uses partial intersection while selection mode is active.
 - Editable text, symbol rows, buttons, and scroll regions do not begin node
   drags or pane pans.
+- Double-clicking a live file (any shape, including class cards) selects it
+  and opens the whole file in the code editor at the top, with no lines
+  highlighted. Its Properties open from the right-click menu (Properties;
+  Open Code in Ambio is the menu's first item). Systems, infrastructure and
+  planned files, which have no code to open, keep opening Properties on
+  double-click. Double-clicking editable text edits it, as before. (Max,
+  2026-11-03.)
 - Floor nodes are not manually connectable.
 - Nodes become connectable on an active editable sheet overlay.
 - Planned edges may connect planned and live sheet members according to the

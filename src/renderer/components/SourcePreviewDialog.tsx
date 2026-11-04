@@ -17,14 +17,16 @@ interface SourcePreviewDialogProps {
   fileId: string
   workspaceId: string
   /** A symbol (with its kind), or a plain line range someone pointed at (without). */
-  symbol: { name: string; kind?: string; lineStart: number; lineEnd?: number }
+  symbol: { name: string; kind?: string; lineStart: number; lineEnd?: number; wholeFile?: boolean }
   onClose: () => void
 }
 
 /** Larger files open read-only; archd refuses to save them from Ambio. */
 const MAX_EDITABLE = 8 << 20
 
-function highlightedRange(symbol: SourcePreviewDialogProps['symbol']): { start: number; end: number } {
+/** The lines to highlight and open at; none when the file itself was opened. */
+function highlightedRange(symbol: SourcePreviewDialogProps['symbol']): { start: number; end: number } | null {
+  if (symbol.wholeFile) return null
   const start = Math.max(1, symbol.lineStart)
   const kind = symbol.kind?.toLowerCase()
   const spansDefinition = !kind || kind === 'function' || kind === 'method' || kind === 'class' ||
@@ -38,7 +40,7 @@ export function SourcePreviewHost() {
   const close = useSourcePreviewStore(state => state.close)
   if (!request) return null
   const { fileId, workspaceId, ...symbol } = request
-  return <SourcePreviewDialog key={`${fileId}:${symbol.lineStart}:${symbol.lineEnd ?? ''}`} fileId={fileId} workspaceId={workspaceId} symbol={symbol} onClose={close} />
+  return <SourcePreviewDialog key={`${fileId}:${symbol.wholeFile ? 'file' : `${symbol.lineStart}:${symbol.lineEnd ?? ''}`}`} fileId={fileId} workspaceId={workspaceId} symbol={symbol} onClose={close} />
 }
 
 function displayError(error: unknown): string {
@@ -173,7 +175,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
 
   /** This file at a position, for Back to return to. */
   const here = (position: number): SourcePreviewRequest => {
-    const line = viewRef.current ? viewRef.current.state.doc.lineAt(position).number : range.start
+    const line = viewRef.current ? viewRef.current.state.doc.lineAt(position).number : range?.start ?? 1
     return { fileId, workspaceId, name: source?.relPath ?? symbol.name, lineStart: line, lineEnd: line }
   }
 
@@ -214,8 +216,9 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     if (!view || !source) return
     const { state } = view
     const selection = state.selection.main
+    const cursorLine = state.doc.lineAt(selection.head).number
     const [fromLine, toLine] = selection.empty
-      ? [Math.min(range.start, state.doc.lines), Math.min(range.end, state.doc.lines)]
+      ? range ? [Math.min(range.start, state.doc.lines), Math.min(range.end, state.doc.lines)] : [cursorLine, cursorLine]
       : [state.doc.lineAt(selection.from).number, state.doc.lineAt(selection.to === selection.from ? selection.to : selection.to - 1).number]
     const code = state.sliceDoc(state.doc.line(fromLine).from, state.doc.line(toLine).to)
     window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { note: askAboutLines(source.relPath, fromLine, toLine, code) } }))
@@ -284,7 +287,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     })
     baseRef.current.text = view.state.doc
     viewRef.current = view
-    revealLine(view, range.start)
+    if (range) revealLine(view, range.start)
     let current = true
     void languageFor(source.relPath).then(language => {
       if (current && language) view.dispatch({ effects: slots.language.reconfigure(language) })
@@ -395,8 +398,11 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           <div className="source-preview-heading">
             <div className="source-preview-path" title={title}>{title}{dirty ? ' •' : ''}</div>
             <div className="source-preview-location">
-              {symbol.kind ? `${symbol.kind} ${symbol.name} · ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
-              {source && range.start > lineCount && ` · past the end of this ${lineCount}-line file; it may have changed since`}
+              {!range ? (source ? `${lineCount} lines` : '')
+                : <>
+                  {symbol.kind ? `${symbol.kind} ${symbol.name} · ` : ''}{range.start === range.end ? `line ${range.start}` : `lines ${range.start}–${range.end}`}
+                  {source && range.start > lineCount && ` · past the end of this ${lineCount}-line file; it may have changed since`}
+                </>}
             </div>
           </div>
           <div className="source-preview-actions">

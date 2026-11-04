@@ -21,6 +21,8 @@ in the app as "What's New" after updating, so write it for users.
   or hides it on every platform. Run interactive shells in the project folder,
   keep multiple sessions, pick detected shells or locate another executable;
   hidden sessions keep running until closed or the app exits.
+- Double-click a file on the map to open its code. A file's properties are now
+  on its right-click menu (Properties).
 - Click a file and line an agent mentions in chat, such as `heuristics.py:114`,
   to open that file's source at that line. Works however the agent wrote it.
 - Click a function or class an agent names in chat, such as `evaluate_scene()`

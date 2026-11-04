@@ -153,7 +153,8 @@ function targetLines(start: number, end: number): Extension {
 
 export interface SourceEditorOptions {
   content: string
-  range: { start: number; end: number }
+  /** The lines someone pointed at; null when the whole file was opened. */
+  range: { start: number; end: number } | null
   /** Compartment-wrapped extensions the dialog reconfigures: language, read-only, diff. */
   dynamic: Extension
   onSave: () => boolean
@@ -192,7 +193,7 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange, o
       highlightActiveLineGutter(),
       foldGutter(),
       sourceChanges(),
-      targetLinesFacet.of(range),
+      range ? targetLinesFacet.of(range) : [],
       highlightSpecialChars(),
       history(),
       drawSelection(),
@@ -208,7 +209,7 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange, o
       indentUnit.of(indent.unit),
       EditorState.tabSize.of(indent.unit === '\t' ? 4 : indent.unit.length),
       outlineField,
-      targetLines(range.start, range.end),
+      range ? targetLines(range.start, range.end) : [],
       EditorView.updateListener.of(update => {
         if (update.docChanged) onChange(update.state)
         if (update.docChanged || update.selectionSet) onCursor?.(update.state)

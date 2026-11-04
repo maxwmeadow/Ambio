@@ -14,6 +14,8 @@ export interface SourcePreviewRequest {
   kind?: string
   lineStart: number
   lineEnd?: number
+  /** The file itself was opened (double-clicked), not lines in it: nothing is highlighted. */
+  wholeFile?: boolean
 }
 
 interface SourcePreviewStore {

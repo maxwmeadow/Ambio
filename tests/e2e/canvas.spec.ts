@@ -2224,9 +2224,37 @@ test('opens the categorized infrastructure browser from the infrastructure sideb
   await expect(page.getByRole('complementary', { name: 'Infrastructure' })).toHaveCount(0)
 })
 
-test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
+test('double-clicking a file opens its code; its properties are on the right-click menu', async () => {
   const node = await revealFileNode('file_canvas')
   await node.dblclick({ position: { x: 12, y: 12 }, force: true })
+  const editor = page.getByRole('dialog', { name: 'src/renderer/canvas/AmbioCanvas.tsx in src/renderer/canvas/AmbioCanvas.tsx' })
+  await expect(editor.locator('.cm-content')).toContainText('export function renderCanvas()')
+  // The file itself was opened: nothing is highlighted, and it starts at the top.
+  await expect(editor.locator('.source-preview-location')).toHaveText('7 lines')
+  await expect(editor.locator('.source-preview-line-highlighted')).toHaveCount(0)
+  await expect(editor.locator('.source-preview-statusline')).toContainText('Ln 1, Col 1')
+  await expect(page.getByRole('complementary', { name: 'File properties' })).toHaveCount(0)
+  await expect(node).toHaveClass(/selected/)
+  await editor.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(editor).toHaveCount(0)
+
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  const menu = page.getByRole('menu')
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Open Code in Ambio')
+  await menu.getByRole('menuitem', { name: 'Properties' }).click()
+  await expect(page.getByRole('complementary', { name: 'File properties' })).toBeVisible()
+  await page.getByRole('complementary', { name: 'File properties' }).getByRole('button', { name: 'Close properties' }).click()
+
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Open Code in Ambio' }).click()
+  await expect(editor.locator('.cm-content')).toContainText('export function renderCanvas()')
+  await editor.getByRole('button', { name: 'Close source preview' }).click()
+})
+
+test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
+  const node = await revealFileNode('file_canvas')
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Properties' }).click()
 
   const inspector = page.getByRole('complementary', { name: 'File properties' })
   await expect(inspector).toBeVisible()

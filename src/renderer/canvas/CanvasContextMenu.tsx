@@ -5,6 +5,7 @@ import { COMMANDS } from '../../shared/appMenu'
 import { useGraphStore } from '../store/graphStore'
 import { raiseNotice } from '../store/interruptionStore.ts'
 import { commitMeaningEdits } from './meaningActions.ts'
+import { openFileCode } from './openFileCode.ts'
 
 export type CanvasContextTarget =
   | { kind: 'file'; id: string }
@@ -153,6 +154,7 @@ function buildEntries(
     const file = store.files.find(candidate => candidate.id === target.id)
     if (!file) return []
     return [
+      ...(workspaceId ? [{ label: 'Open Code in Ambio', run: () => openFileCode(workspaceId, file) }] : []),
       {
         label: 'Open in Editor',
         run: () => {
@@ -174,7 +176,7 @@ function buildEntries(
           `Delete ${file.relPath}. Remove anything only it uses, and update whatever imports it so nothing breaks.`),
       }] : []),
       'separator',
-      { label: 'Show Details', run: () => onShowDetails(file.id) },
+      { label: 'Properties', run: () => onShowDetails(file.id) },
       messageAgent,
     ]
   }
@@ -183,7 +185,7 @@ function buildEntries(
     const system = store.systems.find(candidate => candidate.id === target.id)
     if (!system) return []
     return [
-      { label: 'Show Details', run: () => onShowDetails(system.id) },
+      { label: 'Properties', run: () => onShowDetails(system.id) },
       { label: 'Zoom to System', run: () => onZoomTo(system.id) },
       { label: 'Copy Name', run: () => copy(system.name) },
       ...(floorEdits ? [
@@ -215,7 +217,7 @@ function buildEntries(
   }
 
   return [
-    { label: 'Show Details', run: () => onShowDetails(target.id) },
+    { label: 'Properties', run: () => onShowDetails(target.id) },
     ...(floorEdits ? [{ label: 'New Sheet from Selection…', run: () => floorEdits.newSheetFrom(target.id) }] : []),
     messageAgent,
   ]
