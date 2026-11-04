@@ -151,6 +151,11 @@ function targetLines(start: number, end: number): Extension {
   })
 }
 
+/** The highlight, and the scrollbar mark, for the lines someone pointed at; nothing for none. */
+export function pointedAt(range: { start: number; end: number } | null): Extension {
+  return range ? [targetLinesFacet.of(range), targetLines(range.start, range.end)] : []
+}
+
 export interface SourceEditorOptions {
   content: string
   /** The lines someone pointed at; null when the whole file was opened. */
@@ -193,7 +198,6 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange, o
       highlightActiveLineGutter(),
       foldGutter(),
       sourceChanges(),
-      range ? targetLinesFacet.of(range) : [],
       highlightSpecialChars(),
       history(),
       drawSelection(),
@@ -209,7 +213,7 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange, o
       indentUnit.of(indent.unit),
       EditorState.tabSize.of(indent.unit === '\t' ? 4 : indent.unit.length),
       outlineField,
-      range ? targetLines(range.start, range.end) : [],
+      pointedAt(range),
       EditorView.updateListener.of(update => {
         if (update.docChanged) onChange(update.state)
         if (update.docChanged || update.selectionSet) onCursor?.(update.state)

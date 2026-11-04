@@ -453,6 +453,16 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   planned files, which have no code to open, keep opening Properties on
   double-click. Double-clicking editable text edits it, as before. (Max,
   2026-11-03.)
+- The code editor keeps one tab per open file; the tab strip shows once a
+  second file is open. Opening an open file (from chat, search, a symbol row or
+  Back) goes to its tab at the new lines, keeping its edits. Following a
+  definition opens the other file in its own tab. Ctrl+Tab / Ctrl+Shift+Tab
+  and Ctrl+PageDown / Ctrl+PageUp switch tabs; a tab's × or a middle-click
+  closes it, asking first when it has unsaved changes. Ask agent and Show on
+  map hide the editor and keep its tabs for the next open; Escape, × and a
+  click outside close every tab, asking in each with unsaved changes. Past 12
+  tabs, the least recently used tab without unsaved changes closes. (Max,
+  2026-11-04.)
 - Right-clicking in the code editor opens its own menu, never the canvas's:
   Go to Definition, Ask Agent About This, Cut, Copy, Paste, Select All, Find,
   Copy Reference, Revert This Change (on a changed line) and Show on Map. A

@@ -35,6 +35,11 @@ in the app as "What's New" after updating, so write it for users.
   message, as a chip beside the text like an attached sheet; with nothing
   selected, the file itself is attached. Ctrl+click a name to jump to its
   definition; Show on map takes you to the file on the map.
+- The code editor keeps several files open as tabs. Following a definition
+  opens it beside the file you came from, opening a file that is already open
+  goes to its tab, and Ctrl+Tab (or Ctrl+PageDown) moves between them. Ask
+  agent and Show on map step aside without closing anything; Escape or ×
+  closes every tab, asking about any with unsaved changes.
 - Right-click in the code editor for Cut, Copy, Paste, Select All, Find, Go
   to Definition, Ask agent, Copy Reference (the file and lines, ready to
   paste), Revert This Change and Show on Map. Unsaved changes show as a dot

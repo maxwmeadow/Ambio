@@ -9,11 +9,11 @@ import { apiGetCommittedSource, apiGetFileSource, apiSaveFileSource, type FileSo
 import { fetchFileSymbols } from '../canvas/symbolCache'
 import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
-import { useSourcePreviewStore, type SourcePreviewRequest } from '../store/sourcePreviewStore'
+import { useSourcePreviewStore, type SourcePreviewRequest, type SourceTab } from '../store/sourcePreviewStore'
 import { ago, baselineText, chunkAt, revertSpec, setBaseline } from './sourceChanges'
 import { ContextMenu, type ContextMenuEntry } from './ContextMenu'
 import { codeReference } from './inboxModel'
-import { detectIndent, languageFor, languageName, nameAt, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
+import { detectIndent, languageFor, languageName, nameAt, pointedAt, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
 import { definitionInFile, enclosingSymbols, outlineField, outlineFromSymbols, setOutline, type OutlineSymbol } from './sourceOutline'
 import { resolveSymbol } from './symbolLookup'
 
@@ -22,7 +22,11 @@ interface SourcePreviewDialogProps {
   workspaceId: string
   /** A symbol (with its kind), or a plain line range someone pointed at (without). */
   symbol: { name: string; kind?: string; lineStart: number; lineEnd?: number; wholeFile?: boolean }
-  onClose: () => void
+  tabId: string
+  /** The tab in front: the others stay mounted, hidden, so their edits, undo and scroll survive. */
+  active: boolean
+  /** Changes each time this file is opened, so the editor shows the lines again. */
+  openedAt: number
 }
 
 /** Larger files open read-only; archd refuses to save them from Ambio. */
@@ -40,11 +44,52 @@ function highlightedRange(symbol: SourcePreviewDialogProps['symbol']): { start: 
 
 /** The app-wide source viewer, opened through useSourcePreviewStore. */
 export function SourcePreviewHost() {
-  const request = useSourcePreviewStore(state => state.request)
-  const close = useSourcePreviewStore(state => state.close)
-  if (!request) return null
-  const { fileId, workspaceId, ...symbol } = request
-  return <SourcePreviewDialog key={`${fileId}:${symbol.wholeFile ? 'file' : `${symbol.lineStart}:${symbol.lineEnd ?? ''}`}`} fileId={fileId} workspaceId={workspaceId} symbol={symbol} onClose={close} />
+  const tabs = useSourcePreviewStore(state => state.tabs)
+  const active = useSourcePreviewStore(state => state.active)
+  const visible = useSourcePreviewStore(state => state.visible)
+  return <>{tabs.map(({ id, request: { fileId, workspaceId, ...symbol }, openedAt }) => (
+    <SourcePreviewDialog key={id} tabId={id} active={visible && id === active} openedAt={openedAt} fileId={fileId} workspaceId={workspaceId} symbol={symbol} />
+  ))}</>
+}
+
+/** A tab's label: the file name, with its folder when another open file has the same name. */
+function tabLabels(tabs: SourceTab[], paths: Map<string, string>): Map<string, { name: string; path: string }> {
+  const pathOf = (tab: SourceTab) => tab.path ?? paths.get(tab.request.fileId) ?? tab.request.name
+  const nameOf = (path: string) => path.split('/').pop() || path
+  const counts = new Map<string, number>()
+  for (const tab of tabs) counts.set(nameOf(pathOf(tab)), (counts.get(nameOf(pathOf(tab))) ?? 0) + 1)
+  return new Map(tabs.map(tab => {
+    const path = pathOf(tab)
+    const name = nameOf(path)
+    const folder = path.split('/').slice(-2, -1)[0]
+    return [tab.id, { path, name: (counts.get(name) ?? 0) > 1 && folder ? `${name} · ${folder}` : name }]
+  }))
+}
+
+/** The open files, above the editor; shown once a second file is open. */
+function SourceTabs({ current }: { current: string }) {
+  const tabs = useSourcePreviewStore(state => state.tabs)
+  const dirty = useSourcePreviewStore(state => state.dirty)
+  const files = useGraphStore(state => state.files)
+  const labels = React.useMemo(() => tabLabels(tabs, new Map(files.map(file => [file.id, file.relPath.replace(/\\/g, '/')]))), [tabs, files])
+  if (tabs.length < 2) return null
+  const store = useSourcePreviewStore.getState()
+  return (
+    <div className="source-preview-tabs" role="tablist" aria-label="Open files">
+      {tabs.map(tab => {
+        const label = labels.get(tab.id)!
+        const selected = tab.id === current
+        return (
+          <div key={tab.id} className={`source-preview-tab${selected ? ' source-preview-tab-active' : ''}`} title={label.path}
+            onAuxClick={event => { if (event.button === 1) { event.preventDefault(); store.requestCloseTab(tab.id) } }}>
+            <button type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} onClick={() => store.activate(tab.id)}>{label.name}</button>
+            {dirty[tab.id] && <span className="source-preview-unsaved" role="img" aria-label="Unsaved changes" />}
+            <button type="button" className="source-preview-tab-close" aria-label={`Close ${label.name}`} title="Close (middle-click)" onClick={() => store.requestCloseTab(tab.id)}>×</button>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function displayError(error: unknown): string {
@@ -83,7 +128,7 @@ interface Conflict { current: FileSource; onSave: boolean }
  * When an agent or another editor changes the file, an untouched editor
  * reloads it; one with edits says so at once and shows the differences.
  */
-export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: SourcePreviewDialogProps) {
+export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active, openedAt }: SourcePreviewDialogProps) {
   const [source, setSource] = React.useState<FileSource | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [dirty, setDirty] = React.useState(false)
@@ -101,8 +146,9 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
   const baseRef = React.useRef<{ hash: string; text: Text | null }>({ hash: '', text: null })
   const dirtyRef = React.useRef(false)
   dirtyRef.current = dirty
-  const slots = React.useMemo(() => ({ language: new Compartment(), readOnly: new Compartment(), diff: new Compartment() }), [])
-  const range = React.useMemo(() => highlightedRange(symbol), [symbol])
+  const slots = React.useMemo(() => ({ language: new Compartment(), readOnly: new Compartment(), diff: new Compartment(), target: new Compartment() }), [])
+  const { wholeFile, lineStart, lineEnd, kind } = symbol
+  const range = React.useMemo(() => highlightedRange({ name: '', wholeFile, lineStart, lineEnd, kind }), [wholeFile, lineStart, lineEnd, kind])
   const editable = !!source && source.editable && source.content.length <= MAX_EDITABLE
   const storageKey = draftKey(workspaceId, fileId)
   const showOnMap = useShowOnMap()
@@ -170,12 +216,22 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
   const saveRef = React.useRef(save)
   saveRef.current = save
 
-  /** Do something that leaves this file; with unsaved changes, ask first. */
-  const leave = React.useCallback((then: () => void) => {
-    if (dirtyRef.current) setLeaving({ then })
-    else then()
+  /** Close the editor: every tab, each with unsaved changes asking first. */
+  const requestClose = React.useCallback(() => useSourcePreviewStore.getState().requestCloseAll(), [])
+  /** Step aside, keeping the tabs and their edits for the next time a file opens. */
+  const stepAside = React.useCallback((then?: () => void) => {
+    useSourcePreviewStore.getState().hide()
+    then?.()
   }, [])
-  const requestClose = React.useCallback(() => leave(onClose), [leave, onClose])
+
+  // The store asks this tab to close: with unsaved changes, the person decides here.
+  const closing = useSourcePreviewStore(state => state.closing?.tabId === tabId ? state.closing : null)
+  React.useEffect(() => {
+    if (closing) setLeaving({ then: () => useSourcePreviewStore.getState().closeTab(tabId) })
+  }, [closing, tabId])
+  React.useEffect(() => { useSourcePreviewStore.getState().setDirty(tabId, dirty) }, [tabId, dirty])
+  const loadedPath = source?.relPath.replace(/\\/g, '/')
+  React.useEffect(() => { if (loadedPath) useSourcePreviewStore.getState().setPath(tabId, loadedPath) }, [tabId, loadedPath])
 
   /** This file at a position, for Back to return to. */
   const here = (position: number): SourcePreviewRequest => {
@@ -206,7 +262,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     if (!found) { say(`No single definition of ${name} found in the project.`); return }
     if (found.fileId === fileId) { goTo(view.state.doc.line(Math.min(found.lineStart, view.state.doc.lines)).from); return }
     const from = here(position)
-    leave(() => useSourcePreviewStore.getState().follow({ fileId: found.fileId, workspaceId, name: found.name, kind: found.kind, lineStart: found.lineStart, lineEnd: found.lineEnd }, from))
+    useSourcePreviewStore.getState().follow({ fileId: found.fileId, workspaceId, name: found.name, kind: found.kind, lineStart: found.lineStart, lineEnd: found.lineEnd }, from)
   }
   const definitionRef = React.useRef(openDefinition)
   definitionRef.current = openDefinition
@@ -228,7 +284,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     if (!view || !source) return
     const lines = attachedLines(view.state)
     window.dispatchEvent(new CustomEvent('ambio:open-agent-dispatch', { detail: { code: [codeReference(fileId, source.relPath, lines)] } }))
-    requestClose()
+    stepAside()
   }
   const askRef = React.useRef(askAgent)
   askRef.current = askAgent
@@ -281,7 +337,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           if (spec) view.dispatch(spec)
           view.focus()
         } }] : []),
-        ...(fileRecord ? ['separator' as const, { label: 'Show on Map', run: () => leave(() => { onClose(); showOnMap(fileId) }) }] : []),
+        ...(fileRecord ? ['separator' as const, { label: 'Show on Map', run: () => stepAside(() => showOnMap(fileId)) }] : []),
       ],
     })
   }
@@ -329,8 +385,9 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
       parent: host,
       state: sourceEditorState({
         content: source.content,
-        range,
+        range: null,
         dynamic: [
+          slots.target.of(pointedAt(range)),
           slots.language.of([]),
           slots.readOnly.of([EditorState.readOnly.of(!editable)]),
           slots.diff.of([]),
@@ -365,6 +422,28 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened])
 
+  // Opened again (a chip, a search result, Back): show the new lines in this tab, keeping its edits.
+  const firstOpen = React.useRef(openedAt)
+  React.useEffect(() => {
+    const view = viewRef.current
+    if (!view || openedAt === firstOpen.current) return
+    firstOpen.current = openedAt
+    view.dispatch({ effects: slots.target.reconfigure(pointedAt(range)) })
+    if (range) revealLine(view, range.start)
+  }, [openedAt, range, slots])
+
+  // In front again: the editor measures itself (it could not while hidden) and takes the keyboard.
+  // A newly opened tab leaves focus on its Close button, as a dialog does.
+  const wasActive = React.useRef(active)
+  React.useEffect(() => {
+    const view = viewRef.current
+    const returning = active && !wasActive.current
+    wasActive.current = active
+    if (!returning || !view) return
+    view.requestMeasure()
+    view.focus()
+  }, [active])
+
   // The watcher reindexed this file: an agent or another editor wrote it.
   const lastRecord = React.useRef(fileRecord)
   React.useEffect(() => {
@@ -395,10 +474,18 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     const closeOnEscape = (event: KeyboardEvent) => {
       // The editor's own Escape (closing search, a selection) comes first.
       if (event.key === 'Escape' && !event.defaultPrevented) requestClose()
+      // Ctrl+Tab and Ctrl+PageDown move between open files, as in VS Code.
+      const next = (event.ctrlKey && event.key === 'Tab') ? (event.shiftKey ? -1 : 1)
+        : (event.ctrlKey && (event.key === 'PageDown' || event.key === 'PageUp')) ? (event.key === 'PageDown' ? 1 : -1) : 0
+      if (next) {
+        event.preventDefault()
+        useSourcePreviewStore.getState().cycle(next)
+      }
     }
+    if (!active) return
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [requestClose])
+  }, [requestClose, active])
 
   const takeDiskVersion = () => {
     const view = viewRef.current
@@ -419,6 +506,12 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     view.dispatch({ ...replaceWithin(view.state, draftOffer.content), userEvent: 'input.restore' })
     baseRef.current = { ...baseRef.current, hash: draftOffer.baseHash }
     setDraftOffer(null)
+  }
+
+  const keepEditing = () => {
+    setLeaving(null)
+    useSourcePreviewStore.getState().cancelClose()
+    viewRef.current?.focus()
   }
 
   const finishLeaving = (then: () => void) => {
@@ -445,6 +538,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     <div
       className="source-preview-backdrop nodrag nopan nowheel"
       role="presentation"
+      hidden={!active}
       onPointerDown={event => {
         event.stopPropagation()
         if (event.target === event.currentTarget) requestClose()
@@ -452,6 +546,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
       onWheel={event => event.stopPropagation()}
     >
       <section className="source-preview-dialog" role="dialog" aria-modal="true" aria-label={`${symbol.name} in ${title}`}>
+        <SourceTabs current={tabId} />
         <header className="source-preview-header">
           <div className="source-preview-heading">
             <div className="source-preview-path" title={title}>
@@ -468,16 +563,16 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           </div>
           <div className="source-preview-actions">
             {statusText && <span className={`source-preview-status${status.kind === 'failed' ? ' source-preview-status-error' : ''}`} role="status">{statusText}</span>}
-            {history.length > 0 && <button type="button" className="source-preview-button" onClick={() => leave(() => useSourcePreviewStore.getState().back())} title="Back to where you followed this definition from">Back</button>}
-            {fileRecord && <button type="button" className="source-preview-button" onClick={() => leave(() => { onClose(); showOnMap(fileId) })} title="Close the editor and show this file on the map">Show on map</button>}
+            {history.length > 0 && <button type="button" className="source-preview-button" onClick={() => useSourcePreviewStore.getState().back()} title="Back to where you followed this definition from">Back</button>}
+            {fileRecord && <button type="button" className="source-preview-button" onClick={() => stepAside(() => showOnMap(fileId))} title="Show this file on the map; open files stay open for next time">Show on map</button>}
             {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Attach the selected lines (or this file) to a message for your agent (Ctrl+I)">Ask agent</button>}
             {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
-            <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview">×</button>
+            <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview" title="Close the editor and every open file (Escape)">×</button>
           </div>
         </header>
         {source && (
           <nav className="source-preview-breadcrumb" aria-label="Where the cursor is">
-            {systemName && fileRecord?.systemId && <><button type="button" onClick={() => leave(() => { onClose(); showOnMap(fileRecord.systemId!) })} title="Show this system on the map">{systemName}</button><span aria-hidden="true">›</span></>}
+            {systemName && fileRecord?.systemId && <><button type="button" onClick={() => stepAside(() => showOnMap(fileRecord.systemId!))} title="Show this system on the map">{systemName}</button><span aria-hidden="true">›</span></>}
             <span>{title.split('/').pop()}</span>
             {cursor.crumbs.map(crumb => <React.Fragment key={`${crumb.kind}:${crumb.name}:${crumb.from}`}><span aria-hidden="true">›</span><button type="button" onClick={() => goTo(crumb.from)} title={`Go to ${crumb.kind} ${crumb.name}`}>{crumb.name}</button></React.Fragment>)}
           </nav>
@@ -500,9 +595,9 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
         {leaving && (
           <div className="source-preview-bar" role="alert">
             <span>Save your changes to {title}?</span>
-            <button type="button" className="source-preview-button" onClick={() => { void save().then(saved => { if (saved) finishLeaving(leaving.then); else setLeaving(null) }) }}>Save and continue</button>
+            <button type="button" className="source-preview-button" onClick={() => { void save().then(saved => { if (saved) finishLeaving(leaving.then); else keepEditing() }) }}>Save and close</button>
             <button type="button" className="source-preview-button" onClick={() => finishLeaving(leaving.then)}>Discard</button>
-            <button type="button" className="source-preview-button" onClick={() => { setLeaving(null); viewRef.current?.focus() }}>Keep editing</button>
+            <button type="button" className="source-preview-button" onClick={keepEditing}>Keep editing</button>
           </div>
         )}
         <div className="source-preview-code" aria-busy={!source && !error}>

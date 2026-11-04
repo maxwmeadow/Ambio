@@ -2252,11 +2252,12 @@ test('double-clicking a file opens its code; its properties are on the right-cli
   // With the whole file open and nothing selected, Ask agent attaches the file itself, once,
   // even though it is also selected on the map.
   await editor.getByRole('button', { name: 'Ask agent' }).click()
-  await expect(editor).toHaveCount(0)
+  await expect(editor).toBeHidden()
   const attachments = page.locator('.ambio-inbox__attachments')
   await expect(attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true })).toHaveCount(1)
   await expect(page.getByRole('textbox', { name: 'Instruction for your agent' })).toHaveValue('')
   await attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true }).click()
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
 })
 
 test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
@@ -4210,7 +4211,8 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await page.screenshot({ path: 'test-results/source-editor-menu.png' })
   await page.keyboard.press('Escape')
 
-  // Ctrl+I attaches the selected lines beside the message, leaving the text for the question; unsaved edits still ask first.
+  // Ctrl+I attaches the selected lines beside the message, leaving the text for the question.
+  // The editor steps aside; the unsaved edits wait in their tab.
   const composer = page.getByRole('textbox', { name: 'Instruction for your agent' })
   await composer.fill('')
   await dialog.locator('.cm-line', { hasText: 'wait()' }).click()
@@ -4218,15 +4220,22 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await page.keyboard.press('Shift+ArrowDown')
   await page.keyboard.press('Shift+End')
   await page.keyboard.press('ControlOrMeta+I')
-  await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
-  await dialog.getByRole('button', { name: 'Discard' }).click()
-  await expect(dialog).toHaveCount(0)
+  await expect(page.locator('.source-preview-backdrop')).toBeHidden()
   await expect(composer).toHaveValue('')
   const attached = page.locator('.ambio-inbox__attachments').getByRole('button', { name: `${file}:3-4` })
   await expect(attached).toHaveAttribute('title', `Remove ${file}:3-4 from message`)
   await page.locator('.ambio-inbox__compose, .ambio-inbox form').first().screenshot({ path: 'test-results/agent-code-attachment.png' })
   await attached.click()
   await expect(attached).toHaveCount(0)
+
+  // Opening the file again brings its tab back, edits and all; closing the editor asks about them.
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' })).toBeVisible()
+  await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
+  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect(page.locator('.source-preview-backdrop')).toHaveCount(0)
   await page.unroute(/\/api\/canvas\/history\?/)
   await page.unroute(/\/api\/files\/[^/]+\/source\?/)
   await page.unroute(/\/api\/files\/[^/]+\/committed\?/)
@@ -4268,9 +4277,24 @@ test('the editor shows where you are, follows definitions, reloads disk changes 
   await dialog.locator('.cm-line', { hasText: '<Canvas />' }).getByText('Canvas', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
   const docs = page.getByRole('dialog', { name: 'Canvas in docs/ARCHITECTURE.md' })
   await expect(docs.locator('.source-preview-location')).toHaveText('class Canvas · lines 2–3')
+
+  // The file it came from stays open in a tab of its own; Ctrl+Tab and the tabs move between them.
+  const tabs = docs.getByRole('tablist', { name: 'Open files' })
+  await expect(tabs.getByRole('tab')).toHaveText(['AmbioCanvas.tsx', 'ARCHITECTURE.md'])
+  await expect(tabs.getByRole('tab', { name: 'ARCHITECTURE.md' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Control+Tab')
+  await expect(dialog).toBeVisible()
+  await expect(docs).toBeHidden()
+  await dialog.getByRole('tablist', { name: 'Open files' }).getByRole('tab', { name: 'ARCHITECTURE.md' }).click()
+  await expect(docs).toBeVisible()
+  await page.screenshot({ path: 'test-results/source-editor-tabs.png' })
   await docs.getByRole('button', { name: 'Back' }).click()
   await expect(dialog.locator('.source-preview-location')).toHaveText('line 5')
   await expect(dialog.getByRole('button', { name: 'Back' })).toHaveCount(0)
+  // Closing a tab leaves the others open; with one left, the strip goes.
+  await dialog.getByRole('button', { name: 'Close ARCHITECTURE.md' }).click()
+  await expect(dialog.getByRole('tablist')).toHaveCount(0)
+  await expect(dialog).toBeVisible()
 
   // An agent rewrites the file: the untouched editor shows the new version without losing its place.
   await page.route(/\/api\/files\/file_canvas\/source\?/, route => route.fulfill({ json: canvasSource(original.replace('  const ready = true\n', '  const ready = isReady()\n'), 'h2') }))
@@ -4293,6 +4317,7 @@ test('the editor shows where you are, follows definitions, reloads disk changes 
   await dialog.getByRole('button', { name: 'Show on map' }).click()
   await expect(dialog).toHaveCount(0)
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('file_canvas')
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
 
   await page.unroute(/\/api\/canvas\/history\?/)
   await page.unroute(/\/api\/files\/file_canvas\/source\?/)

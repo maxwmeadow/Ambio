@@ -803,7 +803,11 @@ relative links, `:12`, `#L12-L20`, `(12,5)`, "line 12 of `a.py`" - is read by
 renders as one chip; a shortened or differently-cased name counts when exactly
 one indexed path matches it. A chip with a line opens the app-wide source
 viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the one viewer
-symbol rows and search also open). Inline code shaped like a symbol (`run()`,
+symbol rows and search also open). The store keeps one tab per file; the host
+keeps every tab's editor mounted and hides all but the one in front, so edits,
+undo and scroll survive switching, and opening an open file again points its
+tab at the new lines instead of remounting it. Closing asks in each tab with
+unsaved changes in turn (`closing` in the store). Inline code shaped like a symbol (`run()`,
 `Scene.update`, `a.py::run`; `symbolReference.ts`) becomes an `ambio://symbol/`
 link carrying the files its paragraph and the reply name; the chip asks archd's
 symbol search for exact matches (`symbolLookup.ts`, cached until the files
