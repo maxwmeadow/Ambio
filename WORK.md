@@ -433,6 +433,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `source-preview-one-host` **Symbol rows and search still mount their own source viewer.** `FileNode` and `SearchBar` render `SourcePreviewDialog` themselves; open it through `useSourcePreviewStore` so there is one viewer to make editable. (2026-11-03)
 - ⬜ `agent-citation-guidance` **Ask agents to cite code as `path/from/root.ext:line`.** The renderer reads every common style, but one requested form in `agentWorkflow.ts` guidance would make chips more reliable for clients that write bare prose. Changes installed guidance text. (2026-11-03)
 
+- 🚧 `antigravity-cli-native-acp` **Route Antigravity by the models each transport offers.** Max approved the joint approach after Claude's signed-in ACP check exposed Gemini only: prefer ACP for its offered models, preserve print for Claude/GPT-OSS, and pin transport per conversation with no silent cross-route fallback. Modernize the explicit ACP route to `agy acp`; add the shared model/configuration, permission and interaction support needed for the richer route. Preserve old conversations and older installs; qualify tools, model/thinking, permissions, Stop and resume. Research: [assessment](docs/testing/AGENT_TRANSPORT_ASSESSMENT.md). (🚧 Codex, `codex/antigravity-hybrid-acp`, 2026-11-04)
+
 ## Done log
 
 - 2026-11-04 `investigation-carousel-footer` Removed replay card Play/read-only controls, centered pagination between nearby SVG chevrons, and kept playback in the timeline. Types/build and three Electron journeys pass, including footer height/spacing and timeline linkage. (`codex/investigation-card`)
