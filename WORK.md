@@ -49,7 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `investigation-space-following` **Use the available investigation height and explicit following controls.** Max found the carousel cramped and its hover/focus pauses unreliable. Consolidate title/status/step metadata into one header and navigation/follow/chat/replay into one bottom bar; fill canvas height above floating controls. Following pauses only on explicit pause or step browsing; Resume catches up reliably. **Done when:** hover/focus/evidence interactions do not pause, repeated resume and new arrivals advance, controls remain usable at narrow heights and replay does not overlap. (🚧 Codex, codex/investigation-card, 2026-11-04)
 
 
 
@@ -433,6 +432,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-citation-guidance` **Ask agents to cite code as `path/from/root.ext:line`.** The renderer reads every common style, but one requested form in `agentWorkflow.ts` guidance would make chips more reliable for clients that write bare prose. Changes installed guidance text. (2026-11-03)
 
 ## Done log
+
+- 2026-11-04 `investigation-space-following` Expanded the reader above measured floating controls, consolidated header and bottom actions, showed full descriptions and removed redundant run metadata. Following now pauses only explicitly or for step browsing; Resume advances queued work immediately. Types/build, 915 unit tests (7 skipped) and four Electron journeys pass, including hover/focus/evidence interactions, repeated resume, full-height geometry and resized replay. (`codex/investigation-card`)
 
 - 2026-11-03 `investigation-step-carousel` Replaced changing summary/history with animated step cards, ordered automatic following, pause/resume, index/arrows/dots/keyboard navigation and distinct prominent finding/fix cards. Simplified file destinations; preserved evidence, shared chat, narrow/reduced-motion behavior and saved replay. Fixed inert animation-layer reuse blocking the replay index. Types/build, 915 unit tests (7 skipped) and 4 Electron journeys pass. (`codex/investigation-card`)
 

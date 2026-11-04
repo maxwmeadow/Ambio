@@ -835,18 +835,24 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   There is no repeated hypothesis board or separate composer.
 - New live steps queue in order behind a 3.5–7.5 second reading interval,
   rather than silently replacing a paragraph or skipping a burst of results.
-  Moving over a card temporarily holds it; interaction or browsing an earlier
-  card pauses following until Resume following or Latest step. The newer-step
-  count stays visible. Previous/Next, nearby-step dots, a complete step index,
-  and Left/Right/Home/End navigate the same sequence. Opening a case midway
-  starts at its latest step rather than replaying its entire backlog.
-- The card keeps a stable 540px height, capped at 580px or available space.
-  The current card or step index has one scrolling body; header, navigation
-  and actions stay reachable. Expanding prose or raw output cannot create a
-  second squeezed history scrollbar. Incoming events preserve the selected
-  earlier card and its scroll position. Step headings have strong visual
-  weight, and each code destination has one filename with optional distinct
-  symbol context; redundant module-name/filename pairs are suppressed.
+  Only explicit Pause or step browsing disables following. Hover, focus,
+  selection, opening evidence and ordinary content clicks never disable it or
+  restart its timer. Resume advances to the next queued step immediately and
+  follows subsequent arrivals with the reading interval; Latest skips directly
+  to the newest. The step index temporarily holds the view while open without
+  changing the following setting. Previous/Next, the complete step index and
+  Left/Right/Home/End navigate the sequence. Opening a case midway starts at
+  its latest step rather than replaying its entire backlog.
+- The card fills the available canvas height above the floating bins or replay
+  transport, measured rather than using a fixed height cap. A compact header
+  combines title, status, elapsed time, step index and a newer-step shortcut.
+  One bottom bar combines previous/next, an explicit following toggle and the
+  chat/replay action. Header and controls stay reachable; the current card or
+  index is the only scrolling body. Full descriptions render as readable
+  paragraphs without a preview cutoff. Incoming events preserve an explicitly
+  selected earlier card and its scroll position. Step headings have strong
+  visual weight, and each code destination has one filename with optional
+  distinct symbol context; redundant module-name/filename pairs are suppressed.
 - Run details preserve all findings, samples and available output. No watched
   functions and no fix-verification run are stated separately from successful
   command execution and the agent's conclusion.

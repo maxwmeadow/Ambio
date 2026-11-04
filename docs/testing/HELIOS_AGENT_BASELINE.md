@@ -472,3 +472,29 @@ They caught and fixed a replay step-index interaction bug caused by reusing an
 inert outgoing animation layer. Preview screenshots are fixture renders, not
 new Helios executions. Restart Ambio on `codex/investigation-card` and replay
 the same saved Helios case for the next direct comparison.
+
+
+## Available space and following controls, 2026-11-04
+
+Max's next Helios screenshots showed that the fixed-height carousel still
+clipped too much content. Header/progress and navigation/following/replay used
+several separate bands. Focus and pointer presses also disabled following;
+hover held it, mouse leave reset the reading timer, and Resume left the user
+waiting. These were problems in the implemented interaction, not evidence of
+an agent/runtime failure.
+
+The reader now uses the available height above the actual bins/replay bounds,
+a compact title/status/time/step header, and one bottom bar for browsing,
+following and chat/replay. Full descriptions render without the old preview
+cutoff. Generated zero-function headlines and duplicated experiment metadata
+are removed from the overview; detailed command evidence remains available.
+Only explicit Pause or browsing another step disables following. Resume shows
+the next queued card immediately; hover, focus and evidence clicks leave it
+active. Opening the step index holds the view without changing that setting.
+
+Electron regressions leave the pointer on the card and controls, focus/click
+content, expand evidence, repeat pause/resume at the live edge, and deliver
+new steps. Geometry checks cover the available height, compact chrome, floating
+bins, narrow chat and resized replay transport; existing evidence, draft and
+delivery checks remain. Previews are isolated fixture renders; replay Max's
+same saved Helios case after restarting Ambio for the next direct comparison.

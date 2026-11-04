@@ -836,8 +836,11 @@ live in `investigations.css`. The pure `caseSteps` projection in `caseFile.ts`
 turns existing events/state into stable questions, experiments, observations,
 assessments, guidance, findings and proposed-fix cards without changing saved
 captures or the tool protocol. Automatic following queues new steps with a
-reading interval; browsing, focus and selection pause it. A full step index
-and previous/next/dot controls share the cursor. Replay uses the same cards,
+reading interval; only explicit pause or step browsing disables it. Resume
+advances queued work immediately. Hover, focus and evidence interaction leave
+following enabled. A compact header and single bottom control bar surround the
+full-height body, with available height measured above the bins/replay transport.
+A full step index and previous/next controls share the cursor. Replay uses the same cards,
 with explicit seek alignment and read-only feedback. `SendToAgentDialog` accepts an
 explicit investigation reply context from the card and sends through the
 existing `sendCaseMessage` queue while keeping ordinary turn submission

@@ -10,9 +10,11 @@ in the app as "What's New" after updating, so write it for users.
 - Investigations now follow a sequence of animated step cards, with clear
   phase headings and separate finding and suggested-fix cards. New steps queue
   with time to read; browsing pauses following, with previous/next controls,
-  a step index and Latest step to catch up. Code links show one clear filename.
-  Evidence stays expandable in one bounded reader; saved replay uses the same
-  cards. Reply in chat keeps delivery status and unsent drafts when a case ends
+  a step index and Latest step to catch up. Following no longer pauses on hover,
+  focus or evidence clicks; Resume advances queued work immediately. The card
+  uses available height above floating controls, with a compact header, one
+  bottom control bar and full descriptions. Code links show one clear filename.
+  Evidence stays expandable in one scrolling body; replay uses the same cards. Reply in chat keeps delivery status and unsent drafts when a case ends
   or changes.
 
 - Terminal controls now fit in one compact top bar with shell options tucked

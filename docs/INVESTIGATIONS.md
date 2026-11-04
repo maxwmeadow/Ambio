@@ -124,12 +124,18 @@ timeline, so a saved case opens to its conclusion and replays step by step.
   experiment in the same position. Clear phase headings and a step counter
   make transitions visible rather than changing a paragraph in place.
 - **Following**: new live cards advance in order, with a 3.5–7.5 second reading
-  interval. Rapid results queue rather than being skipped. Hover temporarily
-  holds the current card; interaction or browsing pauses following until Resume
-  following or Latest step. A newer-step count, previous/next buttons, nearby
-  dots, keyboard navigation and a full step index keep earlier evidence easy
-  to find. Joining an existing case starts at the latest card. The stable-height
-  body has one scrollbar; header, navigation and actions remain reachable.
+  interval. Rapid results queue rather than being skipped. Only explicit pause
+  or browsing another step disables following; hovering, focusing and opening
+  evidence do not. Resume advances to the next queued card immediately, then
+  follows new arrivals. The header's newer-step shortcut jumps to the latest.
+  Previous/next buttons, keyboard navigation and a full step index keep earlier
+  evidence accessible. Opening the index holds the view without changing the
+  following setting. Joining an existing case starts at its latest card.
+- **Space**: one compact header combines title, status, elapsed time, step index
+  and newer-step shortcut. One bottom bar combines browsing, following and
+  chat/replay controls. The body fills available height above the floating bins
+  or replay transport; descriptions are shown in full as readable paragraphs,
+  with one scrolling area for long prose or expanded evidence.
 - **Evidence**: individual runs expand to command/status, every finding,
   watched functions and sample calls, and output. No watched-function evidence
   is stated explicitly. Recorded experiments and a linked fix-verification run
