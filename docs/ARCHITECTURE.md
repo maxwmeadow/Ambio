@@ -806,8 +806,10 @@ viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the one viewer
 symbol rows and search also open). The store keeps one tab per file; the host
 keeps every tab's editor mounted and hides all but the one in front, so edits,
 undo and scroll survive switching, and opening an open file again points its
-tab at the new lines instead of remounting it. Closing asks in each tab with
-unsaved changes in turn (`closing` in the store). Inline code shaped like a symbol (`run()`,
+tab at the new lines instead of remounting it. Closing the editor only hides
+it (`visible`); tabs close from the tab strip, those with unsaved changes
+asking in turn (`closing`). Each project's tab list is kept in localStorage
+(`ambio.sourceTabs.<workspace>`); unsaved text is kept apart, as drafts. Inline code shaped like a symbol (`run()`,
 `Scene.update`, `a.py::run`; `symbolReference.ts`) becomes an `ambio://symbol/`
 link carrying the files its paragraph and the reply name; the chip asks archd's
 symbol search for exact matches (`symbolLookup.ts`, cached until the files

@@ -34,11 +34,13 @@ export const MAX_SOURCE_TABS = 12
 export const sourceTabId = (request: Pick<SourcePreviewRequest, 'fileId' | 'workspaceId'>) => `${request.workspaceId}:${request.fileId}`
 
 interface SourcePreviewStore {
+  /** The project the open tabs belong to. */
+  workspaceId: string | null
   tabs: SourceTab[]
   active: string | null
   /**
-   * False while the editor has stepped aside (to show the map, or the agent
-   * a question): its tabs, and their unsaved edits, wait for the next open.
+   * Whether the editor is in front. Closing the editor only hides it: its
+   * tabs, and their unsaved edits, stay open for the next file opened.
    */
   visible: boolean
   /** Tab ids, most recently shown last: where focus goes when a tab closes. */
@@ -46,10 +48,10 @@ interface SourcePreviewStore {
   /** Tabs with unsaved changes, as their editors report them. */
   dirty: Record<string, boolean>
   /**
-   * A close waiting on the person to decide about unsaved changes in that tab;
-   * `all` carries on to the next tab once they have.
+   * A close waiting on the person to decide about unsaved changes in that
+   * tab; the rest of the tabs being closed with it ask next.
    */
-  closing: { tabId: string; all: boolean } | null
+  closing: { tabId: string; rest: string[] } | null
   /** Where Ctrl+click came from, newest last, for Back. */
   history: SourcePreviewRequest[]
   open: (request: SourcePreviewRequest) => void
@@ -61,23 +63,49 @@ interface SourcePreviewStore {
   cycle: (direction: 1 | -1) => void
   setDirty: (tabId: string, dirty: boolean) => void
   setPath: (tabId: string, path: string) => void
-  /** Close a tab, asking first in it when it has unsaved changes. */
-  requestCloseTab: (tabId: string) => void
-  /** Close the editor: every tab, asking in turn about each with unsaved changes. */
-  requestCloseAll: () => void
-  /** The person decided (saved or discarded): close the tab, and carry on closing if closing all. */
+  /** Close these tabs: those without unsaved changes at once, then each of the others asks in turn. */
+  requestClose: (tabIds: string[]) => void
+  /** The person decided (saved or discarded): close the tab, and ask in the next one being closed. */
   closeTab: (tabId: string) => void
   /** The person chose to keep editing: stop closing. */
   cancelClose: () => void
+  /** Put the editor away, keeping every tab open. */
   hide: () => void
+  /** Close every tab without asking, and forget them. */
   close: () => void
 }
 
-type State = Pick<SourcePreviewStore, 'tabs' | 'active' | 'visible' | 'recent' | 'dirty' | 'closing' | 'history'>
+type State = Pick<SourcePreviewStore, 'workspaceId' | 'tabs' | 'active' | 'visible' | 'recent' | 'dirty' | 'closing' | 'history'>
 
 let opened = 0
 
-function show(state: State, request: SourcePreviewRequest): Partial<State> {
+/** A project's open tabs, kept across restarts. Unsaved edits are kept separately, as drafts. */
+interface SavedTabs { tabs: Array<{ request: SourcePreviewRequest; path?: string }>; active: string | null }
+const savedKey = (workspaceId: string) => `ambio.sourceTabs.${workspaceId}`
+function storage(): Storage | null {
+  try { return typeof localStorage === 'undefined' ? null : localStorage } catch { return null }
+}
+function readSaved(workspaceId: string): Partial<State> {
+  let saved: SavedTabs | null = null
+  try { saved = JSON.parse(storage()?.getItem(savedKey(workspaceId)) ?? 'null') as SavedTabs | null } catch { saved = null }
+  const tabs = (Array.isArray(saved?.tabs) ? saved.tabs : [])
+    .filter(tab => tab?.request?.workspaceId === workspaceId && typeof tab.request.fileId === 'string')
+    .slice(0, MAX_SOURCE_TABS)
+    .map(tab => ({ id: sourceTabId(tab.request), request: tab.request, path: tab.path, openedAt: ++opened }))
+  const active = tabs.some(tab => tab.id === saved?.active) ? saved!.active : tabs[tabs.length - 1]?.id ?? null
+  return { workspaceId, tabs, active, recent: tabs.map(tab => tab.id).filter(id => id !== active).concat(active ? [active] : []), dirty: {}, closing: null, history: [] }
+}
+function writeSaved(state: State) {
+  if (!state.workspaceId) return
+  try {
+    if (!state.tabs.length) storage()?.removeItem(savedKey(state.workspaceId))
+    else storage()?.setItem(savedKey(state.workspaceId), JSON.stringify({ tabs: state.tabs.map(tab => ({ request: tab.request, path: tab.path })), active: state.active } satisfies SavedTabs))
+  } catch { /* storage full or refused: the tabs last until the app closes */ }
+}
+
+function show(current: State, request: SourcePreviewRequest): Partial<State> {
+  // Another project's file: that project's tabs come back, and this one's are put away.
+  const state = current.workspaceId === request.workspaceId ? current : { ...current, ...readSaved(request.workspaceId) }
   const id = sourceTabId(request)
   const tab: SourceTab = { id, request, openedAt: ++opened }
   let tabs = state.tabs.some(existing => existing.id === id)
@@ -90,25 +118,33 @@ function show(state: State, request: SourcePreviewRequest): Partial<State> {
     tabs = tabs.filter(existing => existing.id !== spare)
     recent = recent.filter(other => other !== spare)
   }
-  return { tabs, recent, active: id, visible: true }
+  return { ...state, tabs, recent, active: id, visible: true }
 }
 
-function without(state: State, tabId: string): Partial<State> {
+function without(state: State, tabId: string): State {
   const tabs = state.tabs.filter(tab => tab.id !== tabId)
   const recent = state.recent.filter(id => id !== tabId)
   const { [tabId]: _closed, ...dirty } = state.dirty
-  if (!tabs.length) return { tabs, recent, dirty, active: null, closing: null, history: [] }
-  return { tabs, recent, dirty, active: state.active === tabId ? recent[recent.length - 1] ?? tabs[0].id : state.active }
+  if (!tabs.length) return { ...state, tabs, recent, dirty, active: null, visible: false, closing: null, history: [] }
+  return { ...state, tabs, recent, dirty, active: state.active === tabId ? recent[recent.length - 1] ?? tabs[0].id : state.active }
 }
 
-/** The next step of closing everything: the next tab with unsaved changes asks, or all close. */
-function closeAllFrom(state: State): Partial<State> {
-  const unsaved = state.tabs.find(tab => state.dirty[tab.id])
-  if (!unsaved) return { tabs: [], recent: [], dirty: {}, active: null, closing: null, history: [] }
-  return { active: unsaved.id, recent: [...state.recent.filter(id => id !== unsaved.id), unsaved.id], closing: { tabId: unsaved.id, all: true } }
+/** Close the tabs without unsaved changes; the first with them asks, in front. */
+function closing(current: State, tabIds: string[]): State {
+  let state = current
+  const unsaved: string[] = []
+  for (const id of tabIds) {
+    if (!state.tabs.some(tab => tab.id === id)) continue
+    if (state.dirty[id]) unsaved.push(id)
+    else state = without(state, id)
+  }
+  if (!unsaved.length) return { ...state, closing: null }
+  const [first, ...rest] = unsaved
+  return { ...state, active: first, visible: true, recent: [...state.recent.filter(id => id !== first), first], closing: { tabId: first, rest } }
 }
 
 export const useSourcePreviewStore = create<SourcePreviewStore>(set => ({
+  workspaceId: null,
   tabs: [],
   active: null,
   visible: false,
@@ -131,17 +167,20 @@ export const useSourcePreviewStore = create<SourcePreviewStore>(set => ({
     return { active: next, recent: [...state.recent.filter(id => id !== next), next] }
   }),
   setDirty: (tabId, dirty) => set(state => !!state.dirty[tabId] === dirty ? state : { dirty: { ...state.dirty, [tabId]: dirty } }),
-  setPath: (tabId, path) => set(state => ({ tabs: state.tabs.map(tab => tab.id === tabId && tab.path !== path ? { ...tab, path } : tab) })),
-  requestCloseTab: tabId => set(state => state.dirty[tabId]
-    ? { active: tabId, recent: [...state.recent.filter(id => id !== tabId), tabId], closing: { tabId, all: false } }
-    : without(state, tabId)),
-  requestCloseAll: () => set(state => closeAllFrom(state)),
+  setPath: (tabId, path) => set(state => state.tabs.some(tab => tab.id === tabId && tab.path !== path)
+    ? { tabs: state.tabs.map(tab => tab.id === tabId ? { ...tab, path } : tab) }
+    : state),
+  requestClose: tabIds => set(state => closing(state, tabIds)),
   closeTab: tabId => set(state => {
-    const all = state.closing?.tabId === tabId && state.closing.all
-    const next = { ...state, ...without(state, tabId), closing: null }
-    return all ? { ...next, ...closeAllFrom(next) } : next
+    const rest = state.closing?.tabId === tabId ? state.closing.rest : []
+    return closing({ ...without(state, tabId), closing: null }, rest)
   }),
   cancelClose: () => set({ closing: null }),
   hide: () => set({ visible: false, closing: null }),
-  close: () => set({ tabs: [], recent: [], dirty: {}, active: null, closing: null, history: [] }),
+  close: () => set({ tabs: [], recent: [], dirty: {}, active: null, visible: false, closing: null, history: [] }),
 }))
+
+// Which files are open is kept per project, so they are there after a restart.
+useSourcePreviewStore.subscribe((state, previous) => {
+  if (state.tabs !== previous.tabs || state.active !== previous.active) writeSaved(state)
+})

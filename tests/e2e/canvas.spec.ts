@@ -2238,6 +2238,7 @@ test('double-clicking a file opens its code; its properties are on the right-cli
   await editor.getByRole('button', { name: 'Close source preview' }).click()
   await expect(editor).toHaveCount(0)
 
+
   await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
   const menu = page.getByRole('menu')
   await expect(menu.getByRole('menuitem').first()).toHaveText('Open Code in Ambio')
@@ -2257,6 +2258,27 @@ test('double-clicking a file opens its code; its properties are on the right-cli
   await expect(attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true })).toHaveCount(1)
   await expect(page.getByRole('textbox', { name: 'Instruction for your agent' })).toHaveValue('')
   await attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true }).click()
+
+  // Closing the editor keeps the file open: the next file opens in a second tab beside it.
+  await page.route(/\/api\/files\/file_store\/source\?/, route => route.fulfill({ json: { fileId: 'file_store', relPath: 'src/renderer/store/graphStore.ts', language: 'typescript', lineCount: 1, content: 'export const store = 1\n', hash: 's1', editable: true } }))
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/store/graphStore.ts')
+  await page.getByRole('option').first().click()
+  const storeNode = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(storeNode).toBeInViewport()
+  await page.waitForTimeout(900)
+  await storeNode.dblclick({ position: { x: 12, y: 12 }, force: true })
+  const front = page.locator('.source-preview-backdrop:not([hidden])')
+  const openFiles = front.getByRole('tablist', { name: 'Open files' })
+  await expect(openFiles.getByRole('tab')).toHaveText(['AmbioCanvas.tsx', 'graphStore.ts'])
+  await expect(openFiles.getByRole('tab', { name: 'graphStore.ts' })).toHaveAttribute('aria-selected', 'true')
+  // A tab's right-click menu closes the others.
+  await openFiles.getByRole('tab', { name: 'graphStore.ts' }).click({ button: 'right' })
+  await page.getByRole('menu', { name: 'Tab' }).getByRole('menuitem', { name: 'Close Others' }).click()
+  await expect(openFiles.getByRole('tab')).toHaveText(['graphStore.ts'])
+  await front.getByRole('button', { name: 'Close graphStore.ts' }).click()
+  await expect(page.locator('.source-preview-backdrop')).toHaveCount(0)
+  await page.unroute(/\/api\/files\/file_store\/source\?/)
   await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
 })
 
@@ -4192,7 +4214,7 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await expect(peek).toHaveCount(0)
   await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
   await expect(dialog.locator('.cm-change-mark')).toHaveCount(2)
-  await expect(dialog.getByRole('img', { name: 'Unsaved changes' })).toBeVisible()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
 
   // Right-click offers the usual editing commands and this viewer's own; Escape closes only the menu.
   await dialog.locator('.cm-line', { hasText: 'wait()' }).click({ button: 'right' })
@@ -4228,11 +4250,11 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await attached.click()
   await expect(attached).toHaveCount(0)
 
-  // Opening the file again brings its tab back, edits and all; closing the editor asks about them.
+  // Opening the file again brings its tab back, edits and all; closing its tab asks about them.
   await prose.getByRole('button', { name: `${file}:2` }).click()
-  await expect(dialog.getByRole('img', { name: 'Unsaved changes' })).toBeVisible()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
   await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
-  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await dialog.getByRole('button', { name: `Close ${file.split('/').pop()}` }).click()
   await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
   await dialog.getByRole('button', { name: 'Discard' }).click()
   await expect(page.locator('.source-preview-backdrop')).toHaveCount(0)
@@ -4242,6 +4264,7 @@ test('the editor marks what changed since the commit, whose change it is, and ca
 })
 
 test('the editor shows where you are, follows definitions, reloads disk changes and shows the file on the map', async () => {
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
   const workspaceId = await page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject.id as string)
   const canvasSource = (content: string, hash: string) => ({ fileId: 'file_canvas', relPath: 'src/renderer/canvas/AmbioCanvas.tsx', language: 'tsx', lineCount: 7, content, hash, editable: true })
   const original = "import React from 'react'\n\nexport function renderCanvas() {\n  const ready = true\n  const canvas = <Canvas />\n  return ready ? canvas : null\n}\n"
@@ -4291,9 +4314,9 @@ test('the editor shows where you are, follows definitions, reloads disk changes 
   await docs.getByRole('button', { name: 'Back' }).click()
   await expect(dialog.locator('.source-preview-location')).toHaveText('line 5')
   await expect(dialog.getByRole('button', { name: 'Back' })).toHaveCount(0)
-  // Closing a tab leaves the others open; with one left, the strip goes.
+  // Closing a tab leaves the others open.
   await dialog.getByRole('button', { name: 'Close ARCHITECTURE.md' }).click()
-  await expect(dialog.getByRole('tablist')).toHaveCount(0)
+  await expect(dialog.getByRole('tablist', { name: 'Open files' }).getByRole('tab')).toHaveText(['AmbioCanvas.tsx'])
   await expect(dialog).toBeVisible()
 
   // An agent rewrites the file: the untouched editor shows the new version without losing its place.
@@ -4345,8 +4368,7 @@ test('unsaved edits survive the editor closing unexpectedly and are offered back
   await page.keyboard.type(' // draft')
   await expect.poll(() => page.evaluate(k => JSON.parse(localStorage.getItem(k) ?? 'null')?.content, key)).toBe('const a = 1 // draft\n')
   await page.keyboard.press('Escape')
-  await dialog.getByRole('button', { name: 'Keep editing' }).click()
-  await page.evaluate(() => document.querySelector('.source-preview-backdrop')?.remove())
+  await expect(dialog).toBeHidden()
 
   await page.reload()
   await page.waitForFunction(() => (window as any).__ambioGraphStore?.getState().files.length > 0)
@@ -4356,8 +4378,8 @@ test('unsaved edits survive the editor closing unexpectedly and are offered back
   await expect(bar).toContainText('You have unsaved changes to src/renderer/canvas/AmbioCanvas.tsx from')
   await bar.getByRole('button', { name: 'Restore them' }).click()
   await expect(dialog.locator('.cm-content')).toHaveText('const a = 1 // draft')
-  await expect(dialog.getByRole('img', { name: 'Unsaved changes' })).toBeVisible()
-  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close AmbioCanvas.tsx' }).click()
   await dialog.getByRole('button', { name: 'Discard' }).click()
   await expect.poll(() => page.evaluate(k => localStorage.getItem(k), key)).toBeNull()
 
@@ -4399,7 +4421,7 @@ test('source opened from a reply can be edited, saved, and never overwrites a ne
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+ControlOrMeta+ArrowLeft')
   await page.keyboard.type('limit')
-  await expect(dialog.getByRole('img', { name: 'Unsaved changes' })).toBeVisible()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
   await page.keyboard.press('ControlOrMeta+S')
   await expect(dialog.getByRole('status')).toHaveText('saved')
   expect(saves).toEqual([{ workspaceId: 'demo', baseHash: 'hash-1', content: 'speed = read()\r\nmoving = speed > 0.limit\r\nstop()\r\n' }])
@@ -4422,10 +4444,13 @@ test('source opened from a reply can be edited, saved, and never overwrites a ne
   await expect(editor).not.toContainText('# mine')
   await expect(dialog.getByRole('status')).toHaveCount(0)
 
-  // Closing with unsaved changes asks first.
+  // Closing the editor keeps unsaved changes; closing the file's tab asks first.
   await editor.click()
   await page.keyboard.type('x')
   await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(dialog).toBeHidden()
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  await dialog.getByRole('button', { name: `Close ${file.split('/').pop()}` }).click()
   await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
   await dialog.getByRole('button', { name: 'Discard' }).click()
   await expect(dialog).toHaveCount(0)

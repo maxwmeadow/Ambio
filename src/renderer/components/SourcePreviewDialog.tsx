@@ -66,25 +66,46 @@ function tabLabels(tabs: SourceTab[], paths: Map<string, string>): Map<string, {
   }))
 }
 
-/** The open files, above the editor; shown once a second file is open. */
+/**
+ * The open files, above the editor. They stay open when the editor closes;
+ * a tab's × (or a middle-click, or its right-click menu) is what closes one.
+ */
 function SourceTabs({ current }: { current: string }) {
   const tabs = useSourcePreviewStore(state => state.tabs)
   const dirty = useSourcePreviewStore(state => state.dirty)
   const files = useGraphStore(state => state.files)
   const labels = React.useMemo(() => tabLabels(tabs, new Map(files.map(file => [file.id, file.relPath.replace(/\\/g, '/')]))), [tabs, files])
-  if (tabs.length < 2) return null
+  const [menu, setMenu] = React.useState<{ x: number; y: number; entries: ContextMenuEntry[] } | null>(null)
+  const closeMenu = React.useCallback(() => setMenu(null), [])
   const store = useSourcePreviewStore.getState()
+  const openMenu = (event: React.MouseEvent, tab: SourceTab, path: string) => {
+    event.preventDefault()
+    const others = tabs.filter(other => other.id !== tab.id).map(other => other.id)
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      entries: [
+        { label: 'Close', run: () => store.requestClose([tab.id]) },
+        { label: 'Close Others', disabled: !others.length, run: () => store.requestClose(others) },
+        { label: 'Close All', run: () => store.requestClose(tabs.map(each => each.id)) },
+        'separator',
+        { label: 'Copy Relative Path', run: () => { if (window.ambio?.copyText) void window.ambio.copyText(path); else void navigator.clipboard?.writeText(path) } },
+      ],
+    })
+  }
   return (
     <div className="source-preview-tabs" role="tablist" aria-label="Open files">
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} entries={menu.entries} onClose={closeMenu} label="Tab" />, document.body)}
       {tabs.map(tab => {
         const label = labels.get(tab.id)!
         const selected = tab.id === current
         return (
           <div key={tab.id} className={`source-preview-tab${selected ? ' source-preview-tab-active' : ''}`} title={label.path}
-            onAuxClick={event => { if (event.button === 1) { event.preventDefault(); store.requestCloseTab(tab.id) } }}>
+            onContextMenu={event => openMenu(event, tab, label.path)}
+            onAuxClick={event => { if (event.button === 1) { event.preventDefault(); store.requestClose([tab.id]) } }}>
             <button type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} onClick={() => store.activate(tab.id)}>{label.name}</button>
             {dirty[tab.id] && <span className="source-preview-unsaved" role="img" aria-label="Unsaved changes" />}
-            <button type="button" className="source-preview-tab-close" aria-label={`Close ${label.name}`} title="Close (middle-click)" onClick={() => store.requestCloseTab(tab.id)}>×</button>
+            <button type="button" className="source-preview-tab-close" aria-label={`Close ${label.name}`} title="Close this file (middle-click)" onClick={() => store.requestClose([tab.id])}>×</button>
           </div>
         )
       })}
@@ -128,6 +149,12 @@ interface Conflict { current: FileSource; onSave: boolean }
  * When an agent or another editor changes the file, an untouched editor
  * reloads it; one with edits says so at once and shows the differences.
  */
+/** A loaded file always names its path: the map's, or its id, when the response leaves it out. */
+function withPath(source: FileSource, fileId: string): FileSource {
+  const relPath = source.relPath || useGraphStore.getState().files.find(file => file.id === fileId)?.relPath || fileId || ''
+  return { ...source, relPath: relPath.replace(/\\/g, '/') }
+}
+
 export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active, openedAt }: SourcePreviewDialogProps) {
   const [source, setSource] = React.useState<FileSource | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -161,7 +188,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
     setSource(null)
     setError(null)
     void apiGetFileSource(fileId, workspaceId, controller.signal)
-      .then(setSource)
+      .then(loaded => setSource(withPath(loaded, fileId)))
       .catch(fetchError => {
         if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) setError(displayError(fetchError))
       })
@@ -216,8 +243,8 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
   const saveRef = React.useRef(save)
   saveRef.current = save
 
-  /** Close the editor: every tab, each with unsaved changes asking first. */
-  const requestClose = React.useCallback(() => useSourcePreviewStore.getState().requestCloseAll(), [])
+  /** Close the editor. Only hidden: its files stay open in their tabs for the next file opened. */
+  const requestClose = React.useCallback(() => useSourcePreviewStore.getState().hide(), [])
   /** Step aside, keeping the tabs and their edits for the next time a file opens. */
   const stepAside = React.useCallback((then?: () => void) => {
     useSourcePreviewStore.getState().hide()
@@ -230,7 +257,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
     if (closing) setLeaving({ then: () => useSourcePreviewStore.getState().closeTab(tabId) })
   }, [closing, tabId])
   React.useEffect(() => { useSourcePreviewStore.getState().setDirty(tabId, dirty) }, [tabId, dirty])
-  const loadedPath = source?.relPath.replace(/\\/g, '/')
+  const loadedPath = source?.relPath
   React.useEffect(() => { if (loadedPath) useSourcePreviewStore.getState().setPath(tabId, loadedPath) }, [tabId, loadedPath])
 
   /** This file at a position, for Back to return to. */
@@ -452,7 +479,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
     const view = viewRef.current
     if (!view || !fileRecord) return
     let current = true
-    void apiGetFileSource(fileId, workspaceId).then(disk => {
+    void apiGetFileSource(fileId, workspaceId).then(disk => withPath(disk, fileId)).then(disk => {
       if (!current || disk.hash === baseRef.current.hash) return
       if (dirtyRef.current) {
         setConflict({ current: disk, onSave: false })
@@ -567,7 +594,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, tabId, active
             {fileRecord && <button type="button" className="source-preview-button" onClick={() => stepAside(() => showOnMap(fileId))} title="Show this file on the map; open files stay open for next time">Show on map</button>}
             {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Attach the selected lines (or this file) to a message for your agent (Ctrl+I)">Ask agent</button>}
             {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
-            <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview" title="Close the editor and every open file (Escape)">×</button>
+            <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview" title="Close the editor; your files stay open in their tabs (Escape)">×</button>
           </div>
         </header>
         {source && (
