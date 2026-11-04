@@ -415,6 +415,62 @@ a { color: var(--accent); text-decoration: none; }
   flex: 1 1 260px;
 }
 
+/* Where the cursor is: system › file › class › function. */
+.source-preview-breadcrumb {
+  display: flex;
+  min-height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 0 12px;
+  border-bottom: 1px solid #b9b6ad;
+  background: #e6e4dd;
+  color: #4b5753;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.source-preview-breadcrumb button {
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 1px;
+  background: none;
+  color: #2f5d50;
+  font: inherit;
+  cursor: pointer;
+}
+
+.source-preview-breadcrumb button:hover,
+.source-preview-breadcrumb button:focus-visible {
+  background: #d3dcd5;
+  outline: none;
+}
+
+.source-preview-statusline {
+  display: flex;
+  min-height: 22px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px 2px;
+  color: #3f4a46;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.source-preview-notice {
+  overflow: hidden;
+  color: #2f5d50;
+  text-overflow: ellipsis;
+}
+
+.source-preview-statusline-end {
+  margin-left: auto;
+}
+
 .source-preview-code {
   display: flex;
   flex: 1;

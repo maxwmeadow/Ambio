@@ -58,7 +58,9 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   way search does: it opens a collapsed system, selects the node and fits once
   the node has been measured. All of them share one flight and its framing.
   A file chip that names a line, or a symbol chip, opens the source viewer at
-  that line or definition instead, leaving the map where it is.
+  that line or definition instead, leaving the map where it is. The viewer's
+  Show on map (and its breadcrumb's system) closes it, after asking about
+  unsaved changes, and takes the same flight to the file or system.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and

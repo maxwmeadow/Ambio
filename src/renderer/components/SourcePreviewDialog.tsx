@@ -4,9 +4,14 @@ import { unifiedMergeView } from '@codemirror/merge'
 import { Compartment, EditorState, type Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { apiGetCommittedSource, apiGetFileSource, apiSaveFileSource, type FileSource } from '../canvas/arcdApi'
-import { baselineText, setBaseline } from './sourceChanges'
-import { useSourcePreviewStore } from '../store/sourcePreviewStore'
-import { askAboutLines, languageFor, revealLine, sourceEditorState } from './sourceEditor'
+import { fetchFileSymbols } from '../canvas/symbolCache'
+import { useShowOnMap } from '../canvas/useShowOnMap'
+import { useGraphStore } from '../store/graphStore'
+import { useSourcePreviewStore, type SourcePreviewRequest } from '../store/sourcePreviewStore'
+import { ago, baselineText, setBaseline } from './sourceChanges'
+import { askAboutLines, detectIndent, languageFor, languageName, replaceWithin, revealLine, sourceEditorState } from './sourceEditor'
+import { definitionInFile, enclosingSymbols, outlineField, outlineFromSymbols, setOutline, type OutlineSymbol } from './sourceOutline'
+import { resolveSymbol } from './symbolLookup'
 
 interface SourcePreviewDialogProps {
   fileId: string
@@ -46,29 +51,58 @@ function displayError(error: unknown): string {
   }
 }
 
+/** Unsaved edits, kept so a crash, reload or quit does not lose them. */
+interface Draft { content: string; baseHash: string; savedAt: number }
+const draftKey = (workspaceId: string, fileId: string) => `ambio.sourceDraft.${workspaceId}.${fileId}`
+function readDraft(key: string): Draft | null {
+  try {
+    const draft = JSON.parse(localStorage.getItem(key) ?? 'null') as Draft | null
+    return draft && typeof draft.content === 'string' && typeof draft.baseHash === 'string' ? draft : null
+  } catch { return null }
+}
+function writeDraft(key: string, draft: Draft | null) {
+  try {
+    if (draft) localStorage.setItem(key, JSON.stringify(draft))
+    else localStorage.removeItem(key)
+  } catch { /* storage full or refused: the draft lives only in the editor */ }
+}
+
 type SaveStatus = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'failed'; message: string }
+/** The file on disk differs from what the editor is based on: found by a refused save, or by watching. */
+interface Conflict { current: FileSource; onSave: boolean }
 
 /**
  * A project file in an editor, opened at the lines someone pointed at. Edits
- * save with Ctrl+S (or Save) only over the version they were made against: if
- * an agent or another editor changed the file meanwhile, the save stops and
- * shows the differences, and the person chooses which version to keep.
+ * save with Ctrl+S (or Save) only over the version they were made against.
+ * When an agent or another editor changes the file, an untouched editor
+ * reloads it; one with edits says so at once and shows the differences.
  */
 export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: SourcePreviewDialogProps) {
   const [source, setSource] = React.useState<FileSource | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [dirty, setDirty] = React.useState(false)
   const [status, setStatus] = React.useState<SaveStatus>({ kind: 'idle' })
-  const [conflict, setConflict] = React.useState<FileSource | null>(null)
+  const [conflict, setConflict] = React.useState<Conflict | null>(null)
   const [showDiff, setShowDiff] = React.useState(false)
-  const [confirmClose, setConfirmClose] = React.useState(false)
+  /** What to do once the person has decided about unsaved changes. */
+  const [leaving, setLeaving] = React.useState<{ then: () => void } | null>(null)
+  const [draftOffer, setDraftOffer] = React.useState<Draft | null>(null)
+  const [notice, setNotice] = React.useState('')
+  const [cursor, setCursor] = React.useState({ line: 1, column: 1, selected: 0, crumbs: [] as OutlineSymbol[] })
   const hostRef = React.useRef<HTMLDivElement | null>(null)
   const viewRef = React.useRef<EditorView | null>(null)
   /** The version on disk the editor's text is based on. */
   const baseRef = React.useRef<{ hash: string; text: Text | null }>({ hash: '', text: null })
+  const dirtyRef = React.useRef(false)
+  dirtyRef.current = dirty
   const slots = React.useMemo(() => ({ language: new Compartment(), readOnly: new Compartment(), diff: new Compartment() }), [])
   const range = React.useMemo(() => highlightedRange(symbol), [symbol])
   const editable = !!source && source.editable && source.content.length <= MAX_EDITABLE
+  const storageKey = draftKey(workspaceId, fileId)
+  const showOnMap = useShowOnMap()
+  const history = useSourcePreviewStore(state => state.history)
+  const fileRecord = useGraphStore(state => state.files.find(file => file.id === fileId))
+  const systemName = useGraphStore(state => fileRecord?.systemId ? state.systems.find(system => system.id === fileRecord.systemId)?.name : undefined)
 
   React.useEffect(() => {
     const controller = new AbortController()
@@ -80,6 +114,23 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
         if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) setError(displayError(fetchError))
       })
     return () => controller.abort()
+  }, [fileId, workspaceId])
+
+  const say = React.useCallback((text: string) => {
+    setNotice(text)
+    window.setTimeout(() => setNotice(current => current === text ? '' : current), 4000)
+  }, [])
+
+  /** The comparison with the last commit, and the outline, for the text as it is now. */
+  const refreshContext = React.useCallback((view: EditorView, isCurrent: () => boolean) => {
+    void apiGetCommittedSource(fileId, workspaceId).then(committed => {
+      if (!isCurrent() || !committed.repository) return
+      const text = baselineText(committed.tracked ? committed.content : '', view.state.lineBreak)
+      view.dispatch({ effects: setBaseline.of({ text, tracked: committed.tracked, authors: committed.authors ?? [] }) })
+    })
+    void fetchFileSymbols(workspaceId, fileId).then(rows => {
+      if (isCurrent()) view.dispatch({ effects: setOutline.of(outlineFromSymbols(view.state.doc, rows)) })
+    }).catch(() => { /* no outline: the breadcrumb shows the file alone */ })
   }, [fileId, workspaceId])
 
   const save = React.useCallback(async (baseHash?: string): Promise<boolean> => {
@@ -94,74 +145,65 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     if (result.status === 'saved') {
       baseRef.current = { hash: result.source.hash, text }
       // Typing during the save leaves those keystrokes unsaved.
-      setDirty(!view.state.doc.eq(text))
+      const stillDirty = !view.state.doc.eq(text)
+      setDirty(stillDirty)
+      if (!stillDirty) writeDraft(storageKey, null)
       setConflict(null)
       setShowDiff(false)
       setStatus({ kind: 'saved' })
       return true
     }
     if (result.status === 'conflict') {
-      setConflict(result.current)
+      setConflict({ current: result.current, onSave: true })
       setStatus({ kind: 'idle' })
       return false
     }
     setStatus({ kind: 'failed', message: result.error })
     return false
-  }, [editable, fileId, workspaceId])
+  }, [editable, fileId, workspaceId, storageKey])
   const saveRef = React.useRef(save)
   saveRef.current = save
 
-  // The editor is made once, from the version first loaded; saves keep it.
-  const opened = source !== null
-  React.useEffect(() => {
-    const host = hostRef.current
-    if (!opened || !host || !source) return
-    baseRef.current = { hash: source.hash, text: null }
-    const view = new EditorView({
-      parent: host,
-      state: sourceEditorState({
-        content: source.content,
-        range,
-        dynamic: [
-          slots.language.of([]),
-          slots.readOnly.of([EditorState.readOnly.of(!editable)]),
-          slots.diff.of([]),
-        ],
-        onSave: () => { void saveRef.current(); return true },
-        onAsk: () => { askRef.current(); return true },
-        onChange: state => setDirty(!state.doc.eq(baseRef.current.text!)),
-      }),
-    })
-    baseRef.current.text = view.state.doc
-    viewRef.current = view
-    revealLine(view, range.start)
-    let current = true
-    void languageFor(source.relPath).then(language => {
-      if (current && language) view.dispatch({ effects: slots.language.reconfigure(language) })
-    })
-    // What changed since the last commit, and who changed it, once Git has answered.
-    void apiGetCommittedSource(fileId, workspaceId).then(committed => {
-      if (!current || !committed.repository) return
-      const text = baselineText(committed.tracked ? committed.content : '', view.state.lineBreak)
-      view.dispatch({ effects: setBaseline.of({ text, tracked: committed.tracked, authors: committed.authors ?? [] }) })
-    })
-    return () => {
-      current = false
-      view.destroy()
-      viewRef.current = null
+  /** Do something that leaves this file; with unsaved changes, ask first. */
+  const leave = React.useCallback((then: () => void) => {
+    if (dirtyRef.current) setLeaving({ then })
+    else then()
+  }, [])
+  const requestClose = React.useCallback(() => leave(onClose), [leave, onClose])
+
+  /** This file at a position, for Back to return to. */
+  const here = (position: number): SourcePreviewRequest => {
+    const line = viewRef.current ? viewRef.current.state.doc.lineAt(position).number : range.start
+    return { fileId, workspaceId, name: source?.relPath ?? symbol.name, lineStart: line, lineEnd: line }
+  }
+
+  const goTo = (position: number) => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ selection: { anchor: position }, effects: EditorView.scrollIntoView(position, { y: 'center' }) })
+    view.focus()
+  }
+
+  /** Ctrl+click or F12: this file's own definition first, then the one definition in the project. */
+  const openDefinition = async (name: string, position: number) => {
+    const view = viewRef.current
+    if (!view || !source) return
+    const local = definitionInFile(view.state.field(outlineField), name, position, view.state.doc)
+    if (local) {
+      if (view.state.doc.lineAt(local.from).number === view.state.doc.lineAt(position).number) say(`This is where ${name} is defined.`)
+      else goTo(local.from)
+      return
     }
-    // Only a newly opened file makes a new editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened])
-
-  React.useEffect(() => {
-    viewRef.current?.dispatch({ effects: slots.diff.reconfigure(showDiff && conflict ? unifiedMergeView({ original: conflict.content, mergeControls: false, gutter: true }) : []) })
-  }, [showDiff, conflict, slots])
-
-  const requestClose = React.useCallback(() => {
-    if (dirty) setConfirmClose(true)
-    else onClose()
-  }, [dirty, onClose])
+    const paths = new Set(useGraphStore.getState().files.map(file => file.relPath.replace(/\\/g, '/')))
+    const root = useGraphStore.getState().currentProject?.rootPath
+    const found = await resolveSymbol(workspaceId, name, { nearby: [source.relPath], message: [] }, paths, root, true)
+    if (!found) { say(`No single definition of ${name} found in the project.`); return }
+    if (found.fileId === fileId) { goTo(view.state.doc.line(Math.min(found.lineStart, view.state.doc.lines)).from); return }
+    const from = here(position)
+    leave(() => useSourcePreviewStore.getState().follow({ fileId: found.fileId, workspaceId, name: found.name, kind: found.kind, lineStart: found.lineStart, lineEnd: found.lineEnd }, from))
+  }
+  const definitionRef = React.useRef(openDefinition)
+  definitionRef.current = openDefinition
 
   /**
    * Start a message to the agent about the selected lines (or the lines this
@@ -182,6 +224,111 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
   const askRef = React.useRef(askAgent)
   askRef.current = askAgent
 
+  /**
+   * Show the file as it is on disk and make that the version edits are based
+   * on. The base is set before the change lands, so the reload itself never
+   * counts as an unsaved edit.
+   */
+  function adoptDiskVersion(view: EditorView, disk: FileSource) {
+    const transaction = view.state.update(replaceWithin(view.state, disk.content))
+    baseRef.current = { hash: disk.hash, text: transaction.state.doc }
+    view.dispatch(transaction)
+  }
+
+  const draftTimer = React.useRef(0)
+  const onChange = (state: EditorState) => {
+    const changed = !state.doc.eq(baseRef.current.text!)
+    setDirty(changed)
+    window.clearTimeout(draftTimer.current)
+    draftTimer.current = window.setTimeout(() => {
+      writeDraft(storageKey, changed ? { content: state.sliceDoc(), baseHash: baseRef.current.hash, savedAt: Date.now() } : null)
+    }, 600)
+  }
+  const onChangeRef = React.useRef(onChange)
+  onChangeRef.current = onChange
+
+  // The editor is made once, from the version first loaded; saves and reloads keep it.
+  const opened = source !== null
+  React.useEffect(() => {
+    const host = hostRef.current
+    if (!opened || !host || !source) return
+    baseRef.current = { hash: source.hash, text: null }
+    const report = (state: EditorState) => {
+      const head = state.selection.main.head
+      const line = state.doc.lineAt(head)
+      setCursor({
+        line: line.number,
+        column: head - line.from + 1,
+        selected: state.selection.ranges.reduce((total, part) => total + part.to - part.from, 0),
+        crumbs: enclosingSymbols(state.field(outlineField), head),
+      })
+    }
+    const view = new EditorView({
+      parent: host,
+      state: sourceEditorState({
+        content: source.content,
+        range,
+        dynamic: [
+          slots.language.of([]),
+          slots.readOnly.of([EditorState.readOnly.of(!editable)]),
+          slots.diff.of([]),
+          // The outline arrives after the editor; the breadcrumb follows it.
+          EditorView.updateListener.of(update => { if (update.transactions.some(tr => tr.effects.some(effect => effect.is(setOutline)))) report(update.state) }),
+        ],
+        onSave: () => { void saveRef.current(); return true },
+        onAsk: () => { askRef.current(); return true },
+        onChange: state => onChangeRef.current(state),
+        onCursor: report,
+        onDefinition: (name, position) => { void definitionRef.current(name, position) },
+      }),
+    })
+    baseRef.current.text = view.state.doc
+    viewRef.current = view
+    revealLine(view, range.start)
+    let current = true
+    void languageFor(source.relPath).then(language => {
+      if (current && language) view.dispatch({ effects: slots.language.reconfigure(language) })
+    })
+    refreshContext(view, () => current)
+    const draft = readDraft(storageKey)
+    if (draft && draft.content !== source.content && editable) setDraftOffer(draft)
+    else if (draft) writeDraft(storageKey, null)
+    return () => {
+      current = false
+      window.clearTimeout(draftTimer.current)
+      view.destroy()
+      viewRef.current = null
+    }
+    // Only a newly opened file makes a new editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened])
+
+  // The watcher reindexed this file: an agent or another editor wrote it.
+  const lastRecord = React.useRef(fileRecord)
+  React.useEffect(() => {
+    if (lastRecord.current === fileRecord) return
+    lastRecord.current = fileRecord
+    const view = viewRef.current
+    if (!view || !fileRecord) return
+    let current = true
+    void apiGetFileSource(fileId, workspaceId).then(disk => {
+      if (!current || disk.hash === baseRef.current.hash) return
+      if (dirtyRef.current) {
+        setConflict({ current: disk, onSave: false })
+        return
+      }
+      adoptDiskVersion(view, disk)
+      setSource(disk)
+      say(`${disk.relPath} changed on disk; showing it now.`)
+      refreshContext(view, () => current)
+    }).catch(() => { /* the save check still guards against overwriting it */ })
+    return () => { current = false }
+  }, [fileRecord, fileId, workspaceId, refreshContext, say])
+
+  React.useEffect(() => {
+    viewRef.current?.dispatch({ effects: slots.diff.reconfigure(showDiff && conflict ? unifiedMergeView({ original: conflict.current.content, mergeControls: false, gutter: true }) : []) })
+  }, [showDiff, conflict, slots])
+
   React.useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       // The editor's own Escape (closing search, a selection) comes first.
@@ -194,13 +341,28 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
   const takeDiskVersion = () => {
     const view = viewRef.current
     if (!view || !conflict) return
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: conflict.content } })
-    baseRef.current = { hash: conflict.hash, text: view.state.doc }
-    setSource(conflict)
+    adoptDiskVersion(view, conflict.current)
+    writeDraft(storageKey, null)
+    setSource(conflict.current)
     setDirty(false)
     setConflict(null)
     setShowDiff(false)
     setStatus({ kind: 'idle' })
+  }
+
+  const restoreDraft = () => {
+    const view = viewRef.current
+    if (!view || !draftOffer) return
+    // The person's own edits: marked as theirs, saved over the version they were made against.
+    view.dispatch({ ...replaceWithin(view.state, draftOffer.content), userEvent: 'input.restore' })
+    baseRef.current = { ...baseRef.current, hash: draftOffer.baseHash }
+    setDraftOffer(null)
+  }
+
+  const finishLeaving = (then: () => void) => {
+    writeDraft(storageKey, null)
+    setLeaving(null)
+    then()
   }
 
   const title = source?.relPath ?? fileId
@@ -209,6 +371,7 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
     const lines = source.content.split(/\r\n|\n/)
     return lines.at(-1) === '' ? lines.length - 1 : lines.length
   }, [source])
+  const indent = React.useMemo(() => source ? detectIndent(source.content).label : '', [source])
   const statusText = !source ? ''
     : !source.editable ? 'read-only: not UTF-8 text'
       : !editable ? 'read-only: too large to edit here'
@@ -238,25 +401,41 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           </div>
           <div className="source-preview-actions">
             {statusText && <span className={`source-preview-status${status.kind === 'failed' ? ' source-preview-status-error' : ''}`} role="status">{statusText}</span>}
+            {history.length > 0 && <button type="button" className="source-preview-button" onClick={() => leave(() => useSourcePreviewStore.getState().back())} title="Back to where you followed this definition from">Back</button>}
+            {fileRecord && <button type="button" className="source-preview-button" onClick={() => leave(() => { onClose(); showOnMap(fileId) })} title="Close the editor and show this file on the map">Show on map</button>}
             {source && <button type="button" className="source-preview-button" onClick={askAgent} title="Start a message to the agent about the selected lines, or these lines (Ctrl+I)">Ask agent</button>}
             {editable && <button type="button" className="source-preview-button" disabled={!dirty || status.kind === 'saving'} onClick={() => { void save() }} title="Save (Ctrl+S)">Save</button>}
             <button autoFocus className="source-preview-close" onClick={requestClose} aria-label="Close source preview">×</button>
           </div>
         </header>
+        {source && (
+          <nav className="source-preview-breadcrumb" aria-label="Where the cursor is">
+            {systemName && fileRecord?.systemId && <><button type="button" onClick={() => leave(() => { onClose(); showOnMap(fileRecord.systemId!) })} title="Show this system on the map">{systemName}</button><span aria-hidden="true">›</span></>}
+            <span>{title.split('/').pop()}</span>
+            {cursor.crumbs.map(crumb => <React.Fragment key={`${crumb.kind}:${crumb.name}:${crumb.from}`}><span aria-hidden="true">›</span><button type="button" onClick={() => goTo(crumb.from)} title={`Go to ${crumb.kind} ${crumb.name}`}>{crumb.name}</button></React.Fragment>)}
+          </nav>
+        )}
+        {draftOffer && !conflict && (
+          <div className="source-preview-bar" role="alert">
+            <span>You have unsaved changes to {title} from {ago(draftOffer.savedAt)}{draftOffer.baseHash !== source?.hash ? '; the file has changed since, so saving them will show the differences first' : ''}.</span>
+            <button type="button" className="source-preview-button" onClick={restoreDraft}>Restore them</button>
+            <button type="button" className="source-preview-button" onClick={() => { writeDraft(storageKey, null); setDraftOffer(null) }}>Discard them</button>
+          </div>
+        )}
         {conflict && (
           <div className="source-preview-bar" role="alert">
-            <span>{conflict.relPath} changed on disk while you were editing. Nothing was saved.</span>
+            <span>{conflict.current.relPath} changed on disk while you were editing.{conflict.onSave ? ' Nothing was saved.' : ''}</span>
             <button type="button" className="source-preview-button" onClick={() => setShowDiff(shown => !shown)}>{showDiff ? 'Hide differences' : 'Show differences'}</button>
-            <button type="button" className="source-preview-button" onClick={() => { void save(conflict.hash) }}>Keep mine</button>
+            <button type="button" className="source-preview-button" onClick={() => { void save(conflict.current.hash) }}>Keep mine</button>
             <button type="button" className="source-preview-button" onClick={takeDiskVersion}>Use the file on disk</button>
           </div>
         )}
-        {confirmClose && (
+        {leaving && (
           <div className="source-preview-bar" role="alert">
             <span>Save your changes to {title}?</span>
-            <button type="button" className="source-preview-button" onClick={() => { void save().then(saved => { if (saved) onClose(); else setConfirmClose(false) }) }}>Save and close</button>
-            <button type="button" className="source-preview-button" onClick={onClose}>Discard</button>
-            <button type="button" className="source-preview-button" onClick={() => { setConfirmClose(false); viewRef.current?.focus() }}>Keep editing</button>
+            <button type="button" className="source-preview-button" onClick={() => { void save().then(saved => { if (saved) finishLeaving(leaving.then); else setLeaving(null) }) }}>Save and continue</button>
+            <button type="button" className="source-preview-button" onClick={() => finishLeaving(leaving.then)}>Discard</button>
+            <button type="button" className="source-preview-button" onClick={() => { setLeaving(null); viewRef.current?.focus() }}>Keep editing</button>
           </div>
         )}
         <div className="source-preview-code" aria-busy={!source && !error}>
@@ -264,6 +443,15 @@ export function SourcePreviewDialog({ fileId, workspaceId, symbol, onClose }: So
           {error && <div className="source-preview-message source-preview-error">{error}</div>}
           <div ref={hostRef} className="source-preview-editor" hidden={!source} />
         </div>
+        {source && (
+          <footer className="source-preview-statusline">
+            <span>Ln {cursor.line}, Col {cursor.column}{cursor.selected ? ` (${cursor.selected} selected)` : ''}</span>
+            <span className="source-preview-notice" aria-live="polite">{notice}</span>
+            <span className="source-preview-statusline-end">{languageName(source.relPath)}</span>
+            <span>{viewRef.current?.state.lineBreak === '\r\n' ? 'CRLF' : 'LF'}</span>
+            <span>{indent}</span>
+          </footer>
+        )}
       </section>
     </div>,
     document.body,

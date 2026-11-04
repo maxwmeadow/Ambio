@@ -832,6 +832,28 @@ returns 409 with the current file, which the dialog shows as a unified diff
 on disk. Files are written in place; the watcher reindexes them like any save.
 Mapping credentials cannot reach the route.
 
+Change marks (`sourceChanges.ts`) compare the editor with
+`GET /api/files/<id>/committed`, which returns the file at HEAD
+(`gitworktree.CommittedFile`: `rev-parse HEAD:./name`, `cat-file`) and, from the
+structural journal, who changed the file since its last commit
+(`db.FileAuthorsSince`: `file.created`/`file.updated` rows grouped by actor and
+work session). `Chunk.build`/`Chunk.updateB` from `@codemirror/merge` keep the
+changed ranges current as the person types; the gutter and an overview ruler
+(a view plugin over the scrollbar, scaled to content height) draw them. A line
+is "mine" when a person edit (`input`, `delete`, `undo`, `redo`, `move` user
+events) touched it in this editor; otherwise it is an agent's when every
+author since the commit was an agent, else unattributed - the journal knows
+files, not lines. Revert replaces a chunk with the committed lines in the
+file's own line break. The outline (`sourceOutline.ts`) maps the indexed
+symbols to positions and through edits, for the breadcrumb and same-file
+Ctrl+click; other names resolve through `symbolLookup.ts`, and following one
+pushes the current place on `useSourcePreviewStore`'s history for Back. The
+dialog watches its file's record in the graph store: a `file:updated` patch
+refetches the source, and a new hash reloads an unedited editor through a
+minimal diff (`replaceWithin`) or raises the conflict bar over edits. Unsaved
+edits are written to `localStorage` (`ambio.sourceDraft.<workspace>.<file>`)
+with the hash they were made against and offered back on the next open.
+
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config
 files (compose, `.env`, Dockerfile, Procfile, fly/vercel/netlify/render/railway,

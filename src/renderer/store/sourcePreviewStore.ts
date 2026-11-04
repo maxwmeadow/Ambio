@@ -2,7 +2,8 @@ import { create } from 'zustand'
 
 /**
  * The one source viewer anything in the app can open at a line: a chat
- * reply's code reference today. Shown by SourcePreviewHost.
+ * reply's code reference, a symbol row, a search result. Shown by
+ * SourcePreviewHost.
  */
 export interface SourcePreviewRequest {
   fileId: string
@@ -17,12 +18,22 @@ export interface SourcePreviewRequest {
 
 interface SourcePreviewStore {
   request: SourcePreviewRequest | null
+  /** Where Ctrl+click came from, newest last, for Back. */
+  history: SourcePreviewRequest[]
   open: (request: SourcePreviewRequest) => void
+  /** Go to a definition, remembering where it was followed from. */
+  follow: (request: SourcePreviewRequest, from: SourcePreviewRequest) => void
+  back: () => void
   close: () => void
 }
 
 export const useSourcePreviewStore = create<SourcePreviewStore>(set => ({
   request: null,
-  open: request => set({ request }),
-  close: () => set({ request: null }),
+  history: [],
+  open: request => set({ request, history: [] }),
+  follow: (request, from) => set(state => ({ request, history: [...state.history.slice(-19), from] })),
+  back: () => set(state => state.history.length
+    ? { request: state.history[state.history.length - 1], history: state.history.slice(0, -1) }
+    : state),
+  close: () => set({ request: null, history: [] }),
 }))

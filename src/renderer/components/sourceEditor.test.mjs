@@ -33,6 +33,24 @@ test('a file comes back byte for byte, whatever its line endings', () => {
   }
 })
 
+test('reloading from disk changes only what differs and keeps the file\'s line breaks', async () => {
+  const { replaceWithin, detectIndent } = await import('./sourceEditor.ts')
+  for (const [before, after] of [['a\r\nb\r\nc\r\n', 'a\r\nB!\r\nc\r\nd\r\n'], ['x\ny\n', 'x\n'], ['', 'new\n'], ['keep\n', 'keep\n']]) {
+    const state = open(before)
+    assert.equal(state.update(replaceWithin(state, after)).state.sliceDoc(), after, JSON.stringify([before, after]))
+  }
+  // The cursor on an untouched line stays on it.
+  const state = open('one\ntwo\nthree\n')
+  const placed = state.update({ selection: { anchor: state.doc.line(3).from + 2 } }).state
+  const reloaded = placed.update(replaceWithin(placed, 'ONE\ntwo\nthree\n')).state
+  assert.equal(reloaded.doc.lineAt(reloaded.selection.main.head).text, 'three')
+
+  assert.deepEqual(detectIndent('def a():\n    if b:\n        c\n'), { unit: '    ', label: 'Spaces: 4' })
+  assert.deepEqual(detectIndent('{\n  a\n  {\n    b\n  }\n}\n'), { unit: '  ', label: 'Spaces: 2' })
+  assert.deepEqual(detectIndent('func a() {\n\tb()\n\tif c {\n\t\td()\n\t}\n}\n'), { unit: '\t', label: 'Tabs' })
+  assert.deepEqual(detectIndent('no indentation\n'), { unit: '    ', label: 'Spaces: 4' })
+})
+
 test('the separator is whichever break the file mostly uses', () => {
   assert.equal(lineSeparatorOf('a\r\nb\r\nc\n'), '\r\n')
   assert.equal(lineSeparatorOf('a\nb\nc\r\n'), '\n')

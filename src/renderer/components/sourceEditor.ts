@@ -5,13 +5,15 @@
  */
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { bracketMatching, foldGutter, foldKeymap, HighlightStyle, indentOnInput, LanguageDescription, syntaxHighlighting } from '@codemirror/language'
+import { bracketMatching, foldGutter, foldKeymap, HighlightStyle, indentOnInput, indentUnit, LanguageDescription, syntaxHighlighting } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
-import { EditorState, StateField, type Extension, type Range } from '@codemirror/state'
+import { diff } from '@codemirror/merge'
+import { EditorState, StateField, type Extension, type Range, type TransactionSpec } from '@codemirror/state'
 import { Decoration, type DecorationSet, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import { sourceChanges, targetLinesFacet } from './sourceChanges.ts'
+import { outlineField } from './sourceOutline.ts'
 
 /**
  * The line break a file uses, so a save writes the same bytes the person did
@@ -22,6 +24,37 @@ export function lineSeparatorOf(content: string): '\n' | '\r\n' {
   const crlf = content.match(/\r\n/g)?.length ?? 0
   const lf = (content.match(/\n/g)?.length ?? 0) - crlf
   return crlf > lf ? '\r\n' : '\n'
+}
+
+/**
+ * How the file indents, so Tab and Enter add what is already there: tabs when
+ * most indented lines start with one, else the smallest step of spaces most
+ * lines move by (2, 4 or 8). A file with no indentation gets 4 spaces.
+ */
+export function detectIndent(content: string): { unit: string; label: string } {
+  let tabs = 0
+  let spaced = 0
+  const steps = new Map<number, number>()
+  let previous = 0
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.trim()) continue
+    const lead = /^[ \t]*/.exec(line)![0]
+    if (lead.startsWith('\t')) { tabs++; continue }
+    const width = lead.length
+    if (width) spaced++
+    const step = Math.abs(width - previous)
+    if (step >= 2 && step <= 8) steps.set(step, (steps.get(step) ?? 0) + 1)
+    previous = width
+  }
+  if (tabs > spaced) return { unit: '\t', label: 'Tabs' }
+  const best = [...steps].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0]
+  const size = best === 2 || best === 4 || best === 8 ? best : 4
+  return { unit: ' '.repeat(size), label: `Spaces: ${size}` }
+}
+
+/** The editor's name for a file's language, for the status line. */
+export function languageName(relPath: string): string {
+  return LanguageDescription.matchFilename(languages, relPath.split('/').pop() ?? relPath)?.name ?? 'Plain text'
 }
 
 /** The editor language for a file, loaded on demand; null for plain text. */
@@ -123,9 +156,30 @@ export interface SourceEditorOptions {
   onChange: (state: EditorState) => void
   /** Ctrl+I, VS Code's inline-chat key: ask the agent about the selection. */
   onAsk?: () => boolean
+  /** The cursor or selection moved, or the text changed: for the status line and breadcrumb. */
+  onCursor?: (state: EditorState) => void
+  /** Ctrl+click or F12 on a name: open its definition. */
+  onDefinition?: (name: string, position: number) => void
 }
 
-export function sourceEditorState({ content, range, dynamic, onSave, onChange, onAsk }: SourceEditorOptions): EditorState {
+/** The identifier at a position, if any. */
+function nameAt(state: EditorState, position: number): string | null {
+  const word = state.wordAt(position)
+  const text = word ? state.sliceDoc(word.from, word.to) : ''
+  return /^[A-Za-z_$][\w$]*$/.test(text) ? text : null
+}
+
+export function sourceEditorState({ content, range, dynamic, onSave, onChange, onAsk, onCursor, onDefinition }: SourceEditorOptions): EditorState {
+  const indent = detectIndent(content)
+  const definitionKeys = onDefinition ? [{
+    key: 'F12',
+    run: (view: EditorView) => {
+      const at = view.state.selection.main.head
+      const name = nameAt(view.state, at)
+      if (name) onDefinition(name, at)
+      return !!name
+    },
+  }] : []
   return EditorState.create({
     doc: content,
     extensions: [
@@ -146,13 +200,43 @@ export function sourceEditorState({ content, range, dynamic, onSave, onChange, o
       rectangularSelection(),
       highlightActiveLine(),
       highlightSelectionMatches(),
-      keymap.of([{ key: 'Mod-s', run: onSave, preventDefault: true }, ...(onAsk ? [{ key: 'Mod-i', run: onAsk, preventDefault: true }] : []), ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+      keymap.of([{ key: 'Mod-s', run: onSave, preventDefault: true }, ...(onAsk ? [{ key: 'Mod-i', run: onAsk, preventDefault: true }] : []), ...definitionKeys, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+      indentUnit.of(indent.unit),
+      EditorState.tabSize.of(indent.unit === '\t' ? 4 : indent.unit.length),
+      outlineField,
       targetLines(range.start, range.end),
-      EditorView.updateListener.of(update => { if (update.docChanged) onChange(update.state) }),
+      EditorView.updateListener.of(update => {
+        if (update.docChanged) onChange(update.state)
+        if (update.docChanged || update.selectionSet) onCursor?.(update.state)
+      }),
+      EditorView.domEventHandlers({
+        mousedown(event, view) {
+          if (!onDefinition || event.button !== 0 || !(event.ctrlKey || event.metaKey)) return false
+          const at = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          const name = at === null ? null : nameAt(view.state, at)
+          if (!name || at === null) return false
+          event.preventDefault()
+          onDefinition(name, at)
+          return true
+        },
+      }),
       theme,
       dynamic,
     ],
   })
+}
+
+/**
+ * The edit that turns the editor's text into new content (the file as it is
+ * on disk now) by changing only what differs, so the cursor, folds and marks
+ * on untouched lines stay where they are. Compared as the editor's own lines,
+ * so the file's line breaks are never rewritten.
+ */
+export function replaceWithin(state: EditorState, content: string): TransactionSpec {
+  const next = state.toText(content)
+  const changes = diff(state.doc.toString(), next.toString())
+    .map(change => ({ from: change.fromA, to: change.toA, insert: next.slice(change.fromB, change.toB) }))
+  return { changes, userEvent: 'disk' }
 }
 
 /** At most this many lines of code go into a message to an agent; it can read the rest. */
