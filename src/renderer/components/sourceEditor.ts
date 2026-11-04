@@ -120,14 +120,18 @@ const theme = EditorView.theme({
   '.cm-change-peek-head button': { padding: '2px 8px', border: '1px solid #4d5955', borderRadius: '1px', backgroundColor: '#263134', color: '#e6e1d6', fontSize: '11px', cursor: 'pointer' },
   '.cm-change-peek-head button:hover': { borderColor: '#6fa9a0' },
   '.cm-change-peek-old': { margin: '0', padding: '4px 10px 6px', backgroundColor: 'rgba(241, 76, 76, 0.12)', color: '#d7b3ae', whiteSpace: 'pre', overflowX: 'auto' },
-  '.cm-overview-ruler': { position: 'absolute', top: '0', right: '0', bottom: '0', width: '12px', pointerEvents: 'none', zIndex: '3' },
-  '.cm-overview-mark': { position: 'absolute', left: '2px', right: '2px', opacity: '0.85' },
-  '.cm-overview-added': { backgroundColor: '#2EA043' },
-  '.cm-overview-modified': { backgroundColor: '#1B81A8' },
-  '.cm-overview-deleted': { backgroundColor: '#F14C4C', height: '3px !important' },
-  '.cm-overview-by-agent.cm-overview-added, .cm-overview-by-agent.cm-overview-modified': { backgroundColor: '#B180D7' },
-  '.cm-overview-target': { left: '0', right: '6px', backgroundColor: '#65a69d' },
-  '.cm-overview-search': { left: '6px', right: '0', height: '2px !important', backgroundColor: '#D18616' },
+  // Lanes over the scrollbar: a thin, quiet strip on the left for the lines
+  // you were pointed at (often a whole function), and the rest for changes,
+  // drawn on top and bright so a one-line edit is never lost beside it.
+  '.cm-overview-ruler': { position: 'absolute', top: '0', right: '0', bottom: '0', width: '14px', pointerEvents: 'none', zIndex: '3' },
+  '.cm-overview-mark': { position: 'absolute' },
+  '.cm-overview-target': { left: '0', width: '2px', backgroundColor: 'rgba(101, 166, 157, 0.45)', zIndex: '1' },
+  '.cm-overview-added, .cm-overview-modified, .cm-overview-deleted': { left: '3px', right: '1px', minHeight: '4px', zIndex: '2', boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.55)' },
+  '.cm-overview-added': { backgroundColor: '#3FB950' },
+  '.cm-overview-modified': { backgroundColor: '#2F9BD1' },
+  '.cm-overview-deleted': { backgroundColor: '#F85149', height: '4px !important' },
+  '.cm-overview-by-agent.cm-overview-added, .cm-overview-by-agent.cm-overview-modified': { backgroundColor: '#C792EA' },
+  '.cm-overview-search': { left: '3px', right: '1px', height: '2px !important', backgroundColor: '#E2A63A', zIndex: '3' },
 }, { dark: true })
 
 const targetLine = Decoration.line({ class: 'source-preview-line-highlighted' })

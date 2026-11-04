@@ -4123,6 +4123,17 @@ test('the editor marks what changed since the commit, whose change it is, and ca
   await expect(dialog.locator('.cm-change-added.cm-change-by-agent')).toHaveCount(1)
   await expect(dialog.locator('.cm-overview-mark.cm-overview-by-agent')).toHaveCount(2)
   await expect(dialog.locator('.cm-overview-target')).toHaveCount(1)
+  // On the scrollbar a change stands out over the pointed-at lines, which may span a whole function.
+  const lanes = await dialog.evaluate(element => {
+    const box = (selector: string) => {
+      const mark = element.querySelector(selector)!
+      return { width: mark.getBoundingClientRect().width, height: mark.getBoundingClientRect().height, z: Number(getComputedStyle(mark).zIndex) }
+    }
+    return { target: box('.cm-overview-target'), change: box('.cm-overview-modified') }
+  })
+  expect(lanes.change.width).toBeGreaterThan(lanes.target.width * 3)
+  expect(lanes.change.height).toBeGreaterThanOrEqual(4)
+  expect(lanes.change.z).toBeGreaterThan(lanes.target.z)
 
   // A line the person types is theirs; the agent's line beside it stays the agent's.
   await dialog.locator('.cm-line', { hasText: 'log()' }).click()
