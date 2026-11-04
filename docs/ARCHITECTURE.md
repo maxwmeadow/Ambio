@@ -775,13 +775,36 @@ waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in
 memory) and are answered in the panel (`store/agentPermissionStore.ts`).
+New Codex conversations use `codexAppServer.ts` over the installed CLI's stdio
+App Server. The connection initializes with Ambio's own client identity, then
+starts or resumes a provider thread in the conversation's existing checkout.
+Each run owns one process; subsequent runs resume that provider thread. Receipts
+pin the connection per conversation (legacy receipts mean exec); exec is an
+explicit choice for a new conversation. Native errors never replay a prompt
+or replace a missing thread automatically. The existing MCP configuration and
+scoped mapping credentials travel unchanged on the CLI configuration boundary.
+The composer sends acknowledged corrections with the active provider turn as
+a precondition. Stop first interrupts, then terminates the process tree if it
+does not exit. Default permissions preserve the recorded full-access policy;
+optional Ask me selects a project sandbox with on-request approval on Unix, or
+full access with untrusted command approvals on Windows (where shell sandbox
+initialization fails). Approval callbacks wait on the existing permission desk
+and are aborted when their owning request/turn ends. Native review runs inline,
+then passes its findings into a normal Ambio handoff turn so claiming and replies
+keep the existing work-order contract. Models come from native `model/list`,
+with the CLI cache available when discovery fails; usage is explicitly a thread
+total, rather than mislabelling the last inference as a complete turn.
+Codex activity keeps stable item identities for streamed updates, bounded command
+output and diffs; the runner compacts repeated snapshots. Completed replies keep
+expandable activity/usage. Worktree handoffs distinguish the shared project root
+reported by MCP from the checkout in which the agent must edit.
 Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
 latest few while it works. Thinking comes from Claude Code's `thinking` blocks
 (when the model fills them), Codex's reasoning summaries
 (`model_reasoning_summary="auto"`), Cursor's streamed `thinking` events and ACP
 `agent_thought_chunk` updates, each tidied to one line (`thought`). Antigravity
 CLI 1.4 reports only a count of thinking tokens. A driver can also `follow`
-what its host records outside its output: in code mode (codex-cli 0.165) Codex
+what its host records outside its output: on the legacy exec route, in code mode (codex-cli 0.165) Codex
 works through JavaScript `exec` snippets, and one that only works on data in
 memory prints nothing on `--json`, so `codexTranscript.ts` tails the session's
 `$CODEX_HOME/sessions/…/rollout-…-<thread id>.jsonl` and reports each

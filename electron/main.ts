@@ -1635,6 +1635,10 @@ function setupIPC(): void {
     if (typeof workspaceId !== 'string' || typeof key !== 'string') throw new Error('Invalid agent run.')
     return deliveryRunner.stop(workspaceId, key)
   })
+  ipcMain.handle('agent:delivery-steer', (_event, workspaceId: string, key: string, text: string) => {
+    if (typeof workspaceId !== 'string' || typeof key !== 'string' || !loadRecentProjects().some(project => project.id === workspaceId)) throw new Error('Invalid agent run.')
+    return deliveryRunner.steer(workspaceId, key, text)
+  })
   // One bootstrap per attempt: retries must not rotate a live agent's credential.
   const mappingLaunches = new Map<string, Promise<unknown>>()
   const deliver = async (request: DeliveryRequest) => {
@@ -1723,9 +1727,16 @@ function setupIPC(): void {
       const driver = agentDriver(request.hostId)
       const mode = turnMode(body.mode)
       const threadId = conversation
-      if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
+      if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { checkoutPath: workPath })
       const resume = !mapping && driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
       const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(validModel(request.model) ? { model: request.model } : {}) }
+      if (request.codexTransport !== undefined && !['app-server', 'exec'].includes(request.codexTransport)) throw new Error('Invalid Codex transport.')
+      if (request.codexApproval !== undefined && !['never', 'on-request'].includes(request.codexApproval)) throw new Error('Invalid Codex access setting.')
+      const pinnedCodex = request.hostId === 'codex' ? deliveryRunner.codexTransport(project.id, threadId) : undefined
+      if (pinnedCodex && request.codexTransport && pinnedCodex !== request.codexTransport) throw new Error('This conversation keeps its Codex connection. Start a new conversation to change it.')
+      const codexTransport = request.hostId === 'codex' ? pinnedCodex ?? request.codexTransport ?? 'app-server' : undefined
+      const nativeCodex = codexTransport === 'app-server'
+      if (request.codexReview && (!nativeCodex || mapping || mode !== 'ask')) throw new Error('Native Codex review requires an Ask turn over App Server.')
       const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
       // An ACP agent is given Ambio's tools for the session and continues or
       // restarts the session itself.
@@ -1736,12 +1747,16 @@ function setupIPC(): void {
       } : undefined
       // A host with both ways in is tried as a session first; print mode is the
       // same turn started the way it always was.
-      const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
+      const driverTurn = { hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }
+      const plan = nativeCodex ? { args: driver!.appServerArgs!(driverTurn), stdin: undefined, sessionId: undefined }
+        : driver?.acpArgs ? { args: driver.acpArgs(driverTurn), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
       const run = await deliveryRunner.start({
         ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
         args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
+        codexTransport,
+        ...(nativeCodex ? { codex: { resume, model: turn.model, approval: request.codexApproval ?? 'never', review: request.codexReview } } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
-        ...(driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
+        ...(nativeCodex || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })
       return { detail: run.detail, run }
     } catch (error) {

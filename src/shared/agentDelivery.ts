@@ -1,4 +1,6 @@
 export type DeliveryRoute = 'run' | 'open' | 'copy'
+export type CodexTransport = 'app-server' | 'exec'
+export interface DeliveryUsage { scope?: 'thread'; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningOutputTokens: number; totalTokens: number }
 
 /** Supported terminal routes, independent of what happens to be installed. */
 export const CLI_CLIENTS = [
@@ -49,6 +51,11 @@ export interface DeliveryHost {
 }
 
 export interface DeliveryRun {
+  codexTransport?: CodexTransport
+  codexApproval?: 'never' | 'on-request'
+  canSteer?: boolean
+  serverVersion?: string
+  usage?: DeliveryUsage
   key: string
   workspaceId: string
   messageId: string
@@ -74,6 +81,12 @@ export interface DeliveryRun {
 
 /** One thing a running agent said or did, as the host reported it. */
 export interface DeliveryEvent {
+  /** Stable provider item identity; later snapshots replace the earlier activity. */
+  id?: string
+  status?: string
+  output?: string
+  diff?: string
+  exitCode?: number | null
   at: number
   /** thinking: the agent's own summary of its reasoning, where the host reports one. */
   kind: 'text' | 'tool' | 'error' | 'thinking'
@@ -81,6 +94,9 @@ export interface DeliveryEvent {
 }
 
 export interface DeliveryRequest {
+  codexTransport?: CodexTransport
+  codexApproval?: 'never' | 'on-request'
+  codexReview?: boolean
   workspaceId: string
   messageId: string
   hostId: string
@@ -228,11 +244,11 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   },
   codex: {
     need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
-    how: STARTED('Codex'),
+    how: [...STARTED('Codex'), 'New conversations use the native interactive connection. Send corrections while it works; Codex options also offers a native review of current changes. Existing conversations keep their connection; choose Exec in a new conversation for compatibility.'],
     can: [
       'Ask and Propose: can read and run anything to answer, and is told not to change files.',
       'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',
-      FULL_ACCESS,
+      'Full access is the default. Ask me in Codex options asks here before commands on Windows; on macOS/Linux, Build uses a project sandbox and asks for extra access. Ask and Propose keep their platform-specific restrictions.',
     ],
   },
   'copilot-cli': {

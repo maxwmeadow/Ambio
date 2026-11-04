@@ -16,8 +16,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   const scripts: Record<string, string> = { claude: '@anthropic-ai/claude-code/cli.js', codex: '@openai/codex/bin/codex.js', copilot: '@github/copilot/index.js' }
   for (const [name, entry] of Object.entries(scripts)) {
     const script = path.join(bin, 'node_modules', entry)
-    fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, fakeAgent)
-    if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${fakeAgent}`, { mode: 0o755 })
+    const source = name === 'codex' ? fs.readFileSync(path.join(__dirname, 'fixtures', 'codex-app-server.cjs'), 'utf8') : fakeAgent
+    fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, source)
+    if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${source}`, { mode: 0o755 })
   }
   const protocolPeer = fs.readFileSync(path.join(__dirname, 'fixtures', 'grok-muse-agent.cjs'), 'utf8')
   const grokBootstrap = path.join(bin, 'node_modules', '@xai-official', 'grok', 'bin', 'grok-bootstrap.js')

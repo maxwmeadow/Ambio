@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- New Codex conversations use the installed CLI's native App Server, with live
+  text, corrections during work, command output, diffs and token usage. Codex
+  options offers approval controls and native code review. Existing conversations
+  keep exec; new conversations can choose it explicitly for compatibility.
+
 - Investigations now follow a sequence of animated step cards, with clear
   phase headings and separate finding and suggested-fix cards. New steps queue
   with time to read; browsing pauses following, with previous/next controls,

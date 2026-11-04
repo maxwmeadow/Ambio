@@ -85,7 +85,7 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
           const fresh = await window.ambio.listDeliveryEvents?.(workspaceId, run.key, 0) ?? []
           if (!active) return
           const next = Object.assign(fresh, { settled: !working })
-          if (!known || known.length !== fresh.length || !working) { seen.current = { ...seen.current, [run.key]: next }; setEvents(seen.current) }
+          if (!known || JSON.stringify(known) !== JSON.stringify(fresh) || !working) { seen.current = { ...seen.current, [run.key]: next }; setEvents(seen.current) }
         }
       } catch { if (active) setNotice('Agent run status unavailable. Check the host before sending again.') }
       const watchingNow = await watching()
@@ -96,11 +96,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
   // `place` is the turn's own: only a conversation's first Build can ask for a worktree.
-  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here') => {
+  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', codex?: Pick<import('../../shared/agentDelivery').DeliveryRequest, 'codexTransport' | 'codexApproval' | 'codexReview'>) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place, ...codex })
       if (workspace.current !== workspaceId) return
       // A run says where it stands on its turn; the notice is for routes that need the user.
       setNotice(result.run ? '' : result.detail)
@@ -336,8 +336,8 @@ export const runWorking = (run?: DeliveryRun) => !!run && (run.state === 'starti
  * (with what it is doing), or how its run ended. Stopping is the message
  * box's job; once the agent answers, its reply is the record.
  */
-export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
-  run: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; onRetry?: () => void
+export function AgentDeliveryStatus({ run, hosts, events = [], onRetry, hasReply }: {
+  run: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; onRetry?: () => void; hasReply?: boolean
 }) {
   const label = hosts.find(host => host.id === run.hostId)?.label ?? run.hostId
   const working = runWorking(run)
@@ -351,17 +351,18 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
   const lastSign = Math.max(run.startedAt, events.at(-1)?.at ?? 0)
   const quiet = working ? now - lastSign : 0
   // While it works, the latest of what it does; once it ends, why it ended.
-  const shown = working ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
+  const shown = working ? events.slice(-ACTIVITY_SHOWN) : run.codexTransport === 'app-server' ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
   const line = working ? `${label} is working${run.resumed ? ', continuing its earlier session' : ''} · ${elapsed(now - run.startedAt)}`
     : run.state === 'stopped' ? `${label} was stopped.`
-      : run.state === 'completed' ? `${label} finished without replying.`
+      : run.state === 'completed' ? hasReply ? `${label} finished.` : `${label} finished without replying.`
         : `${label} stopped without an answer.`
   return <div className="ambio-inbox__turn-status" data-state={working ? 'working' : 'ended'} role="status">
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}</li>)}
+      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind}>{event.text}{event.status && <small> · {event.status}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}</li>)}
     </ol>}
+    {run.usage && <small>{run.usage.scope === 'thread' ? 'Thread total · ' : ''}{run.usage.inputTokens.toLocaleString()} input · {run.usage.outputTokens.toLocaleString()} output tokens{run.usage.cachedInputTokens ? ` · ${run.usage.cachedInputTokens.toLocaleString()} cached` : ''}</small>}
     <div className="ambio-inbox__turn-actions">
       {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}
       <button type="button" className="ambio-inbox__turn-link" onClick={() => window.ambio.showInFolder(run.logPath)}>Show output</button>
