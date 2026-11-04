@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { caseFromState, caseSummary, emptyCase, reduceCase, traceStepsForRun } from './caseFile.ts'
+import { caseFromState, caseSteps, caseSummary, emptyCase, reduceCase, traceStepsForRun } from './caseFile.ts'
 
 const fold = (events, start = null) =>
   events.reduce((state, [type, payload], i) => reduceCase(state, type, payload, 1000 + i * 100), start)
@@ -148,4 +148,47 @@ test('delayed feedback events from an old investigation cannot enter its replace
   assert.equal(reduceCase(received, 'investigation:message_delivered', { caseId: 'old-case', ids: ['m1'] }, 2), received)
   const delivered = reduceCase(received, 'investigation:message_delivered', { caseId: 'new-case', ids: ['m1'] }, 3)
   assert.equal(delivered.messages[0].deliveredAt, 3)
+})
+
+
+test('carousel steps preserve the original question and promote the finding and fix separately', () => {
+  let file = fold([
+    ['investigation:started', {id:'sensor',name:'Duplicate subscriptions'}],
+    ['investigation:hypothesis', hypothesis('H1','Late startup attaches a listener after cleanup.')],
+  ])
+  const first = caseSteps(file)[0]
+  file = reduceCase(file, 'investigation:run_started', {command:'node repro.cjs',hypothesisId:'H1'}, 1200)
+  assert.deepEqual(caseSteps(file).map(step=>step.kind), ['hypothesis','running'])
+  file = reduceCase(file, 'investigation:run', {run:{id:'r1',n:1,command:'node repro.cjs',exitCode:0,headline:'Two listeners remain'}},1300)
+  file = reduceCase(file, 'investigation:verdict',hypothesis('H1',first.text,'confirmed','The interrupted schedule leaves two listeners.'),1400)
+  file = reduceCase(file, 'investigation:conclusion',{conclusion:{rootCause:'Startup outlives cleanup.',fix:'Cancel pending startup.',at:1500}},1500)
+  const steps = caseSteps(file)
+  assert.deepEqual(steps.map(step=>step.kind), ['hypothesis','run','verdict','conclusion','fix'])
+  assert.equal(steps[0].id,first.id)
+  assert.equal(steps[0].text,first.text,'a verdict must not replace the question card')
+  assert.equal(steps[2].status,'confirmed')
+  assert.equal(steps[3].text,'Startup outlives cleanup.')
+  assert.equal(steps[4].title,'Suggested fix')
+  assert.equal(steps[4].text,'Cancel pending startup.')
+  assert.equal(steps[1].run.id,'r1')
+})
+
+test('carousel IDs survive feedback delivery and legacy snapshot hydration', () => {
+  const file = caseFromState({id:'old',name:'Saved case',hypotheses:[{id:'H1',text:'A question',status:'confirmed',createdAt:10,decidedAt:40,verdict:'Supported'}],runs:[{id:'r1',n:1,at:20,command:'node test.cjs'}],messages:[{id:'m1',text:'Check cleanup',at:30}],conclusion:{rootCause:'Late startup',fix:'Cancel startup',at:50}})
+  const before = caseSteps(file)
+  const delivered = reduceCase(file,'investigation:message_delivered',{ids:['m1']},60)
+  assert.deepEqual(caseSteps(delivered).map(step=>step.id),before.map(step=>step.id))
+  assert.deepEqual(before.map(step=>step.kind),['hypothesis','run','message','verdict','conclusion','fix'])
+})
+
+test('carousel distinguishes failed experiments, an unfinished case and replay before its first event', () => {
+  const file = fold([
+    ['investigation:started',{id:'c',name:'Missing sensor'}],
+    ['investigation:run',{run:{id:'failed',error:'Command not found',n:1}}],
+    ['investigation:stopped',{id:'c'}],
+  ])
+  assert.deepEqual(caseSteps(file).map(step=>step.kind),['run','ended'])
+  assert.equal(caseSteps(file)[0].title,'The experiment could not start')
+  assert.equal(caseSteps(file)[1].title,'Ended without a conclusion')
+  assert.equal(caseSteps(emptyCase('r','Saved case','replay'))[0].kind,'opening')
 })

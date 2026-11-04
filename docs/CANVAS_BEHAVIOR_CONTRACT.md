@@ -828,13 +828,25 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
 
 ### Investigation reader and feedback (Max, November 3, 2026)
 
-- A case has one compact current question/activity/finding and expandable
-  evidence/history. There is no repeated hypothesis board or separate composer.
-- The entire body scrolls as one reader, bounded to 580px or the available
-  height; opening long prose, runs or raw output cannot squeeze history into
-  its own smaller scrollbar. Header and actions stay reachable. New events and
-  case completion preserve the evidence the user is reading; Latest step is
-  explicit. A new case starts compact.
+- Investigations read as an animated step carousel. Recorded questions,
+  experiments, observations, assessments and guidance remain separate cards;
+  the finding and suggested fix each have a prominent card. An in-progress
+  command becomes its completed experiment in the same timeline position.
+  There is no repeated hypothesis board or separate composer.
+- New live steps queue in order behind a 3.5–7.5 second reading interval,
+  rather than silently replacing a paragraph or skipping a burst of results.
+  Moving over a card temporarily holds it; interaction or browsing an earlier
+  card pauses following until Resume following or Latest step. The newer-step
+  count stays visible. Previous/Next, nearby-step dots, a complete step index,
+  and Left/Right/Home/End navigate the same sequence. Opening a case midway
+  starts at its latest step rather than replaying its entire backlog.
+- The card keeps a stable 540px height, capped at 580px or available space.
+  The current card or step index has one scrolling body; header, navigation
+  and actions stay reachable. Expanding prose or raw output cannot create a
+  second squeezed history scrollbar. Incoming events preserve the selected
+  earlier card and its scroll position. Step headings have strong visual
+  weight, and each code destination has one filename with optional distinct
+  symbol context; redundant module-name/filename pairs are suppressed.
 - Run details preserve all findings, samples and available output. No watched
   functions and no fix-verification run are stated separately from successful
   command execution and the agent's conclusion.
@@ -848,8 +860,12 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   Explicit expansion borrows bounded viewport space; replying minimizes it
   again to keep chat usable. Ordinary card width is at most 420px.
 - Replay uses the same card with read-only feedback and recorded-command
-  labels. Its transport remains clear of the card. Reduced-motion mode
-  disables arrival, pulse and chevron animations.
+  labels. Its transport remains clear of the card. Playback supplies the event
+  pace; seeking lands on that recorded moment, with a conclusion first showing
+  the finding and the proposed fix available as the next card. Browsing pauses
+  following. Reduced-motion mode disables arrival, pulse, chevron and swipe
+  animations; outgoing animation layers cannot intercept pointer or keyboard
+  access to the step index.
 
 ### First-run payoff
 

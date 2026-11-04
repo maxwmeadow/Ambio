@@ -7,11 +7,13 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
-- Investigations now show one compact current finding, expandable evidence and
-  a single scrollable history. Runs expose command output, findings and sample
-  calls on demand; replay uses the same reader. Reply in chat replaces the
-  separate investigation input, keeps delivery status visible and preserves
-  unsent drafts when a case ends or changes.
+- Investigations now follow a sequence of animated step cards, with clear
+  phase headings and separate finding and suggested-fix cards. New steps queue
+  with time to read; browsing pauses following, with previous/next controls,
+  a step index and Latest step to catch up. Code links show one clear filename.
+  Evidence stays expandable in one bounded reader; saved replay uses the same
+  cards. Reply in chat keeps delivery status and unsent drafts when a case ends
+  or changes.
 
 - Terminal controls now fit in one compact top bar with shell options tucked
   into a menu and no footer. Terminal and agent messages share a saved sidebar

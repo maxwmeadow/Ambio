@@ -288,6 +288,63 @@ export function caseFromState(c: any): CaseFile | null {
   return base
 }
 
+/** A presentation of the recorded story, shared by live viewing and replay.
+ * Running commands are provisional: their completed experiment occupies the
+ * same place. Findings and proposed fixes are separate, first-class steps.
+ * IDs do not depend on the current hypothesis status or feedback delivery. */
+export interface CaseStep {
+  id: string
+  kind: 'opening' | 'hypothesis' | 'running' | 'run' | 'note' | 'verdict' | 'message' | 'conclusion' | 'fix' | 'ended'
+  title: string
+  label: string
+  text: string
+  anchors?: CaseAnchor[]
+  run?: CaseRun
+  hypothesisId?: string
+  status?: HypothesisStatus
+  messageId?: string
+}
+
+export function caseSteps(file: CaseFile): CaseStep[] {
+  const steps: CaseStep[] = []
+  for (const [index, entry] of file.entries.entries()) {
+    const id = `${entry.kind}:${index}:${entry.at}`
+    switch (entry.kind) {
+      case 'hypothesis': {
+        const h = file.hypotheses.find(h => h.id === entry.hypothesisId)
+        if (h) steps.push({id, kind:'hypothesis', title:'A possible cause', label:`Hypothesis ${h.id}`, text:h.text, anchors:h.anchors, hypothesisId:h.id})
+        break
+      }
+      case 'run': {
+        const run = file.runs.find(r => r.id === entry.runId)
+        if (run) steps.push({id, kind:'run', title:run.error ? 'The experiment could not start' : run.timedOut ? 'The experiment timed out' : run.exitCode !== 0 ? 'The command failed' : 'The experiment finished', label:`Experiment R${run.n}`, text:run.headline, run, hypothesisId:run.hypothesisId})
+        break
+      }
+      case 'note':
+        steps.push({id, kind:'note', title:'A new observation', label:'Observation', text:entry.text, anchors:entry.anchors})
+        break
+      case 'verdict':
+        steps.push({id, kind:'verdict', title:entry.status === 'confirmed' ? 'The hypothesis is supported' : entry.status === 'refuted' ? 'The hypothesis is ruled out' : 'The cause is still uncertain', label:`Assessment · ${entry.hypothesisId}`, text:entry.text ?? '', hypothesisId:entry.hypothesisId, status:entry.status})
+        break
+      case 'message': {
+        const message = file.messages.find(m => m.id === entry.messageId)
+        if (message) steps.push({id, kind:'message', title:'Your guidance', label:'Message', text:message.text, anchors:message.anchor ? [message.anchor] : undefined, messageId:message.id})
+        break
+      }
+      case 'conclusion': {
+        const c = file.conclusion
+        if (!c) break
+        steps.push({id, kind:'conclusion', title:'What’s causing it', label:'Finding', text:c.rootCause, anchors:c.anchors})
+        if (c.fix) steps.push({id:`${id}:fix`, kind:'fix', title:'Suggested fix', label:'Recommendation', text:c.fix, anchors:c.anchors})
+        break
+      }
+    }
+  }
+  if (file.running && !file.conclusion) steps.push({id:`running:${file.running.startedAt}`, kind:'running', title:'Testing the code', label:'Experiment in progress', text:file.running.command, anchors:file.running.watches, hypothesisId:file.running.hypothesisId})
+  if (file.status === 'closed' && !file.conclusion) steps.push({id:'ended', kind:'ended', title:'Ended without a conclusion', label:'Investigation ended', text:'The recorded questions and evidence are still available in the previous steps.'})
+  return steps.length ? steps : [{id:'opening', kind:'opening', title:'Opening the investigation', label:'Getting started', text:file.symptom || 'Questions and recorded evidence will appear here as the investigation develops.'}]
+}
+
 export interface RunTraceStep {
   callerFile: string
   callerSymbol: string

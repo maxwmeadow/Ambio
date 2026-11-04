@@ -445,3 +445,30 @@ including a larger eight-question/eight-run case. Fixture previews exercise
 more growth than the supplied one-question recording; they are not an identical
 before/after event stream. For the direct comparison, restart Ambio on
 `codex/investigation-card` and replay Max's saved Helios sensor reconnect case.
+
+
+## Step carousel refinement, 2026-11-03
+
+Max's next live Helios screenshots showed the first compact reader working,
+but phase changes still replaced a long paragraph silently, duplicate
+module/filename links read poorly, and the fix remained buried in a dropdown.
+Max requested an automatically advancing carousel with each step on its own
+card. This explicitly supersedes that presentation, not the investigation
+adoption or evidence findings above.
+
+The carousel projects the existing case/replay data into distinct question,
+experiment, observation, assessment, message, finding and suggested-fix cards.
+New steps advance in order behind a reading interval; hover holds the current
+card and interaction/browsing pauses following. A step index, arrows, nearby
+dots, newer-step count, Resume following and Latest step provide navigation.
+Strong phase headings and single filename destinations replace the weak label
+and duplicated link treatment. Expanded evidence/prose stays within the same
+bounded scrolling body. Existing chat feedback and client compatibility remain.
+
+Isolated Electron tests cover ordered advances through a burst of results,
+pause/resume, a 24-step investigation, all findings/output, source navigation,
+reduced motion, narrow chat layout, draft/delivery safety and saved replay.
+They caught and fixed a replay step-index interaction bug caused by reusing an
+inert outgoing animation layer. Preview screenshots are fixture renders, not
+new Helios executions. Restart Ambio on `codex/investigation-card` and replay
+the same saved Helios case for the next direct comparison.

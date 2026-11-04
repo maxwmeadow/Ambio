@@ -118,18 +118,26 @@ timeline, so a saved case opens to its conclusion and replays step by step.
 
 ## The person watching
 
-- **Case card**: a compact current question, running experiment, observation
-  or conclusion, shown once. Long prose expands on request. Evidence & history
-  opens chronological questions, runs, verdicts, notes and messages. The body
-  has one scrollbar; header and actions stay reachable as the case grows.
-  Updates preserve the reader's place, with Latest step available explicitly.
+- **Step carousel**: each question, experiment, observation, assessment and
+  message is a card in the investigation's sequence. Finding and suggested fix
+  get separate prominent cards. An in-progress command becomes the completed
+  experiment in the same position. Clear phase headings and a step counter
+  make transitions visible rather than changing a paragraph in place.
+- **Following**: new live cards advance in order, with a 3.5–7.5 second reading
+  interval. Rapid results queue rather than being skipped. Hover temporarily
+  holds the current card; interaction or browsing pauses following until Resume
+  following or Latest step. A newer-step count, previous/next buttons, nearby
+  dots, keyboard navigation and a full step index keep earlier evidence easy
+  to find. Joining an existing case starts at the latest card. The stable-height
+  body has one scrollbar; header, navigation and actions remain reachable.
 - **Evidence**: individual runs expand to command/status, every finding,
   watched functions and sample calls, and output. No watched-function evidence
   is stated explicitly. Recorded experiments and a linked fix-verification run
   are distinct; a suggested fix alone does not claim verification.
 - **The map**: a finished run animates the calls that crossed files, and each
-  watched file shows its call count and last real values. File/function chips
-  remain navigable from the card and expanded evidence.
+  watched file shows its call count and last real values. Code destinations
+  use a single filename with optional distinct symbol context and navigate
+  from either the card or expanded evidence.
 - **Talking back**: Reply in chat opens the existing chat composer with the
   investigation named as its explicit target. This composer is available while
   the ordinary turn is working; Send queues investigation feedback and Stop
@@ -147,17 +155,21 @@ timeline, so a saved case opens to its conclusion and replays step by step.
   ID so delayed events do not enter a replacement; captured events without
   that field remain compatible. Delivery remains acknowledged when the agent
   consumes the queue, rather than when the user presses Send.
-- **When the agent stops**: the finding remains compact, with an expandable
-  suggested fix and Watch the replay action. Closing the case does not collapse
-  evidence the person is reading.
+- **When the agent stops**: the finding and suggested fix remain separate
+  cards with Watch the replay available. A fix shows whether a verification
+  experiment is linked. Closing the case preserves the earlier step the person
+  is reading; queued cards can still be followed or reached with Latest step.
 - **Replay**: the same event handler and reader as live, paced so each finding
-  stays up long enough to read, with 1×/2×/4× speed. Saved running commands are
+  stays up long enough to read, with 1×/2×/4× speed. Seeking aligns the carousel
+  to that moment; a conclusion lands on its finding, followed by the fix card.
+  Browsing pauses following while the playback transport remains available.
+  Saved running commands are
   labeled as recorded rather than timed against today's wall clock. Feedback
   is read-only, and the card leaves space for the playback transport.
 - **Narrow canvas**: a minimized chip is the default when adjacent sidebars
   leave less than 340px. Explicit expansion uses a bounded viewport card; Reply
   in chat returns it to the chip so the composer stays usable. Reduced motion
-  disables arrival/pulse/chevron animations.
+  disables arrival/pulse/chevron/swipe animations.
 
 ## Performance
 

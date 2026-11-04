@@ -49,7 +49,6 @@ it or saying why in the Done log.
 
 ## Now
 
-- 🚧 `investigation-step-carousel` **Follow investigations as distinct step cards.** Max found silent paragraph replacements, weak phase headings and a buried fix hard to follow. Replace the current-finding reader with an animated, automatically following step carousel; pause following while browsing, preserve evidence/replay/chat and simplify file destinations. **Done when:** live arrivals visibly advance, previous steps remain readable, findings/fixes have prominent cards, navigation survives replay and narrow/reduced-motion layouts. (🚧 Codex, codex/investigation-card, 2026-11-03)
 
 
 The next things to do, in order. Max reorders this; agents pick from the top.
@@ -432,6 +431,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 - ⬜ `agent-citation-guidance` **Ask agents to cite code as `path/from/root.ext:line`.** The renderer reads every common style, but one requested form in `agentWorkflow.ts` guidance would make chips more reliable for clients that write bare prose. Changes installed guidance text. (2026-11-03)
 
 ## Done log
+
+- 2026-11-03 `investigation-step-carousel` Replaced changing summary/history with animated step cards, ordered automatic following, pause/resume, index/arrows/dots/keyboard navigation and distinct prominent finding/fix cards. Simplified file destinations; preserved evidence, shared chat, narrow/reduced-motion behavior and saved replay. Fixed inert animation-layer reuse blocking the replay index. Types/build, 915 unit tests (7 skipped) and 4 Electron journeys pass. (`codex/investigation-card`)
 
 - 2026-11-03 `investigation-conversation-presentation` Rebuilt the case UI as a compact current finding with expandable chronological evidence, a bounded single scroll area, readable run/output/sample details and preserved reading position. Source chips use shared reveal/frame navigation. Chat is the sole feedback composer, with explicit persisted case target, queued/delivered state, failed/stale draft protection and atomic server/event case binding; live and replay share the reader, and narrow layouts default to a chip. Types/build/vet, 912 unit tests (7 skipped), 48 MCP tests (2 skipped), 4 chat checks and 6 distinct Electron journeys pass, including the final source-navigation, narrow-reader and closed-without-conclusion checks. Full Go: API/runtime and other packages pass; only the already tracked Windows linked-worktree watcher test fails. Fixture previews saved outside the repo; replay Max's saved Helios case for the direct before/after comparison. (`codex/investigation-card`)
 
