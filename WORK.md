@@ -49,6 +49,8 @@ it or saying why in the Done log.
 
 ## Now
 
+- 🚧 `investigation-replay-navigation` **Connect the complete saved carousel to replay.** Max can open an eight-event recording but sees only the placeholder because the reader projects only the applied timeline prefix. Build the full saved step index immediately, seek timeline/map from carousel navigation and update the card from timeline playback/seeking. Restore pagination dots with an elongated active indicator. **Done when:** opening, bidirectional navigation, play/pause/restart, multi-card conclusions and bookkeeping events stay synchronized without live-feedback regressions. (🚧 Codex, codex/investigation-card, 2026-11-04)
+
 
 
 
