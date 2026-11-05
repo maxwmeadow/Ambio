@@ -7,6 +7,8 @@ The installed `codex-cli 0.162.1` generated the schemas used to check request an
 notification shapes; initialization identifies this client as Ambio. The Codex-side
 controls follow-up is on `codex/unify-codex`, branched from local
 `claude/agent-controls-unify` (`ede741d`), updated 2026-11-05.
+The pre-merge corrections are on `codex/unify-codex-fixes`, from local
+`trial/unify-all` (`50b85c7`).
 
 ## Behavior
 
@@ -28,17 +30,25 @@ controls follow-up is on `codex/unify-codex`, branched from local
   `on-request` with `auto_review`. Both retain a workspace-write sandbox for Build
   and a read-only sandbox for Ask/Propose, with network and temporary-directory
   exceptions off. Full access preserves the earlier platform policy.
-- Auto is offered only when `initialize.userAgent` reports the exact qualified
-  CLI version `0.162.1`; unknown versions and prereleases do not acquire it.
+- Auto is offered when `initialize.userAgent` reports a semantic version at or
+  above the qualified baseline `0.162.1`. Components compare numerically;
+  build metadata has no precedence and `0.162.1` prereleases sort below the
+  baseline. Unknown, malformed and older versions do not acquire it.
   A remembered Auto choice that becomes unavailable is preserved and labelled
   unavailable, so it cannot silently become Full access. Selecting Auto directly
   on an unqualified backend fails before creating a thread or sending a prompt.
+- Host listing reads cached qualification synchronously. A cold or expired
+  cache starts discovery in the background and returns Ask me/Full access;
+  Auto appears on a later capability refresh once the version is known. A hung
+  discovery process does not hold up the agent list.
 - Windows Ask me and Auto use the qualified `unelevated` restricted-token
   implementation. The installed default elevated helper fails initialization;
   the retired selectable `untrusted` approval policy is no longer sent. An
   unsupported Windows version is refused rather than given broader permissions.
   Codex must confirm the effective approval policy, reviewer and sandbox before
   Ambio sends the prompt. A sandbox failure never causes a Full access retry.
+  Max approved the selected Windows sandbox profiles on 2026-11-05; the new
+  DECISIONS row supersedes the earlier every-mode full-access rule.
 - Scoped mapping replaces the inherited MCP table with Ambio's scoped launcher,
   disables factory app/plugin/browser endpoints, and explicitly disables the
   injected Node REPL MCP endpoint. Only Ambio is enabled. Codex's status/config
@@ -58,7 +68,16 @@ controls follow-up is on `codex/unify-codex`, branched from local
   `Subagent · …`; child text/thinking transcripts and unrelated threads stay hidden.
 - Run history has no 390/400-item cutoff. All stable identities and ordinary
   events are retained; repeated snapshots still compact on disk. Individual
-  output/diff previews remain bounded.
+  output/diff previews remain bounded. Above 2,000 cached items, the adapter
+  evicts the oldest completed, flushed items. Active and unflushed items remain
+  until safe to evict; a burst may temporarily exceed the cache target.
+- Native structured questions use the same question cards as Claude, with
+  choices and the user's own words. The permission desk waits ten minutes,
+  preserving workspace/message/host ownership. Answers map from question text
+  to Codex question IDs, each with its answer array. Denial, timeout, stale
+  ownership or cancellation returns a JSON-RPC request error; the installed
+  question response schema has no decline enum. No successful empty form or
+  invented answer is sent. Resolved requests never receive a late second reply.
 - Worktree handoffs name both the common project root and the actual checkout,
   so a correctly shared MCP connection is not mistaken for a different project.
 
@@ -109,9 +128,8 @@ projects. They never edit a developer checkout or global configuration. Set
 
 ## Limits
 
-Native structured question forms and MCP form/URL elicitations are not represented
-as editable forms in this slice. They are declined rather than answered or granted
-automatically; ordinary text corrections remain available. Media attachments,
+Secret questions and MCP form/URL elicitations are declined; the current question
+card does not provide secret input or those MCP forms. Media attachments,
 queueing a next turn, durable cross-restart permission decisions and broader common
 workflow requests stay in their existing WORK items. Restart marks live receipts
 interrupted; it does not silently relaunch work. App Server permissions and policies
@@ -144,19 +162,58 @@ Authenticated qualification in `codexControls.live.mjs` verifies:
   endpoints expose no tools. A real scoped mapping then calls get_architecture
   and edit_systems, submits the map, and closes its process before settlement.
 
-Deterministic tests retain 1,200 native identities and 1,100 generic events plus
+Deterministic tests retain 4,500 native identities across cache eviction/restart and 1,100 generic events plus
 200 updates of one growing item, trigger compaction, and reload the complete
 history from a new runner. The Electron peer covers the shared Auto menu,
 reviewer/sandbox forwarding, review activity, child attribution, and preserving a
 remembered Auto selection when reopening with an unqualified CLI. The broad
 delivery Electron spec also covers Claude and the other established routes.
 
-Only version `0.162.1` is qualified for Auto. Packaged macOS/Linux behavior and
-future CLI versions require additional live evidence; broad semver ranges are
-not inferred from this Windows result. The earlier Windows full-access fallback is historical, not the current policy.
+Version `0.162.1` supplies the live baseline; newer semantic versions are accepted
+by compatibility policy, not claimed to have been exercised. The effective
+sandbox/reviewer response is still checked before input. Packaged macOS/Linux
+behavior needs separate live evidence. Max's Windows policy confirmation is
+recorded in DECISIONS 2026-11-05; its superseded October row remains intact.
 The broad delivery resize assertion was fixed by the merged Claude controls.
-Current checks pass: TypeScript, build, 959 unit tests (952 passed, 7 skipped),
+Initial controls checks passed: TypeScript, build, 959 unit tests (952 passed, 7 skipped),
 both requested Electron specs, and 50 MCP checks run serially (48 passed,
 2 skipped). Default parallel MCP reruns passed the mapping assertions but hit
 the existing Windows EBUSY cleanup issue in branch/investigation tests, tracked
 as `windows-test-environment` in WORK.md.
+
+## Pre-merge fixes, 2026-11-05
+
+The version policy now uses a minimum semantic version of `0.162.1`, rather
+than requiring an Ambio release after every CLI update. Tests cover older,
+unknown/malformed, stable, prerelease and build-metadata versions. Only the
+installed `0.162.1` has been exercised live; acceptance of newer versions is a
+compatibility policy, with effective sandbox/reviewer confirmation still required.
+
+Real cold qualification returned Ask me/Full access in 8 ms and offered Auto on
+refresh after the initialized version arrived. Delayed-server unit coverage
+checks the same behavior; no host-list response awaits initialization or models.
+The normal status refresh updates host capabilities without changing selection.
+
+Real `0.162.1` structured questions were exercised with the process-local
+`features.default_mode_request_user_input=true` flag. Without it, this version
+reports the tool unavailable in Default mode. Ambio preserves the user's CLI
+feature configuration. Both the direct protocol and a real runner/isolated daemon
+journey answered ORCHID and declined another question. The desk expiry was
+600,000 ms, and each completed turn left no waiting card. A JSON-RPC refusal
+clears the server request, although the model's final wording after refusal
+varies (one run said it was still waiting even though the turn had completed).
+The Electron journey checks a selected choice, a written answer and denial.
+Unit coverage also rejects timeout/failure, stale owners, late resolved answers
+and cancellation; answers never authorize command approvals.
+
+The live-item cache evicts completed, flushed entries toward 2,000 after each
+flush. A 4,500-item test keeps active command output across eviction, and the
+process/restart test retains all 4,500 persisted items. Quiet-run timing uses
+the newest timestamp across the entire item list.
+
+Checks: TypeScript and build pass; 969 unit tests (962 passed, 7 skipped), all
+three requested Electron journeys, and the standard parallel MCP suite (48
+passed, 2 skipped) pass. All seven installed-CLI controls journeys pass,
+including real discovery, questions through the desk, sandbox/manual/Auto,
+child attribution and scoped mapping. No new CLI version was installed or
+claimed as live-qualified.

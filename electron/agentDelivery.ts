@@ -578,11 +578,15 @@ export class DeliveryRunner {
         approve: async (question, signal) => {
           if (input.mapping || run.state !== 'running' || signal.aborted) return false
           try {
+            const asking = !!question.questions?.length
             const response = await daemonFetch(`${process.env.AMBIO_API_URL ?? 'http://127.0.0.1:7743'}/api/agent/permission`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.any([signal, AbortSignal.timeout(115000)]),
-              body: JSON.stringify({ workspaceId: run.workspaceId, messageId: run.messageId, hostId: run.hostId, ...question }),
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.any([signal, AbortSignal.timeout(asking ? 605000 : 115000)]),
+              body: JSON.stringify({ workspaceId: run.workspaceId, messageId: run.messageId, hostId: run.hostId, ...question, ...(asking ? { waitMs: 600000 } : {}) }),
             })
-            return response.ok && (await response.json()).decision === 'allow'
+            if (!response.ok) return false
+            const result = await response.json()
+            if (!asking) return result.decision === 'allow'
+            return result.decision === 'answer' && result.answers && typeof result.answers === 'object' ? { answers: result.answers } : false
           } catch { return false }
         },
       }) : undefined

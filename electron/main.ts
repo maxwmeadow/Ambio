@@ -1580,12 +1580,12 @@ function setupIPC(): void {
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
   })
   // Each agent says which access levels it honours and whether it takes messages while it works.
-  ipcMain.handle('agent:delivery-hosts', async () => Promise.all(availableTargets().map(async ({ launcher, ...host }) => {
+  ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher, ...host }) => {
     // Antigravity CLI offers the levels of its ACP connection; a print conversation narrows them to none.
     const driver = host.route === 'run' ? agentDriver(host.id === 'antigravity-cli' ? 'antigravity-acp' : host.id) : undefined
-    if (host.id === 'codex') return { ...host, access: launcher && host.available ? await codexAvailableAccess(launcher) : ['ask', 'full'] }
+    if (host.id === 'codex') return { ...host, access: launcher && host.available ? codexAvailableAccess(launcher) : ['ask', 'full'] }
     return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
-  })))
+  }))
   ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
     const client = CLI_CLIENTS.find(client => client.id === hostId)
     if (!client) return { ok: false, detail: 'Unknown runnable client.' }

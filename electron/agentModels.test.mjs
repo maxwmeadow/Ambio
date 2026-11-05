@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { antigravityModels, codexModels, copilotModels, grokModels, validModel } from './agentModels.ts'
+import { antigravityModels, codexModels, copilotModels, grokModels, validModel, codexAvailableAccess, inspectCodex } from './agentModels.ts'
 import { deliveryPlan } from './agentDelivery.ts'
 
 test('each agent’s own model list is read the way it publishes it', () => {
@@ -36,4 +36,17 @@ test('a chosen model reaches each agent with its own flag, and none is passed by
 // Captured from the official @xai-official/grok 1.0.67 native binary, without login.
 test('Grok catalog excludes authentication notices and its default heading', () => {
   assert.deepEqual(grokModels('You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n'), [{ id: 'grok-4.6', label: 'grok-4.6' }, { id: 'grok-4.5', label: 'grok-4.5' }])
+})
+
+test('Codex host access returns immediately while delayed discovery runs, then uses the qualified cache', async () => {
+  const launcher = { command: process.execPath, args: ['-e', `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id===undefined)return;setTimeout(()=>console.log(JSON.stringify({id:m.id,result:m.method==='initialize'?{userAgent:'codex/0.163.0'}:{data:[]}})),150)})`] }
+  const cold = codexAvailableAccess(launcher)
+  assert.deepEqual(cold, ['ask', 'full'])
+  assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'full'])
+  await inspectCodex(launcher)
+  assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'auto', 'full'])
+  const older = { command: process.execPath, args: ['-e', `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id!==undefined)console.log(JSON.stringify({id:m.id,result:m.method==='initialize'?{userAgent:'codex/0.162.0'}:{data:[]}}))})`] }
+  assert.deepEqual(codexAvailableAccess(older), ['ask', 'full'])
+  await inspectCodex(older)
+  assert.deepEqual(codexAvailableAccess(older), ['ask', 'full'])
 })

@@ -7,6 +7,12 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Answer Codex's structured questions in the conversation, using its choices or
+  your own words. Newer Codex versions keep Auto available from the tested
+  0.162.1 baseline; agent discovery no longer holds up the agent list. Long runs
+  keep their history while releasing completed activity from the live cache,
+  and updates to earlier activity keep the quiet-run notice accurate.
+
 - When Claude Code asks you something, the question appears in the
   conversation with its choices: pick one, several where it allows, or answer
   in your own words. This works at every access level, Full access included.

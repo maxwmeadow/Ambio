@@ -10,12 +10,25 @@ import { StringDecoder } from 'node:string_decoder'
 import { CodexAppServer, codexAppServerPolicy } from '../../electron/codexAppServer.ts'
 import { DeliveryRunner, findDeliveryCli } from '../../electron/agentDelivery.ts'
 import { agentDriver } from '../../electron/agentDrivers.ts'
+import { codexAvailableAccess, inspectCodex } from '../../electron/agentModels.ts'
 import { startHarness, harnessFetch } from './mcpHarness.mjs'
 import { fileURLToPath } from 'node:url'
 
 const enabled = process.env.AMBIO_LIVE_CODEX_CONTROLS === '1'
 const policy = { type: 'workspaceWrite', writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true }
 const connections = new WeakMap()
+
+test('installed Codex discovery returns cold access immediately and qualifies the initialized version on refresh', { skip: !enabled, timeout: 30000 }, async () => {
+  const launcher = findDeliveryCli('codex'); assert.ok(launcher)
+  const start = performance.now()
+  assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'full'])
+  const elapsed = performance.now() - start
+  assert.ok(elapsed < 1000, `host access blocked for ${elapsed}ms`)
+  const found = await inspectCodex(launcher)
+  assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'auto', 'full'])
+  assert.equal(codexAppServerPolicy('build', 'on-request', process.platform, 'auto_review', found.userAgent).sandbox, 'workspace-write')
+  console.log(`Discovery: cold host access ${Math.round(elapsed)}ms; refresh qualified ${found.userAgent}`)
+})
 function scratch(t, prefix) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
   t.after(async () => {
@@ -48,6 +61,63 @@ function connect(t, cwd, args, options = {}) {
   connections.set(t, [...(connections.get(t) ?? []), close])
   return { client, events, messages }
 }
+
+test('installed Codex asks a structured question and receives the users answer or refusal', { skip: !enabled, timeout: 300000 }, async t => {
+  const cwd = scratch(t, 'ambio-codex-questions-')
+  for (const deny of [false, true]) {
+    let asked = 0
+    const f = connect(t, cwd, ['app-server', '-c', 'mcp_servers={}', '-c', 'features.default_mode_request_user_input=true'], {
+      mode: 'ask', model: process.env.AMBIO_LIVE_CONVERSATION_MODEL || 'gpt-6-luna',
+      prompt: 'This is an interactive protocol test. Call request_user_input now with exactly one question: "Which marker should I report?" and choices ORCHID and AMBER. Wait for the actual answer. Do not use tools other than request_user_input, do not read or edit files, and do not guess the answer. After the answer, report it; if the user declines, report that they declined and stop.',
+      approve: async question => {
+        assert.equal(question.kind, 'question'); asked++
+        return deny ? false : { answers: Object.fromEntries(question.questions.map(q => [q.question, 'ORCHID'])) }
+      },
+    })
+    const result = await f.client.run()
+    assert.ok(asked > 0, JSON.stringify(f.events))
+    assert.equal(result.stopReason, 'completed')
+    if (deny) assert.ok(f.messages.some(message => message.method === 'serverRequest/resolved'), JSON.stringify(f.messages.filter(message => message.method === 'item/tool/requestUserInput')))
+    else assert.ok(f.events.some(event => event.kind === 'text' && event.text.includes('ORCHID')), JSON.stringify(f.events))
+    console.log(`Structured input: ${deny ? 'declined' : 'answered ORCHID'}; requests=${asked}; final=${f.events.filter(event => event.kind === 'text').at(-1)?.text}`)
+  }
+})
+
+test('installed Codex questions wait on the real permission desk and are released after answering or denying', { skip: !enabled, timeout: 300000 }, async t => {
+  const directory = scratch(t, 'ambio-codex-question-desk-')
+  const saved = { ...process.env }, h = await startHarness()
+  const runner = new DeliveryRunner(directory)
+  try {
+    process.env.AMBIO_API_URL = h.apiBase
+    process.env.AMBIO_API_TOKEN = 'ambio-isolated-test-token-for-mcp-harness'
+    process.env.AMBIO_ACTIVE_PROJECT = h.activeProjectPath
+    delete process.env.ELECTRON_RUN_AS_NODE
+    for (const decision of ['answer', 'deny']) {
+      const messageId = `question-${decision}`
+      const run = await runner.start({ workspaceId: h.workspaceId, messageId, hostId: 'codex', rootPath: h.projectDir, revision: 'initial', launcher: findDeliveryCli('codex'), args: ['app-server', '-c', 'mcp_servers={}', '-c', 'features.default_mode_request_user_input=true'], mode: 'ask', codexTransport: 'app-server', codex: { model: process.env.AMBIO_LIVE_CONVERSATION_MODEL || 'gpt-6-luna' }, prompt: 'Call request_user_input exactly once with a question "Which marker?" and two choices ORCHID and AMBER. Wait for the answer. Do not call any other tools, or read or write files. Report the actual answer afterward; if there is no answer or the request fails, stop without guessing.' })
+      const requests = async () => (await (await harnessFetch(`${h.apiBase}/api/agent/permission?workspace=${h.workspaceId}`)).json()).requests
+      let question
+      for (let i = 0; i < 900; i++) {
+        question = (await requests()).find(request => request.messageId === messageId)
+        if (question) break
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.ok(question?.questions?.length, JSON.stringify(runner.events(h.workspaceId, run.key)))
+      assert.equal(question.expiresAt - question.askedAt, 600000)
+      assert.equal((await harnessFetch(`${h.apiBase}/api/agent/permission/decide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: h.workspaceId, id: question.id, decision, ...(decision === 'answer' ? { answers: Object.fromEntries(question.questions.map(q => [q.question, 'ORCHID'])) } : {}) }) })).status, 200)
+      let final
+      for (let i = 0; i < 900; i++) {
+        final = runner.list(h.workspaceId).find(item => item.key === run.key)
+        if (!['starting', 'running', 'stopping'].includes(final.state)) break
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.equal(final.state, 'completed', final.detail)
+      if (decision === 'answer') assert.ok(runner.events(h.workspaceId, run.key).some(event => event.kind === 'text' && event.text.includes('ORCHID')))
+      assert.ok(!(await requests()).some(request => request.messageId === messageId))
+      console.log(`Question desk: ${decision}; wait=600000ms; ${final.serverVersion}; turn completed and card cleared`)
+    }
+  } finally { await runner.stopAll(); h.stop(); process.env = saved }
+})
 
 test('installed Codex replaces inherited MCP for mapping and keeps it on ordinary runs', { skip: !enabled, timeout: 120000 }, async t => {
   const root = scratch(t, 'ambio-codex-isolation-')

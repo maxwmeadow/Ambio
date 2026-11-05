@@ -84,9 +84,9 @@ test('native long runs retain more than a thousand activity items in persisted h
   const run = await f.runner.start(f.input)
   await wait(f.runner, run.key, run => run.state === 'completed')
   const history = new DeliveryRunner(f.directory).events('ws', run.key)
-  assert.equal(history.filter(event => event.id?.startsWith('codex:step-')).length, 1000)
+  assert.equal(history.filter(event => event.id?.startsWith('codex:step-')).length, 4500)
   assert.ok(history.some(event => event.text === 'History item 0'))
-  assert.ok(history.some(event => event.text === 'History item 999'))
+  assert.ok(history.some(event => event.text === 'History item 4499'))
 })
 
 test('a worktree handoff distinguishes shared project identity from the checkout to edit', () => {

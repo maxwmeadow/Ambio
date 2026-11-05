@@ -112,7 +112,7 @@ function run(launcher: DriverLauncher, args: string[]): Promise<string> {
 const cache = new Map<string, { lookup: Promise<ModelOption[]>; expires: number }>()
 
 /** Discovery does not create a thread or send a model prompt. */
-const codexCatalogs = new Map<string, { expires: number; lookup: Promise<{ models: ModelOption[]; userAgent: string }> }>()
+const codexCatalogs = new Map<string, { expires: number; userAgent?: string; lookup: Promise<{ models: ModelOption[]; userAgent: string }> }>()
 export function inspectCodex(launcher: DriverLauncher & { bundledNode?: boolean }): Promise<{ models: ModelOption[]; userAgent: string }> {
   const key = JSON.stringify(launcher)
   const known = codexCatalogs.get(key)
@@ -143,11 +143,22 @@ export function inspectCodex(launcher: DriverLauncher & { bundledNode?: boolean 
     child.once('spawn', () => { void client.models().then(finish, () => finish([])) })
   })
   codexCatalogs.set(key, { expires: Date.now() + 300000, lookup })
-  void lookup.then(result => { if (!result.userAgent && codexCatalogs.get(key)?.lookup === lookup) codexCatalogs.delete(key) })
+  void lookup.then(result => {
+    const entry = codexCatalogs.get(key)
+    if (entry?.lookup !== lookup) return
+    if (!result.userAgent) codexCatalogs.delete(key)
+    else entry.userAgent = result.userAgent
+  })
   return lookup
 }
 export async function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOption[]> { return (await inspectCodex(launcher)).models }
-export async function codexAvailableAccess(launcher: DriverLauncher) { return codexAccessLevels((await inspectCodex(launcher)).userAgent) }
+/** Host-list reads never wait for a process: a cold lookup runs in the background. */
+export function codexAvailableAccess(launcher: DriverLauncher) {
+  const entry = codexCatalogs.get(JSON.stringify(launcher))
+  if (entry && entry.expires > Date.now()) return codexAccessLevels(entry.userAgent ?? '')
+  void inspectCodex(launcher)
+  return codexAccessLevels('')
+}
 
 /** Bounded catalog caching, separated by the actual executable selection. */
 export function listModels(hostId: string, launcher: DriverLauncher | undefined, home: string): Promise<ModelOption[]> {

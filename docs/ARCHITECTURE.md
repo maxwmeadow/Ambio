@@ -788,7 +788,10 @@ message. The permission desk (`archd-go/internal/api/agent_permission.go`)
 holds both kinds of waiting request: permission (allow or deny) and the
 agent's own questions (answered with choices or the user's words; Claude's
 AskUserQuestion through `approve_action`, which Claude is given at every
-access level). The runner releases a turn's waiting requests when that turn
+access level, and Codex's `item/tool/requestUserInput` through its runner callback).
+Codex questions wait ten minutes, map text-keyed desk answers back to provider
+question IDs, and refuse unanswered or cancelled requests with a request error
+rather than a fabricated answer. The runner releases a turn's waiting requests when that turn
 closes (`/api/agent/permission/cancel`), so no card outlives its turn on any
 host. Claude Code's tool calls are items too (`claude:<tool_use id>`): the
 call shows as running and its `tool_result` replaces it with how it went, a
@@ -823,8 +826,13 @@ policy. Ask me and Auto, chosen in the shared access menu, select a project
 sandbox for Build and read-only for Ask/Propose. The qualified Windows profile
 uses the restricted-token unelevated sandbox; failures never widen access or
 retry with the retired `untrusted` policy. Native initialization supplies the
-version for exact Auto qualification (0.162.1); the UI and runner gate it, and
+version for minimum Auto qualification (semantic version >= 0.162.1); unknown
+or older versions fail closed. Host listing reads only cached qualification,
+starting cold discovery in the background; normal capability refreshes show
+Auto once discovery completes. The UI and runner gate it, and
 an unavailable remembered Auto selection never falls back to Full access.
+Max approved these Windows profiles on 2026-11-05, superseding the earlier
+every-mode full-access rule; the original decision remains in the dated record.
 The server must confirm the effective sandbox and reviewer before the prompt. Approval callbacks wait on the existing permission desk
 and are aborted when their owning request/turn ends. Native review runs inline,
 then passes its findings into a normal Ambio handoff turn so claiming and replies
@@ -833,7 +841,10 @@ with the CLI cache available when discovery fails; usage is explicitly a thread
 total, rather than mislabelling the last inference as a complete turn.
 Codex activity keeps stable item identities for streamed updates, bounded command
 output and diffs; the runner compacts repeated snapshots without a count cutoff
-on either stable or ordinary events. Child collaboration and tool items carry
+on either stable or ordinary events. Above 2,000 cached items, the adapter evicts
+completed items only after flushing them, keeping active output available while
+the whole history stays on disk. Quiet-run timing uses the newest timestamp
+across stable items. Child collaboration and tool items carry
 agent path/name, task and status; unrelated threads and child prose stay hidden.
 Automatic approval-review lifecycle and rationale use the same activity items. Completed replies keep
 expandable activity/usage, as every agent's completed replies now do. Worktree handoffs distinguish the shared project root

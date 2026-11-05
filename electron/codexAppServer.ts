@@ -4,19 +4,34 @@ import { codexSandbox, type DriverTurn } from './agentDrivers.ts'
 
 type Activity = Omit<DeliveryEvent, 'at'>
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+type Question = { question: string; header?: string; options?: Array<{ label: string; description?: string }> }
 
-/** Exact versions exercised by the authenticated controls qualification; unknown builds get no Auto. */
-const QUALIFIED_CONTROL_VERSIONS = new Set(['0.162.1'])
+/** Stable protocol baseline exercised by the authenticated controls qualification. */
+const MINIMUM_CONTROL_VERSION = [0, 162, 1]
+const ITEM_CACHE_LIMIT = 2000
 export function codexServerVersion(userAgent: string): string | undefined {
-  return /\bcodex(?:[-_ ](?:desktop|cli))?\/(\d+\.\d+\.\d+)(?![\w.+-])/i.exec(userAgent)?.[1]
+  const version = /\bcodex(?:[-_ ](?:desktop|cli))?\/([^\s()]+)/i.exec(userAgent)?.[1]
+  if (!version || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*))?(?:\+[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?$/.test(version)) return
+  const [core, pre] = version.split('+')[0].split(/-(.+)/)
+  if (!core.split('.').every(part => Number.isSafeInteger(Number(part))) || pre?.split('.').some(part => /^0\d+$/.test(part))) return
+  return version
+}
+function qualifiedControls(userAgent: string): boolean {
+  const version = codexServerVersion(userAgent)
+  if (!version) return false
+  const [core, pre] = version.split('+')[0].split(/-(.+)/)
+  const parts = core.split('.').map(Number)
+  for (let i = 0; i < 3; i++) if (parts[i] !== MINIMUM_CONTROL_VERSION[i]) return parts[i] > MINIMUM_CONTROL_VERSION[i]
+  // Prereleases sort below the stable baseline; build metadata has no precedence.
+  return !pre
 }
 export function codexAccessLevels(userAgent: string): AgentAccess[] {
-  return QUALIFIED_CONTROL_VERSIONS.has(codexServerVersion(userAgent) ?? '') ? ['ask', 'auto', 'full'] : ['ask', 'full']
+  return qualifiedControls(userAgent) ? ['ask', 'auto', 'full'] : ['ask', 'full']
 }
 
 export function codexAppServerPolicy(mode: DriverTurn['mode'], approval: CodexAppServerTurn['approval'], platform: NodeJS.Platform = process.platform, reviewer: CodexAppServerTurn['reviewer'] = 'user', userAgent = '') {
   const ask = approval === 'on-request'
-  if (ask && (platform === 'win32' || reviewer === 'auto_review') && !QUALIFIED_CONTROL_VERSIONS.has(codexServerVersion(userAgent) ?? '')) {
+  if (ask && (platform === 'win32' || reviewer === 'auto_review') && !qualifiedControls(userAgent)) {
     throw new Error('This Codex version has not been qualified for the selected access level. Update to a qualified CLI; access was not widened.')
   }
   return {
@@ -47,7 +62,7 @@ export interface CodexAppServerTurn {
   onUsage?: (usage: DeliveryUsage) => void
   onReady?: (ready: boolean) => void
   onServer?: (userAgent: string) => void
-  approve?: (question: { title: string; detail: string; kind: string }, signal: AbortSignal) => Promise<boolean>
+  approve?: (question: { title: string; detail: string; kind: string; questions?: Question[] }, signal: AbortSignal) => Promise<boolean | { answers: Record<string, string> }>
 }
 
 /** Native Codex stdio protocol. Process ownership and launch receipts stay in DeliveryRunner. */
@@ -64,6 +79,7 @@ export class CodexAppServer {
   private completion?: { resolve: (status: string) => void; reject: (error: Error) => void }
   private items = new Map<string, Activity>()
   private dirty = new Set<string>()
+  private completedItems = new Set<string>()
   private flushTimer?: ReturnType<typeof setTimeout>
   private reviewText = ''
   private userAgent = ''
@@ -186,7 +202,7 @@ export class CodexAppServer {
     }
     const params = message.params ?? {}
     if (message.id !== undefined) { void this.serverRequest(message.id, message.method, params); return }
-    if (message.method === 'serverRequest/resolved') { this.approvals.get(params.requestId)?.abort(); this.approvals.delete(params.requestId); return }
+    if (message.method === 'serverRequest/resolved') { this.approvals.get(params.requestId)?.abort('resolved'); this.approvals.delete(params.requestId); return }
     if (message.method === 'thread/started' && (params.thread?.parentThreadId === this.threadId || this.agents.has(params.thread?.parentThreadId))) {
       const thread = params.thread
       this.agents.set(thread.id, [thread.agentNickname, thread.agentRole].filter(Boolean).join(' · ') || thread.id)
@@ -200,7 +216,9 @@ export class CodexAppServer {
     if (!this.accepting || params.threadId !== this.threadId || this.turnId && eventTurn && eventTurn !== this.turnId) return
     if (message.method === 'turn/started' && params.turn?.id) this.turnId = params.turn.id
     if (message.method === 'turn/completed') {
-      this.accepting = false; this.turn.onReady?.(false); this.flush(); this.abortApprovals()
+      this.accepting = false; this.turn.onReady?.(false)
+      for (const id of this.items.keys()) this.completedItems.add(id)
+      this.flush(); this.abortApprovals()
       if (params.turn?.error?.message) this.turn.onEvent({ kind: 'error', text: params.turn.error.message })
       this.completion?.resolve(params.turn?.status ?? 'failed')
     } else if (message.method === 'error') {
@@ -213,7 +231,7 @@ export class CodexAppServer {
       this.update(`diff:${this.turnId}`, { kind: 'tool', text: 'Changes in this turn', diff: String(params.diff ?? '').slice(0, 64000) })
     } else if (message.method === 'item/autoApprovalReview/started' || message.method === 'item/autoApprovalReview/completed') {
       const review = params.review ?? {}
-      this.update(`review:${params.reviewId}`, { kind: 'tool', text: `Auto review · ${review.status ?? (message.method.endsWith('/started') ? 'reviewing' : 'completed')}${review.rationale ? ` · ${review.rationale}` : ''}`, status: review.status })
+      this.update(`review:${params.reviewId}`, { kind: 'tool', text: `Auto review · ${review.status ?? (message.method.endsWith('/started') ? 'reviewing' : 'completed')}${review.rationale ? ` · ${review.rationale}` : ''}`, status: review.status }, message.method.endsWith('/completed'))
     } else if (message.method === 'item/agentMessage/delta' || message.method === 'item/reasoning/summaryTextDelta' || message.method === 'item/commandExecution/outputDelta') {
       const id = String(params.itemId)
       const old = this.items.get(id)
@@ -223,8 +241,10 @@ export class CodexAppServer {
     } else if (message.method === 'item/started' || message.method === 'item/completed') this.item(params.item, message.method === 'item/completed')
   }
 
-  private update(id: string, activity: Activity): void {
+  private update(id: string, activity: Activity, done = false): void {
     this.items.set(id, { ...activity, id: `codex:${id}` }); this.dirty.add(id)
+    if (done) this.completedItems.add(id)
+    else this.completedItems.delete(id)
     this.flushTimer ??= setTimeout(() => this.flush(), 100)
   }
 
@@ -232,13 +252,22 @@ export class CodexAppServer {
     clearTimeout(this.flushTimer); this.flushTimer = undefined
     for (const id of this.dirty) this.turn.onEvent(this.items.get(id)!)
     this.dirty.clear()
+    this.evictItems()
+  }
+
+  private evictItems(): void {
+    for (const id of this.completedItems) {
+      if (this.items.size <= ITEM_CACHE_LIMIT) break
+      if (this.dirty.has(id)) continue
+      this.items.delete(id); this.completedItems.delete(id)
+    }
   }
 
   private item(item: any, done: boolean, actor?: { threadId: string; label: string }): void {
     if (!item?.id) return
     // Child tool evidence belongs in the parent run; its text/thought transcript does not.
     if (actor && ['userMessage', 'agentMessage', 'reasoning', 'plan', 'enteredReviewMode', 'exitedReviewMode'].includes(item.type)) return
-    const update = (id: string, activity: Activity) => this.update(actor ? `${actor.threadId}:${id}` : id, actor && !activity.text.startsWith('Subagent ·') ? { ...activity, text: `Subagent · ${actor.label} · ${activity.text}` } : activity)
+    const update = (id: string, activity: Activity) => this.update(actor ? `${actor.threadId}:${id}` : id, actor && !activity.text.startsWith('Subagent ·') ? { ...activity, text: `Subagent · ${actor.label} · ${activity.text}` } : activity, done)
     const old = this.items.get(actor ? `${actor.threadId}:${item.id}` : item.id)
     if (item.type === 'agentMessage' && (done || !old)) update(item.id, { kind: 'text', text: String(item.text ?? '').slice(0, 64000) })
     if (item.type === 'reasoning' && done) update(item.id, { kind: 'thinking', text: (item.summary ?? []).join('\n').slice(0, 64000) })
@@ -275,16 +304,41 @@ export class CodexAppServer {
       this.approvals.set(id, controller)
       const question = { title: file ? 'Codex wants to edit files' : 'Codex wants to run a command', kind: file ? 'edit' : 'command', detail: [params.command, params.cwd, params.reason, params.grantRoot, params.networkApprovalContext ? JSON.stringify(params.networkApprovalContext) : '', file ? this.items.get(params.itemId)?.diff : ''].filter(Boolean).join('\n').slice(0, 8000) }
       let allowed = false
-      try { allowed = await this.turn.approve?.(question, controller.signal) ?? false } catch { /* no answer is a refusal */ }
+      try { allowed = await this.turn.approve?.(question, controller.signal) === true } catch { /* no answer is a refusal */ }
       if (this.approvals.get(id) !== controller) return
       this.approvals.delete(id)
       reply({ decision: allowed && !controller.signal.aborted && this.accepting && !this.cancelled ? 'accept' : 'decline' })
       return
     }
-    // Never fabricate answers, grant permission profiles, or accept an MCP URL flow.
+    if (method === 'item/tool/requestUserInput') {
+      // This protocol has no decline enum: refuse with a request error, never
+      // invent an answer or submit an empty successful form.
+      const decline = () => { if (!this.closed) this.turn.send(JSON.stringify({ id, error: { code: -32000, message: 'The user declined to answer Codex\u2019s question.' } })) }
+      const questions = params.questions
+      if (!owns || !Array.isArray(questions) || !questions.length || questions.length > 8 ||
+        questions.some(q => !q || typeof q.id !== 'string' || !q.id || typeof q.question !== 'string' || !q.question.trim() || q.isSecret) ||
+        new Set(questions.map(q => q.id)).size !== questions.length || new Set(questions.map(q => q.question)).size !== questions.length) { decline(); return }
+      if (this.approvals.has(id)) return
+      const controller = new AbortController()
+      this.approvals.set(id, controller)
+      let answer: boolean | { answers: Record<string, string> } | undefined
+      try {
+        answer = await Promise.race([
+          this.turn.approve?.({ title: 'Codex is asking', kind: 'question', detail: '', questions: questions.map(q => ({ question: q.question, header: q.header, options: q.options ?? [] })) }, controller.signal),
+          new Promise<false>(resolve => controller.signal.addEventListener('abort', () => resolve(false), { once: true })),
+        ])
+      } catch { /* denial, timeout and cancellation all refuse */ }
+      const live = this.approvals.get(id) === controller && !controller.signal.aborted && this.accepting && !this.cancelled
+      if (this.approvals.get(id) === controller) this.approvals.delete(id)
+      if (controller.signal.reason === 'resolved') return
+      const answers = answer && typeof answer === 'object' ? answer.answers : undefined
+      if (!live || !answers || questions.some(q => typeof answers[q.question] !== 'string' || !answers[q.question].trim())) { decline(); return }
+      reply({ answers: Object.fromEntries(questions.map(q => [q.id, { answers: [answers[q.question]] }])) })
+      return
+    }
+    // Never grant permission profiles or accept an MCP URL flow.
     if (method === 'item/permissions/requestApproval') { reply({ permissions: {}, scope: 'turn' }); return }
     if (method === 'mcpServer/elicitation/request') { reply({ action: 'decline', content: null }); return }
-    if (method === 'item/tool/requestUserInput') { reply({ answers: {} }); this.turn.onEvent({ kind: 'error', text: 'Codex asked for a structured answer. Send a correction in the composer to answer in text.' }); return }
     this.turn.send(JSON.stringify({ id, error: { code: -32601, message: `Ambio does not support ${method}` } }))
   }
 }

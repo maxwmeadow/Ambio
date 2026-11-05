@@ -31,7 +31,7 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
         const url = new URL(String(input))
         if (url.pathname === '/api/agent/permission' && init?.method === 'POST') {
           runtime.codexPermission = JSON.parse(String(init.body))
-          return new Promise(resolve => { runtime.codexDecide = (decision: string) => resolve(new Response(JSON.stringify({ decision }))) })
+          return new Promise(resolve => { runtime.codexDecide = (answer: object) => resolve(new Response(JSON.stringify(answer))) })
         }
         const order = runtime.codexOrders[url.searchParams.get('messageId') ?? '']
         return new Response(JSON.stringify(order ?? { error: 'not found' }), { status: order ? 200 : 404 })
@@ -46,7 +46,7 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
       if (url.pathname === '/api/canvas/cancel') { const order = orders.find(item => item.id === route.request().postDataJSON().msgId); if (order) order.status = 'cancelled' }
       if (url.pathname === '/api/canvas/history') body = { messages: [...orders].reverse(), nextCursor: '', availableCount: orders.length }
       if (url.pathname === '/api/agent/presence') body = { connections: [] }
-      if (url.pathname === '/api/agent/permission/decide') await app.evaluate((_, decision) => { (globalThis as any).codexDecide(decision) }, route.request().postDataJSON().decision)
+      if (url.pathname === '/api/agent/permission/decide') await app.evaluate((_, answer) => { (globalThis as any).codexDecide(answer) }, route.request().postDataJSON())
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     })
     await page.getByRole('button', { name: /^Message agent/ }).click()
@@ -67,6 +67,10 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
     await expect.poll(() => captured().interrupted).toBe(true)
     await expect(send).toBeVisible()
+    // Host-list IPC returned before discovery. Reopening refreshes from its cache.
+    await expect.poll(async () => page.evaluate(async () => (await window.ambio.listDeliveryHosts()).find(host => host.id === 'codex')?.access)).toContain('auto')
+    await inbox.getByRole('button', { name: 'Close agent inbox' }).click()
+    await page.getByRole('button', { name: /^Message agent/ }).click()
     // A follow-up resumes the provider thread and stays on the same connection.
     setMode('approval')
     await inbox.locator('.ambio-inbox__codex-options > summary').click()
@@ -108,6 +112,31 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('Subagent · Main agent · spawnAgent → Reviewer · explorer')
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-auto-subagent.png' })
+    // Structured questions use the shared card for choices and the user's own words.
+    setMode('question')
+    await composer.fill('Ask me which color to use'); await send.click()
+    await expect.poll(async () => app.evaluate(() => (globalThis as any).codexPermission?.kind)).toBe('question')
+    const question = await app.evaluate(() => (globalThis as any).codexPermission)
+    expect(question.waitMs).toBe(600000)
+    expect(question.messageId).toBe(orders.at(-1).id)
+    await page.evaluate(request => { (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'agent:permission', payload: { ...request, id: 'native-question', askedAt: Date.now(), expiresAt: Date.now() + 600000 } }) }, question)
+    const questionCard = inbox.getByRole('form', { name: 'Question: Which color should the fixture use?' })
+    await questionCard.getByRole('radio', { name: /Blue/ }).check()
+    await questionCard.getByRole('textbox', { name: 'Answer: Why this color?' }).fill('It suits the fixture, and stays readable.')
+    await page.screenshot({ path: 'test-results/codex-native-question.png' })
+    await questionCard.getByRole('button', { name: 'Answer', exact: true }).click()
+    await expect.poll(() => captured().questionReply).toEqual({ answers: { color: { answers: ['Blue'] }, reason: { answers: ['It suits the fixture, and stays readable.'] } } })
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    // Declining is a protocol refusal, with no invented successful answer.
+    const beforeDecline = orders.length
+    await composer.fill('Ask again so I can decline'); await send.click()
+    await expect.poll(() => orders.length).toBe(beforeDecline + 1)
+    await expect.poll(async () => app.evaluate(() => (globalThis as any).codexPermission?.messageId)).toBe(orders.at(-1).id)
+    const declinedQuestion = await app.evaluate(() => (globalThis as any).codexPermission)
+    await page.evaluate(request => { (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'agent:permission', payload: { ...request, id: 'declined-question', askedAt: Date.now(), expiresAt: Date.now() + 600000 } }) }, declinedQuestion)
+    await inbox.getByRole('button', { name: 'Don’t answer' }).click()
+    await expect.poll(() => captured().questionReply?.message).toContain('declined')
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
     // The explicit compatibility route is available for a new conversation.
     await inbox.getByRole('button', { name: 'New conversation', exact: true }).click()
     await inbox.getByRole('combobox', { name: 'Codex connection' }).selectOption('exec')

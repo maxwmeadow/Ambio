@@ -137,12 +137,16 @@ test('Ask me and Auto retain sandbox boundaries; unknown versions never gain Aut
   assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'linux'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', config: { sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true } } })
   assert.deepEqual(codexAppServerPolicy('ask', 'never', 'darwin'), { sandbox: 'read-only', approvalPolicy: 'never' })
   assert.deepEqual(codexAppServerPolicy('ask', 'on-request', 'win32', 'auto_review', 'codex/0.162.1').sandbox, 'read-only')
-  for (const version of ['codex/0.162.0', 'codex/0.162.1-beta', 'unknown', 'codex/99.0.0']) {
+  for (const version of ['codex/0.162.0', 'codex/0.99.999', 'codex/0.162.1-beta', 'unknown', 'codex/0.162', 'codex/00.162.1', 'codex/0.162.2-alpha-foo.01', 'codex/0.162.1oops']) {
     assert.deepEqual(codexAccessLevels(version), ['ask', 'full'])
     assert.throws(() => codexAppServerPolicy('build', 'on-request', 'win32', 'user', version), /not been qualified/)
   }
   assert.equal(codexServerVersion('Codex Desktop/0.162.1 (Windows; ambio)'), '0.162.1')
   assert.deepEqual(codexAccessLevels('codex/0.162.1'), ['ask', 'auto', 'full'])
+  for (const version of ['0.162.1+build.2', '0.162.2', '0.162.10', '0.163.0', '0.163.0-beta.1', '0.200.0', '1.0.0', '99.0.0']) {
+    assert.deepEqual(codexAccessLevels(`codex/${version}`), ['ask', 'auto', 'full'])
+    assert.equal(codexAppServerPolicy('build', 'on-request', 'win32', 'auto_review', `codex/${version}`).sandbox, 'workspace-write')
+  }
 })
 
 test('Auto selects the native reviewer and requires a confirmed effective sandbox before sending input', async t => {
@@ -181,4 +185,65 @@ test('long native turns keep all item identities beyond the old 390/400 cutoffs'
   f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
   assert.equal(f.events.length, 1200)
   assert.equal(f.events.at(-1).text, 'Item 1199')
+})
+
+test('completed flushed items leave the live cache while active output and every emitted item survive', async t => {
+  const f = fixture(t); const { outcome } = await running(f)
+  f.notify('item/started', { item: { id: 'active', type: 'commandExecution', command: 'long task', status: 'inProgress' } })
+  f.notify('item/commandExecution/outputDelta', { itemId: 'active', delta: 'before ' })
+  for (let i = 0; i < 4500; i++) {
+    f.notify('item/completed', { item: { id: `done-${i}`, type: 'agentMessage', text: `Item ${i}` } })
+    if (i % 100 === 0) f.client.flush()
+  }
+  f.client.flush()
+  assert.ok(f.client.items.size <= 2000)
+  assert.ok(!f.client.items.has('done-0'))
+  assert.ok(f.client.items.has('active'))
+  f.notify('item/commandExecution/outputDelta', { itemId: 'active', delta: 'after' })
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  assert.equal(new Set(f.events.map(event => event.id)).size, 4501)
+  assert.equal(f.events.filter(event => event.id === 'codex:active').at(-1).output, 'before after')
+})
+
+test('structured questions map text-keyed desk answers to Codex ids and never allow a command', async t => {
+  let asked
+  const f = fixture(t, { approve: async question => { asked = question; return { answers: { 'Pick a color': 'Blue', 'Explain why': 'My own answer, with commas' } } } })
+  const { outcome } = await running(f)
+  f.request('item/tool/requestUserInput', { questions: [{ id: 'color', question: 'Pick a color', header: 'Color', options: [{ label: 'Blue', description: 'Cool' }] }, { id: 'why', question: 'Explain why', options: null }] })
+  await tick()
+  assert.equal(asked.kind, 'question')
+  assert.deepEqual(asked.questions[0], { question: 'Pick a color', header: 'Color', options: [{ label: 'Blue', description: 'Cool' }] })
+  assert.deepEqual(f.sent.find(m => m.id === 'approval').result, { answers: { color: { answers: ['Blue'] }, why: { answers: ['My own answer, with commas'] } } })
+  f.request('item/commandExecution/requestApproval', { command: 'do something' }, 'command')
+  await tick(); assert.equal(f.sent.find(m => m.id === 'command').result.decision, 'decline')
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+})
+
+test('questions decline on denial, invalid answers, callback failure, wrong owner and cancellation', async t => {
+  for (const respond of [async () => false, async () => true, async () => ({ answers: {} }), async () => { throw new Error('timeout') }]) {
+    const f = fixture(t, { approve: respond }); const { outcome } = await running(f)
+    f.request('item/tool/requestUserInput', { questions: [{ id: 'q', question: 'Proceed?' }] }); await tick()
+    assert.match(f.sent.find(m => m.id === 'approval').error.message, /declined/)
+    f.request('item/tool/requestUserInput', { threadId: 'other', questions: [{ id: 'q', question: 'Proceed?' }] }, 'foreign')
+    assert.ok(f.sent.find(m => m.id === 'foreign').error)
+    f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  }
+  const f = fixture(t, { approve: () => new Promise(() => {}) }); const { outcome } = await running(f)
+  f.request('item/tool/requestUserInput', { questions: [{ id: 'q', question: 'Proceed?' }] }); await tick()
+  f.client.cancel(); await tick()
+  assert.ok(f.sent.find(m => m.id === 'approval').error)
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'interrupted' } }); await outcome
+})
+
+test('a resolved question never gets a second reply from a late desk answer', async t => {
+  let finish, asks = 0
+  const f = fixture(t, { approve: () => { asks++; return new Promise(resolve => { finish = resolve }) } })
+  const { outcome } = await running(f)
+  f.request('item/tool/requestUserInput', { questions: [{ id: 'q', question: 'Proceed?' }] })
+  f.request('item/tool/requestUserInput', { questions: [{ id: 'q', question: 'Proceed?' }] })
+  await tick(); assert.equal(asks, 1)
+  f.notify('serverRequest/resolved', { requestId: 'approval' })
+  finish({ answers: { 'Proceed?': 'Yes' } }); await tick()
+  assert.ok(!f.sent.some(message => message.id === 'approval'))
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
 })

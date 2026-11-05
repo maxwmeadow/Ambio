@@ -38,12 +38,13 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       notify('item/autoApprovalReview/started', { reviewId: 'auto-1', review: { status: 'inProgress' } })
       notify('item/autoApprovalReview/completed', { reviewId: 'auto-1', review: { status: 'approved', rationale: 'Harmless fixture operation.' } })
     }
-    if (mode() === 'history') for (let i = 0; i < 1000; i++) notify('item/completed', { item: { id: `step-${i}`, type: 'agentMessage', text: `History item ${i}` } })
+    if (mode() === 'history') for (let i = 0; i < 4500; i++) notify('item/completed', { item: { id: `step-${i}`, type: 'agentMessage', text: `History item ${i}` } })
     if (mode() === 'subagent') {
       send({ method: 'thread/started', params: { thread: { id: 'child', parentThreadId: session, agentNickname: 'Reviewer', agentRole: 'explorer' } } })
       notify('item/completed', { item: { id: 'collab', type: 'collabAgentToolCall', senderThreadId: session, receiverThreadIds: ['child'], tool: 'spawnAgent', status: 'completed', prompt: 'Inspect the fixture', agentsStates: { child: { status: 'completed' } } } })
     }
     if (mode() === 'approval') return send({ id: 900, method: 'item/commandExecution/requestApproval', params: { threadId: session, turnId: turn, itemId: 'shell', command: 'fixture check', cwd: process.cwd(), reason: 'Fixture access request' } })
+    if (mode() === 'question') return send({ id: 901, method: 'item/tool/requestUserInput', params: { threadId: session, turnId: turn, itemId: 'question', questions: [{ id: 'color', header: 'Color', question: 'Which color should the fixture use?', isOther: true, isSecret: false, options: [{ label: 'Blue', description: 'Use the cool color' }, { label: 'Red', description: 'Use the warm color' }] }, { id: 'reason', header: 'Reason', question: 'Why this color?', isOther: true, isSecret: false, options: null }] } })
     if (mode() === 'fail') return setTimeout(() => { notify('turn/completed', { turn: { id: turn, status: 'failed', error: { message: 'Fixture quota error' } } }); process.exitCode = 0 }, 300)
     if (mode() !== 'hold') setTimeout(() => complete(), 350)
     return
@@ -55,4 +56,5 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   }
   if (m.method === 'turn/interrupt') { captured.interrupted = true; capture(); reply({}); return complete('interrupted') }
   if (m.id === 900 && m.result) { captured.decision = m.result.decision; capture(); return complete() }
+  if (m.id === 901) { captured.questionReply = m.result ?? m.error; capture(); return complete() }
 }).on('close', () => process.exit())

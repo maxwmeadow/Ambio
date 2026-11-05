@@ -73,6 +73,9 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     const refresh = async () => {
       let live = false
       try {
+        // Cold Codex discovery can finish after the first host list.
+        const hostsNow = await window.ambio.listDeliveryHosts()
+        if (active) setHosts(current => JSON.stringify(current) === JSON.stringify(hostsNow) ? current : hostsNow)
         const items = await window.ambio.listDeliveryRuns(workspaceId)
         if (!active) return
         setRuns(items)
@@ -353,7 +356,7 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry, hasReply
     const timer = setInterval(() => setNow(Date.now()), 10000)
     return () => clearInterval(timer)
   }, [working])
-  const lastSign = Math.max(run.startedAt, events.at(-1)?.at ?? 0)
+  const lastSign = events.reduce((latest, event) => Math.max(latest, event.at), run.startedAt)
   const quiet = working ? now - lastSign : 0
   // While it works, the latest of what it does; once it ends, why it ended.
   const shown = working ? events.slice(-ACTIVITY_SHOWN) : run.codexTransport === 'app-server' ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
