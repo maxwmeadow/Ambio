@@ -168,6 +168,17 @@ conversations. External apps remain available on the canvas; onboarding only
 uses agents Ambio can stop. The mapping brief requires complete source coverage
 and notes before the final submission.
 
+A managed mapping run goes through the same delivery path, and so the same
+connections, as a conversation turn (Claude stream-json, native Codex App
+Server, Antigravity ACP or print), always at full access: Antigravity ACP's
+permission requests are answered by the turn's mode, since setup shows no
+permission cards. Its log reads the run's activity like the conversation does:
+items keep their ids and are updated in place (text as it is written, a tool
+call by its result), so each poll reads the last 600 items again rather than
+only new ones. Both label a tool row with `components/agentActivity.ts`: one
+badge per kind of tool across every agent's tool names, a subagent marker,
+project paths relative to the run's root, and shared status words.
+
 `internal/db/mapping_attempts.go` owns the attempt lifecycle (schema v11): one
 unfinished attempt per workspace, bound to one draft and optional addressed
 request. Draft commit runs in one immediate transaction with proposal creation,

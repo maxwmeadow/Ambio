@@ -1141,23 +1141,34 @@
 }
 .ambio-map-activity__list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ambio-map-activity__row { display: flex; flex-direction: column; min-width: 0; }
-.ambio-map-activity__tool { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 8px; border-radius: 4px; background: #f0f4f1; border: 1px solid #dce4de; font-size: 12px; }
-.ambio-map-activity__badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ambio-map-activity__tool { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px; border-radius: 4px; background: #f0f4f1; border: 1px solid #dce4de; font-size: 12px; }
+.ambio-map-activity__row[data-status='failed'] .ambio-map-activity__tool { background: #fdf3f1; border-color: #efcfc8; }
+.ambio-map-activity__badge { flex: none; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .ambio-map-activity__badge--ambio { background: #e0f0e6; color: #1e6648; border: 1px solid #b7dcbe; }
 .ambio-map-activity__badge--read { background: #e4edf5; color: #1d527a; border: 1px solid #bad2e6; }
 .ambio-map-activity__badge--list { background: #eef2f5; color: #365063; border: 1px solid #ccd8e0; }
 .ambio-map-activity__badge--search { background: #fdf5e2; color: #7a5e18; border: 1px solid #ecd89c; }
 .ambio-map-activity__badge--run { background: #f1ecf7; color: #5a2e87; border: 1px solid #d4c2ea; }
 .ambio-map-activity__badge--edit { background: #fcf0e4; color: #8a4816; border: 1px solid #ecc9a4; }
+.ambio-map-activity__badge--web { background: #e6f2f2; color: #1f5f61; border: 1px solid #b9dcdc; }
+.ambio-map-activity__badge--agent { background: #f3eef4; color: #5d3a66; border: 1px solid #dccbe0; }
 .ambio-map-activity__badge--tool { background: #eaeaea; color: #494949; border: 1px solid #d0d0d0; }
 .ambio-map-activity__badge--think { background: #eef2f5; color: #50616b; border: 1px solid #d2dbe0; }
 .ambio-map-activity__badge--error { background: #feebe8; color: #a12814; border: 1px solid #f3c2ba; }
-.ambio-map-activity__tool-name { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: #22352c; }
-.ambio-map-activity__tool-target { font-family: var(--font-mono); font-size: 11px; color: #435b4f; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px; word-break: break-all; }
+.ambio-map-activity__tool-name { flex: none; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: #22352c; }
+/* One line per call: a long path or command ends in an ellipsis, in full on hover. */
+.ambio-map-activity__tool-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; color: #435b4f; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px; }
+.ambio-map-activity__subagent { flex: none; padding: 1px 6px; border: 1px dashed #b9c6bd; border-radius: 3px; color: #50615a; font-size: 10px; }
+.ambio-map-activity__status { flex: none; margin-left: auto; color: #6b7a72; font-size: 10px; }
+.ambio-map-activity__row[data-status='running'] .ambio-map-activity__status { color: #1e6648; }
+.ambio-map-activity__row[data-status='failed'] .ambio-map-activity__status { color: #a12814; font-weight: 600; }
 .ambio-map-activity__raw-target { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ambio-map-activity__thinking { display: flex; align-items: baseline; gap: 6px; padding: 3px 6px; font-size: 11px; font-style: italic; color: #64756c; }
 .ambio-map-activity__speech { padding: 6px 10px; background: #ffffff; border: 1px solid #e2e6e3; border-radius: 5px; color: #22362f; font-size: 12px; line-height: 1.5; }
 .ambio-map-activity__speech p { margin: 0; }
+/* Still being written: the finished message replaces it in place. */
+.ambio-map-activity__speech--live { border-style: dashed; color: #4a5c53; }
+.ambio-map-activity__speech--live p::after { content: '\2026'; margin-left: 2px; color: #8a9a91; }
 .ambio-map-activity__error-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #fff0ed; border: 1px solid #f2bbb0; border-radius: 4px; color: #872c1c; font-size: 12px; }
 .ambio-map-with__lines { display: grid; align-content: start; gap: 3px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 8px 10px; list-style: none; background: #f8f7f2; border: 1px solid #d3dccf; font: 11px/1.45 var(--font-mono, monospace); color: #3d4f47; }
 .ambio-map-with__lines li { white-space: pre-wrap; overflow-wrap: anywhere; }

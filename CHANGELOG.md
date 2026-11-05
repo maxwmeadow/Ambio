@@ -7,6 +7,12 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Project mapping's live log now reads like the conversation: the agent's text
+  appears once, as it finishes writing it; each command and file shows whether
+  it ran, finished or failed; Claude Code, Codex and Antigravity tools get the
+  right badge; and paths are shown inside your project. Mapping with
+  Antigravity's Gemini connection no longer waits on a permission request
+  setup cannot show.
 - Answer Codex's structured questions in the conversation, using its choices or
   your own words. Newer Codex versions keep Auto available from the tested
   0.162.1 baseline; agent discovery no longer holds up the agent list. Long runs

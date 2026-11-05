@@ -1764,7 +1764,8 @@ function setupIPC(): void {
           model: turn.model, thinking: chosen?.thinking,
           strictResume: true, steering: !mapping,
           // Full access answers the agent's requests itself (acpPermission); anything else asks in the conversation.
-          ...(request.access === 'full' ? {} : { onPermission: async (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => {
+          // A mapping turn always runs with full access: setup shows no permission cards.
+          ...(request.access === 'full' || mapping ? {} : { onPermission: async (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => {
             const response = await archdJson('/api/agent/permission', { method: 'POST', signal,
               body: JSON.stringify({ workspaceId: project.id, messageId: request.messageId, hostId: request.hostId, ...question }) })
             return response.status === 200 && response.body?.decision === 'allow'

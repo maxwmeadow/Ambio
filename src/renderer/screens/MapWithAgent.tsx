@@ -8,6 +8,7 @@ import { CHAT_PROVIDERS_CHANGED } from '../components/AgentChatPanel'
 import { MAPPING_CONTRACT, MAPPING_PROGRESS } from '../components/inboxModel'
 import { useProposalDrafts } from '../components/ProposalDraftProgress'
 import { discoveryRequest } from '../components/agentDiscovery'
+import { projectPath, statusLabel, toolRow } from '../components/agentActivity'
 
 /** Mapping is a finite, scoped session whose last action submits the map. */
 
@@ -180,35 +181,11 @@ export interface ActivityEvent {
   kind: 'tool' | 'text' | 'thinking' | 'error'
   text: string
   at: number
-}
-
-function parseToolInfo(text: string): { badge: string; toolName: string; target: string } {
-  const parts = text.split(' · ')
-  if (parts.length >= 2 && parts[0] === 'Ambio') {
-    return {
-      badge: 'Ambio',
-      toolName: parts[1],
-      target: parts.slice(2).join(' · '),
-    }
-  }
-  if (parts.length >= 2) {
-    const rawTool = parts[0]
-    const target = parts.slice(1).join(' · ')
-    const lower = rawTool.toLowerCase()
-    let badge = 'Tool'
-    if (lower.includes('view') || lower.includes('read') || lower.includes('file')) badge = 'Read'
-    else if (lower.includes('dir') || lower.includes('list')) badge = 'List'
-    else if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) badge = 'Search'
-    else if (lower.includes('cmd') || lower.includes('command') || lower.includes('shell') || lower.includes('exec') || lower.includes('run')) badge = 'Run'
-    else if (lower.includes('edit') || lower.includes('write')) badge = 'Edit'
-    return { badge, toolName: rawTool, target }
-  }
-  const lower = text.toLowerCase()
-  let badge = 'Tool'
-  if (lower.includes('view') || lower.includes('read')) badge = 'Read'
-  else if (lower.includes('dir') || lower.includes('list')) badge = 'List'
-  else if (lower.includes('search') || lower.includes('find')) badge = 'Search'
-  return { badge, toolName: text, target: '' }
+  /** A tool call's progress (running, done, failed), as every agent reports it. */
+  status?: string
+  exitCode?: number
+  /** Text the agent is still writing; the whole message replaces it. */
+  live?: boolean
 }
 
 function cleanErrorMessage(raw: string): string {
@@ -246,7 +223,11 @@ export function MappingActivity({
   const [current, setCurrent] = useState<DeliveryRun | null>(null)
   const [startTime, setStartTime] = useState<number>(() => Date.now())
   const [elapsed, setElapsed] = useState<number>(0)
+  // Where the shown window of the run's activity starts. Items there are
+  // updated in place (a tool call by its result, text as it is written), so
+  // the window is read again each poll rather than only what is new.
   const after = useRef(0)
+  const runKey = useRef('')
   const log = useRef<HTMLDivElement>(null)
   const following = useRef(true)
 
@@ -328,18 +309,21 @@ export function MappingActivity({
           const latest = runs.filter(item => item.messageId === run.messageId).sort((a, b) => b.startedAt - a.startedAt)[0]
           if (!active || !latest) return
           setCurrent(latest)
-          const events: DeliveryEvent[] = await window.ambio.listDeliveryEvents(run.workspaceId, latest.key, after.current)
+          if (runKey.current !== latest.key) { runKey.current = latest.key; after.current = 0 }
+          const from = after.current
+          const events: DeliveryEvent[] = await window.ambio.listDeliveryEvents(run.workspaceId, latest.key, from)
           if (!active) return
-          if (events.length) {
-            after.current += events.length
-            const newItems: ActivityEvent[] = events.map((event, index) => ({
-              id: `run-${after.current - events.length + index}`,
-              kind: event.kind as 'tool' | 'text' | 'thinking' | 'error',
-              text: event.text.trim(),
-              at: event.at,
-            })).filter(item => Boolean(item.text))
-            setItems(previous => [...previous, ...newItems].slice(-LOG_ITEMS))
-          }
+          after.current = Math.max(0, from + events.length - LOG_ITEMS)
+          const next: ActivityEvent[] = events.slice(-LOG_ITEMS).map((event, index) => ({
+            id: event.id ?? `run-${from + Math.max(0, events.length - LOG_ITEMS) + index}`,
+            kind: event.kind === 'sent' ? 'text' : event.kind as ActivityEvent['kind'],
+            text: (event.kind === 'sent' ? `You · ${event.text}` : event.text).trim(),
+            at: event.at,
+            ...(event.status ? { status: event.status } : {}),
+            ...(event.exitCode != null ? { exitCode: event.exitCode } : {}),
+            ...(event.live ? { live: true } : {}),
+          })).filter(item => Boolean(item.text))
+          setItems(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next)
           setState(latest.state === 'running' || latest.state === 'starting' || latest.state === 'stopping' ? 'working'
             : latest.state === 'completed' ? 'done' : latest.state === 'stopped' ? 'stopped' : 'failed')
           setDetail(latest.state === 'completed' ? '' : latest.detail)
@@ -362,26 +346,26 @@ export function MappingActivity({
     const fileSet = new Set<string>()
     for (const item of items) {
       if (item.kind === 'tool') {
-        const info = parseToolInfo(item.text)
+        const info = toolRow(item.text, current?.rootPath)
         if (info.badge === 'Read' && info.target) fileSet.add(info.target)
       }
     }
     return fileSet.size
-  }, [items])
+  }, [items, current?.rootPath])
 
   const latestAction = useMemo(() => {
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i]
       if (item.kind === 'tool') {
-        const info = parseToolInfo(item.text)
-        return `${info.badge} ${info.toolName}${info.target ? ` · ${info.target}` : ''}`
+        const info = toolRow(item.text, current?.rootPath)
+        return `${info.badge} ${info.tool}${info.target ? ` · ${info.target}` : ''}`
       }
       if (item.kind === 'text') {
         return item.text.slice(0, 60)
       }
     }
     return ''
-  }, [items])
+  }, [items, current?.rootPath])
 
   const extractedError = useMemo(() => {
     for (let i = items.length - 1; i >= 0; i--) {
@@ -516,18 +500,21 @@ export function MappingActivity({
         >
           <ol className="ambio-map-activity__list">
             {items.map(item => {
-              const toolInfo = item.kind === 'tool' ? parseToolInfo(item.text) : null
+              const toolInfo = item.kind === 'tool' ? toolRow(item.text, current?.rootPath) : null
+              const status = item.status ? statusLabel(item.status) : ''
               return (
-                <li key={item.id} className={`ambio-map-activity__row ambio-map-activity__row--${item.kind}`}>
+                <li key={item.id} className={`ambio-map-activity__row ambio-map-activity__row--${item.kind}`} data-status={status || undefined}>
                   {item.kind === 'tool' && toolInfo ? (
                     <div className="ambio-map-activity__tool">
                       <span className={`ambio-map-activity__badge ambio-map-activity__badge--${toolInfo.badge.toLowerCase()}`}>
                         {toolInfo.badge}
                       </span>
-                      <strong className="ambio-map-activity__tool-name">{toolInfo.toolName}</strong>
-                      {toolInfo.target && <span className="ambio-map-activity__tool-target">{toolInfo.target}</span>}
-                      {/* Preserves raw exact text for e2e tests & accessibility */}
-                      <span className="ambio-map-activity__raw-target">{item.text}</span>
+                      {toolInfo.subagent !== undefined && <span className="ambio-map-activity__subagent" title="Done by a subagent">{toolInfo.subagent || 'Subagent'}</span>}
+                      <strong className="ambio-map-activity__tool-name">{toolInfo.tool}</strong>
+                      {toolInfo.target && <span className="ambio-map-activity__tool-target" title={toolInfo.target}>{toolInfo.target}</span>}
+                      {status && <span className="ambio-map-activity__status">{status}{status === 'failed' && item.exitCode != null ? ` · exit ${item.exitCode}` : ''}</span>}
+                      {/* The row as one line, for screen readers and tests. */}
+                      <span className="ambio-map-activity__raw-target">{projectPath(item.text, current?.rootPath)}</span>
                     </div>
                   ) : item.kind === 'thinking' ? (
                     <div className="ambio-map-activity__thinking">
@@ -540,7 +527,7 @@ export function MappingActivity({
                       <span className="ambio-map-activity__error-text">{cleanErrorMessage(item.text)}</span>
                     </div>
                   ) : (
-                    <div className="ambio-map-activity__speech">
+                    <div className={`ambio-map-activity__speech${item.live ? ' ambio-map-activity__speech--live' : ''}`}>
                       <p>{item.text}</p>
                     </div>
                   )}

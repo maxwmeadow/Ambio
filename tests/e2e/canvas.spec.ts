@@ -3926,12 +3926,32 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
     ipcMain.removeHandler('agent:deliver')
     ipcMain.handle('agent:deliver', (_event, request) => { state.delivered.push(request); return { detail: 'Agent launched.' } })
     ipcMain.removeHandler('agent:delivery-runs')
-    ipcMain.handle('agent:delivery-runs', () => state.delivered.map(request => ({ key: 'mapping-run', workspaceId: request.workspaceId, messageId: request.messageId, revision: 'initial', hostId: request.hostId, rootPath: '', state: 'running', detail: 'Agent launched.', logPath: '', startedAt: 1 })))
+    const root = 'C:\\work\\demo'
+    ipcMain.handle('agent:delivery-runs', () => state.delivered.map(request => ({ key: 'mapping-run', workspaceId: request.workspaceId, messageId: request.messageId, revision: 'initial', hostId: request.hostId, rootPath: root, state: 'running', detail: 'Agent launched.', logPath: '', startedAt: 1 })))
     ipcMain.removeHandler('agent:delivery-events')
-    // Events arrive while the run goes on; the cursor is how many were already read.
+    // Events arrive while the run goes on, the way the runner keeps them: an
+    // item with an id (a tool call, the text being written) is updated in
+    // place, so a later read can change a row that was already read.
     const started = Date.now()
-    const events = [{ at: 5, kind: 'tool', text: 'Ambio · get_architecture · overview' }, { at: 6, kind: 'tool', text: 'Read · src/app.ts' }]
-    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => events.slice(0, Date.now() - started > 2500 ? 2 : 1).slice(after))
+    const log = [
+      [0, { at: 5, id: 'claude:a', kind: 'tool', text: 'Ambio · get_architecture · overview', status: 'inProgress' }],
+      [0, { at: 6, id: 'live:1', kind: 'text', text: 'I will look at the', live: true }],
+      [1200, { at: 7, id: 'claude:a', kind: 'tool', text: 'Ambio · get_architecture · overview', status: 'completed' }],
+      [1200, { at: 8, id: 'live:1', kind: 'text', text: 'I will look at the architecture first, then read the entry point.' }],
+      [1200, { at: 9, id: 'claude:b', kind: 'tool', text: `Read · ${root}\\src\\app.ts`, status: 'inProgress' }],
+      [2500, { at: 10, id: 'claude:b', kind: 'tool', text: `Read · ${root}\\src\\app.ts`, status: 'completed' }],
+      [2500, { at: 11, id: 'claude:c', kind: 'tool', text: 'Subagent · Grep · TODO', status: 'completed' }],
+      [2500, { at: 12, id: 'claude:d', kind: 'tool', text: 'Bash · npm test', status: 'failed', exitCode: 1, output: 'one test failed' }],
+    ] as const
+    ipcMain.handle('agent:delivery-events', (_event, _workspace, _key, after: number) => {
+      const events: Array<{ id?: string }> = []
+      for (const [delay, event] of log) {
+        if (Date.now() - started < delay) continue
+        const index = events.findIndex(item => item.id === event.id)
+        if (index >= 0) events[index] = event; else events.push(event)
+      }
+      return events.slice(after)
+    })
   })
   const mappingAttempt = { id: 'mapping-ui', workspaceId: 'demo', rootId: 'root_demo', state: 'mapping', proposalId: '', startedAt: Date.now(), endedAt: 0, systemCount: 0 }
   await page.route(/\/api\/mapping-attempts(?:\?|$)/, route => route.fulfill({ json: route.request().method() === 'POST' ? { attempt: mappingAttempt, token: 'fixture' } : [mappingAttempt] }))
@@ -3997,8 +4017,23 @@ test('setup maps a codebase with an agent Ambio runs and follows it live', async
   const activity = page.getByRole('region', { name: 'Mapping activity' })
   await expect(activity).toContainText('Claude Code CLI is mapping the project')
   await expect(activity).toContainText('get_architecture')
-  // A later event shows up without leaving the step.
+  // A later event shows up without leaving the step, with the project's own path.
   await expect(activity).toContainText('Read · src/app.ts', { timeout: 10_000 })
+  // Rows already shown are updated in place: the text being written becomes
+  // the whole message, and a tool call shows how it went.
+  const rows = activity.getByRole('listitem')
+  await expect(rows.filter({ hasText: 'I will look at the architecture first' })).toHaveCount(1)
+  await expect(activity.locator('.ambio-map-activity__speech--live')).toHaveCount(0)
+  await expect(rows.filter({ hasText: 'get_architecture' })).toContainText('done')
+  // Each agent's tools get their own badge, a subagent's work is marked, and a failure is said.
+  const tests = rows.filter({ hasText: 'npm test' })
+  await expect(tests.locator('.ambio-map-activity__badge')).toHaveText('Run')
+  await expect(tests).toContainText('failed · exit 1')
+  await expect(tests).toHaveAttribute('data-status', 'failed')
+  const grep = rows.filter({ hasText: 'TODO' })
+  await expect(grep.locator('.ambio-map-activity__badge')).toHaveText('Search')
+  await expect(grep.locator('.ambio-map-activity__subagent')).toHaveText('Subagent')
+  await expect(rows.filter({ hasText: 'C:\\work\\demo' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Claude Code CLI is mapping this project' })).toBeVisible()
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' }).getByRole('tab')).toHaveCount(3)
   await expect(page.getByRole('tablist', { name: 'Agent setup steps' })).not.toContainText('restart', { ignoreCase: true })
