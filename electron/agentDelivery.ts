@@ -550,6 +550,7 @@ export class DeliveryRunner {
       }
       const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
         ...protocolTurn, ...input.acp, authentication: input.driver?.acpAuthentication,
+        onUsage: usage => { run.usage = usage; this.save(run) },
       })
       // Messages sent into a streaming host's turn, until it takes each in.
       const waiting = new Map<string, { text: string; resolve(): void; reject(error: Error): void }>()

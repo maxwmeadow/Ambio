@@ -120,9 +120,6 @@ export interface DeliveryEvent {
   text: string
   /** Text the agent is still writing; replaced as it grows and dropped when the message is complete. */
   live?: boolean
-  /** Structured ACP detail, retained alongside the compact activity label. */
-  toolCallId?: string
-  content?: unknown[]
 }
 
 export interface DeliveryRequest {

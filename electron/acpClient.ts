@@ -1,4 +1,4 @@
-import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
 import { thinkingEvents, type TurnMode } from './agentDrivers.ts'
 
 /**
@@ -34,6 +34,8 @@ export interface AcpTurn {
   send: (line: string) => void
   onSession: (sessionId: string) => void
   onEvent: (event: Omit<DeliveryEvent, 'at'>) => void
+  /** Token use the agent reports for the turn's prompts, summed across corrections. */
+  onUsage?: (usage: DeliveryUsage) => void
 }
 
 export interface AcpOutcome {
@@ -63,16 +65,58 @@ function clip(text: string, max = 400): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
-/** Keep text/diffs bounded and renderable; never persist arbitrary tool objects. */
-export function acpToolContent(input: unknown): unknown[] | undefined {
-  if (!Array.isArray(input)) return undefined
-  const bounded = (value: unknown) => typeof value === 'string' ? value.slice(0, 65536) : undefined
-  const content = input.slice(0, 8).flatMap<unknown>(item => {
-    if (item?.type === 'diff' && typeof item.path === 'string') return [{ type: 'diff', path: item.path.slice(0, 1024), oldText: bounded(item.oldText), newText: bounded(item.newText) }]
-    if (item?.type === 'content' && item.content?.type === 'text' && typeof item.content.text === 'string') return [{ type: 'content', content: { type: 'text', text: bounded(item.content.text) } }]
-    return []
-  })
-  return content.length ? content : undefined
+const DETAIL_MAX = 64000
+
+/** A file change as a unified diff: the changed lines with three lines around them. */
+export function unifiedDiff(file: string, oldText: string | null | undefined, newText: string | null | undefined): string {
+  const split = (text: string | null | undefined) => text ? text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n') : []
+  const before = split(oldText), after = split(newText)
+  let start = 0
+  while (start < before.length && start < after.length && before[start] === after[start]) start++
+  let end = 0
+  while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++
+  const removed = before.slice(start, before.length - end), added = after.slice(start, after.length - end)
+  // The changed middle as removals and additions, matched line by line where
+  // it is small enough to compare; otherwise all of it is replaced.
+  const body: string[] = []
+  if (removed.length * added.length <= 1_000_000) {
+    const lcs = Array.from({ length: removed.length + 1 }, () => new Uint32Array(added.length + 1))
+    for (let i = removed.length - 1; i >= 0; i--) for (let j = added.length - 1; j >= 0; j--) lcs[i][j] = removed[i] === added[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
+    let i = 0, j = 0
+    while (i < removed.length || j < added.length) {
+      if (i < removed.length && j < added.length && removed[i] === added[j]) { body.push(` ${removed[i++]}`); j++ }
+      else if (j < added.length && (i === removed.length || lcs[i][j + 1] > lcs[i + 1][j])) body.push(`+${added[j++]}`)
+      else body.push(`-${removed[i++]}`)
+    }
+  } else body.push(...removed.map(line => `-${line}`), ...added.map(line => `+${line}`))
+  const lead = before.slice(Math.max(0, start - 3), start), tail = before.slice(before.length - end, before.length - end + 3)
+  const oldStart = start - lead.length, oldCount = lead.length + removed.length + tail.length, newCount = lead.length + added.length + tail.length
+  const header = `--- ${oldText == null ? '/dev/null' : `a/${file}`}\n+++ b/${file}\n@@ -${oldCount ? oldStart + 1 : 0},${oldCount} +${newCount ? oldStart + 1 : 0},${newCount} @@`
+  return [header, ...lead.map(line => ` ${line}`), ...body, ...tail.map(line => ` ${line}`)].join('\n')
+}
+
+/** ACP tool content in the fields every agent's activity uses: text as output, file changes as a diff. */
+export function acpToolDetail(content: unknown, rawOutput?: any): Pick<DeliveryEvent, 'output' | 'diff' | 'exitCode'> {
+  const items: any[] = Array.isArray(content) ? content.slice(0, 32) : []
+  const output = items.flatMap(item => item?.type === 'content' && item.content?.type === 'text' && typeof item.content.text === 'string' ? [item.content.text] : []).join('\n')
+  const diff = items.flatMap(item => item?.type === 'diff' && typeof item.path === 'string'
+    ? [unifiedDiff(item.path.slice(0, 1024), typeof item.oldText === 'string' ? item.oldText.slice(0, DETAIL_MAX) : null, typeof item.newText === 'string' ? item.newText.slice(0, DETAIL_MAX) : '')] : []).join('\n')
+  const exit = rawOutput?.exit_code ?? rawOutput?.exitCode
+  return {
+    ...(output ? { output: output.slice(0, DETAIL_MAX) } : {}),
+    ...(diff ? { diff: diff.slice(0, DETAIL_MAX) } : {}),
+    ...(typeof exit === 'number' ? { exitCode: exit } : {}),
+  }
+}
+
+/** The usage a prompt's result reports (agy 1.5: inputTokens, cachedReadTokens, thoughtTokens…), or none. */
+export function acpUsage(usage: any): DeliveryUsage | undefined {
+  if (!usage || typeof usage !== 'object' || typeof usage.inputTokens !== 'number') return undefined
+  const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return {
+    inputTokens: count(usage.inputTokens), cachedInputTokens: count(usage.cachedReadTokens), outputTokens: count(usage.outputTokens),
+    reasoningOutputTokens: count(usage.thoughtTokens), totalTokens: count(usage.totalTokens) || count(usage.inputTokens) + count(usage.outputTokens),
+  }
 }
 
 /** The agent's own mode that matches what this turn asks for, if it has one. */
@@ -98,7 +142,14 @@ export class AcpClient {
   private replaying = false
   private toolKinds = new Map<string, string>()
   private toolTitles = new Map<string, string>()
+  /** Each tool call is one activity item; an update replaces it and keeps what it did not repeat. */
+  private tools = new Map<string, Omit<DeliveryEvent, 'at'>>()
   private text = ''
+  /** The message the agent is writing is one item, saved a few times a second as it grows. */
+  private textId = ''
+  private texts = 0
+  private textTimer: ReturnType<typeof setTimeout> | undefined
+  private usage: DeliveryUsage | undefined
   private thoughtText = ''
   private closed = false
   private cancelled = false
@@ -151,6 +202,7 @@ export class AcpClient {
       const result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: prompt }] })
       if (result.stopReason && result.stopReason !== 'end_turn') throw new Error(`The agent did not accept the update (${result.stopReason}).`)
       this.steeredOutcome = result
+      this.addUsage(result.usage)
       this.turn.onEvent({ kind: 'sent', text: prompt })
     })()
     this.steeringWork.push(work)
@@ -208,8 +260,42 @@ export class AcpClient {
 
   private flushText(): void {
     this.flushThought()
-    if (this.text.trim()) this.turn.onEvent({ kind: 'text', text: clip(this.text, 1200) })
-    this.text = ''
+    clearTimeout(this.textTimer); this.textTimer = undefined
+    if (this.text.trim()) this.turn.onEvent({ ...(this.textId ? { id: this.textId } : {}), kind: 'text', text: clip(this.text, 1200) })
+    this.text = ''; this.textId = ''
+  }
+
+  private writeLive(): void {
+    this.textTimer = undefined
+    if (this.text.trim() && !this.closed) this.turn.onEvent({ id: this.textId, kind: 'text', text: this.text.replace(/\s+/g, ' ').trim().slice(-1200), live: true })
+  }
+
+  private addUsage(reported: unknown): void {
+    const usage = acpUsage(reported)
+    if (!usage || !this.turn.onUsage) return
+    const prior = this.usage
+    this.usage = prior ? {
+      inputTokens: prior.inputTokens + usage.inputTokens, cachedInputTokens: prior.cachedInputTokens + usage.cachedInputTokens,
+      outputTokens: prior.outputTokens + usage.outputTokens, reasoningOutputTokens: prior.reasoningOutputTokens + usage.reasoningOutputTokens,
+      totalTokens: prior.totalTokens + usage.totalTokens,
+    } : usage
+    this.turn.onUsage(this.usage)
+  }
+
+  /** A tool call or its update, as the one activity item for that call. */
+  private reportTool(update: any, first: boolean): void {
+    const id = typeof update.toolCallId === 'string' && update.toolCallId ? update.toolCallId : undefined
+    const prior = id ? this.tools.get(id) : undefined
+    const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 120)}` : ''
+    // The label the call started with stays; agy's updates retitle it with a full path.
+    const label = prior?.text ?? (first ? `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 160)}${where}`
+      : clip(String(update.title ?? this.toolTitles.get(id ?? '') ?? 'Tool result'), 160))
+    const event: Omit<DeliveryEvent, 'at'> = {
+      ...prior, ...(id ? { id } : {}), kind: update.status === 'failed' ? 'error' : 'tool', text: label,
+      ...(typeof update.status === 'string' ? { status: update.status } : {}), ...acpToolDetail(update.content, update.rawOutput),
+    }
+    if (id) this.tools.set(id, event)
+    this.turn.onEvent(event)
   }
 
   private flushThought(): void {
@@ -226,7 +312,11 @@ export class AcpClient {
     if (update.sessionUpdate === 'agent_message_chunk') {
       // What it thought before it spoke is said first.
       this.flushThought()
-      if (update.content?.type === 'text' && typeof update.content.text === 'string') this.text += update.content.text
+      if (update.content?.type === 'text' && typeof update.content.text === 'string') {
+        this.text += update.content.text
+        this.textId ||= `live:${++this.texts}`
+        this.textTimer ??= setTimeout(() => this.writeLive(), 250)
+      }
       return
     }
     if (update.sessionUpdate === 'tool_call') {
@@ -236,13 +326,10 @@ export class AcpClient {
         this.toolKinds.set(update.toolCallId, String(update.kind ?? 'other'))
         this.toolTitles.set(update.toolCallId, String(update.title ?? update.name ?? ''))
       }
-      const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 120)}` : ''
-      this.turn.onEvent({ kind: 'tool', text: `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 160)}${where}`, toolCallId: update.toolCallId, status: update.status, content: acpToolContent(update.content) })
+      this.reportTool(update, true)
       return
     }
-    if (update.sessionUpdate === 'tool_call_update') {
-      this.turn.onEvent({ kind: update.status === 'failed' ? 'error' : 'tool', text: clip(String(update.title ?? this.toolTitles.get(update.toolCallId) ?? 'Tool result'), 160), toolCallId: update.toolCallId, status: update.status, content: acpToolContent(update.content) })
-    }
+    if (update.sessionUpdate === 'tool_call_update') this.reportTool(update, false)
   }
 
   /** Run the turn to its end. Rejects when the agent cannot start or run it. */
@@ -331,6 +418,7 @@ export class AcpClient {
     let result: any
     try {
       result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: turn.prompt }] })
+      this.addUsage(result.usage)
       // agy resolves the original request before its steered replacement ends.
       // Keep the process alive until every accepted correction has completed.
       for (let i = 0; i < this.steeringWork.length; i++) await this.steeringWork[i]

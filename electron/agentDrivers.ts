@@ -578,7 +578,9 @@ const DRIVERS: Record<string, AgentDriver> = {
   // Windsurf's local agent speaks ACP, with per-session MCP servers.
   'devin-cli': acpDriver(['acp']),
   // The explicit route and hybrid CLI both use Google's native ACP server.
-  'antigravity-acp': acpDriver(['acp']),
+  // Ask me sends its permission requests to the conversation; Full access
+  // approves them. agy 1.5 has no auto mode of its own (default, accept-edits, plan).
+  'antigravity-acp': { ...acpDriver(['acp']), access: ['ask', 'full'] },
   'antigravity-cli': antigravityCli,
 }
 

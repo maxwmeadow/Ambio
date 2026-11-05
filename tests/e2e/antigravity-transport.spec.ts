@@ -5,7 +5,7 @@ import path from 'node:path'
 import { agentMenu, skipAgentGuides } from './agentGuides'
 
 test('Antigravity uses its reported model route, asks permission and finishes steered work', async () => {
-  test.setTimeout(90000)
+  test.setTimeout(120000)
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agy-ui-'))
   const root = path.join(home, 'project'), capture = path.join(home, 'capture.jsonl')
   fs.mkdirSync(root); fs.mkdirSync(path.join(home, '.ambio'))
@@ -56,6 +56,10 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await panel.getByRole('button', { name: /^Model: / }).click()
     await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
     await panel.getByRole('combobox', { name: 'Thinking level' }).selectOption('low')
+    // The ACP connection offers the shared access levels; Ask me sends requests to the conversation.
+    await panel.getByRole('button', { name: /^Access: / }).click()
+    expect(await panel.getByRole('menuitemradio').allTextContents()).toEqual([expect.stringMatching(/^Ask me/), expect.stringMatching(/^Full access/)])
+    await panel.getByRole('menuitemradio', { name: 'Ask me', exact: true }).click()
     const textbox = panel.getByRole('textbox', { name: 'Instruction for your agent' })
     await textbox.fill('Fix the fixture')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
@@ -68,7 +72,12 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await page.getByRole('button', { name: /^Message agent/ }).click()
     await panel.getByRole('group', { name: 'Permission request: Edit fixture.txt' }).getByRole('button', { name: 'Allow', exact: true }).click()
     await expect.poll(() => fs.existsSync(path.join(root, 'fixture.txt'))).toBe(true)
-    await expect(panel.getByText('Edit fixture.txt', { exact: false }).first()).toBeVisible()
+    // The tool call's update replaced it in place, with its change behind one expandable diff.
+    const activity = panel.getByRole('list', { name: 'What the agent is doing' })
+    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toHaveCount(1)
+    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('completed')
+    await activity.getByText('View changes').click()
+    await expect(activity.locator('pre')).toContainText('+approved')
     await expect(textbox).toBeEnabled()
     await textbox.fill('Use the corrected instruction')
     await panel.getByRole('button', { name: 'Send correction', exact: true }).click()
@@ -78,7 +87,11 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     expect(runs[0].transport).toBe('acp')
     expect(runs[0].thinking).toBe('low')
     const events = await page.evaluate(key => window.ambio.listDeliveryEvents('demo', key), runs[0].key)
-    expect(events.some(event => event.text === 'Corrected fixture reply.')).toBe(true)
+    expect(events.filter(event => event.kind === 'text').map(event => [event.id?.startsWith('live:'), event.text, event.live])).toEqual([[true, 'Corrected fixture reply.', undefined]])
+    expect(events.filter(event => event.id === 'edit')).toHaveLength(1)
+    expect(events.some(event => 'content' in event)).toBe(false)
+    expect(runs[0].usage).toMatchObject({ inputTokens: 200, outputTokens: 14 })
+    await expect(panel.getByText('200 input · 14 output tokens')).toBeVisible()
     const server = captured().find(item => item.mcpServers)?.mcpServers[0]
     expect(server.env).toEqual([{ name: 'AMBIO_WORKSPACE_ID', value: 'demo' }])
     expect(server.args).toContain('--ambio-host=antigravity-cli')
@@ -96,6 +109,19 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect.poll(() => captured().some(item => item.transport === 'print')).toBe(true)
     expect(captured().find(item => item.transport === 'print').args).toEqual(expect.arrayContaining(['--model', 'claude-fixture', '--dangerously-skip-permissions']))
+    // A print conversation runs with full access and offers no levels.
+    await expect(panel.getByRole('button', { name: /^Access: / })).toHaveCount(0)
+    // Full access on the ACP connection approves the agent's request without a card.
+    await panel.getByRole('button', { name: 'New conversation', exact: true }).click()
+    await panel.getByRole('button', { name: /^Model: / }).click()
+    await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
+    await panel.getByRole('button', { name: 'Access: Ask me' }).click()
+    await panel.getByRole('menuitemradio', { name: 'Full access', exact: true }).click()
+    await textbox.fill('Edit without asking')
+    await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
+    await expect.poll(() => captured().filter(item => item.permission?.optionId === 'yes').length).toBe(2)
+    expect(await app.evaluate(() => (globalThis as any).agyPermission)).toBe(null)
+    await expect.poll(async () => (await page.evaluate(() => window.ambio.listDeliveryRuns('demo'))).filter(run => run.transport === 'acp').every(run => run.state === 'completed')).toBe(true)
     await page.screenshot({ path: 'test-results/antigravity-transport.png' })
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })

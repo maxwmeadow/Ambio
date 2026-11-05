@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { AcpClient, acpModeFor, acpToolContent } from './acpClient.ts'
+import { AcpClient, acpModeFor, acpToolDetail } from './acpClient.ts'
 import { antigravityOptions, antigravityRoute, inspectAntigravity } from './antigravityTransport.ts'
 import { DeliveryRunner } from './agentDelivery.ts'
 
@@ -161,10 +161,11 @@ test('a turn stays alive when agy ends the original request before its steered r
   assert.equal(run.events.at(-1).text, 'Corrected reply')
 })
 
-test('tool content retains bounded text/diffs and discards unrenderable objects', () => {
-  const result = acpToolContent([{ type: 'diff', path: 'a.ts', oldText: 'old', newText: 'new' }, { type: 'content', content: { type: 'text', text: 'x'.repeat(70000) } }, { type: 'content', content: { type: 'image', data: 'ignored' } }])
-  assert.equal(result.length, 2)
-  assert.equal(result[1].content.text.length, 65536)
+test('tool content becomes bounded output and a unified diff, and unrenderable objects are dropped', () => {
+  const result = acpToolDetail([{ type: 'diff', path: 'a.ts', oldText: 'old', newText: 'new' }, { type: 'content', content: { type: 'text', text: 'x'.repeat(70000) } }, { type: 'content', content: { type: 'image', data: 'ignored' } }], { exit_code: 0 })
+  assert.equal(result.diff, '--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-old\n+new')
+  assert.equal(result.output.length, 64000)
+  assert.equal(result.exitCode, 0)
 })
 
 test('transport receipts survive restart and pre-upgrade CLI conversations mean print', t => {
