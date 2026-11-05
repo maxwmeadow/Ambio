@@ -75,7 +75,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     // The tool call's update replaced it in place, with its change behind one expandable diff.
     const activity = panel.getByRole('list', { name: 'What the agent is doing' })
     await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toHaveCount(1)
-    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('completed')
+    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('· done')
     await activity.getByText('View changes').click()
     await expect(activity.locator('pre')).toContainText('+approved')
     await expect(textbox).toBeEnabled()
