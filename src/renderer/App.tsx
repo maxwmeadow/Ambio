@@ -10,6 +10,7 @@ import { DocumentsPanel } from './components/DocumentsPanel'
 import { BinDragGhostLayer } from './components/BinDragGhostLayer'
 import { SearchBar } from './components/SearchBar'
 import { SourcePreviewHost } from './components/SourcePreviewDialog'
+import { useSourcePreviewStore } from './store/sourcePreviewStore'
 import { ModelExplorer } from './components/ModelExplorer'
 import { InjectConfirmBanner } from './components/InjectConfirmBanner'
 import { AgentLogPanel } from './components/AgentLogPanel'
@@ -249,6 +250,7 @@ export default function App() {
       ;(window as unknown as { __ambioGraphStore?: unknown }).__ambioGraphStore = useGraphStore
       ;(window as unknown as { __ambioConnectToArchd?: unknown }).__ambioConnectToArchd = connectToArchd
       ;(window as unknown as { __ambioDecodeSnapshot?: unknown }).__ambioDecodeSnapshot = decodeCanvasSnapshot
+      ;(window as unknown as { __ambioSourcePreviewStore?: unknown }).__ambioSourcePreviewStore = useSourcePreviewStore
       // A move reaches Edit → Undo once it is saved, a beat after it shows,
       // and an undo reaches Redo once its own save returns.
       ;(window as unknown as { __ambioCanUndo?: unknown }).__ambioCanUndo = canUndo

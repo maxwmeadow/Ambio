@@ -4,8 +4,7 @@ import { useShowOnMap } from '../canvas/useShowOnMap'
 import { useGraphStore } from '../store/graphStore'
 import { searchSymbols } from '../canvas/symbolSearch'
 import { buildSearchResults, SEARCH_GROUP_LABELS, type SearchResult, type SymbolMatch } from '../canvas/searchResults'
-import { SourcePreviewDialog } from './SourcePreviewDialog'
-import type { DbSymbol } from '../../shared/types'
+import { useSourcePreviewStore } from '../store/sourcePreviewStore'
 
 interface SearchBarProps {
   onClose: () => void
@@ -33,7 +32,6 @@ export function SearchBar({ onClose }: SearchBarProps) {
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
   const [symbols, setSymbols] = useState<SymbolMatch[]>([])
-  const [preview, setPreview] = useState<SymbolMatch | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const activeResultRef = useRef<HTMLButtonElement>(null)
   const showOnMap = useShowOnMap(false)
@@ -79,9 +77,12 @@ export function SearchBar({ onClose }: SearchBarProps) {
 
   const navigate = useCallback((result: SearchResult) => {
     showOnMap(result.nodeId)
-    if (result.kind === 'symbol') setPreview(result.symbol)
-    else onClose()
-  }, [showOnMap, onClose])
+    if (result.kind === 'symbol') {
+      const { fileId, name, kind, lineStart, lineEnd } = result.symbol
+      useSourcePreviewStore.getState().open({ fileId, workspaceId, name, kind, lineStart, lineEnd })
+    }
+    onClose()
+  }, [showOnMap, onClose, workspaceId])
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
@@ -96,17 +97,6 @@ export function SearchBar({ onClose }: SearchBarProps) {
     } else if (event.key === 'Escape') {
       onClose()
     }
-  }
-
-  if (preview) {
-    return (
-      <SourcePreviewDialog
-        fileId={preview.fileId}
-        workspaceId={workspaceId}
-        symbol={{ name: preview.name, kind: preview.kind as DbSymbol['kind'], lineStart: preview.lineStart, lineEnd: preview.lineEnd }}
-        onClose={onClose}
-      />
-    )
   }
 
   return createPortal(

@@ -69,6 +69,8 @@ type Server struct {
 	// re-index and feed the activity engine. Keyed by root ID; closed on
 	// workspace close.
 	watchers map[string]*watcher.Watcher
+	// sourceSaveMu makes a save's stale-content check and its write one step.
+	sourceSaveMu sync.Mutex
 	// Infra detection: one run at a time per workspace, and what the latest
 	// run saw but could not attribute to a single service.
 	detectMu        sync.Mutex
@@ -957,6 +959,12 @@ func (s *Server) handleFileByID(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodGet && sub == "source":
 		s.handleFileSource(w, r, id)
+
+	case r.Method == http.MethodPut && sub == "source":
+		s.handleSaveFileSource(w, r, id)
+
+	case r.Method == http.MethodGet && sub == "committed":
+		s.handleCommittedSource(w, r, id)
 
 	default:
 		http.NotFound(w, r)

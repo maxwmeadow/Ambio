@@ -87,8 +87,35 @@ in the app as "What's New" after updating, so write it for users.
   or hides it on every platform. Run interactive shells in the project folder,
   keep multiple sessions, pick detected shells or locate another executable;
   hidden sessions keep running until closed or the app exits.
+- Double-click a file on the map to open its code. A file's properties are now
+  on its right-click menu (Properties).
 - Click a file and line an agent mentions in chat, such as `heuristics.py:114`,
   to open that file's source at that line. Works however the agent wrote it.
+- Click a function or class an agent names in chat, such as `evaluate_scene()`
+  or `Scene.update`, to open it at its definition. Names that could mean more
+  than one definition stay plain.
+- The editor marks what changed since your last commit, in the margin and on
+  the scrollbar, and whose change it is: yours, or an agent's (in violet, with
+  what it was doing). Click a mark to see the committed lines and revert them.
+- Select code and press Ctrl+I (or Ask agent) to attach it to your next
+  message, as a chip beside the text like an attached sheet; with nothing
+  selected, the file itself is attached. Ctrl+click a name to jump to its
+  definition; Show on map takes you to the file on the map.
+- The code editor keeps the files you open as tabs. Closing the editor just
+  puts it away: open another file from the map or chat and it joins the
+  others. Close a file with its tab's ×, a middle-click, or right-click for
+  Close Others and Close All. Following a definition opens it in a new tab,
+  Ctrl+Tab moves between tabs, and each project's tabs are still open after
+  a restart.
+- Right-click in the code editor for Cut, Copy, Paste, Select All, Find, Go
+  to Definition, Ask agent, Copy Reference (the file and lines, ready to
+  paste), Revert This Change and Show on Map. Unsaved changes show as a dot
+  beside the file name.
+- A file an agent changes while it is open updates in front of you, and edits
+  you have not saved come back after a crash or restart.
+- Edit code right in Ambio's source viewer and save with Ctrl+S. If an agent
+  or another editor changed the file while you were editing, Ambio shows you
+  the differences instead of overwriting them.
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
   for To review when opening a sheet. Reduced-motion preferences are respected.
 - Expand a sheet in the sidebar to find its systems, files and connections,

@@ -922,13 +922,74 @@ relative links, `:12`, `#L12-L20`, `(12,5)`, "line 12 of `a.py`" - is read by
 `remarkCodeReferences` plugin rewrites each into an `ambio://code/` link that
 renders as one chip; a shortened or differently-cased name counts when exactly
 one indexed path matches it. A chip with a line opens the app-wide source
-viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the same
-`SourcePreviewDialog` symbol rows use). A chip without one, like a row
+viewer there (`useSourcePreviewStore` → `SourcePreviewHost`, the one viewer
+symbol rows and search also open). The store keeps one tab per file; the host
+keeps every tab's editor mounted and hides all but the one in front, so edits,
+undo and scroll survive switching, and opening an open file again points its
+tab at the new lines instead of remounting it. Closing the editor only hides
+it (`visible`); tabs close from the tab strip, those with unsaved changes
+asking in turn (`closing`). Each project's tab list is kept in localStorage
+(`ambio.sourceTabs.<workspace>`); unsaved text is kept apart, as drafts. Inline code shaped like a symbol (`run()`,
+`Scene.update`, `a.py::run`; `symbolReference.ts`) becomes an `ambio://symbol/`
+link carrying the files its paragraph and the reply name; the chip asks archd's
+symbol search for exact matches (`symbolLookup.ts`, cached until the files
+list changes) and becomes clickable only when one definition is clear, a
+class before the name being matched by line-range containment. Otherwise it
+stays code. A file chip without a line, like a row
 under To review, brings the map to its node through `useShowOnMap`, which
 opens a collapsed system, selects the node and fits the view once React Flow
 has measured it. The toolbar reserves the shared sidebar width as
 `--workbench-sidebar-inset` and the canvas area ends at the panel's edge, so every
 fit and selection centres in what is visible.
+
+**Source editor** (`SourcePreviewDialog.tsx`, `sourceEditor.ts`): the source
+viewer is a CodeMirror 6 editor (DECISIONS 2026-11-03), loaded with
+`GET /api/files/<id>/source`, which returns the content, its SHA-256 `hash` and
+whether it is `editable` (UTF-8). The language comes from
+`@codemirror/language-data` on demand; colours are Dark Modern. The editor keeps
+the file's dominant line separator (`EditorState.lineSeparator`), so
+`state.sliceDoc()` - never `doc.toString()`, which joins with LF - returns the
+file's bytes. The pointed-at lines are a decoration field mapped through edits.
+A save is `PUT /api/files/<id>/source {workspaceId, content, baseHash}`: archd
+looks the file up by ID only, checks it resolves inside its root, and under one
+lock compares the disk hash with `baseHash` - a mismatch writes nothing and
+returns 409 with the current file, which the dialog shows as a unified diff
+(`@codemirror/merge`) with Keep mine (saves over the new hash) or Use the file
+on disk. Files are written in place; the watcher reindexes them like any save.
+Mapping credentials cannot reach the route.
+
+Change marks (`sourceChanges.ts`) compare the editor with
+`GET /api/files/<id>/committed`, which returns the file at HEAD
+(`gitworktree.CommittedFile`: `rev-parse HEAD:./name`, `cat-file`) and, from the
+structural journal, who changed the file since its last commit
+(`db.FileAuthorsSince`: `file.created`/`file.updated` rows grouped by actor and
+work session). `Chunk.build`/`Chunk.updateB` from `@codemirror/merge` keep the
+changed ranges current as the person types; the gutter and an overview ruler
+(a view plugin over the scrollbar, scaled to content height) draw them. A line
+is "mine" when a person edit (`input`, `delete`, `undo`, `redo`, `move` user
+events) touched it in this editor; otherwise it is an agent's when every
+author since the commit was an agent, else unattributed - the journal knows
+files, not lines. Revert replaces a chunk with the committed lines in the
+file's own line break. The outline (`sourceOutline.ts`) maps the indexed
+symbols to positions and through edits, for the breadcrumb and same-file
+Ctrl+click; other names resolve through `symbolLookup.ts`, and following one
+pushes the current place on `useSourcePreviewStore`'s history for Back. The
+dialog watches its file's record in the graph store: a `file:updated` patch
+refetches the source, and a new hash reloads an unedited editor through a
+minimal diff (`replaceWithin`) or raises the conflict bar over edits. Unsaved
+edits are written to `localStorage` (`ambio.sourceDraft.<workspace>.<file>`)
+with the hash they were made against and offered back on the next open.
+
+Ask agent (Ctrl+I) attaches code to the next message rather than writing it
+into the text: it dispatches `ambio:open-agent-dispatch` with
+`code: [reference]`, and the composer keeps those references beside the map
+selection as chips (persisted with the draft). A range is an ordinary file
+reference with a `lines` parameter (`codeReference` in `inboxModel.ts`:
+`ambio://file/<id>?label=path:12-20&lines=12-20`), so archd's selection
+validation, retries and history need nothing new; `get_inbox` targets add
+`lines`, and Ambio chat's hidden context carries the reference as written.
+References are parsed with a pattern, not `URL`: Electron 31's Chromium gives
+custom schemes no host.
 
 **Infra detection** (`internal/infradetect`, `internal/registry`): a pure
 analysis of package imports, environment reads, the import graph and config

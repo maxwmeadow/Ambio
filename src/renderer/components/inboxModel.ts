@@ -2,12 +2,39 @@ export function canvasReference(type: string, id: string, label: string): string
   return `ambio://${type}/${encodeURIComponent(id)}?label=${encodeURIComponent(label)}`
 }
 export { workOrderHandoff } from '../../shared/workOrderHandoff.ts'
+/**
+ * A reference's parts. Read with a pattern, not URL: the Chromium in
+ * Electron 31 gives a custom scheme like ambio:// no host ("ambio://file/x"
+ * has pathname "//file/x"), where Node and newer browsers give "file".
+ */
+function parseReference(reference: string): { type: string; id: string; params: URLSearchParams } | null {
+  const found = /^ambio:\/\/([^/?#]+)\/([^?#]*)(?:\?([^#]*))?/i.exec(reference)
+  if (!found) return null
+  try { return { type: found[1].toLowerCase(), id: decodeURIComponent(found[2]), params: new URLSearchParams(found[3] ?? '') } } catch { return null }
+}
 export function referenceTarget(reference: string): { id: string; label: string } {
-  try {
-    const url = new URL(reference)
-    const id = decodeURIComponent(url.pathname.slice(1))
-    return { id: url.host === 'planned' ? `planned:${id}` : id, label: url.searchParams.get('label') || id || reference }
-  } catch { return { id: '', label: reference } }
+  const parsed = parseReference(reference)
+  if (!parsed) return { id: '', label: reference }
+  return { id: parsed.type === 'planned' ? `planned:${parsed.id}` : parsed.id, label: parsed.params.get('label') || parsed.id || reference }
+}
+/**
+ * Lines of a file attached to a message: a file reference that also names a
+ * line range, labelled "path:12-20". With no lines it is the file itself,
+ * the same reference selecting the file on the map makes.
+ */
+export function codeReference(fileId: string, relPath: string, lines?: { start: number; end: number }): string {
+  if (!lines) return canvasReference('file', fileId, relPath)
+  const range = lines.start === lines.end ? `${lines.start}` : `${lines.start}-${lines.end}`
+  return `${canvasReference('file', fileId, `${relPath}:${range}`)}&lines=${range}`
+}
+/** The line range a file reference names, if any. */
+export function referenceLines(reference: string): { start: number; end: number } | null {
+  const parsed = parseReference(reference)
+  const found = parsed?.type === 'file' ? /^(\d+)(?:-(\d+))?$/.exec(parsed.params.get('lines') ?? '') : null
+  if (!found) return null
+  const start = Number(found[1])
+  const end = Number(found[2] ?? found[1])
+  return start >= 1 && end >= start ? { start, end } : null
 }
 export function messageReferences(selection: string): string[] {
   try { const refs = JSON.parse(selection); return Array.isArray(refs) ? refs.filter(ref => typeof ref === 'string') : [] } catch { return [] }

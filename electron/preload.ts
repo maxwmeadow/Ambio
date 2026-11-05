@@ -198,6 +198,9 @@ contextBridge.exposeInMainWorld('ambio', {
     return () => { ipcRenderer.removeListener('menu:open-recent', handler) }
   },
   copyText: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text),
+  // Pastes into whatever has focus, as the keyboard shortcut would; the
+  // clipboard's contents never pass through the renderer.
+  pasteIntoFocus: (): Promise<void> => ipcRenderer.invoke('clipboard:paste'),
 
   // Opening from outside: `ambio .`, dock drops, links, dropped folders.
   takeOpenRequest: (): Promise<ProjectConfig | null> => ipcRenderer.invoke('app:take-open-request'),
@@ -445,6 +448,7 @@ declare global {
       clearRecentProjects: () => Promise<void>
       onOpenRecent: (callback: (projectId: string) => void) => () => void
       copyText: (text: string) => Promise<void>
+      pasteIntoFocus: () => Promise<void>
       takeOpenRequest: () => Promise<ProjectConfig | null>
       onOpenRequest: (callback: () => void) => () => void
       openPath: (path: string) => Promise<void>

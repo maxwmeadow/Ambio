@@ -1958,6 +1958,7 @@ function setupIPC(): void {
     return text
   })
   ipcMain.handle('clipboard:write', (_event, text: string) => { clipboard.writeText(String(text ?? '')) })
+  ipcMain.handle('clipboard:paste', event => { event.sender.paste() })
   ipcMain.handle('diagnostics:open-logs', () => shell.openPath(LOG_DIR))
   ipcMain.handle('diagnostics:report-bug', async () => {
     // The issue carries the environment summary only; logs are too long for

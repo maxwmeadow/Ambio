@@ -580,13 +580,35 @@
 }
 
 .ambio-context-menu button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 28px;
   padding: 6px 10px;
   color: #1f2a26;
   font-size: 12.5px;
   text-align: left;
 }
 
-.ambio-context-menu button:hover,
+.ambio-context-menu button:disabled {
+  color: #9a9e96;
+  cursor: default;
+}
+
+.ambio-context-menu__shortcut {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6b746f;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.ambio-context-menu button:disabled .ambio-context-menu__shortcut {
+  color: #b3b6ae;
+}
+
+.ambio-context-menu button:not(:disabled):hover,
 .ambio-context-menu button:focus-visible {
   background: #dcd9ce;
   outline: none;

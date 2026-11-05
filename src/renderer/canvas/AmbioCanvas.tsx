@@ -65,6 +65,7 @@ import { useCommandHandlers } from '../app/commands'
 import { layoutUndoEntry } from './layoutUndo'
 import { pushUndo } from './undoStack'
 import { CanvasContextMenu, type CanvasContextTarget } from './CanvasContextMenu'
+import { openFileCode } from './openFileCode'
 import { SheetPalette, STENCILS, type StencilDef } from '../components/SheetPalette'
 import { InfraPickerDialog } from '../components/InfraPickerDialog'
 import { untakenSheetName } from '../../shared/sheetNames'
@@ -3299,11 +3300,20 @@ export function AmbioCanvas({ readOnly = false, reviewScene, binScene }: AmbioCa
     }
   }, [applySelection, setSelectedNode, setInspectedNode])
 
+  // Double-clicking a file opens its code; its Properties are on the right-click
+  // menu. Other nodes (systems, infrastructure, planned files with no code yet)
+  // open their Properties.
   const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
     if (node.type === 'note') return
     const target = event.target as HTMLElement | null
     if (target?.closest('input, textarea, select, button, [contenteditable="true"], [data-node-editable="true"]')) return
     setSelectedNode(node.id)
+    const { files, currentProject } = useGraphStore.getState()
+    const file = files.find(candidate => candidate.id === node.id)
+    if (file && currentProject) {
+      openFileCode(currentProject.id, file)
+      return
+    }
     setInspectedNode(node.id)
   }, [setSelectedNode, setInspectedNode])
 

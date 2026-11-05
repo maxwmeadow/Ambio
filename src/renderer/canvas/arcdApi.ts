@@ -149,12 +149,66 @@ export interface FileSource {
   language: string
   lineCount: number
   content: string
+  /** SHA-256 of the bytes on disk; a save names it so a stale edit is refused. */
+  hash: string
+  /** False when the file is not UTF-8 text and so cannot be edited faithfully. */
+  editable: boolean
 }
 
 export async function apiGetFileSource(fileId: string, workspaceId: string, signal?: AbortSignal): Promise<FileSource> {
   const res = await fetch(`${archdWsHttp()}/api/files/${encodeURIComponent(fileId)}/source?workspace=${encodeURIComponent(workspaceId)}`, { signal })
   if (!res.ok) throw new Error(await res.text() || `Unable to load source (${res.status})`)
   return res.json() as Promise<FileSource>
+}
+
+/** Who changed a file since its last commit: a person, or an agent's work session. */
+export interface FileAuthor {
+  actor: 'human' | 'agent' | string
+  sessionId?: string
+  agent?: string
+  goal?: string
+  lastAt: number
+  saves: number
+}
+
+export interface CommittedSource {
+  /** False when the file is not in a Git checkout: there is nothing to compare with. */
+  repository: boolean
+  /** False for a file the last commit does not hold: every line is new. */
+  tracked: boolean
+  content: string
+  authors: FileAuthor[]
+}
+
+/** The file as its checkout's last commit has it, and who changed it since. */
+export async function apiGetCommittedSource(fileId: string, workspaceId: string, signal?: AbortSignal): Promise<CommittedSource> {
+  const res = await fetch(`${archdWsHttp()}/api/files/${encodeURIComponent(fileId)}/committed?workspace=${encodeURIComponent(workspaceId)}`, { signal })
+  if (!res.ok) return { repository: false, tracked: false, content: '', authors: [] }
+  return res.json() as Promise<CommittedSource>
+}
+
+export type SaveSourceResult =
+  | { status: 'saved'; source: FileSource }
+  /** The file changed on disk since it was opened; nothing was written. */
+  | { status: 'conflict'; current: FileSource }
+  | { status: 'failed'; error: string }
+
+/** Write an edit made against the file whose hash is baseHash. */
+export async function apiSaveFileSource(fileId: string, workspaceId: string, content: string, baseHash: string): Promise<SaveSourceResult> {
+  let res: Response
+  try {
+    res = await fetch(`${archdWsHttp()}/api/files/${encodeURIComponent(fileId)}/source`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId, content, baseHash }),
+    })
+  } catch (error) {
+    return { status: 'failed', error: error instanceof Error ? error.message : 'Ambio could not reach its service.' }
+  }
+  const body = await res.json().catch(() => null) as { error?: string; current?: FileSource } & Partial<FileSource> | null
+  if (res.ok && body) return { status: 'saved', source: body as FileSource }
+  if (res.status === 409 && body?.current) return { status: 'conflict', current: body.current }
+  return { status: 'failed', error: body?.error || `Unable to save (${res.status})` }
 }
 
 export async function apiSaveFloorLayouts(workspaceId: string, layouts: Omit<FloorLayout, 'workspaceId' | 'updatedAt'>[]): Promise<FloorLayout[]> {

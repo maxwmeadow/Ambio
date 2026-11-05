@@ -16,7 +16,7 @@ import { AgentPresenceBadge } from './AgentPresenceBadge'
 import { BranchOverlayMark } from './BranchOverlayMark'
 import { useCheckoutStore } from '../../store/checkoutStore'
 import { LanguageIcon, LanguagePicker } from '../languages'
-import { SourcePreviewDialog } from '../../components/SourcePreviewDialog'
+import { useSourcePreviewStore } from '../../store/sourcePreviewStore'
 import { fitPresentationScale } from '../resizeGeometry'
 import { connectionHandleProps } from './connectionChrome'
 import { fileSymbolTab } from '../plannedFileIdentity'
@@ -280,7 +280,6 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   const [symbols, setSymbols] = React.useState<any[] | null>(cachedSymbols ?? null)
   const [symbolsLoading, setSymbolsLoading] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<SymbolTab>('functions')
-  const [previewSymbol, setPreviewSymbol] = React.useState<any | null>(null)
   const symbolRequestRef = React.useRef(0)
   const symbolNodeIdRef = React.useRef(fileId)
   // A re-indexed file (including unchanged line counts) shows its symbols afresh.
@@ -358,7 +357,8 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
   }, [detailRevealed, fileId, workspaceId, suppliedSymbols, symbols, selected])
 
   const handleSymbolClick = (sym: any) => {
-    if (!editableSymbols && sym.lineStart > 0) setPreviewSymbol(sym)
+    if (editableSymbols || !(sym.lineStart > 0)) return
+    useSourcePreviewStore.getState().open({ fileId, workspaceId, name: sym.name, kind: sym.kind, lineStart: sym.lineStart, lineEnd: sym.lineEnd })
   }
 
   // Filter symbols based on the active tab
@@ -924,13 +924,6 @@ export const FileNode = React.memo(function FileNode({ data, selected, width, he
           minWidth={1} minHeight={1} color="var(--accent)"
           onResizeStart={onResizeStart} onResizeEnd={onResizeEnd} />
       )}
-
-      {previewSymbol && <SourcePreviewDialog
-        fileId={fileId}
-        workspaceId={workspaceId}
-        symbol={previewSymbol}
-        onClose={() => setPreviewSymbol(null)}
-      />}
 
       {!d.omitConnectionHandles && <>
       <Handle id="source-top" type="source" position={Position.Top} {...connectionHandleProps(isConnectable, s)} />

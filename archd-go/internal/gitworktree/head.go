@@ -279,6 +279,37 @@ func ContentMatchesBlob(content []byte, blob string) bool {
 	return len(normalized) != len(content) && BlobID(normalized, blob) == blob
 }
 
+// Committed is a working file as the checkout's HEAD has it.
+type Committed struct {
+	Content []byte
+	// Tracked is false when HEAD does not hold the file: it is new, or the branch has no commit yet.
+	Tracked bool
+	// At is when the file was last committed (Unix seconds); 0 when untracked.
+	At int64
+}
+
+// CommittedFile reads a working file as HEAD has it. An error means the file
+// is not in a Git checkout at all.
+func CommittedFile(path string) (Committed, error) {
+	dir, name := filepath.Dir(path), filepath.Base(path)
+	id, err := gitOutput(dir, "rev-parse", "--verify", "--quiet", "HEAD:./"+name)
+	if err != nil {
+		if _, repoErr := gitOutput(dir, "rev-parse", "--is-inside-work-tree"); repoErr != nil {
+			return Committed{}, repoErr
+		}
+		return Committed{}, nil
+	}
+	content, err := gitOutput(dir, "cat-file", "blob", strings.TrimSpace(string(id)))
+	if err != nil {
+		return Committed{}, err
+	}
+	committed := Committed{Content: content, Tracked: true}
+	if when, err := gitOutput(dir, "log", "-1", "--format=%ct", "HEAD", "--", "./"+name); err == nil {
+		committed.At, _ = strconv.ParseInt(strings.TrimSpace(string(when)), 10, 64)
+	}
+	return committed, nil
+}
+
 // Blob reads one object's content.
 func (c Checkout) Blob(id string) ([]byte, error) {
 	return gitOutput(c.TopLevel, "cat-file", "blob", id)

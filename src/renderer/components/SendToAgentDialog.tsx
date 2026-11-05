@@ -5,7 +5,8 @@ import { useReactFlow, useStoreApi } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGraphStore } from '../store/graphStore'
 import { useSheetStore, refreshInbox, cancelInboxMessage, deleteInboxConversation } from '../store/sheetStore'
-import { canvasReference, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode, type WorkOrderStage, conversations, conversationStageCounts, needsReview, requestText, turnRequest } from './inboxModel'
+import { useSourcePreviewStore } from '../store/sourcePreviewStore'
+import { canvasReference, referenceLines, referenceTarget, messageReferences, inboxStatus, workOrderHandoff, WORK_ORDER_STAGES, WORK_ORDER_MODES, workOrderNote, type WorkOrderMode, type WorkOrderStage, conversations, conversationStageCounts, needsReview, requestText, turnRequest } from './inboxModel'
 import { SheetComparison } from './SheetComparison'
 import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
@@ -87,6 +88,15 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const [excluded, setExcluded] = useState<string[]>([])
   // Files Ambio re-checks against the map after the reply (make the code match).
   const [codeFitFileIds, setCodeFitFileIds] = useState<string[]>([])
+  // Files and lines of code attached from the editor (Ask agent), kept with the draft.
+  const [attachedCode, setAttachedCodeState] = useState<string[]>(() => {
+    try { const saved = JSON.parse(localStorage.getItem(`${draftKey}:code`) ?? '[]'); return Array.isArray(saved) ? saved.filter(ref => typeof ref === 'string') : [] } catch { return [] }
+  })
+  const setAttachedCode = (update: (current: string[]) => string[]) => setAttachedCodeState(current => {
+    const next = update(current)
+    try { localStorage.setItem(`${draftKey}:code`, JSON.stringify(next)) } catch { /* in-memory attachment still works */ }
+    return next
+  })
   const textarea = useRef<HTMLTextAreaElement>(null)
   const history = useRef<HTMLDivElement>(null)
   const attachmentArea = useRef<HTMLDivElement>(null)
@@ -122,7 +132,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   }
   useEffect(() => {
     const attach = (event: Event) => {
-      const detail = (event as CustomEvent<{ sheetId?: string; note?: string; codeFitFileIds?: string[]; investigationId?: string }>).detail
+      const detail = (event as CustomEvent<{ sheetId?: string; note?: string; codeFitFileIds?: string[]; investigationId?: string; code?: string[] }>).detail
       if (retry.current || sendLock.current) return
       if (detail?.investigationId) {
         const active = useGraphStore.getState().caseFile
@@ -132,6 +142,12 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         }
       }
       if (detail?.sheetId) attachSheet(detail.sheetId)
+      // Code attaches beside the message, as a file or sheet does, never into its text.
+      const code = detail?.code
+      if (code?.length) {
+        setAttachedCode(current => [...new Set([...current, ...code])])
+        setExcluded(current => current.filter(ref => !code.includes(ref)))
+      }
       // A gesture that needs the code to change arrives with its instruction
       // written (docs/PRODUCT.md §2); a draft already here is kept above it.
       const drafted = detail?.note
@@ -253,14 +269,26 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     const plan = planned.find(item => `planned:${item.id}` === id)
     return plan ? [canvasReference('planned', plan.id, plan.name)] : []
   }).filter(ref => !excluded.includes(ref))
-  const effectiveSelection = retry.current?.selection ?? selection
+  // What goes with the message: the map selection, then attached code it does not already hold.
+  const outgoing = [...selection, ...attachedCode.filter(ref => !selection.includes(ref))]
+  const effectiveSelection = retry.current?.selection ?? outgoing
   const focus = (ref: string) => {
     const target = referenceTarget(ref)
+    // Lines of code open in the editor there; files, systems and plans are shown on the map.
+    const lines = referenceLines(ref)
+    if (lines && graph.files.some(file => file.id === target.id)) {
+      useSourcePreviewStore.getState().open({ fileId: target.id, workspaceId: graph.workspaceId, name: target.label, lineStart: lines.start, lineEnd: lines.end })
+      return
+    }
     if (!canvasScene(flowStore)?.byId.has(target.id) && !getNode(target.id)) { setError('This item is no longer visible. Open its original sheet or expand its system.'); return }
     showOnMap(target.id)
   }
-  const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => <button type="button" key={ref} disabled={editable && locked} onClick={() => editable ? setExcluded(current => [...current, ref]) : focus(ref)} title={editable ? `Remove ${referenceTarget(ref).label} from message` : 'Show on canvas'}>
-    <InboxIcon name="canvas" size={12} /><span>{referenceTarget(ref).label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
+  const removeFromMessage = (ref: string) => {
+    setExcluded(current => [...current, ref])
+    setAttachedCode(current => current.filter(item => item !== ref))
+  }
+  const chips = (refs: string[], editable = false) => refs.length > 0 && <div className="ambio-inbox__targets">{refs.map(ref => <button type="button" key={ref} disabled={editable && locked} onClick={() => editable ? removeFromMessage(ref) : focus(ref)} title={editable ? `Remove ${referenceTarget(ref).label} from message` : referenceLines(ref) ? 'Open these lines' : 'Show on canvas'}>
+    <InboxIcon name={referenceLines(ref) ? 'code' : 'canvas'} size={12} /><span>{referenceTarget(ref).label}</span>{editable && !locked && <InboxIcon name="close" size={11} />}
   </button>)}</div>
   const copy = (text: string, id: string) => { void navigator.clipboard.writeText(text).then(() => setCopied(id), () => setError('Clipboard unavailable. Select the visible work order ID and tell your agent to call get_inbox with that messageId.')) }
   const submit = async (event: FormEvent) => {
@@ -293,8 +321,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     if (toChat) {
       // Ambio chat streams its turn here; a Build still becomes a reviewable work order.
       if (chat.running) return
-      const id = await chat.send({ conversationId: chatCurrent?.id ?? null, providerId: chatProvider?.id ?? '', text: note.trim(), mode, selection, sheetId: attachedSheetId, codeFitFileIds, model: agentModel.value || undefined })
-      if (id) { setNote(''); setCodeFitFileIds([]); nearBottom.current = true; setThreadId(id); setChatActiveId(id) }
+      const id = await chat.send({ conversationId: chatCurrent?.id ?? null, providerId: chatProvider?.id ?? '', text: note.trim(), mode, selection: outgoing, sheetId: attachedSheetId, codeFitFileIds, model: agentModel.value || undefined })
+      if (id) { setNote(''); setCodeFitFileIds([]); setAttachedCode(() => []); nearBottom.current = true; setThreadId(id); setChatActiveId(id) }
       requestAnimationFrame(() => textarea.current?.focus())
       return
     }
@@ -304,7 +332,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       const id = crypto.randomUUID()
       const review = runHost?.id === 'codex' && selectedCodexTransport === 'app-server' && note.trim() === '/review'
       const turnMode = review ? 'ask' : mode
-      retry.current = { id, note: workOrderNote(turnMode, review ? 'Review the current uncommitted changes. Report actionable findings without editing files.' : note.trim()), selection, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode: turnMode, model: agentModel.value || undefined, thinking: agentModel.thinking, where, access: agentAccess.value,
+      retry.current = { id, note: workOrderNote(turnMode, review ? 'Review the current uncommitted changes. Report actionable findings without editing files.' : note.trim()), selection: outgoing, sheetId: attachedSheetId, hostId: delivery.hostId, codeFitFileIds, threadId: currentThreadId ?? id, mode: turnMode, model: agentModel.value || undefined, thinking: agentModel.thinking, where, access: agentAccess.value,
         ...(runHost?.id === 'codex' ? { codexTransport: selectedCodexTransport, codexReview: review } : {}) }
     }
     try { localStorage.setItem(pendingKey, JSON.stringify(retry.current)) } catch { /* in-memory retries still work */ }
@@ -316,7 +344,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       const watching = pending.hostId === WATCHING_DELIVERY || !!watchingHost
       await sheet.send(graph.workspaceId, pending.note, pending.selection, pending.sheetId, pending.id, pending.codeFitFileIds, { threadId: pending.threadId, mode: pending.mode, open: watching, targetHost: watchingHost })
       if (watchingHost) delivery.setNotice(`Sent to the watching ${delivery.hosts.find(host => host.id === watchingHost)?.label ?? 'agent'} session.`)
-      setNote(''); setCodeFitFileIds([]); retry.current = undefined; nearBottom.current = true
+      setNote(''); setCodeFitFileIds([]); setAttachedCode(() => []); retry.current = undefined; nearBottom.current = true
       setThreadId(pending.threadId ?? pending.id)
       try { localStorage.removeItem(pendingKey) } catch { /* already acknowledged */ }
       if (pending.hostId && !watching) await delivery.deliver(pending.id, pending.hostId, pending.model, pending.where, { thinking: pending.thinking, access: pending.access, codexTransport: pending.codexTransport, codexReview: pending.codexReview })

@@ -66,8 +66,10 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
   review, a system in the mapping review list) brings the node into view the
   way search does: it opens a collapsed system, selects the node and fits once
   the node has been measured. All of them share one flight and its framing.
-  A file chip that names a line opens the source viewer at that line instead,
-  leaving the map where it is.
+  A file chip that names a line, or a symbol chip, opens the source viewer at
+  that line or definition instead, leaving the map where it is. The viewer's
+  Show on map (and its breadcrumb's system) closes it, after asking about
+  unsaved changes, and takes the same flight to the file or system.
 - Initial viewport is `{ x: 0, y: 0, zoom: 0.5 }`, followed by `fitView` with
   `0.14` padding.
 - Automatic live-growth reframes are debounced through classification and
@@ -453,6 +455,30 @@ typography, silhouettes, reveal thresholds, geometry, or interaction timing.
 - Box selection uses partial intersection while selection mode is active.
 - Editable text, symbol rows, buttons, and scroll regions do not begin node
   drags or pane pans.
+- Double-clicking a live file (any shape, including class cards) selects it
+  and opens the whole file in the code editor at the top, with no lines
+  highlighted. Its Properties open from the right-click menu (Properties;
+  Open Code in Ambio is the menu's first item). Systems, infrastructure and
+  planned files, which have no code to open, keep opening Properties on
+  double-click. Double-clicking editable text edits it, as before. (Max,
+  2026-11-03.)
+- The code editor keeps one tab per open file, in a strip above it. Closing
+  the editor (Escape, ×, a click outside, Ask agent, Show on map) only hides
+  it: its tabs, unsaved edits included, stay open, and the next file opened
+  from anywhere joins them as another tab. Tabs close only from the tab
+  strip: a tab's ×, a middle-click, or its right-click menu (Close, Close
+  Others, Close All); a tab with unsaved changes asks first, each in turn.
+  Opening an open file (from chat, search, a symbol row or Back) goes to its
+  tab at the new lines, keeping its edits; following a definition opens the
+  other file in its own tab. Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+PageDown /
+  Ctrl+PageUp switch tabs. Each project's open tabs are kept across restarts.
+  Past 12 tabs, the least recently used tab without unsaved changes closes.
+  (Max, 2026-11-04.)
+- Right-clicking in the code editor opens its own menu, never the canvas's:
+  Go to Definition, Ask Agent About This, Cut, Copy, Paste, Select All, Find,
+  Copy Reference, Revert This Change (on a changed line) and Show on Map. A
+  right-click outside the selection moves the cursor there first. Escape
+  closes the menu and leaves the editor open. (Max, 2026-11-04.)
 - Floor nodes are not manually connectable.
 - Nodes become connectable on an active editable sheet overlay.
 - Planned edges may connect planned and live sheet members according to the

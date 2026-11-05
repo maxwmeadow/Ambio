@@ -2224,9 +2224,68 @@ test('opens the categorized infrastructure browser from the infrastructure sideb
   await expect(page.getByRole('complementary', { name: 'Infrastructure' })).toHaveCount(0)
 })
 
-test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
+test('double-clicking a file opens its code; its properties are on the right-click menu', async () => {
   const node = await revealFileNode('file_canvas')
   await node.dblclick({ position: { x: 12, y: 12 }, force: true })
+  const editor = page.getByRole('dialog', { name: 'src/renderer/canvas/AmbioCanvas.tsx in src/renderer/canvas/AmbioCanvas.tsx' })
+  await expect(editor.locator('.cm-content')).toContainText('export function renderCanvas()')
+  // The file itself was opened: nothing is highlighted, and it starts at the top.
+  await expect(editor.locator('.source-preview-location')).toHaveText('7 lines')
+  await expect(editor.locator('.source-preview-line-highlighted')).toHaveCount(0)
+  await expect(editor.locator('.source-preview-statusline')).toContainText('Ln 1, Col 1')
+  await expect(page.getByRole('complementary', { name: 'File properties' })).toHaveCount(0)
+  await expect(node).toHaveClass(/selected/)
+  await editor.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(editor).toHaveCount(0)
+
+
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  const menu = page.getByRole('menu')
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Open Code in Ambio')
+  await menu.getByRole('menuitem', { name: 'Properties' }).click()
+  await expect(page.getByRole('complementary', { name: 'File properties' })).toBeVisible()
+  await page.getByRole('complementary', { name: 'File properties' }).getByRole('button', { name: 'Close properties' }).click()
+
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Open Code in Ambio' }).click()
+  await expect(editor.locator('.cm-content')).toContainText('export function renderCanvas()')
+
+  // With the whole file open and nothing selected, Ask agent attaches the file itself, once,
+  // even though it is also selected on the map.
+  await editor.getByRole('button', { name: 'Ask agent' }).click()
+  await expect(editor).toBeHidden()
+  const attachments = page.locator('.ambio-inbox__attachments')
+  await expect(attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('textbox', { name: 'Instruction for your agent' })).toHaveValue('')
+  await attachments.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx', exact: true }).click()
+
+  // Closing the editor keeps the file open: the next file opens in a second tab beside it.
+  await page.route(/\/api\/files\/file_store\/source\?/, route => route.fulfill({ json: { fileId: 'file_store', relPath: 'src/renderer/store/graphStore.ts', language: 'typescript', lineCount: 1, content: 'export const store = 1\n', hash: 's1', editable: true } }))
+  await page.keyboard.press('ControlOrMeta+K')
+  await page.getByRole('textbox', { name: 'Search the map' }).fill('src/renderer/store/graphStore.ts')
+  await page.getByRole('option').first().click()
+  const storeNode = page.locator('.react-flow__node[data-id="file_store"]')
+  await expect(storeNode).toBeInViewport()
+  await page.waitForTimeout(900)
+  await storeNode.dblclick({ position: { x: 12, y: 12 }, force: true })
+  const front = page.locator('.source-preview-backdrop:not([hidden])')
+  const openFiles = front.getByRole('tablist', { name: 'Open files' })
+  await expect(openFiles.getByRole('tab')).toHaveText(['AmbioCanvas.tsx', 'graphStore.ts'])
+  await expect(openFiles.getByRole('tab', { name: 'graphStore.ts' })).toHaveAttribute('aria-selected', 'true')
+  // A tab's right-click menu closes the others.
+  await openFiles.getByRole('tab', { name: 'graphStore.ts' }).click({ button: 'right' })
+  await page.getByRole('menu', { name: 'Tab' }).getByRole('menuitem', { name: 'Close Others' }).click()
+  await expect(openFiles.getByRole('tab')).toHaveText(['graphStore.ts'])
+  await front.getByRole('button', { name: 'Close graphStore.ts' }).click()
+  await expect(page.locator('.source-preview-backdrop')).toHaveCount(0)
+  await page.unroute(/\/api\/files\/file_store\/source\?/)
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
+})
+
+test('opens the workbench properties inspector without changing canvas selection behavior', async () => {
+  const node = await revealFileNode('file_canvas')
+  await node.click({ button: 'right', position: { x: 12, y: 12 }, force: true })
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Properties' }).click()
 
   const inspector = page.getByRole('complementary', { name: 'File properties' })
   await expect(inspector).toBeVisible()
@@ -4446,4 +4505,339 @@ test('saved investigation cards and timeline navigate the full eight-event recor
   expect((await card.locator('.ambio-case__viewport').boundingBox())!.height).toBeGreaterThan(150)
   await expect(card.getByRole('group',{name:'Investigation pagination'})).toBeVisible()
   await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-linked-narrow.png'})
+test('a function an agent names opens at its definition; an ambiguous name stays code', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const hit = (id: string, name: string, kind: string, lineStart: number, lineEnd: number) => ({ id, fileId, name, kind, lineStart, lineEnd, relPath: file })
+  await page.route(/\/api\/symbols\/search\?/, route => {
+    const name = new URL(route.request().url()).searchParams.get('q')
+    const symbols = name === 'evaluate_scene' ? [hit('s1', 'evaluate_scene', 'function', 3, 6)]
+      : name === 'update' ? [hit('s2', 'update', 'method', 8, 9), hit('s3', 'update', 'method', 10, 11)] : []
+    return route.fulfill({ json: { symbols } })
+  })
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: { fileId, relPath: file, language: 'plaintext', lineCount: 12, content: Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n') } }))
+  const body = 'The knob is dead: `evaluate_scene()` hardcodes `0.1`, and `update` is called twice.'
+  const reply = { id: 'sym-1', workspaceId: 'demo', sheetId: null, note: 'Why?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'sym-1', createdAt: 60, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'claude-code', body, createdAt: 61 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'The knob is dead' })
+  await expect(prose.locator('.ambio-inbox__file-link')).toHaveText(['evaluate_scene()'])
+  await expect(prose.locator('code')).toHaveText(['0.1', 'update'])
+  await prose.getByRole('button', { name: 'evaluate_scene()' }).click()
+  const source = page.getByRole('dialog', { name: `evaluate_scene in ${file}` })
+  await expect(source.locator('.source-preview-location')).toHaveText('function evaluate_scene · lines 3–6')
+  await expect(source.locator('.source-preview-line-highlighted')).toHaveCount(4)
+  await source.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(source).toHaveCount(0)
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/symbols\/search\?/)
+})
+
+test('the editor marks what changed since the commit, whose change it is, and can revert it', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const content = 'speed = read()\nmoving = speed > config.limit\nwait()\nstop()\nlog()\n'
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: { fileId, relPath: file, language: 'python', lineCount: 4, content, hash: 'h1', editable: true } }))
+  await page.route(/\/api\/files\/[^/]+\/committed\?/, route => route.fulfill({ json: {
+    repository: true, tracked: true, content: 'speed = read()\nmoving = speed > 0.1\nwait()\nlog()\n',
+    authors: [{ actor: 'agent', agent: 'codex', goal: 'Fix threshold', lastAt: Date.now() - 4 * 60_000, saves: 2 }],
+  } }))
+  const reply = { id: 'marks-1', workspaceId: 'demo', sheetId: null, note: 'What changed?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'marks-1', createdAt: 80, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: `Codex changed \`${file}:2\`.`, createdAt: 81 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'Codex changed' })
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  const dialog = page.getByRole('dialog', { name: `${file} in ${file}` })
+
+  // Codex changed line 2 and added line 4, so both are marked as an agent's.
+  const marks = dialog.locator('.cm-change-mark')
+  await expect(marks).toHaveCount(2)
+  await expect(dialog.locator('.cm-change-modified.cm-change-by-agent')).toHaveAttribute('title', /Changed\. Changed since the last commit by Codex \("Fix threshold"\), 4 min ago/)
+  await expect(dialog.locator('.cm-change-added.cm-change-by-agent')).toHaveCount(1)
+  await expect(dialog.locator('.cm-overview-mark.cm-overview-by-agent')).toHaveCount(2)
+  await expect(dialog.locator('.cm-overview-target')).toHaveCount(1)
+  // On the scrollbar a change stands out over the pointed-at lines, which may span a whole function.
+  const lanes = await dialog.evaluate(element => {
+    const box = (selector: string) => {
+      const mark = element.querySelector(selector)!
+      return { width: mark.getBoundingClientRect().width, height: mark.getBoundingClientRect().height, z: Number(getComputedStyle(mark).zIndex) }
+    }
+    return { target: box('.cm-overview-target'), change: box('.cm-overview-modified') }
+  })
+  expect(lanes.change.width).toBeGreaterThan(lanes.target.width * 3)
+  expect(lanes.change.height).toBeGreaterThanOrEqual(4)
+  expect(lanes.change.z).toBeGreaterThan(lanes.target.z)
+
+  // A line the person types is theirs; the agent's line beside it stays the agent's.
+  await dialog.locator('.cm-line', { hasText: 'log()' }).click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' # mine')
+  await expect(dialog.locator('.cm-change-by-mine')).toHaveCount(1)
+  await expect(dialog.locator('.cm-change-by-mine')).toHaveAttribute('title', /Changed by you in this editor/)
+  await expect(dialog.locator('.cm-change-by-agent')).toHaveCount(2)
+  await page.screenshot({ path: 'test-results/source-editor-changes.png' })
+
+  // Alt+F5 steps to the next change; clicking a mark shows the committed lines, and Revert puts them back.
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.press('Alt+F5')
+  await expect(dialog.locator('.cm-activeLine')).toHaveText('moving = speed > config.limit')
+  await dialog.locator('.cm-change-by-agent').first().click()
+  const peek = dialog.getByRole('group', { name: 'Committed lines' })
+  await expect(peek).toContainText('moving = speed > 0.1')
+  await peek.getByRole('button', { name: 'Revert' }).click()
+  await expect(peek).toHaveCount(0)
+  await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
+  await expect(dialog.locator('.cm-change-mark')).toHaveCount(2)
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
+
+  // Right-click offers the usual editing commands and this viewer's own; Escape closes only the menu.
+  await dialog.locator('.cm-line', { hasText: 'wait()' }).click({ button: 'right' })
+  const codeMenu = page.getByRole('menu', { name: 'Code' })
+  await expect(codeMenu.getByRole('menuitem', { name: /^Copy / }).first()).toBeDisabled()
+  await expect(codeMenu.getByRole('menuitem', { name: /^Paste/ })).toBeEnabled()
+  await expect(codeMenu.getByRole('menuitem', { name: /^Ask Agent About This/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(codeMenu).toHaveCount(0)
+  await expect(dialog).toBeVisible()
+  await dialog.locator('.cm-line', { hasText: 'wait()' }).click({ button: 'right' })
+  await codeMenu.getByRole('menuitem', { name: /^Select All/ }).click()
+  await expect(dialog.locator('.source-preview-statusline')).toContainText('selected')
+  await dialog.locator('.cm-line', { hasText: 'wait()' }).click({ button: 'right' })
+  await expect(codeMenu.getByRole('menuitem', { name: /^Cut/ })).toBeEnabled()
+  await page.screenshot({ path: 'test-results/source-editor-menu.png' })
+  await page.keyboard.press('Escape')
+
+  // Ctrl+I attaches the selected lines beside the message, leaving the text for the question.
+  // The editor steps aside; the unsaved edits wait in their tab.
+  const composer = page.getByRole('textbox', { name: 'Instruction for your agent' })
+  await composer.fill('')
+  await dialog.locator('.cm-line', { hasText: 'wait()' }).click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+ArrowDown')
+  await page.keyboard.press('Shift+End')
+  await page.keyboard.press('ControlOrMeta+I')
+  await expect(page.locator('.source-preview-backdrop')).toBeHidden()
+  await expect(composer).toHaveValue('')
+  const attached = page.locator('.ambio-inbox__attachments').getByRole('button', { name: `${file}:3-4` })
+  await expect(attached).toHaveAttribute('title', `Remove ${file}:3-4 from message`)
+  await page.locator('.ambio-inbox__compose, .ambio-inbox form').first().screenshot({ path: 'test-results/agent-code-attachment.png' })
+  await attached.click()
+  await expect(attached).toHaveCount(0)
+
+  // Opening the file again brings its tab back, edits and all; closing its tab asks about them.
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
+  await expect(dialog.locator('.cm-content')).toContainText('moving = speed > 0.1')
+  await dialog.getByRole('button', { name: `Close ${file.split('/').pop()}` }).click()
+  await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect(page.locator('.source-preview-backdrop')).toHaveCount(0)
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/committed\?/)
+})
+
+test('the editor shows where you are, follows definitions, reloads disk changes and shows the file on the map', async () => {
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
+  const workspaceId = await page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject.id as string)
+  const canvasSource = (content: string, hash: string) => ({ fileId: 'file_canvas', relPath: 'src/renderer/canvas/AmbioCanvas.tsx', language: 'tsx', lineCount: 7, content, hash, editable: true })
+  const original = "import React from 'react'\n\nexport function renderCanvas() {\n  const ready = true\n  const canvas = <Canvas />\n  return ready ? canvas : null\n}\n"
+  await page.route(/\/api\/files\/file_canvas\/source\?/, route => route.fulfill({ json: canvasSource(original, 'h1') }))
+  await page.route(/\/api\/files\/[^/]+\/committed\?/, route => route.fulfill({ json: { repository: false, tracked: false, content: '', authors: [] } }))
+  await page.route(/\/api\/symbols\/search\?/, route => {
+    const name = new URL(route.request().url()).searchParams.get('q')
+    return route.fulfill({ json: { symbols: name === 'Canvas' ? [{ id: 'sym_canvas', fileId: 'file_docs', name: 'Canvas', kind: 'class', lineStart: 2, lineEnd: 3, relPath: 'docs/ARCHITECTURE.md' }] : [] } })
+  })
+  const reply = { id: 'nav-1', workspaceId, sheetId: null, note: 'Where?', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'nav-1', createdAt: 90, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: 'See `src/renderer/canvas/AmbioCanvas.tsx:5`.', createdAt: 91 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'See' })
+  await prose.getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx:5' }).click()
+  const dialog = page.getByRole('dialog', { name: /in src\/renderer\/canvas\/AmbioCanvas\.tsx$/ })
+
+  // Where the cursor is: inside renderCanvas, line 5; the file indents by two spaces.
+  const crumbs = dialog.getByRole('navigation', { name: 'Where the cursor is' })
+  await expect(crumbs).toContainText('AmbioCanvas.tsx›renderCanvas')
+  const statusLine = dialog.locator('.source-preview-statusline')
+  await expect(statusLine).toContainText('Ln 5, Col 1')
+  await expect(statusLine).toContainText('TSX')
+  await expect(statusLine).toContainText('LF')
+  await expect(statusLine).toContainText('Spaces: 2')
+  await page.screenshot({ path: 'test-results/source-editor-navigation.png' })
+
+  // Ctrl+click: a name defined in this file goes there; one defined elsewhere opens that file, and Back returns.
+  await dialog.locator('.cm-line', { hasText: 'import React' }).click()
+  await expect(crumbs).not.toContainText('renderCanvas')
+  await dialog.locator('.cm-line', { hasText: 'export function' }).getByText('renderCanvas').click({ modifiers: ['ControlOrMeta'] })
+  await expect(dialog.locator('.source-preview-notice')).toHaveText('This is where renderCanvas is defined.')
+  await dialog.locator('.cm-line', { hasText: '<Canvas />' }).getByText('Canvas', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
+  const docs = page.getByRole('dialog', { name: 'Canvas in docs/ARCHITECTURE.md' })
+  await expect(docs.locator('.source-preview-location')).toHaveText('class Canvas · lines 2–3')
+
+  // The file it came from stays open in a tab of its own; Ctrl+Tab and the tabs move between them.
+  const tabs = docs.getByRole('tablist', { name: 'Open files' })
+  await expect(tabs.getByRole('tab')).toHaveText(['AmbioCanvas.tsx', 'ARCHITECTURE.md'])
+  await expect(tabs.getByRole('tab', { name: 'ARCHITECTURE.md' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Control+Tab')
+  await expect(dialog).toBeVisible()
+  await expect(docs).toBeHidden()
+  await dialog.getByRole('tablist', { name: 'Open files' }).getByRole('tab', { name: 'ARCHITECTURE.md' }).click()
+  await expect(docs).toBeVisible()
+  await page.screenshot({ path: 'test-results/source-editor-tabs.png' })
+  await docs.getByRole('button', { name: 'Back' }).click()
+  await expect(dialog.locator('.source-preview-location')).toHaveText('line 5')
+  await expect(dialog.getByRole('button', { name: 'Back' })).toHaveCount(0)
+  // Closing a tab leaves the others open.
+  await dialog.getByRole('button', { name: 'Close ARCHITECTURE.md' }).click()
+  await expect(dialog.getByRole('tablist', { name: 'Open files' }).getByRole('tab')).toHaveText(['AmbioCanvas.tsx'])
+  await expect(dialog).toBeVisible()
+
+  // An agent rewrites the file: the untouched editor shows the new version without losing its place.
+  await page.route(/\/api\/files\/file_canvas\/source\?/, route => route.fulfill({ json: canvasSource(original.replace('  const ready = true\n', '  const ready = isReady()\n'), 'h2') }))
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState((state: any) => ({ files: state.files.map((file: any) => file.id === 'file_canvas' ? { ...file } : file) })))
+  await expect(dialog.locator('.cm-content')).toContainText('const ready = isReady()')
+  await expect(dialog.locator('.source-preview-notice')).toHaveText('src/renderer/canvas/AmbioCanvas.tsx changed on disk; showing it now.')
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+
+  // With unsaved edits, a disk change is announced at once instead of on save.
+  await dialog.locator('.cm-line', { hasText: 'return ready' }).click()
+  await page.keyboard.type('// mine ')
+  await page.route(/\/api\/files\/file_canvas\/source\?/, route => route.fulfill({ json: canvasSource(original.replace('null', 'undefined'), 'h3') }))
+  await page.evaluate(() => (window as any).__ambioGraphStore.setState((state: any) => ({ files: state.files.map((file: any) => file.id === 'file_canvas' ? { ...file } : file) })))
+  await expect(dialog.getByRole('alert')).toHaveText(/AmbioCanvas\.tsx changed on disk while you were editing\./)
+  await expect(dialog.getByRole('alert')).not.toContainText('Nothing was saved')
+  await dialog.getByRole('button', { name: 'Use the file on disk' }).click()
+  await expect(dialog.locator('.cm-content')).toContainText('return ready ? canvas : undefined')
+
+  // Show on map closes the editor and frames the file.
+  await dialog.getByRole('button', { name: 'Show on map' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore.getState().selectedNodeId)).toBe('file_canvas')
+  await page.evaluate(() => (window as any).__ambioSourcePreviewStore.getState().close())
+
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/file_canvas\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/committed\?/)
+  await page.unroute(/\/api\/symbols\/search\?/)
+})
+
+test('unsaved edits survive the editor closing unexpectedly and are offered back', async () => {
+  const workspaceId = await page.evaluate(() => (window as any).__ambioGraphStore.getState().currentProject.id as string)
+  const key = `ambio.sourceDraft.${workspaceId}.file_canvas`
+  await page.route(/\/api\/files\/file_canvas\/source\?/, route => route.fulfill({ json: { fileId: 'file_canvas', relPath: 'src/renderer/canvas/AmbioCanvas.tsx', language: 'tsx', lineCount: 1, content: 'const a = 1\n', hash: 'h1', editable: true } }))
+  await page.route(/\/api\/files\/[^/]+\/committed\?/, route => route.fulfill({ json: { repository: false, tracked: false, content: '', authors: [] } }))
+  const reply = { id: 'draft-1', workspaceId, sheetId: null, note: 'Draft', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'draft-1', createdAt: 95, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: 'Open `src/renderer/canvas/AmbioCanvas.tsx:1`.', createdAt: 96 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const chip = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'Open' })
+    .getByRole('button', { name: 'src/renderer/canvas/AmbioCanvas.tsx:1' })
+  await chip.click()
+  const dialog = page.getByRole('dialog', { name: /in src\/renderer\/canvas\/AmbioCanvas\.tsx$/ })
+
+  // Typing keeps a draft; losing the window (simulated by dropping the viewer without asking) leaves it.
+  await dialog.locator('.cm-line').first().click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' // draft')
+  await expect.poll(() => page.evaluate(k => JSON.parse(localStorage.getItem(k) ?? 'null')?.content, key)).toBe('const a = 1 // draft\n')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+
+  await page.reload()
+  await page.waitForFunction(() => (window as any).__ambioGraphStore?.getState().files.length > 0)
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  await chip.click()
+  const bar = dialog.getByRole('alert')
+  await expect(bar).toContainText('You have unsaved changes to src/renderer/canvas/AmbioCanvas.tsx from')
+  await bar.getByRole('button', { name: 'Restore them' }).click()
+  await expect(dialog.locator('.cm-content')).toHaveText('const a = 1 // draft')
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close AmbioCanvas.tsx' }).click()
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect.poll(() => page.evaluate(k => localStorage.getItem(k), key)).toBeNull()
+
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/file_canvas\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/committed\?/)
+})
+
+test('source opened from a reply can be edited, saved, and never overwrites a newer file', async () => {
+  const { file, fileId } = await page.evaluate(() => {
+    const state = (window as any).__ambioGraphStore.getState()
+    return { file: state.files[0].relPath.replace(/\\/g, '/') as string, fileId: state.files[0].id as string }
+  })
+  const original = 'speed = read()\r\nmoving = speed > 0.1\r\nstop()\r\n'
+  const source = (content: string, hash: string) => ({ fileId, relPath: file, language: 'python', lineCount: 3, content, hash, editable: true })
+  await page.route(/\/api\/files\/[^/]+\/source\?/, route => route.fulfill({ json: source(original, 'hash-1') }))
+  const saves: Array<{ content: string; baseHash: string }> = []
+  let conflictNext = false
+  await page.route(/\/api\/files\/[^/]+\/source$/, route => {
+    const body = route.request().postDataJSON()
+    saves.push(body)
+    if (conflictNext) return route.fulfill({ status: 409, json: { error: 'changed', current: source('speed = read()\r\nmoving = speed > config.limit\r\nstop()\r\n', 'hash-agent') } })
+    return route.fulfill({ json: source(body.content, `hash-${saves.length + 1}`) })
+  })
+  const reply = { id: 'edit-1', workspaceId: 'demo', sheetId: null, note: 'Fix it', selection: '[]', changeSummary: '', sheetContext: '', buildSpec: '',
+    status: 'answered', mode: 'ask', threadId: 'edit-1', createdAt: 70, deliveredTo: null, answerAnnotationId: null, reply: { agent: 'codex', body: `The threshold is hardcoded at \`${file}:2\`.`, createdAt: 71 } }
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 1, messages: [reply] } }))
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const prose = page.getByRole('complementary', { name: 'Agent inbox' }).locator('.ambio-inbox__reply .ambio-inbox__prose').filter({ hasText: 'The threshold is hardcoded' })
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  const dialog = page.getByRole('dialog', { name: `${file} in ${file}` })
+  const editor = dialog.locator('.cm-content')
+  await expect(dialog.locator('.source-preview-line-highlighted')).toHaveText('moving = speed > 0.1')
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+  await page.screenshot({ path: 'test-results/source-editor.png' })
+
+  // Edit the cited line and save with the keyboard: the file's CRLF endings are kept.
+  await dialog.locator('.source-preview-line-highlighted').click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Shift+ControlOrMeta+ArrowLeft')
+  await page.keyboard.type('limit')
+  await expect(dialog.getByRole('img', { name: 'Unsaved changes' }).first()).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+S')
+  await expect(dialog.getByRole('status')).toHaveText('saved')
+  expect(saves).toEqual([{ workspaceId: 'demo', baseHash: 'hash-1', content: 'speed = read()\r\nmoving = speed > 0.limit\r\nstop()\r\n' }])
+
+  // An agent wrote the file meanwhile: nothing is overwritten, and the person chooses.
+  conflictNext = true
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type('# mine')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  const bar = dialog.getByRole('alert')
+  await expect(bar).toContainText('changed on disk while you were editing')
+  expect(saves[1].baseHash).toBe('hash-2')
+  await bar.getByRole('button', { name: 'Show differences' }).click()
+  await expect(dialog.locator('.cm-deletedChunk').filter({ hasText: 'config.limit' })).toHaveCount(1)
+  await page.screenshot({ path: 'test-results/source-editor-conflict.png' })
+  await bar.getByRole('button', { name: 'Use the file on disk' }).click()
+  await expect(bar).toHaveCount(0)
+  await expect(editor).toContainText('moving = speed > config.limit')
+  await expect(editor).not.toContainText('# mine')
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+
+  // Closing the editor keeps unsaved changes; closing the file's tab asks first.
+  await editor.click()
+  await page.keyboard.type('x')
+  await dialog.getByRole('button', { name: 'Close source preview' }).click()
+  await expect(dialog).toBeHidden()
+  await prose.getByRole('button', { name: `${file}:2` }).click()
+  await dialog.getByRole('button', { name: `Close ${file.split('/').pop()}` }).click()
+  await expect(dialog.getByRole('alert')).toContainText(`Save your changes to ${file}?`)
+  await dialog.getByRole('button', { name: 'Discard' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(saves).toHaveLength(2)
+
+  await page.unroute(/\/api\/canvas\/history\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source\?/)
+  await page.unroute(/\/api\/files\/[^/]+\/source$/)
 })
