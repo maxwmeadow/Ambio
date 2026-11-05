@@ -5,7 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { spawn } from 'node:child_process'
 import { DeliveryRunner, deliveryTargets } from './agentDelivery.ts'
-import { acpModeFor, acpPermission } from './acpClient.ts'
+import { AcpClient, acpModeFor, acpPermission, acpToolDetail, acpUsage, unifiedDiff } from './acpClient.ts'
 import { agentDriver } from './agentDrivers.ts'
 
 function fixture(t) {
@@ -222,4 +222,70 @@ test('supported ACP agents remain listed independently of editor discovery and r
   assert.equal(agentDriver('gemini-cli'), undefined)
   assert.deepEqual(agentDriver('devin-cli').plan({}).args, ['acp'])
   assert.deepEqual(agentDriver('antigravity-acp').plan({}).args, ['acp'])
+})
+
+// A peer that answers the handshake, then plays `script` while the prompt waits.
+function scriptedClient(script, extra = {}) {
+  const events = [], usages = []
+  let client
+  const reply = (id, result) => setImmediate(() => client.receive(JSON.stringify({ jsonrpc: '2.0', id, result })))
+  client = new AcpClient({
+    cwd: '/project', prompt: 'Go', mode: 'build', mcpServers: [], onSession: () => {},
+    onEvent: event => events.push(event), onUsage: usage => usages.push(usage), ...extra,
+    send: line => {
+      const message = JSON.parse(line)
+      if (message.method === 'initialize') reply(message.id, { protocolVersion: 1, agentCapabilities: {} })
+      else if (message.method === 'session/new') reply(message.id, { sessionId: 's' })
+      else if (message.method === 'session/prompt') setImmediate(async () => {
+        for (const step of script) {
+          if (typeof step === 'number') await new Promise(resolve => setTimeout(resolve, step))
+          else client.receive(JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 's', update: step } }))
+        }
+        client.receive(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 7, cachedReadTokens: 40, thoughtTokens: 3, totalTokens: 107 } } }))
+      })
+    },
+  })
+  return { client, events, usages }
+}
+
+test('an ACP agent\'s message is one growing item, replaced by the whole message', async () => {
+  const chunk = text => ({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } })
+  const { client, events } = scriptedClient([chunk('Hello '), 300, chunk('there.')])
+  await client.run()
+  const texts = events.filter(event => event.kind === 'text')
+  assert.ok(texts.length >= 2, JSON.stringify(texts))
+  assert.ok(texts.every(event => event.id === texts[0].id && /^live:/.test(event.id)))
+  assert.deepEqual(texts.slice(0, -1).map(event => event.live), texts.slice(0, -1).map(() => true))
+  assert.deepEqual(texts.at(-1), { id: texts[0].id, kind: 'text', text: 'Hello there.' })
+})
+
+test('an ACP tool call and its updates are one item with its output, diff and exit status', async () => {
+  const { client, events, usages } = scriptedClient([
+    { sessionUpdate: 'tool_call', toolCallId: 'run', title: 'npm test', kind: 'execute', status: 'in_progress' },
+    { sessionUpdate: 'tool_call_update', toolCallId: 'run', title: 'npm test', status: 'completed', rawOutput: { exit_code: 1 }, content: [{ type: 'content', content: { type: 'text', text: '1 failing' } }] },
+    { sessionUpdate: 'tool_call', toolCallId: 'edit', title: 'File a.txt', kind: 'edit', status: 'in_progress', locations: [{ path: 'a.txt' }] },
+    { sessionUpdate: 'tool_call_update', toolCallId: 'edit', title: 'File /C:/project/a.txt', status: 'completed', content: [{ type: 'diff', path: 'a.txt', oldText: 'one\ntwo\n', newText: 'one\n2\n' }] },
+    { sessionUpdate: 'tool_call_update', toolCallId: 'edit', status: 'completed' },
+  ])
+  await client.run()
+  const run = events.filter(event => event.id === 'run'), edit = events.filter(event => event.id === 'edit')
+  assert.deepEqual(run.at(-1), { id: 'run', kind: 'tool', text: 'npm test', status: 'completed', output: '1 failing', exitCode: 1 })
+  // A later update without content keeps the diff, and the label the call started with.
+  assert.equal(edit.at(-1).text, 'File a.txt · a.txt')
+  assert.equal(edit.at(-1).diff, '--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n one\n-two\n+2')
+  assert.ok(!events.some(event => 'content' in event || 'toolCallId' in event))
+  assert.deepEqual(usages.at(-1), { inputTokens: 100, cachedInputTokens: 40, outputTokens: 7, reasoningOutputTokens: 3, totalTokens: 107 })
+})
+
+test('a unified diff names a new file and keeps three lines of context', () => {
+  assert.equal(unifiedDiff('n.txt', null, 'hi\n'), '--- /dev/null\n+++ b/n.txt\n@@ -0,0 +1,1 @@\n+hi')
+  const before = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].join('\n'), after = before.replace('e', 'E')
+  assert.equal(unifiedDiff('f', before, after), '--- a/f\n+++ b/f\n@@ -2,7 +2,7 @@\n b\n c\n d\n-e\n+E\n f\n g\n h')
+  assert.deepEqual(acpToolDetail(undefined), {})
+  assert.equal(acpUsage({ outputTokens: 3 }), undefined)
+})
+
+test('Antigravity\'s ACP connection offers Ask me and Full access, its print route none', () => {
+  assert.deepEqual(agentDriver('antigravity-acp').access, ['ask', 'full'])
+  assert.equal(agentDriver('antigravity-cli').access, undefined)
 })

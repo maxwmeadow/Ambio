@@ -564,6 +564,7 @@ export class DeliveryRunner {
       }
       const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
         ...protocolTurn, ...input.acp, authentication: input.driver?.acpAuthentication,
+        onUsage: usage => { run.usage = usage; this.save(run) },
       })
       let released = false
       const releaseQuestions = () => { if (!released) { released = true; void this.releaseQuestions(run).catch(() => {}) } }

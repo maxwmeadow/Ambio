@@ -21,6 +21,11 @@ in the app as "What's New" after updating, so write it for users.
   Child-agent activity identifies who did the work, scoped mapping enables only
   Ambio's MCP tools, and long runs retain activity beyond the old 400-item limit.
 
+- Antigravity's Gemini conversations now work like Claude Code and Codex:
+  choose Ask me or Full access beside the model, watch its reply as it is
+  written, and see each command and file edit as one line that updates in
+  place, with its output, exit status or diff a click away, plus the tokens
+  the turn used.
 - Choose how much Claude Code may do without asking, beside the request type:
   Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
   it asks appears in the conversation for you to allow or refuse.

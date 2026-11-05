@@ -16,6 +16,9 @@ const configOptions = [
 const send = message => console.log(JSON.stringify({ jsonrpc: '2.0', ...message }))
 const update = update => send({ method: 'session/update', params: { sessionId, update } })
 let promptId
+// A later conversation (after the steered one) ends its turn after the edit.
+const steeredBefore = () => fs.existsSync(process.env.AMBIO_AGY_CAPTURE) && fs.readFileSync(process.env.AMBIO_AGY_CAPTURE, 'utf8').includes('"steering"')
+const usage = { inputTokens: 100, outputTokens: 7, cachedReadTokens: 0, thoughtTokens: 2, totalTokens: 107 }
 const reader = lines.createInterface({ input: process.stdin })
 reader.on('line', line => {
   const { id, method, params, result } = JSON.parse(line)
@@ -34,15 +37,17 @@ reader.on('line', line => {
     if (promptId) {
       capture({ steering: params.prompt[0].text })
       // Match agy's lifecycle: original returns before the replacement reply.
-      send({ id: promptId, result: { stopReason: 'end_turn' } })
+      send({ id: promptId, result: { stopReason: 'end_turn', usage } })
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Corrected ' } })
       setTimeout(() => {
-        update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Corrected fixture reply.' } })
-        send({ id, result: { stopReason: 'end_turn' } })
-      }, 100)
+        update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'fixture reply.' } })
+        send({ id, result: { stopReason: 'end_turn', usage } })
+      }, 400)
       return
     }
     promptId = id
     capture({ prompt: params.prompt[0].text })
+    update({ sessionUpdate: 'tool_call', toolCallId: 'edit', kind: 'edit', title: 'Edit fixture.txt', status: 'pending' })
     return send({ id: 777, method: 'session/request_permission', params: { sessionId, toolCall: { toolCallId: 'edit', kind: 'edit', title: 'Edit fixture.txt' }, options: [{ optionId: 'yes', kind: 'allow_once' }, { optionId: 'no', kind: 'reject_once' }] } })
   }
   if (id === 777 && result) {
@@ -51,6 +56,7 @@ reader.on('line', line => {
       fs.writeFileSync(path.join(process.cwd(), 'fixture.txt'), 'approved')
       update({ sessionUpdate: 'tool_call_update', toolCallId: 'edit', title: 'Edit fixture.txt', status: 'completed', content: [{ type: 'diff', path: 'fixture.txt', oldText: null, newText: 'approved' }] })
     }
+    if (steeredBefore()) send({ id: promptId, result: { stopReason: 'end_turn', usage } })
     return
   }
   if (method === 'session/cancel') { capture({ cancelled: true }); send({ id: promptId, result: { stopReason: 'cancelled' } }); return }

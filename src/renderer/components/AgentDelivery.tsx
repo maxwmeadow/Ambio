@@ -320,18 +320,6 @@ function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: s
 /** How many of a run's latest events the turn shows while it works. */
 const ACTIVITY_SHOWN = 6
 
-function AgentToolDetails({ event }: { event: DeliveryEvent }) {
-  if (!event.content?.length) return null
-  return <details className="ambio-inbox__tool-detail"><summary>Details{event.status ? ` · ${event.status}` : ''}</summary>
-    {event.content.map((item, index) => {
-      const content = item as { type?: string; path?: string; oldText?: string; newText?: string; content?: { type?: string; text?: string } }
-      if (content.type === 'diff') return <section key={index}><strong>{content.path}</strong><pre>{content.oldText ? `Before\n${content.oldText}\n\n` : ''}After{'\n'}{content.newText}</pre></section>
-      if (content.type === 'content' && content.content?.type === 'text') return <pre key={index}>{content.content.text}</pre>
-      return null
-    })}
-  </details>
-}
-
 /** A tool call's status in words, whichever agent's vocabulary it came in (Codex, ACP, Claude). */
 function statusLabel(status: string): string {
   return ({ inProgress: 'running', in_progress: 'running', pending: 'waiting', completed: 'done', failed: 'failed', declined: 'declined' } as Record<string, string>)[status] ?? status
@@ -377,7 +365,7 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry, hasReply
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You · ${event.text}` : event.text}{event.status && <small> · {statusLabel(event.status)}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}<AgentToolDetails event={event} /></li>)}
+      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You · ${event.text}` : event.text}{event.status && <small> · {statusLabel(event.status)}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}</li>)}
     </ol>}
     {run.usage && <small>{run.usage.scope === 'thread' ? 'Thread total · ' : ''}{run.usage.inputTokens.toLocaleString()} input · {run.usage.outputTokens.toLocaleString()} output tokens{run.usage.cachedInputTokens ? ` · ${run.usage.cachedInputTokens.toLocaleString()} cached` : ''}</small>}
     <div className="ambio-inbox__turn-actions">

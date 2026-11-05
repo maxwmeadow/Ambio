@@ -1581,7 +1581,8 @@ function setupIPC(): void {
   })
   // Each agent says which access levels it honours and whether it takes messages while it works.
   ipcMain.handle('agent:delivery-hosts', async () => Promise.all(availableTargets().map(async ({ launcher, ...host }) => {
-    const driver = host.route === 'run' ? agentDriver(host.id) : undefined
+    // Antigravity CLI offers the levels of its ACP connection; a print conversation narrows them to none.
+    const driver = host.route === 'run' ? agentDriver(host.id === 'antigravity-cli' ? 'antigravity-acp' : host.id) : undefined
     if (host.id === 'codex') return { ...host, access: launcher && host.available ? await codexAvailableAccess(launcher) : ['ask', 'full'] }
     return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
   })))
@@ -1742,7 +1743,9 @@ function setupIPC(): void {
       if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { checkoutPath: workPath })
       const resume = !mapping && driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
       // A level the agent does not offer is refused, never widened to full access.
-      if (request.access !== undefined && (!isAgentAccess(request.access) || !driver?.access?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
+      // Antigravity's print route always runs with full access, so only that level is honoured there.
+      const honoured = driver?.access ?? (antigravity ? ['full'] : undefined)
+      if (request.access !== undefined && (!isAgentAccess(request.access) || !honoured?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
       const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(request.access ? { access: request.access } : {}) }
       if (request.codexTransport !== undefined && !['app-server', 'exec'].includes(request.codexTransport)) throw new Error('Invalid Codex transport.')
       const pinnedCodex = request.hostId === 'codex' ? deliveryRunner.codexTransport(project.id, threadId) : undefined
@@ -1760,11 +1763,12 @@ function setupIPC(): void {
         ...(useAntigravityAcp ? {
           model: turn.model, thinking: chosen?.thinking,
           strictResume: true, steering: !mapping,
-          onPermission: async (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => {
+          // Full access answers the agent's requests itself (acpPermission); anything else asks in the conversation.
+          ...(request.access === 'full' ? {} : { onPermission: async (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => {
             const response = await archdJson('/api/agent/permission', { method: 'POST', signal,
               body: JSON.stringify({ workspaceId: project.id, messageId: request.messageId, hostId: request.hostId, ...question }) })
             return response.status === 200 && response.body?.decision === 'allow'
-          },
+          } }),
         } : {}),
         mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId, mapping)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
       } : undefined

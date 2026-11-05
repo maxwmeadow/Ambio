@@ -870,13 +870,22 @@ The hybrid CLI retains the installed-MCP prerequisite.
 
 The shared ACP client applies model and thinking configuration before prompting,
 passes Antigravity's permission requests to the existing daemon permission desk,
-and cancels pending waits on Stop/process exit. Ask/Propose still refuse requested
-file edits; vendor permission rules may allow actions without a callback. Other
-agents retain their current approval policies. Qualified Antigravity ACP runs
+and cancels pending waits on Stop/process exit. The shared access menu offers
+Ask me (requests go to the permission desk) and Full access (the client answers
+them itself); a print conversation offers no level and main refuses any but full
+access there. Ask/Propose still refuse requested file edits; vendor permission
+rules may allow actions without a callback. Other agents retain their current
+approval policies. Qualified Antigravity ACP runs
 accept composer corrections through the running session, retaining the process
 until both the original request and any steered replacements finish. A completed
-request is acknowledged before its composer draft is cleared. Bounded ACP text
-and diff content is stored with activity events and can be expanded in the panel.
+request is acknowledged before its composer draft is cleared. The client reports
+the agent's message as one `live:N` item while it grows (saved at most every
+250 ms) and replaces it with the whole message; each tool call is one item keyed
+by its `toolCallId`, so updates replace it and keep detail they do not repeat.
+ACP tool content uses the shared fields: text as `output`, file diffs rendered as
+unified diffs in `diff`, and agy's `rawOutput.exit_code` as `exitCode`. Usage on
+each `session/prompt` result (agy 1.5) is summed across corrections into
+`run.usage`.
 
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
 render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).
