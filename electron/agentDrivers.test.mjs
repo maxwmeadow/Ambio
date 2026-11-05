@@ -155,7 +155,7 @@ test('Claude Code runs at the access level chosen for it, and asks in Ambio belo
   assert.equal(mode(mapping), 'bypassPermissions')
   assert.deepEqual(agentDriver('claude-code').access, ['ask', 'edits', 'auto', 'full'])
   // Codex's App Server asks through Ambio or runs with full access.
-  assert.deepEqual(agentDriver('codex').access, ['ask', 'full'])
+  assert.deepEqual(agentDriver('codex').access, ['ask', 'auto', 'full'])
   assert.equal(agentDriver('copilot-cli').access, undefined)
 })
 

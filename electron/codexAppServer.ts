@@ -1,16 +1,34 @@
 import type { DeliveryEvent, DeliveryUsage, ModelOption } from '../src/shared/agentDelivery.ts'
+import type { AgentAccess } from '../src/shared/agentDelivery.ts'
 import { codexSandbox, type DriverTurn } from './agentDrivers.ts'
 
 type Activity = Omit<DeliveryEvent, 'at'>
 type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 
-export function codexAppServerPolicy(mode: DriverTurn['mode'], approval: CodexAppServerTurn['approval'], platform: NodeJS.Platform = process.platform) {
+/** Exact versions exercised by the authenticated controls qualification; unknown builds get no Auto. */
+const QUALIFIED_CONTROL_VERSIONS = new Set(['0.162.1'])
+export function codexServerVersion(userAgent: string): string | undefined {
+  return /\bcodex(?:[-_ ](?:desktop|cli))?\/(\d+\.\d+\.\d+)(?![\w.+-])/i.exec(userAgent)?.[1]
+}
+export function codexAccessLevels(userAgent: string): AgentAccess[] {
+  return QUALIFIED_CONTROL_VERSIONS.has(codexServerVersion(userAgent) ?? '') ? ['ask', 'auto', 'full'] : ['ask', 'full']
+}
+
+export function codexAppServerPolicy(mode: DriverTurn['mode'], approval: CodexAppServerTurn['approval'], platform: NodeJS.Platform = process.platform, reviewer: CodexAppServerTurn['reviewer'] = 'user', userAgent = '') {
   const ask = approval === 'on-request'
+  if (ask && (platform === 'win32' || reviewer === 'auto_review') && !QUALIFIED_CONTROL_VERSIONS.has(codexServerVersion(userAgent) ?? '')) {
+    throw new Error('This Codex version has not been qualified for the selected access level. Update to a qualified CLI; access was not widened.')
+  }
   return {
-    // Windows' shell sandbox cannot initialize on supported installs (DECISIONS, Oct 20).
-    sandbox: ask && mode === 'build' && platform !== 'win32' ? 'workspace-write' : codexSandbox(mode, platform),
-    approvalPolicy: ask && platform === 'win32' ? 'untrusted' : approval ?? 'never',
-    ...(ask ? { approvalsReviewer: 'user' } : {}),
+    sandbox: ask ? mode === 'build' ? 'workspace-write' : 'read-only' : codexSandbox(mode, platform),
+    approvalPolicy: approval ?? 'never',
+    ...(ask ? { approvalsReviewer: reviewer } : {}),
+    // The default elevated helper fails on the qualified Windows installation.
+    // Use a tested restricted-token implementation, never full access as a fallback.
+    ...(ask ? { config: {
+      sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true },
+      ...(platform === 'win32' ? { windows: { sandbox: 'unelevated' } } : {}),
+    } } : {}),
   }
 }
 
@@ -21,6 +39,7 @@ export interface CodexAppServerTurn {
   resume?: string
   model?: string
   approval?: 'never' | 'on-request'
+  reviewer?: 'user' | 'auto_review'
   review?: boolean
   send: (line: string) => void
   onSession: (id: string) => void
@@ -47,6 +66,8 @@ export class CodexAppServer {
   private dirty = new Set<string>()
   private flushTimer?: ReturnType<typeof setTimeout>
   private reviewText = ''
+  private userAgent = ''
+  private agents = new Map<string, string>()
 
   private turn: CodexAppServerTurn
   constructor(turn: CodexAppServerTurn) { this.turn = turn }
@@ -67,8 +88,9 @@ export class CodexAppServer {
 
   initialize(): Promise<void> {
     return this.initialized ??= (async () => {
-      const result = await this.request('initialize', { clientInfo: { name: 'ambio', title: 'Ambio', version: '0.1.0' } })
-      this.turn.onServer?.(String(result.userAgent ?? 'Codex App Server'))
+      const result = await this.request('initialize', { clientInfo: { name: 'ambio', title: 'Ambio', version: '0.1.0' }, ...(this.turn.reviewer === 'auto_review' ? { capabilities: { experimentalApi: true } } : {}) })
+      this.userAgent = String(result.userAgent ?? 'Codex App Server')
+      this.turn.onServer?.(this.userAgent)
       this.turn.send(JSON.stringify({ method: 'initialized', params: {} }))
     })()
   }
@@ -90,10 +112,14 @@ export class CodexAppServer {
 
   async run(): Promise<{ stopReason: string; resumed: boolean }> {
     await this.initialize()
-    const setup = { cwd: this.turn.cwd, ...codexAppServerPolicy(this.turn.mode, this.turn.approval), ...(this.turn.model ? { model: this.turn.model } : {}) }
+    const policy = codexAppServerPolicy(this.turn.mode, this.turn.approval, process.platform, this.turn.reviewer, this.userAgent)
+    const setup = { cwd: this.turn.cwd, ...policy, ...(this.turn.model ? { model: this.turn.model } : {}) }
     // Never silently replace a missing thread: the caller must decide whether to start fresh.
     const result = await this.request(this.turn.resume ? 'thread/resume' : 'thread/start', { ...setup, ...(this.turn.resume ? { threadId: this.turn.resume } : {}) }, 120000)
     if (!result.thread?.id) throw new Error('Codex returned no thread identity. Update Codex or select exec for a new conversation.')
+    if (this.turn.approval === 'on-request' && (result.approvalPolicy !== 'on-request' || result.approvalsReviewer !== (this.turn.reviewer ?? 'user') || result.sandbox?.type !== (this.turn.mode === 'build' ? 'workspaceWrite' : 'readOnly'))) {
+      throw new Error('Codex did not confirm the requested sandbox and approval reviewer. No prompt was sent and access was not widened.')
+    }
     this.threadId = result.thread.id
     this.turn.onSession(this.threadId)
     if (this.cancelled) throw new Error('Codex was stopped before starting its turn.')
@@ -161,6 +187,15 @@ export class CodexAppServer {
     const params = message.params ?? {}
     if (message.id !== undefined) { void this.serverRequest(message.id, message.method, params); return }
     if (message.method === 'serverRequest/resolved') { this.approvals.get(params.requestId)?.abort(); this.approvals.delete(params.requestId); return }
+    if (message.method === 'thread/started' && (params.thread?.parentThreadId === this.threadId || this.agents.has(params.thread?.parentThreadId))) {
+      const thread = params.thread
+      this.agents.set(thread.id, [thread.agentNickname, thread.agentRole].filter(Boolean).join(' · ') || thread.id)
+      return
+    }
+    if (this.accepting && this.agents.has(params.threadId) && (message.method === 'item/started' || message.method === 'item/completed')) {
+      this.item(params.item, message.method === 'item/completed', { threadId: params.threadId, label: this.agents.get(params.threadId)! })
+      return
+    }
     const eventTurn = params.turnId ?? params.turn?.id
     if (!this.accepting || params.threadId !== this.threadId || this.turnId && eventTurn && eventTurn !== this.turnId) return
     if (message.method === 'turn/started' && params.turn?.id) this.turnId = params.turn.id
@@ -176,6 +211,9 @@ export class CodexAppServer {
       if (usage) this.turn.onUsage?.({ ...(params.tokenUsage?.total ? { scope: 'thread' as const } : {}), inputTokens: usage.inputTokens, cachedInputTokens: usage.cachedInputTokens, outputTokens: usage.outputTokens, reasoningOutputTokens: usage.reasoningOutputTokens, totalTokens: usage.totalTokens })
     } else if (message.method === 'turn/diff/updated') {
       this.update(`diff:${this.turnId}`, { kind: 'tool', text: 'Changes in this turn', diff: String(params.diff ?? '').slice(0, 64000) })
+    } else if (message.method === 'item/autoApprovalReview/started' || message.method === 'item/autoApprovalReview/completed') {
+      const review = params.review ?? {}
+      this.update(`review:${params.reviewId}`, { kind: 'tool', text: `Auto review · ${review.status ?? (message.method.endsWith('/started') ? 'reviewing' : 'completed')}${review.rationale ? ` · ${review.rationale}` : ''}`, status: review.status })
     } else if (message.method === 'item/agentMessage/delta' || message.method === 'item/reasoning/summaryTextDelta' || message.method === 'item/commandExecution/outputDelta') {
       const id = String(params.itemId)
       const old = this.items.get(id)
@@ -186,7 +224,6 @@ export class CodexAppServer {
   }
 
   private update(id: string, activity: Activity): void {
-    if (!this.items.has(id) && this.items.size >= 390) return
     this.items.set(id, { ...activity, id: `codex:${id}` }); this.dirty.add(id)
     this.flushTimer ??= setTimeout(() => this.flush(), 100)
   }
@@ -197,19 +234,33 @@ export class CodexAppServer {
     this.dirty.clear()
   }
 
-  private item(item: any, done: boolean): void {
+  private item(item: any, done: boolean, actor?: { threadId: string; label: string }): void {
     if (!item?.id) return
-    const old = this.items.get(item.id)
-    if (item.type === 'agentMessage' && (done || !old)) this.update(item.id, { kind: 'text', text: String(item.text ?? '').slice(0, 64000) })
-    if (item.type === 'reasoning' && done) this.update(item.id, { kind: 'thinking', text: (item.summary ?? []).join('\n').slice(0, 64000) })
-    if (item.type === 'commandExecution') this.update(item.id, { kind: 'tool', text: `Shell · ${item.command ?? ''}`, status: item.status, output: String(item.aggregatedOutput ?? old?.output ?? '').slice(-16000), exitCode: item.exitCode })
-    if (item.type === 'fileChange') this.update(item.id, { kind: 'tool', text: `Edit · ${(item.changes ?? []).map((change: any) => change.path).join(', ')}`, status: item.status, diff: (item.changes ?? []).map((change: any) => `${change.path}\n${change.diff ?? ''}`).join('\n').slice(0, 64000) })
-    if (item.type === 'mcpToolCall') this.update(item.id, { kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server} · ${item.tool}`, status: item.status })
-    if (item.type === 'dynamicToolCall' || item.type === 'collabAgentToolCall') this.update(item.id, { kind: 'tool', text: String(item.tool ?? item.type), status: item.status })
-    if (item.type === 'functionCallOutput' && done) this.update(item.id, { kind: 'tool', text: `Tool · ${item.name}`, output: typeof item.output === 'string' ? item.output.slice(-16000) : JSON.stringify(item.output ?? '').slice(-16000) })
-    if (item.type === 'plan') this.update(item.id, { kind: 'thinking', text: String(item.text ?? '').slice(0, 64000) })
-    if (item.type === 'enteredReviewMode') this.update(item.id, { kind: 'tool', text: `Review · ${item.review}` })
-    if (item.type === 'exitedReviewMode' && done) { this.reviewText = String(item.review ?? '').slice(0, 64000); this.update(item.id, { kind: 'text', text: this.reviewText }) }
+    // Child tool evidence belongs in the parent run; its text/thought transcript does not.
+    if (actor && ['userMessage', 'agentMessage', 'reasoning', 'plan', 'enteredReviewMode', 'exitedReviewMode'].includes(item.type)) return
+    const update = (id: string, activity: Activity) => this.update(actor ? `${actor.threadId}:${id}` : id, actor && !activity.text.startsWith('Subagent ·') ? { ...activity, text: `Subagent · ${actor.label} · ${activity.text}` } : activity)
+    const old = this.items.get(actor ? `${actor.threadId}:${item.id}` : item.id)
+    if (item.type === 'agentMessage' && (done || !old)) update(item.id, { kind: 'text', text: String(item.text ?? '').slice(0, 64000) })
+    if (item.type === 'reasoning' && done) update(item.id, { kind: 'thinking', text: (item.summary ?? []).join('\n').slice(0, 64000) })
+    if (item.type === 'commandExecution') update(item.id, { kind: 'tool', text: `Shell · ${item.command ?? ''}`, status: item.status, output: String(item.aggregatedOutput ?? old?.output ?? '').slice(-16000), exitCode: item.exitCode })
+    if (item.type === 'fileChange') update(item.id, { kind: 'tool', text: `Edit · ${(item.changes ?? []).map((change: any) => change.path).join(', ')}`, status: item.status, diff: (item.changes ?? []).map((change: any) => `${change.path}\n${change.diff ?? ''}`).join('\n').slice(0, 64000) })
+    if (item.type === 'mcpToolCall') update(item.id, { kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server} · ${item.tool}`, status: item.status })
+    if (item.type === 'dynamicToolCall') update(item.id, { kind: 'tool', text: String(item.tool ?? item.type), status: item.status })
+    if (item.type === 'collabAgentToolCall') {
+      const receivers = [...new Set<string>([...(item.receiverThreadIds ?? []), ...Object.keys(item.agentsStates ?? {})])]
+      const targets = receivers.map((id: string) => `${this.agents.get(id) ?? id}${item.agentsStates?.[id]?.status ? ` (${item.agentsStates[id].status})` : ''}`).join(', ')
+      const source = item.senderThreadId && item.senderThreadId !== this.threadId ? this.agents.get(item.senderThreadId) ?? item.senderThreadId : 'Main agent'
+      update(item.id, { kind: 'tool', text: `Subagent · ${source} · ${item.tool}${targets ? ` → ${targets}` : ''}${item.prompt ? ` · ${String(item.prompt).slice(0, 1000)}` : ''}`, status: item.status })
+    }
+    if (item.type === 'subAgentActivity') {
+      const name = this.agents.get(item.agentThreadId) ?? item.agentPath ?? item.agentThreadId
+      if (item.agentThreadId) this.agents.set(item.agentThreadId, name)
+      update(item.id, { kind: 'tool', text: `Subagent · ${name} · ${item.kind}${item.model ? ` · ${item.model}` : ''}`, status: item.kind })
+    }
+    if (item.type === 'functionCallOutput' && done) update(item.id, { kind: 'tool', text: `Tool · ${item.name}`, output: typeof item.output === 'string' ? item.output.slice(-16000) : JSON.stringify(item.output ?? '').slice(-16000) })
+    if (item.type === 'plan') update(item.id, { kind: 'thinking', text: String(item.text ?? '').slice(0, 64000) })
+    if (item.type === 'enteredReviewMode') update(item.id, { kind: 'tool', text: `Review · ${item.review}` })
+    if (item.type === 'exitedReviewMode' && done) { this.reviewText = String(item.review ?? '').slice(0, 64000); update(item.id, { kind: 'text', text: this.reviewText }) }
   }
 
   private async serverRequest(id: string | number, method: string, params: any): Promise<void> {

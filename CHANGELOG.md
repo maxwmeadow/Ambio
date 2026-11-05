@@ -7,6 +7,12 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Qualified native Codex versions now offer Auto in the shared access menu,
+  with native review decisions shown in activity. Ask me and Auto keep sandbox
+  boundaries on Windows; unsupported policies fail without granting Full access.
+  Child-agent activity identifies who did the work, scoped mapping enables only
+  Ambio's MCP tools, and long runs retain activity beyond the old 400-item limit.
+
 - Choose how much Claude Code may do without asking, beside the request type:
   Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
   it asks appears in the conversation for you to allow or refuse.

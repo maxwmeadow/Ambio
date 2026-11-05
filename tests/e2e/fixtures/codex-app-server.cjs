@@ -15,11 +15,11 @@ const complete = (status = 'completed') => {
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line)
   const reply = result => send({ id: m.id, result })
-  if (m.method === 'initialize') return reply({ userAgent: 'codex-fixture/1.0' })
+  if (m.method === 'initialize') return reply({ userAgent: 'codex/0.162.1' })
   if (m.method === 'model/list') return reply({ data: [{ model: 'fixture', displayName: 'Fixture model' }], nextCursor: null })
   if (m.method === 'thread/start' || m.method === 'thread/resume') {
     captured = { args: process.argv.slice(2), cwd: process.cwd(), workspace: process.env.AMBIO_WORKSPACE_ID, setup: m.params, resumed: m.method === 'thread/resume', corrections: [] }
-    return reply({ thread: { id: m.params.threadId ?? session } })
+    return reply({ thread: { id: m.params.threadId ?? session }, approvalPolicy: m.params.approvalPolicy, approvalsReviewer: m.params.approvalsReviewer, sandbox: { type: m.params.sandbox === 'workspace-write' ? 'workspaceWrite' : m.params.sandbox === 'read-only' ? 'readOnly' : 'dangerFullAccess' } })
   }
   if (m.method === 'review/start') {
     turn = `review-${++nextTurn}`; captured.review = m.params; capture()
@@ -34,6 +34,15 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     notify('item/agentMessage/delta', { itemId: 'text', delta: 'Fixture is reading ' })
     setTimeout(() => notify('item/agentMessage/delta', { itemId: 'text', delta: 'the project.' }), 180)
     notify('item/started', { item: { id: 'shell', type: 'commandExecution', command: 'fixture check', status: 'inProgress' } })
+    if (captured.setup.approvalsReviewer === 'auto_review') {
+      notify('item/autoApprovalReview/started', { reviewId: 'auto-1', review: { status: 'inProgress' } })
+      notify('item/autoApprovalReview/completed', { reviewId: 'auto-1', review: { status: 'approved', rationale: 'Harmless fixture operation.' } })
+    }
+    if (mode() === 'history') for (let i = 0; i < 1000; i++) notify('item/completed', { item: { id: `step-${i}`, type: 'agentMessage', text: `History item ${i}` } })
+    if (mode() === 'subagent') {
+      send({ method: 'thread/started', params: { thread: { id: 'child', parentThreadId: session, agentNickname: 'Reviewer', agentRole: 'explorer' } } })
+      notify('item/completed', { item: { id: 'collab', type: 'collabAgentToolCall', senderThreadId: session, receiverThreadIds: ['child'], tool: 'spawnAgent', status: 'completed', prompt: 'Inspect the fixture', agentsStates: { child: { status: 'completed' } } } })
+    }
     if (mode() === 'approval') return send({ id: 900, method: 'item/commandExecution/requestApproval', params: { threadId: session, turnId: turn, itemId: 'shell', command: 'fixture check', cwd: process.cwd(), reason: 'Fixture access request' } })
     if (mode() === 'fail') return setTimeout(() => { notify('turn/completed', { turn: { id: turn, status: 'failed', error: { message: 'Fixture quota error' } } }); process.exitCode = 0 }, 300)
     if (mode() !== 'hold') setTimeout(() => complete(), 350)
