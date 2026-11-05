@@ -112,7 +112,8 @@ function run(launcher: DriverLauncher, args: string[]): Promise<string> {
 const cache = new Map<string, { lookup: Promise<ModelOption[]>; expires: number }>()
 
 /** Discovery does not create a thread or send a model prompt. */
-const codexCatalogs = new Map<string, { expires: number; userAgent?: string; lookup: Promise<{ models: ModelOption[]; userAgent: string }> }>()
+const CODEX_RETRY_MS = 60000
+const codexCatalogs = new Map<string, { expires: number; userAgent?: string; settled?: boolean; lookup: Promise<{ models: ModelOption[]; userAgent: string }> }>()
 export function inspectCodex(launcher: DriverLauncher & { bundledNode?: boolean }): Promise<{ models: ModelOption[]; userAgent: string }> {
   const key = JSON.stringify(launcher)
   const known = codexCatalogs.get(key)
@@ -146,12 +147,20 @@ export function inspectCodex(launcher: DriverLauncher & { bundledNode?: boolean 
   void lookup.then(result => {
     const entry = codexCatalogs.get(key)
     if (entry?.lookup !== lookup) return
-    if (!result.userAgent) codexCatalogs.delete(key)
+    entry.settled = true
+    // A server that would not start is tried again after a minute, not on
+    // every host-list read (which would start one per poll).
+    if (!result.userAgent) entry.expires = Date.now() + CODEX_RETRY_MS
     else entry.userAgent = result.userAgent
   })
   return lookup
 }
 export async function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOption[]> { return (await inspectCodex(launcher)).models }
+/** Whether a host-list read is still waiting on Codex's server for its levels. */
+export function codexAccessPending(launcher: DriverLauncher): boolean {
+  const entry = codexCatalogs.get(JSON.stringify(launcher))
+  return !entry || !entry.settled
+}
 /** Host-list reads never wait for a process: a cold lookup runs in the background. */
 export function codexAvailableAccess(launcher: DriverLauncher) {
   const entry = codexCatalogs.get(JSON.stringify(launcher))

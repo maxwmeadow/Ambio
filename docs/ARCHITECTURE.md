@@ -828,8 +828,11 @@ uses the restricted-token unelevated sandbox; failures never widen access or
 retry with the retired `untrusted` policy. Native initialization supplies the
 version for minimum Auto qualification (semantic version >= 0.162.1); unknown
 or older versions fail closed. Host listing reads only cached qualification,
-starting cold discovery in the background; normal capability refreshes show
-Auto once discovery completes. The UI and runner gate it, and
+starting cold discovery in the background and marking the host
+`accessPending`; an open inbox reads the host list again on each poll only
+while a host is pending, so Auto appears within a poll of discovery
+completing without a full CLI scan every poll. A server that will not start is
+retried after a minute rather than on every read. The UI and runner gate it, and
 an unavailable remembered Auto selection never falls back to Full access.
 Max approved these Windows profiles on 2026-11-05, superseding the earlier
 every-mode full-access rule; the original decision remains in the dated record.

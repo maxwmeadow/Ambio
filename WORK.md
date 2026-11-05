@@ -435,6 +435,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 - ⬜ `mapping-recovery-parallel-flake` **Check the mapping recovery receipt race under parallel MCP tests.** One full run observed `interrupted` instead of `stopped` at `mappingCompletion.e2e.mjs:97`; isolated recovery and all 50 MCP tests run serially pass. (2026-11-04, native Codex qualification)
 
+- ⬜ `gitworktree-linked-status-test` **`TestMetadataWatcherIgnoresAStatusInALinkedWorktree` fails on this Windows machine, on main too.** `internal/gitworktree/metadata_test.go:53`: a status in a linked worktree is taken for a Git metadata change. Seen 2026-11-05 at origin/main `defae22`, three runs out of three. (2026-11-05, unification checks)
+
 ## Done log
 
 - 2026-11-05 `agent-client-controls-unification` (Codex pre-merge fixes), `agent-activity-clock`, `codex-windows-sandbox-decision` — Replaced exact version pinning with a fail-closed semantic minimum, made host listing nonblocking, bounded completed live-item memory while keeping all persisted history, and routed native questions through the shared desk. Max approved Windows sandbox profiles in a new dated DECISIONS row. Quiet notices use the newest stable-item timestamp. Types/build, 969 unit tests (962 passed, 7 skipped), all three requested Electron specs, 50 MCP checks (48 passed, 2 skipped) and seven installed-CLI journeys pass. Evidence: docs/testing/CODEX_APP_SERVER.md. (`codex/unify-codex-fixes`)

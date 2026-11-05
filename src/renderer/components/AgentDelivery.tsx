@@ -54,7 +54,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     const watching = () => fetch(`${archdApi()}/api/agent/presence?workspace=${encodeURIComponent(workspaceId)}`)
       .then(response => response.ok ? response.json() as Promise<{ connections?: Array<{ hostId: string; watchingUntil?: number }> }> : {})
       .then(body => ((body as { connections?: Array<{ hostId: string; watchingUntil?: number }> }).connections ?? []).filter(item => (item.watchingUntil ?? 0) > Date.now()).map(item => item.hostId), () => [] as string[])
+    // Codex's levels can arrive after the first read; until then the list is
+    // read again with each poll (each read looks for every agent's CLI).
+    let hostsPending = true
     void window.ambio.listDeliveryHosts().then(async items => {
+      hostsPending = items.some(item => item.accessPending)
       const [installedNow, liveNow, watchingNow] = await Promise.all([installed, live, watching()])
       if (!active) return
       setHosts(items)
@@ -73,9 +77,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     const refresh = async () => {
       let live = false
       try {
-        // Cold Codex discovery can finish after the first host list.
-        const hostsNow = await window.ambio.listDeliveryHosts()
-        if (active) setHosts(current => JSON.stringify(current) === JSON.stringify(hostsNow) ? current : hostsNow)
+        if (hostsPending) {
+          const hostsNow = await window.ambio.listDeliveryHosts()
+          hostsPending = hostsNow.some(item => item.accessPending)
+          if (active) setHosts(current => JSON.stringify(current) === JSON.stringify(hostsNow) ? current : hostsNow)
+        }
         const items = await window.ambio.listDeliveryRuns(workspaceId)
         if (!active) return
         setRuns(items)

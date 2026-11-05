@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { antigravityModels, codexModels, copilotModels, grokModels, validModel, codexAvailableAccess, inspectCodex } from './agentModels.ts'
+import { antigravityModels, codexModels, copilotModels, grokModels, validModel, codexAvailableAccess, codexAccessPending, inspectCodex } from './agentModels.ts'
 import { deliveryPlan } from './agentDelivery.ts'
 
 test('each agent’s own model list is read the way it publishes it', () => {
@@ -42,11 +42,21 @@ test('Codex host access returns immediately while delayed discovery runs, then u
   const launcher = { command: process.execPath, args: ['-e', `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id===undefined)return;setTimeout(()=>console.log(JSON.stringify({id:m.id,result:m.method==='initialize'?{userAgent:'codex/0.163.0'}:{data:[]}})),150)})`] }
   const cold = codexAvailableAccess(launcher)
   assert.deepEqual(cold, ['ask', 'full'])
+  // The host list says its levels are still coming, so the inbox reads it again.
+  assert.equal(codexAccessPending(launcher), true)
   assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'full'])
   await inspectCodex(launcher)
   assert.deepEqual(codexAvailableAccess(launcher), ['ask', 'auto', 'full'])
+  assert.equal(codexAccessPending(launcher), false)
   const older = { command: process.execPath, args: ['-e', `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id!==undefined)console.log(JSON.stringify({id:m.id,result:m.method==='initialize'?{userAgent:'codex/0.162.0'}:{data:[]}}))})`] }
   assert.deepEqual(codexAvailableAccess(older), ['ask', 'full'])
   await inspectCodex(older)
   assert.deepEqual(codexAvailableAccess(older), ['ask', 'full'])
+  // A server that will not start is not started again on every host-list read.
+  const broken = { command: process.execPath, args: ['-e', 'process.exit(1)'] }
+  const failed = inspectCodex(broken)
+  assert.equal((await failed).userAgent, '')
+  assert.equal(inspectCodex(broken), failed)
+  assert.equal(codexAccessPending(broken), false)
+  assert.deepEqual(codexAvailableAccess(broken), ['ask', 'full'])
 })

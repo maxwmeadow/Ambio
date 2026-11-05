@@ -6,7 +6,7 @@ import { brandImage } from './branding'
 import { Terminals } from './terminals'
 import { detectTerminalProfiles } from './terminalProfiles'
 import type { TerminalStart } from '../src/shared/terminal'
-import { listModels, validModel, codexAvailableAccess } from './agentModels'
+import { listModels, validModel, codexAvailableAccess, codexAccessPending } from './agentModels'
 import { antigravityRoute } from './antigravityTransport'
 import { AgentChat } from './agentChat'
 import { ChatProviders } from './chatProviders'
@@ -1583,7 +1583,7 @@ function setupIPC(): void {
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher, ...host }) => {
     // Antigravity CLI offers the levels of its ACP connection; a print conversation narrows them to none.
     const driver = host.route === 'run' ? agentDriver(host.id === 'antigravity-cli' ? 'antigravity-acp' : host.id) : undefined
-    if (host.id === 'codex') return { ...host, access: launcher && host.available ? codexAvailableAccess(launcher) : ['ask', 'full'] }
+    if (host.id === 'codex') return { ...host, access: launcher && host.available ? codexAvailableAccess(launcher) : ['ask', 'full'], ...(launcher && host.available && codexAccessPending(launcher) ? { accessPending: true } : {}) }
     return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
   }))
   ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {

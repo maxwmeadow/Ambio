@@ -50,6 +50,8 @@ export interface DeliveryHost {
   discoveryError?: string
   /** The access levels this agent can be run at; unset runs it with full access only. */
   access?: AgentAccess[]
+  /** The levels are still being found out (Codex's server is asked once); read the list again shortly. */
+  accessPending?: boolean
 }
 
 /**
