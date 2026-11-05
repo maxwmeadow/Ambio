@@ -920,21 +920,50 @@ function actionDetail(input: unknown): string {
   return JSON.stringify(input).slice(0, 4000)
 }
 
-async function approveAction(args: Record<string, any>) {
+/**
+ * Claude Code's AskUserQuestion reaches the permission prompt too (2.1.198,
+ * at every permission mode): its questions go to the user as a question card,
+ * and the answers come back in `updatedInput.answers`, keyed by question text,
+ * which is how Claude reads them. Each question keeps its offered choices.
+ */
+function askedQuestions(input: unknown): Array<{ question: string; header?: string; options: Array<{ label: string; description?: string }>; multiSelect: boolean }> | undefined {
+  const questions = (input as { questions?: unknown } | undefined)?.questions
+  if (!Array.isArray(questions) || !questions.length) return undefined
+  return questions.slice(0, 8).map((item: any) => ({
+    question: String(item?.question ?? '').slice(0, 1000),
+    ...(item?.header ? { header: String(item.header).slice(0, 120) } : {}),
+    options: (Array.isArray(item?.options) ? item.options : []).slice(0, 12).map((option: any) => ({
+      label: String(option?.label ?? '').slice(0, 200),
+      ...(option?.description ? { description: String(option.description).slice(0, 1000) } : {}),
+    })),
+    multiSelect: !!item?.multiSelect,
+  }))
+}
+
+/** A question can wait as long as the desk allows; Claude Code does not time its prompt tool out first. */
+const QUESTION_WAIT_MS = 10 * 60 * 1000
+
+async function approveAction(args: Record<string, any>, signal?: AbortSignal) {
   const allow = { behavior: 'allow', updatedInput: args.input ?? {} }
-  let verdict: Record<string, unknown> = { behavior: 'deny', message: 'Ambio could not ask the user, so this was not allowed.' }
+  const questions = args.tool_name === 'AskUserQuestion' ? askedQuestions(args.input) : undefined
+  let verdict: Record<string, unknown> = { behavior: 'deny', message: questions ? 'Ambio could not ask the user. Ask in your reply instead.' : 'Ambio could not ask the user, so this was not allowed.' }
   try {
     const project = await getActiveProject()
     const response = await fetch(`${API_BASE}/api/agent/permission`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+      body: JSON.stringify(questions ? {
+        workspaceId: project.workspaceId, messageId: RUN_MESSAGE_ID, hostId: agentHostId,
+        title: (questions[0].header || questions[0].question).slice(0, 400), questions, waitMs: QUESTION_WAIT_MS,
+      } : {
         workspaceId: project.workspaceId, messageId: RUN_MESSAGE_ID, hostId: agentHostId,
         title: `Use ${String(args.tool_name ?? 'a tool').slice(0, 120)}`, detail: actionDetail(args.input), kind: 'execute',
       }),
     })
     if (response.ok) {
-      const answer = await response.json() as { decision?: string; answered?: boolean }
-      verdict = answer.decision === 'allow' ? allow
+      const answer = await response.json() as { decision?: string; answered?: boolean; cancelled?: boolean; answers?: Record<string, string> }
+      if (questions) verdict = answer.decision === 'answer' && answer.answers ? { behavior: 'allow', updatedInput: { ...args.input, answers: answer.answers } }
+        : { behavior: 'deny', message: answer.answered ? 'The user chose not to answer. Continue without it, or ask in your reply.' : 'The user did not answer in time. Continue without it, or ask in your reply.' }
+      else verdict = answer.decision === 'allow' ? allow
         : { behavior: 'deny', message: answer.answered ? 'The user did not allow this. Do not retry it; continue without it or say what you could not do.' : 'The user did not answer in time, so this was not allowed.' }
     }
   } catch { /* the refusal above stands */ }
@@ -951,12 +980,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 // ─── Tool execution ────────────────────────────────────────────────────────
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const { name, arguments: rawArgs } = request.params
   let args = rawArgs as Record<string, any> ?? {}
   // The host reads this answer as JSON, so it takes none of the notes other
   // tool results carry, and it is not an agent action to log.
-  if (name === APPROVE_ACTION_TOOL.name && RUN_MESSAGE_ID && !mappingAttemptId) return approveAction(args)
+  if (name === APPROVE_ACTION_TOOL.name && RUN_MESSAGE_ID && !mappingAttemptId) return approveAction(args, extra?.signal)
   // Preserved for the log: what the AGENT actually called, before routing.
   const callerArgs = args
 

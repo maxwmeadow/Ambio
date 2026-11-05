@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- When Claude Code asks you something, the question appears in the
+  conversation with its choices: pick one, several where it allows, or answer
+  in your own words. This works at every access level, Full access included.
+- A permission request or question goes away when its turn ends or you stop
+  it, for every agent, instead of waiting until it times out.
 - Claude Code's activity now shows each command with its output and exit code,
   each edit with its diff, and the tokens a turn used, like Codex. Running,
   done and failed read the same for every agent.

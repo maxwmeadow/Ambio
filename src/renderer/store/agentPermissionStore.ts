@@ -3,7 +3,9 @@ import { archdApi } from '../archdEndpoint.ts'
 import { raiseInvitation, resolveInterruption } from './interruptionStore.ts'
 
 /**
- * Questions from agents Ambio started: "may I run this?".
+ * Questions from agents Ambio started: "may I run this?", or something the
+ * agent asks the user outright (questions, answered with a choice or in the
+ * user's own words).
  *
  * Nobody is at a started agent's keyboard, so what its turn did not already
  * allow is asked here and answered in the conversation. The daemon holds the
@@ -20,8 +22,18 @@ export interface AgentPermissionRequest {
   title: string
   detail?: string
   kind?: string
+  /** Present when the agent is asking rather than asking permission. */
+  questions?: AgentQuestion[]
   askedAt: number
   expiresAt: number
+}
+
+/** One thing an agent asks, with the choices it offers; the user may write their own answer. */
+export interface AgentQuestion {
+  question: string
+  header?: string
+  options?: Array<{ label: string; description?: string }>
+  multiSelect?: boolean
 }
 
 interface PermissionState {
@@ -32,13 +44,17 @@ export const useAgentPermissionStore = create<PermissionState>(() => ({ requests
 
 const interruption = (id: string) => `agent-permission-${id}`
 
-/** Answer a question. A request that is no longer waiting is simply dropped. */
-export async function decideAgentPermission(request: AgentPermissionRequest, decision: 'allow' | 'deny'): Promise<void> {
+/**
+ * Answer a request: allow or deny a permission, or answer (each question's
+ * text to the user's answer) or decline a question. A request that is no
+ * longer waiting is simply dropped.
+ */
+export async function decideAgentPermission(request: AgentPermissionRequest, decision: 'allow' | 'deny' | 'answer', answers?: Record<string, string>): Promise<void> {
   drop(request.id)
   try {
     await fetch(`${archdApi()}/api/agent/permission/decide`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId: request.workspaceId, id: request.id, decision }),
+      body: JSON.stringify({ workspaceId: request.workspaceId, id: request.id, decision, ...(answers ? { answers } : {}) }),
     })
   } catch { /* the agent's wait ends by itself, as a refusal */ }
 }
@@ -54,7 +70,20 @@ function add(request: AgentPermissionRequest): void {
     ? state
     : { requests: [...state.requests, request].sort((a, b) => a.askedAt - b.askedAt) })
   // The agent is stopped until this is answered, so it is worth interrupting for.
-  raiseInvitation(
+  const [only] = request.questions ?? []
+  if (only) {
+    // One plain choice can be made from here; anything more is answered in the conversation.
+    const quick = request.questions!.length === 1 && !only.multiSelect && (only.options?.length ?? 0) > 0 && only.options!.length <= 3
+    raiseInvitation(
+      interruption(request.id),
+      `An agent is asking: ${only.question}`,
+      quick ? undefined : 'Answer it in the conversation.',
+      [
+        ...(quick ? only.options!.map((option, index) => ({ label: option.label, primary: index === 0, run: () => { void decideAgentPermission(request, 'answer', { [only.question]: option.label }) } })) : []),
+        { label: 'Don’t answer', run: () => { void decideAgentPermission(request, 'deny') } },
+      ],
+    )
+  } else raiseInvitation(
     interruption(request.id),
     `An agent is asking: ${request.title}`,
     request.detail,

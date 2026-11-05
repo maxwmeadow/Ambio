@@ -17,6 +17,13 @@ import (
 // the conversation. The asking request is held open until the user answers or
 // the wait runs out; an unanswered question is a refusal, never a yes.
 //
+// An agent can also ask the user something (Claude Code's AskUserQuestion):
+// the request then carries its questions and is answered with the user's
+// choices or own words instead of allow, or refused.
+//
+// A question belongs to its turn. When the turn ends, the runner releases
+// whatever that turn still has waiting (cancel), and each is a refusal.
+//
 // Requests live in memory only. A daemon restart drops them, and the agent,
 // whose held request then fails, is refused: the safe direction.
 
@@ -29,16 +36,42 @@ type AgentPermissionRequest struct {
 	HostID    string `json:"hostId"`
 	// Title is what the agent wants to do, in a few words; Detail is the
 	// command, path or input in full.
-	Title     string `json:"title"`
-	Detail    string `json:"detail,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	AskedAt   int64  `json:"askedAt"`
-	ExpiresAt int64  `json:"expiresAt"`
+	Title  string `json:"title"`
+	Detail string `json:"detail,omitempty"`
+	Kind   string `json:"kind,omitempty"`
+	// Questions, when present, make this a question rather than a request
+	// for permission (Kind "question").
+	Questions []AgentQuestion `json:"questions,omitempty"`
+	AskedAt   int64           `json:"askedAt"`
+	ExpiresAt int64           `json:"expiresAt"`
+}
+
+// AgentQuestion is one thing an agent asks the user, with the choices it
+// offers. The user may pick or write their own answer.
+type AgentQuestion struct {
+	Question    string                `json:"question"`
+	Header      string                `json:"header,omitempty"`
+	Options     []AgentQuestionOption `json:"options,omitempty"`
+	MultiSelect bool                  `json:"multiSelect,omitempty"`
+}
+
+// AgentQuestionOption is one offered answer.
+type AgentQuestionOption struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
+type permissionAnswer struct {
+	decision string
+	// answers maps each question's text to the user's answer.
+	answers map[string]string
+	// cancelled: the turn ended before the user answered.
+	cancelled bool
 }
 
 type pendingPermission struct {
 	request AgentPermissionRequest
-	answer  chan string
+	answer  chan permissionAnswer
 }
 
 type permissionDesk struct {
@@ -49,6 +82,9 @@ type permissionDesk struct {
 const (
 	permissionWaitDefault = 110 * time.Second
 	permissionWaitMax     = 10 * time.Minute
+	maxQuestions          = 8
+	maxQuestionOptions    = 12
+	maxAnswerLength       = 4000
 )
 
 func (d *permissionDesk) add(entry *pendingPermission) {
@@ -60,6 +96,16 @@ func (d *permissionDesk) add(entry *pendingPermission) {
 	d.pending[entry.request.ID] = entry
 }
 
+func (d *permissionDesk) get(workspaceID, id string) *pendingPermission {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	entry := d.pending[id]
+	if entry == nil || entry.request.WorkspaceID != workspaceID {
+		return nil
+	}
+	return entry
+}
+
 func (d *permissionDesk) take(workspaceID, id string) *pendingPermission {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -69,6 +115,20 @@ func (d *permissionDesk) take(workspaceID, id string) *pendingPermission {
 	}
 	delete(d.pending, id)
 	return entry
+}
+
+// takeTurn removes everything one turn still has waiting.
+func (d *permissionDesk) takeTurn(workspaceID, messageID string) []*pendingPermission {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := []*pendingPermission{}
+	for id, entry := range d.pending {
+		if entry.request.WorkspaceID == workspaceID && entry.request.MessageID == messageID {
+			delete(d.pending, id)
+			out = append(out, entry)
+		}
+	}
+	return out
 }
 
 func (d *permissionDesk) list(workspaceID string) []AgentPermissionRequest {
@@ -87,6 +147,29 @@ func (d *permissionDesk) list(workspaceID string) []AgentPermissionRequest {
 func (s *Server) registerPermissionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agent/permission", s.handleAgentPermission)
 	mux.HandleFunc("/api/agent/permission/decide", s.handleAgentPermissionDecide)
+	mux.HandleFunc("/api/agent/permission/cancel", s.handleAgentPermissionCancel)
+}
+
+// validQuestions reports whether an agent's questions are ones the
+// conversation can show: each asks something distinct, and choices are short.
+func validQuestions(questions []AgentQuestion) bool {
+	if len(questions) > maxQuestions {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, question := range questions {
+		if strings.TrimSpace(question.Question) == "" || len(question.Question) > 1000 || len(question.Header) > 120 ||
+			len(question.Options) > maxQuestionOptions || seen[question.Question] {
+			return false
+		}
+		seen[question.Question] = true
+		for _, option := range question.Options {
+			if strings.TrimSpace(option.Label) == "" || len(option.Label) > 200 || len(option.Description) > 1000 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // handleAgentPermission: POST asks and waits for the answer; GET lists what
@@ -104,13 +187,14 @@ func (s *Server) handleAgentPermission(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var body struct {
-			WorkspaceID string `json:"workspaceId"`
-			MessageID   string `json:"messageId"`
-			HostID      string `json:"hostId"`
-			Title       string `json:"title"`
-			Detail      string `json:"detail"`
-			Kind        string `json:"kind"`
-			WaitMs      int64  `json:"waitMs"`
+			WorkspaceID string          `json:"workspaceId"`
+			MessageID   string          `json:"messageId"`
+			HostID      string          `json:"hostId"`
+			Title       string          `json:"title"`
+			Detail      string          `json:"detail"`
+			Kind        string          `json:"kind"`
+			Questions   []AgentQuestion `json:"questions"`
+			WaitMs      int64           `json:"waitMs"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -122,6 +206,13 @@ func (s *Server) handleAgentPermission(w http.ResponseWriter, r *http.Request) {
 			len(body.MessageID) > 128 || len(body.HostID) > 128 || len(body.Kind) > 64 {
 			jsonError(w, "workspaceId and a short title are required", http.StatusBadRequest)
 			return
+		}
+		if !validQuestions(body.Questions) {
+			jsonError(w, "each question needs its own text and short choices", http.StatusBadRequest)
+			return
+		}
+		if len(body.Questions) > 0 {
+			body.Kind = "question"
 		}
 		if _, err := s.dbFor(body.WorkspaceID); err != nil {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -141,29 +232,36 @@ func (s *Server) handleAgentPermission(w http.ResponseWriter, r *http.Request) {
 		entry := &pendingPermission{
 			request: AgentPermissionRequest{
 				ID: uuid.NewString(), WorkspaceID: body.WorkspaceID, MessageID: body.MessageID, HostID: body.HostID,
-				Title: body.Title, Detail: body.Detail, Kind: body.Kind,
+				Title: body.Title, Detail: body.Detail, Kind: body.Kind, Questions: body.Questions,
 				AskedAt: now.UnixMilli(), ExpiresAt: now.Add(wait).UnixMilli(),
 			},
-			answer: make(chan string, 1),
+			answer: make(chan permissionAnswer, 1),
 		}
 		s.permissions.add(entry)
 		s.broadcastPatch("agent:permission", entry.request, body.WorkspaceID)
 
-		decision, answered := "deny", false
+		got, received := permissionAnswer{decision: "deny"}, false
 		timer := time.NewTimer(wait)
 		defer timer.Stop()
 		select {
-		case decision = <-entry.answer:
-			answered = true
+		case got = <-entry.answer:
+			received = true
 		case <-timer.C:
 		case <-r.Context().Done():
 			// The agent went away; its question goes with it.
 		}
-		if !answered {
+		if !received {
 			s.permissions.take(body.WorkspaceID, entry.request.ID)
 			s.broadcastPatch("agent:permission-resolved", map[string]any{"workspaceId": body.WorkspaceID, "id": entry.request.ID, "decision": "expired"}, body.WorkspaceID)
 		}
-		jsonOK(w, map[string]any{"id": entry.request.ID, "decision": decision, "answered": answered})
+		out := map[string]any{"id": entry.request.ID, "decision": got.decision, "answered": received && !got.cancelled}
+		if got.cancelled {
+			out["cancelled"] = true
+		}
+		if got.answers != nil {
+			out["answers"] = got.answers
+		}
+		jsonOK(w, out)
 
 	default:
 		http.NotFound(w, r)
@@ -171,28 +269,81 @@ func (s *Server) handleAgentPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAgentPermissionDecide records the user's answer and releases the agent.
+// A permission request takes allow or deny; a question takes answer (with an
+// answer to every question) or deny.
 func (s *Server) handleAgentPermissionDecide(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
 	var body struct {
-		WorkspaceID string `json:"workspaceId"`
-		ID          string `json:"id"`
-		Decision    string `json:"decision"`
+		WorkspaceID string            `json:"workspaceId"`
+		ID          string            `json:"id"`
+		Decision    string            `json:"decision"`
+		Answers     map[string]string `json:"answers"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.WorkspaceID == "" || body.ID == "" ||
-		(body.Decision != "allow" && body.Decision != "deny") {
-		jsonError(w, "workspaceId, id and a decision of allow or deny are required", http.StatusBadRequest)
+		(body.Decision != "allow" && body.Decision != "deny" && body.Decision != "answer") {
+		jsonError(w, "workspaceId, id and a decision of allow, answer or deny are required", http.StatusBadRequest)
 		return
 	}
-	entry := s.permissions.take(body.WorkspaceID, body.ID)
-	if entry == nil {
+	waiting := s.permissions.get(body.WorkspaceID, body.ID)
+	if waiting == nil {
 		// Already answered, or the agent stopped waiting.
 		jsonError(w, "this request is no longer waiting", http.StatusConflict)
 		return
 	}
-	entry.answer <- body.Decision
+	asking := len(waiting.request.Questions) > 0
+	answer := permissionAnswer{decision: body.Decision}
+	switch {
+	case asking && body.Decision == "allow":
+		jsonError(w, "a question is answered, not allowed", http.StatusBadRequest)
+		return
+	case !asking && body.Decision == "answer":
+		jsonError(w, "this request asks for permission, not an answer", http.StatusBadRequest)
+		return
+	case body.Decision == "answer":
+		answer.answers = map[string]string{}
+		for _, question := range waiting.request.Questions {
+			text := strings.TrimSpace(body.Answers[question.Question])
+			if text == "" || len(text) > maxAnswerLength {
+				jsonError(w, "answer every question, briefly", http.StatusBadRequest)
+				return
+			}
+			answer.answers[question.Question] = text
+		}
+	}
+	entry := s.permissions.take(body.WorkspaceID, body.ID)
+	if entry == nil {
+		jsonError(w, "this request is no longer waiting", http.StatusConflict)
+		return
+	}
+	entry.answer <- answer
 	s.broadcastPatch("agent:permission-resolved", map[string]any{"workspaceId": body.WorkspaceID, "id": body.ID, "decision": body.Decision}, body.WorkspaceID)
 	jsonOK(w, map[string]any{"id": body.ID, "decision": body.Decision})
+}
+
+// handleAgentPermissionCancel releases everything a turn still has waiting,
+// once that turn has ended: each is a refusal, and its card goes away.
+func (s *Server) handleAgentPermissionCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		MessageID   string `json:"messageId"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.WorkspaceID == "" || body.MessageID == "" {
+		jsonError(w, "workspaceId and messageId are required", http.StatusBadRequest)
+		return
+	}
+	released := s.permissions.takeTurn(body.WorkspaceID, body.MessageID)
+	for _, entry := range released {
+		entry.answer <- permissionAnswer{decision: "deny", cancelled: true}
+		s.broadcastPatch("agent:permission-resolved", map[string]any{"workspaceId": body.WorkspaceID, "id": entry.request.ID, "decision": "cancelled"}, body.WorkspaceID)
+	}
+	jsonOK(w, map[string]any{"cancelled": len(released)})
 }

@@ -173,7 +173,8 @@ test('Claude Code runs at the access level chosen for it, and asks in Ambio belo
   assert.deepEqual([mode(plan('ask')), asks(plan('ask'))], ['default', 'mcp__ambio__approve_action'])
   assert.deepEqual([mode(plan('edits')), asks(plan('edits'))], ['acceptEdits', 'mcp__ambio__approve_action'])
   assert.deepEqual([mode(plan('auto')), asks(plan('auto'))], ['auto', 'mcp__ambio__approve_action'])
-  for (const args of [plan('full'), plan(undefined)]) assert.ok(mode(args) === 'bypassPermissions' && !args.includes('--permission-prompt-tool'))
+  // Full access asks nothing, but Claude's questions still reach the conversation through the same tool.
+  for (const args of [plan('full'), plan(undefined)]) assert.deepEqual([mode(args), asks(args)], ['bypassPermissions', 'mcp__ambio__approve_action'])
   // Ambio's own tools claim and answer the turn, so they never ask.
   assert.equal(plan('ask')[plan('ask').indexOf('--allowedTools') + 1], 'mcp__ambio')
   // A question keeps its editing tools off at every level.
@@ -193,8 +194,12 @@ test('Claude Code runs at the access level chosen for it, and asks in Ambio belo
 test('a started turn still names its request to Ambio, and Cursor accepts its workspace itself', () => {
   const build = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-7' }).args
   assert.equal(JSON.parse(build[build.indexOf('--mcp-config') + 1]).mcpServers.ambio.env.AMBIO_RUN_MESSAGE_ID, 'turn-7')
-  // Nothing is asked: every permission is already granted.
-  assert.ok(!build.includes('--permission-prompt-tool'))
+  // Every permission is already granted; only Claude's own questions go to approve_action.
+  assert.equal(build[build.indexOf('--permission-mode') + 1], 'bypassPermissions')
+  assert.equal(build[build.indexOf('--permission-prompt-tool') + 1], 'mcp__ambio__approve_action')
+  // A mapping turn asks nothing at all.
+  const mapped = deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-7', mapping: { attempt: { id: 'a1' }, token: 't' } }).args
+  assert.ok(!mapped.includes('--permission-prompt-tool'))
   // Cursor's headless run accepts the workspace and Ambio's MCP server itself.
   const cursor = deliveryPlan('cursor-cli', mcp, 'ws', 'p', { mode: 'ask' }).args
   assert.ok(cursor.includes('--trust') && cursor.includes('--approve-mcps'))
@@ -460,11 +465,15 @@ test('a message sent while Claude Code works joins its turn, and the turn ends w
 
 test('Stop asks Claude Code to end its turn, so it leaves on its own with its session intact', async t => {
   const root = fixture(t)
-  const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
+  const released = []
+  const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn, async run => { released.push(run.messageId) })
   const started = await runner.start(streamingTurn(root, 'turn-stop'))
   await said(runner, started.key, 'heard p')
+  assert.deepEqual(released, [])
   const asked = Date.now()
   await runner.stop('ws', started.key)
+  // What the stopped turn still had waiting (a permission card, a question) is released, once.
+  assert.deepEqual(released, ['turn-stop'])
   // Well inside the grace period after which it would have been ended.
   assert.ok(Date.now() - asked < 3000, `took ${Date.now() - asked}ms`)
   const run = runner.list('ws').find(item => item.key === started.key)

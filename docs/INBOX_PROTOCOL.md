@@ -178,13 +178,34 @@ Claude Code alone offers access levels so far (decision 2026-11-04), sent
 as `DeliveryRequest.access` and refused for an agent that does not list it
 (`DeliveryHost.access`): `ask` runs Claude's `default` mode, `edits`
 `acceptEdits`, `auto` its `auto` classifier and `full` `bypassPermissions`.
-Below full access Claude is given `--permission-prompt-tool
-mcp__ambio__approve_action` and `--allowedTools mcp__ambio`: each prompt
+Claude is given `--permission-prompt-tool mcp__ambio__approve_action` and
+`--allowedTools mcp__ambio` at every level but a mapping turn's: each prompt
 becomes a request on the permission desk (`POST /api/agent/permission`),
 shown as the turn's permission card and answered allow or deny; no answer
-within the desk's wait (110 s) is a deny. Ask and Propose keep their
-`--disallowedTools` at every level. The other agents' levels are WORK.md
-`agent-permission-modes`.
+within the desk's wait (110 s) is a deny. At full access nothing else asks,
+but Claude's AskUserQuestion is offered only with a prompt tool and goes to
+it in every mode (2.1.198), so its questions still reach the user. Ask and
+Propose keep their `--disallowedTools` at every level. The other agents'
+levels are WORK.md `agent-permission-modes`.
+
+**Questions from the agent.** A desk request may carry `questions`
+(`{question, header?, options: [{label, description?}], multiSelect?}`, at
+most 8 with 12 choices each; kind `question`). It shows as a question card
+where the user picks a choice, several where the question allows, or writes
+their own answer, and is decided `answer` with `answers` (each question's
+text to the answer, choices joined with ", ") or `deny`; allow is refused
+for a question and answer for a permission. Ambio's MCP server turns Claude's
+AskUserQuestion into one, waits up to the desk's ten minutes, and returns the
+answers to Claude as `updatedInput.answers`, which Claude reads as the user's
+reply. Codex structured forms (`item/tool/requestUserInput`) can use the same
+request.
+
+**A turn's requests end with it.** When a run's turn closes (finished,
+stopped or exited) the runner calls `POST /api/agent/permission/cancel` with
+the turn's message id: everything that turn still has waiting is refused
+(`cancelled`) and its card removed, for every host. Codex and ACP turns also
+abort their own waits; Claude's are held by the MCP server, which cannot tell
+its turn was stopped.
 
 **Messages during a turn.** A run that takes messages while it works
 (`DeliveryRun.canSteer`: Claude Code, native Codex, Antigravity's ACP

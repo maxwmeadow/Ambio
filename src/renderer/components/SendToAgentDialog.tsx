@@ -18,7 +18,7 @@ import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, 
 import { chatModels } from '../../shared/agentChat'
 import { AgentModelMenu, AgentThinkingSelect, useAgentModel } from './AgentModelMenu'
 import { AgentAccessMenu, useAgentAccess } from './AgentAccessMenu'
-import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest } from '../store/agentPermissionStore'
+import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest, type AgentQuestion } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
 import { conversationKey, useConversationPreferences } from '../store/conversationPreferences'
@@ -395,7 +395,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
               <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{inboxStatus(message)}.</p>
               <div className="ambio-inbox__turn-actions"><button type="button" className="ambio-inbox__turn-action" onClick={() => copy(workOrderHandoff(graph.name ?? 'this project', graph.workspaceId, graph.rootPath, message.id), `handoff:${message.id}`)}><InboxIcon name={copied === `handoff:${message.id}` ? 'check' : 'copy'} size={12} />{copied === `handoff:${message.id}` ? 'Copied' : 'Copy handoff'}</button></div>
             </div>)(latestRun(message.id))}
-          {permissions.filter(request => request.messageId === message.id).map(request => <PermissionCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
+          {permissions.filter(request => request.messageId === message.id).map(request => <AgentRequestCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
           {message.status !== 'answered' && !latestRun(message.id) && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'} · {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
           {message.reply && <div className="ambio-inbox__reply"><div className="ambio-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{message.reply.agent}</strong><button type="button" className="ambio-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div><AgentMessageContent text={message.reply.body} /></div>}
           {message.reply && (run => run && <details className="ambio-inbox__codex-history"><summary>Activity and usage</summary><AgentDeliveryStatus run={run} hosts={delivery.hosts} events={delivery.events[run.key]} hasReply /></details>)(latestRun(message.id))}
@@ -410,7 +410,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           <small role="status">{message.deliveredAt ? 'Delivered to the investigating agent' : caseFile.status === 'live' ? 'Queued for the agent’s next investigation step' : 'Investigation ended before delivery'}</small>
         </article>)}
         {/* A question that names no turn on screen is still a question. */}
-        {permissions.filter(request => !shown.some(message => message.id === request.messageId)).map(request => <PermissionCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
+        {permissions.filter(request => !shown.some(message => message.id === request.messageId)).map(request => <AgentRequestCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
       </div>
       {unseen && <button className="ambio-inbox__latest" type="button" onClick={latest}>Jump to latest ↓</button>}
     </div>
@@ -456,6 +456,51 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
       {!caseTarget && effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
     </div>
   </aside>
+}
+
+/** What an agent is waiting on: permission for a step, or an answer to its questions. */
+function AgentRequestCard({ request, hostLabel }: { request: AgentPermissionRequest; hostLabel?: string }) {
+  return request.questions?.length ? <QuestionCard request={request} questions={request.questions} hostLabel={hostLabel} /> : <PermissionCard request={request} hostLabel={hostLabel} />
+}
+
+/**
+ * An agent is stopped on its own questions. Each takes one of its choices
+ * (several, when it allows) or the user's own words; the agent reads the
+ * answer as written.
+ */
+function QuestionCard({ request, questions, hostLabel }: { request: AgentPermissionRequest; questions: AgentQuestion[]; hostLabel?: string }) {
+  const [picked, setPicked] = useState<Record<string, string[]>>({})
+  const [own, setOwn] = useState<Record<string, string>>({})
+  const answerTo = (question: AgentQuestion) => [...(picked[question.question] ?? []), ...(own[question.question]?.trim() ? [own[question.question].trim()] : [])].join(', ')
+  const ready = questions.every(question => answerTo(question))
+  const pick = (question: AgentQuestion, label: string) => {
+    const current = picked[question.question] ?? []
+    if (question.multiSelect) setPicked({ ...picked, [question.question]: current.includes(label) ? current.filter(item => item !== label) : [...current, label] })
+    else { setPicked({ ...picked, [question.question]: [label] }); setOwn({ ...own, [question.question]: '' }) }
+  }
+  return <form className="ambio-inbox__permission ambio-inbox__question" aria-label={`Question: ${questions[0].question}`} onSubmit={event => {
+    event.preventDefault()
+    if (ready) void decideAgentPermission(request, 'answer', Object.fromEntries(questions.map(question => [question.question, answerTo(question)])))
+  }}>
+    <strong>{hostLabel ?? 'The agent'} is asking</strong>
+    {questions.map((question, index) => <fieldset key={question.question}>
+      <legend>{question.header && <span>{question.header}</span>}{question.question}</legend>
+      {question.options?.map(option => <label key={option.label} title={option.description}>
+        <input type={question.multiSelect ? 'checkbox' : 'radio'} name={`${request.id}:${index}`} checked={(picked[question.question] ?? []).includes(option.label)} onChange={() => pick(question, option.label)} />
+        <span>{option.label}{option.description && <small>{option.description}</small>}</span>
+      </label>)}
+      <input type="text" aria-label={question.options?.length ? `Another answer: ${question.question}` : `Answer: ${question.question}`} placeholder={question.options?.length ? 'Or answer in your own words…' : 'Your answer…'} maxLength={4000}
+        value={own[question.question] ?? ''} onChange={event => {
+          setOwn({ ...own, [question.question]: event.target.value })
+          if (!question.multiSelect && event.target.value) setPicked({ ...picked, [question.question]: [] })
+        }} />
+    </fieldset>)}
+    <div>
+      <button type="submit" className="ambio-inbox__permission-allow" disabled={!ready}>Answer</button>
+      <button type="button" onClick={() => { void decideAgentPermission(request, 'deny') }}>Don&rsquo;t answer</button>
+      <small>It waits for your answer.</small>
+    </div>
+  </form>
 }
 
 /** An agent is stopped on a question; the answer is one press. */

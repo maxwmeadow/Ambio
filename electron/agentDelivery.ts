@@ -248,6 +248,23 @@ const STREAM_STOP_GRACE = 5000
 /** How many events a run keeps for the inbox to show. */
 const EVENT_LIMIT = 400
 
+/**
+ * A turn that has ended takes no more answers: whatever it still has waiting
+ * on the permission desk (a permission card, a question) is released as a
+ * refusal and its card goes away. Codex and ACP turns also drop their own
+ * waits; Claude Code's are held by Ambio's MCP server, which cannot tell that
+ * its turn was stopped, so this covers every host.
+ */
+async function releaseTurnQuestions(run: DeliveryRun): Promise<void> {
+  if (!run.messageId) return
+  try {
+    await daemonFetch(`${process.env.AMBIO_API_URL ?? 'http://127.0.0.1:7743'}/api/agent/permission/cancel`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({ workspaceId: run.workspaceId, messageId: run.messageId }),
+    })
+  } catch { /* no daemon, no questions; an unanswered one expires as a refusal anyway */ }
+}
+
 export function checkDeliveryMessage(message: { id?: string; workspaceId?: string; deliveryMode?: string; status?: string; leaseExpiresAt?: number }, workspaceId: string, messageId: string, now = Date.now()): void {
   if (message.id !== messageId || message.workspaceId !== workspaceId) throw new Error('This work order belongs to another project.')
   if (message.deliveryMode !== 'addressed' || !['queued', 'delivered'].includes(message.status ?? '')) throw new Error('This work order is closed or is not an addressed request.')
@@ -267,9 +284,11 @@ export class DeliveryRunner {
   private finished = new Map<string, Promise<void>>()
   private terminating = new Map<string, Promise<void>>()
   private recovering = new Map<string, Promise<void>>()
-  constructor(directory: string, spawnProcess: typeof spawn = spawn) {
+  private releaseQuestions: (run: DeliveryRun) => Promise<void>
+  constructor(directory: string, spawnProcess: typeof spawn = spawn, releaseQuestions = releaseTurnQuestions) {
     this.directory = directory
     this.spawnProcess = spawnProcess
+    this.releaseQuestions = releaseQuestions
   }
 
   private file(key: string): string { return join(this.directory, `${key}.json`) }
@@ -551,6 +570,8 @@ export class DeliveryRunner {
       const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
         ...protocolTurn, ...input.acp, authentication: input.driver?.acpAuthentication,
       })
+      let released = false
+      const releaseQuestions = () => { if (!released) { released = true; void this.releaseQuestions(run).catch(() => {}) } }
       // Messages sent into a streaming host's turn, until it takes each in.
       const waiting = new Map<string, { text: string; resolve(): void; reject(error: Error): void }>()
       const codex = input.codex ? new CodexAppServer({
@@ -656,7 +677,8 @@ export class DeliveryRunner {
           const stream = input.driver.stream
           let open = true
           const write = (line: string) => { try { child.stdin?.write(`${line}\n`) } catch { /* close reports the failure */ } }
-          const close = () => { if (!open) return; open = false; this.streams.delete(key); if (run.canSteer) { run.canSteer = false; this.save(run) }; try { child.stdin?.end() } catch { /* already gone */ } }
+          // The turn is over (or stopped): nothing it asked can be answered now.
+          const close = () => { if (!open) return; open = false; this.streams.delete(key); if (run.canSteer) { run.canSteer = false; this.save(run) }; releaseQuestions(); try { child.stdin?.end() } catch { /* already gone */ } }
           run.canSteer = true; this.save(run)
           this.streams.set(key, {
             send: (id, text) => new Promise<void>((resolve, reject) => {
@@ -682,6 +704,7 @@ export class DeliveryRunner {
         unfollow?.()
         acp?.close()
         codex?.close()
+        releaseQuestions()
         this.acp.delete(key)
         this.streams.get(key)?.close()
         for (const message of waiting.values()) message.reject(new Error('The agent exited before it took this message in.'))

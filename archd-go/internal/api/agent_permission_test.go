@@ -90,6 +90,108 @@ func TestAgentPermissionWaitsForTheUserAndRefusesWithoutAnAnswer(t *testing.T) {
 	}
 }
 
+// An agent's question is answered in the user's words or choices, and what a
+// turn still has waiting is released, as a refusal, when the turn ends.
+func TestAgentQuestionsTakeAnswersAndEndWithTheirTurn(t *testing.T) {
+	_, mux, _ := inboxServer(t)
+	type answer struct {
+		Decision  string            `json:"decision"`
+		Answered  bool              `json:"answered"`
+		Cancelled bool              `json:"cancelled"`
+		Answers   map[string]string `json:"answers"`
+	}
+	ask := func(body map[string]any) chan answer {
+		out := make(chan answer, 1)
+		go func() {
+			r := inboxHTTP(t, mux, "POST", "/api/agent/permission", body)
+			var got answer
+			_ = json.Unmarshal(r.Body.Bytes(), &got)
+			out <- got
+		}()
+		return out
+	}
+	waitingFor := func(count int) []AgentPermissionRequest {
+		t.Helper()
+		for attempt := 0; attempt < 200; attempt++ {
+			r := inboxHTTP(t, mux, "GET", "/api/agent/permission?workspace=ws", nil)
+			var listed struct {
+				Requests []AgentPermissionRequest `json:"requests"`
+			}
+			if err := json.Unmarshal(r.Body.Bytes(), &listed); err != nil {
+				t.Fatal(err)
+			}
+			if len(listed.Requests) == count {
+				return listed.Requests
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Fatalf("expected %d waiting", count)
+		return nil
+	}
+	questions := []map[string]any{
+		{"question": "Which colour?", "header": "Colour", "options": []map[string]string{{"label": "Red"}, {"label": "Blue", "description": "The sea"}}},
+		{"question": "Which sizes?", "multiSelect": true, "options": []map[string]string{{"label": "S"}, {"label": "M"}}},
+	}
+	asked := ask(map[string]any{"workspaceId": "ws", "messageId": "turn-q", "hostId": "claude-code", "title": "Which colour?", "questions": questions})
+	pending := waitingFor(1)[0]
+	if pending.Kind != "question" || len(pending.Questions) != 2 || pending.Questions[0].Options[1].Description != "The sea" || !pending.Questions[1].MultiSelect {
+		t.Fatalf("question = %#v", pending)
+	}
+	decide := func(body map[string]any) int {
+		return inboxHTTP(t, mux, "POST", "/api/agent/permission/decide", body).Code
+	}
+	if code := decide(map[string]any{"workspaceId": "ws", "id": pending.ID, "decision": "allow"}); code != http.StatusBadRequest {
+		t.Fatalf("a question was allowed instead of answered: %d", code)
+	}
+	if code := decide(map[string]any{"workspaceId": "ws", "id": pending.ID, "decision": "answer", "answers": map[string]string{"Which colour?": "Blue"}}); code != http.StatusBadRequest {
+		t.Fatalf("a question went unanswered: %d", code)
+	}
+	if code := decide(map[string]any{"workspaceId": "ws", "id": pending.ID, "decision": "answer", "answers": map[string]string{"Which colour?": " Teal, actually ", "Which sizes?": "S, M"}}); code != 200 {
+		t.Fatal(code)
+	}
+	if got := <-asked; got.Decision != "answer" || !got.Answered || got.Answers["Which colour?"] != "Teal, actually" || got.Answers["Which sizes?"] != "S, M" {
+		t.Fatalf("answer = %#v", got)
+	}
+
+	// A permission request is not answered in words.
+	permission := ask(map[string]any{"workspaceId": "ws", "messageId": "turn-q", "hostId": "claude-code", "title": "Use Bash"})
+	other := ask(map[string]any{"workspaceId": "ws", "messageId": "turn-other", "hostId": "codex", "title": "Use Bash"})
+	both := waitingFor(2)
+	for _, request := range both {
+		if request.MessageID == "turn-q" {
+			if code := decide(map[string]any{"workspaceId": "ws", "id": request.ID, "decision": "answer", "answers": map[string]string{}}); code != http.StatusBadRequest {
+				t.Fatalf("a permission request took an answer: %d", code)
+			}
+		}
+	}
+	// The turn ends: what it still has waiting is refused, the other turn's stays.
+	r := inboxHTTP(t, mux, "POST", "/api/agent/permission/cancel", map[string]string{"workspaceId": "ws", "messageId": "turn-q"})
+	if r.Code != 200 || r.Body.String() != `{"cancelled":1}`+"\n" && r.Body.String() != `{"cancelled":1}` {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if got := <-permission; got.Decision != "deny" || got.Answered || !got.Cancelled {
+		t.Fatalf("cancelled = %#v", got)
+	}
+	if left := waitingFor(1); left[0].MessageID != "turn-other" {
+		t.Fatalf("another turn's question was released: %#v", left)
+	}
+	if code := inboxHTTP(t, mux, "POST", "/api/agent/permission/cancel", map[string]string{"workspaceId": "ws"}).Code; code != http.StatusBadRequest {
+		t.Fatalf("cancelled without naming a turn: %d", code)
+	}
+	inboxHTTP(t, mux, "POST", "/api/agent/permission/cancel", map[string]string{"workspaceId": "ws", "messageId": "turn-other"})
+	<-other
+
+	for _, bad := range [][]map[string]any{
+		{{"question": ""}},
+		{{"question": "Same?"}, {"question": "Same?"}},
+		{{"question": "Choice?", "options": []map[string]string{{"label": " "}}}},
+	} {
+		if r := inboxHTTP(t, mux, "POST", "/api/agent/permission", map[string]any{"workspaceId": "ws", "title": "x", "questions": bad}); r.Code != http.StatusBadRequest {
+			t.Fatalf("accepted questions %v: %d", bad, r.Code)
+		}
+	}
+}
+
 // An open turn left for one host's watching session is not picked up by a
 // session of another host that happens to check the inbox.
 func TestOpenTurnForOneHostIsNotClaimedByAnother(t *testing.T) {

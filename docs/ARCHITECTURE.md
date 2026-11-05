@@ -784,7 +784,13 @@ shown as "You · …". Activity events may carry a stable `id`; a later event
 with the same id replaces the earlier one when read. Codex uses it for its
 provider items, and text a driver reads as `partial` becomes one `live:N` item,
 saved at most every 250 ms as it grows and replaced in place by the whole
-message. Claude Code's tool calls are items too (`claude:<tool_use id>`): the
+message. The permission desk (`archd-go/internal/api/agent_permission.go`)
+holds both kinds of waiting request: permission (allow or deny) and the
+agent's own questions (answered with choices or the user's words; Claude's
+AskUserQuestion through `approve_action`, which Claude is given at every
+access level). The runner releases a turn's waiting requests when that turn
+closes (`/api/agent/permission/cancel`), so no card outlives its turn on any
+host. Claude Code's tool calls are items too (`claude:<tool_use id>`): the
 call shows as running and its `tool_result` replaces it with how it went, a
 command's output and exit code (Claude reports a failed command as an error
 result starting "Exit code N") and an edit's diff from

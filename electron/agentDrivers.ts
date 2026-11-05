@@ -262,14 +262,18 @@ const claudeStream: DriverStream = {
  * answers Claude's permission prompts (approve_action, the archd permission
  * desk). Headless, Claude 2.1.198 asks for edits and commands in `default`,
  * for commands in `acceptEdits`, and in `auto` runs ordinary steps itself and
- * refuses those its classifier flags. A mapping turn is always full access:
- * its server offers no approve_action.
+ * refuses those its classifier flags. At full access the prompt tool is still
+ * named, for Claude's questions: AskUserQuestion is offered only with one, and
+ * goes to it in every mode, while nothing else does in `bypassPermissions`
+ * (both seen with 2.1.198). A mapping turn is always full access, asks
+ * nothing, and its server offers no approve_action.
  */
 function claudePermissions(turn: DriverTurn): string[] {
   const mode = turn.mapping ? 'bypassPermissions'
     : turn.access === 'ask' ? 'default' : turn.access === 'edits' ? 'acceptEdits' : turn.access === 'auto' ? 'auto' : 'bypassPermissions'
+  const asks = !turn.mapping && (mode !== 'bypassPermissions' || !!turn.messageId)
   // Ambio's own tools are how the turn is claimed and answered; they never ask.
-  return ['--permission-mode', mode, ...(mode === 'bypassPermissions' ? [] : ['--permission-prompt-tool', 'mcp__ambio__approve_action', '--allowedTools', 'mcp__ambio'])]
+  return ['--permission-mode', mode, ...(asks ? ['--permission-prompt-tool', 'mcp__ambio__approve_action', '--allowedTools', 'mcp__ambio'] : [])]
 }
 
 const claudeCode: AgentDriver = {

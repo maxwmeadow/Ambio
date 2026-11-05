@@ -3809,6 +3809,43 @@ test('an agent\'s question appears on the turn it is working on and is answered 
   await expect(card).toHaveCount(0)
 })
 
+test('an agent\'s own questions are answered with its choices or in the user\'s words', async () => {
+  const turn = { id: 'build-2', workspaceId: 'demo', sheetId: null, note: 'Add the retry queue', selection: '[]', changeSummary: '',
+    sheetContext: '', buildSpec: '', status: 'delivered', leaseExpiresAt: Date.now() + 600_000, agent: 'claude-code', createdAt: 5,
+    deliveredTo: 'conn', answerAnnotationId: null, threadId: 'build-2', mode: 'build' }
+  const question = { id: 'ask-1', workspaceId: 'demo', messageId: 'build-2', hostId: 'claude-code', title: 'Queue', kind: 'question',
+    questions: [
+      { question: 'Which queue library?', header: 'Queue', options: [{ label: 'BullMQ', description: 'Redis-backed' }, { label: 'pg-boss' }] },
+      { question: 'Which jobs retry?', multiSelect: true, options: [{ label: 'Emails' }, { label: 'Webhooks' }, { label: 'Exports' }] },
+    ], askedAt: Date.now(), expiresAt: Date.now() + 600_000 }
+  let pending = [question]
+  let decided: { decision?: string; answers?: Record<string, string> } | undefined
+  await page.route(/\/api\/canvas\/history\?/, route => route.fulfill({ json: { nextCursor: '', availableCount: 0, messages: [turn] } }))
+  await page.route(/\/api\/agent\/permission\?/, route => route.fulfill({ json: { requests: pending } }))
+  await page.route(/\/api\/agent\/permission\/decide$/, async route => {
+    decided = route.request().postDataJSON()
+    pending = []
+    await route.fulfill({ json: decided })
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('ambio:open-agent-dispatch')))
+  const inbox = page.getByRole('complementary', { name: 'Agent inbox' })
+  const card = inbox.getByRole('form', { name: 'Question: Which queue library?' })
+  await expect(card).toContainText('Redis-backed')
+  const answer = card.getByRole('button', { name: 'Answer', exact: true })
+  await expect(answer).toBeDisabled()
+  // A choice, then the user's own words instead of it.
+  await card.getByRole('radio', { name: /BullMQ/ }).check()
+  await card.getByRole('textbox', { name: 'Another answer: Which queue library?' }).fill('Whatever we already use')
+  await expect(card.getByRole('radio', { name: /BullMQ/ })).not.toBeChecked()
+  await expect(answer).toBeDisabled()
+  await card.getByRole('checkbox', { name: 'Emails' }).check()
+  await card.getByRole('checkbox', { name: 'Exports' }).check()
+  await answer.click()
+  await expect.poll(() => decided).toEqual({ workspaceId: 'demo', id: 'ask-1', decision: 'answer',
+    answers: { 'Which queue library?': 'Whatever we already use', 'Which jobs retry?': 'Emails, Exports' } })
+  await expect(card).toHaveCount(0)
+})
+
 test('asking a question tells the agent not to change anything', async () => {
   let sent: { note?: string } | undefined
   await page.route(/\/api\/canvas\/send$/, async route => {

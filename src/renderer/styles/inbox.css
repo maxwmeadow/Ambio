@@ -308,6 +308,14 @@
 .ambio-inbox .ambio-inbox__permission button { padding: 4px 10px; border: 1px solid #8a7a52; background: #fbf7ea; color: #3b3320; font: 600 11px var(--font-ui, sans-serif); cursor: pointer; }
 .ambio-inbox .ambio-inbox__permission .ambio-inbox__permission-allow { border-color: #2f6a5d; background: #2f6a5d; color: #f4f7f4; }
 .ambio-inbox__permission small { color: #7a6a43; font: 10px var(--font-ui, sans-serif); }
+.ambio-inbox__question fieldset { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.ambio-inbox__question legend { margin-bottom: 2px; padding: 0; color: #3b3320; font: 12px/1.4 var(--font-ui, sans-serif); }
+.ambio-inbox__question legend span { margin-right: 6px; color: #7a6a43; font: 600 10px var(--font-ui, sans-serif); text-transform: uppercase; letter-spacing: .04em; }
+.ambio-inbox__question label { display: flex; align-items: flex-start; gap: 6px; color: #3b3320; font: 12px/1.35 var(--font-ui, sans-serif); cursor: pointer; }
+.ambio-inbox__question label input { margin: 2px 0 0; accent-color: #2f6a5d; }
+.ambio-inbox__question label span { display: grid; gap: 1px; }
+.ambio-inbox__question input[type="text"] { min-width: 0; padding: 4px 7px; border: 1px solid #b9a36c; background: #fbf7ea; color: #3b3320; font: 12px var(--font-ui, sans-serif); }
+.ambio-inbox .ambio-inbox__permission button:disabled { opacity: .5; cursor: default; }
 .ambio-inbox__conversation-menu .ambio-inbox__stages { margin: 0 0 4px; }
 .ambio-inbox__conversation-menu .ambio-inbox__notice { padding: 8px 9px; }
 /* What the chosen destination can do. */

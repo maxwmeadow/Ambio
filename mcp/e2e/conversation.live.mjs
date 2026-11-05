@@ -82,7 +82,8 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     const response = await fetch(`${harness.apiBase}/api/canvas/history?workspace=${encodeURIComponent(harness.workspaceId)}`)
     return (await response.json()).messages.find(message => message.id === id)
   }
-  // Stands in for the user: allows whatever the agent asks, and remembers it.
+  // Stands in for the user: allows whatever the agent asks, answers each of
+  // its questions with the last choice offered, and remembers it.
   const asked = []
   let answering = true
   const answer = (async () => {
@@ -91,7 +92,10 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
         const { requests } = await (await fetch(`${harness.apiBase}/api/agent/permission?workspace=${encodeURIComponent(harness.workspaceId)}`)).json()
         for (const request of requests) {
           asked.push(request)
-          await fetch(`${harness.apiBase}/api/agent/permission/decide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: harness.workspaceId, id: request.id, decision: 'allow' }) })
+          const decision = request.questions?.length
+            ? { decision: 'answer', answers: Object.fromEntries(request.questions.map(question => [question.question, question.options?.at(-1)?.label ?? 'Either is fine'])) }
+            : { decision: 'allow' }
+          await fetch(`${harness.apiBase}/api/agent/permission/decide`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspaceId: harness.workspaceId, id: request.id, ...decision }) })
         }
       } catch { /* the harness is stopping */ }
       await new Promise(resolve => setTimeout(resolve, 300))
@@ -100,7 +104,7 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
   t.after(async () => { answering = false; await answer })
 
   // The same decisions electron/main.ts makes for a delivery.
-  const turn = async (id, mode, note) => {
+  const turn = async (id, mode, note, access) => {
     const sent = await fetch(`${harness.apiBase}/api/canvas/send`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, workspaceId: harness.workspaceId, deliveryMode: 'addressed', threadId: 'live-ask', mode, note }),
@@ -113,7 +117,7 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     // none: the server finds it by its default port and token file).
     const harnessEnv = host === 'codex' ? Object.entries(binding).flatMap(([name, value]) => ['-c', `mcp_servers.ambio.env.${name}=${JSON.stringify(value)}`]) : []
     const withHarness = args => harnessEnv.length && args.at(-1) === '-' ? [...args.slice(0, -1), ...harnessEnv, '-'] : [...args, ...harnessEnv]
-    const print = () => { const plan = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...plan, args: withHarness(plan.args) } }
+    const print = () => { const plan = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined, access }); return { ...plan, args: withHarness(plan.args) } }
     const session = driver.acp || driver.acpArgs || driver.muse
     const acp = session ? {
       resume,
@@ -123,8 +127,8 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
         return (await response.json()).decision === 'allow'
       },
     } : undefined
-    const plan = nativeCodex ? { args: withHarness(driver.appServerArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined })) }
-      : driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...made, args: withHarness(made.args) } })()
+    const plan = nativeCodex ? { args: withHarness(driver.appServerArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined, access })) }
+      : driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined, access }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined, access }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir, model: model || undefined, access }); return { ...made, args: withHarness(made.args) } })()
     const started = await runner.start({
       workspaceId: harness.workspaceId, messageId: id, hostId: host, rootPath: harness.projectDir, revision: 'initial', launcher, prompt,
       args: plan.args, stdin: plan.stdin, threadId: 'live-ask', mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
@@ -164,6 +168,16 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     assert.equal(second.run.sessionId, first.run.sessionId)
   }
 
+  // Claude Code's own question reaches the user as a question, at full access
+  // too, and Claude goes on with the answer it was given.
+  if (host === 'claude-code') {
+    const third = await turn('live-ask-3', 'ask', 'Before you reply, use your AskUserQuestion tool to ask me one question: which colour I prefer, offering exactly Red and Blue. Then reply with the colour I chose, one word only.')
+    const question = asked.find(request => request.messageId === 'live-ask-3' && request.questions?.length)
+    assert.ok(question, `Claude did not ask through Ambio: ${JSON.stringify(asked)}`)
+    assert.deepEqual(question.questions[0].options.map(option => option.label), ['Red', 'Blue'])
+    assert.match(third.reply, /blue/i)
+  }
+
   // Antigravity CLI's print mode refuses any command it cannot ask about and
   // ends the run there (agy 1.0.16). That is what the turn must say.
   if (host === 'antigravity-cli') {
@@ -185,19 +199,20 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
     return
   }
 
-  // A build wants a command that is neither one of its listed checks nor one
-  // a host treats as harmless to run unasked.
-  const third = await turn('live-build', 'build', 'Run the shell command `node -e "console.log(6*7)"` and reply with exactly what it prints. Do not create or edit any files.')
+  // A build at Ask me wants a command a host does not treat as harmless to
+  // run unasked, so it is asked about in Ambio (Claude Code's access levels).
+  const third = await turn('live-build', 'build', 'Run the shell command `node -e "console.log(6*7)"` and reply with exactly what it prints. Do not create or edit any files.', host === 'claude-code' ? 'ask' : undefined)
   console.log(`\n  questions put to the user: ${JSON.stringify(asked.map(request => [request.title, request.detail]))}`)
   assert.match(third.reply, /(^|[^0-9])42([^0-9]|$)/, 'the permitted command did not run')
   if (host === 'claude-code') assert.ok(asked.some(request => request.messageId === 'live-build' && /node -e/.test(request.detail ?? '')), `no question reached Ambio: ${JSON.stringify(asked)}`)
   assert.deepEqual(sourceFiles(harness.projectDir), before, 'the build changed files it was told not to')
 
-  // A listed check runs without a question, in whichever shell the host uses.
+  // A read-only command runs without a question even at Ask me, in whichever
+  // shell the host uses.
   if (host === 'claude-code') {
     const questions = asked.length
-    const fourth = await turn('live-build-2', 'build', 'Run the shell command `git status --short` in this folder and reply with one word: "ran" if the command executed (even if git reported an error), or "blocked" if you were not allowed to run it. Do not create or edit any files.')
+    const fourth = await turn('live-build-2', 'build', 'Run the shell command `git status --short` in this folder and reply with one word: "ran" if the command executed (even if git reported an error), or "blocked" if you were not allowed to run it. Do not create or edit any files.', 'ask')
     assert.match(fourth.reply, /ran/i)
-    assert.equal(asked.length, questions, `a listed check was asked about: ${JSON.stringify(asked.slice(questions).map(request => request.detail))}`)
+    assert.equal(asked.length, questions, `a read-only command was asked about: ${JSON.stringify(asked.slice(questions).map(request => request.detail))}`)
   }
 })
