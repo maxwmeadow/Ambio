@@ -101,8 +101,10 @@ test('corrupt executable-location storage reports an error without destroying th
 
 test('locating an ACP server preserves its executable without starting an interactive protocol session', async t => {
   const root = fixture(t)
-  const file = write(path.join(root, 'agy_acp_server.par'), 'this file must not be executed during detection')
+  const file = write(path.join(root, process.platform === 'win32' ? 'agy.exe' : 'agy'), 'this file must not be executed during detection')
   assert.equal((await setExecutableOverride(root, 'antigravity-acp', file)).ok, true)
   assert.equal(readExecutableOverrides(root)['antigravity-acp'], file)
   assert.deepEqual(selectedDeliveryCli('antigravity-acp', file, 'win32'), { command: file, args: [] })
+  const obsolete = write(path.join(root, 'agy_acp_server.par'))
+  assert.throws(() => selectedDeliveryCli('antigravity-acp', obsolete), /Locate agy/)
 })

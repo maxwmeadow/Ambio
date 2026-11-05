@@ -7,6 +7,7 @@ import { Terminals } from './terminals'
 import { detectTerminalProfiles } from './terminalProfiles'
 import type { TerminalStart } from '../src/shared/terminal'
 import { listModels, validModel } from './agentModels'
+import { antigravityRoute } from './antigravityTransport'
 import { AgentChat } from './agentChat'
 import { ChatProviders } from './chatProviders'
 import { ChatProviderProxy } from './chatProviderProxy'
@@ -1581,7 +1582,7 @@ function setupIPC(): void {
   // Each agent says which access levels it honours and whether it takes messages while it works.
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => {
     const driver = host.route === 'run' ? agentDriver(host.id) : undefined
-    return { ...host, ...(driver?.access ? { access: driver.access } : {}), ...(driver?.stream ? { steerable: true } : {}) }
+    return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
   }))
   ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
     const client = CLI_CLIENTS.find(client => client.id === hostId)
@@ -1639,9 +1640,9 @@ function setupIPC(): void {
     if (typeof workspaceId !== 'string' || typeof key !== 'string') throw new Error('Invalid agent run.')
     return deliveryRunner.stop(workspaceId, key)
   })
-  ipcMain.handle('agent:delivery-send', (_event, workspaceId: string, key: string, text: string) => {
-    if (typeof workspaceId !== 'string' || typeof key !== 'string' || typeof text !== 'string') throw new Error('Invalid agent run.')
-    return deliveryRunner.send(workspaceId, key, text.slice(0, 100000))
+  ipcMain.handle('agent:delivery-steer', (_event, workspaceId: string, key: string, text: string) => {
+    if (typeof workspaceId !== 'string' || typeof key !== 'string' || typeof text !== 'string' || !text.trim() || text.length > 16000) throw new Error('Invalid agent input.')
+    return deliveryRunner.steer(workspaceId, key, text.trim())
   })
   // One bootstrap per attempt: retries must not rotate a live agent's credential.
   const mappingLaunches = new Map<string, Promise<unknown>>()
@@ -1715,6 +1716,12 @@ function setupIPC(): void {
       // Where the run works: a conversation keeps the worktree it started in;
       // a new one asked for its own worktree gets one from archd.
       const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
+      const antigravity = request.hostId === 'antigravity-cli' || request.hostId === 'antigravity-acp'
+      const prior = antigravity ? deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.hostId === request.hostId).sort((a, b) => b.startedAt - a.startedAt)[0] : undefined
+      const models = antigravity ? await listModels(request.hostId, target.launcher, os.homedir()) : []
+      const chosen = antigravity ? antigravityRoute(models, validModel(request.model) ? request.model : prior?.model,
+        request.hostId === 'antigravity-acp' ? 'acp' : deliveryRunner.conversationTransport(project.id, conversation, request.hostId), validModel(request.thinking) ? request.thinking : undefined) : undefined
+      const useAntigravityAcp = chosen?.transport === 'acp'
       const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
       let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
       if (!earlier.length && request.where === 'worktree') {
@@ -1728,30 +1735,41 @@ function setupIPC(): void {
       agentChat?.assertRootAvailable(project.rootPath)
       // A turn continues the host session its conversation already has, when
       // the host can; the conversation itself reaches the agent through Ambio.
-      const driver = agentDriver(request.hostId)
+      const driver = useAntigravityAcp ? agentDriver('antigravity-acp') : agentDriver(request.hostId)
       const mode = turnMode(body.mode)
       const threadId = conversation
       if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, workPath, request.messageId)
       const resume = !mapping && driver?.resumable ? deliveryRunner.session(project.id, threadId, request.hostId) : undefined
       // A level the agent does not offer is refused, never widened to full access.
       if (request.access !== undefined && (!isAgentAccess(request.access) || !driver?.access?.includes(request.access))) throw new Error(`${target.label} cannot be run at this access level.`)
-      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(validModel(request.model) ? { model: request.model } : {}), ...(request.access ? { access: request.access } : {}) }
+      const turn = { mode, messageId: request.messageId, cwd: workPath, mapping, ...(chosen?.model ? { model: chosen.model } : validModel(request.model) ? { model: request.model } : {}), ...(request.access ? { access: request.access } : {}) }
       const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
       // An ACP agent is given Ambio's tools for the session and continues or
       // restarts the session itself.
       const session = driver?.acp || driver?.acpArgs || driver?.muse
       const acp = session ? {
         resume,
+        ...(useAntigravityAcp ? {
+          model: turn.model, thinking: chosen?.thinking,
+          strictResume: true, steering: !mapping,
+          onPermission: async (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => {
+            const response = await archdJson('/api/agent/permission', { method: 'POST', signal,
+              body: JSON.stringify({ workspaceId: project.id, messageId: request.messageId, hostId: request.hostId, ...question }) })
+            return response.status === 200 && response.body?.decision === 'allow'
+          },
+        } : {}),
         mcpServers: [(spec => ({ name: 'ambio', command: spec.command, args: [...spec.args, `--ambio-host=${request.hostId}`], env: Object.entries(mcpEnvironment(request.hostId, project.id, request.messageId, mapping)).map(([name, value]) => ({ name, value })) }))(mcpLaunchSpec())],
       } : undefined
       // A host with both ways in is tried as a session first; print mode is the
       // same turn started the way it always was.
-      const plan = driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
+      const plan = useAntigravityAcp ? { args: ['acp'], stdin: undefined, sessionId: undefined }
+        : driver?.acpArgs ? { args: driver.acpArgs({ hostId: request.hostId, mcp: mcpLaunchSpec(), workspaceId: project.id, prompt, ...turn }), stdin: undefined, sessionId: undefined } : deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, { ...turn, resume: session ? undefined : resume })
       const run = await deliveryRunner.start({
         ...request, rootPath: workPath, revision: body.review?.id ?? 'initial', launcher: target.launcher!, prompt,
         args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
+        ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
-        ...(driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
+        ...(antigravity || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })
       return { detail: run.detail, run }
     } catch (error) {

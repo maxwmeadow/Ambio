@@ -10,6 +10,15 @@ Product direction lives in [PRODUCT.md](PRODUCT.md) and open work in
 
 ## Purpose
 
+The agent panel permits a text correction during a qualified Antigravity ACP
+turn. Stop remains available; model, mode and attachment choices stay fixed
+while it runs. Sending waits for acknowledgement, keeps a failed draft, and
+never creates a second work order or changes transport. Other ordinary managed
+routes retain the disabled-during-work composer. Model selection chooses the
+connection for a new Antigravity conversation; existing conversations retain
+their connection. Tool output and diffs can be expanded without changing the
+canvas selection or camera. (Approved joint Antigravity approach, 2026-11-04.)
+
 This document records behavior that exists and is intentionally tuned today.
 Refactors may change ownership, module boundaries, and implementation details,
 but must not change these observable results unless a later product decision
@@ -825,6 +834,69 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   remains reachable from the toolbar, View and command palette, including while
   new changes arrive. Opening or dismissing an invitation never acknowledges
   the underlying changes. No permanent footer is required.
+
+### Investigation reader and feedback (Max, November 3, 2026)
+
+- Investigations read as an animated step carousel. Recorded questions,
+  experiments, observations, assessments and guidance remain separate cards;
+  the finding and suggested fix each have a prominent card. An in-progress
+  command becomes its completed experiment in the same live timeline position;
+  saved playback retains recorded start/result moments as distinct cards.
+  There is no repeated hypothesis board or separate composer.
+- New live steps queue in order behind a 3.5–7.5 second reading interval,
+  rather than silently replacing a paragraph or skipping a burst of results.
+  Only explicit Pause or step browsing disables following. Hover, focus,
+  selection, opening evidence and ordinary content clicks never disable it or
+  restart its timer. Resume advances to the next queued step immediately and
+  follows subsequent arrivals with the reading interval; Latest skips directly
+  to the newest. The step index temporarily holds the view while open without
+  changing the live following setting. Previous/Next, pagination dots with an
+  elongated active indicator, the complete index and Left/Right/Home/End
+  navigate the sequence. Opening a case midway starts at
+  its latest step rather than replaying its entire backlog.
+- The card fills the available canvas height above the floating bins or replay
+  transport, measured rather than using a fixed height cap. A compact header
+  combines title, status, elapsed time, step index and a newer-step shortcut.
+  One bottom bar combines previous/next, an explicit following toggle and the
+  chat/replay action. Header and controls stay reachable; the current card or
+  index is the only scrolling body. Full descriptions render as readable
+  paragraphs without a preview cutoff. Incoming events preserve an explicitly
+  selected earlier card and its scroll position. Step headings have strong
+  visual weight, and each code destination has one filename with optional
+  distinct symbol context; redundant module-name/filename pairs are suppressed.
+- Run details preserve all findings, samples and available output. No watched
+  functions and no fix-verification run are stated separately from successful
+  command execution and the agent's conclusion.
+- Reply in chat explicitly targets the live case in the existing composer,
+  including while a turn is working. Feedback has queued/delivered state and
+  uses the shared investigation queue for both managed and client agents.
+  Stop remains available for the managed turn. Failed sends retain the draft;
+  closed/replaced cases disable sending until the user chooses another context.
+  Case-bound server requests and feedback events cannot target a replacement.
+- Below 340px of available canvas width, a chip replaces the default card.
+  Explicit expansion borrows bounded viewport space; replying minimizes it
+  again to keep chat usable. Ordinary card width is at most 420px.
+- Saved replay builds its complete reader deck before playback. Opening selects
+  the first meaningful recorded step; all later cards remain available through
+  arrows, dots and the full index. Raw event count and card count can differ:
+  runtime/delivery bookkeeping does not add story cards, while a finding/fix can
+  produce two cards at one event. Runtime-only captures remain browsable as
+  recorded activity with expandable details. Empty captures stay empty.
+- Carousel navigation seeks the timeline and rebuilds the map/runtime prefix.
+  Timeline seeks, stepping, playback and restart select the corresponding card.
+  The shared player owns event position, reader position and play/pause.
+  Playback buttons live only in the timeline. The replay card footer is a
+  single centered cluster of nearby chevron arrows and pagination dots, without
+  a duplicate Play button or read-only caption. Live follow/chat remain. Restart returns to the beginning without discarding the full
+  index; each finding and fix gets its own reading time even at one timestamp.
+  Manual navigation pauses playback. Historical cards carry event-time case
+  snapshots, so earlier hypotheses cannot display later assessments. Different
+  live/saved case IDs remain compatible; live case markers cannot replace a
+  replay. Feedback stays read-only, running commands are labeled recorded and
+  the playback transport remains clear of the card.
+- Reduced-motion mode disables arrival, pulse, chevron and swipe animations;
+  outgoing animation layers cannot intercept pointer or keyboard access to
+  the step index.
 
 ### First-run payoff
 

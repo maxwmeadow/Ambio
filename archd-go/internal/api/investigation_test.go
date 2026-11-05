@@ -290,3 +290,35 @@ func TestAnEmptyAssembledTraceIsRejected(t *testing.T) {
 		t.Fatalf("status = %d, want 400 for an empty trace", response.Code)
 	}
 }
+
+func TestInvestigationChatReplyChecksItsCaseTarget(t *testing.T) {
+	server, _ := investigationServer(t)
+	first := server.runtime.StartInvestigation("ws", "old", "", "", "agent")
+	server.runtime.StopInvestigation("ws")
+	current := server.runtime.StartInvestigation("ws", "current", "", "", "agent")
+	send := func(caseID, text string) *httptest.ResponseRecorder {
+		payload, _ := json.Marshal(map[string]string{"workspaceId": "ws", "caseId": caseID, "text": text})
+		response := httptest.NewRecorder()
+		server.handleCaseMessage(response, httptest.NewRequest(http.MethodPost, "/api/investigation/message", bytes.NewReader(payload)))
+		return response
+	}
+	if response := send(first.ID, "stale reply"); response.Code != http.StatusConflict {
+		t.Fatalf("stale reply = %d: %s", response.Code, response.Body.String())
+	}
+	if messages := server.runtime.TakePendingMessages("ws"); len(messages) != 0 {
+		t.Fatalf("stale reply queued: %+v", messages)
+	}
+	if response := send(current.ID, "new reply"); response.Code != http.StatusOK {
+		t.Fatalf("new reply = %d: %s", response.Code, response.Body.String())
+	}
+	if response := send("", "legacy client reply"); response.Code != http.StatusOK {
+		t.Fatalf("legacy reply = %d: %s", response.Code, response.Body.String())
+	}
+	if messages := server.runtime.TakePendingMessages("ws"); len(messages) != 2 {
+		t.Fatalf("messages = %+v", messages)
+	}
+	server.runtime.StopInvestigation("ws")
+	if response := send(current.ID, "late reply"); response.Code != http.StatusConflict {
+		t.Fatalf("closed reply = %d: %s", response.Code, response.Body.String())
+	}
+}

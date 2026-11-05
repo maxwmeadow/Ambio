@@ -4,7 +4,7 @@
 //	POST /api/investigation/verdict    {workspaceId, hypothesis, result, text?, run?}
 //	POST /api/investigation/run        {workspaceId, command, watch?, cwd?, timeoutSec?, hypothesis?}
 //	POST /api/investigation/conclude   {workspaceId, rootCause, file?, symbol?, fix?, verified?}
-//	POST /api/investigation/message    {workspaceId, text, fileId?, symbol?}   (the human)
+//	POST /api/investigation/message    {workspaceId, caseId?, text, fileId?, symbol?}   (the human)
 //	GET  /api/investigation/case?workspace=
 //	GET  /api/investigation/pending?workspace=                               (the agent)
 //
@@ -658,6 +658,7 @@ func (s *Server) handleCaseConclude(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCaseMessage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		WorkspaceID string `json:"workspaceId"`
+		CaseID      string `json:"caseId"`
 		Text        string `json:"text"`
 		FileID      string `json:"fileId"`
 		Symbol      string `json:"symbol"`
@@ -673,10 +674,10 @@ func (s *Server) handleCaseMessage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	msg, err := s.runtime.QueueHumanMessage(body.WorkspaceID, body.Text, anchor)
+	msg, err := s.runtime.QueueHumanMessageForCase(body.WorkspaceID, body.CaseID, body.Text, anchor)
 	if err != nil {
 		code := 400
-		if err == runtime.ErrNoCase {
+		if err == runtime.ErrNoCase || err == runtime.ErrCaseChanged {
 			code = 409
 		}
 		jsonError(w, err.Error(), code)

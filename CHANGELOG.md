@@ -7,6 +7,7 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 - Choose how much Claude Code may do without asking, beside the request type:
   Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
   it asks appears in the conversation for you to allow or refuse.
@@ -18,6 +19,26 @@ in the app as "What's New" after updating, so write it for users.
 - Stopping a Claude Code run now asks Claude to end its turn instead of
   killing it, so the conversation continues cleanly on the next turn. A run's
   activity also shows what Claude's subagents are doing.
+=======
+- Antigravity now chooses its connection from the model you select: supported
+  models get thinking controls, approval requests, corrections while working,
+  and expandable tool output and file changes. Other models retain the CLI's
+  full-access connection. Existing conversations keep their connection, and
+  Ambio never silently retries through another one.
+
+- Investigations now follow a sequence of animated step cards, with clear
+  phase headings and separate finding and suggested-fix cards. New steps queue
+  with time to read; browsing pauses following, with previous/next controls,
+  a step index and Latest step to catch up. Following no longer pauses on hover,
+  focus or evidence clicks; Resume advances queued work immediately. The card
+  uses available height above floating controls, with a compact header, one
+  bottom control bar and full descriptions. Code links show one clear filename.
+  Evidence stays expandable in one scrolling body. Saved recordings expose all
+  steps immediately; carousel and timeline navigation, map state and play/pause
+  stay synchronized. Pagination dots have a pill-shaped active marker and
+  nearby chevrons; replay playback buttons stay in the timeline. Reply in chat keeps delivery status and unsent drafts when a case ends
+  or changes.
+>>>>>>> codex/antigravity-hybrid-acp
 
 - Terminal controls now fit in one compact top bar with shell options tucked
   into a menu and no footer. Terminal and agent messages share a saved sidebar

@@ -23,15 +23,17 @@ export interface AcpTurn {
   /** The agent session an earlier turn of this conversation ran in. */
   resume?: string
   authentication?: 'grok'
+  model?: string
+  thinking?: string
+  /** Antigravity cannot silently replace a retained session. */
+  strictResume?: boolean
+  steering?: boolean
+  /** Optional human permission desk; without it the host's existing policy applies. */
+  onPermission?: (question: { title: string; detail: string; kind?: string }, signal: AbortSignal) => Promise<boolean>
   /** Sends one line to the agent. */
   send: (line: string) => void
   onSession: (sessionId: string) => void
   onEvent: (event: Omit<DeliveryEvent, 'at'>) => void
-  /**
-   * Puts a question to the user in the conversation. A build's edits are what
-   * was ordered; a command it wants to run is asked about first. Without
-   * this, a build's requests are allowed as before.
-   */
 }
 
 export interface AcpOutcome {
@@ -61,10 +63,23 @@ function clip(text: string, max = 400): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
+/** Keep text/diffs bounded and renderable; never persist arbitrary tool objects. */
+export function acpToolContent(input: unknown): unknown[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  const bounded = (value: unknown) => typeof value === 'string' ? value.slice(0, 65536) : undefined
+  const content = input.slice(0, 8).flatMap<unknown>(item => {
+    if (item?.type === 'diff' && typeof item.path === 'string') return [{ type: 'diff', path: item.path.slice(0, 1024), oldText: bounded(item.oldText), newText: bounded(item.newText) }]
+    if (item?.type === 'content' && item.content?.type === 'text' && typeof item.content.text === 'string') return [{ type: 'content', content: { type: 'text', text: bounded(item.content.text) } }]
+    return []
+  })
+  return content.length ? content : undefined
+}
+
 /** The agent's own mode that matches what this turn asks for, if it has one. */
-export function acpModeFor(mode: TurnMode, available: Array<{ id: string; name?: string }>): string | undefined {
+export function acpModeFor(mode: TurnMode, available: Array<{ id: string; name?: string }>, defaultForAsk = false): string | undefined {
   const wanted = mode === 'ask' ? /^ask$|question/i : mode === 'propose' ? /plan|architect/i : /^(agent|code|build|default)$/i
   return available.find(item => wanted.test(item.id))?.id ?? available.find(item => wanted.test(item.name ?? ''))?.id
+    ?? (defaultForAsk && mode === 'ask' ? available.find(item => item.id === 'default')?.id : undefined)
 }
 
 /** Which of the offered answers a turn in this mode gives to a permission request. */
@@ -86,21 +101,26 @@ export class AcpClient {
   private text = ''
   private thoughtText = ''
   private closed = false
+  private cancelled = false
+  private prompting = false
+  private steeringWork: Array<Promise<void>> = []
+  private steeredOutcome: any
+  private permissionWaits = new Set<AbortController>()
+  private configuration: any
 
   constructor(turn: AcpTurn) { this.turn = turn }
 
   private request<T = any>(method: string, params: unknown): Promise<T> {
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
-      // Grok's auth may otherwise wait for a browser that an Ambio-started
-      // process cannot present. Model turns have no handshake time limit.
-      const timeout = this.turn.authentication === 'grok' ? grokRequestTimeout(method) : undefined
+      // Handshakes and setup are bounded; a model turn has no time limit.
+      const timeout = grokRequestTimeout(method)
       const timer = timeout === undefined ? undefined : setTimeout(() => {
         this.pending.delete(id)
         const recovery = method === 'authenticate' ? 'Run grok login in a terminal, then send again.'
           : method.startsWith('session/') ? 'Check Grok’s MCP server startup and session output, then try again.'
             : 'Check Grok’s output and installed version, then try again.'
-        reject(new GrokRequestTimeout(`Grok did not answer ${method} within ${timeout / 1000}s. ${recovery}`))
+        reject(new GrokRequestTimeout(`${this.turn.authentication === 'grok' ? 'Grok' : 'The agent'} did not answer ${method} within ${timeout / 1000}s. ${this.turn.authentication === 'grok' ? recovery : 'Check the agent’s version, sign-in and server startup, then try again.'}`))
       }, timeout)
       this.pending.set(id, { resolve, reject, timer })
       this.turn.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }))
@@ -111,6 +131,7 @@ export class AcpClient {
   close(reason = 'The agent exited before the turn finished.'): void {
     if (this.closed) return
     this.closed = true
+    for (const controller of this.permissionWaits) controller.abort()
     this.flushText()
     for (const waiting of this.pending.values()) { clearTimeout(waiting.timer); waiting.reject(new Error(reason)) }
     this.pending.clear()
@@ -118,7 +139,22 @@ export class AcpClient {
 
   /** Ask the agent to stop the turn in progress. */
   cancel(): void {
+    this.cancelled = true
+    for (const controller of this.permissionWaits) controller.abort()
     if (this.sessionId && !this.closed) this.turn.send(JSON.stringify({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId: this.sessionId } }))
+  }
+
+  /** Only hosts whose running-prompt semantics are qualified enable this. */
+  async steer(prompt: string): Promise<void> {
+    if (!this.turn.steering || !this.prompting || this.closed || this.cancelled) throw new Error('This agent is not accepting input. Your draft is kept.')
+    const work = (async () => {
+      const result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: prompt }] })
+      if (result.stopReason && result.stopReason !== 'end_turn') throw new Error(`The agent did not accept the update (${result.stopReason}).`)
+      this.steeredOutcome = result
+      this.turn.onEvent({ kind: 'tool', text: `You · ${prompt}`, status: 'steering' })
+    })()
+    this.steeringWork.push(work)
+    return work
   }
 
   /** One line of the agent's output. */
@@ -136,19 +172,33 @@ export class AcpClient {
       else waiting.resolve(message.result ?? {})
       return
     }
-    if (message.method === 'session/update') { this.update(message.params?.update); return }
+    if (message.method === 'session/update') {
+      if (message.params?.sessionId === this.sessionId) this.update(message.params?.update)
+      return
+    }
     if (message.id === undefined) return
     if (message.method === 'session/request_permission') {
       const params = message.params ?? {}
       const kind = params.toolCall?.kind ?? this.toolKinds.get(params.toolCall?.toolCallId)
       const options: Array<{ optionId: string; kind?: string }> = Array.isArray(params.options) ? params.options : []
       const title = clip(String(params.toolCall?.title ?? (this.toolTitles.get(params.toolCall?.toolCallId) || kind)), 120)
-      const answer = (optionId: string | undefined) =>
-        this.turn.send(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { outcome: optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } } }))
+      const answer = (optionId: string | undefined) => {
+        if (!this.closed) this.turn.send(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { outcome: optionId && !this.cancelled ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } } }))
+      }
+      if (params.sessionId !== this.sessionId || this.cancelled) { answer(undefined); return }
       if (this.turn.mode !== 'build' && CHANGES_THE_PROJECT.has(kind ?? 'other')) {
         this.turn.onEvent({ kind: 'tool', text: `Refused · ${title} (this turn does not change the project)` })
       }
-      answer(acpPermission(this.turn.mode, kind, options))
+      if (this.turn.onPermission && !(this.turn.mode !== 'build' && CHANGES_THE_PROJECT.has(kind ?? 'other'))) {
+        const controller = new AbortController()
+        this.permissionWaits.add(controller)
+        let detail = ''
+        try { detail = JSON.stringify(params.toolCall?.rawInput ?? params.toolCall?.content ?? '').slice(0, 8000) } catch { /* title remains available */ }
+        void this.turn.onPermission({ title, detail, kind }, controller.signal).then(
+          allowed => answer(options.find(option => option.kind === (allowed ? 'allow_once' : 'reject_once'))?.optionId),
+          () => answer(undefined),
+        ).finally(() => this.permissionWaits.delete(controller))
+      } else answer(acpPermission(this.turn.mode, kind, options))
       return
     }
     // Ambio offers the agent no file system or terminal of its own; the agent
@@ -187,16 +237,16 @@ export class AcpClient {
         this.toolTitles.set(update.toolCallId, String(update.title ?? update.name ?? ''))
       }
       const where = Array.isArray(update.locations) && update.locations[0]?.path ? ` · ${clip(String(update.locations[0].path), 120)}` : ''
-      this.turn.onEvent({ kind: 'tool', text: `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 160)}${where}` })
+      this.turn.onEvent({ kind: 'tool', text: `${clip(String(update.title ?? update.name ?? update.kind ?? 'tool'), 160)}${where}`, toolCallId: update.toolCallId, status: update.status, content: acpToolContent(update.content) })
       return
     }
-    if (update.sessionUpdate === 'tool_call_update' && update.status === 'failed') {
-      this.turn.onEvent({ kind: 'error', text: `A tool call failed${update.title ? `: ${clip(String(update.title), 160)}` : '.'}` })
+    if (update.sessionUpdate === 'tool_call_update') {
+      this.turn.onEvent({ kind: update.status === 'failed' ? 'error' : 'tool', text: clip(String(update.title ?? this.toolTitles.get(update.toolCallId) ?? 'Tool result'), 160), toolCallId: update.toolCallId, status: update.status, content: acpToolContent(update.content) })
     }
   }
 
   /** Run the turn to its end. Rejects when the agent cannot start or run it. */
-  async run(): Promise<AcpOutcome> {
+  async open(): Promise<any> {
     const turn = this.turn
     const initialized = await this.request('initialize', {
       protocolVersion: 1,
@@ -215,6 +265,7 @@ export class AcpClient {
     let resumed = false
     let session: any
     const setup = { cwd: turn.cwd, mcpServers: turn.mcpServers }
+    if (turn.resume && turn.strictResume && !(capabilities.sessionCapabilities?.resume || capabilities.loadSession)) throw new Error('This agent cannot reopen the retained conversation. Start a new conversation to continue.')
     if (turn.resume && (capabilities.sessionCapabilities?.resume || capabilities.loadSession)) {
       try {
         if (capabilities.sessionCapabilities?.resume) session = await this.request('session/resume', { sessionId: turn.resume, ...setup })
@@ -227,7 +278,7 @@ export class AcpClient {
       } catch (error) {
         // A timeout does not establish that a retained session is gone, and a
         // second session would start all the same slow MCP servers again.
-        if (error instanceof GrokRequestTimeout) throw error
+        if (error instanceof GrokRequestTimeout || turn.strictResume) throw error
       }
       finally { this.replaying = false; this.text = '' }
     }
@@ -240,14 +291,53 @@ export class AcpClient {
       if (!this.sessionId) throw new Error('The agent did not start a session.')
     }
     turn.onSession(this.sessionId)
+    this.configuration = session
+    return session
+  }
+
+  /** A catalog probe creates no turn and explicitly closes its empty session. */
+  async disposeSession(): Promise<void> {
+    if (this.sessionId && !this.closed) await this.request('session/close', { sessionId: this.sessionId })
+  }
+
+  /** Run the turn to its end. Configuration errors never send a prompt. */
+  async run(): Promise<AcpOutcome> {
+    const turn = this.turn
+    const session = await this.open()
+    const options: any[] = Array.isArray(session?.configOptions) ? session.configOptions : []
+    const values = (option: any): any[] => (option.options ?? []).flatMap((item: any) => Array.isArray(item.options) ? item.options : [item])
+    if (turn.model) {
+      const option = options.find(option => option.category === 'model' || option.id === 'model')
+      if (option && values(option).some(item => item.value === turn.model)) {
+        const result = await this.request('session/set_config_option', { sessionId: this.sessionId, configId: option.id, value: turn.model })
+        if (Array.isArray(result.configOptions)) this.configuration.configOptions = result.configOptions
+      } else if (session?.models?.availableModels?.some((model: any) => model.modelId === turn.model)) {
+        await this.request('session/set_model', { sessionId: this.sessionId, modelId: turn.model })
+      } else throw new Error('The selected model is not available in this ACP session. Choose an available model or start a new conversation with another model.')
+    }
+    if (turn.thinking) {
+      const option = (this.configuration.configOptions ?? []).find((option: any) => option.category === 'thought_level' || option.id === 'thought_level')
+      if (!option || !values(option).some(item => item.value === turn.thinking)) throw new Error('The selected thinking level is not available for this model.')
+      await this.request('session/set_config_option', { sessionId: this.sessionId, configId: option.id, value: turn.thinking })
+    }
     // The mode is set on every turn: a continued session keeps the last one.
     const modes = session?.modes
-    const modeId = Array.isArray(modes?.availableModes) ? acpModeFor(turn.mode, modes.availableModes) : undefined
+    const modeId = Array.isArray(modes?.availableModes) ? acpModeFor(turn.mode, modes.availableModes, turn.strictResume) : undefined
     if (modeId && modeId !== modes.currentModeId) {
-      try { await this.request('session/set_mode', { sessionId: this.sessionId, modeId }) } catch { /* the permission answers still hold the line */ }
+      try { await this.request('session/set_mode', { sessionId: this.sessionId, modeId }) } catch (error) { if (turn.strictResume) throw error }
     }
-    const result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: turn.prompt }] })
+    if (this.cancelled || this.closed) throw new Error('The turn was stopped before it began.')
+    this.prompting = true
+    let result: any
+    try {
+      result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: turn.prompt }] })
+      // agy resolves the original request before its steered replacement ends.
+      // Keep the process alive until every accepted correction has completed.
+      for (let i = 0; i < this.steeringWork.length; i++) await this.steeringWork[i]
+      result = this.steeredOutcome ?? result
+    }
+    finally { this.prompting = false }
     this.flushText()
-    return { stopReason: String(result.stopReason ?? 'end_turn'), resumed }
+    return { stopReason: String(result.stopReason ?? 'end_turn'), resumed: !!turn.resume && this.sessionId === turn.resume }
   }
 }

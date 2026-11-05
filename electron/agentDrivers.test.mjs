@@ -408,7 +408,7 @@ test('a message sent while Claude Code works joins its turn, and the turn ends w
   await said(runner, started.key, 'Still writing')
   assert.equal(runner.events('ws', started.key).at(-1).live, true)
   // Resolves once the agent has taken it in, which is recorded in the turn.
-  await runner.send('ws', started.key, 'also check the tests')
+  await runner.steer('ws', started.key, 'also check the tests')
   await said(runner, started.key, 'heard also check the tests')
   const events = runner.events('ws', started.key)
   assert.ok(events.some(event => event.kind === 'sent' && event.text === 'also check the tests'))
@@ -417,8 +417,8 @@ test('a message sent while Claude Code works joins its turn, and the turn ends w
   // The host leaves only because its stdin was closed when the turn ended.
   const run = await settled(runner, 'ws', started.key)
   assert.equal(run.state, 'completed')
-  await assert.rejects(() => runner.send('ws', started.key, 'too late'), /no longer controlled/)
-  await assert.rejects(() => runner.send('other', started.key, 'x'), /no longer controlled/)
+  await assert.rejects(() => runner.steer('ws', started.key, 'too late'), /not accepting input/)
+  await assert.rejects(() => runner.steer('other', started.key, 'x'), /not accepting input/)
   assert.match(fs.readFileSync(run.logPath, 'utf8'), /Sent into this turn: also check the tests/)
 })
 

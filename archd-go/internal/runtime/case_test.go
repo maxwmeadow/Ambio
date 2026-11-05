@@ -107,3 +107,29 @@ func TestAHumanMessageReachesTheAgentExactlyOnce(t *testing.T) {
 		t.Fatalf("delivery not recorded: %+v", msgs)
 	}
 }
+
+func TestChatReplyCannotReachAReplacementInvestigation(t *testing.T) {
+	m := NewManager(hub.New())
+	first := m.StartInvestigation("ws", "first case", "", "", "agent")
+	m.StopInvestigation("ws")
+	second := m.StartInvestigation("ws", "replacement", "", "", "agent")
+	if _, err := m.QueueHumanMessageForCase("ws", first.ID, "old draft", nil); !errors.Is(err, ErrCaseChanged) {
+		t.Fatalf("reply for replaced case: %v", err)
+	}
+	if messages := m.TakePendingMessages("ws"); len(messages) != 0 {
+		t.Fatalf("stale reply reached new case: %+v", messages)
+	}
+	if _, err := m.QueueHumanMessageForCase("ws", second.ID, "current reply", nil); err != nil {
+		t.Fatal(err)
+	}
+	if messages := m.TakePendingMessages("ws"); len(messages) != 1 || messages[0].Text != "current reply" {
+		t.Fatalf("current reply lost: %+v", messages)
+	}
+	if messages := m.TakePendingMessages("ws"); len(messages) != 0 {
+		t.Fatalf("current reply repeated: %+v", messages)
+	}
+	m.StopInvestigation("ws")
+	if _, err := m.QueueHumanMessageForCase("ws", second.ID, "late draft", nil); !errors.Is(err, ErrNoCase) {
+		t.Fatalf("closed reply: %v", err)
+	}
+}

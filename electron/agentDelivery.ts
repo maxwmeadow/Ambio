@@ -7,7 +7,7 @@ import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
 import { CLI_CLIENTS, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
-import { AcpClient, type AcpMcpServer } from './acpClient.ts'
+import { AcpClient, type AcpTurn } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
 import { mappingAttemptState } from './daemonAuth.ts'
 import type { MappingBinding } from '../src/shared/agentDelivery.ts'
@@ -95,6 +95,7 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
     try { dirs.push(...fs.readdirSync(versions).sort().reverse().map(version => join(versions, version, 'bin'))) } catch { /* manager not installed */ }
   }
   if (platform === 'win32') dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'Microsoft', 'WinGet', 'Links'))
+  if (hostId.startsWith('antigravity-')) dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'agy', 'bin'))
   for (const dir of dirs) {
     // Editor/desktop apps inject their private Codex into agent sessions' PATH.
     // Its presence does not establish a standalone CLI installation.
@@ -171,6 +172,7 @@ export function selectedDeliveryCli(hostId: string, file: string, platform = pro
     if (!isAbsolute(file) || !fs.statSync(file).isFile()) throw new Error()
     fs.accessSync(file, /\.(?:[cm]?js|cmd|bat|ps1)$/i.test(file) ? fs.constants.R_OK : process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
   } catch { throw new Error('The selected CLI file is missing, inaccessible, or not executable. Locate it again.') }
+  if (hostId === 'antigravity-acp' && !CLI_NAMES[hostId].some(name => [name, `${name}.exe`].includes(basename(file)))) throw new Error('Antigravity ACP now uses agy (CLI 1.5 or newer). Locate agy to update this connection.')
   if (/\.(?:cmd|bat|ps1)$/i.test(file)) {
     const pkg = NPM_PACKAGES[hostId]
     const packageDir = pkg && join(dirname(file), 'node_modules', pkg.name)
@@ -228,7 +230,10 @@ export interface RunInput {
   /** Started instead when a continued session will not start: the same turn, fresh. */
   fresh?: () => { args: string[]; stdin?: string; sessionId?: string }
   /** Run the turn as an Agent Client Protocol session with these MCP servers. */
-  acp?: { mcpServers: AcpMcpServer[]; resume?: string }
+  acp?: Pick<AcpTurn, 'mcpServers' | 'resume' | 'model' | 'thinking' | 'strictResume' | 'steering' | 'onPermission'>
+  transport?: 'acp' | 'print'
+  model?: string
+  thinking?: string
   muse?: Pick<MuseTurn, 'mcpServers' | 'resume' | 'model' | 'approvalMode'>
   mapping?: MappingBinding
 }
@@ -274,6 +279,26 @@ export class DeliveryRunner {
   /** The host session an earlier turn of this conversation ran in, if any. */
   session(workspaceId: string, threadId: string | undefined, hostId: string): string | undefined {
     return threadId ? this.sessions()[this.sessionKey(workspaceId, threadId, hostId)] : undefined
+  }
+  /** Old Antigravity CLI receipts retain print, including after a restart. */
+  conversationTransport(workspaceId: string, threadId: string, hostId: string): 'acp' | 'print' | undefined {
+    const run = this.list(workspaceId).filter(run => run.threadId === threadId && run.hostId === hostId).sort((a, b) => a.startedAt - b.startedAt)[0]
+    return run ? run.transport ?? (hostId === 'antigravity-acp' ? 'acp' : 'print') : undefined
+  }
+  /**
+   * Sends a message into a running turn, for the hosts that take one (a
+   * Claude Code stream, an ACP agent that steers). It resolves once the agent
+   * has taken the message in; until then the composer keeps the draft.
+   */
+  async steer(workspaceId: string, key: string, text: string): Promise<void> {
+    const live = this.live.get(key)
+    if (!live || live.run.workspaceId !== workspaceId || live.run.state !== 'running' || !live.run.canSteer) throw new Error('This run is not accepting input. Your draft is kept.')
+    if (!text.trim()) throw new Error('The message is empty.')
+    const stream = this.streams.get(key)
+    if (stream) return stream.send(randomUUID(), text)
+    const client = this.acp.get(key)
+    if (!(client instanceof AcpClient)) throw new Error('This run is not accepting input. Your draft is kept.')
+    await client.steer(text)
   }
   private rememberSession(run: DeliveryRun): void {
     if (!run.threadId || !run.sessionId || run.mappingAttemptId) return
@@ -377,6 +402,10 @@ export class DeliveryRunner {
       ...(input.threadId ? { threadId: input.threadId } : {}), ...(input.mode ? { mode: input.mode } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}), ...(input.resumed ? { resumed: true } : {}),
       ...(input.mapping ? { mappingAttemptId: input.mapping.attempt.id } : {}),
+      ...(input.transport ? { transport: input.transport } : {}),
+      ...(input.model ? { model: input.model } : {}),
+      ...(input.thinking ? { thinking: input.thinking } : {}),
+      ...(input.acp?.steering ? { canSteer: true } : {}),
     }
     // Exclusive receipt also protects a second Electron process.
     if (!prior) {
@@ -484,7 +513,7 @@ export class DeliveryRunner {
         onSession: session, onEvent: report,
       }
       const acp = input.muse ? new MuseClient({ ...protocolTurn, ...input.muse }) : !(attempt.acp && input.acp) ? undefined : new AcpClient({
-        ...protocolTurn, mcpServers: input.acp.mcpServers, resume: input.acp.resume, authentication: input.driver?.acpAuthentication,
+        ...protocolTurn, ...input.acp, authentication: input.driver?.acpAuthentication,
       })
       // Messages sent into a streaming host's turn, until it takes each in.
       const waiting = new Map<string, { text: string; resolve(): void; reject(error: Error): void }>()
@@ -555,7 +584,8 @@ export class DeliveryRunner {
           const stream = input.driver.stream
           let open = true
           const write = (line: string) => { try { child.stdin?.write(`${line}\n`) } catch { /* close reports the failure */ } }
-          const close = () => { if (!open) return; open = false; this.streams.delete(key); try { child.stdin?.end() } catch { /* already gone */ } }
+          const close = () => { if (!open) return; open = false; this.streams.delete(key); if (run.canSteer) { run.canSteer = false; this.save(run) }; try { child.stdin?.end() } catch { /* already gone */ } }
+          run.canSteer = true
           this.streams.set(key, {
             send: (id, text) => new Promise<void>((resolve, reject) => {
               if (!open) { reject(new Error('This turn has finished. Send it as the next turn.')); return }
@@ -687,19 +717,6 @@ export class DeliveryRunner {
       killer.once('close', () => resolve()); killer.once('error', reject)
     })
     else { try { process.kill(-pid, force ? 'SIGKILL' : 'SIGTERM') } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error } }
-  }
-  /**
-   * Sends a message into a running turn of a host that reads a stream. It
-   * resolves once the agent has taken it in: it joins the turn under way, or
-   * runs next in the same session when that turn is just finishing.
-   */
-  send(workspaceId: string, key: string, text: string): Promise<void> {
-    const entry = this.live.get(key)
-    if (!entry || entry.run.workspaceId !== workspaceId) return Promise.reject(new Error('This run is no longer controlled by Ambio.'))
-    const stream = this.streams.get(key)
-    if (!stream || entry.run.state !== 'running') return Promise.reject(new Error('This agent cannot take a message while it works. Send it as the next turn.'))
-    if (!text.trim()) return Promise.reject(new Error('The message is empty.'))
-    return stream.send(randomUUID(), text)
   }
   async stopAll(): Promise<void> { await Promise.allSettled([...this.live].map(([key, { run }]) => this.stop(run.workspaceId, key))) }
 }

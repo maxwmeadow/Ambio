@@ -118,17 +118,72 @@ timeline, so a saved case opens to its conclusion and replays step by step.
 
 ## The person watching
 
-- **Case panel**: live status, a one-line summary of what is established, the
-  hypothesis board, each run's findings, verdicts, notes, the root cause and fix.
-  Every file or function it names is a button that shows it on the map.
+- **Step carousel**: each question, experiment, observation, assessment and
+  message is a card in the investigation's sequence. Finding and suggested fix
+  get separate prominent cards. An in-progress command becomes the completed
+  experiment in the same position. Clear phase headings and a step counter
+  make transitions visible rather than changing a paragraph in place.
+- **Following**: new live cards advance in order, with a 3.5–7.5 second reading
+  interval. Rapid results queue rather than being skipped. Only explicit pause
+  or browsing another step disables following; hovering, focusing and opening
+  evidence do not. Resume advances to the next queued card immediately, then
+  follows new arrivals. The header's newer-step shortcut jumps to the latest.
+  Previous/next buttons, pagination dots, keyboard navigation and a full step
+  index keep earlier
+  evidence accessible. Opening the index holds the view without changing the
+  following setting. Joining an existing case starts at its latest card.
+- **Space**: one compact header combines title, status, elapsed time, step index
+  and newer-step shortcut. One bottom bar combines browsing, following and
+  chat/replay controls. The body fills available height above the floating bins
+  or replay transport; descriptions are shown in full as readable paragraphs,
+  with one scrolling area for long prose or expanded evidence.
+- **Evidence**: individual runs expand to command/status, every finding,
+  watched functions and sample calls, and output. No watched-function evidence
+  is stated explicitly. Recorded experiments and a linked fix-verification run
+  are distinct; a suggested fix alone does not claim verification.
 - **The map**: a finished run animates the calls that crossed files, and each
-  watched file shows its call count and last real values.
-- **Talking back**: a message typed in the panel reaches the agent on its next
-  tool call, whichever tool that is, in every MCP client. It is marked
-  delivered when it does, and optionally points at the selected file.
-- **When the agent stops**: the case stays on screen with "Watch the replay".
-- **Replay**: the same event handler as live, paced so each finding stays up
-  long enough to read, with 1×/2×/4× speed.
+  watched file shows its call count and last real values. Code destinations
+  use a single filename with optional distinct symbol context and navigate
+  from either the card or expanded evidence.
+- **Talking back**: Reply in chat opens the existing chat composer with the
+  investigation named as its explicit target. This composer is available while
+  the ordinary turn is working; Send queues investigation feedback and Stop
+  remains available for a managed turn. It uses the existing investigation
+  message queue, including for client-connected agents. Selected file context
+  is attached when present. Queued/delivered status appears in chat and in the
+  saved case. Failed sends retain the draft; an ended/replaced case cannot
+  silently redirect it into a normal turn or another case. Return to
+  conversation leaves this feedback context. The reply target is saved beside
+  the draft, so reloading cannot silently turn it into an ordinary message.
+  No second case composer exists.
+- **Case binding**: chat posts `caseId` with the existing message request.
+  archd checks it under the active-case lock and returns 409 for a replaced or
+  closed case. Older callers may omit it. Feedback broadcasts carry the case
+  ID so delayed events do not enter a replacement; captured events without
+  that field remain compatible. Delivery remains acknowledged when the agent
+  consumes the queue, rather than when the user presses Send.
+- **When the agent stops**: the finding and suggested fix remain separate
+  cards with Watch the replay available. A fix shows whether a verification
+  experiment is linked. Closing the case preserves the earlier step the person
+  is reading; queued cards can still be followed or reached with Latest step.
+- **Replay**: opening a saved recording selects its first meaningful card and
+  makes the complete step index available immediately. Arrows, pagination dots
+  (with a pill-shaped active indicator), the index and keyboard navigation seek
+  the shared timeline and rebuild the recorded map state. Timeline seeking and
+  playback select the corresponding card. Playback buttons live in the
+  timeline; the reader footer contains only nearby chevrons and pagination dots,
+  without a duplicate Play button or read-only caption. Manual navigation pauses it. Restart rewinds without hiding later
+  cards. A finding and its fix remain separately browsable even when they came
+  from one event. Earlier cards use their recorded case snapshot, without
+  leaking later verdicts. Event counts include runtime/delivery bookkeeping,
+  so they need not equal card counts. Runtime-only legacy captures remain
+  readable as recorded activity, with available details. Empty captures do not
+  invent steps. Feedback is read-only, running commands are labeled recorded,
+  and the card leaves space for the playback transport.
+- **Narrow canvas**: a minimized chip is the default when adjacent sidebars
+  leave less than 340px. Explicit expansion uses a bounded viewport card; Reply
+  in chat returns it to the chip so the composer stays usable. Reduced motion
+  disables arrival/pulse/chevron/swipe animations.
 
 ## Performance
 

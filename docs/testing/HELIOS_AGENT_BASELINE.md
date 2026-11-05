@@ -417,3 +417,122 @@ separate containment reproduction/fix and quieter planned-node presentation.
 This changes the roadmap priority: establish a usable review surface before
 expanding agent workflow automation. Do not treat a grouped preview, the agent's
 explanation or this assessment as approval to implement Helios's pending plan.
+
+
+## Explicit investigation control and reader redesign, 2026-11-03
+
+Max supplied three screenshots after explicitly asking Antigravity CLI to use
+Ambio investigations for the Helios sensor reconnect issue. They show a live
+case with one hypothesis, a recorded Node command (exit 0, 1.3 seconds), a
+confirmed verdict, and a closed case at 49 seconds with Watch the replay. The
+model label is truncated. This establishes that this route can use the case
+workflow when asked; it does not establish automatic selection. The displayed
+run says nothing unusual in watched code, and program output was not opened in
+these captures, so the exact reproduction and watched-function evidence are
+not independently established by the screenshots.
+
+The reader redesign replaces the repeated summary/board/Suspects treatment and
+separate composer with one compact current finding and expandable chronological
+evidence. It caps the reader's size and uses one scrolling body. Reply in chat
+explicitly targets the case through the existing queue, with queued/delivered
+status, retained drafts and guards against a closed or replacement case. Narrow
+canvas space defaults to a chip. Replay uses the same reader and keeps its
+transport usable. No Helios source or saved investigation was modified by this
+implementation.
+
+UI checks use isolated Electron fixtures with a sensor lifecycle scenario,
+including a larger eight-question/eight-run case. Fixture previews exercise
+more growth than the supplied one-question recording; they are not an identical
+before/after event stream. For the direct comparison, restart Ambio on
+`codex/investigation-card` and replay Max's saved Helios sensor reconnect case.
+
+
+## Step carousel refinement, 2026-11-03
+
+Max's next live Helios screenshots showed the first compact reader working,
+but phase changes still replaced a long paragraph silently, duplicate
+module/filename links read poorly, and the fix remained buried in a dropdown.
+Max requested an automatically advancing carousel with each step on its own
+card. This explicitly supersedes that presentation, not the investigation
+adoption or evidence findings above.
+
+The carousel projects the existing case/replay data into distinct question,
+experiment, observation, assessment, message, finding and suggested-fix cards.
+New steps advance in order behind a reading interval; hover holds the current
+card and interaction/browsing pauses following. A step index, arrows, nearby
+dots, newer-step count, Resume following and Latest step provide navigation.
+Strong phase headings and single filename destinations replace the weak label
+and duplicated link treatment. Expanded evidence/prose stays within the same
+bounded scrolling body. Existing chat feedback and client compatibility remain.
+
+Isolated Electron tests cover ordered advances through a burst of results,
+pause/resume, a 24-step investigation, all findings/output, source navigation,
+reduced motion, narrow chat layout, draft/delivery safety and saved replay.
+They caught and fixed a replay step-index interaction bug caused by reusing an
+inert outgoing animation layer. Preview screenshots are fixture renders, not
+new Helios executions. Restart Ambio on `codex/investigation-card` and replay
+the same saved Helios case for the next direct comparison.
+
+
+## Available space and following controls, 2026-11-04
+
+Max's next Helios screenshots showed that the fixed-height carousel still
+clipped too much content. Header/progress and navigation/following/replay used
+several separate bands. Focus and pointer presses also disabled following;
+hover held it, mouse leave reset the reading timer, and Resume left the user
+waiting. These were problems in the implemented interaction, not evidence of
+an agent/runtime failure.
+
+The reader now uses the available height above the actual bins/replay bounds,
+a compact title/status/time/step header, and one bottom bar for browsing,
+following and chat/replay. Full descriptions render without the old preview
+cutoff. Generated zero-function headlines and duplicated experiment metadata
+are removed from the overview; detailed command evidence remains available.
+Only explicit Pause or browsing another step disables following. Resume shows
+the next queued card immediately; hover, focus and evidence clicks leave it
+active. Opening the step index holds the view without changing that setting.
+
+Electron regressions leave the pointer on the card and controls, focus/click
+content, expand evidence, repeat pause/resume at the live edge, and deliver
+new steps. Geometry checks cover the available height, compact chrome, floating
+bins, narrow chat and resized replay transport; existing evidence, draft and
+delivery checks remain. Previews are isolated fixture renders; replay Max's
+same saved Helios case after restarting Ambio for the next direct comparison.
+
+
+## Complete saved deck and timeline synchronization, 2026-11-04
+
+Max opened an eight-event saved Helios recording before playback and the
+reader index showed only the opening placeholder. The timeline still contained
+eight events: CasePanel was projecting only its applied prefix. Carousel
+navigation also changed a local cursor without seeking the timeline, and its
+following state was independent of ReplayBar's local play state. Max requested
+bidirectional synchronization and restoration of carousel pagination dots.
+
+The saved deck now projects the entire recording into event-indexed cards with
+immutable event-time cases. Opening selects the first meaningful card; future
+steps are immediately available. Carousel navigation rebuilds the map/timeline
+prefix and timeline navigation selects its card. One shared playback controller
+handles position and play/pause. Finding/fix cards can share an event while
+remaining separately readable. Raw runtime/delivery entries need not create
+reader cards; event count and step count remain distinct. Runtime-only legacy
+captures get activity cards/details. Saved/live ID differences do not reject
+recorded case events, and live start/stop broadcasts cannot replace replay.
+Pagination dots return with a pill-shaped active marker and a bounded window
+for long investigations.
+
+Checks use an isolated eight-event fixture with seven reader cards: opening
+shows the full index, arrows/dots/index seek the slider, seeking selects the
+correct card, finding/fix share a timeline position, both play/pause controls
+agree, automatic playback advances, restart preserves the index, and narrow
+layouts keep the transport accessible. Store tests verify exact map-prefix
+reconstruction, historical snapshot isolation, older case IDs and empty and
+runtime-only captures. These previews are fixture renders; replay Max's actual
+saved Helios recording after restarting Ambio for the direct comparison.
+
+
+Replay footer refinement (2026-11-04): Max requested removing the duplicate
+Play/read-only row and grouping cleaner arrows beside the pagination dots.
+The replay card now has one centered navigation row; playback remains in the
+linked timeline. Live follow/chat actions remain. Existing Electron navigation
+checks now also verify the removed controls, footer height and arrow spacing.

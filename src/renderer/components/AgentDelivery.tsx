@@ -97,11 +97,11 @@ export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?
     return () => { active = false; clearTimeout(timer) }
   }, [workspaceId, isOpen, rootPath])
   // `place` is the turn's own: only a conversation's first Build can ask for a worktree.
-  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', access?: AgentAccess) => {
+  const deliver = async (messageId: string, destination = hostId, model?: string, place: 'here' | 'worktree' = 'here', options: { thinking?: string; access?: AgentAccess } = {}) => {
     if (!destination || lock.current) return
     lock.current = true; setBusy(messageId)
     try {
-      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), where: place, ...(access ? { access } : {}) })
+      const result = await window.ambio.deliverWorkOrder({ workspaceId, messageId, hostId: destination, ...(model ? { model } : {}), ...(options.thinking ? { thinking: options.thinking } : {}), where: place, ...(options.access ? { access: options.access } : {}) })
       if (workspace.current !== workspaceId) return
       // A run says where it stands on its turn; the notice is for routes that need the user.
       setNotice(result.run ? '' : result.detail)
@@ -321,6 +321,24 @@ function DestinationIntroduction({ name, guideId, picker, onConfirm }: { name: s
 /** How many of a run's latest events the turn shows while it works. */
 const ACTIVITY_SHOWN = 6
 
+function AgentToolDetails({ event }: { event: DeliveryEvent }) {
+  if (!event.content?.length) return null
+  return <details className="ambio-inbox__tool-detail"><summary>Details{event.status ? ` · ${event.status}` : ''}</summary>
+    {event.content.map((item, index) => {
+      const content = item as { type?: string; path?: string; oldText?: string; newText?: string; content?: { type?: string; text?: string } }
+      if (content.type === 'diff') return <section key={index}><strong>{content.path}</strong><pre>{content.oldText ? `Before\n${content.oldText}\n\n` : ''}After{'\n'}{content.newText}</pre></section>
+      if (content.type === 'content' && content.content?.type === 'text') return <pre key={index}>{content.content.text}</pre>
+      return null
+    })}
+  </details>
+}
+
+export function AgentDeliveryHistory({ events }: { events: DeliveryEvent[] }) {
+  const detailed = events.filter(event => event.content?.length || event.status === 'steering')
+  if (!detailed.length) return null
+  return <details className="ambio-inbox__tool-detail"><summary>Agent activity</summary><ol className="ambio-inbox__activity">{detailed.map((event, index) => <li key={index}>{event.text}<AgentToolDetails event={event} /></li>)}</ol></details>
+}
+
 /** A duration as a person says it: "40s", "3 min", "1 h 5 min". */
 function elapsed(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000))
@@ -361,7 +379,7 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry }: {
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You: ${event.text}` : event.text}</li>)}
+      {shown.map((event, index) => <li key={`${event.at}:${index}`} data-kind={event.kind}>{event.text}<AgentToolDetails event={event} /></li>)}
     </ol>}
     <div className="ambio-inbox__turn-actions">
       {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}

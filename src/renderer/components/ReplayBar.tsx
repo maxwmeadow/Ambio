@@ -57,19 +57,20 @@ function eventLabel(event: CapturedEvent): string {
 }
 
 export function ReplayBar() {
-  const { replay, replayNext, replaySeek, stopReplay } = useGraphStore(useShallow(state => ({
+  const { replay, replayNext, replaySeek, stopReplay, setReplayPlaying } = useGraphStore(useShallow(state => ({
     replay: state.replay,
     replayNext: state.replayNext,
     replaySeek: state.replaySeek,
     stopReplay: state.stopReplay,
+    setReplayPlaying: state.setReplayPlaying,
   })))
-  const [playing, setPlaying] = useState(false)
+  const playing = replay?.playing ?? false
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const events = replay?.events ?? []
   const cursor = replay?.cursor ?? -1
-  const atEnd = cursor >= events.length - 1
+  const atEnd = cursor >= events.length - 1 && (replay?.frameCursor ?? -1) >= (replay?.frames.length ?? 0) - 1
   const percent = events.length ? ((cursor + 1) / events.length) * 100 : 0
   const currentLabel = cursor >= 0 && cursor < events.length ? eventLabel(events[cursor]) : 'Press Play to watch it unfold'
   const lastNote = useMemo(() => {
@@ -84,14 +85,14 @@ export function ReplayBar() {
   useEffect(() => {
     if (!playing || !replay) return
     if (atEnd) {
-      setPlaying(false)
+      setReplayPlaying(false)
       return
     }
     const current = events[cursor]
     const next = events[cursor + 1]
     // Recorded pace, with long idle stretches compressed, but never less than
     // the time it takes to read the moment just shown.
-    const recorded = Math.min(MAX_GAP_MS, Math.max(MIN_GAP_MS, next.offsetMs - (current?.offsetMs ?? next.offsetMs)))
+    const recorded = next ? Math.min(MAX_GAP_MS, Math.max(MIN_GAP_MS, next.offsetMs - (current?.offsetMs ?? next.offsetMs))) : MIN_GAP_MS
     const dwell = current ? DWELL_MS[current.type] ?? 0 : 400
     const gap = Math.max(recorded, dwell) / speed
     timer.current = setTimeout(() => {
@@ -100,17 +101,17 @@ export function ReplayBar() {
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
-  }, [playing, cursor, replay, atEnd, events, speed])
+  }, [playing, cursor, replay?.frameCursor, atEnd, events, speed, setReplayPlaying])
 
   if (!replay) return null
 
   const restart = () => {
-    setPlaying(false)
+    setReplayPlaying(false)
     replaySeek(-1)
   }
 
   const close = () => {
-    setPlaying(false)
+    setReplayPlaying(false)
     stopReplay()
   }
 
@@ -137,7 +138,7 @@ export function ReplayBar() {
           aria-label="Investigation timeline"
           aria-valuetext={`${cursor + 1} of ${events.length}: ${currentLabel}`}
           onChange={event => {
-            setPlaying(false)
+            setReplayPlaying(false)
             replaySeek(Number(event.target.value))
           }}
         />
@@ -156,7 +157,7 @@ export function ReplayBar() {
             data-playing={playing || undefined}
             disabled={atEnd}
             onClick={() => {
-              if (!atEnd) setPlaying(current => !current)
+              if (!atEnd) setReplayPlaying(!playing)
             }}
           >
             {playing ? 'Pause' : atEnd ? 'End' : 'Play'}
@@ -166,7 +167,7 @@ export function ReplayBar() {
             className="ambio-replay__button"
             disabled={atEnd}
             onClick={() => {
-              setPlaying(false)
+              setReplayPlaying(false)
               replayNext()
             }}
           >

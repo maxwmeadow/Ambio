@@ -93,6 +93,9 @@ var hypothesisStatuses = map[string]bool{"open": true, "confirmed": true, "refut
 // ErrNoCase is returned when an operation needs an active investigation.
 var ErrNoCase = fmt.Errorf("no investigation is open")
 
+// ErrCaseChanged prevents a reply for a previous case from reaching its replacement.
+var ErrCaseChanged = fmt.Errorf("the investigation has changed; your message was not sent")
+
 func (m *Manager) withCase(workspaceID string, fn func(inv *Investigation) error) error {
 	m.captureMu.Lock()
 	defer m.captureMu.Unlock()
@@ -256,12 +259,23 @@ func (m *Manager) Conclude(workspaceID string, c Conclusion) (*Conclusion, error
 
 // QueueHumanMessage stores a message from the watcher for the agent.
 func (m *Manager) QueueHumanMessage(workspaceID, text string, anchor *Anchor) (*HumanMessage, error) {
+	return m.QueueHumanMessageForCase(workspaceID, "", text, anchor)
+}
+
+// QueueHumanMessageForCase binds a chat reply to the case the person inspected.
+// An empty expectedID preserves compatibility with existing clients.
+func (m *Manager) QueueHumanMessageForCase(workspaceID, expectedID, text string, anchor *Anchor) (*HumanMessage, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil, fmt.Errorf("message text is required")
 	}
 	msg := HumanMessage{ID: shortID(), Text: text, Anchor: anchor, At: time.Now().UnixMilli()}
+	var caseID string
 	err := m.withCase(workspaceID, func(inv *Investigation) error {
+		if expectedID != "" && inv.ID != expectedID {
+			return ErrCaseChanged
+		}
+		caseID = inv.ID
 		inv.Messages = append(inv.Messages, msg)
 		return nil
 	})
@@ -270,6 +284,7 @@ func (m *Manager) QueueHumanMessage(workspaceID, text string, anchor *Anchor) (*
 	}
 	m.hub.Broadcast("investigation:message", map[string]any{
 		"workspaceId": workspaceID,
+		"caseId":      caseID,
 		"message":     msg,
 	})
 	return &msg, nil
@@ -279,7 +294,9 @@ func (m *Manager) QueueHumanMessage(workspaceID, text string, anchor *Anchor) (*
 // delivered, so each reaches the agent exactly once.
 func (m *Manager) TakePendingMessages(workspaceID string) []HumanMessage {
 	var out []HumanMessage
+	var caseID string
 	_ = m.withCase(workspaceID, func(inv *Investigation) error {
+		caseID = inv.ID
 		now := time.Now().UnixMilli()
 		for i := range inv.Messages {
 			if inv.Messages[i].DeliveredAt == 0 {
@@ -296,6 +313,7 @@ func (m *Manager) TakePendingMessages(workspaceID string) []HumanMessage {
 		}
 		m.hub.Broadcast("investigation:message_delivered", map[string]any{
 			"workspaceId": workspaceID,
+			"caseId":      caseID,
 			"ids":         ids,
 		})
 	}

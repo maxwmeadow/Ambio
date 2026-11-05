@@ -22,7 +22,7 @@ import { followCodexTranscript } from './codexTranscript.ts'
 
 export type TurnMode = 'ask' | 'propose' | 'build'
 
-export interface DriverLauncher { command: string; args: string[] }
+export interface DriverLauncher { command: string; args: string[]; bundledNode?: boolean }
 
 export interface DriverTurn {
   hostId: string
@@ -568,8 +568,8 @@ const DRIVERS: Record<string, AgentDriver> = {
   },
   // Windsurf's local agent speaks ACP, with per-session MCP servers.
   'devin-cli': acpDriver(['acp']),
-  // Antigravity's own CLI has no ACP mode; Google ships a separate ACP server.
-  'antigravity-acp': acpDriver([]),
+  // The explicit route and hybrid CLI both use Google's native ACP server.
+  'antigravity-acp': acpDriver(['acp']),
   'antigravity-cli': antigravityCli,
 }
 
@@ -588,7 +588,7 @@ export const DRIVER_CLI_NAMES: Record<string, string[]> = {
   // Cursor also installs it as `agent`, a name too common to trust on a PATH.
   'cursor-cli': ['cursor-agent'],
   'devin-cli': ['devin'],
-  'antigravity-acp': ['agy_acp_server', 'agy_acp_server.par'],
+  'antigravity-acp': ['agy'],
   'antigravity-cli': ['agy'],
 }
 
