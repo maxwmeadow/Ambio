@@ -1,0 +1,239 @@
+import type { DeliveryEvent, DeliveryUsage, ModelOption } from '../src/shared/agentDelivery.ts'
+import { codexSandbox, type DriverTurn } from './agentDrivers.ts'
+
+type Activity = Omit<DeliveryEvent, 'at'>
+type Pending = { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+
+export function codexAppServerPolicy(mode: DriverTurn['mode'], approval: CodexAppServerTurn['approval'], platform: NodeJS.Platform = process.platform) {
+  const ask = approval === 'on-request'
+  return {
+    // Windows' shell sandbox cannot initialize on supported installs (DECISIONS, Oct 20).
+    sandbox: ask && mode === 'build' && platform !== 'win32' ? 'workspace-write' : codexSandbox(mode, platform),
+    approvalPolicy: ask && platform === 'win32' ? 'untrusted' : approval ?? 'never',
+    ...(ask ? { approvalsReviewer: 'user' } : {}),
+  }
+}
+
+export interface CodexAppServerTurn {
+  cwd: string
+  prompt: string
+  mode: DriverTurn['mode']
+  resume?: string
+  model?: string
+  approval?: 'never' | 'on-request'
+  review?: boolean
+  send: (line: string) => void
+  onSession: (id: string) => void
+  onEvent: (event: Activity) => void
+  onUsage?: (usage: DeliveryUsage) => void
+  onReady?: (ready: boolean) => void
+  onServer?: (userAgent: string) => void
+  approve?: (question: { title: string; detail: string; kind: string }, signal: AbortSignal) => Promise<boolean>
+}
+
+/** Native Codex stdio protocol. Process ownership and launch receipts stay in DeliveryRunner. */
+export class CodexAppServer {
+  private nextId = 1
+  private pending = new Map<number, Pending>()
+  private approvals = new Map<string | number, AbortController>()
+  private threadId = ''
+  private turnId = ''
+  private closed = false
+  private cancelled = false
+  private accepting = false
+  private initialized?: Promise<void>
+  private completion?: { resolve: (status: string) => void; reject: (error: Error) => void }
+  private items = new Map<string, Activity>()
+  private dirty = new Set<string>()
+  private flushTimer?: ReturnType<typeof setTimeout>
+  private reviewText = ''
+
+  private turn: CodexAppServerTurn
+  constructor(turn: CodexAppServerTurn) { this.turn = turn }
+
+  private request(method: string, params: unknown, timeout = 30000): Promise<any> {
+    if (this.closed || this.cancelled) return Promise.reject(new Error('The Codex session is closed.'))
+    const id = this.nextId++
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id)
+        reject(new Error(`Codex did not answer ${method}. Check its installed version and output. No turn was retried.`))
+      }, timeout)
+      this.pending.set(id, { resolve, reject, timer })
+      try { this.turn.send(JSON.stringify({ id, method, params })) }
+      catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error) }
+    })
+  }
+
+  initialize(): Promise<void> {
+    return this.initialized ??= (async () => {
+      const result = await this.request('initialize', { clientInfo: { name: 'ambio', title: 'Ambio', version: '0.1.0' } })
+      this.turn.onServer?.(String(result.userAgent ?? 'Codex App Server'))
+      this.turn.send(JSON.stringify({ method: 'initialized', params: {} }))
+    })()
+  }
+
+  async models(): Promise<ModelOption[]> {
+    await this.initialize()
+    const models: ModelOption[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < 20; page++) {
+      const result = await this.request('model/list', { cursor, limit: 100 })
+      for (const model of result.data ?? []) {
+        if (typeof model.model === 'string' && !model.hidden) models.push({ id: model.model, label: model.displayName || model.model })
+      }
+      if (!result.nextCursor || result.nextCursor === cursor) break
+      cursor = result.nextCursor
+    }
+    return models
+  }
+
+  async run(): Promise<{ stopReason: string; resumed: boolean }> {
+    await this.initialize()
+    const setup = { cwd: this.turn.cwd, ...codexAppServerPolicy(this.turn.mode, this.turn.approval), ...(this.turn.model ? { model: this.turn.model } : {}) }
+    // Never silently replace a missing thread: the caller must decide whether to start fresh.
+    const result = await this.request(this.turn.resume ? 'thread/resume' : 'thread/start', { ...setup, ...(this.turn.resume ? { threadId: this.turn.resume } : {}) }, 120000)
+    if (!result.thread?.id) throw new Error('Codex returned no thread identity. Update Codex or select exec for a new conversation.')
+    this.threadId = result.thread.id
+    this.turn.onSession(this.threadId)
+    if (this.cancelled) throw new Error('Codex was stopped before starting its turn.')
+    if (this.turn.review) {
+      const status = await this.startTurn('review/start', { threadId: this.threadId, delivery: 'inline', target: { type: 'uncommittedChanges' } })
+      if (status !== 'completed') return { stopReason: status, resumed: !!this.turn.resume }
+    }
+    const text = this.turn.prompt + (this.turn.review ? `\n\nCodex's native review has finished. Use the following review as evidence, claim this Ambio request and return the review through Ambio's normal reply workflow. Do not change files.\n\n${this.reviewText || 'The reviewer returned no written findings.'}` : '')
+    const status = await this.startTurn('turn/start', { threadId: this.threadId, input: [{ type: 'text', text }], summary: 'auto' })
+    return { stopReason: status, resumed: !!this.turn.resume }
+  }
+
+  private async startTurn(method: string, params: unknown): Promise<string> {
+    if (this.closed || this.cancelled) throw new Error('The Codex session is closed.')
+    this.turnId = ''; this.accepting = true
+    const completed = new Promise<string>((resolve, reject) => { this.completion = { resolve, reject } })
+    // A server can finish before the start response arrives. Install the waiter first.
+    void completed.catch(() => {})
+    try {
+      const result = await this.request(method, params, 120000)
+      if (!result.turn?.id) throw new Error(`Codex returned no turn for ${method}.`)
+      this.turnId = result.turn.id
+      this.turn.onReady?.(this.accepting && !this.cancelled)
+      return await completed
+    } finally { this.accepting = false; this.turn.onReady?.(false); this.flush(); this.completion = undefined; this.abortApprovals() }
+  }
+
+  async steer(text: string): Promise<void> {
+    if (!this.accepting || !this.turnId || this.cancelled) throw new Error('Codex is not accepting corrections. Your draft is kept; send it as the next message.')
+    const result = await this.request('turn/steer', { threadId: this.threadId, expectedTurnId: this.turnId, input: [{ type: 'text', text }] })
+    if (result.turnId !== this.turnId) throw new Error('Codex did not confirm the active turn. Check its output before retrying.')
+  }
+
+  cancel(): void {
+    if (this.closed || this.cancelled) return
+    this.turn.onReady?.(false)
+    this.abortApprovals()
+    if (this.threadId && this.turnId && this.accepting) void this.request('turn/interrupt', { threadId: this.threadId, turnId: this.turnId }).catch(() => {})
+    this.cancelled = true
+  }
+
+  close(reason = 'Codex exited before completing its turn.'): void {
+    if (this.closed) return
+    this.closed = true; this.turn.onReady?.(false); this.flush(); this.abortApprovals()
+    for (const waiting of this.pending.values()) { clearTimeout(waiting.timer); waiting.reject(new Error(reason)) }
+    this.pending.clear()
+    this.completion?.reject(new Error(reason))
+  }
+
+  private abortApprovals(): void { for (const controller of this.approvals.values()) controller.abort(); this.approvals.clear() }
+
+  receive(line: string): void {
+    if (this.closed) return
+    let message: any
+    try { message = JSON.parse(line) } catch { return }
+    if (!message || typeof message !== 'object') return
+    if (!message.method && message.id !== undefined) {
+      const waiting = this.pending.get(message.id)
+      if (!waiting) return
+      clearTimeout(waiting.timer); this.pending.delete(message.id)
+      if (message.error) waiting.reject(new Error(String(message.error.message ?? 'Codex refused the request.')))
+      else waiting.resolve(message.result ?? {})
+      return
+    }
+    const params = message.params ?? {}
+    if (message.id !== undefined) { void this.serverRequest(message.id, message.method, params); return }
+    if (message.method === 'serverRequest/resolved') { this.approvals.get(params.requestId)?.abort(); this.approvals.delete(params.requestId); return }
+    const eventTurn = params.turnId ?? params.turn?.id
+    if (!this.accepting || params.threadId !== this.threadId || this.turnId && eventTurn && eventTurn !== this.turnId) return
+    if (message.method === 'turn/started' && params.turn?.id) this.turnId = params.turn.id
+    if (message.method === 'turn/completed') {
+      this.accepting = false; this.turn.onReady?.(false); this.flush(); this.abortApprovals()
+      if (params.turn?.error?.message) this.turn.onEvent({ kind: 'error', text: params.turn.error.message })
+      this.completion?.resolve(params.turn?.status ?? 'failed')
+    } else if (message.method === 'error') {
+      this.turn.onEvent({ kind: 'error', text: String(params.error?.message ?? 'Codex reported an error.') })
+    } else if (message.method === 'thread/tokenUsage/updated') {
+      // `last` is the last inference, not the whole turn (which can make many calls).
+      const usage = params.tokenUsage?.total ?? params.tokenUsage?.last
+      if (usage) this.turn.onUsage?.({ ...(params.tokenUsage?.total ? { scope: 'thread' as const } : {}), inputTokens: usage.inputTokens, cachedInputTokens: usage.cachedInputTokens, outputTokens: usage.outputTokens, reasoningOutputTokens: usage.reasoningOutputTokens, totalTokens: usage.totalTokens })
+    } else if (message.method === 'turn/diff/updated') {
+      this.update(`diff:${this.turnId}`, { kind: 'tool', text: 'Changes in this turn', diff: String(params.diff ?? '').slice(0, 64000) })
+    } else if (message.method === 'item/agentMessage/delta' || message.method === 'item/reasoning/summaryTextDelta' || message.method === 'item/commandExecution/outputDelta') {
+      const id = String(params.itemId)
+      const old = this.items.get(id)
+      const delta = String(params.delta ?? '')
+      if (message.method.endsWith('outputDelta')) this.update(id, { kind: 'tool', text: old?.text ?? 'Shell', ...old, output: ((old?.output ?? '') + delta).slice(-16000) })
+      else this.update(id, { kind: message.method.includes('reasoning') ? 'thinking' : 'text', text: ((old?.text ?? '') + delta).slice(0, 64000) })
+    } else if (message.method === 'item/started' || message.method === 'item/completed') this.item(params.item, message.method === 'item/completed')
+  }
+
+  private update(id: string, activity: Activity): void {
+    if (!this.items.has(id) && this.items.size >= 390) return
+    this.items.set(id, { ...activity, id: `codex:${id}` }); this.dirty.add(id)
+    this.flushTimer ??= setTimeout(() => this.flush(), 100)
+  }
+
+  private flush(): void {
+    clearTimeout(this.flushTimer); this.flushTimer = undefined
+    for (const id of this.dirty) this.turn.onEvent(this.items.get(id)!)
+    this.dirty.clear()
+  }
+
+  private item(item: any, done: boolean): void {
+    if (!item?.id) return
+    const old = this.items.get(item.id)
+    if (item.type === 'agentMessage' && (done || !old)) this.update(item.id, { kind: 'text', text: String(item.text ?? '').slice(0, 64000) })
+    if (item.type === 'reasoning' && done) this.update(item.id, { kind: 'thinking', text: (item.summary ?? []).join('\n').slice(0, 64000) })
+    if (item.type === 'commandExecution') this.update(item.id, { kind: 'tool', text: `Shell · ${item.command ?? ''}`, status: item.status, output: String(item.aggregatedOutput ?? old?.output ?? '').slice(-16000), exitCode: item.exitCode })
+    if (item.type === 'fileChange') this.update(item.id, { kind: 'tool', text: `Edit · ${(item.changes ?? []).map((change: any) => change.path).join(', ')}`, status: item.status, diff: (item.changes ?? []).map((change: any) => `${change.path}\n${change.diff ?? ''}`).join('\n').slice(0, 64000) })
+    if (item.type === 'mcpToolCall') this.update(item.id, { kind: 'tool', text: `${item.server === 'ambio' ? 'Ambio' : item.server} · ${item.tool}`, status: item.status })
+    if (item.type === 'dynamicToolCall' || item.type === 'collabAgentToolCall') this.update(item.id, { kind: 'tool', text: String(item.tool ?? item.type), status: item.status })
+    if (item.type === 'functionCallOutput' && done) this.update(item.id, { kind: 'tool', text: `Tool · ${item.name}`, output: typeof item.output === 'string' ? item.output.slice(-16000) : JSON.stringify(item.output ?? '').slice(-16000) })
+    if (item.type === 'plan') this.update(item.id, { kind: 'thinking', text: String(item.text ?? '').slice(0, 64000) })
+    if (item.type === 'enteredReviewMode') this.update(item.id, { kind: 'tool', text: `Review · ${item.review}` })
+    if (item.type === 'exitedReviewMode' && done) { this.reviewText = String(item.review ?? '').slice(0, 64000); this.update(item.id, { kind: 'text', text: this.reviewText }) }
+  }
+
+  private async serverRequest(id: string | number, method: string, params: any): Promise<void> {
+    const reply = (result: unknown) => { if (!this.closed) this.turn.send(JSON.stringify({ id, result })) }
+    const owns = this.accepting && !this.cancelled && params.threadId === this.threadId && params.turnId === this.turnId
+    if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
+      if (!owns) { reply({ decision: 'decline' }); return }
+      const file = method.includes('fileChange')
+      if (file && this.turn.mode !== 'build') { reply({ decision: 'decline' }); return }
+      const controller = new AbortController()
+      if (this.approvals.has(id)) return
+      this.approvals.set(id, controller)
+      const question = { title: file ? 'Codex wants to edit files' : 'Codex wants to run a command', kind: file ? 'edit' : 'command', detail: [params.command, params.cwd, params.reason, params.grantRoot, params.networkApprovalContext ? JSON.stringify(params.networkApprovalContext) : '', file ? this.items.get(params.itemId)?.diff : ''].filter(Boolean).join('\n').slice(0, 8000) }
+      let allowed = false
+      try { allowed = await this.turn.approve?.(question, controller.signal) ?? false } catch { /* no answer is a refusal */ }
+      if (this.approvals.get(id) !== controller) return
+      this.approvals.delete(id)
+      reply({ decision: allowed && !controller.signal.aborted && this.accepting && !this.cancelled ? 'accept' : 'decline' })
+      return
+    }
+    // Never fabricate answers, grant permission profiles, or accept an MCP URL flow.
+    if (method === 'item/permissions/requestApproval') { reply({ permissions: {}, scope: 'turn' }); return }
+    if (method === 'mcpServer/elicitation/request') { reply({ action: 'decline', content: null }); return }
+    if (method === 'item/tool/requestUserInput') { reply({ answers: {} }); this.turn.onEvent({ kind: 'error', text: 'Codex asked for a structured answer. Send a correction in the composer to answer in text.' }); return }
+    this.turn.send(JSON.stringify({ id, error: { code: -32601, message: `Ambio does not support ${method}` } }))
+  }
+}

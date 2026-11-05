@@ -137,7 +137,7 @@ test('steering is sent to the running session and records only acknowledged inpu
   while (!original) await new Promise(resolve => setImmediate(resolve))
   await run.client.steer('Check the regression first')
   assert.equal(run.sent.filter(item => item.method === 'session/prompt').at(-1).params.sessionId, 'retained')
-  assert.equal(run.events.at(-1).status, 'steering')
+  assert.deepEqual(run.events.at(-1), { kind: 'sent', text: 'Check the regression first' })
   finish(original, { stopReason: 'end_turn' }); await running
   await assert.rejects(run.client.steer('Too late'), /not accepting/)
 })

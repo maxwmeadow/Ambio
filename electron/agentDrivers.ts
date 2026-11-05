@@ -79,6 +79,8 @@ export interface DriverStream {
 }
 
 export interface AgentDriver {
+  /** Native interactive transport, selected explicitly by the delivery handler. */
+  appServerArgs?: (turn: DriverTurn) => string[]
   /** True when a later turn can continue this host's session. */
   resumable: boolean
   /**
@@ -297,6 +299,13 @@ const cursorThinking = new Map<string, string>()
 
 const codex: AgentDriver = {
   resumable: true,
+  // Native App Server only; exec conversations keep full access (main.ts refuses the rest).
+  access: ['ask', 'full'],
+  appServerArgs(turn) {
+    // Reuse the exact MCP binding/configuration of exec, without its one-shot flags.
+    const args = codex.plan(turn).args
+    return ['app-server', ...args.flatMap((arg, i) => arg === '-c' ? [arg, args[i + 1]] : [])]
+  },
   plan(turn) {
     const server = mcpServer(turn)
     return {

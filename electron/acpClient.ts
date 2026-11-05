@@ -151,7 +151,7 @@ export class AcpClient {
       const result = await this.request('session/prompt', { sessionId: this.sessionId, prompt: [{ type: 'text', text: prompt }] })
       if (result.stopReason && result.stopReason !== 'end_turn') throw new Error(`The agent did not accept the update (${result.stopReason}).`)
       this.steeredOutcome = result
-      this.turn.onEvent({ kind: 'tool', text: `You · ${prompt}`, status: 'steering' })
+      this.turn.onEvent({ kind: 'sent', text: prompt })
     })()
     this.steeringWork.push(work)
     return work

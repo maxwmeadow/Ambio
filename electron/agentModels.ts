@@ -2,10 +2,12 @@ import fs from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
+import { StringDecoder } from 'node:string_decoder'
 import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
 import { MuseClient } from './museClient.ts'
 import { antigravityOptions, inspectAntigravity } from './antigravityTransport.ts'
+import { CodexAppServer } from './codexAppServer.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -109,6 +111,31 @@ function run(launcher: DriverLauncher, args: string[]): Promise<string> {
 
 const cache = new Map<string, { lookup: Promise<ModelOption[]>; expires: number }>()
 
+/** Discovery does not create a thread or send a model prompt. */
+export function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOption[]> {
+  return new Promise(resolve => {
+    const child = spawn(launcher.command, [...launcher.args, 'app-server'], { cwd: tmpdir(), windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] })
+    const client = new CodexAppServer({ cwd: tmpdir(), prompt: '', mode: 'ask', send: line => child.stdin?.write(`${line}\n`), onSession: () => {}, onEvent: () => {} })
+    let buffer = ''
+    const decoder = new StringDecoder('utf8')
+    let finished = false
+    const finish = (models: ModelOption[]) => {
+      if (finished) return
+      finished = true; clearTimeout(timer); client.close(); child.stdin?.end(); child.kill(); resolve(models.filter(model => validModel(model.id)))
+    }
+    const timer = setTimeout(() => finish([]), 15000)
+    child.stdin?.on('error', () => {})
+    child.once('error', () => finish([])); child.once('close', () => finish([]))
+    child.stdout.on('data', chunk => {
+      buffer += decoder.write(chunk)
+      const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? ''
+      if (buffer.length > 1 << 20) { finish([]); return }
+      for (const line of lines) client.receive(line)
+    })
+    child.once('spawn', () => { void client.models().then(finish, () => finish([])) })
+  })
+}
+
 /** Bounded catalog caching, separated by the actual executable selection. */
 export function listModels(hostId: string, launcher: DriverLauncher | undefined, home: string): Promise<ModelOption[]> {
   const key = JSON.stringify([hostId, launcher?.command, launcher?.args, home])
@@ -117,7 +144,9 @@ export function listModels(hostId: string, launcher: DriverLauncher | undefined,
   const lookup = (async (): Promise<ModelOption[]> => {
     if (hostId === 'claude-code') return CLAUDE_ALIASES
     if (hostId === 'codex') {
-      try { return codexModels(fs.readFileSync(join(home, '.codex', 'models_cache.json'), 'utf8')) } catch { return [] }
+      const live = launcher ? await codexAppServerModels(launcher) : []
+      if (live.length) return live
+      try { return codexModels(fs.readFileSync(join(process.env.CODEX_HOME ?? join(home, '.codex'), 'models_cache.json'), 'utf8')) } catch { return [] }
     }
     if (!launcher) return []
     if (hostId === 'grok') return grokModels(await run(launcher, ['models']))

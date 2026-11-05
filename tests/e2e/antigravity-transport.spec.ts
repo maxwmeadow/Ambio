@@ -71,7 +71,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await expect(panel.getByText('Edit fixture.txt', { exact: false }).first()).toBeVisible()
     await expect(textbox).toBeEnabled()
     await textbox.fill('Use the corrected instruction')
-    await panel.getByRole('button', { name: 'Send update', exact: true }).click()
+    await panel.getByRole('button', { name: 'Send correction', exact: true }).click()
     await expect.poll(() => captured().some(item => item.steering === 'Use the corrected instruction')).toBe(true)
     await expect.poll(async () => (await page.evaluate(() => window.ambio.listDeliveryRuns('demo'))).at(-1)?.state).toBe('completed')
     const runs = await page.evaluate(() => window.ambio.listDeliveryRuns('demo'))

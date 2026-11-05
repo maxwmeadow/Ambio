@@ -3,13 +3,15 @@ import os from 'node:os'
 import { basename, delimiter, dirname, isAbsolute, join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { StringDecoder } from 'node:string_decoder'
 import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
 import { CLI_CLIENTS, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpTurn } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
-import { mappingAttemptState } from './daemonAuth.ts'
+import { CodexAppServer, type CodexAppServerTurn } from './codexAppServer.ts'
+import { daemonFetch, mappingAttemptState } from './daemonAuth.ts'
 import type { MappingBinding } from '../src/shared/agentDelivery.ts'
 
 export interface DeliveryLauncher { command: string; args: string[]; bundledNode?: boolean }
@@ -218,6 +220,8 @@ export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspa
 }
 
 export interface RunInput {
+  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'approval' | 'review'>
+  codexTransport?: DeliveryRun['codexTransport']
   workspaceId: string; messageId: string; hostId: string; rootPath: string; revision: string; launcher: DeliveryLauncher; args: string[]; prompt: string
   /** The conversation and kind of turn, when the request carries them. */
   threadId?: string; mode?: TurnMode
@@ -257,8 +261,7 @@ export class DeliveryRunner {
   private acp = new Map<string, AcpClient | MuseClient>()
   /** Streaming hosts whose turn is still open to messages (AgentDriver.stream). */
   private streams = new Map<string, { send(id: string, text: string): Promise<void>; interrupt(): void; close(): void }>()
-  /** Text each run's agent is still writing (DriverOutput.partial), kept only in memory. */
-  private writing = new Map<string, { at: number; text: string }>()
+  private codex = new Map<string, CodexAppServer>()
   private directory: string
   private spawnProcess: typeof spawn
   private finished = new Map<string, Promise<void>>()
@@ -285,17 +288,29 @@ export class DeliveryRunner {
     const run = this.list(workspaceId).filter(run => run.threadId === threadId && run.hostId === hostId).sort((a, b) => a.startedAt - b.startedAt)[0]
     return run ? run.transport ?? (hostId === 'antigravity-acp' ? 'acp' : 'print') : undefined
   }
+  /** Legacy Codex conversations keep exec; new ones prefer native App Server. */
+  codexTransport(workspaceId: string, threadId: string): DeliveryRun['codexTransport'] {
+    const first = this.list(workspaceId).filter(run => run.threadId === threadId && run.hostId === 'codex').sort((a, b) => a.startedAt - b.startedAt)[0]
+    return first ? first.codexTransport ?? 'exec' : undefined
+  }
   /**
    * Sends a message into a running turn, for the hosts that take one (a
-   * Claude Code stream, an ACP agent that steers). It resolves once the agent
+   * Claude Code stream, Codex App Server, an ACP agent that steers). It resolves once the agent
    * has taken the message in; until then the composer keeps the draft.
    */
   async steer(workspaceId: string, key: string, text: string): Promise<void> {
     const live = this.live.get(key)
     if (!live || live.run.workspaceId !== workspaceId || live.run.state !== 'running' || !live.run.canSteer) throw new Error('This run is not accepting input. Your draft is kept.')
-    if (!text.trim()) throw new Error('The message is empty.')
+    if (typeof text !== 'string' || !text.trim() || text.length > 16000) throw new Error('Enter a message of up to 16,000 characters.')
+    text = text.trim()
     const stream = this.streams.get(key)
     if (stream) return stream.send(randomUUID(), text)
+    const codex = this.codex.get(key)
+    if (codex) {
+      await codex.steer(text)
+      fs.appendFileSync(this.eventsFile(key), `${JSON.stringify({ at: Date.now(), kind: 'sent', text })}\n`)
+      return
+    }
     const client = this.acp.get(key)
     if (!(client instanceof AcpClient)) throw new Error('This run is not accepting input. Your draft is kept.')
     await client.steer(text)
@@ -319,11 +334,17 @@ export class DeliveryRunner {
     try {
       const receipt = JSON.parse(fs.readFileSync(this.file(key), 'utf8')) as DeliveryRun
       if (receipt.workspaceId !== workspaceId) return []
-      const recorded = fs.readFileSync(this.eventsFile(key), 'utf8').split('\n').filter(Boolean).slice(Math.max(0, after))
-        .flatMap(line => { try { return [JSON.parse(line) as DeliveryEvent] } catch { return [] } })
-      // What the agent is writing right now comes last, until its message is whole.
-      const writing = this.writing.get(key)
-      return writing?.text.trim() ? [...recorded, { at: writing.at, kind: 'text', text: writing.text.replace(/\s+/g, ' ').trim().slice(-1200), live: true }] : recorded
+      const events: DeliveryEvent[] = []
+      const indices = new Map<string, number>()
+      for (const line of fs.readFileSync(this.eventsFile(key), 'utf8').split('\n').filter(Boolean)) {
+        try {
+          const event = JSON.parse(line) as DeliveryEvent
+          const index = event.id ? indices.get(event.id) : undefined
+          if (index !== undefined) events[index] = event
+          else { if (event.id) indices.set(event.id, events.length); events.push(event) }
+        } catch { /* a partial last write is read next time */ }
+      }
+      return events.slice(Math.max(0, after))
     } catch { return [] }
   }
   private save(run: DeliveryRun): void {
@@ -398,6 +419,8 @@ export class DeliveryRunner {
       throw new Error('An earlier agent process may still be running after Ambio restarted. Stop that agent before launching another in this project.')
     }
     const run: DeliveryRun = {
+      ...(input.codexTransport ? { codexTransport: input.codexTransport } : {}),
+      ...(input.codex ? { codexApproval: input.codex.approval ?? 'never', canSteer: false } : {}),
       key, workspaceId: input.workspaceId, messageId: input.messageId, revision: input.revision, hostId: input.hostId, rootPath, state: 'starting', detail: 'Starting agent…', logPath: join(this.directory, `${key}.log`), startedAt: Date.now(),
       ...(input.threadId ? { threadId: input.threadId } : {}), ...(input.mode ? { mode: input.mode } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}), ...(input.resumed ? { resumed: true } : {}),
@@ -476,7 +499,11 @@ export class DeliveryRunner {
       // The host's own output, read a line at a time for its session and for
       // what the agent is doing. The raw log above stays the full record.
       let pending = ''
+      const decoder = new StringDecoder('utf8')
       let reported = 0
+      let eventBytes = 0
+      let compactAt = 4 * 1024 * 1024
+      const reportedIds = new Set<string>()
       // Whether the agent got as far as saying or doing something. A host
       // reports a session it cannot continue as an error, which is not that.
       let spoke = false
@@ -484,17 +511,26 @@ export class DeliveryRunner {
       // that belongs to no turn.
       let superseded = false
       const report = (event: Omit<DeliveryEvent, 'at'>) => {
-        if (superseded || reported >= EVENT_LIMIT) return
-        reported++
+        if (superseded || reported >= EVENT_LIMIT && (!event.id || !reportedIds.has(event.id))) return
+        if (!event.id || !reportedIds.has(event.id)) reported++
+        if (event.id) reportedIds.add(event.id)
         if (event.kind !== 'error') spoke = true
-        fs.appendFileSync(this.eventsFile(key), `${JSON.stringify({ at: Date.now(), ...event })}\n`)
+        const line = `${JSON.stringify({ at: Date.now(), ...event })}\n`
+        fs.appendFileSync(this.eventsFile(key), line)
+        eventBytes += Buffer.byteLength(line)
+        // Deltas replace activity items; do not retain an ever-growing series of full snapshots.
+        if (eventBytes > compactAt) {
+          const snapshot = this.events(run.workspaceId, key).map(event => JSON.stringify(event)).join('\n') + '\n'
+          fs.writeFileSync(this.eventsFile(key), snapshot, { mode: 0o600 })
+          eventBytes = Buffer.byteLength(snapshot); compactAt = Math.max(4 * 1024 * 1024, eventBytes * 2)
+        }
       }
       // What the host records outside its output, followed once the session is known.
       const since = Date.now()
       let unfollow: (() => void) | undefined
       const session = (sessionId: string) => {
         if (sessionId && sessionId !== run.sessionId) { run.sessionId = sessionId; this.save(run); this.rememberSession(run) }
-        if (sessionId && !unfollow && input.driver?.follow) {
+        if (sessionId && !unfollow && input.driver?.follow && !input.codex) {
           try {
             unfollow = input.driver.follow({
               sessionId, since, env: childEnv, report,
@@ -517,25 +553,59 @@ export class DeliveryRunner {
       })
       // Messages sent into a streaming host's turn, until it takes each in.
       const waiting = new Map<string, { text: string; resolve(): void; reject(error: Error): void }>()
+      const codex = input.codex ? new CodexAppServer({
+        ...protocolTurn, ...input.codex,
+        onReady: ready => { run.canSteer = ready && run.state === 'running'; this.save(run) },
+        onServer: version => { run.serverVersion = version; this.save(run) },
+        onUsage: usage => { run.usage = usage; this.save(run) },
+        approve: async (question, signal) => {
+          if (input.mapping || run.state !== 'running' || signal.aborted) return false
+          try {
+            const response = await daemonFetch(`${process.env.AMBIO_API_URL ?? 'http://127.0.0.1:7743'}/api/agent/permission`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.any([signal, AbortSignal.timeout(115000)]),
+              body: JSON.stringify({ workspaceId: run.workspaceId, messageId: run.messageId, hostId: run.hostId, ...question }),
+            })
+            return response.ok && (await response.json()).decision === 'allow'
+          } catch { return false }
+        },
+      }) : undefined
+      const protocol = codex ?? acp
+      // Text the agent is still writing (DriverOutput.partial) is one activity
+      // item, saved a few times a second as it grows and replaced in place by
+      // the whole message, the same item identity a native protocol uses.
+      let writing = '', writingId = '', writings = 0
+      let writingTimer: ReturnType<typeof setTimeout> | undefined
+      const flushWriting = () => {
+        clearTimeout(writingTimer); writingTimer = undefined
+        if (writing.trim()) report({ id: writingId, kind: 'text', text: writing.replace(/\s+/g, ' ').trim().slice(-1200), live: true })
+      }
       const understand = (chunk: Buffer) => {
-        if (!input.driver && !acp) return
-        pending += chunk.toString('utf8')
+        if (!input.driver && !protocol) return
+        pending += decoder.write(chunk)
         const lines = pending.split(/\r?\n/)
         pending = lines.pop() ?? ''
         if (pending.length > 1024 * 1024) pending = ''
         for (const line of lines) {
-          if (acp) { acp.receive(line); continue }
+          if (protocol) { protocol.receive(line); continue }
           let read: ReturnType<AgentDriver['read']>
           try { read = input.driver!.read(line) } catch { continue }
           if (read.sessionId) session(read.sessionId)
           if (read.partial && !superseded) {
-            const writing = this.writing.get(key)
-            this.writing.set(key, { at: Date.now(), text: `${writing?.text ?? ''}${read.partial}`.slice(-4000) })
+            writingId ||= `live:${++writings}`
+            writing = `${writing}${read.partial}`.slice(-4000)
+            writingTimer ??= setTimeout(flushWriting, 250)
           }
           // A whole message replaces the text that was arriving piece by piece.
-          if (read.events.length || read.ended) this.writing.delete(key)
+          let events = read.events
+          if (writingId && (events.length || read.ended)) {
+            clearTimeout(writingTimer); writingTimer = undefined
+            const whole = events.findIndex(event => event.kind === 'text')
+            if (whole >= 0) events = events.map((event, index) => index === whole ? { ...event, id: writingId } : event)
+            else if (writing.trim()) report({ id: writingId, kind: 'text', text: writing.replace(/\s+/g, ' ').trim().slice(-1200) })
+            writing = ''; writingId = ''
+          }
           // A streaming host ends a stopped turn as an error; Stop already says what happened.
-          for (const event of read.events) if (!(read.ended && event.kind === 'error' && input.driver!.stream && run.state === 'stopping')) report(event)
+          for (const event of events) if (!(read.ended && event.kind === 'error' && input.driver!.stream && run.state === 'stopping')) report(event)
           const sent = read.delivered ? waiting.get(read.delivered) : undefined
           if (sent) { waiting.delete(read.delivered!); report({ kind: 'sent', text: sent.text.replace(/\s+/g, ' ').trim().slice(0, 1200) }); sent.resolve() }
           // What was already sent is still answered; nothing more is taken.
@@ -566,12 +636,13 @@ export class DeliveryRunner {
           if (!this.live.has(key)) { settle(); return }
           this.save(run)
         }
-        if (acp) {
-          this.acp.set(key, acp)
+        if (protocol) {
+          if (codex) this.codex.set(key, codex)
+          else this.acp.set(key, acp!)
           // The agent stays up between turns; its part in this one is over
           // when the prompt returns, so it is then asked to leave.
-          const finish = () => { this.acp.delete(key); try { child.stdin?.end() } catch { /* already gone */ }; setTimeout(() => { if (this.live.has(key)) child.kill() }, 3000).unref() }
-          acp.run().then(outcome => {
+          const finish = () => { this.acp.delete(key); this.codex.delete(key); try { child.stdin?.end() } catch { /* already gone */ }; setTimeout(() => { if (this.live.has(key)) child.kill() }, 3000).unref() }
+          protocol.run().then(outcome => {
             acpStopReason = outcome.stopReason
             if (run.resumed !== outcome.resumed) { run.resumed = outcome.resumed; this.save(run) }
             finish()
@@ -585,7 +656,7 @@ export class DeliveryRunner {
           let open = true
           const write = (line: string) => { try { child.stdin?.write(`${line}\n`) } catch { /* close reports the failure */ } }
           const close = () => { if (!open) return; open = false; this.streams.delete(key); if (run.canSteer) { run.canSteer = false; this.save(run) }; try { child.stdin?.end() } catch { /* already gone */ } }
-          run.canSteer = true
+          run.canSteer = true; this.save(run)
           this.streams.set(key, {
             send: (id, text) => new Promise<void>((resolve, reject) => {
               if (!open) { reject(new Error('This turn has finished. Send it as the next turn.')); return }
@@ -604,15 +675,18 @@ export class DeliveryRunner {
         try {
         if (mappingTimer) clearInterval(mappingTimer)
         // A last line with no newline is still something the agent said.
+        pending += decoder.end()
         if (pending) understand(Buffer.from('\n'))
         if (pendingError) understandError(Buffer.from('\n'))
         unfollow?.()
         acp?.close()
+        codex?.close()
         this.acp.delete(key)
         this.streams.get(key)?.close()
         for (const message of waiting.values()) message.reject(new Error('The agent exited before it took this message in.'))
         waiting.clear()
-        this.writing.delete(key)
+        clearTimeout(writingTimer)
+        this.codex.delete(key)
         this.live.delete(key)
         if (input.mapping) {
           try {
@@ -627,6 +701,11 @@ export class DeliveryRunner {
         if (run.state === 'launch-failed') return
         if (run.state === 'stopping') {
           run.state = 'stopped'; run.detail = 'Agent process stopped. Edits already made are kept; this does not cancel the work order.'
+        } else if (codex) {
+          run.canSteer = false
+          run.state = acpStopReason === 'completed' ? 'completed' : acpStopReason === 'interrupted' ? 'stopped' : 'failed'
+          run.detail = acpStopReason === 'completed' ? 'Codex finished its turn. Its canvas reply determines whether the result is ready for review.'
+            : acpError ?? `Codex ${acpStopReason ?? 'exited before completing its turn'}. No turn was retried. Check its output before sending again.`
         } else if (attempt.resumed && code !== 0 && !spoke && input.fresh) {
           // The session could not be continued (expired, removed, or made by
           // another version). Nothing was said, so nothing is lost by starting
@@ -685,8 +764,15 @@ export class DeliveryRunner {
       if (!this.live.has(key)) { await this.finished.get(key); return }
     }
     // An ACP agent is asked to stop the turn before its process is stopped.
-    this.acp.get(key)?.cancel()
     entry.run.state = 'stopping'; entry.run.detail = 'Stop requested. Waiting for the agent process to exit.'; this.save(entry.run)
+    this.acp.get(key)?.cancel()
+    const codex = this.codex.get(key)
+    codex?.cancel()
+    if (codex) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try { await Promise.race([this.finished.get(key), new Promise(resolve => { timer = setTimeout(resolve, 1500) })]) }
+      finally { clearTimeout(timer) }
+    }
     // A streaming host stops its own turn and leaves, which keeps its session
     // whole; it is ended only if it has not gone within a few seconds.
     const stream = this.streams.get(key)

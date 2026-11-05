@@ -7,7 +7,6 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
-<<<<<<< HEAD
 - Choose how much Claude Code may do without asking, beside the request type:
   Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
   it asks appears in the conversation for you to allow or refuse.
@@ -19,12 +18,16 @@ in the app as "What's New" after updating, so write it for users.
 - Stopping a Claude Code run now asks Claude to end its turn instead of
   killing it, so the conversation continues cleanly on the next turn. A run's
   activity also shows what Claude's subagents are doing.
-=======
 - Antigravity now chooses its connection from the model you select: supported
   models get thinking controls, approval requests, corrections while working,
   and expandable tool output and file changes. Other models retain the CLI's
   full-access connection. Existing conversations keep their connection, and
   Ambio never silently retries through another one.
+- New Codex conversations use the installed CLI's native App Server, with live
+  text, corrections during work, command output, diffs and token usage. Codex
+  options offers native code review, and Ask me or Full access come from the
+  same access menu as Claude Code. Existing conversations
+  keep exec; new conversations can choose it explicitly for compatibility.
 
 - Investigations now follow a sequence of animated step cards, with clear
   phase headings and separate finding and suggested-fix cards. New steps queue
@@ -38,7 +41,6 @@ in the app as "What's New" after updating, so write it for users.
   stay synchronized. Pagination dots have a pill-shaped active marker and
   nearby chevrons; replay playback buttons stay in the timeline. Reply in chat keeps delivery status and unsent drafts when a case ends
   or changes.
->>>>>>> codex/antigravity-hybrid-acp
 
 - Terminal controls now fit in one compact top bar with shell options tucked
   into a menu and no footer. Terminal and agent messages share a saved sidebar

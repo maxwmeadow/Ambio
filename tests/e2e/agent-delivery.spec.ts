@@ -24,7 +24,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
   const scripts: Record<string, string> = { claude: '@anthropic-ai/claude-code/cli.js', codex: '@openai/codex/bin/codex.js', copilot: '@github/copilot/index.js' }
   for (const [name, entry] of Object.entries(scripts)) {
     const script = path.join(bin, 'node_modules', entry)
-    const source = name === 'claude' ? fakeClaude : fakeAgent
+    const source = name === 'claude' ? fakeClaude : name === 'codex' ? fs.readFileSync(path.join(__dirname, 'fixtures', 'codex-app-server.cjs'), 'utf8') : fakeAgent
     fs.mkdirSync(path.dirname(script), { recursive: true }); fs.writeFileSync(script, source)
     if (process.platform !== 'win32') fs.writeFileSync(path.join(bin, name), `#!${process.execPath}\n${source}`, { mode: 0o755 })
   }
@@ -125,9 +125,9 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       await destination.choose(host)
       if (['grok', 'muse', 'copilot-cli'].includes(host)) await confirm()
       // The agent pill keeps one shape whichever agent and model are chosen.
-      // Claude Code also offers its access level beside the request type, so
-      // its pill gives up some room; nothing in it is cut off for that.
-      if (host === 'claude-code') {
+      // Agents with an access level (Claude Code, Codex) show it beside the request
+      // type, so their pill gives up some room; nothing in it is cut off for that.
+      if (host === 'claude-code' || host === 'codex') {
         const clipped = await inbox.locator('.ambio-inbox__compose-tools').evaluate(tools => [...tools.querySelectorAll<HTMLElement>('.ambio-inbox__mode-button, .ambio-inbox__model-label')].filter(item => item.scrollWidth > item.clientWidth + 1).map(item => item.textContent))
         expect(clipped).toEqual([])
       } else pillWidths.push(Math.round((await inbox.locator('.ambio-inbox__agent-group').boundingBox())!.width))
@@ -150,7 +150,8 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await inbox.getByRole('menuitemradio', { name: 'Ask me' }).click()
         await expect(inbox.getByRole('button', { name: 'Access: Ask me' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
-      } else if (host !== 'claude-code') await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
+      } else if (host === 'codex') await expect(inbox.getByRole('button', { name: 'Access: Full access' })).toBeVisible()
+      else if (host !== 'claude-code') await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()
@@ -202,10 +203,10 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await inbox.locator('form').getByRole('button', { name: 'Start Claude Code CLI' }).click()
     await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('Working on the fixture.')
     await expect(box).toBeEnabled()
-    await expect(box).toHaveAttribute('placeholder', 'Tell Claude Code CLI more while it works…')
+    await expect(box).toHaveAttribute('placeholder', 'Send a correction while Claude Code CLI works…')
     await box.fill('Also check the tests.')
     await box.press('Enter')
-    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('You: Also check the tests.')
+    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('You · Also check the tests.')
     await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('Heard: Also check the tests.')
     await expect(box).toHaveValue('')
     await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-steering.png' })

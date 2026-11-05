@@ -5,6 +5,12 @@ Open implementation work belongs in [WORK.md](../WORK.md); this document
 explains the sequence, boundaries and acceptance criteria. No application
 behavior or recorded decision is changed by this proposal.
 
+Implementation update, 2026-11-04: new Codex conversations now use native App
+Server, with a pinned explicit exec compatibility route. Streaming, corrections,
+approvals, Stop/resume, native review and usage are implemented in the existing
+delivery contract. See [implementation and qualification](testing/CODEX_APP_SERVER.md).
+The remaining milestones below retain their original broader scope.
+
 ## Outcome
 
 Max should be able to open Ambio, discuss a problem, let Claude Code or Codex

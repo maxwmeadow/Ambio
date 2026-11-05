@@ -154,7 +154,9 @@ test('Claude Code runs at the access level chosen for it, and asks in Ambio belo
   assert.ok(mapping.includes('--strict-mcp-config'))
   assert.equal(mode(mapping), 'bypassPermissions')
   assert.deepEqual(agentDriver('claude-code').access, ['ask', 'edits', 'auto', 'full'])
-  assert.equal(agentDriver('codex').access, undefined)
+  // Codex's App Server asks through Ambio or runs with full access.
+  assert.deepEqual(agentDriver('codex').access, ['ask', 'full'])
+  assert.equal(agentDriver('copilot-cli').access, undefined)
 })
 
 test('a started turn still names its request to Ambio, and Cursor accepts its workspace itself', () => {
@@ -404,15 +406,18 @@ test('a message sent while Claude Code works joins its turn, and the turn ends w
   const runner = new DeliveryRunner(path.join(root, 'runs'), testSpawn)
   const started = await runner.start(streamingTurn(root, 'turn-steer'))
   await said(runner, started.key, 'heard p')
-  // What it is still writing shows last, as live text that is not recorded.
+  // What it is still writing shows last as one live item, saved as it grows.
   await said(runner, started.key, 'Still writing')
-  assert.equal(runner.events('ws', started.key).at(-1).live, true)
+  assert.equal(runner.list('ws').find(run => run.key === started.key).canSteer, true)
+  const writing = runner.events('ws', started.key).at(-1)
+  assert.equal(writing.live, true); assert.match(writing.id, /^live:/)
   // Resolves once the agent has taken it in, which is recorded in the turn.
   await runner.steer('ws', started.key, 'also check the tests')
   await said(runner, started.key, 'heard also check the tests')
   const events = runner.events('ws', started.key)
   assert.ok(events.some(event => event.kind === 'sent' && event.text === 'also check the tests'))
-  // The live text was replaced by the whole message that followed it.
+  // The live item was replaced in place by the whole message that followed it.
+  assert.equal(events.find(event => event.id === writing.id).live, undefined)
   assert.equal(events.filter(event => event.live).length, events.at(-1).live ? 1 : 0)
   // The host leaves only because its stdin was closed when the turn ended.
   const run = await settled(runner, 'ws', started.key)

@@ -186,13 +186,16 @@ within the desk's wait (110 s) is a deny. Ask and Propose keep their
 `--disallowedTools` at every level. The other agents' levels are WORK.md
 `agent-permission-modes`.
 
-**Messages during a turn.** An agent whose driver reads a stream
-(`DeliveryHost.steerable`, Claude Code) keeps the message box open while it
-works: `agent:delivery-send` writes the message into the running turn and
-resolves once the agent echoes it back, when it is recorded in the run's
-activity as a `sent` event. It is part of that host's session, not of the
-inbox conversation, so an agent that later claims the conversation does not
-see it unless the agent's reply carries it.
+**Messages during a turn.** A run that takes messages while it works
+(`DeliveryRun.canSteer`: Claude Code, native Codex, Antigravity's ACP
+connection) keeps the message box open as "Send a correction while … works":
+`agent:delivery-steer` gives the message to the running turn and resolves once
+the agent has accepted it, when it is recorded in the run's activity as a
+`sent` event; until then the draft stays in the box. It is part of that host's
+session, not of the inbox conversation, so an agent that later claims the
+conversation does not see it unless the agent's reply carries it. The same
+access menu sets the level for every agent that offers one (Claude Code: four
+levels; native Codex: Ask me and Full access).
 
 **Live activity.** A driver reads the host's output for what the agent says,
 does and thinks (its reasoning, where the host reports it; see ARCHITECTURE). The runner keeps up to 400 events per run beside its log

@@ -19,9 +19,10 @@ export interface AgentAccessChoice {
   set: (access: AgentAccess) => void
 }
 
-export function useAgentAccess(host?: DeliveryHost): AgentAccessChoice {
+/** `only` narrows the levels for this conversation (an exec Codex conversation offers none). */
+export function useAgentAccess(host?: DeliveryHost, only?: AgentAccess[]): AgentAccessChoice {
   const [, setVersion] = useState(0)
-  const levels = host?.access ?? []
+  const levels = (host?.access ?? []).filter(level => !only || only.includes(level))
   const saved = host ? remembered(host.id) : null
   const value = !levels.length ? undefined
     : isAgentAccess(saved) && levels.includes(saved) ? saved

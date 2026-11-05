@@ -25,6 +25,8 @@ import { workOrderHandoff } from '../../src/shared/workOrderHandoff.ts'
 
 const host = process.env.AMBIO_LIVE_CONVERSATION_HOST
 const driver = host ? agentDriver(host) : undefined
+// New Codex conversations use App Server; explicitly opt into the legacy trial.
+const nativeCodex = host === 'codex' && process.env.AMBIO_LIVE_CODEX_TRANSPORT !== 'exec'
 const MCP_ENTRY = fileURLToPath(new URL('../ambio-mcp.ts', import.meta.url))
 const TOKEN = 'ambio-isolated-test-token-for-mcp-harness'
 // A cheaper model is enough to follow a handoff; set to '' for the host's default.
@@ -121,11 +123,13 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
         return (await response.json()).decision === 'allow'
       },
     } : undefined
-    const plan = driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...made, args: withHarness(made.args) } })()
+    const plan = nativeCodex ? { args: withHarness(driver.appServerArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined })) }
+      : driver.acpArgs ? { args: driver.acpArgs({ hostId: host, mcp, workspaceId: harness.workspaceId, prompt, mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) } : session ? deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, messageId: id, cwd: harness.projectDir, model: model || undefined }) : (() => { const made = deliveryPlan(host, mcp, harness.workspaceId, prompt, { mode, resume, messageId: id, cwd: harness.projectDir, model: model || undefined }); return { ...made, args: withHarness(made.args) } })()
     const started = await runner.start({
       workspaceId: harness.workspaceId, messageId: id, hostId: host, rootPath: harness.projectDir, revision: 'initial', launcher, prompt,
       args: plan.args, stdin: plan.stdin, threadId: 'live-ask', mode, driver, sessionId: resume ?? plan.sessionId, resumed: !!resume,
-      ...(acp ? driver.muse ? { muse: { ...acp, model: model || undefined } } : { acp } : {}), ...(driver.acp || driver.muse ? {} : { fresh: print }),
+      ...(nativeCodex ? { codex: { resume, model: model || undefined }, codexTransport: 'app-server' } : {}),
+      ...(acp ? driver.muse ? { muse: { ...acp, model: model || undefined } } : { acp } : {}), ...(nativeCodex || driver.acp || driver.muse ? {} : { fresh: print }),
     })
     let run
     for (let waited = 0; waited < 420; waited++) {
@@ -155,7 +159,7 @@ test(`a real ${host ?? 'host'} holds a conversation through Ambio`, { skip: !dri
   const second = await turn('live-ask-2', 'ask', 'In the file you just named, which method returns its argument unchanged? Reply with the method name only.')
   assert.match(second.reply, /\bget\b/)
   console.log(`\n  session continued: ${second.run.resumed === true} (driver says it can: ${driver.resumable})`)
-  if (['claude-code', 'grok', 'muse'].includes(host)) {
+  if (nativeCodex || ['claude-code', 'grok', 'muse'].includes(host)) {
     assert.equal(second.run.resumed, true, 'the second turn did not continue the host session')
     assert.equal(second.run.sessionId, first.run.sessionId)
   }

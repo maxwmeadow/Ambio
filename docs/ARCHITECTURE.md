@@ -771,28 +771,58 @@ apply the turn's mode as permissions, and read its output. The runner stores
 host sessions per conversation and a run's activity events; `acpClient.ts`
 drives hosts that speak the Agent Client Protocol and `museClient.ts` drives
 Muse MSP sessions. A driver with a `stream` (Claude Code, `--input-format
-stream-json`) keeps the host's stdin open while its turn runs:
-`DeliveryRunner.send` (`agent:delivery-send`) writes a message that joins the
-running turn and resolves when the host echoes it back (`delivered`), Stop
-sends an interrupt and waits up to five seconds for the host to end its own
-turn before killing it, and stdin is closed when the driver reads the end of
-the turn (`ended`), so anything already sent is still answered. Text a driver
-reads as `partial` is kept in memory per run and returned as the last,
-`live` event until the whole message arrives; the panel's one-second poll
-shows it growing. A driver's `access` lists the levels it honours
-(`AgentAccess`, chosen in `AgentAccessMenu`); `claudePermissions` maps them to
-Claude's permission modes and its prompt tool. A session told to watch
+stream-json`) keeps the host's stdin open while its turn runs, Stop sends an
+interrupt and waits up to five seconds for the host to end its own turn before
+killing it, and stdin is closed when the driver reads the end of the turn
+(`ended`), so anything already sent is still answered. Every host that takes a
+message mid-turn goes through one `DeliveryRunner.steer`
+(`agent:delivery-steer`), allowed while the run's `canSteer` is set: a Claude
+Code stream resolves when the host echoes the message back (`delivered`),
+Codex sends `turn/steer` with the active turn as precondition, and an ACP agent
+steers its session. Each accepted message is recorded as a `sent` event and
+shown as "You · …". Activity events may carry a stable `id`; a later event
+with the same id replaces the earlier one when read. Codex uses it for its
+provider items, and text a driver reads as `partial` becomes one `live:N` item,
+saved at most every 250 ms as it grows and replaced in place by the whole
+message. A driver's `access` lists the levels it honours (`AgentAccess`,
+chosen in the shared `AgentAccessMenu`, remembered per agent);
+`claudePermissions` maps them to Claude's permission modes and its prompt
+tool, and native Codex maps Ask me to `on-request` approval and Full access to
+`never`. An exec Codex conversation offers no choice and refuses one. A session told to watch
 waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in
 memory) and are answered in the panel (`store/agentPermissionStore.ts`).
+New Codex conversations use `codexAppServer.ts` over the installed CLI's stdio
+App Server. The connection initializes with Ambio's own client identity, then
+starts or resumes a provider thread in the conversation's existing checkout.
+Each run owns one process; subsequent runs resume that provider thread. Receipts
+pin the connection per conversation (legacy receipts mean exec); exec is an
+explicit choice for a new conversation. Native errors never replay a prompt
+or replace a missing thread automatically. The existing MCP configuration and
+scoped mapping credentials travel unchanged on the CLI configuration boundary.
+The composer sends acknowledged corrections with the active provider turn as
+a precondition. Stop first interrupts, then terminates the process tree if it
+does not exit. Full access (the default) preserves the recorded full-access
+policy; Ask me, chosen in the shared access menu, selects a project sandbox with on-request approval on Unix, or
+full access with untrusted command approvals on Windows (where shell sandbox
+initialization fails). Approval callbacks wait on the existing permission desk
+and are aborted when their owning request/turn ends. Native review runs inline,
+then passes its findings into a normal Ambio handoff turn so claiming and replies
+keep the existing work-order contract. Models come from native `model/list`,
+with the CLI cache available when discovery fails; usage is explicitly a thread
+total, rather than mislabelling the last inference as a complete turn.
+Codex activity keeps stable item identities for streamed updates, bounded command
+output and diffs; the runner compacts repeated snapshots. Completed replies keep
+expandable activity/usage, as every agent's completed replies now do. Worktree handoffs distinguish the shared project root
+reported by MCP from the checkout in which the agent must edit.
 Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
 latest few while it works. Thinking comes from Claude Code's `thinking` blocks
 (when the model fills them), Codex's reasoning summaries
 (`model_reasoning_summary="auto"`), Cursor's streamed `thinking` events and ACP
 `agent_thought_chunk` updates, each tidied to one line (`thought`). Antigravity
 CLI 1.4 reports only a count of thinking tokens. A driver can also `follow`
-what its host records outside its output: in code mode (codex-cli 0.165) Codex
+what its host records outside its output: on the legacy exec route, in code mode (codex-cli 0.165) Codex
 works through JavaScript `exec` snippets, and one that only works on data in
 memory prints nothing on `--json`, so `codexTranscript.ts` tails the session's
 `$CODEX_HOME/sessions/…/rollout-…-<thread id>.jsonl` and reports each
@@ -825,7 +855,6 @@ accept composer corrections through the running session, retaining the process
 until both the original request and any steered replacements finish. A completed
 request is acknowledged before its composer draft is cleared. Bounded ACP text
 and diff content is stored with activity events and can be expanded in the panel.
-Codex and Claude transports are unchanged.
 
 **Agent replies** (`AgentMessageContent.tsx`, `agentMessageFormat.ts`): replies
 render as Markdown (react-markdown + remark-gfm, raw HTML shown as text).
