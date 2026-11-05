@@ -776,7 +776,8 @@ export default function App() {
     'view.documents': () => { if (currentProject) setDocumentsOpen(!useGraphStore.getState().documentsOpen) },
     'view.reviewChanges': () => {
       const store = useGraphStore.getState()
-      if (store.delta) store.startDeltaReview()
+      if (store.deltaReviewing) store.endDeltaReview(false)
+      else if (store.delta) store.startDeltaReview()
       else raiseNotice('no-delta', 'Nothing to review', 'No architectural changes since your last review.')
     },
     'agent.message': () => { window.dispatchEvent(new Event('ambio:open-agent-dispatch')) },

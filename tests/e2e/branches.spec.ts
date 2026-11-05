@@ -136,6 +136,11 @@ test('the branch chip shows the Floor’s branch and opens every checkout', asyn
   await launch(PARALLEL)
   const chip = page.locator('.ambio-branch-chip')
   await expect(chip).toContainText('main')
+  const project = page.getByLabel('Current project', { exact: true })
+  await expect(project).toContainText('Ambio Canvas Fixture')
+  const projectBox = (await project.boundingBox())!
+  const chipBox = (await chip.boundingBox())!
+  expect(projectBox.x + projectBox.width).toBeLessThanOrEqual(chipBox.x)
   await expect(chip.locator('.ambio-branch-chip__dirty')).toBeVisible()
   await expect(chip).toContainText('↑1')
   await expect(chip).toContainText('+1 worktree')

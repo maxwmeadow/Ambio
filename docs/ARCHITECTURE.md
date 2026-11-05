@@ -35,7 +35,11 @@ mirrors it. Excluded files, not only folders, are honoured by a full index.
 
 `Toolbar` keeps selection, Review Changes, Investigations (saved investigations,
 `InvestigationsMenu`), the active sheet name, Search, Fit and Message Agent
-visible. There is no permanent status footer or idle
+visible. Review Changes uses the existing review-open state for its highlight;
+the shared command toggles review without acknowledging changes on close. The
+current project's saved display name sits immediately left of the unchanged
+branch control; it follows project changes and truncates long titles with the
+full name on hover. There is no permanent status footer or idle
 indexing label. On the Floor, its name appears only in the left rail, with no
 duplicate toolbar label or reserved space. `shared/appMenu.ts` supplies Tools
 commands for recording and saved investigations, Agent → Architecture Draft for

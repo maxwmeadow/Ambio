@@ -80,6 +80,8 @@ in the app as "What's New" after updating, so write it for users.
 - Fixed the empty strip during sidebar motion: the canvas now expands and
   contracts with the moving sidebar edge throughout opening and closing.
 
+- Fixed Review Changes appearing selected while closed. Its highlight follows
+  the open panel, and clicking it again closes review without accepting changes.
 - Added sticky notes on the Floor and sheets with automatic text saving and shared agent access. Notes nest inside systems through the native placement, collision, packing, compression and resize paths; normal note controls are reduced to double-click editing and keyboard deletion. Concurrent drafts stay protected.
 
 ### Added
@@ -116,6 +118,8 @@ in the app as "What's New" after updating, so write it for users.
 - Edit code right in Ambio's source viewer and save with Ctrl+S. If an agent
   or another editor changed the file while you were editing, Ambio shows you
   the differences instead of overwriting them.
+- The hero bar shows the current project title beside its branch, with long
+  names truncated and the full title available on hover.
 - Smooth sheet, system and Connections expansion, plus a gentle upward reveal
   for To review when opening a sheet. Reduced-motion preferences are respected.
 - Expand a sheet in the sidebar to find its systems, files and connections,

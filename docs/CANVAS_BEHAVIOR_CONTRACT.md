@@ -850,6 +850,10 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   visible Stop control.
 - The Floor name appears in the left rail only; its toolbar label and reserved
   space are omitted. Open sheets keep their name in the toolbar.
+- The saved project title appears immediately left of the branch control on
+  both surfaces (Max, November 3). Long titles truncate with the full name on
+  hover; changing the project or its name updates the readout. The branch
+  control retains its existing appearance and behavior.
 - Reads lasting over 1.5 seconds show progress and Stop in the interruption
   lane; quick reads stay quiet. Interrupted live updates show a useful recovery
   notice after 3 seconds. Completion and reconnection clear their notices.
@@ -860,6 +864,9 @@ See [PRODUCT.md §2](PRODUCT.md). On the live Floor:
   remains reachable from the toolbar, View and command palette, including while
   new changes arrive. Opening or dismissing an invitation never acknowledges
   the underlying changes. No permanent footer is required.
+- Review Changes is selected/expanded only while its review is open. Repeating
+  the command closes it without acknowledging changes, just like Escape or
+  Close review; pending updates alone do not select the toolbar button.
 
 ### Investigation reader and feedback (Max, November 3, 2026)
 

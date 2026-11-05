@@ -30,10 +30,11 @@ export function Toolbar({
 }: ToolbarProps) {
   const { getNodes } = useReactFlow()
   const fitView = useCanvasFitView()
-  const hasChanges = useGraphStore(s => !!s.delta && !s.deltaReviewing)
+  const reviewingChanges = useGraphStore(s => s.deltaReviewing)
   const selectionMode = useGraphStore(s => s.selectionMode)
   const setSelectionMode = useGraphStore(s => s.setSelectionMode)
   const workspaceId = useGraphStore(s => s.currentProject?.id ?? '')
+  const projectName = useGraphStore(s => s.currentProject?.name)
   const [sidebar, setSidebar] = useState<'agent' | 'terminal' | null>(null)
   const sidebarPresence = usePresence(sidebar !== null)
   const lastSidebar = useRef(sidebar)
@@ -142,7 +143,8 @@ export function Toolbar({
           <ChromeButton
             onClick={() => emitCommand('view.reviewChanges')}
             label="Review Changes"
-            active={hasChanges}
+            active={reviewingChanges}
+            ariaExpanded={reviewingChanges}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 5H5v16h14V5h-4M9 3h6v4H9zM8 14l3 3 5-6"/>
@@ -153,6 +155,10 @@ export function Toolbar({
 
         {activeSheetId && <div className="ambio-surface-readout">
           <strong>{activeSheetName ?? 'Overlay Sheet'}</strong>
+        </div>}
+        {projectName && <div className="ambio-project-readout" aria-label="Current project" title={projectName}>
+          <span>Project</span>
+          <strong>{projectName}</strong>
         </div>}
         {/* Boundaried: a malformed checkouts response once blanked the whole
             workbench through the panel this replaced. */}

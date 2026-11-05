@@ -257,8 +257,7 @@ test.beforeEach(async () => {
     localStorage.removeItem('ambio:inbox-draft:demo:investigation')
   })
   await page.reload()
-  // Project/view labels were intentionally removed from the title bar. Check
-  // the fixture identity in its store rather than requiring that retired text.
+  // Wait for the registered fixture before inspecting its canvas.
   await expect.poll(() => page.evaluate(() => (window as any).__ambioGraphStore?.getState().currentProject?.name)).toBe('Ambio Canvas Fixture')
   await expect(page.locator('.ambio-toolbar')).toBeVisible()
   await expect(page.locator('.react-flow__node').first()).toBeVisible()
@@ -3254,8 +3253,13 @@ test('Model Explorer outlines the map, filters it and follows the selection', as
 })
 
 test('Review Changes: undo a map change, make the code match, copy as Markdown', async () => {
+  const reviewButton = page.getByRole('button', { name: 'Review Changes', exact: true })
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
   let undone: number[] | undefined
+  const acknowledged: unknown[] = []
   page.on('request', request => {
+    if (request.url().includes('/api/delta/ack') && request.method() === 'POST') acknowledged.push(request.postDataJSON())
     if (request.url().includes('/api/architecture/undo') && request.method() === 'POST') {
       undone = (request.postDataJSON() as { eventIds?: number[] }).eventIds
     }
@@ -3284,9 +3288,29 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
     store.setState({ delta: { ...store.getState().delta, until: 4 } })
   })
   await expect(page.locator('.ambio-lane')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Review Changes', exact: true }).click()
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
+  await reviewButton.click()
 
   const panel = page.getByRole('complementary', { name: 'Reviewing changes' })
+  await expect(panel).toBeVisible()
+  await expect(reviewButton).toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'true')
+  await page.locator('.ambio-toolbar').screenshot({ path: 'test-results/review-button-open.png' })
+  await reviewButton.click()
+  await expect(panel).toHaveCount(0)
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
+  await page.locator('.ambio-toolbar').screenshot({ path: 'test-results/review-button-closed.png' })
+  await reviewButton.click()
+  await expect(panel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
+  expect(acknowledged).toEqual([])
+  await reviewButton.click()
+  await expect(reviewButton).toHaveClass(/ambio-chrome-button--active/)
   await expect(panel).toContainText('AmbioCanvas.tsx moved from Canvas Renderer to Shared Types')
   await expect(panel).toContainText('the rest of Shared Types is in src/shared/')
 
@@ -3300,6 +3324,18 @@ test('Review Changes: undo a map change, make the code match, copy as Markdown',
 
   await panel.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect.poll(() => undone).toEqual([41])
+  await panel.getByRole('button', { name: 'Close review, keep the delta' }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
+  expect(acknowledged).toEqual([])
+  await reviewButton.click()
+  await expect(panel).toBeVisible()
+  await panel.getByRole('button', { name: 'Accept all', exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(reviewButton).not.toHaveClass(/ambio-chrome-button--active/)
+  await expect(reviewButton).toHaveAttribute('aria-expanded', 'false')
+  await expect.poll(() => acknowledged).toEqual([{ workspaceId: 'demo', until: 4 }])
 })
 
 test('Review Changes narrows by who made a change and hides what you have seen', async () => {
@@ -3476,6 +3512,9 @@ test('a pasted Markdown spec becomes a draft sheet, and a sheet copies out as Ma
 })
 
 test('project chrome stays quiet and chat uses the reclaimed footer space', async () => {
+  const project = page.getByLabel('Current project', { exact: true })
+  await expect(project).toContainText('Ambio Canvas Fixture')
+  await page.locator('.ambio-toolbar').screenshot({ path: 'test-results/project-title-toolbar.png' })
   await expect(page.getByRole('contentinfo', { name: 'Application status' })).toHaveCount(0)
   await expect(page.getByText('INDEX CLEAN', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Record investigation', exact: true })).toHaveCount(0)
@@ -3488,6 +3527,14 @@ test('project chrome stays quiet and chat uses the reclaimed footer space', asyn
     return Math.abs(page.viewportSize()!.height - box!.y - box!.height)
   }).toBeLessThan(2)
   await page.setViewportSize({ width: 900, height: 600 })
+  const longName = 'Ambio Canvas Fixture — a project with a very long display name that should stay within its toolbar space'
+  await page.evaluate(name => {
+    const store = (window as any).__ambioGraphStore
+    store.setState({ currentProject: { ...store.getState().currentProject, name } })
+  }, longName)
+  await expect(project).toHaveAttribute('title', longName)
+  await expect(project.locator('strong')).toHaveText(longName)
+  expect(await project.locator('strong').evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)
   for (const name of ['Review Changes', 'Search', 'Fit view']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox()
     expect(box!.x).toBeGreaterThanOrEqual(0)
@@ -3497,6 +3544,7 @@ test('project chrome stays quiet and chat uses the reclaimed footer space', asyn
     const box = await inbox.boundingBox()
     return Math.abs(600 - box!.y - box!.height)
   }).toBeLessThan(2)
+  await page.locator('.ambio-toolbar').screenshot({ path: 'test-results/project-title-toolbar-narrow.png' })
 })
 
 test('long project reads expose progress and Stop, then disappear on completion', async () => {
