@@ -79,6 +79,16 @@ test('legacy receipts pin their conversation to exec', async t => {
   assert.equal(f.runner.codexTransport('ws', 'new'), undefined)
 })
 
+test('native long runs retain more than a thousand activity items in persisted history', async t => {
+  const f = fixture(t, 'history')
+  const run = await f.runner.start(f.input)
+  await wait(f.runner, run.key, run => run.state === 'completed')
+  const history = new DeliveryRunner(f.directory).events('ws', run.key)
+  assert.equal(history.filter(event => event.id?.startsWith('codex:step-')).length, 1000)
+  assert.ok(history.some(event => event.text === 'History item 0'))
+  assert.ok(history.some(event => event.text === 'History item 999'))
+})
+
 test('a worktree handoff distinguishes shared project identity from the checkout to edit', () => {
   const project = path.resolve('project'), checkout = path.resolve('agent-checkout')
   const prompt = workOrderHandoff('Fixture', 'workspace', project, 'request', { checkoutPath: checkout })

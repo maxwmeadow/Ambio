@@ -380,7 +380,8 @@ const cursorThinking = new Map<string, string>()
 const codex: AgentDriver = {
   resumable: true,
   // Native App Server only; exec conversations keep full access (main.ts refuses the rest).
-  access: ['ask', 'full'],
+  // Candidates; main filters Auto using the initialized server's qualified version.
+  access: ['ask', 'auto', 'full'],
   appServerArgs(turn) {
     // Reuse the exact MCP binding/configuration of exec, without its one-shot flags.
     const args = codex.plan(turn).args
@@ -388,6 +389,23 @@ const codex: AgentDriver = {
   },
   plan(turn) {
     const server = mcpServer(turn)
+    // A top-level table override replaces inherited MCP entries after configuration
+    // layering. Dotted ambio overrides deliberately merge on ordinary runs.
+    const inline = (value: any): string => Array.isArray(value) ? `[${value.map(inline).join(',')}]`
+      : value && typeof value === 'object' ? `{${Object.entries(value).map(([key, item]) => `${JSON.stringify(key)}=${inline(item)}`).join(',')}}` : JSON.stringify(value)
+    const mcpConfig = turn.mapping ? ['-c', `mcp_servers=${inline({
+      ambio: { ...server, enabled: true, default_tools_approval_mode: 'approve' },
+      // Some distributions inject this default server after table overrides.
+      // Supply a valid disabled transport even when that server is not installed.
+      node_repl: { command: server.command, args: [], enabled: false },
+    })}`] : [
+      '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
+      '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
+      '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(turn.workspaceId)}`,
+      ...(turn.messageId ? ['-c', `mcp_servers.ambio.env.AMBIO_RUN_MESSAGE_ID=${JSON.stringify(turn.messageId)}`] : []),
+      '-c', 'mcp_servers.ambio.enabled=true',
+      '-c', 'mcp_servers.ambio.default_tools_approval_mode="approve"',
+    ]
     return {
       stdin: turn.prompt,
       args: [
@@ -404,16 +422,14 @@ const codex: AgentDriver = {
         // Codex keeps its reasoning to itself unless asked for a summary;
         // the summaries show in the turn's activity as it works.
         '-c', 'model_reasoning_summary="auto"',
-        '-c', `mcp_servers.ambio.command=${JSON.stringify(server.command)}`,
-        '-c', `mcp_servers.ambio.args=${JSON.stringify(server.args)}`,
-        '-c', `mcp_servers.ambio.env.AMBIO_WORKSPACE_ID=${JSON.stringify(turn.workspaceId)}`,
-        ...(turn.messageId ? ['-c', `mcp_servers.ambio.env.AMBIO_RUN_MESSAGE_ID=${JSON.stringify(turn.messageId)}`] : []),
-        ...(turn.mapping ? ['-c', `mcp_servers.ambio.env.AMBIO_MAPPING_ATTEMPT=${JSON.stringify(turn.mapping.attempt.id)}`, '-c', `mcp_servers.ambio.env.AMBIO_API_TOKEN=${JSON.stringify(turn.mapping.token)}`] : []),
-        '-c', 'mcp_servers.ambio.enabled=true',
         // With approval_policy "never", Codex refuses every MCP call that needs
         // approval, including Ambio's own (codex-cli 0.162). Ambio's server, and
         // only it, is approved; shell and edits stay under the sandbox.
-        '-c', 'mcp_servers.ambio.default_tools_approval_mode="approve"', '-',
+        ...mcpConfig,
+        // Factory app/browser/plugin endpoints and the runtime's default Node
+        // server must not reintroduce tools into a scoped mapping session.
+        ...(turn.mapping ? ['-c', 'features.apps=false', '-c', 'features.plugins=false', '-c', 'features.computer_use=false', '-c', 'features.browser_use=false', '-c', 'features.in_app_browser=false'] : []),
+        '-',
       ],
     }
   },

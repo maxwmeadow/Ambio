@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { CodexAppServer, codexAppServerPolicy } from './codexAppServer.ts'
+import { CodexAppServer, codexAppServerPolicy, codexAccessLevels, codexServerVersion } from './codexAppServer.ts'
 import { agentDriver, codexSandbox } from './agentDrivers.ts'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
@@ -14,8 +14,8 @@ function fixture(t, overrides = {}, handle = () => undefined) {
       queueMicrotask(() => {
         const result = handle(message, client)
         if (result !== undefined) client.receive(JSON.stringify({ id: message.id, result }))
-        else if (message.method === 'initialize') client.receive(JSON.stringify({ id: message.id, result: { userAgent: 'codex/fixture' } }))
-        else if (message.method === 'thread/start' || message.method === 'thread/resume') client.receive(JSON.stringify({ id: message.id, result: { thread: { id: 'thread' } } }))
+        else if (message.method === 'initialize') client.receive(JSON.stringify({ id: message.id, result: { userAgent: 'Codex Desktop/0.162.1 (Windows; ambio)' } }))
+        else if (message.method === 'thread/start' || message.method === 'thread/resume') client.receive(JSON.stringify({ id: message.id, result: { thread: { id: 'thread' }, approvalPolicy: message.params.approvalPolicy, approvalsReviewer: message.params.approvalsReviewer, sandbox: { type: message.params.sandbox === 'workspace-write' ? 'workspaceWrite' : 'readOnly' } } }))
         else if (message.method === 'turn/start' || message.method === 'review/start') client.receive(JSON.stringify({ id: message.id, result: { turn: { id: message.method === 'review/start' ? 'review' : 'turn' } } }))
       })
     }, ...overrides,
@@ -30,8 +30,8 @@ async function running(f) { const outcome = f.client.run(); await tick(); return
 test('native launch preserves MCP, model, mapping credential and host identity without exec flags', () => {
   const args = agentDriver('codex').appServerArgs({ hostId: 'codex', mode: 'ask', mcp: { command: 'node', args: ['mcp.js'] }, workspaceId: 'workspace', prompt: 'secret prompt', messageId: 'request', model: 'chosen', mapping: { attempt: { id: 'attempt' }, token: 'scoped-token' } })
   assert.equal(args[0], 'app-server')
-  assert.ok(args.includes('mcp_servers.ambio.env.AMBIO_API_TOKEN="scoped-token"'))
-  assert.ok(args.includes('mcp_servers.ambio.env.AMBIO_RUN_MESSAGE_ID="request"'))
+  assert.ok(args.some(arg => arg.startsWith('mcp_servers={') && arg.includes('"AMBIO_API_TOKEN"="scoped-token"')))
+  assert.ok(args.some(arg => arg.includes('"AMBIO_RUN_MESSAGE_ID"="request"')))
   assert.ok(args.some(arg => arg.includes('--ambio-host=codex')))
   assert.ok(!args.includes('exec') && !args.includes('--json') && !args.includes('-') && !args.includes('secret prompt'))
 })
@@ -40,7 +40,7 @@ test('handshake, native thread configuration and streamed activity retain identi
   const f = fixture(t, { model: 'chosen', approval: 'on-request' })
   const { outcome } = await running(f)
   assert.deepEqual(f.sent.slice(0, 3).map(m => m.method), ['initialize', 'initialized', 'thread/start'])
-  assert.deepEqual(f.sent[2].params, { cwd: process.cwd(), ...codexAppServerPolicy('build', 'on-request'), model: 'chosen' })
+  assert.deepEqual(f.sent[2].params, { cwd: process.cwd(), ...codexAppServerPolicy('build', 'on-request', process.platform, 'user', 'codex/0.162.1'), model: 'chosen' })
   assert.deepEqual(f.sessions, ['thread'])
   f.notify('item/agentMessage/delta', { itemId: 'message', delta: 'Hello ' })
   f.notify('item/agentMessage/delta', { itemId: 'message', delta: 'world' })
@@ -132,8 +132,53 @@ test('discovery paginates the server model list without opening a thread', async
   assert.ok(!f.sent.some(m => m.method === 'thread/start'))
 })
 
-test('Ask me honors Windows full access and requests human command approvals; other platforms retain sandboxing', () => {
-  assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'win32'), { sandbox: 'danger-full-access', approvalPolicy: 'untrusted', approvalsReviewer: 'user' })
-  assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'linux'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user' })
+test('Ask me and Auto retain sandbox boundaries; unknown versions never gain Auto or Windows fallback access', () => {
+  assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'win32', 'user', 'codex/0.162.1'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', config: { sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true }, windows: { sandbox: 'unelevated' } } })
+  assert.deepEqual(codexAppServerPolicy('build', 'on-request', 'linux'), { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user', config: { sandbox_workspace_write: { network_access: false, exclude_tmpdir_env_var: true, exclude_slash_tmp: true } } })
   assert.deepEqual(codexAppServerPolicy('ask', 'never', 'darwin'), { sandbox: 'read-only', approvalPolicy: 'never' })
+  assert.deepEqual(codexAppServerPolicy('ask', 'on-request', 'win32', 'auto_review', 'codex/0.162.1').sandbox, 'read-only')
+  for (const version of ['codex/0.162.0', 'codex/0.162.1-beta', 'unknown', 'codex/99.0.0']) {
+    assert.deepEqual(codexAccessLevels(version), ['ask', 'full'])
+    assert.throws(() => codexAppServerPolicy('build', 'on-request', 'win32', 'user', version), /not been qualified/)
+  }
+  assert.equal(codexServerVersion('Codex Desktop/0.162.1 (Windows; ambio)'), '0.162.1')
+  assert.deepEqual(codexAccessLevels('codex/0.162.1'), ['ask', 'auto', 'full'])
+})
+
+test('Auto selects the native reviewer and requires a confirmed effective sandbox before sending input', async t => {
+  const f = fixture(t, { approval: 'on-request', reviewer: 'auto_review' })
+  const { outcome } = await running(f)
+  assert.equal(f.sent.find(m => m.method === 'thread/start').params.approvalsReviewer, 'auto_review')
+  f.notify('item/autoApprovalReview/started', { reviewId: 'r', review: { status: 'inProgress' } })
+  f.notify('item/autoApprovalReview/completed', { reviewId: 'r', review: { status: 'approved', rationale: 'Safe read' } })
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  assert.equal(f.events.find(e => e.id === 'codex:review:r').text, 'Auto review · approved · Safe read')
+  const weakened = fixture(t, { approval: 'on-request' }, m => m.method === 'thread/start' ? { thread: { id: 'thread' }, approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } } : undefined)
+  await assert.rejects(weakened.client.run(), /did not confirm/)
+  assert.ok(!weakened.sent.some(m => m.method === 'turn/start'))
+})
+
+test('child agent activity identifies the sender, receiver, task and lifecycle, without leaking unrelated threads', async t => {
+  const f = fixture(t)
+  const { outcome } = await running(f)
+  f.notify('thread/started', { thread: { id: 'child', parentThreadId: 'thread', agentNickname: 'Ada', agentRole: 'explorer' } })
+  f.notify('item/completed', { item: { id: 'spawn', type: 'collabAgentToolCall', senderThreadId: 'thread', receiverThreadIds: ['child'], tool: 'spawnAgent', status: 'completed', agentsStates: { child: { status: 'running' } }, prompt: 'Inspect source' } })
+  f.notify('item/completed', { item: { id: 'activity', type: 'subAgentActivity', agentThreadId: 'child', agentPath: '/root/explorer', kind: 'completed' } })
+  f.notify('item/started', { threadId: 'child', turnId: 'child-turn', item: { id: 'child-shell', type: 'commandExecution', command: 'rg entrypoint', status: 'inProgress', aggregatedOutput: 'source.ts' } })
+  f.notify('item/completed', { threadId: 'child', turnId: 'child-turn', item: { id: 'child-shell', type: 'commandExecution', command: 'rg entrypoint', status: 'completed', exitCode: 0 } })
+  f.notify('item/completed', { threadId: 'child', turnId: 'child-turn', item: { id: 'private-text', type: 'agentMessage', text: 'Child transcript' } })
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  assert.match(f.events.find(e => e.id === 'codex:spawn').text, /Subagent · Main agent · spawnAgent → Ada · explorer \(running\) · Inspect source/)
+  assert.equal(f.events.find(e => e.id === 'codex:activity').text, 'Subagent · Ada · explorer · completed')
+  assert.equal(f.events.find(e => e.id === 'codex:child:child-shell').text, 'Subagent · Ada · explorer · Shell · rg entrypoint')
+  assert.equal(f.events.find(e => e.id === 'codex:child:child-shell').output, 'source.ts')
+  assert.ok(!f.events.some(e => e.text === 'Child transcript'))
+})
+
+test('long native turns keep all item identities beyond the old 390/400 cutoffs', async t => {
+  const f = fixture(t); const { outcome } = await running(f)
+  for (let i = 0; i < 1200; i++) f.notify('item/completed', { item: { id: `item-${i}`, type: 'agentMessage', text: `Item ${i}` } })
+  f.notify('turn/completed', { turn: { id: 'turn', status: 'completed' } }); await outcome
+  assert.equal(f.events.length, 1200)
+  assert.equal(f.events.at(-1).text, 'Item 1199')
 })

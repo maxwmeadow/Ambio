@@ -220,7 +220,7 @@ export function deliveryArguments(hostId: string, mcp: DeliveryLauncher, workspa
 }
 
 export interface RunInput {
-  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'approval' | 'review'>
+  codex?: Pick<CodexAppServerTurn, 'resume' | 'model' | 'approval' | 'reviewer' | 'review'>
   codexTransport?: DeliveryRun['codexTransport']
   workspaceId: string; messageId: string; hostId: string; rootPath: string; revision: string; launcher: DeliveryLauncher; args: string[]; prompt: string
   /** The conversation and kind of turn, when the request carries them. */
@@ -244,9 +244,6 @@ export interface RunInput {
 
 /** How long a streaming host is given to end its own turn on Stop. */
 const STREAM_STOP_GRACE = 5000
-
-/** How many events a run keeps for the inbox to show. */
-const EVENT_LIMIT = 400
 
 /**
  * A turn that has ended takes no more answers: whatever it still has waiting
@@ -522,7 +519,6 @@ export class DeliveryRunner {
       let reported = 0
       let eventBytes = 0
       let compactAt = 4 * 1024 * 1024
-      const reportedIds = new Set<string>()
       // Whether the agent got as far as saying or doing something. A host
       // reports a session it cannot continue as an error, which is not that.
       let spoke = false
@@ -530,9 +526,8 @@ export class DeliveryRunner {
       // that belongs to no turn.
       let superseded = false
       const report = (event: Omit<DeliveryEvent, 'at'>) => {
-        if (superseded || reported >= EVENT_LIMIT && (!event.id || !reportedIds.has(event.id))) return
-        if (!event.id || !reportedIds.has(event.id)) reported++
-        if (event.id) reportedIds.add(event.id)
+        if (superseded) return
+        reported++
         if (event.kind !== 'error') spoke = true
         const line = `${JSON.stringify({ at: Date.now(), ...event })}\n`
         fs.appendFileSync(this.eventsFile(key), line)

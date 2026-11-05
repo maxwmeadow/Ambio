@@ -71,9 +71,9 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     setMode('approval')
     await inbox.locator('.ambio-inbox__codex-options > summary').click()
     await expect(inbox.getByRole('combobox', { name: 'Codex connection' })).toBeDisabled()
-    // Codex shares Claude Code's access menu; App Server offers Ask me and Full access.
+    // The qualified fixture version adds Auto to the shared access menu.
     await inbox.getByRole('button', { name: 'Access: Full access' }).click()
-    await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveCount(2)
+    await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveCount(3)
     await inbox.getByRole('menuitemradio', { name: 'Ask me' }).click()
     await composer.fill('Run the check'); await send.click()
     await expect.poll(() => captured().resumed).toBe(true)
@@ -94,11 +94,39 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect.poll(() => captured().prompt).toContain('Fixture native review found no issues')
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-review.png' })
+    // Auto uses the same menu and the native reviewer, retaining the sandbox.
+    await inbox.getByRole('button', { name: 'Access: Ask me' }).click()
+    await inbox.getByRole('menuitemradio', { name: 'Auto', exact: true }).click()
+    await composer.fill('Use automatic review for this check'); await send.click()
+    await expect.poll(() => captured().setup.approvalsReviewer).toBe('auto_review')
+    expect(captured().setup.sandbox).toBe('read-only')
+    expect(captured().setup.approvalPolicy).toBe('on-request')
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('Auto review · approved')
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    setMode('subagent')
+    await composer.fill('Inspect using a child agent'); await send.click()
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('Subagent · Main agent · spawnAgent → Reviewer · explorer')
+    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    await page.screenshot({ path: 'test-results/codex-native-auto-subagent.png' })
     // The explicit compatibility route is available for a new conversation.
     await inbox.getByRole('button', { name: 'New conversation', exact: true }).click()
     await inbox.getByRole('combobox', { name: 'Codex connection' }).selectOption('exec')
     await expect(inbox.locator('.ambio-inbox__codex-options > summary')).toContainText('Exec')
     // Exec runs with full access only, so it offers no access choice.
     await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
+    // An installed version losing qualification must not widen a saved Auto choice.
+    await inbox.getByRole('combobox', { name: 'Codex connection' }).selectOption('app-server')
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('agent:delivery-hosts')
+      ipcMain.handle('agent:delivery-hosts', () => [{ id: 'codex', label: 'Codex CLI', route: 'run', available: true, detail: '', access: ['ask', 'full'] }])
+    })
+    // Reload models the app reopening after its installed CLI was replaced.
+    await page.reload()
+    if (!(await inbox.isVisible())) await page.getByRole('button', { name: /^Message agent/ }).click()
+    await expect(inbox.getByRole('button', { name: 'Access: Auto (unavailable)', exact: true })).toBeVisible()
+    await inbox.getByRole('button', { name: 'Access: Auto (unavailable)', exact: true }).click()
+    await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveCount(2)
+    await inbox.getByRole('menuitemradio', { name: 'Ask me', exact: true }).click()
+    await expect(inbox.getByRole('button', { name: 'Access: Ask me' })).toBeVisible()
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })

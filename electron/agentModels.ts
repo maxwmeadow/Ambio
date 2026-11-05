@@ -7,7 +7,7 @@ import type { ModelOption } from '../src/shared/agentDelivery.ts'
 import type { DriverLauncher } from './agentDrivers.ts'
 import { MuseClient } from './museClient.ts'
 import { antigravityOptions, inspectAntigravity } from './antigravityTransport.ts'
-import { CodexAppServer } from './codexAppServer.ts'
+import { CodexAppServer, codexAccessLevels } from './codexAppServer.ts'
 
 /**
  * The models each agent Ambio runs can be asked to use, read the way that
@@ -112,16 +112,24 @@ function run(launcher: DriverLauncher, args: string[]): Promise<string> {
 const cache = new Map<string, { lookup: Promise<ModelOption[]>; expires: number }>()
 
 /** Discovery does not create a thread or send a model prompt. */
-export function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOption[]> {
-  return new Promise(resolve => {
-    const child = spawn(launcher.command, [...launcher.args, 'app-server'], { cwd: tmpdir(), windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] })
-    const client = new CodexAppServer({ cwd: tmpdir(), prompt: '', mode: 'ask', send: line => child.stdin?.write(`${line}\n`), onSession: () => {}, onEvent: () => {} })
+const codexCatalogs = new Map<string, { expires: number; lookup: Promise<{ models: ModelOption[]; userAgent: string }> }>()
+export function inspectCodex(launcher: DriverLauncher & { bundledNode?: boolean }): Promise<{ models: ModelOption[]; userAgent: string }> {
+  const key = JSON.stringify(launcher)
+  const known = codexCatalogs.get(key)
+  if (known && known.expires > Date.now()) return known.lookup
+  const lookup = new Promise<{ models: ModelOption[]; userAgent: string }>(resolve => {
+    const env = { ...process.env }
+    if (launcher.bundledNode) env.ELECTRON_RUN_AS_NODE = '1'
+    else delete env.ELECTRON_RUN_AS_NODE
+    const child = spawn(launcher.command, [...launcher.args, 'app-server'], { cwd: tmpdir(), env, windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] })
+    let userAgent = ''
+    const client = new CodexAppServer({ cwd: tmpdir(), prompt: '', mode: 'ask', send: line => child.stdin?.write(`${line}\n`), onSession: () => {}, onEvent: () => {}, onServer: version => { userAgent = version } })
     let buffer = ''
     const decoder = new StringDecoder('utf8')
     let finished = false
     const finish = (models: ModelOption[]) => {
       if (finished) return
-      finished = true; clearTimeout(timer); client.close(); child.stdin?.end(); child.kill(); resolve(models.filter(model => validModel(model.id)))
+      finished = true; clearTimeout(timer); client.close(); child.stdin?.end(); child.kill(); resolve({ models: models.filter(model => validModel(model.id)), userAgent })
     }
     const timer = setTimeout(() => finish([]), 15000)
     child.stdin?.on('error', () => {})
@@ -134,7 +142,12 @@ export function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOpt
     })
     child.once('spawn', () => { void client.models().then(finish, () => finish([])) })
   })
+  codexCatalogs.set(key, { expires: Date.now() + 300000, lookup })
+  void lookup.then(result => { if (!result.userAgent && codexCatalogs.get(key)?.lookup === lookup) codexCatalogs.delete(key) })
+  return lookup
 }
+export async function codexAppServerModels(launcher: DriverLauncher): Promise<ModelOption[]> { return (await inspectCodex(launcher)).models }
+export async function codexAvailableAccess(launcher: DriverLauncher) { return codexAccessLevels((await inspectCodex(launcher)).userAgent) }
 
 /** Bounded catalog caching, separated by the actual executable selection. */
 export function listModels(hostId: string, launcher: DriverLauncher | undefined, home: string): Promise<ModelOption[]> {

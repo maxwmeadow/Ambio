@@ -17,6 +17,7 @@ export interface AgentAccessChoice {
   levels: AgentAccess[]
   value?: AgentAccess
   set: (access: AgentAccess) => void
+  descriptions?: Partial<Record<AgentAccess, string>>
 }
 
 /** `only` narrows the levels for this conversation (an exec Codex conversation offers none). */
@@ -25,9 +26,16 @@ export function useAgentAccess(host?: DeliveryHost, only?: AgentAccess[]): Agent
   const levels = (host?.access ?? []).filter(level => !only || only.includes(level))
   const saved = host ? remembered(host.id) : null
   const value = !levels.length ? undefined
-    : isAgentAccess(saved) && levels.includes(saved) ? saved
+    // A CLI update can remove qualified Auto support. Preserve the person's
+    // choice until they replace it explicitly; never fall back to Full access.
+    : isAgentAccess(saved) && (levels.includes(saved) || host?.id === 'codex' && saved === 'auto') ? saved
       : levels.includes(DEFAULT_AGENT_ACCESS) ? DEFAULT_AGENT_ACCESS : levels[0]
-  return { levels, value, set: access => { if (host) { remember(host.id, access); setVersion(version => version + 1) } } }
+  return { levels, value, set: access => { if (host) { remember(host.id, access); setVersion(version => version + 1) } },
+    ...(host?.id === 'codex' ? { descriptions: {
+      ask: 'Codex works inside the project sandbox and asks here when an action needs more access. Ask and Propose stay read-only.',
+      auto: 'Codex keeps the same sandbox; its native safety reviewer decides requests for more access. Routine actions inside the sandbox run without review.',
+    } } : {}),
+  }
 }
 
 /** The access button beside the model, opening the levels the agent offers. */
@@ -42,17 +50,18 @@ export function AgentAccessMenu({ access, disabled }: { access: AgentAccessChoic
   }, [open])
   if (!access.levels.length || !access.value) return null
   const current = AGENT_ACCESS.find(level => level.id === access.value)!
+  const unavailable = !access.levels.includes(access.value)
   return <div ref={anchor} className="ambio-inbox__mode ambio-inbox__model ambio-inbox__access" onKeyDown={event => {
     if (event.key === 'Escape' && open) { event.stopPropagation(); event.nativeEvent.stopImmediatePropagation(); setOpen(false) }
   }}>
     <button type="button" className="ambio-inbox__mode-button" disabled={disabled} aria-haspopup="menu" aria-expanded={open}
-      aria-label={`Access: ${current.label}`} title={current.hint} onClick={() => setOpen(!open)}>
-      <span className="ambio-inbox__model-label">{current.label}</span><InboxIcon name="chevron" size={11} />
+      aria-label={`Access: ${current.label}${unavailable ? ' (unavailable)' : ''}`} title={unavailable ? 'This Codex version has not been qualified for Auto. Choose a supported level to continue.' : access.descriptions?.[current.id] ?? current.hint} onClick={() => setOpen(!open)}>
+      <span className="ambio-inbox__model-label">{current.label}{unavailable ? ' (unavailable)' : ''}</span><InboxIcon name="chevron" size={11} />
     </button>
     {open && <div className="ambio-inbox__mode-menu ambio-inbox__model-menu" role="menu" aria-label="What the agent may do without asking">
       {AGENT_ACCESS.filter(level => access.levels.includes(level.id)).map(level => <button key={level.id} type="button" role="menuitemradio" aria-checked={access.value === level.id} aria-label={level.label}
         autoFocus={access.value === level.id} onClick={() => { access.set(level.id); setOpen(false) }}>
-        <strong>{level.label}</strong><small>{level.hint}</small>
+        <strong>{level.label}</strong><small>{access.descriptions?.[level.id] ?? level.hint}</small>
         {access.value === level.id && <InboxIcon name="check" size={13} />}
       </button>)}
     </div>}

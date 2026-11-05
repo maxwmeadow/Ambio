@@ -30,6 +30,21 @@ function input(root, overrides = {}) {
   return { workspaceId: 'ws', messageId: 'order', hostId: 'codex', rootPath: root, revision: 'initial', launcher: { command: process.execPath, args: [] }, args: ['-e', 'process.stdin.resume(); process.stdin.on("end",()=>{ console.log(process.cwd()); console.log(process.env.AMBIO_WORKSPACE_ID) })'], prompt: 'claim exactly order', ...overrides }
 }
 
+test('long runs retain every event and compact growing snapshots without losing history after restart', async t => {
+  const root = fixture(t), directory = path.join(root, 'receipts')
+  const runner = new DeliveryRunner(directory, testSpawn)
+  const code = `process.stdin.resume(); process.stdin.on('end',()=>{for(let i=0;i<1100;i++)console.log(JSON.stringify({kind:'tool',text:'Step '+i}));for(let i=0;i<200;i++)console.log(JSON.stringify({id:'growing',kind:'text',text:'x'.repeat(32768)+i}));})`
+  const run = await runner.start(input(root, { args: ['-e', code], driver: { resumable: false, read: line => ({ events: [JSON.parse(line)] }) } }))
+  await state(runner, 'ws', 'completed', run.key)
+  const restored = new DeliveryRunner(directory).events('ws', run.key)
+  assert.equal(restored.length, 1101)
+  assert.equal(restored[0].text, 'Step 0')
+  assert.equal(restored[1099].text, 'Step 1099')
+  assert.ok(restored[1100].text.endsWith('199'))
+  assert.equal(runner.events('ws', run.key, 1000).length, 101)
+  assert.ok(fs.statSync(path.join(directory, `${run.key}.events.jsonl`)).size < 4 * 1024 * 1024)
+})
+
 test('every installer host has a delivery route; editor hosts never masquerade as headless agents', t => {
   const root = fixture(t)
   const hosts = buildHosts(root, path.join(root, 'appdata'), 'linux')

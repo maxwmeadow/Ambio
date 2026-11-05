@@ -6,7 +6,7 @@ import { brandImage } from './branding'
 import { Terminals } from './terminals'
 import { detectTerminalProfiles } from './terminalProfiles'
 import type { TerminalStart } from '../src/shared/terminal'
-import { listModels, validModel } from './agentModels'
+import { listModels, validModel, codexAvailableAccess } from './agentModels'
 import { antigravityRoute } from './antigravityTransport'
 import { AgentChat } from './agentChat'
 import { ChatProviders } from './chatProviders'
@@ -1580,10 +1580,11 @@ function setupIPC(): void {
     return target ? listModels(hostId, target.launcher, os.homedir()) : []
   })
   // Each agent says which access levels it honours and whether it takes messages while it works.
-  ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher: _launcher, ...host }) => {
+  ipcMain.handle('agent:delivery-hosts', async () => Promise.all(availableTargets().map(async ({ launcher, ...host }) => {
     const driver = host.route === 'run' ? agentDriver(host.id) : undefined
+    if (host.id === 'codex') return { ...host, access: launcher && host.available ? await codexAvailableAccess(launcher) : ['ask', 'full'] }
     return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
-  }))
+  })))
   ipcMain.handle('agent:locate-executable', async (_event, hostId: string) => {
     const client = CLI_CLIENTS.find(client => client.id === hostId)
     if (!client) return { ok: false, detail: 'Unknown runnable client.' }
@@ -1749,7 +1750,7 @@ function setupIPC(): void {
       const codexTransport = request.hostId === 'codex' ? pinnedCodex ?? request.codexTransport ?? 'app-server' : undefined
       const nativeCodex = codexTransport === 'app-server'
       if (request.codexReview && (!nativeCodex || mapping || mode !== 'ask')) throw new Error('Native Codex review requires an Ask turn over App Server.')
-      if (request.hostId === 'codex' && !nativeCodex && request.access && request.access !== 'full') throw new Error('Codex exec conversations run with full access. Start a new conversation to choose another level.')
+      if (request.hostId === 'codex' && !nativeCodex && request.access !== undefined) throw new Error('Codex exec conversations offer no access level. Start a native conversation to choose one.')
       const printPlan = () => deliveryPlan(request.hostId, mcpLaunchSpec(), project.id, prompt, turn)
       // An ACP agent is given Ambio's tools for the session and continues or
       // restarts the session itself.
@@ -1778,7 +1779,7 @@ function setupIPC(): void {
         args: plan.args, stdin: plan.stdin, threadId, mode, driver, mapping, sessionId: resume ?? plan.sessionId, resumed: !!resume,
         codexTransport,
         ...(chosen ? { transport: chosen.transport, model: turn.model, thinking: chosen.thinking } : {}),
-        ...(nativeCodex ? { codex: { resume, model: turn.model, approval: request.access === 'ask' ? 'on-request' : 'never', review: request.codexReview } } : {}),
+        ...(nativeCodex ? { codex: { resume, model: turn.model, approval: request.access === 'ask' || request.access === 'auto' ? 'on-request' : 'never', reviewer: request.access === 'auto' ? 'auto_review' : 'user', review: request.codexReview } } : {}),
         ...(acp ? driver?.muse ? { muse: { ...acp, model: turn.model } } : { acp } : {}),
         ...(antigravity || nativeCodex || driver?.acp || driver?.muse ? {} : { fresh: printPlan }),
       })

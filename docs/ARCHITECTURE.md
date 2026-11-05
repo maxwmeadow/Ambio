@@ -798,8 +798,8 @@ result starting "Exit code N") and an edit's diff from
 on the run like Codex's (per turn, not a thread total). A driver's `access` lists the levels it honours (`AgentAccess`,
 chosen in the shared `AgentAccessMenu`, remembered per agent);
 `claudePermissions` maps them to Claude's permission modes and its prompt
-tool, and native Codex maps Ask me to `on-request` approval and Full access to
-`never`. An exec Codex conversation offers no choice and refuses one. A session told to watch
+tool, and native Codex maps Ask me to `on-request` with the human reviewer,
+qualified Auto to `on-request` with `auto_review`, and Full access to `never`. An exec Codex conversation offers no choice and refuses one. A session told to watch
 waits on `get_inbox({watch: true})` and is offered as a destination; a turn
 can be left for the watching session of one host (`target_host`). A started
 agent's permission questions wait in archd (`api/agent_permission.go`, in
@@ -811,20 +811,31 @@ Each run owns one process; subsequent runs resume that provider thread. Receipts
 pin the connection per conversation (legacy receipts mean exec); exec is an
 explicit choice for a new conversation. Native errors never replay a prompt
 or replace a missing thread automatically. The existing MCP configuration and
-scoped mapping credentials travel unchanged on the CLI configuration boundary.
+scoped mapping credentials travel on the CLI configuration boundary. Scoped
+mapping replaces the inherited MCP table, disables factory app/plugin/browser
+endpoints and the injected Node REPL server, and leaves only Ambio enabled;
+normal turns retain user MCP configuration. Disabled entries may remain in
+server metadata with no exposed tools.
 The composer sends acknowledged corrections with the active provider turn as
 a precondition. Stop first interrupts, then terminates the process tree if it
 does not exit. Full access (the default) preserves the recorded full-access
-policy; Ask me, chosen in the shared access menu, selects a project sandbox with on-request approval on Unix, or
-full access with untrusted command approvals on Windows (where shell sandbox
-initialization fails). Approval callbacks wait on the existing permission desk
+policy. Ask me and Auto, chosen in the shared access menu, select a project
+sandbox for Build and read-only for Ask/Propose. The qualified Windows profile
+uses the restricted-token unelevated sandbox; failures never widen access or
+retry with the retired `untrusted` policy. Native initialization supplies the
+version for exact Auto qualification (0.162.1); the UI and runner gate it, and
+an unavailable remembered Auto selection never falls back to Full access.
+The server must confirm the effective sandbox and reviewer before the prompt. Approval callbacks wait on the existing permission desk
 and are aborted when their owning request/turn ends. Native review runs inline,
 then passes its findings into a normal Ambio handoff turn so claiming and replies
 keep the existing work-order contract. Models come from native `model/list`,
 with the CLI cache available when discovery fails; usage is explicitly a thread
 total, rather than mislabelling the last inference as a complete turn.
 Codex activity keeps stable item identities for streamed updates, bounded command
-output and diffs; the runner compacts repeated snapshots. Completed replies keep
+output and diffs; the runner compacts repeated snapshots without a count cutoff
+on either stable or ordinary events. Child collaboration and tool items carry
+agent path/name, task and status; unrelated threads and child prose stay hidden.
+Automatic approval-review lifecycle and rationale use the same activity items. Completed replies keep
 expandable activity/usage, as every agent's completed replies now do. Worktree handoffs distinguish the shared project root
 reported by MCP from the checkout in which the agent must edit.
 Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
