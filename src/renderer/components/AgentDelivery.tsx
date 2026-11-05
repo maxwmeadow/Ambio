@@ -332,6 +332,11 @@ function AgentToolDetails({ event }: { event: DeliveryEvent }) {
   </details>
 }
 
+/** A tool call's status in words, whichever agent's vocabulary it came in (Codex, ACP, Claude). */
+function statusLabel(status: string): string {
+  return ({ inProgress: 'running', in_progress: 'running', pending: 'waiting', completed: 'done', failed: 'failed', declined: 'declined' } as Record<string, string>)[status] ?? status
+}
+
 /** A duration as a person says it: "40s", "3 min", "1 h 5 min". */
 function elapsed(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000))
@@ -372,7 +377,7 @@ export function AgentDeliveryStatus({ run, hosts, events = [], onRetry, hasReply
     <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
     {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
     {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You · ${event.text}` : event.text}{event.status && <small> · {event.status}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}<AgentToolDetails event={event} /></li>)}
+      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You · ${event.text}` : event.text}{event.status && <small> · {statusLabel(event.status)}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}<AgentToolDetails event={event} /></li>)}
     </ol>}
     {run.usage && <small>{run.usage.scope === 'thread' ? 'Thread total · ' : ''}{run.usage.inputTokens.toLocaleString()} input · {run.usage.outputTokens.toLocaleString()} output tokens{run.usage.cachedInputTokens ? ` · ${run.usage.cachedInputTokens.toLocaleString()} cached` : ''}</small>}
     <div className="ambio-inbox__turn-actions">

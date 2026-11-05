@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
-import type { DeliveryEvent } from '../src/shared/agentDelivery.ts'
+import type { DeliveryEvent, DeliveryUsage } from '../src/shared/agentDelivery.ts'
 import type { AgentAccess, MappingBinding } from '../src/shared/agentDelivery.ts'
 import { followCodexTranscript } from './codexTranscript.ts'
 
@@ -64,6 +64,8 @@ export interface DriverOutput {
   delivered?: string
   /** More of the text the agent is writing, before its message is complete. */
   partial?: string
+  /** What this turn used, as the host reports it at the end. */
+  usage?: DeliveryUsage
 }
 
 /**
@@ -123,6 +125,12 @@ function clip(text: string, max = 400): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
+/** Output or a diff kept as written (line breaks matter), cut to a size. */
+function keep(text: string, max: number): string {
+  const kept = text.replace(/\s+$/, '')
+  return kept.length > max ? `${kept.slice(0, max)}\n…` : kept
+}
+
 function parse(line: string): Record<string, any> | null {
   if (!line.startsWith('{')) return null
   try { const value = JSON.parse(line); return value && typeof value === 'object' ? value : null } catch { return null }
@@ -178,6 +186,71 @@ function toolTarget(input: unknown): string {
 // while a turn runs joins that turn, each message is echoed back with its
 // uuid once taken in (--replay-user-messages), and an interrupt ends the turn
 // with the session intact. Closing stdin lets it finish what it was sent and exit.
+// Each tool call is one activity item (`claude:<tool_use id>`): its result
+// replaces it with how it went, a command's output and exit code, and an
+// edit's diff. Claude 2.1.198 reports a failed command as an error result
+// beginning "Exit code N" and an edit's change as `tool_use_result.structuredPatch`.
+const claudeTools = new Map<string, { text: string; name: string; diff?: string }>()
+const COMMAND_TOOLS = new Set(['Bash', 'PowerShell'])
+const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
+
+/** A unified diff from Claude's structured patch hunks. */
+export function claudePatchDiff(path: string, patch: unknown): string | undefined {
+  if (!Array.isArray(patch) || !patch.length) return undefined
+  const hunks = patch.flatMap((hunk: any) => Array.isArray(hunk?.lines)
+    ? [`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`, ...hunk.lines.map(String)] : [])
+  return hunks.length ? keep([`--- ${path}`, `+++ ${path}`, ...hunks].join('\n'), 64000) : undefined
+}
+
+/** What an edit tool was asked to change, until its result says what it did. */
+function claudeIntendedDiff(name: string, input: any): string | undefined {
+  const path = String(input?.file_path ?? input?.notebook_path ?? '')
+  const lines = (text: unknown, sign: string) => String(text ?? '').split('\n').map(line => `${sign}${line}`)
+  if (name === 'Edit' && typeof input?.old_string === 'string') return keep([`--- ${path}`, `+++ ${path}`, ...lines(input.old_string, '-'), ...lines(input.new_string, '+')].join('\n'), 64000)
+  if (name === 'MultiEdit' && Array.isArray(input?.edits)) return keep([`--- ${path}`, `+++ ${path}`, ...input.edits.flatMap((edit: any) => [...lines(edit?.old_string, '-'), ...lines(edit?.new_string, '+')])].join('\n'), 64000)
+  if (name === 'Write' && typeof input?.content === 'string') return keep([`+++ ${path}`, ...lines(input.content, '+')].join('\n'), 64000)
+  return undefined
+}
+
+function claudeToolUse(block: any, subagent: boolean): Omit<DeliveryEvent, 'at'> {
+  const name = String(block.name ?? 'tool')
+  const text = [subagent ? 'Subagent' : '', name.replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ')
+  const diff = EDIT_TOOLS.has(name) ? claudeIntendedDiff(name, block.input) : undefined
+  if (typeof block.id !== 'string') return { kind: 'tool', text }
+  if (claudeTools.size > 500) claudeTools.delete(claudeTools.keys().next().value!)
+  claudeTools.set(block.id, { text, name, ...(diff ? { diff } : {}) })
+  return { id: `claude:${block.id}`, kind: 'tool', text, status: 'inProgress', ...(diff ? { diff } : {}) }
+}
+
+function claudeToolResult(block: any, detail: any): Omit<DeliveryEvent, 'at'> | undefined {
+  const known = typeof block.tool_use_id === 'string' ? claudeTools.get(block.tool_use_id) : undefined
+  if (!known) return undefined
+  claudeTools.delete(block.tool_use_id)
+  const content = typeof block.content === 'string' ? block.content
+    : Array.isArray(block.content) ? block.content.filter((part: any) => part?.type === 'text').map((part: any) => String(part.text ?? '')).join('\n') : ''
+  const failed = block.is_error === true
+  const command = COMMAND_TOOLS.has(known.name)
+  const code = command ? failed ? Number(/^Exit code (\d+)/.exec(content)?.[1] ?? NaN) : 0 : undefined
+  const diff = EDIT_TOOLS.has(known.name) && !failed ? claudePatchDiff(String(detail?.filePath ?? ''), detail?.structuredPatch) ?? known.diff : undefined
+  return {
+    id: `claude:${block.tool_use_id}`, kind: failed && !command ? 'error' : 'tool', text: known.text, status: failed ? 'failed' : 'completed',
+    ...(command && content.trim() ? { output: keep(content.replace(/^Exit code \d+\n?/, ''), 16000) } : {}),
+    ...(!command && failed && content.trim() ? { output: keep(content, 4000) } : {}),
+    ...(code !== undefined && Number.isFinite(code) ? { exitCode: code } : {}),
+    ...(diff ? { diff } : {}),
+  }
+}
+
+/** Claude's per-turn usage in the shape every agent reports. */
+export function claudeUsage(usage: any): DeliveryUsage | undefined {
+  if (!usage || typeof usage !== 'object') return undefined
+  const n = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0
+  const cached = n(usage.cache_read_input_tokens)
+  const input = n(usage.input_tokens) + n(usage.cache_creation_input_tokens) + cached
+  const output = n(usage.output_tokens)
+  return { inputTokens: input, cachedInputTokens: cached, outputTokens: output, reasoningOutputTokens: 0, totalTokens: input + output }
+}
+
 const claudeStream: DriverStream = {
   message: (text, id) => JSON.stringify({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: '', uuid: id }),
   interrupt: () => JSON.stringify({ type: 'control_request', request_id: randomUUID(), request: { subtype: 'interrupt' } }),
@@ -234,6 +307,10 @@ const claudeCode: AgentDriver = {
     if (!message) return NOTHING
     const sessionId = typeof message.session_id === 'string' ? message.session_id : undefined
     if (message.type === 'user' && message.isReplay && typeof message.uuid === 'string') return { sessionId, delivered: message.uuid, events: [] }
+    // A tool's result comes back as a user message; it completes its call's item.
+    if (message.type === 'user' && Array.isArray(message.message?.content)) {
+      return { sessionId, events: message.message.content.flatMap((block: any) => block?.type === 'tool_result' ? [claudeToolResult(block, message.tool_use_result)].filter(event => !!event) : []) }
+    }
     // The main agent's text as it is written; the whole message follows as `assistant`.
     if (message.type === 'stream_event') {
       const event = message.event
@@ -246,8 +323,7 @@ const claudeCode: AgentDriver = {
       if (message.parent_tool_use_id) {
         return {
           sessionId,
-          events: message.message.content.filter((block: any) => block?.type === 'tool_use')
-            .map((block: any) => ({ kind: 'tool' as const, text: ['Subagent', String(block.name ?? 'tool').replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ') })),
+          events: message.message.content.filter((block: any) => block?.type === 'tool_use').map((block: any) => claudeToolUse(block, true)),
         }
       }
       return {
@@ -256,12 +332,12 @@ const claudeCode: AgentDriver = {
           if (block?.type === 'text' && block.text?.trim()) return [{ kind: 'text' as const, text: clip(block.text, 1200) }]
           // A thinking block carries its text when the model shows it; some leave it empty.
           if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) return thinkingEvents(block.thinking)
-          if (block?.type === 'tool_use') return [{ kind: 'tool' as const, text: [String(block.name ?? 'tool').replace(/^mcp__ambio__/, 'Ambio · '), toolTarget(block.input)].filter(Boolean).join(' · ') }]
+          if (block?.type === 'tool_use') return [claudeToolUse(block, false)]
           return []
         }),
       }
     }
-    if (message.type === 'result') return { sessionId, ended: true, events: message.is_error ? [{ kind: 'error', text: clip(String(message.result || message.subtype || 'The run ended with an error.')) }] : [] }
+    if (message.type === 'result') return { sessionId, ended: true, ...(claudeUsage(message.usage) ? { usage: claudeUsage(message.usage) } : {}), events: message.is_error ? [{ kind: 'error', text: clip(String(message.result || message.subtype || 'The run ended with an error.')) }] : [] }
     return { sessionId, events: [] }
   },
 }

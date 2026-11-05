@@ -590,6 +590,7 @@ export class DeliveryRunner {
           let read: ReturnType<AgentDriver['read']>
           try { read = input.driver!.read(line) } catch { continue }
           if (read.sessionId) session(read.sessionId)
+          if (read.usage) { run.usage = read.usage; this.save(run) }
           if (read.partial && !superseded) {
             writingId ||= `live:${++writings}`
             writing = `${writing}${read.partial}`.slice(-4000)

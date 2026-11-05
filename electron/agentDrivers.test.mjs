@@ -135,6 +135,37 @@ test('a later turn continues the host session where the host can, and names a ne
   assert.throws(() => deliveryPlan('cursor', mcp, 'ws', 'p'), /no direct/)
 })
 
+test('Claude Code tool calls become one item each, completed by their result (2.1.198 shapes)', () => {
+  const claude = agentDriver('claude-code')
+  const use = (block, parent = null) => claude.read(JSON.stringify({ type: 'assistant', parent_tool_use_id: parent, message: { content: [block] } })).events[0]
+  const result = (content, extra = {}) => claude.read(JSON.stringify({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [content] }, ...extra })).events
+  // A command: running, then its output and exit code; a failure reports "Exit code N".
+  assert.deepEqual(use({ type: 'tool_use', id: 'b1', name: 'Bash', input: { command: 'echo hi && exit 3' } }),
+    { id: 'claude:b1', kind: 'tool', text: 'Bash · echo hi && exit 3', status: 'inProgress' })
+  assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'b1', is_error: true, content: 'Exit code 3\nhi' }),
+    [{ id: 'claude:b1', kind: 'tool', text: 'Bash · echo hi && exit 3', status: 'failed', output: 'hi', exitCode: 3 }])
+  use({ type: 'tool_use', id: 'b2', name: 'Bash', input: { command: 'ls' } })
+  assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'b2', content: [{ type: 'text', text: 'a.txt' }] })[0], { id: 'claude:b2', kind: 'tool', text: 'Bash · ls', status: 'completed', output: 'a.txt', exitCode: 0 })
+  // An edit shows what it means to change, then the patch Claude applied.
+  assert.match(use({ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: 'notes.txt', old_string: 'beta', new_string: 'gamma' } }).diff, /-beta\n\+gamma/)
+  const edited = result({ type: 'tool_result', tool_use_id: 'e1', content: 'The file notes.txt has been updated successfully.' },
+    { tool_use_result: { filePath: 'notes.txt', structuredPatch: [{ oldStart: 1, oldLines: 2, newStart: 1, newLines: 2, lines: [' alpha', '-beta', '+gamma'] }] } })[0]
+  assert.equal(edited.status, 'completed'); assert.equal(edited.output, undefined)
+  assert.equal(edited.diff, '--- notes.txt\n+++ notes.txt\n@@ -1,2 +1,2 @@\n alpha\n-beta\n+gamma')
+  // Reads report how they went, not the file; a refused tool is an error with its reason.
+  use({ type: 'tool_use', id: 'r1', name: 'Read', input: { file_path: 'a.ts' } })
+  assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'r1', content: '1\tconst a = 1' })[0], { id: 'claude:r1', kind: 'tool', text: 'Read · a.ts', status: 'completed' })
+  use({ type: 'tool_use', id: 'w1', name: 'Write', input: { file_path: 'b.ts', content: 'x' } })
+  assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'w1', is_error: true, content: 'Permission denied by the user' })[0],
+    { id: 'claude:w1', kind: 'error', text: 'Write · b.ts', status: 'failed', output: 'Permission denied by the user' })
+  // A subagent's tool is still marked as its; a result for an unknown call adds nothing.
+  assert.equal(use({ type: 'tool_use', id: 's1', name: 'Grep', input: { pattern: 'x' } }, 'parent').text, 'Subagent · Grep · x')
+  assert.deepEqual(result({ type: 'tool_result', tool_use_id: 'nobody', content: 'x' }), [])
+  // The turn's usage, in the shape every agent reports: input counts cached and newly cached tokens.
+  assert.deepEqual(claude.read(JSON.stringify({ type: 'result', is_error: false, result: 'Done.', usage: { input_tokens: 26, cache_creation_input_tokens: 52199, cache_read_input_tokens: 25244, output_tokens: 631 } })).usage,
+    { inputTokens: 77469, cachedInputTokens: 25244, outputTokens: 631, reasoningOutputTokens: 0, totalTokens: 78100 })
+})
+
 test('Claude Code runs at the access level chosen for it, and asks in Ambio below full access', () => {
   const plan = access => deliveryPlan('claude-code', mcp, 'ws', 'p', { mode: 'build', messageId: 'turn-1', access }).args
   const mode = args => args[args.indexOf('--permission-mode') + 1]

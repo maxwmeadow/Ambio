@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Claude Code's activity now shows each command with its output and exit code,
+  each edit with its diff, and the tokens a turn used, like Codex. Running,
+  done and failed read the same for every agent.
 - Choose how much Claude Code may do without asking, beside the request type:
   Ask me, Allow edits, Auto (Claude's own safety check) or Full access. What
   it asks appears in the conversation for you to allow or refuse.

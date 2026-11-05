@@ -784,7 +784,12 @@ shown as "You · …". Activity events may carry a stable `id`; a later event
 with the same id replaces the earlier one when read. Codex uses it for its
 provider items, and text a driver reads as `partial` becomes one `live:N` item,
 saved at most every 250 ms as it grows and replaced in place by the whole
-message. A driver's `access` lists the levels it honours (`AgentAccess`,
+message. Claude Code's tool calls are items too (`claude:<tool_use id>`): the
+call shows as running and its `tool_result` replaces it with how it went, a
+command's output and exit code (Claude reports a failed command as an error
+result starting "Exit code N") and an edit's diff from
+`tool_use_result.structuredPatch`; the turn's `result` carries its usage, kept
+on the run like Codex's (per turn, not a thread total). A driver's `access` lists the levels it honours (`AgentAccess`,
 chosen in the shared `AgentAccessMenu`, remembered per agent);
 `claudePermissions` maps them to Claude's permission modes and its prompt
 tool, and native Codex maps Ask me to `on-request` approval and Full access to
