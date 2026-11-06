@@ -300,6 +300,11 @@ test('Antigravity 1.4 reports each step as it happens: tools when they start, te
   assert.deepEqual(driver.read(line('step_update', { step_index: 2, state: 'ACTIVE', step_type: 'tool', tool_name: 'run_command', tool_info: { name: 'run_command', parameters: { CommandLine: 'Get-ChildItem' } } })).events,
     [{ kind: 'tool', text: 'run_command · Get-ChildItem' }])
   assert.deepEqual(driver.read(line('step_update', { step_index: 2, state: 'DONE', step_type: 'tool', tool_name: 'run_command' })).events, [])
+  // An MCP call names its server, tool and arguments the way agy 1.5 writes them.
+  const mcpCall = (Arguments, ServerName = 'ambio') => line('step_update', { step_index: 5, state: 'ACTIVE', step_type: 'tool', tool_name: 'call_mcp_tool', tool_info: { name: 'call_mcp_tool', parameters: { ServerName, ToolName: 'edit_systems', Arguments } } })
+  assert.deepEqual(driver.read(mcpCall({ op: 'abort_session', sessionId: 's' })).events, [{ kind: 'tool', text: 'Ambio · edit_systems · abort_session' }])
+  assert.deepEqual(driver.read(mcpCall({ op: 'add_chunk', chunkId: 'chunk_1', systems: [] })).events, [{ kind: 'tool', text: 'Ambio · edit_systems · add_chunk' }])
+  assert.deepEqual(driver.read(mcpCall({}, 'other')).events, [{ kind: 'tool', text: 'edit_systems' }])
   assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'ACTIVE', step_type: 'agent_response', text_delta: 'Files in the current dir' })).events, [])
   assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'ACTIVE', step_type: 'agent_response', text_delta: 'ectory.' })).events, [])
   assert.deepEqual(driver.read(line('step_update', { step_index: 3, state: 'DONE', step_type: 'agent_response', text_delta: '\n' })).events,

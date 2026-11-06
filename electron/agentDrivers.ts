@@ -166,7 +166,9 @@ function toolTarget(input: unknown): string {
     'file_path', 'path', 'Path', 'FilePath', 'dir_path', 'DirPath',
     'command', 'CommandLine', 'pattern', 'Pattern', 'query', 'Query',
     'url', 'URL', 'messageId', 'sheet', 'name', 'Name', 'goal', 'Goal',
-    'target', 'Target'
+    'target', 'Target',
+    // What an Ambio tool was asked to do (edit_systems abort_session, get_architecture files).
+    'op', 'scope',
   ]) {
     if (typeof args[key] === 'string' && args[key]) return clip(args[key] as string, 120)
   }
@@ -600,10 +602,12 @@ const antigravityCli: AgentDriver = {
       const parameters = payload.tool_info?.parameters ?? payload.tool?.args ?? payload.args ?? payload.input
       let target = ''
       if ((name === 'call_mcp_tool' || name === 'mcp') && parameters && typeof parameters === 'object') {
-        const mcpTool = parameters.tool_name ?? parameters.tool
+        // agy 1.5 names them ServerName, ToolName and Arguments.
+        const mcpTool = parameters.ToolName ?? parameters.tool_name ?? parameters.tool
+        const server = parameters.ServerName ?? parameters.server_name ?? parameters.server
         if (typeof mcpTool === 'string' && mcpTool) {
-          name = parameters.server_name === 'ambio' || parameters.server === 'ambio' ? `Ambio · ${mcpTool}` : String(mcpTool)
-          target = toolTarget(parameters.arguments ?? parameters.args ?? parameters)
+          name = server === 'ambio' ? `Ambio · ${mcpTool}` : String(mcpTool)
+          target = toolTarget(parameters.Arguments ?? parameters.arguments ?? parameters.args ?? parameters)
         }
       }
       if (!target && parameters && typeof parameters === 'object') {

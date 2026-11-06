@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Antigravity CLI's calls to Ambio's tools now show which tool and what it
+  was asked to do (for example "edit_systems · abort_session") in the
+  conversation and the mapping log, instead of a bare "call_mcp_tool".
 - "Antigravity ACP agent" is gone from the agent list: Antigravity CLI already
   uses Antigravity's interactive connection for the models it offers.
   Conversations started with the old entry continue under Antigravity CLI.
