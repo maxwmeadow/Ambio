@@ -16,8 +16,9 @@ The pre-merge corrections are on `codex/unify-codex-fixes`, from local
   user's existing sign-in, configuration, model provider and `CODEX_HOME`.
   No adapter, SDK, bundled second Codex or new account setup is required.
 - The first receipt pins the connection. Existing receipts without a transport
-  keep exec. Choose **Codex options → Connection → Exec** in a new conversation
-  for compatibility. Neither connection changes automatically after failure.
+  keep exec. New conversations cannot choose exec since 2026-11-06 (DECISIONS);
+  native review is started by sending `/review`. Neither connection changes
+  automatically after failure.
 - A process serves one Ambio run. Later messages use `thread/resume`, the same
   provider thread and the same conversation checkout. Resume errors are reported
   without substituting a fresh thread or replaying potentially executed work.

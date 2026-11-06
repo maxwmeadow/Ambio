@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- Codex and Antigravity CLI conversations have the same clean message box as
+  Claude Code: the "Codex options" panel and Antigravity's "Full access" line
+  are gone. To have Codex review your current changes, send `/review`.
 - The message box is less crowded: the access menu and the info button are
   gone from it. The first time you pick an agent Ambio runs, its guide asks
   what it may do without asking (Auto is recommended where the agent has it,

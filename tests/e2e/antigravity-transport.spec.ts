@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { agentMenu, skipAgentGuides } from './agentGuides'
+import { agentMenu, setAgentAccess, skipAgentGuides } from './agentGuides'
 
 test('Antigravity uses its reported model route, asks permission and finishes steered work', async () => {
   test.setTimeout(120000)
@@ -57,9 +57,9 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
     await panel.getByRole('combobox', { name: 'Thinking level' }).selectOption('low')
     // The ACP connection offers the shared access levels; Ask me sends requests to the conversation.
-    await panel.getByRole('button', { name: /^Access: / }).click()
-    expect(await panel.getByRole('menuitemradio').allTextContents()).toEqual([expect.stringMatching(/^Ask me/), expect.stringMatching(/^Full access/)])
-    await panel.getByRole('menuitemradio', { name: 'Ask me', exact: true }).click()
+    expect(await setAgentAccess(panel, 'Antigravity CLI', 'Ask me')).toEqual(['ask', 'full'])
+    // The message box says nothing about the connection or its access.
+    await expect(panel.locator('.ambio-inbox__transport')).toHaveCount(0)
     const textbox = panel.getByRole('textbox', { name: 'Instruction for your agent' })
     await textbox.fill('Fix the fixture')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
@@ -109,14 +109,12 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect.poll(() => captured().some(item => item.transport === 'print')).toBe(true)
     expect(captured().find(item => item.transport === 'print').args).toEqual(expect.arrayContaining(['--model', 'claude-fixture', '--dangerously-skip-permissions']))
-    // A print conversation runs with full access and offers no levels.
-    await expect(panel.getByRole('button', { name: /^Access: / })).toHaveCount(0)
+    await expect(panel.locator('.ambio-inbox__transport')).toHaveCount(0)
     // Full access on the ACP connection approves the agent's request without a card.
     await panel.getByRole('button', { name: 'New conversation', exact: true }).click()
     await panel.getByRole('button', { name: /^Model: / }).click()
     await panel.getByRole('menuitemradio', { name: 'Gemini Fixture', exact: true }).click()
-    await panel.getByRole('button', { name: 'Access: Ask me' }).click()
-    await panel.getByRole('menuitemradio', { name: 'Full access', exact: true }).click()
+    await setAgentAccess(panel, 'Antigravity CLI', 'Full access')
     await textbox.fill('Edit without asking')
     await panel.getByRole('button', { name: 'Start Antigravity CLI', exact: true }).click()
     await expect.poll(() => captured().filter(item => item.permission?.optionId === 'yes').length).toBe(2)

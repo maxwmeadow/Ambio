@@ -313,7 +313,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
   },
   codex: {
     need: ['Codex installed on this computer and signed in. Nothing needs to be open.'],
-    how: [...STARTED('Codex'), 'New conversations use the native interactive connection. Send corrections while it works; Codex options also offers a native review of current changes. Existing conversations keep their connection; choose Exec in a new conversation for compatibility.'],
+    how: [...STARTED('Codex'), 'Send corrections while it works. Send /review to have Codex review your current changes and report its findings here.'],
     can: [
       'Ask and Propose: can read and run anything to answer, and is told not to change files.',
       'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',

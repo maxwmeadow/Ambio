@@ -71,7 +71,6 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   })
   const checkouts = useCheckoutStore(state => state.snapshot?.checkouts)
   const [note, setNote] = useState(() => { try { return localStorage.getItem(draftKey) ?? '' } catch { return '' } })
-  const [codexTransport, setCodexTransport] = useState<'app-server' | 'exec'>('app-server')
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState('')
@@ -222,7 +221,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   const conversationRun = delivery.runs.filter(run => run.threadId === currentThreadId && run.hostId === runHost?.id).sort((a, b) => b.startedAt - a.startedAt)[0]
   const conversationTransport = conversationRun ? conversationRun.transport ?? 'print' : undefined
   const codexRun = delivery.runs.filter(run => run.threadId === currentThreadId && run.hostId === 'codex').sort((a, b) => a.startedAt - b.startedAt)[0]
-  const selectedCodexTransport = codexRun ? codexRun.codexTransport ?? 'exec' : codexTransport
+  // New Codex conversations use the native interactive connection; older exec conversations keep theirs.
+  const selectedCodexTransport = codexRun ? codexRun.codexTransport ?? 'exec' : 'app-server'
   const agentModel = useAgentModel({
     key: toChat ? (chatProvider ? `chat:${chatProvider.id}` : '') : runHost?.id ?? '',
     hostId: runHost?.id,
@@ -461,11 +461,6 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           {effectiveSheetId && <div className="ambio-inbox__attachment" title={attachedSheet ? `${attachedSheet.name} · revision ${attachedSheet.revision} · snapshot and structural comparison included` : 'This sheet is no longer available'}><span className="ambio-inbox__sheet-icon"><InboxIcon name="sheet" size={16} /></span><span><strong>{attachedSheet?.name ?? 'Sheet unavailable'}</strong><small>{attachedSheet?.resolvedAt ? 'Resolved sheet' : attachedSheet ? 'Sheet' : 'Remove attachment'}</small></span><button className="ambio-inbox__icon" type="button" disabled={locked} aria-label="Remove attached sheet" onClick={() => attachSheet(null)}><InboxIcon name="close" size={13} /></button></div>}
           {chips(effectiveSelection, true)}
         </div>}
-        {!caseTarget && runHost?.id === 'codex' && <details className="ambio-inbox__codex-options"><summary>Codex options · {selectedCodexTransport === 'app-server' ? 'Interactive' : 'Exec'}</summary>
-          <label>Connection <select aria-label="Codex connection" value={selectedCodexTransport} disabled={locked || inProgress || !!codexRun} onChange={event => setCodexTransport(event.target.value as 'app-server' | 'exec')}><option value="app-server">Interactive (App Server)</option><option value="exec">Exec (compatibility)</option></select></label>
-          {selectedCodexTransport === 'app-server' && <><button type="button" disabled={locked || inProgress} onClick={() => { setMode('ask'); setNote('/review'); textarea.current?.focus() }}>Review changes</button><small>Corrections can be sent while Codex works. Review changes runs the native reviewer, then returns its findings here.</small></>}
-          {!!codexRun && <small>Start a new conversation to change the connection.</small>}
-        </details>}
         <textarea ref={textarea} id="ambio-inbox-note" aria-label="Instruction for your agent" value={inProgress && !steering && !caseTarget ? '' : retry.current?.note ?? note} disabled={locked || (caseTarget ? !caseAvailable : inProgress && !steering)} onChange={event => setNote(event.target.value)} maxLength={16000} rows={2} placeholder={caseTarget ? (caseAvailable ? 'A question, correction or hint for this investigation…' : 'Your draft is preserved. Return to conversation to continue.') : steering ? `Send a correction while ${workingLabel} works…` : inProgress ? (workingLabel ? `${workingLabel} is working on your request…` : 'Waiting for your agent to pick up your request…') : shown.length || chat.snapshot?.messages.length ? 'Reply, or ask for the next step…' : 'Describe a change or ask a question…'} onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() }
@@ -484,7 +479,6 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
           worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} /></>}{caseTarget && <span>{sendingCase ? 'Sending…' : 'Investigation feedback'}</span>}{inProgress && <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>}{(!inProgress || caseTarget || steering) && <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={caseTarget ? sendingCase || !caseAvailable || !note.trim() : sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
-      {!caseTarget && runHost?.id === 'antigravity-cli' &&<small className="ambio-inbox__transport" role="status">{routeMismatch ? 'Start a new conversation to use this model.' : antigravityRoute === 'acp' ? agentAccess.value === 'ask' ? 'Gemini connection · approvals appear here unless Antigravity’s own settings allow the step.' : 'Gemini connection.' : 'Full access · Antigravity runs without permission prompts.'}</small>}
       {!caseTarget && effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
     </div>
   </aside>

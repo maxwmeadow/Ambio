@@ -191,7 +191,11 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
   // Each kind of agent works differently, so the first time one is chosen its
   // guide is put in front of the user until they confirm they have read it,
   // and again while an agent Ambio runs has no access level chosen.
-  const introduce = hosts.length > 0 && ((!!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)) || !!access?.needsChoice)
+  const needsIntroduction = hosts.length > 0 && ((!!DESTINATION_GUIDE[guideId] && !seen.includes(guideId)) || !!access?.needsChoice)
+  // Once up, it stays until confirmed: choosing a level inside it must not close it.
+  const [introduced, setIntroduced] = useState<string | null>(null)
+  useEffect(() => { if (needsIntroduction) setIntroduced(hostId) }, [needsIntroduction, hostId])
+  const introduce = needsIntroduction || introduced === hostId
   // One pill in the message box's row: the agent with its model joined to it.
   return <div className="ambio-inbox__agent-picker">
     <div className="ambio-inbox__agent-group" data-fixed={fixed ? true : undefined}>
@@ -205,7 +209,7 @@ export function AgentDeliveryDestination({ hosts, hostId, installedIds, watchers
     </div>
     {introduce
       ? <DestinationGuide name={nameOf(hostId)} guideId={guideId} accessHost={accessHostOf(hostId)} picker={guidePicker(hostId, choose)}
-        intro={{ ready: !access?.needsChoice, onConfirm: () => setSeen(markGuideSeen(guideId)) }} />
+        intro={{ ready: !access?.needsChoice, onConfirm: () => { setSeen(markGuideSeen(guideId)); setIntroduced(null) } }} />
       : reading !== null && <DestinationGuide name={nameOf(reading)} guideId={guideOf(reading)} accessHost={accessHostOf(reading)} picker={guidePicker(reading, setReading)}
         onClose={() => setReading(null)} onUse={!fixed && reading !== hostId ? () => { setSeen(markGuideSeen(guideOf(reading))); setReading(null); choose(reading) } : undefined} />}
   </div>

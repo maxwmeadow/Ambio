@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { agentMenu, skipAgentGuides } from './agentGuides'
+import { agentMenu, setAgentAccess, skipAgentGuides } from './agentGuides'
 
 test('native Codex streams, accepts corrections, stops, resumes, asks permission and runs review', async () => {
   test.setTimeout(90000)
@@ -73,12 +73,10 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await page.getByRole('button', { name: /^Message agent/ }).click()
     // A follow-up resumes the provider thread and stays on the same connection.
     setMode('approval')
-    await inbox.locator('.ambio-inbox__codex-options > summary').click()
-    await expect(inbox.getByRole('combobox', { name: 'Codex connection' })).toBeDisabled()
-    // The qualified fixture version adds Auto to the shared access menu.
-    await inbox.getByRole('button', { name: 'Access: Full access' }).click()
-    await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveCount(3)
-    await inbox.getByRole('menuitemradio', { name: 'Ask me' }).click()
+    // The message box offers no Codex-only options.
+    await expect(inbox.locator('.ambio-inbox__codex-options')).toHaveCount(0)
+    // The qualified fixture version adds Auto to the shared access levels.
+    expect(await setAgentAccess(inbox, 'Codex CLI', 'Ask me')).toEqual(['ask', 'auto', 'full'])
     await composer.fill('Run the check'); await send.click()
     await expect.poll(() => captured().resumed).toBe(true)
     await expect.poll(async () => app.evaluate(() => !!(globalThis as any).codexPermission)).toBe(true)
@@ -92,15 +90,16 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
     await expect(inbox).toContainText('12 input · 3 output tokens')
     setMode('complete')
-    await inbox.getByRole('button', { name: 'Review changes', exact: true }).click()
-    await expect(composer).toHaveValue('/review'); await send.click()
+    // /review runs Codex's native reviewer on the current changes.
+    await composer.fill('/review'); await send.click()
     await expect.poll(() => captured().review?.target.type).toBe('uncommittedChanges')
     await expect.poll(() => captured().prompt).toContain('Fixture native review found no issues')
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-review.png' })
-    // Auto uses the same menu and the native reviewer, retaining the sandbox.
-    await inbox.getByRole('button', { name: 'Access: Ask me' }).click()
-    await inbox.getByRole('menuitemradio', { name: 'Auto', exact: true }).click()
+    // Auto uses the native reviewer, retaining an Ask's read-only sandbox.
+    await setAgentAccess(inbox, 'Codex CLI', 'Auto')
+    await inbox.getByRole('button', { name: /^Request type/ }).click()
+    await inbox.getByRole('menuitemradio', { name: 'Ask' }).click()
     await composer.fill('Use automatic review for this check'); await send.click()
     await expect.poll(() => captured().setup.approvalsReviewer).toBe('auto_review')
     expect(captured().setup.sandbox).toBe('read-only')
@@ -137,14 +136,8 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await inbox.getByRole('button', { name: 'Don’t answer' }).click()
     await expect.poll(() => captured().questionReply?.message).toContain('declined')
     await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
-    // The explicit compatibility route is available for a new conversation.
-    await inbox.getByRole('button', { name: 'New conversation', exact: true }).click()
-    await inbox.getByRole('combobox', { name: 'Codex connection' }).selectOption('exec')
-    await expect(inbox.locator('.ambio-inbox__codex-options > summary')).toContainText('Exec')
-    // Exec runs with full access only, so it offers no access choice.
-    await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
     // An installed version losing qualification must not widen a saved Auto choice.
-    await inbox.getByRole('combobox', { name: 'Codex connection' }).selectOption('app-server')
+    await inbox.getByRole('button', { name: 'New conversation', exact: true }).click()
     await app.evaluate(({ ipcMain }) => {
       ipcMain.removeHandler('agent:delivery-hosts')
       ipcMain.handle('agent:delivery-hosts', () => [{ id: 'codex', label: 'Codex CLI', route: 'run', available: true, detail: '', access: ['ask', 'full'] }])
@@ -152,10 +145,15 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     // Reload models the app reopening after its installed CLI was replaced.
     await page.reload()
     if (!(await inbox.isVisible())) await page.getByRole('button', { name: /^Message agent/ }).click()
-    await expect(inbox.getByRole('button', { name: 'Access: Auto (unavailable)', exact: true })).toBeVisible()
-    await inbox.getByRole('button', { name: 'Access: Auto (unavailable)', exact: true }).click()
-    await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveCount(2)
-    await inbox.getByRole('menuitemradio', { name: 'Ask me', exact: true }).click()
-    await expect(inbox.getByRole('button', { name: 'Access: Ask me' })).toBeVisible()
+    // Its guide asks again, saying why, and nothing is sent until a level is chosen.
+    const intro = page.getByRole('dialog', { name: 'Before you use Codex CLI' })
+    await expect(intro).toContainText('Auto is not available in this version of Codex CLI')
+    const levels = intro.getByRole('group', { name: 'What Codex CLI may do without asking' })
+    await expect(levels.getByRole('radio')).toHaveCount(2)
+    await expect(levels.getByRole('radio', { checked: true })).toHaveCount(0)
+    await expect(intro.getByRole('button', { name: 'Got it' })).toBeDisabled()
+    await levels.getByRole('radio', { name: /^Ask me/ }).check()
+    await intro.getByRole('button', { name: 'Got it' }).click()
+    await expect(intro).toBeHidden()
   } finally { await app.close(); fs.rmSync(home, { recursive: true, force: true }) }
 })

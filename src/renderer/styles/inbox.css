@@ -292,12 +292,7 @@
 @media (prefers-reduced-motion: reduce) { .ambio-inbox__activity li[data-live='true']::after { animation: none; } }
 .ambio-inbox__activity li:has(details) { white-space: normal; }
 .ambio-inbox__activity pre { max-height: 220px; overflow: auto; white-space: pre-wrap; font: 10px/1.45 var(--font-mono, monospace); }
-.ambio-inbox__codex-options { margin: 0 0 8px; color: #49675a; font: 11px/1.5 var(--font-ui, sans-serif); }
-.ambio-inbox__codex-options summary, .ambio-inbox__codex-history summary { cursor: pointer; }
-.ambio-inbox__codex-options label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-.ambio-inbox__codex-options select { min-width: 0; max-width: 78%; border: 1px solid #b4c9b8; border-radius: 4px; padding: 3px; background: #f4f5eb; color: #2f463c; font: inherit; }
-.ambio-inbox__codex-options small { display: block; margin-top: 5px; }
-.ambio-inbox__codex-options button { margin-top: 6px; border: 1px solid #b4c9b8; border-radius: 4px; background: #e8eee5; color: #2f463c; font: inherit; }
+.ambio-inbox__codex-history summary { cursor: pointer; }
 .ambio-inbox__codex-history { margin-top: 8px; color: #49675a; font: 11px/1.5 var(--font-ui, sans-serif); }
 .ambio-inbox__activity-earlier { color: #6d8177 !important; font: 9px/1.4 var(--font-mono, monospace) !important; letter-spacing: .04em; }
 /* An agent stopped on a question. */
@@ -651,4 +646,3 @@
 .ambio-sheet-review-panel .ambio-sheet-rail__review-reason input { flex-basis: 100%; }
 .ambio-sheet-review-panel button:disabled { opacity: .5; cursor: default; }
 .ambio-inbox__thinking { max-width: 90px; color: inherit; background: transparent; border: 0; font: inherit; }
-.ambio-inbox__transport { display: block; padding: 5px 10px; color: var(--rail-muted); font-size: 11px; }
