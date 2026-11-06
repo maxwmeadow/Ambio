@@ -87,14 +87,14 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect(card).toContainText('fixture check')
     await card.getByRole('button', { name: 'Allow', exact: true }).click()
     await expect.poll(() => captured().decision).toBe('accept')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
-    await expect(inbox).toContainText('12 input · 3 output tokens')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
+    await expect(inbox).toContainText('12 input, 3 output tokens')
     setMode('complete')
     // /review runs Codex's native reviewer on the current changes.
     await composer.fill('/review'); await send.click()
     await expect.poll(() => captured().review?.target.type).toBe('uncommittedChanges')
     await expect.poll(() => captured().prompt).toContain('Fixture native review found no issues')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-review.png' })
     // Auto uses the native reviewer, retaining an Ask's read-only sandbox.
     await setAgentAccess(inbox, 'Codex CLI', 'Auto')
@@ -104,12 +104,14 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await expect.poll(() => captured().setup.approvalsReviewer).toBe('auto_review')
     expect(captured().setup.sandbox).toBe('read-only')
     expect(captured().setup.approvalPolicy).toBe('on-request')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('Auto review · approved')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    await expect(inbox.locator('.ambio-turn').last().locator('.ambio-turn__tool', { hasText: 'Auto review' })).toContainText('approved')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     setMode('subagent')
     await composer.fill('Inspect using a child agent'); await send.click()
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('Subagent · Main agent · spawnAgent → Reviewer · explorer')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    const subagentCall = inbox.locator('.ambio-turn').last().locator('.ambio-turn__tool', { hasText: 'spawnAgent → Reviewer' })
+    await expect(subagentCall.locator('.ambio-turn__subagent')).toHaveText('Main agent')
+    await expect(subagentCall).toContainText('explorer')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     await page.screenshot({ path: 'test-results/codex-native-auto-subagent.png' })
     // Structured questions use the shared card for choices and the user's own words.
     setMode('question')
@@ -125,7 +127,7 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await page.screenshot({ path: 'test-results/codex-native-question.png' })
     await questionCard.getByRole('button', { name: 'Answer', exact: true }).click()
     await expect.poll(() => captured().questionReply).toEqual({ answers: { color: { answers: ['Blue'] }, reason: { answers: ['It suits the fixture, and stays readable.'] } } })
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     // Declining is a protocol refusal, with no invented successful answer.
     const beforeDecline = orders.length
     await composer.fill('Ask again so I can decline'); await send.click()
@@ -135,7 +137,7 @@ test('native Codex streams, accepts corrections, stops, resumes, asks permission
     await page.evaluate(request => { (window as any).__ambioGraphStore.getState().applyDbPatch({ type: 'agent:permission', payload: { ...request, id: 'declined-question', askedAt: Date.now(), expiresAt: Date.now() + 600000 } }) }, declinedQuestion)
     await inbox.getByRole('button', { name: 'Don’t answer' }).click()
     await expect.poll(() => captured().questionReply?.message).toContain('declined')
-    await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText('finished without replying')
+    await expect(inbox.locator('.ambio-turn').last()).toContainText('finished without replying')
     // An installed version losing qualification must not widen a saved Auto choice.
     await inbox.getByRole('button', { name: 'New conversation', exact: true }).click()
     await app.evaluate(({ ipcMain }) => {

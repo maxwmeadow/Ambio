@@ -1,7 +1,7 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatConversation, ChatMessage, ChatMode, ChatProvider, ChatQuestion, ChatSnapshot } from '../../shared/agentChat'
-import { AgentMessageContent } from './AgentMessageContent'
-import { InboxIcon } from './InboxIcon'
+import { AgentTurnCard, chatWorkItems } from './AgentTurn'
+
 import { WorkOrderReview } from './WorkOrderReview'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { useSheetStore, type CanvasMessage } from '../store/sheetStore'
@@ -189,16 +189,14 @@ export function ChatTranscript({ chat, workspaceId, workOrders, agentLabel }: {
       const said = turn.user ? chatUserTurn(turn.user.parts.filter(part => part.kind === 'text').map(part => part.text).join('\n')) : null
       const mode = turn.user?.mode ?? (said?.workOrderId ? 'build' : undefined)
       const order = said?.workOrderId ? workOrders.find(item => item.id === said.workOrderId) : undefined
+      const working = chat.running && state === 'working' && index === turns.length - 1
       return <article key={turn.user?.id ?? `turn-${index}`} className="ambio-inbox__message">
         {said && <div className="ambio-inbox__user"><span className="ambio-inbox__entry-label">YOU{mode && <span className="ambio-inbox__turn-mode" data-mode={mode}>{WORK_ORDER_MODES.find(item => item.mode === mode)?.label}</span>}</span><p>{said.text}</p></div>}
-        {turn.replies.some(reply => reply.parts.length) && <div className="ambio-inbox__reply ambio-chat__reply">
-          <div className="ambio-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{agentLabel}</strong></div>
-          {turn.replies.map(reply => <Fragment key={reply.id}>{reply.parts.map(part => part.kind === 'text'
-            ? <AgentMessageContent key={part.id} text={part.text} />
-            : part.kind === 'reasoning'
-            ? <details key={part.id} className="ambio-chat__thinking"><summary>Thinking</summary><p>{part.text}</p></details>
-            : <details key={part.id} className="ambio-chat__tool"><summary><span className={`ambio-chat__tool-state ambio-chat__tool-state--${part.state}`} />{part.tool}<small>{part.state}</small></summary><pre>{part.text}</pre></details>)}</Fragment>)}
-        </div>}
+        {(working || turn.replies.some(reply => reply.parts.length)) && (items => {
+          // Its closing text is the answer; everything before it is the work that led there.
+          const answer = !working && items.at(-1)?.kind === 'text' ? items.at(-1)!.text : undefined
+          return <AgentTurnCard className="ambio-chat__reply" agent={agentLabel} working={working} items={items} answer={answer !== undefined ? { text: answer } : undefined} />
+        })(chatWorkItems(turn.replies.flatMap(reply => reply.parts)))}
         {order && <>
           <div className="ambio-inbox__meta"><span className={`ambio-inbox__status ambio-inbox__status--${order.status}`}>{inboxStatus(order)}</span></div>
           {order.codeChecks && order.codeChecks.length > 0 && <WorkOrderCodeChecks checks={order.codeChecks} />}
@@ -216,9 +214,10 @@ export function ChatTranscript({ chat, workspaceId, workOrders, agentLabel }: {
       </div>
     </section>)}
     {snapshot.questions.map(item => <QuestionCard key={item.id} item={item} conversationId={snapshot.conversation.id} fail={chat.fail} done={chat.answered} />)}
-    {(chat.running || state === 'interrupted' || state === 'failed') && <div className="ambio-chat__status" role="status">
+    {/* Working shows on the turn itself; this is for a turn waiting on the person or one that did not finish. */}
+    {(state === 'waiting' || state === 'interrupted' || state === 'failed') && <div className="ambio-chat__status" role="status">
       <span className={chat.running ? 'ambio-chat__pulse' : ''} />
-      {state === 'waiting' ? 'Waiting for you' : state === 'working' ? 'Working…' : snapshot.conversation.error ?? 'Stopped'}
+      {state === 'waiting' ? 'Waiting for you' : snapshot.conversation.error ?? 'Stopped'}
       {state === 'interrupted' && <button type="button" disabled={chat.busy} onClick={() => { void chat.stop() }}>Stop previous run</button>}
     </div>}
   </>

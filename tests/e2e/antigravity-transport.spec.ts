@@ -75,7 +75,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     // The tool call's update replaced it in place, with its change behind one expandable diff.
     const activity = panel.getByRole('list', { name: 'What the agent is doing' })
     await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toHaveCount(1)
-    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('· done')
+    await expect(activity.getByRole('listitem').filter({ hasText: 'Edit fixture.txt' })).toContainText('done')
     await activity.getByText('View changes').click()
     await expect(activity.locator('pre')).toContainText('+approved')
     await expect(textbox).toBeEnabled()
@@ -91,7 +91,7 @@ test('Antigravity uses its reported model route, asks permission and finishes st
     expect(events.filter(event => event.id === 'edit')).toHaveLength(1)
     expect(events.some(event => 'content' in event)).toBe(false)
     expect(runs[0].usage).toMatchObject({ inputTokens: 200, outputTokens: 14 })
-    await expect(panel.getByText('200 input · 14 output tokens')).toBeVisible()
+    await expect(panel.getByText('200 input, 14 output tokens')).toBeVisible()
     const server = captured().find(item => item.mcpServers)?.mcpServers[0]
     expect(server.env).toEqual([{ name: 'AMBIO_WORKSPACE_ID', value: 'demo' }])
     expect(server.args).toContain('--ambio-host=antigravity-cli')

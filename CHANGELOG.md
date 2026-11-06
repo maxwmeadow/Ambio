@@ -7,6 +7,11 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- An agent's work now happens in the conversation: while it works, what it
+  says and does streams into its own reply, in the same style as its answer,
+  instead of a small "is working" box. When it answers, the work folds into a
+  "Worked for …" line above the answer that you can open. This is the same for
+  every agent Ambio runs and for Ambio chat.
 - Codex and Antigravity CLI conversations have the same clean message box as
   Claude Code: the "Codex options" panel and Antigravity's "Full access" line
   are gone. To have Codex review your current changes, send `/review`.

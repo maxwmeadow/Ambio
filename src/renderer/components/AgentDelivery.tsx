@@ -4,7 +4,6 @@ import { CHAT_DELIVERY, DESTINATION_GUIDE, WATCHING_DELIVERY, type DeliveryReadi
 import { archdApi } from '../archdEndpoint.ts'
 import { InboxIcon } from './InboxIcon'
 import { rememberDeliveryHost, rememberedDeliveryHost } from '../projectLocalState'
-import { projectPath, statusLabel } from './agentActivity'
 import { AgentAccessChoices, type AgentAccessChoice } from './AgentAccess'
 
 export function useAgentDelivery(workspaceId: string, isOpen: boolean, rootPath?: string) {
@@ -340,55 +339,5 @@ function DestinationGuide({ name, guideId, accessHost, picker, intro, onClose, o
   </div>, document.body)
 }
 
-/** How many of a run's latest events the turn shows while it works. */
-const ACTIVITY_SHOWN = 6
-
-/** A duration as a person says it: "40s", "3 min", "1 h 5 min". */
-function elapsed(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.round(seconds / 60)
-  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
-}
-
 /** A run that has not ended yet. */
 export const runWorking = (run?: DeliveryRun) => !!run && (run.state === 'starting' || run.state === 'running' || run.state === 'stopping')
-
-/**
- * Where an unanswered turn stands, in one line under it: the agent working
- * (with what it is doing), or how its run ended. Stopping is the message
- * box's job; once the agent answers, its reply is the record.
- */
-export function AgentDeliveryStatus({ run, hosts, events = [], onRetry, hasReply }: {
-  run: DeliveryRun; hosts: DeliveryHost[]; events?: DeliveryEvent[]; onRetry?: () => void; hasReply?: boolean
-}) {
-  const label = hosts.find(host => host.id === run.hostId)?.label ?? run.hostId
-  const working = runWorking(run)
-  // A clock, so a long turn reads as alive or as stuck instead of as nothing.
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    if (!working) return
-    const timer = setInterval(() => setNow(Date.now()), 10000)
-    return () => clearInterval(timer)
-  }, [working])
-  const lastSign = events.reduce((latest, event) => Math.max(latest, event.at), run.startedAt)
-  const quiet = working ? now - lastSign : 0
-  // While it works, the latest of what it does; once it ends, why it ended.
-  const shown = working ? events.slice(-ACTIVITY_SHOWN) : run.codexTransport === 'app-server' ? events.slice(-ACTIVITY_SHOWN) : events.filter(event => event.kind === 'error').slice(-2)
-  const line = working ? `${label} is working${run.resumed ? ', continuing its earlier session' : ''} · ${elapsed(now - run.startedAt)}`
-    : run.state === 'stopped' ? `${label} was stopped.`
-      : run.state === 'completed' ? hasReply ? `${label} finished.` : `${label} finished without replying.`
-        : `${label} stopped without an answer.`
-  return <div className="ambio-inbox__turn-status" data-state={working ? 'working' : 'ended'} role="status">
-    <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{line}</p>
-    {quiet > 60000 && <p className="ambio-inbox__turn-quiet">Nothing new for {elapsed(quiet)}. Long commands and background tasks can take a while; Stop if it should be done by now.</p>}
-    {shown.length > 0 && <ol className="ambio-inbox__activity" aria-label="What the agent is doing">
-      {shown.map((event, index) => <li key={event.id ?? `${event.at}:${index}`} data-kind={event.kind} data-live={event.live ? 'true' : undefined}>{event.kind === 'sent' ? `You · ${event.text}` : projectPath(event.text, run.rootPath)}{event.status && <small> · {statusLabel(event.status)}{event.exitCode != null ? ` (exit ${event.exitCode})` : ''}</small>}{(event.output || event.diff) && <details><summary>{event.diff ? 'View changes' : 'View output'}</summary><pre>{event.diff || event.output}</pre></details>}</li>)}
-    </ol>}
-    {run.usage && <small>{run.usage.scope === 'thread' ? 'Thread total · ' : ''}{run.usage.inputTokens.toLocaleString()} input · {run.usage.outputTokens.toLocaleString()} output tokens{run.usage.cachedInputTokens ? ` · ${run.usage.cachedInputTokens.toLocaleString()} cached` : ''}</small>}
-    <div className="ambio-inbox__turn-actions">
-      {!working && onRetry && <button type="button" className="ambio-inbox__turn-action" onClick={onRetry}>Try again</button>}
-      <button type="button" className="ambio-inbox__turn-link" onClick={() => window.ambio.showInFolder(run.logPath)}>Show output</button>
-    </div>
-  </div>
-}

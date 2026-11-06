@@ -258,7 +258,7 @@ const FULL_ACCESS = 'Ambio runs it with your account\u2019s full permissions so 
 
 const STARTED = (name: string, extra = 'It remembers the conversation from one message to the next.'): string[] => [
   `Choose ${name} and send. Ambio starts it in this project for you; nothing else needs to be open.`,
-  'You can watch what it is doing under your message, and its reply arrives in the conversation.',
+  'What it says and does streams into the conversation as it works; its answer follows, with the work folded above it.',
   `Keep replying in the same conversation. ${extra}`,
 ]
 

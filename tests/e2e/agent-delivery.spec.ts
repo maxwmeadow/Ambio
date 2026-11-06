@@ -196,7 +196,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
       expect(actual.prompt).toContain('expectedWorkspaceId "demo"')
       // The stand-in exits without replying: the turn says so in one line, and the next message replaces it.
       await expect(inbox.locator('.ambio-inbox__turn-status').last()).toContainText(host === 'copilot-cli' ? `${label} stopped without an answer.` : `${label} finished without replying.`)
-      await expect(inbox.locator('.ambio-inbox__turn-status').last().getByRole('button', { name: 'Try again' })).toBeVisible()
+      await expect(inbox.locator('.ambio-turn').last().getByRole('button', { name: 'Try again' })).toBeVisible()
     }
     // The nonzero process exit leaves one saved work order, with output and handoff.
     expect(orders).toHaveLength(5)
@@ -221,14 +221,32 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await expect(box).toHaveAttribute('placeholder', 'Send a correction while Claude Code CLI works…')
     await box.fill('Also check the tests.')
     await box.press('Enter')
-    await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('You · Also check the tests.')
+    await expect(inbox.locator('.ambio-inbox__activity').last().locator('li[data-kind="sent"]')).toContainText('Also check the tests.')
     await expect(inbox.locator('.ambio-inbox__activity').last()).toContainText('Heard: Also check the tests.')
     await expect(box).toHaveValue('')
     await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-steering.png' })
-    await inbox.locator('.ambio-inbox__turn-status').last().screenshot({ path: 'test-results/turn-steered.png' })
+    // The work streams in the agent's own card, in the conversation's type, not a status box.
+    await expect(inbox.locator('.ambio-turn').last()).toHaveAttribute('data-state', 'working')
+    await expect(inbox.locator('.ambio-turn').last().getByRole('status')).toContainText('Working')
+    await inbox.locator('.ambio-turn').last().screenshot({ path: 'test-results/turn-steered.png' })
     await inbox.getByRole('button', { name: 'Stop', exact: true }).click()
     await expect(inbox.locator('.ambio-inbox__turn-status[data-state="stopped"]').last()).toHaveText('Cancelled')
     fs.rmSync(path.join(root, 'steer.flag'))
+    // Once the agent answers, its work folds into one line above the answer.
+    Object.assign(orders.at(-1), { status: 'answered', reply: { agent: 'claude-code', body: 'Fixture answer: the tests pass.', createdAt: Date.now() } })
+    await inbox.getByRole('button', { name: 'Close agent inbox' }).click()
+    await page.getByRole('button', { name: /^Message agent/ }).click()
+    const answered = inbox.locator('.ambio-turn').last()
+    await expect(answered).toHaveAttribute('data-state', 'answered')
+    await expect(answered.locator('.ambio-inbox__reply-heading')).toContainText('Claude Code CLI')
+    await expect(answered).toContainText('Fixture answer: the tests pass.')
+    const fold = answered.locator('.ambio-turn__fold')
+    await expect(fold.locator('summary')).toContainText(/^Worked for /)
+    await expect(fold.getByRole('list', { name: 'What the agent is doing' })).toBeHidden()
+    await answered.screenshot({ path: 'test-results/turn-answered.png' })
+    await fold.locator('summary').click()
+    await expect(fold.getByRole('list', { name: 'What the agent is doing' })).toContainText('Heard: Also check the tests.')
+    await answered.screenshot({ path: 'test-results/turn-answered-open.png' })
     if (process.platform !== 'win32') {
       await destination.choose('zed')
       await confirm()

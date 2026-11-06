@@ -866,8 +866,10 @@ completed items only after flushing them, keeping active output available while
 the whole history stays on disk. Quiet-run timing uses the newest timestamp
 across stable items. Child collaboration and tool items carry
 agent path/name, task and status; unrelated threads and child prose stay hidden.
-Automatic approval-review lifecycle and rationale use the same activity items. Completed replies keep
-expandable activity/usage, as every agent's completed replies now do. Worktree handoffs distinguish the shared project root
+Automatic approval-review lifecycle and rationale use the same activity items. Every agent's turn
+renders through `AgentTurn.tsx` (DECISIONS 2026-11-06): delivery events and Ambio chat parts become
+`WorkItem`s that stream into the reply card while the agent works, then fold into a "Worked for …"
+disclosure (with usage and the run's output) above the answer. Worktree handoffs distinguish the shared project root
 reported by MCP from the checkout in which the agent must edit.
 Driver events are `text`, `tool`, `error` and `thinking`; the turn shows the
 latest few while it works. Thinking comes from Claude Code's `thinking` blocks

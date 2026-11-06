@@ -5,15 +5,11 @@
 .ambio-chat :is(button, input, select, textarea):focus-visible { outline: 2px solid #38846b; outline-offset: 2px; }
 .ambio-chat :is(input, select, textarea) { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 8px; border: 1px solid #bbc6b8; border-radius: 4px; color: #334e40; background: #fffef8; font: 12px var(--font-ui, sans-serif); }
 .ambio-chat input[type=checkbox], .ambio-chat input[type=radio] { accent-color: #356b54; }
-.ambio-chat__tool { margin-top: 7px; border: 1px solid #d2dacb; border-radius: 4px; background: #eeeee4; }
-.ambio-chat__tool summary { display: flex; align-items: center; gap: 6px; padding: 7px; cursor: pointer; font: 11px var(--font-mono, monospace); }
-.ambio-chat__tool summary small { margin-left: auto; color: #7b8878; }
-.ambio-chat__tool pre, .ambio-chat__request pre { margin: 5px 0; padding: 8px; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 var(--font-mono, monospace); }
-.ambio-chat__tool-state, .ambio-chat__status > span { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #638675; }
-.ambio-chat__tool-state--error { background: #a2674e; }
-.ambio-chat__tool-state--running, .ambio-chat__pulse { animation: ambio-chat-pulse 1.4s ease-in-out infinite; }
+.ambio-chat__request pre { margin: 5px 0; padding: 8px; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 var(--font-mono, monospace); }
+.ambio-chat__status > span { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #638675; }
+.ambio-chat__pulse { animation: ambio-chat-pulse 1.4s ease-in-out infinite; }
 @keyframes ambio-chat-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .ambio-chat__tool-state--running, .ambio-chat__pulse { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ambio-chat__pulse { animation: none; } }
 .ambio-chat__request { border: 1px solid #baa67b; background: #faf4e4; padding: 12px; border-radius: 5px; font-size: 12px; }
 .ambio-chat__request fieldset { border: 0; padding: 10px 0; margin: 0; display: grid; gap: 8px; }
 .ambio-chat__request label { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }

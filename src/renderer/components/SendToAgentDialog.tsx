@@ -12,7 +12,8 @@ import { InboxIcon } from './InboxIcon'
 import { InboxSheetPicker } from './InboxSheetPicker'
 import { AgentMessageContent } from './AgentMessageContent'
 import { WorkOrderReview } from './WorkOrderReview'
-import { AgentDeliveryDestination, AgentDeliveryStatus, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
+import { AgentDeliveryDestination, DeliveryReadiness, deliveryAction, runWorking, useAgentDelivery } from './AgentDelivery'
+import { AgentRunTurn } from './AgentTurn'
 import { useCheckoutStore } from '../store/checkoutStore'
 import { conversationWorkplace, focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, type ModelOption } from '../../shared/agentDelivery'
@@ -420,17 +421,20 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
           <div className="ambio-inbox__user"><span className="ambio-inbox__entry-label">YOU<span className="ambio-inbox__turn-mode" data-mode={turnRequest(message).mode}>{WORK_ORDER_MODES.find(item => item.mode === turnRequest(message).mode)?.label}</span>{message.status === 'answered' && needsReview(message) && <span className="ambio-inbox__turn-state" data-state={message.review?.decision === 'accepted' ? 'accepted' : 'review'}>{inboxStatus(message)}</span>}<time title={new Date(message.createdAt).toLocaleString()} dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></span><p>{turnRequest(message).text}</p>{chips(messageReferences(message.selection))}
             {message.sheetId && <button type="button" className="ambio-inbox__message-sheet" disabled={locked} onClick={() => attachSheet(message.sheetId)} title="Attach the current sheet to a new message"><InboxIcon name="sheet" size={14} /><span>{message.sentSheetName || sheet.sheets.find(item => item.id === message.sheetId)?.name || 'Attached sheet'}{message.sentSheetRevision ? ` · sent r${message.sentSheetRevision}` : ''}</span><InboxIcon name="chevron" size={12} /></button>}
           </div>
-          {(message.status === 'queued' || message.status === 'delivered') && (run => run
-            ? <AgentDeliveryStatus run={run} hosts={delivery.hosts} events={delivery.events[run.key]} onRetry={runWorking(run) ? undefined : () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined, 'here', run.hostId === runHost?.id ? { thinking: agentModel.thinking, access: agentAccess.value } : undefined) }} />
+          {(run => {
+            const unanswered = message.status === 'queued' || message.status === 'delivered'
+            // The agent's turn, from its first step to its answer, in one card.
+            if (message.reply || (run && unanswered)) return <AgentRunTurn run={run} hosts={delivery.hosts} events={run ? delivery.events[run.key] : undefined} reply={message.reply}
+              onCopy={message.reply ? () => copy(message.reply!.body, message.id) : undefined} copied={copied === message.id}
+              onRetry={run && !runWorking(run) ? () => { void delivery.deliver(message.id, run.hostId, agentModel.value || undefined, 'here', run.hostId === runHost?.id ? { thinking: agentModel.thinking, access: agentAccess.value } : undefined) } : undefined} />
             // Nothing Ambio started: the turn waits for an agent outside it, which takes the handoff.
-            : <div className="ambio-inbox__turn-status" data-state="waiting" role="status">
+            return unanswered && <div className="ambio-inbox__turn-status" data-state="waiting" role="status">
               <p><span className="ambio-inbox__turn-pulse" aria-hidden="true" />{inboxStatus(message)}.</p>
               <div className="ambio-inbox__turn-actions"><button type="button" className="ambio-inbox__turn-action" onClick={() => copy(workOrderHandoff(graph.name ?? 'this project', graph.workspaceId, graph.rootPath, message.id), `handoff:${message.id}`)}><InboxIcon name={copied === `handoff:${message.id}` ? 'check' : 'copy'} size={12} />{copied === `handoff:${message.id}` ? 'Copied' : 'Copy handoff'}</button></div>
-            </div>)(latestRun(message.id))}
+            </div>
+          })(latestRun(message.id))}
           {permissions.filter(request => request.messageId === message.id).map(request => <AgentRequestCard key={request.id} request={request} hostLabel={delivery.hosts.find(host => host.id === request.hostId)?.label} />)}
           {message.status !== 'answered' && !latestRun(message.id) && message.sessions?.filter(session => !session.endedAt).slice(-1).map(session => <section key={session.id} className="ambio-inbox__progress" aria-label={`Work progress: ${session.goal}`}><strong>{session.agent || 'Agent'} · {session.goal}</strong>{session.notes.length > 0 && <p>{session.notes.at(-1)?.text}</p>}</section>)}
-          {message.reply && <div className="ambio-inbox__reply"><div className="ambio-inbox__reply-heading"><InboxIcon name="agent" size={16} /><strong>{message.reply.agent}</strong><button type="button" className="ambio-inbox__copy-reply" aria-label={copied === message.id ? 'Reply copied' : 'Copy reply'} onClick={() => copy(message.reply!.body, message.id)}><InboxIcon name={copied === message.id ? 'check' : 'copy'} size={13} />{copied === message.id ? 'Copied' : 'Copy'}</button></div><AgentMessageContent text={message.reply.body} /></div>}
-          {message.reply && (run => run && <details className="ambio-inbox__codex-history"><summary>Activity and usage</summary><AgentDeliveryStatus run={run} hosts={delivery.hosts} events={delivery.events[run.key]} hasReply /></details>)(latestRun(message.id))}
           {message.status === 'answered' && !message.reply && <p className="ambio-inbox__notice">This older reply is no longer available.</p>}
           {message.status === 'cancelled' && <p className="ambio-inbox__turn-status" data-state="stopped">Cancelled</p>}
           {/* Only a build changed anything; a question or a proposal has nothing to accept here. */}
