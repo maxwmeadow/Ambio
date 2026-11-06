@@ -443,6 +443,8 @@ Context, current-code audit, dependencies and release gates: [AGENT_WORKSPACE_RO
 
 - ⬜ `gitworktree-linked-status-test` **`TestMetadataWatcherIgnoresAStatusInALinkedWorktree` fails on this Windows machine, on main too.** `internal/gitworktree/metadata_test.go:53`: a status in a linked worktree is taken for a Git metadata change. Seen 2026-11-05 at origin/main `defae22`, three runs out of three. (2026-11-05, unification checks)
 
+- ⬜ `e2e-failing-on-main` **Two Electron journeys fail on main (`f4d4aba`), every run, on this Windows machine.** `agent-discovery.spec.ts` "setup keeps every client visible…": `delivered.json` is never written (line 145). `branches.spec.ts` "branch marks survive compact file presentation on a larger Floor": `file_store` has no `[data-render-tier]` element. The other 116 pass. (2026-11-05, merging local work)
+
 ## Done log
 
 - 2026-11-05 Mapping log on the unified activity: setup's mapping log re-reads its window each poll so in-place items (live text, tool results) update; tool rows use the shared `agentActivity` labels (badges for every agent's tool names, subagent marker, project-relative paths, statuses) also used by the conversation; Antigravity ACP mapping turns answer permission requests by mode instead of waiting on an unseen card. Types/build, 973 unit tests (7 skipped, 0 failed), the setup mapping journey (now fed in-place items), the delivery, native Codex and Antigravity journeys pass. Not run against a real agent mapping a project. (`claude/mapping-activity`)

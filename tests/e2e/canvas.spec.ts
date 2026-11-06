@@ -4553,6 +4553,8 @@ test('saved investigation cards and timeline navigate the full eight-event recor
   expect((await card.locator('.ambio-case__viewport').boundingBox())!.height).toBeGreaterThan(150)
   await expect(card.getByRole('group',{name:'Investigation pagination'})).toBeVisible()
   await page.screenshot({animations:'disabled',path:'test-results/investigation-replay-linked-narrow.png'})
+})
+
 test('a function an agent names opens at its definition; an ambiguous name stays code', async () => {
   const { file, fileId } = await page.evaluate(() => {
     const state = (window as any).__ambioGraphStore.getState()
