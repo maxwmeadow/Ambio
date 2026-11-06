@@ -216,12 +216,14 @@ test('supported ACP agents remain listed independently of editor discovery and r
   assert.ok(ids([{ id: 'windsurf', label: 'Windsurf' }]).includes('devin-cli'))
   // Gemini CLI is no longer offered: Google moved it into Antigravity.
   assert.ok(!ids([{ id: 'antigravity', label: 'Antigravity' }]).includes('gemini-cli'))
-  assert.ok(ids([{ id: 'antigravity', label: 'Antigravity' }]).includes('antigravity-acp'))
-  assert.equal(deliveryTargets([{ id: 'windsurf', label: 'Windsurf' }], env, process.platform, root).find(target => target.id === 'antigravity-acp').available, true)
+  // Antigravity's ACP server is a connection of Antigravity CLI, not a client of its own.
+  assert.ok(!ids([{ id: 'antigravity', label: 'Antigravity' }]).includes('antigravity-acp'))
+  assert.equal(deliveryTargets([{ id: 'windsurf', label: 'Windsurf' }], env, process.platform, root).find(target => target.id === 'antigravity-cli').available, true)
   assert.equal(agentDriver('devin-cli').acp, true)
   assert.equal(agentDriver('gemini-cli'), undefined)
+  assert.equal(agentDriver('antigravity-acp'), undefined)
   assert.deepEqual(agentDriver('devin-cli').plan({}).args, ['acp'])
-  assert.deepEqual(agentDriver('antigravity-acp').plan({}).args, ['acp'])
+  assert.deepEqual(agentDriver('antigravity-cli', 'acp').plan({}).args, ['acp'])
 })
 
 // A peer that answers the handshake, then plays `script` while the prompt waits.
@@ -286,6 +288,7 @@ test('a unified diff names a new file and keeps three lines of context', () => {
 })
 
 test('Antigravity\'s ACP connection offers Ask me and Full access, its print route none', () => {
-  assert.deepEqual(agentDriver('antigravity-acp').access, ['ask', 'full'])
+  assert.deepEqual(agentDriver('antigravity-cli', 'acp').access, ['ask', 'full'])
   assert.equal(agentDriver('antigravity-cli').access, undefined)
+  assert.equal(agentDriver('antigravity-cli', 'print').access, undefined)
 })

@@ -11,9 +11,21 @@ export const CLI_CLIENTS = [
   { id: 'muse', label: 'Muse Code CLI' },
   { id: 'cursor-cli', label: 'Cursor CLI' },
   { id: 'devin-cli', label: 'Devin CLI' },
-  { id: 'antigravity-acp', label: 'Antigravity ACP agent' },
   { id: 'antigravity-cli', label: 'Antigravity CLI' },
 ] as const
+
+/**
+ * Clients merged into another. Saved choices, runs, sessions and CLI locations
+ * that name one are read as the client that remains.
+ */
+const RETIRED_CLIENTS: Record<string, string> = {
+  // agy 1.5 serves ACP itself; Antigravity CLI uses it for the models it offers.
+  'antigravity-acp': 'antigravity-cli',
+}
+
+export function currentClientId(id: string): string {
+  return RETIRED_CLIENTS[id] ?? id
+}
 
 /** External clients sharing an existing installer's connection files. */
 export const SHARED_APP_CLIENTS = [
@@ -328,15 +340,6 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
       'Ask and Propose: can run commands; any change to your files is refused.',
       'Build: everything it asks to do is approved without asking you, and the result comes back for review.',
       FULL_ACCESS,
-    ],
-  },
-  'antigravity-acp': {
-    need: ['Antigravity CLI 1.5 or newer installed and signed in with agy. Nothing needs to be open.'],
-    how: STARTED('the Antigravity agent'),
-    can: [
-      'Uses the models Antigravity offers to this interactive connection, with model and thinking controls, approval requests, corrections while working and tool details.',
-      'Ask and Propose reject requested file edits. Actions already allowed by your Antigravity settings may run without asking; those settings still apply.',
-      'Build: approval requests appear in this conversation. Stopping cancels pending requests.',
     ],
   },
   copilot: {

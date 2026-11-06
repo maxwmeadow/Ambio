@@ -5,7 +5,7 @@
 //   AMBIO_LIVE_CONVERSATION_HOST=claude-code node --test mcp/e2e/conversation.live.mjs
 //
 // Hosts: claude-code, codex, copilot-cli, cursor-cli, devin-cli,
-// antigravity-cli, antigravity-acp, grok, muse. The host's CLI must be installed and
+// antigravity-cli, grok, muse. The host's CLI must be installed and
 // signed in.
 //
 // What it proves that stand-in agents cannot: the real CLI accepts what its

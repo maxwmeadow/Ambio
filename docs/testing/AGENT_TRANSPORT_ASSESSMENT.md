@@ -52,8 +52,10 @@ and support Stop through the runner. They are not raw terminal scraping.
 Antigravity CLI starts `agy -p --output-format stream-json`, selects a model
 with `--model`, resumes with `--conversation`, and passes
 `--dangerously-skip-permissions`. Its Ambio MCP connection comes from installed
-configuration, guarded by `RUN_NEEDS_INSTALL`. A separate `antigravity-acp`
-route only discovers the older `agy_acp_server` / `.par` executable names.
+configuration, guarded by `RUN_NEEDS_INSTALL`. (A separate `antigravity-acp`
+client for the older `agy_acp_server` / `.par` executable existed then; it was
+retired on 2026-11-05 once agy 1.5 served ACP itself, and Antigravity CLI now
+uses that connection for the models it offers.)
 
 The initial conversation-driver commit (`2ad6a95`) already used this division:
 native drivers for Claude/Codex and ACP for agents exposing it directly.

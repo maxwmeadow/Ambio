@@ -99,12 +99,17 @@ test('corrupt executable-location storage reports an error without destroying th
   assert.equal(fs.readFileSync(file, 'utf8'), '{invalid')
 })
 
-test('locating an ACP server preserves its executable without starting an interactive protocol session', async t => {
+test('the retired Antigravity ACP agent\'s agy location carries over to Antigravity CLI', t => {
   const root = fixture(t)
-  const file = write(path.join(root, process.platform === 'win32' ? 'agy.exe' : 'agy'), 'this file must not be executed during detection')
-  assert.equal((await setExecutableOverride(root, 'antigravity-acp', file)).ok, true)
-  assert.equal(readExecutableOverrides(root)['antigravity-acp'], file)
-  assert.deepEqual(selectedDeliveryCli('antigravity-acp', file, 'win32'), { command: file, args: [] })
-  const obsolete = write(path.join(root, 'agy_acp_server.par'))
-  assert.throws(() => selectedDeliveryCli('antigravity-acp', obsolete), /Locate agy/)
+  const agy = path.join(root, process.platform === 'win32' ? 'agy.exe' : 'agy')
+  const overrides = value => write(path.join(root, 'agent-executable-overrides.json'), JSON.stringify(value))
+  overrides({ 'antigravity-acp': agy })
+  assert.deepEqual(readExecutableOverrides(root), { 'antigravity-cli': agy })
+  // The old standalone ACP server is not Antigravity CLI's executable.
+  overrides({ 'antigravity-acp': path.join(root, 'agy_acp_server.par') })
+  assert.deepEqual(readExecutableOverrides(root), {})
+  // A location chosen for Antigravity CLI itself wins.
+  const chosen = path.join(root, 'chosen', process.platform === 'win32' ? 'agy.exe' : 'agy')
+  overrides({ 'antigravity-acp': agy, 'antigravity-cli': chosen })
+  assert.deepEqual(readExecutableOverrides(root), { 'antigravity-cli': chosen })
 })

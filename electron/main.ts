@@ -1582,7 +1582,7 @@ function setupIPC(): void {
   // Each agent says which access levels it honours and whether it takes messages while it works.
   ipcMain.handle('agent:delivery-hosts', () => availableTargets().map(({ launcher, ...host }) => {
     // Antigravity CLI offers the levels of its ACP connection; a print conversation narrows them to none.
-    const driver = host.route === 'run' ? agentDriver(host.id === 'antigravity-cli' ? 'antigravity-acp' : host.id) : undefined
+    const driver = host.route === 'run' ? agentDriver(host.id, 'acp') : undefined
     if (host.id === 'codex') return { ...host, access: launcher && host.available ? codexAvailableAccess(launcher) : ['ask', 'full'], ...(launcher && host.available && codexAccessPending(launcher) ? { accessPending: true } : {}) }
     return { ...host, ...(driver?.access ? { access: driver.access } : {}) }
   }))
@@ -1718,11 +1718,11 @@ function setupIPC(): void {
       // Where the run works: a conversation keeps the worktree it started in;
       // a new one asked for its own worktree gets one from archd.
       const conversation = typeof body.threadId === 'string' && body.threadId ? body.threadId : request.messageId
-      const antigravity = request.hostId === 'antigravity-cli' || request.hostId === 'antigravity-acp'
+      const antigravity = request.hostId === 'antigravity-cli'
       const prior = antigravity ? deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.hostId === request.hostId).sort((a, b) => b.startedAt - a.startedAt)[0] : undefined
       const models = antigravity ? await listModels(request.hostId, target.launcher, os.homedir()) : []
       const chosen = antigravity ? antigravityRoute(models, validModel(request.model) ? request.model : prior?.model,
-        request.hostId === 'antigravity-acp' ? 'acp' : deliveryRunner.conversationTransport(project.id, conversation, request.hostId), validModel(request.thinking) ? request.thinking : undefined) : undefined
+        deliveryRunner.conversationTransport(project.id, conversation, request.hostId), validModel(request.thinking) ? request.thinking : undefined) : undefined
       const useAntigravityAcp = chosen?.transport === 'acp'
       const earlier = deliveryRunner.list(project.id).filter(run => run.threadId === conversation && run.rootPath !== fs.realpathSync(project.rootPath) && fs.existsSync(run.rootPath))
       let workPath = earlier.length ? earlier[earlier.length - 1].rootPath : project.rootPath
@@ -1737,7 +1737,7 @@ function setupIPC(): void {
       agentChat?.assertRootAvailable(project.rootPath)
       // A turn continues the host session its conversation already has, when
       // the host can; the conversation itself reaches the agent through Ambio.
-      const driver = useAntigravityAcp ? agentDriver('antigravity-acp') : agentDriver(request.hostId)
+      const driver = agentDriver(request.hostId, chosen?.transport)
       const mode = turnMode(body.mode)
       const threadId = conversation
       if (workPath !== project.rootPath) prompt = workOrderHandoff(project.name, project.id, project.rootPath, request.messageId, { checkoutPath: workPath })

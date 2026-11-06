@@ -893,9 +893,13 @@ print. Delivery receipts store the transport/model/thinking. An existing CLI
 receipt without a transport means print, including after restart. Print
 conversations can keep using their native model aliases; ACP conversations must
 start a new conversation to select a print-only model. Neither route silently
-retries through the other. The explicit ACP destination now discovers `agy` and
-runs `agy acp`; obsolete saved server paths require locating the new executable.
-The hybrid CLI retains the installed-MCP prerequisite.
+retries through the other. Antigravity CLI is the only Antigravity client Ambio
+runs: `agentDriver('antigravity-cli', transport)` gives its ACP driver or its
+print driver. The former separate "Antigravity ACP agent" client is retired;
+`currentClientId` (`src/shared/agentDelivery.ts`) reads its saved receipts
+(as ACP), sessions, remembered destination and `agy` location as Antigravity
+CLI, and drops a saved path to the obsolete `agy_acp_server`. The CLI retains
+the installed-MCP prerequisite.
 
 The shared ACP client applies model and thinking configuration before prompting,
 passes Antigravity's permission requests to the existing daemon permission desk,

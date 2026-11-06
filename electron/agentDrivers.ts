@@ -673,18 +673,22 @@ const DRIVERS: Record<string, AgentDriver> = {
   },
   // Windsurf's local agent speaks ACP, with per-session MCP servers.
   'devin-cli': acpDriver(['acp']),
-  // The explicit route and hybrid CLI both use Google's native ACP server.
-  // Ask me sends its permission requests to the conversation; Full access
-  // approves them. agy 1.5 has no auto mode of its own (default, accept-edits, plan).
-  'antigravity-acp': { ...acpDriver(['acp']), access: ['ask', 'full'] },
   'antigravity-cli': antigravityCli,
 }
 
-export function agentDriver(hostId: string): AgentDriver | undefined {
-  return DRIVERS[hostId]
+/**
+ * Antigravity CLI's other connection: agy's native ACP server, used for the
+ * models its session offers. Ask me sends its permission requests to the
+ * conversation; Full access approves them. agy 1.5 has no auto mode of its own
+ * (default, accept-edits, plan).
+ */
+const antigravityAcp: AgentDriver = { ...acpDriver(['acp']), access: ['ask', 'full'] }
+
+/** The driver for a host, over the connection its conversation uses when it has more than one. */
+export function agentDriver(hostId: string, transport?: 'acp' | 'print'): AgentDriver | undefined {
+  return hostId === 'antigravity-cli' && transport === 'acp' ? antigravityAcp : DRIVERS[hostId]
 }
 
-/** The executable each driven host installs. */
 /** The executable each driven host installs. */
 export const DRIVER_CLI_NAMES: Record<string, string[]> = {
   'claude-code': ['claude'],
@@ -695,7 +699,6 @@ export const DRIVER_CLI_NAMES: Record<string, string[]> = {
   // Cursor also installs it as `agent`, a name too common to trust on a PATH.
   'cursor-cli': ['cursor-agent'],
   'devin-cli': ['devin'],
-  'antigravity-acp': ['agy'],
   'antigravity-cli': ['agy'],
 }
 

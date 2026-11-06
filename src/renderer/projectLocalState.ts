@@ -14,6 +14,7 @@
  */
 
 import type { ProjectConfig } from '../shared/types'
+import { currentClientId } from '../shared/agentDelivery.ts'
 
 const AGENT_SETUP_KEY = (id: string) => `agent_setup_completed_${id}`
 const LEGACY_REVIEW_KEY = (id: string) => `review_completed_${id}`
@@ -88,7 +89,7 @@ export function clearProjectLocalState(projectId: string): void {
 
 /** Where this project's last request was sent; null when never chosen. */
 export function rememberedDeliveryHost(projectId: string): string | null {
-  try { return localStorage.getItem(DELIVERY_HOST_KEY(projectId)) } catch { return null }
+  try { const hostId = localStorage.getItem(DELIVERY_HOST_KEY(projectId)); return hostId && currentClientId(hostId) } catch { return null }
 }
 
 export function rememberDeliveryHost(projectId: string, hostId: string): void {

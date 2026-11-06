@@ -14,7 +14,6 @@ export const CONNECTOR_MARKS = {
   'copilot-cli': 'copilot',
   copilot: 'copilot',
   'antigravity-cli': 'antigravity',
-  'antigravity-acp': 'antigravity',
   antigravity: 'antigravity',
   'cursor-cli': 'cursor',
   cursor: 'cursor',

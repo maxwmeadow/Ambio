@@ -185,10 +185,9 @@ export function listModels(hostId: string, launcher: DriverLauncher | undefined,
     if (hostId === 'grok') return grokModels(await run(launcher, ['models']))
     if (hostId === 'muse') return museModels(launcher)
     if (hostId === 'copilot-cli') return copilotModels(await run(launcher, ['help', 'config']))
-    if (hostId === 'antigravity-cli' || hostId === 'antigravity-acp') {
+    if (hostId === 'antigravity-cli') {
       const [print, session] = await Promise.all([run(launcher, ['models']), inspectAntigravity(launcher)])
-      const options = antigravityOptions(antigravityModels(print), session)
-      return hostId === 'antigravity-acp' ? options.filter(model => model.transport === 'acp') : options
+      return antigravityOptions(antigravityModels(print), session)
     }
     return []
   })()

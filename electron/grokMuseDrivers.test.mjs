@@ -254,7 +254,7 @@ test('Grok Stop ends its protocol process while the prompt is pending', async t 
 
 test('only Claude Code MCP bindings enable the approve_action permission hook', async () => {
   const { mcpEnvironment } = await import('./agentDrivers.ts')
-  for (const host of ['codex', 'copilot-cli', 'devin-cli', 'antigravity-acp', 'grok', 'muse']) {
+  for (const host of ['codex', 'copilot-cli', 'devin-cli', 'antigravity-cli', 'grok', 'muse']) {
     assert.deepEqual(mcpEnvironment(host, 'ws', 'turn'), { AMBIO_WORKSPACE_ID: 'ws' })
   }
   assert.deepEqual(mcpEnvironment('claude-code', 'ws', 'turn'), { AMBIO_WORKSPACE_ID: 'ws', AMBIO_RUN_MESSAGE_ID: 'turn' })

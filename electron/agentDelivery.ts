@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { detectEditors } from './fileAccess.ts'
 import { processStartIdentity, resolveNodeCommand } from './platformPaths.ts'
-import { CLI_CLIENTS, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
+import { CLI_CLIENTS, currentClientId, type AgentAccess, type DeliveryEvent, type DeliveryHost, type DeliveryRun } from '../src/shared/agentDelivery.ts'
 import { DRIVER_CLI_NAMES, agentDriver, type AgentDriver, type DriverPlan, type TurnMode } from './agentDrivers.ts'
 import { AcpClient, type AcpTurn } from './acpClient.ts'
 import { MuseClient, type MuseTurn } from './museClient.ts'
@@ -97,7 +97,7 @@ export function findDeliveryCli(hostId: string, env = process.env, platform = pr
     try { dirs.push(...fs.readdirSync(versions).sort().reverse().map(version => join(versions, version, 'bin'))) } catch { /* manager not installed */ }
   }
   if (platform === 'win32') dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'Microsoft', 'WinGet', 'Links'))
-  if (hostId.startsWith('antigravity-')) dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'agy', 'bin'))
+  if (hostId === 'antigravity-cli') dirs.push(join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'agy', 'bin'))
   for (const dir of dirs) {
     // Editor/desktop apps inject their private Codex into agent sessions' PATH.
     // Its presence does not establish a standalone CLI installation.
@@ -174,7 +174,6 @@ export function selectedDeliveryCli(hostId: string, file: string, platform = pro
     if (!isAbsolute(file) || !fs.statSync(file).isFile()) throw new Error()
     fs.accessSync(file, /\.(?:[cm]?js|cmd|bat|ps1)$/i.test(file) ? fs.constants.R_OK : process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
   } catch { throw new Error('The selected CLI file is missing, inaccessible, or not executable. Locate it again.') }
-  if (hostId === 'antigravity-acp' && !CLI_NAMES[hostId].some(name => [name, `${name}.exe`].includes(basename(file)))) throw new Error('Antigravity ACP now uses agy (CLI 1.5 or newer). Locate agy to update this connection.')
   if (/\.(?:cmd|bat|ps1)$/i.test(file)) {
     const pkg = NPM_PACKAGES[hostId]
     const packageDir = pkg && join(dirname(file), 'node_modules', pkg.name)
@@ -292,7 +291,16 @@ export class DeliveryRunner {
   private eventsFile(key: string): string { return join(this.directory, `${key}.events.jsonl`) }
   private sessionsFile(): string { return join(this.directory, 'sessions.json') }
   private sessions(): Record<string, string> {
-    try { const value = JSON.parse(fs.readFileSync(this.sessionsFile(), 'utf8')); return value && typeof value === 'object' ? value : {} } catch { return {} }
+    let value: unknown
+    try { value = JSON.parse(fs.readFileSync(this.sessionsFile(), 'utf8')) } catch { return {} }
+    if (!value || typeof value !== 'object') return {}
+    // A session saved under a retired client continues under the one that replaced it.
+    return Object.fromEntries(Object.entries(value).map(([key, session]) => {
+      try {
+        const [workspaceId, threadId, hostId] = JSON.parse(key) as [string, string, string]
+        return [this.sessionKey(workspaceId, threadId, currentClientId(hostId)), session]
+      } catch { return [key, session] }
+    }))
   }
   private sessionKey(workspaceId: string, threadId: string, hostId: string): string { return JSON.stringify([workspaceId, threadId, hostId]) }
   /** The host session an earlier turn of this conversation ran in, if any. */
@@ -302,7 +310,7 @@ export class DeliveryRunner {
   /** Old Antigravity CLI receipts retain print, including after a restart. */
   conversationTransport(workspaceId: string, threadId: string, hostId: string): 'acp' | 'print' | undefined {
     const run = this.list(workspaceId).filter(run => run.threadId === threadId && run.hostId === hostId).sort((a, b) => a.startedAt - b.startedAt)[0]
-    return run ? run.transport ?? (hostId === 'antigravity-acp' ? 'acp' : 'print') : undefined
+    return run ? run.transport ?? 'print' : undefined
   }
   /** Legacy Codex conversations keep exec; new ones prefer native App Server. */
   codexTransport(workspaceId: string, threadId: string): DeliveryRun['codexTransport'] {
@@ -371,8 +379,10 @@ export class DeliveryRunner {
     if (!fs.existsSync(this.directory)) return []
     return fs.readdirSync(this.directory).filter(name => /^[a-f0-9]{64}\.json$/.test(name)).flatMap(name => {
       try {
-        const run = JSON.parse(fs.readFileSync(join(this.directory, name), 'utf8')) as DeliveryRun
-        if (run.workspaceId !== workspaceId) return []
+        const saved = JSON.parse(fs.readFileSync(join(this.directory, name), 'utf8')) as DeliveryRun
+        if (saved.workspaceId !== workspaceId) return []
+        // The Antigravity ACP agent's runs belong to Antigravity CLI conversations on its ACP connection.
+        const run = saved.hostId === 'antigravity-acp' ? { ...saved, hostId: currentClientId(saved.hostId), transport: saved.transport ?? 'acp' as const } : saved
         if (['starting', 'running', 'stopping'].includes(run.state) && !this.live.has(run.key)) return [{ ...run, state: 'interrupted' as const, detail: 'Ambio restarted during this run. Check the agent and its output before handing off again.' }]
         return [run]
       } catch { return [] }

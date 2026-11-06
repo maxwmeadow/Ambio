@@ -7,6 +7,9 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- "Antigravity ACP agent" is gone from the agent list: Antigravity CLI already
+  uses Antigravity's interactive connection for the models it offers.
+  Conversations started with the old entry continue under Antigravity CLI.
 - Project mapping's live log now reads like the conversation: the agent's text
   appears once, as it finishes writing it; each command and file shows whether
   it ran, finished or failed; Claude Code, Codex and Antigravity tools get the

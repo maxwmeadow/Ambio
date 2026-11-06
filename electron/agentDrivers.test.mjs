@@ -72,7 +72,7 @@ test('agents Ambio runs get every permission they offer; a question or a proposa
 test('every destination the picker can show explains how to use it', async () => {
   const { DESTINATION_GUIDE } = await import('../src/shared/agentDelivery.ts')
   const { buildHosts } = await import('./agentInstallers.ts')
-  for (const id of [...buildHosts().map(host => host.id), 'cursor-cli', 'devin-cli', 'antigravity-acp', 'antigravity-cli', '@watching', '']) {
+  for (const id of [...buildHosts().map(host => host.id), 'cursor-cli', 'devin-cli', 'antigravity-cli', '@watching', '']) {
     assert.ok(DESTINATION_GUIDE[id]?.how.length && DESTINATION_GUIDE[id].can.length && DESTINATION_GUIDE[id].need.length, `no guide for ${id || 'manual'}`)
   }
 })

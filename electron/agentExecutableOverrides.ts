@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { basename, isAbsolute, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { CLI_CLIENTS } from '../src/shared/agentDelivery.ts'
+import { CLI_CLIENTS, currentClientId } from '../src/shared/agentDelivery.ts'
 import { selectedDeliveryCli } from './agentDelivery.ts'
 import { DRIVER_CLI_NAMES } from './agentDrivers.ts'
 
@@ -18,7 +18,12 @@ export function readExecutableOverrides(directory: string): Record<string, strin
     throw new Error('Could not read saved CLI locations. Check agent-executable-overrides.json and retry.')
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Saved CLI locations are invalid. Check agent-executable-overrides.json and retry.')
-  return Object.fromEntries(Object.entries(value).filter(([id, file]) => known(id) && typeof file === 'string' && isAbsolute(file)))
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && isAbsolute(entry[1]))
+  // A retired client's location carries over only when it is the remaining
+  // client's own executable (not the old agy_acp_server), and never over a newer choice.
+  const carried = entries.filter(([id, file]) => currentClientId(id) !== id && DRIVER_CLI_NAMES[currentClientId(id)]?.some(name => [name, `${name}.exe`].includes(basename(file))))
+    .map(([id, file]): [string, string] => [currentClientId(id), file])
+  return Object.fromEntries([...carried, ...entries.filter(([id]) => known(id))])
 }
 
 function save(directory: string, values: Record<string, string>): void {
@@ -33,20 +38,13 @@ function save(directory: string, values: Record<string, string>): void {
 const VERSION: Record<string, RegExp> = {
   'claude-code': /claude\s*code/i, codex: /codex/i, 'copilot-cli': /github\s+copilot|copilot-cli/i,
   'cursor-cli': /cursor/i, 'devin-cli': /devin/i,
-  'antigravity-cli': /antigravity|\bagy\b/i, 'antigravity-acp': /antigravity|agy|acp/i,
+  'antigravity-cli': /antigravity|\bagy\b/i,
 }
 
 /** Only a user-selected CLI is run for validation, with a bounded --version probe. */
 export async function setExecutableOverride(directory: string, hostId: string, file: string): Promise<{ ok: boolean; detail: string; path?: string }> {
   try {
     const launcher = selectedDeliveryCli(hostId, file)
-    // ACP discovery must not require a version flag or start a long-lived
-    // protocol session. The run checks the handshake.
-    if (hostId === 'antigravity-acp') {
-      if (!DRIVER_CLI_NAMES[hostId].some(name => [name, `${name}.exe`].includes(basename(file)))) throw new Error('Choose agy (Antigravity CLI 1.5 or newer) for the Antigravity ACP agent.')
-      save(directory, { ...readExecutableOverrides(directory), [hostId]: file })
-      return { ok: true, detail: 'ACP executable located. Protocol compatibility is checked when starting a session.', path: file }
-    }
     const version = await new Promise<string>((resolve, reject) => {
       const child = spawn(launcher.command, [...launcher.args, '--version'], {
         shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],

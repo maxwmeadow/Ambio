@@ -179,3 +179,15 @@ test('transport receipts survive restart and pre-upgrade CLI conversations mean 
   assert.equal(runner.conversationTransport('ws', 'new', 'antigravity-cli'), 'acp')
   assert.equal(runner.conversationTransport('other', 'new', 'antigravity-cli'), undefined)
 })
+
+test('the retired Antigravity ACP agent\'s conversations continue as Antigravity CLI over ACP', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ambio-agy-retired-'))
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  // Receipts from before transports were recorded carry none; the ACP agent always meant ACP.
+  fs.writeFileSync(path.join(root, `${'c'.repeat(64)}.json`), JSON.stringify({ workspaceId: 'ws', hostId: 'antigravity-acp', threadId: 'acp', state: 'completed', startedAt: 1 }))
+  fs.writeFileSync(path.join(root, 'sessions.json'), JSON.stringify({ [JSON.stringify(['ws', 'acp', 'antigravity-acp'])]: 'agy-session' }))
+  const runner = new DeliveryRunner(root)
+  assert.deepEqual(runner.list('ws').map(run => [run.hostId, run.transport]), [['antigravity-cli', 'acp']])
+  assert.equal(runner.conversationTransport('ws', 'acp', 'antigravity-cli'), 'acp')
+  assert.equal(runner.session('ws', 'acp', 'antigravity-cli'), 'agy-session')
+})

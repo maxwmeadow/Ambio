@@ -220,7 +220,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
   // The model menu offers what the agent this message goes to can use.
   const runHost = !toChat && deliveryHost?.route === 'run' && !delivery.watchingHosts.includes(deliveryHost.id) ? deliveryHost : undefined
   const conversationRun = delivery.runs.filter(run => run.threadId === currentThreadId && run.hostId === runHost?.id).sort((a, b) => b.startedAt - a.startedAt)[0]
-  const conversationTransport = conversationRun ? conversationRun.transport ?? (runHost?.id === 'antigravity-acp' ? 'acp' : 'print') : undefined
+  const conversationTransport = conversationRun ? conversationRun.transport ?? 'print' : undefined
   const codexRun = delivery.runs.filter(run => run.threadId === currentThreadId && run.hostId === 'codex').sort((a, b) => a.startedAt - b.startedAt)[0]
   const selectedCodexTransport = codexRun ? codexRun.codexTransport ?? 'exec' : codexTransport
   const agentModel = useAgentModel({
@@ -232,7 +232,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     context: `${graph.workspaceId}:${currentThreadId ?? 'new'}`,
   })
   // Exec Codex and Antigravity's print route run with full access and offer no choice.
-  const antigravityRoute = runHost?.id.startsWith('antigravity-') ? conversationTransport ?? agentModel.options.find(option => option.id === agentModel.value)?.transport ?? (runHost.id === 'antigravity-acp' ? 'acp' : 'print') : undefined
+  const antigravityRoute = runHost?.id === 'antigravity-cli' ? conversationTransport ?? agentModel.options.find(option => option.id === agentModel.value)?.transport ?? 'print' : undefined
   const agentAccess = useAgentAccess(runHost, (runHost?.id === 'codex' && selectedCodexTransport === 'exec') || antigravityRoute === 'print' ? [] : undefined)
   // A worktree of its own is decided by a conversation's first turn (later
   // turns stay where it started), and only for an agent Ambio starts.
@@ -482,7 +482,7 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><AgentAccessMenu access={agentAccess} disabled={locked || inProgress} /><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
           worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} /></>}{caseTarget && <span>{sendingCase ? 'Sending…' : 'Investigation feedback'}</span>}{inProgress && <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>}{(!inProgress || caseTarget || steering) && <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={caseTarget ? sendingCase || !caseAvailable || !note.trim() : sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
-      {!caseTarget && runHost?.id.startsWith('antigravity-') && <small className="ambio-inbox__transport" role="status">{routeMismatch ? 'Start a new conversation to use this model.' : antigravityRoute === 'acp' ? agentAccess.value === 'ask' ? 'Gemini connection · approvals appear here unless Antigravity’s own settings allow the step.' : 'Gemini connection.' : 'Full access · Antigravity runs without permission prompts.'}</small>}
+      {!caseTarget && runHost?.id === 'antigravity-cli' &&<small className="ambio-inbox__transport" role="status">{routeMismatch ? 'Start a new conversation to use this model.' : antigravityRoute === 'acp' ? agentAccess.value === 'ask' ? 'Gemini connection · approvals appear here unless Antigravity’s own settings allow the step.' : 'Gemini connection.' : 'Full access · Antigravity runs without permission prompts.'}</small>}
       {!caseTarget && effectiveSelection.length > 100 && <small className="ambio-inbox__limit" role="alert">Attach up to 100 canvas items per message.</small>}
     </div>
   </aside>
