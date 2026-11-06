@@ -17,7 +17,7 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
   fs.mkdirSync(extension, { recursive: true })
   fs.writeFileSync(path.join(extension, 'package.json'), '{}')
   const script = path.join(home, 'custom codex.js')
-  fs.writeFileSync(script, 'console.log("codex-cli 1.2.3")')
+  fs.copyFileSync(path.join(__dirname, 'fixtures', 'codex-app-server.cjs'), script)
   const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
   const launch = () => electron.launch({ args: ['.'], env: {
     ...env, HOME: home, USERPROFILE: home, APPDATA: roaming, LOCALAPPDATA: local,
@@ -136,15 +136,17 @@ test('setup keeps every client visible and locates, persists, rechecks and clear
     await expect(page.getByRole('button', { name: /^Map with Codex CLI/ })).toBeEnabled()
     const target = await page.evaluate(() => window.ambio.listDeliveryHosts().then(hosts => hosts.find(host => host.id === 'codex')))
     expect(target?.executableOverride).toBe(script)
-    // Actual delivery uses the same remembered executable, with literal stdin.
-    fs.writeFileSync(script, 'const fs=require("fs");if(process.argv.includes("--version")){console.log("codex-cli 1.2.3")}else{fs.writeFileSync("delivered.json",JSON.stringify({args:process.argv.slice(2),prompt:fs.readFileSync(0,"utf8"),workspace:process.env.AMBIO_WORKSPACE_ID}));}')
+    // Start the default App Server route through the remembered executable.
     await app.evaluate(() => {
       ;(globalThis as any).fetch = async () => new Response(JSON.stringify({ id: 'discovery-order', workspaceId: 'demo', deliveryMode: 'addressed', status: 'queued', mode: 'ask' }))
     })
     await page.evaluate(() => window.ambio.deliverWorkOrder({ workspaceId: 'demo', messageId: 'discovery-order', hostId: 'codex' }))
-    await expect.poll(() => fs.existsSync(path.join(root, 'delivered.json'))).toBe(true)
-    const delivered = JSON.parse(fs.readFileSync(path.join(root, 'delivered.json'), 'utf8'))
-    expect(delivered.workspace).toBe('demo'); expect(delivered.prompt).toContain('discovery-order')
+    const capture = path.join(root, 'captured-codex.json')
+    await expect.poll(() => fs.existsSync(capture)).toBe(true)
+    const delivered = JSON.parse(fs.readFileSync(capture, 'utf8'))
+    expect(delivered.args).toContain('app-server')
+    expect(delivered.workspace).toBe('demo')
+    expect(delivered.prompt).toContain('discovery-order')
     await page.screenshot({ path: 'test-results/agent-discovery-located.png' })
 
     await app.close()

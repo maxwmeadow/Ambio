@@ -23,6 +23,11 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       await page.route(/^http:\/\/127\.0\.0\.1:\d+\//, route => route.fulfill({ json: [] }))
       const url = new URL(page.url()); url.searchParams.delete('home'); await page.goto(url.toString())
       await page.waitForFunction(() => Boolean((window as any).__ambioGraphStore))
+      if (mode === 'floor') {
+        // Finish the bundled fixture's entrance before simulating a live snapshot.
+        await expect(page.locator('.react-flow__node').first()).toBeVisible()
+        await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
+      }
       const templates = await page.evaluate(() => { const state = (window as any).__ambioGraphStore.getState(); return { system: state.systems[0], file: state.files[0] } })
       const snapshot = canvasDenseFixture(templates, Number(process.env.AMBIO_PAN_SYSTEMS ?? 96))
       const proposal = { id: 'pan-proposal', workspaceId: 'demo', currentRevision: 1, round: {
@@ -48,8 +53,14 @@ for (const mode of ['floor', 'review'] as const) for (const input of ['mouse', '
       await expect(canvas).toHaveAttribute('data-canonical-node-count', String(snapshot.systems.length + snapshot.files.length))
       await expect(canvas).not.toHaveAttribute('data-scene-preparing', 'true')
       if (mode === 'review') await expect(canvas).toHaveClass(/ambio-canvas-review-ready/)
+      // The injected Floor can sit outside the previous fixture's viewport.
+      // Fit uses canonical bounds even when culling has left no mounted nodes.
+      if (mode === 'floor') {
+        // Suppress the live-growth reframe during the explicit pan workload.
+        await canvas.locator('.react-flow').dispatchEvent('ambio:camera-navigation', { bubbles: true })
+        await page.getByRole('button', { name: 'Fit view', exact: true }).click()
+      }
       await expect(canvas.locator('.react-flow__node').first()).toBeVisible()
-      if (mode === 'floor') await page.getByRole('button', { name: 'Fit view', exact: true }).click()
       await page.waitForFunction(canvasViewportSettled, undefined, { polling: 'raf' })
       // Diagnostic-only CSS experiments are reported separately from app builds.
       if (process.env.AMBIO_PAN_STYLE) await page.addStyleTag({ content: process.env.AMBIO_PAN_STYLE })
