@@ -3,6 +3,7 @@ import type { AgentHostInfo, ConnectionTestResult } from '../../../electron/prel
 import { APP_CLIENTS, CLI_CLIENTS, type DeliveryHost } from '../../shared/agentDelivery'
 import { discoveryRequest } from './agentDiscovery'
 import { ConnectorLogo } from './ConnectorLogo'
+import { AgentAccessChoices } from './AgentAccess'
 import type { ModelServiceSetupRequest } from '../modelServiceNavigation'
 import { archdApi } from '../archdEndpoint.ts'
 import { agentConnectionState, sortAgentConnections, type AgentConnectionState, type AgentPresenceEntry } from './agentConnectionsModel.ts'
@@ -99,6 +100,11 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
     {target?.executableOverride && <> · <button type="button" className="ambio-agent-connections__link" disabled={!!busy} onClick={() => void executableAction(id, true)}>Use automatic detection</button></>}
   </div>
 
+  // The same per-agent level the conversation's guide asks for (DECISIONS 2026-11-05).
+  const accessDetails = (target: DeliveryHost | undefined) => target?.access?.length
+    ? <section className="ambio-agent-connections__access" aria-label={`Permissions for ${target.label}`}><AgentAccessChoices host={target} compact /></section>
+    : null
+
   const act = async (host: AgentHostInfo, key: string, run: () => Promise<{ ok: boolean; detail: string }>, after?: string) => {
     setBusy(`${key}:${host.id}`); setArmed('')
     try {
@@ -192,6 +198,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
 
         {note && <p className={`ambio-agent-connections__note${note.ok ? '' : ' ambio-agent-connections__note--failed'}`} role="status">{note.text}</p>}
         {host.modality === 'cli' && executableDetails(target, host.id)}
+        {host.modality === 'cli' && accessDetails(target)}
 
         {expanded && (
           <div className="ambio-agent-connections__details">
@@ -322,6 +329,7 @@ export function AgentConnections({ workspaceId, projectRoot, projectName, onGuid
                 <div className="ambio-agent-connections__identity"><strong>{target.label}</strong><small>{target.available ? 'CLI found · sign in before running' : target.discoveryError ? 'Could not use selected CLI' : 'Not found on this computer'}</small></div>
               </div>
               {executableDetails(target, target.id)}
+              {accessDetails(target)}
               {notes[target.id] && <p className="ambio-agent-connections__note" role="status">{notes[target.id].text}</p>}
             </li>)}
           </ul>

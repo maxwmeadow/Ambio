@@ -99,34 +99,55 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await destination.choose('codex')
     await expect(intro).toHaveAccessibleName('Before you use Codex CLI')
     await expect(intro).toContainText('Choose Codex and send.')
-    await expect(intro).toContainText('press the info button next to the agent in the message box')
+    // An agent Ambio runs is sent nothing until the person chooses what it may
+    // do without asking. Nothing is preselected; one level is recommended.
+    const codexAccess = intro.getByRole('group', { name: 'What Codex CLI may do without asking' })
+    await expect(codexAccess.getByRole('radio')).not.toHaveCount(0)
+    await expect(codexAccess.getByRole('radio', { checked: true })).toHaveCount(0)
+    await expect(codexAccess.locator('label', { hasText: 'Recommended' })).toHaveCount(1)
+    await expect(intro.getByRole('button', { name: 'Got it' })).toBeDisabled()
     await page.screenshot({ path: 'test-results/agent-delivery-introduction.png' })
+    await codexAccess.getByRole('radio', { name: /^Full access/ }).check()
     await confirm()
     await expect(intro).toBeHidden()
-    // The info button shows the same guide, and its picker is the destination picker.
-    await inbox.getByRole('button', { name: 'How each agent works here' }).click()
-    const guide = inbox.getByRole('dialog', { name: 'How each agent works here' })
+    // The message box keeps no info button or access menu; each agent's guide is on its row in the menu.
+    await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
+    await expect(inbox.getByRole('button', { name: 'How each agent works here' })).toHaveCount(0)
+    await destination.open()
+    await destination.menu.locator('[data-value="codex"]').hover()
+    await page.screenshot({ path: 'test-results/agent-menu-info.png' })
+    await destination.menu.getByRole('button', { name: 'About Codex CLI' }).click()
+    const guide = page.getByRole('dialog', { name: 'About Codex CLI' })
     const guidePicker = agentMenu(guide, 'Agent to read about')
     await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
-    await expect(guide).toContainText('Choose Codex and send.')
+    await expect(guide.getByRole('group', { name: 'What Codex CLI may do without asking' }).getByRole('radio', { name: /^Full access/ })).toBeChecked()
     await page.screenshot({ path: 'test-results/agent-delivery-guide.png' })
+    // Reading about another agent does not choose it; Use does.
     await guidePicker.choose('claude-code')
+    const claudeGuide = page.getByRole('dialog', { name: 'About Claude Code CLI' })
+    await expect(claudeGuide).toContainText('Choose Claude Code and send.')
+    await expect(destination.trigger).toHaveAttribute('data-value', 'codex')
+    const claudeAccess = claudeGuide.getByRole('group', { name: 'What Claude Code CLI may do without asking' })
+    await expect(claudeAccess.locator('label', { hasText: 'Recommended' })).toContainText('Auto')
+    await expect(claudeAccess.getByRole('radio')).toHaveCount(4)
+    await claudeAccess.getByRole('radio', { name: /^Ask me/ }).check()
+    await claudeGuide.getByRole('button', { name: 'Use Claude Code CLI' }).click()
     await expect(destination.trigger).toHaveAttribute('data-value', 'claude-code')
-    // A first choice made from the guide is introduced too.
-    await expect(intro).toHaveAccessibleName('Before you use Claude Code CLI')
-    await confirm()
+    // Read and given a level from its guide, it is not introduced again.
+    await expect(intro).toBeHidden()
     await destination.choose('codex')
     await expect(intro).toBeHidden()
-    await inbox.getByRole('button', { name: 'How each agent works here' }).click()
-    await expect(guidePicker.trigger).toHaveAttribute('data-value', 'codex')
+    await destination.open()
+    await destination.menu.getByRole('button', { name: 'About Codex CLI' }).click()
     await page.keyboard.press('Escape')
     await expect(guide).toBeHidden()
+    await expect(inbox).toBeVisible()
     for (const [host, label] of [['claude-code', 'Claude Code CLI'], ['codex', 'Codex CLI'], ['grok', 'Grok Build CLI'], ['muse', 'Muse Code CLI'], ['copilot-cli', 'GitHub Copilot CLI']]) {
       await destination.choose(host)
       if (['grok', 'muse', 'copilot-cli'].includes(host)) await confirm()
       // The agent pill keeps one shape whichever agent and model are chosen.
-      // Agents with an access level (Claude Code, Codex) show it beside the request
-      // type, so their pill gives up some room; nothing in it is cut off for that.
+      // Claude Code and Codex carry more beside the model, so their pill gives
+      // up some room; nothing in the row is cut off for that.
       if (host === 'claude-code' || host === 'codex') {
         const clipped = await inbox.locator('.ambio-inbox__compose-tools').evaluate(tools => [...tools.querySelectorAll<HTMLElement>('.ambio-inbox__mode-button, .ambio-inbox__model-label')].filter(item => item.scrollWidth > item.clientWidth + 1).map(item => item.textContent))
         expect(clipped).toEqual([])
@@ -143,15 +164,8 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
         await page.screenshot({ path: 'test-results/model-menu.png' })
         await inbox.getByRole('menuitemradio', { name: 'Opus' }).click()
         await expect(inbox.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
-        // How much it may do without asking: full access until chosen, then remembered.
-        await inbox.getByRole('button', { name: 'Access: Full access' }).click()
-        await expect(inbox.getByRole('menu', { name: 'What the agent may do without asking' }).getByRole('menuitemradio')).toHaveText([/^Ask me/, /^Allow edits/, /^Auto/, /^Full access/])
-        await page.screenshot({ path: 'test-results/access-menu.png' })
-        await inbox.getByRole('menuitemradio', { name: 'Ask me' }).click()
-        await expect(inbox.getByRole('button', { name: 'Access: Ask me' })).toBeVisible()
         await page.locator('.ambio-inbox__compose').screenshot({ path: 'test-results/composer-claude.png' })
-      } else if (host === 'codex') await expect(inbox.getByRole('button', { name: 'Access: Full access' })).toBeVisible()
-      else if (host !== 'claude-code') await expect(inbox.getByRole('button', { name: /^Access:/ })).toHaveCount(0)
+      }
       await inbox.getByRole('textbox', { name: 'Instruction for your agent' }).fill(`Handle only the ${host} fixture.`)
       const sentBefore = orders.length
       await inbox.locator('form').getByRole('button', { name: `Start ${label}` }).click()

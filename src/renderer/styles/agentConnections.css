@@ -162,6 +162,7 @@
 
 .ambio-agent-connections__hint { margin: 8px 0 0; color: #5f6b66; font-size: 12px; }
 .ambio-agent-connections__host > .ambio-agent-connections__hint { margin: 0; padding: 0 14px 14px; }
+.ambio-agent-connections__access { padding: 0 14px 14px; }
 
 .ambio-agent-connections__remove {
   display: flex;

@@ -7,6 +7,12 @@ in the app as "What's New" after updating, so write it for users.
 
 ## [Unreleased]
 
+- The message box is less crowded: the access menu and the info button are
+  gone from it. The first time you pick an agent Ambio runs, its guide asks
+  what it may do without asking (Auto is recommended where the agent has it,
+  Full access otherwise) and nothing is picked for you. To read a guide again
+  or change the level, hover over the agent in the agent menu and press its
+  info button, or open Settings → Agents and select the client.
 - Antigravity CLI's calls to Ambio's tools now show which tool and what it
   was asked to do (for example "edit_systems · abort_session") in the
   conversation and the mapping log, instead of a bare "call_mcp_tool".

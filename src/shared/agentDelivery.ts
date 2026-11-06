@@ -79,10 +79,24 @@ export const AGENT_ACCESS: { id: AgentAccess; label: string; hint: string }[] = 
   { id: 'full', label: 'Full access', hint: 'Everything runs without asking. Use it on projects and computers you trust.' },
 ]
 
-/** Full access until the user picks a level (DECISIONS 2026-10-19, 2026-11-04). */
-export const DEFAULT_AGENT_ACCESS: AgentAccess = 'full'
-
 export const isAgentAccess = (value: unknown): value is AgentAccess => AGENT_ACCESS.some(level => level.id === value)
+
+/**
+ * The level suggested when an agent is first chosen, never preselected: the
+ * agent's own safety check where it has one, else full access (DECISIONS
+ * 2026-11-05).
+ */
+export function recommendedAgentAccess(levels: AgentAccess[]): AgentAccess | undefined {
+  return levels.includes('auto') ? 'auto' : levels.includes('full') ? 'full' : levels[0]
+}
+
+/** Where an agent words a level its own way. */
+export function agentAccessDescriptions(hostId: string): Partial<Record<AgentAccess, string>> | undefined {
+  return hostId === 'codex' ? {
+    ask: 'Codex works inside the project sandbox and asks here when an action needs more access. Ask and Propose stay read-only.',
+    auto: 'Codex keeps the same sandbox; its native safety reviewer decides requests for more access. Routine actions inside the sandbox run without review.',
+  } : undefined
+}
 
 export interface DeliveryRun {
   codexTransport?: CodexTransport
@@ -292,7 +306,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     can: [
       'Ask and Propose: reads your code and map and can run commands, with its file-editing tools switched off.',
       'Build: edits files and runs commands, then hands the result back for review.',
-      'Choose how much it may do without asking beside the model: Ask me, Allow edits, Auto (Claude’s own safety check) or Full access. Its questions appear in the conversation; no answer within about two minutes is a no.',
+      'You choose how much it may do without asking: Ask me, Allow edits, Auto (Claude’s own safety check) or Full access. Its questions appear in the conversation; no answer within about two minutes is a no.',
       'While it works you can send it more: your message joins the turn under way.',
       'It uses the MCP servers you set up in Claude Code as well as Ambio’s.',
     ],
@@ -303,7 +317,7 @@ export const DESTINATION_GUIDE: Record<string, DestinationGuide> = {
     can: [
       'Ask and Propose: can read and run anything to answer, and is told not to change files.',
       'Build: full access with no sandbox. It edits files and runs any command without asking, then hands the result back for review.',
-      'Full access is the default. Ask me in Codex options asks here before commands on Windows; on macOS/Linux, Build uses a project sandbox and asks for extra access. Ask and Propose keep their platform-specific restrictions.',
+      'You choose how much it may do without asking. At Ask me, Build uses a project sandbox and asks here for extra access; Ask and Propose keep their platform-specific restrictions.',
     ],
   },
   'copilot-cli': {

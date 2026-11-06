@@ -18,7 +18,7 @@ import { conversationWorkplace, focusedCheckout } from './checkoutModel'
 import { CHAT_DELIVERY, WATCHING_DELIVERY, deliveryReadiness, type AgentAccess, type ModelOption } from '../../shared/agentDelivery'
 import { chatModels } from '../../shared/agentChat'
 import { AgentModelMenu, AgentThinkingSelect, useAgentModel } from './AgentModelMenu'
-import { AgentAccessMenu, useAgentAccess } from './AgentAccessMenu'
+import { useAgentAccess } from './AgentAccess'
 import { decideAgentPermission, refreshAgentPermissions, useAgentPermissionStore, type AgentPermissionRequest, type AgentQuestion } from '../store/agentPermissionStore'
 import { WorkOrderCodeChecks } from './WorkOrderCodeChecks'
 import { ChatTranscript, chatAgentLabel, chatThreadId, OPEN_MODEL_SERVICES, useAgentChat } from './AgentChatPanel'
@@ -318,6 +318,8 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
     if (inProgress && !toChat) return
     if (routeMismatch) { setError('Start a new conversation to use this model. This conversation keeps its Gemini connection.'); return }
     if (!retry.current && attachedSheetId && !attachedSheet) { setError('This attached sheet is no longer available. Remove it before sending.'); return }
+    // The agent's guide is open asking for a level; nothing runs at one nobody chose.
+    if (!retry.current && !toChat && agentAccess.needsChoice) return
     if (toChat) {
       // Ambio chat streams its turn here; a Build still becomes a reviewable work order.
       if (chat.running) return
@@ -476,10 +478,10 @@ export function SendToAgentDialog({ isOpen, onClose, onManageConnections, onResi
         </div><AgentDeliveryDestination hosts={delivery.hosts} hostId={retry.current?.hostId ?? (delivery.hostId.startsWith(`${CHAT_DELIVERY}:`) && !chatProvider ? '' : delivery.hostId)} installedIds={delivery.installedIds} watchers={delivery.watchers} watchingHosts={delivery.watchingHosts} onChange={delivery.setHostId} disabled={locked || !!delivery.busy || inProgress} rootPath={graph.rootPath} onManageConnections={onManageConnections}
           chatServices={current ? undefined : chat.providers.map(provider => ({ id: provider.id, label: chatAgentLabel(provider, provider.model) }))}
           onSetUpChat={() => window.dispatchEvent(new Event(OPEN_MODEL_SERVICES))}
-          fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined}>
+          fixed={chatCurrent ? { label: chatAgentLabel(chatProvider, chatCurrent.model), guideId: CHAT_DELIVERY } : undefined} access={agentAccess}>
           <AgentModelMenu model={agentModel} disabled={locked || inProgress} />
           <AgentThinkingSelect model={agentModel} disabled={locked || inProgress} />
-        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><AgentAccessMenu access={agentAccess} disabled={locked || inProgress} /><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
+        </AgentDeliveryDestination><span>{retry.current && !sending ? 'Send unconfirmed · retry' : steering && sending ? `${workingLabel} reads it at its next step…` : sending || chat.busy ? 'Sending…' : ''}</span><WorkOrderModeMenu mode={mode} disabled={locked || inProgress} onChange={value => { setMode(value); textarea.current?.focus() }}
           worktree={worktreeOffered ? { on: delivery.where === 'worktree', onChange: on => delivery.setWhere(on ? 'worktree' : 'here') } : undefined} /></>}{caseTarget && <span>{sendingCase ? 'Sending…' : 'Investigation feedback'}</span>}{inProgress && <button className="ambio-inbox__send ambio-inbox__stop" type="button" aria-label="Stop" title="Stop this request" disabled={chat.busy} onClick={() => { void stopTurn() }}><InboxIcon name="stop" size={15} /></button>}{(!inProgress || caseTarget || steering) && <button className="ambio-inbox__send" type="submit" aria-label={sendLabel} title={retry.current ? 'Retry original message' : sendLabel} disabled={caseTarget ? sendingCase || !caseAvailable || !note.trim() : sending || !!delivery.busy || chat.busy || !(retry.current?.note ?? note).trim() || effectiveSelection.length > 100}><InboxIcon name={retry.current && !sending ? 'retry' : 'send'} size={19} /></button>}</div>
       </form>
       {!caseTarget && runHost?.id === 'antigravity-cli' &&<small className="ambio-inbox__transport" role="status">{routeMismatch ? 'Start a new conversation to use this model.' : antigravityRoute === 'acp' ? agentAccess.value === 'ask' ? 'Gemini connection · approvals appear here unless Antigravity’s own settings allow the step.' : 'Gemini connection.' : 'Full access · Antigravity runs without permission prompts.'}</small>}

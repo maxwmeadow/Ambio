@@ -814,7 +814,9 @@ command's output and exit code (Claude reports a failed command as an error
 result starting "Exit code N") and an edit's diff from
 `tool_use_result.structuredPatch`; the turn's `result` carries its usage, kept
 on the run like Codex's (per turn, not a thread total). A driver's `access` lists the levels it honours (`AgentAccess`,
-chosen in the shared `AgentAccessMenu`, remembered per agent);
+remembered per agent by `AgentAccess.tsx` and chosen with `AgentAccessChoices`
+in the agent's guide or Settings → Agents; nothing is preselected, and the
+composer sends nothing while `useAgentAccess` reports `needsChoice`);
 `claudePermissions` maps them to Claude's permission modes and its prompt
 tool, and native Codex maps Ask me to `on-request` with the human reviewer,
 qualified Auto to `on-request` with `auto_review`, and Full access to `never`. An exec Codex conversation offers no choice and refuses one. A session told to watch

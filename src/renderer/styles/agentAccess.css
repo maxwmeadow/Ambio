@@ -1,0 +1,15 @@
+/* How much an agent may do without asking: in its guide and in Settings → Agents. */
+.ambio-access-choice { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; color: #26362d; font: 13px/1.45 var(--font-ui, sans-serif); }
+.ambio-access-choice legend { margin-bottom: 8px; padding: 0; color: #2f6a5d; font: 700 10px var(--font-mono, monospace); letter-spacing: .1em; text-transform: uppercase; }
+.ambio-access-choice__option { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid #c9d3c8; background: #fbfaf5; cursor: pointer; }
+.ambio-access-choice__option:hover { border-color: #6e9183; }
+.ambio-access-choice__option:has(input:checked) { border-color: #2f6a5d; background: #e3eee7; box-shadow: inset 3px 0 0 #2f6a5d; }
+.ambio-access-choice__option input { margin: 2px 0 0; accent-color: #2f6a5d; }
+.ambio-access-choice__option input:focus-visible { outline: 2px solid #69a799; outline-offset: 2px; }
+.ambio-access-choice__option span { display: grid; gap: 2px; min-width: 0; }
+.ambio-access-choice__option strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
+.ambio-access-choice__option em { padding: 1px 6px; color: #f4f8f0; background: #2f6a5d; font: 700 9px/1.5 var(--font-mono, monospace); font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
+.ambio-access-choice__option small { color: #4c5d53; font-size: 12px; }
+.ambio-access-choice__note { margin: 0; padding: 6px 10px; color: #6b4a1e; background: #f5ead6; border: 1px solid #d9bf8f; font-size: 12px; }
+.ambio-access-choice--compact .ambio-access-choice__option { padding: 6px 8px; }
+.ambio-access-choice--compact .ambio-access-choice__option small { font-size: 11.5px; }

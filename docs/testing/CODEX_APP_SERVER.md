@@ -25,8 +25,8 @@ The pre-merge corrections are on `codex/unify-codex-fixes`, from local
   its exact turn ID as a precondition. Successful acknowledgement records the
   correction in the run; failure preserves the draft. Stop sends `turn/interrupt`
   before terminating the process tree after a bounded grace period.
-- The shared **AgentAccessMenu** is the only access picker. Full access remains
-  the default. Ask me selects `on-request` with a human reviewer; Auto selects
+- The shared **AgentAccessChoices** (the agent's guide and Settings → Agents) is
+  the only access picker; nothing is preselected (DECISIONS 2026-11-05). Ask me selects `on-request` with a human reviewer; Auto selects
   `on-request` with `auto_review`. Both retain a workspace-write sandbox for Build
   and a read-only sandbox for Ask/Propose, with network and temporary-directory
   exceptions off. Full access preserves the earlier platform policy.
