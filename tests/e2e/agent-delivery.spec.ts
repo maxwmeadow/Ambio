@@ -115,6 +115,7 @@ test('Send launches the selected CLI after saving, preserves failures, and suppo
     await expect(inbox.getByRole('button', { name: 'How each agent works here' })).toHaveCount(0)
     await destination.open()
     await destination.menu.locator('[data-value="codex"]').hover()
+    await destination.menu.getByRole('button', { name: 'About Codex CLI' }).hover()
     await page.screenshot({ path: 'test-results/agent-menu-info.png' })
     await destination.menu.getByRole('button', { name: 'About Codex CLI' }).click()
     const guide = page.getByRole('dialog', { name: 'About Codex CLI' })
